@@ -742,8 +742,7 @@ class XformPrimView:
         # Dummy array for scales (not modifying)
         scales_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
 
-        # Use cached fabricarray for world matrices
-        world_matrices = self._fabric_world_matrices
+        world_matrices = self._get_world_matrices_as_fabricarray()
 
         # Batch compose matrices with a single kernel launch
         # Note: world_matrices is a fabricarray on fabric_device, so we must launch on fabric_device
@@ -813,8 +812,7 @@ class XformPrimView:
         positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
         orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._device)
 
-        # Use cached fabricarray for world matrices
-        world_matrices = self._fabric_world_matrices
+        world_matrices = self._get_world_matrices_as_fabricarray()
 
         # Batch compose matrices on GPU with a single kernel launch
         # Note: world_matrices is a fabricarray on fabric_device, so we must launch on fabric_device
@@ -873,9 +871,7 @@ class XformPrimView:
             orientations_wp = wp.zeros((count, 4), dtype=wp.float32).to(self._device)
             scales_wp = self._fabric_dummy_buffer  # Always use dummy for scales
 
-        # Use cached fabricarray for world matrices
-        # This eliminates the 0.06-0.30ms variability from creating fabricarray each call
-        world_matrices = self._fabric_world_matrices
+        world_matrices = self._get_world_matrices_as_fabricarray()
 
         # Launch GPU kernel to decompose matrices in parallel
         # Note: world_matrices is a fabricarray on fabric_device, so we must launch on fabric_device
@@ -946,8 +942,7 @@ class XformPrimView:
         positions_wp = self._fabric_dummy_buffer
         orientations_wp = self._fabric_dummy_buffer
 
-        # Use cached fabricarray for world matrices
-        world_matrices = self._fabric_world_matrices
+        world_matrices = self._get_world_matrices_as_fabricarray()
 
         # Launch GPU kernel to decompose matrices in parallel
         # Note: world_matrices is a fabricarray on fabric_device, so we must launch on fabric_device
@@ -1096,11 +1091,6 @@ class XformPrimView:
         # Dummy array for unused outputs (always empty)
         self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
 
-        # Cache fabricarray for world matrices to avoid recreation overhead
-        # Refs: https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usdrt_prim_selection.html
-        #       https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/scenegraph_use.html
-        self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
-
         # Cache Fabric stage to avoid expensive get_current_stage() calls
         self._fabric_stage = fabric_stage
 
@@ -1111,6 +1101,24 @@ class XformPrimView:
         # Force a one-time USD->Fabric sync on first read to pick up any USD edits
         # made after the view was constructed.
         self._fabric_usd_sync_done = False
+
+    def _get_world_matrices_as_fabricarray(self) -> wp.fabricarray:
+        """Create a fresh fabricarray for world matrices.
+
+        Recreating both the PrimSelection and fabricarray on each write ensures Fabric's
+        journaling system marks the attribute as dirty, so downstream consumers (renderers)
+        observe the update.
+        """
+        import usdrt
+
+        sel = self._fabric_stage.SelectPrims(
+            require_attrs=[
+                (usdrt.Sdf.ValueTypeNames.UInt, self._view_index_attr, usdrt.Usd.Access.Read),
+                (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
+            ],
+            device=self._fabric_device,
+        )
+        return wp.fabricarray(sel, "omni:fabric:worldMatrix")
 
     def _sync_fabric_from_usd_once(self) -> None:
         """Sync Fabric world matrices from USD once, on the first read."""

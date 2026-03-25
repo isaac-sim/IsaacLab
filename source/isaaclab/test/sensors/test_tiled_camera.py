@@ -1620,7 +1620,10 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera, device):
     [(TiledCamera, TiledCameraCfg), (Camera, CameraCfg)],
     ids=["tiled", "non_tiled"],
 )
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", [
+    "cpu",
+    "cuda:0",
+    ])
 @pytest.mark.isaacsim_ci
 def test_camera_pose_update_reflected_in_render(setup_camera, device, camera_cls, cfg_cls):
     """Test that moving a camera is reflected in rendered depth.
@@ -1628,7 +1631,7 @@ def test_camera_pose_update_reflected_in_render(setup_camera, device, camera_cls
     Both camera types must produce different depth images when the
     camera is repositioned from close to far.
     """
-    sim, _, dt = setup_camera
+    sim, __unused_camera_cfg, dt = setup_camera
     cam_cfg = cfg_cls(
         prim_path="/World/PoseTestCam",
         height=128,
@@ -1660,12 +1663,7 @@ def test_camera_pose_update_reflected_in_render(setup_camera, device, camera_cls
         device=camera.device,
     )
     camera.set_world_poses_from_view(eyes_close, target)
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
+    sim.step()
     camera.update(dt)
     depth_close = camera.data.output["distance_to_camera"].clone()
 
@@ -1676,12 +1674,32 @@ def test_camera_pose_update_reflected_in_render(setup_camera, device, camera_cls
         device=camera.device,
     )
     camera.set_world_poses_from_view(eyes_far, target)
-    for _ in range(2):
-        sim.step()
+    sim.step()
     camera.update(dt)
     depth_far = camera.data.output["distance_to_camera"].clone()
 
     max_range = cam_cfg.spawn.clipping_range[1]
+
+    def _save_depth_image(depth: torch.Tensor, filename: str):
+        """Save a depth tensor as a min-max normalized grayscale PNG for visual comparison."""
+        img = depth[0].squeeze().cpu().float()
+        valid = img[img < max_range]
+        if valid.numel() > 0:
+            lo, hi = valid.min(), valid.max()
+            img = img.clamp(lo, hi)
+            img = (img - lo) / (hi - lo + 1e-6)
+        else:
+            img = img.clamp(0, max_range) / max_range
+        img = (img * 255).to(torch.uint8).numpy()
+        from PIL import Image
+
+        Image.fromarray(img, mode="L").save(filename)
+        print(f"[DEBUG] Saved depth image: {filename}")
+
+    cam_type = "tiled" if camera_cls is TiledCamera else "non_tiled"
+    _save_depth_image(depth_close, f"/tmp/depth_{cam_type}_{device}_close.png")
+    _save_depth_image(depth_far, f"/tmp/depth_{cam_type}_{device}_far.png")
+
     valid_close = depth_close[depth_close < max_range]
     valid_far = depth_far[depth_far < max_range]
 
