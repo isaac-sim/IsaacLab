@@ -1693,7 +1693,7 @@ def test_camera_pose_update_reflected_in_render(setup_camera, device, camera_cls
         img = (img * 255).to(torch.uint8).numpy()
         from PIL import Image
 
-        Image.fromarray(img, mode="L").save(filename)
+        Image.fromarray(img).save(filename)
         print(f"[DEBUG] Saved depth image: {filename}")
 
     cam_type = "tiled" if camera_cls is TiledCamera else "non_tiled"

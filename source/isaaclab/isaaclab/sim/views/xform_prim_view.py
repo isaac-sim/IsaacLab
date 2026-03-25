@@ -140,22 +140,11 @@ class XformPrimView:
         settings = SettingsManager.instance()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
 
-        # Check for unsupported Fabric + CPU combination
-        if self._use_fabric and self._device == "cpu":
-            logger.warning(
-                "Fabric mode with Warp fabric-array operations is not supported on CPU devices. "
-                "While Fabric itself can run on both CPU and GPU, our batch Warp kernels for "
-                "fabric-array operations require CUDA and are not reliable on the CPU backend. "
-                "To ensure stability, Fabric is being disabled and execution will fall back "
-                "to standard USD operations on the CPU. This may impact performance."
-            )
-            self._use_fabric = False
-
         # Check for unsupported Fabric + non-primary CUDA device combination.
         # USDRT SelectPrims and Warp fabric arrays only support cuda:0 internally.
         # When running on cuda:1 or higher, SelectPrims raises a C++ error regardless of
         # the device argument, because USDRT uses the active CUDA context (which is cuda:1).
-        if self._use_fabric and self._device not in ("cuda", "cuda:0"):
+        if self._use_fabric and self._device not in ("cpu", "cuda", "cuda:0"):
             logger.warning(
                 f"Fabric mode is not supported on device '{self._device}'. "
                 "USDRT SelectPrims and Warp fabric arrays only support cuda:0. "
