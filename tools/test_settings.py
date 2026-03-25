@@ -19,14 +19,6 @@ SHUTDOWN_GRACE_PERIOD = 60
 """Grace period [s] after the test report is written before killing the process.
 Used when tests finish but the process hangs during shutdown."""
 
-STARTUP_IDLE_TIMEOUT = 600
-"""Maximum time [s] to wait without any output before assuming the process is
-hung during startup (e.g. AppLauncher deadlock).  When triggered, the process
-is killed and retried up to ``MAX_STARTUP_RETRIES`` times."""
-
-MAX_STARTUP_RETRIES = 2
-"""Number of times to retry a test that appears to have hung during startup."""
-
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 1000,
     "test_stage_in_memory.py": 1000,
