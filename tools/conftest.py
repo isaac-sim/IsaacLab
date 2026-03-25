@@ -23,7 +23,7 @@ def pytest_ignore_collect(collection_path, config):
     return True
 
 
-def capture_test_output_with_timeout(cmd, timeout, env, report_file=None):
+def capture_test_output_with_timeout(cmd, timeout, env, report_file=None, idle_timeout=None):
     """Run a command with a timeout and stream captured output.
 
     Args:
@@ -33,14 +33,20 @@ def capture_test_output_with_timeout(cmd, timeout, env, report_file=None):
         report_file: Optional JUnit XML path used to detect test completion and
             apply a shorter shutdown grace period (defined in SHUTDOWN_GRACE_PERIOD
             in test_settings.py).
+        idle_timeout: Optional maximum time [seconds] to wait without receiving
+            any stdout/stderr output before assuming the process is hung (e.g.
+            during AppLauncher startup).  Ignored once a report file is detected.
 
     Returns:
-        Tuple of ``(returncode, stdout_data, stderr_data, timed_out)``.
+        Tuple of ``(returncode, stdout_data, stderr_data, timed_out, idle_timed_out)``.
         ``timed_out`` is ``True`` only when the test exceeds ``timeout``.
+        ``idle_timed_out`` is ``True`` when the process produced no output for
+        ``idle_timeout`` seconds (likely a startup hang).
     """
     stdout_data = b""
     stderr_data = b""
     report_detected_at = None
+    last_output_time = time.time()
 
     # Remove stale report so we can detect when the subprocess writes a new one.
     if report_file and os.path.exists(report_file):
@@ -98,10 +104,11 @@ def capture_test_output_with_timeout(cmd, timeout, env, report_file=None):
                     # We return 0 here intentionally: the process was still alive (hanging
                     # in cleanup) so process.returncode is -9 from our kill(), not a real
                     # test failure. Test results are captured in the XML report.
-                    return 0, stdout_data, stderr_data, False
+                    return 0, stdout_data, stderr_data, False, False
 
-            # Test timeout: tests themselves didn't finish in time.
-            elif now - start_time > timeout:
+            # Idle timeout: no output for too long — likely a startup hang
+            # (e.g. AppLauncher deadlock).  Only check before a report is written.
+            if idle_timeout is not None and report_detected_at is None and now - last_output_time > idle_timeout:
                 process.kill()
                 try:
                     remaining_stdout, remaining_stderr = process.communicate(timeout=5)
@@ -112,7 +119,21 @@ def capture_test_output_with_timeout(cmd, timeout, env, report_file=None):
                     remaining_stdout, remaining_stderr = process.communicate(timeout=1)
                     stdout_data += remaining_stdout
                     stderr_data += remaining_stderr
-                return -1, stdout_data, stderr_data, True  # -1 indicates timeout
+                return -1, stdout_data, stderr_data, False, True
+
+            # Test timeout: tests themselves didn't finish in time.
+            elif report_detected_at is None and now - start_time > timeout:
+                process.kill()
+                try:
+                    remaining_stdout, remaining_stderr = process.communicate(timeout=5)
+                    stdout_data += remaining_stdout
+                    stderr_data += remaining_stderr
+                except subprocess.TimeoutExpired:
+                    process.terminate()
+                    remaining_stdout, remaining_stderr = process.communicate(timeout=1)
+                    stdout_data += remaining_stdout
+                    stderr_data += remaining_stderr
+                return -1, stdout_data, stderr_data, True, False  # -1 indicates timeout
 
             # Check for available output
             try:
@@ -124,6 +145,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, report_file=None):
                             chunk = process.stdout.read(1024)
                             if chunk:
                                 stdout_data += chunk
+                                last_output_time = now
                                 # Print to stdout in real-time
                                 sys.stdout.buffer.write(chunk)
                                 sys.stdout.buffer.flush()
@@ -131,6 +153,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, report_file=None):
                             chunk = process.stderr.read(1024)
                             if chunk:
                                 stderr_data += chunk
+                                last_output_time = now
                                 # Print to stderr in real-time
                                 sys.stderr.buffer.write(chunk)
                                 sys.stderr.buffer.flush()
@@ -144,10 +167,10 @@ def capture_test_output_with_timeout(cmd, timeout, env, report_file=None):
         stdout_data += remaining_stdout
         stderr_data += remaining_stderr
 
-        return process.returncode, stdout_data, stderr_data, False
+        return process.returncode, stdout_data, stderr_data, False, False
 
     except Exception as e:
-        return -1, str(e).encode(), b"", False
+        return -1, str(e).encode(), b"", False, False
 
 
 def _create_error_test_suite(test_file, error_msg, details, elapsed_time=0):
@@ -219,11 +242,54 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         # Add the test file path last
         cmd.append(str(test_file))
 
-        # Run test with timeout and capture output
+        # Run test with timeout and capture output, retrying on startup hangs.
         report_file = f"tests/test-reports-{str(file_name)}.xml"
-        returncode, stdout_data, stderr_data, timed_out = capture_test_output_with_timeout(
-            cmd, timeout, env, report_file=report_file
-        )
+        idle_timeout = test_settings.STARTUP_IDLE_TIMEOUT
+
+        for attempt in range(test_settings.MAX_STARTUP_RETRIES + 1):
+            returncode, stdout_data, stderr_data, timed_out, idle_timed_out = capture_test_output_with_timeout(
+                cmd, timeout, env, report_file=report_file, idle_timeout=idle_timeout
+            )
+            if idle_timed_out and attempt < test_settings.MAX_STARTUP_RETRIES:
+                print(
+                    f"⚠️  No output for {idle_timeout}s — startup appears hung."
+                    f" Retrying ({attempt + 1}/{test_settings.MAX_STARTUP_RETRIES})..."
+                )
+                continue
+            break
+
+        if idle_timed_out:
+            print(
+                f"Test {test_file} hung during startup on all"
+                f" {test_settings.MAX_STARTUP_RETRIES + 1} attempts"
+                f" (no output for {idle_timeout}s each time)."
+            )
+            failed_tests.append(test_file)
+
+            error_suite = _create_error_test_suite(
+                test_file,
+                error_msg=(
+                    f"Test hung during startup ({test_settings.MAX_STARTUP_RETRIES + 1}"
+                    f" attempts, {idle_timeout}s idle timeout each)"
+                ),
+                details=(
+                    f"The test produced no output for {idle_timeout}s on each attempt,\n"
+                    "likely due to an AppLauncher/Isaac Sim startup deadlock.\n"
+                ),
+            )
+            hang_report = JUnitXml()
+            hang_report.add_testsuite(error_suite)
+            hang_report.write(report_file)
+
+            test_status[test_file] = {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 1,
+                "result": "FAILED",
+                "time_elapsed": idle_timeout * (test_settings.MAX_STARTUP_RETRIES + 1),
+            }
+            continue
 
         if timed_out:
             print(f"Test {test_file} timed out after {timeout} seconds...")
