@@ -24,7 +24,7 @@ def compute_desired_orientation(
         (num_envs, 4) desired orientation quaternion (wxyz).
     """
     # Desired z-axis (thrust direction)
-    b3_c = forces_w / torch.norm(forces_w, dim=1, keepdim=True)
+    b3_c = forces_w / (torch.norm(forces_w, dim=1, keepdim=True) + 1e-12)
 
     # Intermediate direction for yaw
     temp_dir = torch.zeros_like(forces_w)
@@ -33,7 +33,7 @@ def compute_desired_orientation(
 
     # Desired y-axis (orthogonal to thrust and yaw direction)
     b2_c = torch.cross(b3_c, temp_dir, dim=1)
-    b2_c = b2_c / torch.norm(b2_c, dim=1, keepdim=True)
+    b2_c = b2_c / (torch.norm(b2_c, dim=1, keepdim=True) + 1e-12)
 
     # Desired x-axis (complete right-handed frame)
     b1_c = torch.cross(b2_c, b3_c, dim=1)
