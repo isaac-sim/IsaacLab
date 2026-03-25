@@ -8,21 +8,23 @@
 # +------------------------------------+-----------------------------------------------------+
 # | Job                                | Gate (any match triggers the job)                   |
 # +------------------------------------+-----------------------------------------------------+
-# | test-isaaclab-tasks (x3 shards)    | isaaclab-tasks | infra                              |
+# | test-isaaclab-tasks (x3 shards)    | isaaclab-tasks | isaaclab-core | infra              |
 # | test-isaaclab-core (x3 shards)     | isaaclab-core | infra                               |
-# | test-isaaclab-rl                   | isaaclab-rl | infra                                 |
-# | test-isaaclab-mimic                | isaaclab-mimic | infra                              |
-# | test-isaaclab-contrib              | isaaclab-contrib | infra                            |
-# | test-isaaclab-teleop               | isaaclab-teleop | infra                             |
-# | test-isaaclab-visualizers          | isaaclab-visualizers | infra                        |
-# | test-isaaclab-assets               | isaaclab-assets | infra                             |
-# | test-isaaclab-newton               | isaaclab-newton | infra                             |
-# | test-isaaclab-physx                | isaaclab-physx | infra                              |
-# | test-environments-training         | isaaclab-tasks | infra                              |
-# | test-curobo (needs build-curobo)   | isaaclab-mimic | infra                              |
-# | test-skillgen (needs build-curobo) | isaaclab-mimic | isaaclab-tasks | infra             |
+# | test-isaaclab-rl                   | isaaclab-rl | isaaclab-core | infra                 |
+# | test-isaaclab-mimic                | isaaclab-mimic | isaaclab-core | infra              |
+# | test-isaaclab-contrib              | isaaclab-contrib | isaaclab-core | infra            |
+# | test-isaaclab-teleop               | isaaclab-teleop | isaaclab-core | infra             |
+# | test-isaaclab-visualizers          | isaaclab-visualizers | isaaclab-core | infra        |
+# | test-isaaclab-assets               | isaaclab-assets | isaaclab-core | infra             |
+# | test-isaaclab-newton               | isaaclab-newton | isaaclab-core | infra             |
+# | test-isaaclab-physx                | isaaclab-physx | isaaclab-core | infra              |
+# | test-environments-training         | isaaclab-tasks | isaaclab-core | infra              |
+# | test-curobo (needs build-curobo)   | isaaclab-mimic | isaaclab-core | infra              |
+# | test-skillgen (needs build-curobo) | isaaclab-mimic | isaaclab-tasks | isaaclab-core     |
+# |                                    |   | infra                                           |
 # | test-quarantined                   | vars.RUN_QUARANTINED_TESTS == "true"                |
-# | build-curobo                       | isaaclab-mimic | isaaclab-tasks | infra             |
+# | build-curobo                       | isaaclab-mimic | isaaclab-tasks | isaaclab-core     |
+# |                                    |   | infra                                           |
 # +------------------------------------+-----------------------------------------------------+
 
 name: Docker + Tests
@@ -227,6 +229,7 @@ jobs:
     if: >-
       needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
       needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+      needs.detect-changes.outputs.isaaclab-core == 'true' ||
       needs.detect-changes.outputs.infra == 'true'
     steps:
     - name: Checkout Code
@@ -258,6 +261,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -284,6 +288,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -310,6 +315,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -410,6 +416,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-rl == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -433,6 +440,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -456,6 +464,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-contrib == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -479,6 +488,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-teleop == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -502,6 +512,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-visualizers == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -525,6 +536,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-assets == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -548,6 +560,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-newton == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -571,6 +584,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-physx == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -595,6 +609,7 @@ jobs:
     if: >-
       always() && needs.build-curobo.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -622,6 +637,7 @@ jobs:
       always() && needs.build-curobo.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
         needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
@@ -670,6 +686,7 @@ jobs:
     if: >-
       always() && needs.build.result == 'success' && (
         needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
         needs.detect-changes.outputs.infra == 'true'
       )
     steps:
