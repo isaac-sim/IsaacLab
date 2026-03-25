@@ -107,6 +107,10 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
         ("physx", "isaacsim_rtx_renderer", "simple_shading_full_mdl"),
         id="physx-isaacsim_rtx-simple_shading_full_mdl",
     ),
+    pytest.param(
+        ("physx", "isaacsim_rtx_renderer", "semantic_segmentation"),
+        id="physx-isaacsim_rtx-semantic_segmentation",
+    ),
     # physx + newton_renderer (warp)
     pytest.param(
         ("physx", "newton_renderer", "rgb"),
@@ -140,6 +144,10 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
     pytest.param(
         ("newton", "isaacsim_rtx_renderer", "simple_shading_full_mdl"),
         id="newton-isaacsim_rtx-simple_shading_full_mdl",
+    ),
+    pytest.param(
+        ("newton", "isaacsim_rtx_renderer", "semantic_segmentation"),
+        id="newton-isaacsim_rtx-semantic_segmentation",
     ),
     # newton + newton_renderer (warp)
     pytest.param(
@@ -179,6 +187,11 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
     pytest.param(
         ("newton", "ovrtx_renderer", "simple_shading_full_mdl"),
         id="newton-ovrtx-simple_shading_full_mdl",
+        marks=_OVRTX_DISABLED,
+    ),
+    pytest.param(
+        ("newton", "ovrtx_renderer", "semantic_segmentation"),
+        id="newton-ovrtx-semantic_segmentation",
         marks=_OVRTX_DISABLED,
     ),
 ]
@@ -222,12 +235,10 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
         max_val = normalized.max()
         if max_val > 0:
             normalized = normalized / max_val
-    elif data_type == "rgba":
-        # Keep 4 channels so tensor -> PIL produces RGBA.
-        normalized = normalized[..., :4] / 255.0
-    else:
-        # rgb, semantic_segmentation, albedo, and simple_shading_* are uint8 [0, 255]
+    elif data_type in {"albedo"}:
         normalized = normalized[..., :3] / 255.0
+    else:
+        normalized = normalized / 255.0
 
     return normalized
 
