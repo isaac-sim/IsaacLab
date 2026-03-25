@@ -77,7 +77,6 @@ class ObjectCfg(PresetCfg):
         collision_props=sim_utils.CollisionPropertiesCfg(),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     )
-    newton = cube
     default = shapes
 
 
