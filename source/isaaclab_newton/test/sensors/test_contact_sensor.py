@@ -470,7 +470,16 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
+# TODO: Newton's force_matrix_w on CUDA produces inconsistent magnitude values (e.g. 4.5, 9.8, 41.7 N
+# across runs), causing the magnitude assertion to fail. A possible fix is to make the magnitude check
+# mujoco-only — see https://github.com/isaac-sim/IsaacLab/pull/5097 commit c2425f04cb4.
+@pytest.mark.parametrize(
+    "use_mujoco_contacts",
+    [
+        pytest.param(False, id="newton_contacts", marks=pytest.mark.flaky(max_runs=3, min_passes=1)),
+        pytest.param(True, id="mujoco_contacts"),
+    ],
+)
 def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
     """Test that filter_prim_paths_expr filters contacts and enables force_matrix_w.
 
@@ -481,7 +490,6 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
     - force_matrix_w reports only filtered contact (A-B)
     - net_forces_w reports total contact (ground + B)
     - force_matrix < net_forces (ground contact excluded from matrix)
-    - (mujoco only) force magnitude ~ mass_b * gravity
     """
     settle_steps = 180
     num_envs = 4
@@ -550,15 +558,10 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
             matrix_force = torch.norm(force_matrix[env_idx]).item()
             net_force = torch.norm(net_forces[env_idx]).item()
 
-            assert matrix_force > 0, (
-                f"Env {env_idx}: force_matrix should be non-zero (B is resting on A). Got: {matrix_force:.2f} N"
+            tolerance = 0.3 * expected_force_from_b
+            assert abs(matrix_force - expected_force_from_b) < tolerance, (
+                f"Env {env_idx}: force_matrix should be ~{expected_force_from_b:.2f} N. Got: {matrix_force:.2f} N"
             )
-            # Newton's filtered contact forces on CUDA are too noisy for magnitude checks
-            if use_mujoco_contacts:
-                tolerance = 0.3 * expected_force_from_b
-                assert abs(matrix_force - expected_force_from_b) < tolerance, (
-                    f"Env {env_idx}: force_matrix should be ~{expected_force_from_b:.2f} N. Got: {matrix_force:.2f} N"
-                )
             assert matrix_force < net_force, (
                 f"Env {env_idx}: force_matrix (B only) should be < net_forces (all). "
                 f"Matrix: {matrix_force:.2f} N, Net: {net_force:.2f} N"
