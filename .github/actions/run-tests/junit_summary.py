@@ -37,7 +37,9 @@ def safe_float(val, default=0.0):
 
 
 for tc in root.iter("testcase"):
-    name = tc.get("classname", tc.get("name", "unknown"))
+    classname = tc.get("classname", "")
+    tc_name = tc.get("name", "unknown")
+    name = f"{classname}.{tc_name}" if classname else tc_name
     t = safe_float(tc.get("time", 0))
     total_time += t
     tc_failed = tc.find("failure") is not None
