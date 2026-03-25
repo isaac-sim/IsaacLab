@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.35 (2026-05-02)
+~~~~~~~~~~~~~~~~~~~
+Changed
+^^^^^^^
+
+* Changed manager-based task observation and command code paths used by LEAPP
+  export so tracing preserves behavior while remaining compatible with the
+  ProxyArray-backed data API.
+
+
 1.5.34 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 Added
@@ -56,7 +66,6 @@ Added
 
 * Added benchmark extraction for ``Metrics/success_rate`` and survival
   success logging for direct cartpole camera environments.
-
 
 1.5.30 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~

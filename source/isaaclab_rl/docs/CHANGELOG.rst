@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.5.2 (2026-04-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a test to verify LEAPP export fidelity against the existing policies built
+  into Isaac Lab.
+
 0.5.1 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~
 
@@ -9,7 +18,6 @@ Changed
 
 * Locked h5py dependency to last stable version 3.15.1 to prevent package import errors on Windows with version 3.16.0.
 * Updated skrl wrapper to support the new version of skrl 2.0.
-
 
 0.5.0 (2026-3-04)
 ~~~~~~~~~~~~~~~~~~

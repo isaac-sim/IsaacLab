@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+4.6.26 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP export support for manager-based RSL-RL policies, including
+  export-time observation/action annotation and deployment through
+  :mod:`scripts.reinforcement_learning.deploy`.
+
+
 4.6.25 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -76,7 +87,6 @@ Deprecated
   ``colorize_instance_segmentation``, ``colorize_instance_id_segmentation``,
   ``semantic_segmentation_mapping``, ``depth_clipping_behavior``); set them on
   :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` instead.
-
 
 4.6.21 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
