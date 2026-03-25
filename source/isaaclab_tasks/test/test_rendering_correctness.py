@@ -18,8 +18,6 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
-import base64  # noqa: E402
-import io  # noqa: E402
 import os  # noqa: E402
 from datetime import datetime  # noqa: E402
 from typing import Any  # noqa: E402
@@ -59,13 +57,14 @@ _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
 )
 
-# Maximum width (in pixels) for thumbnail images embedded in JUnit XML properties.
-_THUMBNAIL_MAX_WIDTH = 256
+# Directory for comparison images saved during the test session.
+# Located under the pytest output root so it gets copied alongside test reports.
+_COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
 
 # Collects comparison scores from all golden-image comparisons during the session.
 # Each entry: {"test": str, "backend": str, "renderer": str, "aov": str,
 #              "ssim": float, "diff_pct": float, "passed": bool,
-#              "img_result_b64": str | None, "img_golden_b64": str | None}
+#              "img_result_path": str | None, "img_golden_path": str | None}
 _COMPARISON_SCORES: list[dict] = []
 
 
@@ -97,9 +96,9 @@ def _attach_comparison_properties(request):
         label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
         request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
         request.node.user_properties.append((f"ssim:{label}", f"{entry['ssim']:.4f}"))
-        if entry.get("img_result_b64"):
-            request.node.user_properties.append((f"img_result:{label}", entry["img_result_b64"]))
-            request.node.user_properties.append((f"img_golden:{label}", entry["img_golden_b64"]))
+        if entry.get("img_result_path"):
+            request.node.user_properties.append((f"img_result:{label}", entry["img_result_path"]))
+            request.node.user_properties.append((f"img_golden:{label}", entry["img_golden_path"]))
 
 
 # ---------------------------------------------------------------------------
@@ -268,22 +267,20 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
     return normalized
 
 
-def _image_to_base64(img: Image.Image, max_width: int = _THUMBNAIL_MAX_WIDTH) -> str:
-    """Encode a PIL image as a base64 PNG string, resizing if wider than max_width.
+def _save_comparison_image(img: Image.Image, filename: str) -> str:
+    """Save a PIL image to the comparison-images directory.
 
     Args:
-        img: PIL Image to encode.
-        max_width: Maximum width in pixels; image is downscaled proportionally if wider.
+        img: PIL Image to save.
+        filename: File name (e.g. ``"test-backend-renderer-aov-result.png"``).
 
     Returns:
-        Base64-encoded PNG string.
+        Absolute path to the saved file.
     """
-    if img.width > max_width:
-        ratio = max_width / img.width
-        img = img.resize((max_width, int(img.height * ratio)), Image.LANCZOS)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode("ascii")
+    os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
+    path = os.path.join(_COMPARISON_IMAGES_DIR, filename)
+    img.save(path, format="PNG")
+    return path
 
 
 def _make_grid(images: torch.Tensor) -> torch.Tensor:
@@ -469,13 +466,14 @@ def _validate_camera_outputs(
             "diff_pct": diff_pct,
             "ssim": ssim_score,
             "passed": succeeded,
-            "img_result_b64": None,
-            "img_golden_b64": None,
+            "img_result_path": None,
+            "img_golden_path": None,
         }
 
         if diff_pct > 0:
-            entry["img_result_b64"] = _image_to_base64(result_image)
-            entry["img_golden_b64"] = _image_to_base64(golden_image)
+            prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
+            entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-result.png")
+            entry["img_golden_path"] = _save_comparison_image(golden_image, f"{prefix}-golden.png")
 
         _COMPARISON_SCORES.append(entry)
 

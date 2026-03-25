@@ -131,19 +131,21 @@ if comparison_scores:
     print("")
     print("</details>")
 
-# Show side-by-side golden vs result images when pixel diff > 0.
+# List saved comparison images (available as workflow artifacts).
 diff_images = {k: v for k, v in comparison_scores.items() if v["img_result"] and v["img_golden"]}
 if diff_images:
-    print(f"\n<details><summary>🔵 Image Comparisons ({len(diff_images)})</summary>")
+    print(f"\n<details><summary>🔵 Image Comparisons ({len(diff_images)}) - see artifacts</summary>")
     print("")
+    print("Download the **comparison-images** artifact to view golden vs result PNGs.")
+    print("")
+    print("| Test | AOV | Diff % | SSIM | Status | Result | Golden |")
+    print("|------|-----|--------|------|--------|--------|--------|")
     for (name, label), scores in diff_images.items():
-        status = "FAIL" if not scores["passed"] else "PASS"
-        print(f"**`{name}`** - {label} (Diff {scores['diff_pct']}%, SSIM {scores['ssim']}, {status})")
-        print("")
-        print("| Golden (expected) | Result (actual) |")
-        print("|:-:|:-:|")
-        golden = f'<img src="data:image/png;base64,{scores["img_golden"]}">'
-        result = f'<img src="data:image/png;base64,{scores["img_result"]}">'
-        print(f"| {golden} | {result} |")
-        print("")
+        status = "PASS" if scores["passed"] else "FAIL"
+        result_file = scores["img_result"].rsplit("/", 1)[-1] if "/" in scores["img_result"] else scores["img_result"]
+        golden_file = scores["img_golden"].rsplit("/", 1)[-1] if "/" in scores["img_golden"] else scores["img_golden"]
+        print(
+            f"| `{name}` | {label} | {scores['diff_pct']} | {scores['ssim']} | {status} | {result_file} | {golden_file} |"
+        )
+    print("")
     print("</details>")
