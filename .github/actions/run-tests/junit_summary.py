@@ -146,8 +146,8 @@ if diff_images:
         status = "PASS" if scores["passed"] else "FAIL"
         result_file = scores["img_result"].rsplit("/", 1)[-1] if "/" in scores["img_result"] else scores["img_result"]
         golden_file = scores["img_golden"].rsplit("/", 1)[-1] if "/" in scores["img_golden"] else scores["img_golden"]
-        print(
-            f"| `{name}` | {label} | {scores['diff_pct']} | {scores['ssim']} | {status} | {result_file} | {golden_file} |"
-        )
+        diff_pct = scores["diff_pct"]
+        ssim = scores["ssim"]
+        print(f"| `{name}` | {label} | {diff_pct} | {ssim} | {status} | {result_file} | {golden_file} |")
     print("")
     print("</details>")
