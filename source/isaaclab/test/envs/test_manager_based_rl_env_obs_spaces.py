@@ -22,10 +22,11 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_camera_env_cfg impor
     CartpoleDepthCameraEnvCfg,
     CartpoleRGBCameraEnvCfg,
 )
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
 
 
-def test_non_concatenated_obs_groups_contain_all_terms():
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_non_concatenated_obs_groups_contain_all_terms(device):
     """Test that non-concatenated observation groups contain all defined terms (issue #3133).
 
     Before the fix, only the last term in each non-concatenated group would be present
@@ -41,7 +42,7 @@ def test_non_concatenated_obs_groups_contain_all_terms():
     # configure the stack env - it has multiple non-concatenated observation groups
     env_cfg = FrankaCubeStackEnvCfg()
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
-    env_cfg.sim.device = "cuda:0"
+    env_cfg.sim.device = device
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
 
@@ -109,10 +110,11 @@ def test_non_concatenated_obs_groups_contain_all_terms():
 
 @pytest.mark.parametrize(
     "env_cfg_cls",
-    [CartpoleRGBCameraEnvCfg, CartpoleDepthCameraEnvCfg, CartpoleEnvCfg],
-    ids=["RGB", "Depth", "Clipped"],
+    [CartpoleRGBCameraEnvCfg, CartpoleDepthCameraEnvCfg, AnymalCRoughEnvCfg],
+    ids=["RGB", "Depth", "RayCaster"],
 )
-def test_obs_space_follows_clip_contraint(env_cfg_cls):
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_obs_space_follows_clip_contraint(env_cfg_cls, device):
     """Ensure observation space bounds reflect the clip constraint on each term."""
     # new USD stage
     sim_utils.create_new_stage()
@@ -121,12 +123,7 @@ def test_obs_space_follows_clip_contraint(env_cfg_cls):
     env_cfg = env_cfg_cls()
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
     env_cfg.observations.policy.concatenate_terms = False
-    env_cfg.sim.device = "cuda:0"
-
-    # For the lightweight CartpoleEnvCfg, add a clip to one term so we test
-    # the clip != None code path without needing a heavy locomotion env.
-    if env_cfg_cls is CartpoleEnvCfg:
-        env_cfg.observations.policy.joint_pos_rel.clip = (-1.0, 1.0)
+    env_cfg.sim.device = device
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
     for group_name, group_space in env.observation_space.spaces.items():
