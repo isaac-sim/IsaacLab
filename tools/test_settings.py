@@ -24,7 +24,7 @@ STARTUP_IDLE_TIMEOUT = 600
 hung during startup (e.g. AppLauncher deadlock).  When triggered, the process
 is killed and retried up to ``MAX_STARTUP_RETRIES`` times."""
 
-MAX_STARTUP_RETRIES = 3
+MAX_STARTUP_RETRIES = 2
 """Number of times to retry a test that appears to have hung during startup."""
 
 PER_TEST_TIMEOUTS = {
