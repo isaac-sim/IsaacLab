@@ -19,7 +19,7 @@ SHUTDOWN_GRACE_PERIOD = 60
 """Grace period [s] after the test report is written before killing the process.
 Used when tests finish but the process hangs during shutdown."""
 
-STARTUP_IDLE_TIMEOUT = 120
+STARTUP_IDLE_TIMEOUT = 600
 """Maximum time [s] to wait without any output before assuming the process is
 hung during startup (e.g. AppLauncher deadlock).  When triggered, the process
 is killed and retried up to ``MAX_STARTUP_RETRIES`` times."""
