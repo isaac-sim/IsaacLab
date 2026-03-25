@@ -62,11 +62,11 @@ class LeeAttController(LeeControllerBase):
         root_quat_w, root_ang_vel_b, _ = self._root_state_tensors()
 
         # Use command directly as attitude setpoint
-        self.wrench_command_b[:, 2] = (command[:, 2] + 1.0) * self.mass * torch.norm(self.gravity, dim=1)
+        self.wrench_command_b[:, 2] = (command[:, 0] + 1.0) * self.mass * torch.norm(self.gravity, dim=1)
 
         # Get current yaw and compute desired orientation
         roll, pitch, yaw = math_utils.euler_xyz_from_quat(root_quat_w)
-        desired_quat = math_utils.quat_from_euler_xyz(command[:, 0], command[:, 1], yaw)
+        desired_quat = math_utils.quat_from_euler_xyz(command[:, 1], command[:, 2], yaw)
 
         # Compute desired angular velocity in body frame from yaw rate command
         desired_angvel_b = yaw_rate_to_body_angvel(command[:, 3], roll, pitch, self.device)
