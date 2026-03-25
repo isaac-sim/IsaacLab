@@ -286,8 +286,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
             obs, _, _, _ = env.step(actions)
 
     leapp.stop()
-    vilidate = args_cli.validation_steps > 0
-    leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=vilidate)
+    validate = args_cli.validation_steps > 0
+    leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
 
     # close the simulator
     env.close()

@@ -133,7 +133,8 @@ class CircularBuffer:
         self._num_pushes += 1
 
     def _append(self, data: torch.Tensor):
-        self._buffer = torch.cat([self._buffer[1:], data.unsqueeze(0)], dim=0)
+        self._buffer = torch.roll(self._buffer, shifts=-1, dims=0)
+        self._buffer[-1] = data
 
     def __getitem__(self, key: torch.Tensor) -> torch.Tensor:
         """Retrieve the data from the circular buffer in last-in-first-out (LIFO) fashion.
@@ -155,9 +156,12 @@ class CircularBuffer:
         # check the batch size
         if len(key) != self.batch_size:
             raise ValueError(f"The argument 'key' has length {key.shape[0]}, while expecting {self.batch_size}")
+        if self._buffer is None:
+            raise RuntimeError("The buffer is empty. Please append data before retrieving.")
 
-        # admissible lag
-        valid_keys = torch.minimum(key, self._num_pushes - 1)
+        # admissible lag — clamp to [0, ..] so batches with _num_pushes == 0
+        # return the zeroed-out slot instead of indexing out of bounds.
+        valid_keys = torch.clamp(torch.minimum(key, self._num_pushes - 1), min=0)
         # The buffer is stored oldest->newest along dimension 0, so the most
         # recent item lives at the last index.
         index_in_buffer = (self.max_length - 1 - valid_keys).to(dtype=torch.long)
