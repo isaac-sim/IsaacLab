@@ -210,8 +210,6 @@ jobs:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
     needs: [detect-changes]
-    outputs:
-      deps-ecr-image: ${{ steps.build-push.outputs.deps-ecr-image }}
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -220,7 +218,6 @@ jobs:
         lfs: true
 
     - name: Build and push to ECR
-      id: build-push
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
@@ -234,8 +231,6 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [detect-changes]
-    outputs:
-      deps-ecr-image: ${{ steps.build-push.outputs.deps-ecr-image }}
     if: >-
       needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
       needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
@@ -249,7 +244,6 @@ jobs:
         lfs: true
 
     - name: Build and push to ECR
-      id: build-push
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
@@ -289,7 +283,7 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         container-name: isaac-lab-tasks-1-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-tasks-2:
     name: isaaclab_tasks [2/3]
@@ -317,7 +311,7 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         container-name: isaac-lab-tasks-2-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-tasks-3:
     name: isaaclab_tasks [3/3]
@@ -345,7 +339,7 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         container-name: isaac-lab-tasks-3-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-core:
     name: isaaclab (core) [1/3]
@@ -371,7 +365,7 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         container-name: isaac-lab-core-1-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-core-2:
     name: isaaclab (core) [2/3]
@@ -397,7 +391,7 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         container-name: isaac-lab-core-2-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-core-3:
     name: isaaclab (core) [3/3]
@@ -423,7 +417,7 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         container-name: isaac-lab-core-3-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-rl:
     name: isaaclab_rl
@@ -448,7 +442,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_rl"
         container-name: isaac-lab-rl-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-mimic:
     name: isaaclab_mimic
@@ -473,7 +467,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_mimic"
         container-name: isaac-lab-mimic-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-contrib:
     name: isaaclab_contrib
@@ -498,7 +492,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_contrib"
         container-name: isaac-lab-contrib-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-teleop:
     name: isaaclab_teleop
@@ -523,7 +517,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_teleop"
         container-name: isaac-lab-teleop-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-visualizers:
     name: isaaclab_visualizers
@@ -548,7 +542,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_visualizers"
         container-name: isaac-lab-visualizers-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-assets:
     name: isaaclab_assets
@@ -573,7 +567,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_assets"
         container-name: isaac-lab-assets-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-newton:
     name: isaaclab_newton
@@ -598,7 +592,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_newton"
         container-name: isaac-lab-newton-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-physx:
     name: isaaclab_physx
@@ -623,7 +617,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_physx"
         container-name: isaac-lab-physx-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-isaaclab-ov:
     name: isaaclab_ov
@@ -648,7 +642,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_ov"
         container-name: isaac-lab-ov-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+
 
   test-curobo:
     name: test-curobo
@@ -676,7 +670,7 @@ jobs:
         cache-tag: cache-curobo
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
         container-name: isaac-lab-curobo-test
-        deps-ecr-image: ${{ needs.build-curobo.outputs.deps-ecr-image }}
+
 
   test-skillgen:
     name: test-skillgen
@@ -705,7 +699,7 @@ jobs:
         cache-tag: cache-curobo
         include-files: "test_generate_dataset_skillgen.py,test_environments_skillgen.py,test_environments_automate.py"
         container-name: isaac-lab-skillgen-test
-        deps-ecr-image: ${{ needs.build-curobo.outputs.deps-ecr-image }}
+
 
   # test-quarantined:
   #   name: "Quarantined Tests"
@@ -754,4 +748,4 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         include-files: "test_environments_training.py"
         container-name: isaac-lab-environments-training-test
-        deps-ecr-image: ${{ needs.build.outputs.deps-ecr-image }}
+

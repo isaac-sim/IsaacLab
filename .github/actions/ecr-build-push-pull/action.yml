@@ -37,14 +37,6 @@ inputs:
     description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
-outputs:
-  deps-cache-hit:
-    description: 'true when deps cache image exists in ECR (no build needed)'
-    value: ${{ steps.deps-cache.outputs.deps-cache-hit }}
-  deps-ecr-image:
-    description: 'Full ECR URI of the deps image (only set on deps-cache-hit)'
-    value: ${{ steps.deps-cache.outputs.deps-ecr-image }}
-
 runs:
   using: composite
   steps:
@@ -225,9 +217,12 @@ runs:
         # not the actual layers, so this completes in seconds.
         if docker manifest inspect "${DEPS_ECR_IMAGE}" >/dev/null 2>&1; then
           echo "🟢 Deps cache HIT!!! Image exists in ECR: ${DEPS_ECR_IMAGE}"
-          echo "🟢 Test jobs will pull this image and volume-mount the source code."
+          # Create a commit-tagged alias pointing to the same manifest (registry-side,
+          # no layer download). Test jobs will pull this tag normally.
+          echo "🔵 Tagging as commit image ${ECR_IMAGE}..."
+          docker buildx imagetools create -t "${ECR_IMAGE}" "${DEPS_ECR_IMAGE}"
+          echo "🟢 Tagged ${ECR_IMAGE} → ${DEPS_ECR_IMAGE}"
           echo "deps-cache-hit=true" >> "$GITHUB_OUTPUT"
-          echo "deps-ecr-image=${DEPS_ECR_IMAGE}" >> "$GITHUB_OUTPUT"
         else
           echo "🟠 Deps cache MISS 😿😿😿 (${DEPS_HASH}). Will build now. 🐢🐢🐢"
           echo "DEPS_ECR_IMAGE=${DEPS_ECR_IMAGE}" >> "$GITHUB_ENV"

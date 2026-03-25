@@ -58,11 +58,6 @@ inputs:
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
-  deps-ecr-image:
-    description: 'Full ECR URI of deps image — when set, pulls this image and volume-mounts source instead of building/pulling an overlay'
-    default: ''
-    required: false
-
 runs:
   using: composite
   steps:
@@ -71,39 +66,7 @@ runs:
       shell: bash
       run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-    # Fast path: when deps-ecr-image is provided, pull it directly and
-    # volume-mount the checked-out source instead of building an overlay.
-    - name: Pull deps image from ECR (fast path)
-      if: inputs.deps-ecr-image != ''
-      shell: bash
-      run: |
-        DEPS_IMAGE="${{ inputs.deps-ecr-image }}"
-        REGISTRY=$(echo "${DEPS_IMAGE}" | cut -d'/' -f1)
-        AWS_REGION=$(echo "${REGISTRY}" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
-
-        # Setup docker config with credsStore disabled
-        DOCKER_CONFIG_DIR=$(mktemp -d)
-        if [ -f "${HOME}/.docker/config.json" ]; then
-          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
-        else
-          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
-        fi
-        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
-
-        echo "🔵 Logging into ECR registry..."
-        aws ecr get-login-password --region "${AWS_REGION}" | \
-          docker login --username AWS --password-stdin "${REGISTRY}"
-
-        echo "🔵 Pulling deps image ${DEPS_IMAGE}..."
-        docker pull "${DEPS_IMAGE}"
-        docker tag "${DEPS_IMAGE}" "${{ inputs.image-tag }}"
-        echo "🟢 Deps image ready as ${{ inputs.image-tag }}"
-
-        rm -rf "${DOCKER_CONFIG_DIR}"
-
-    # Normal path: full ECR build-push-pull (used when no deps cache hit)
     - name: Pull image from ECR
-      if: inputs.deps-ecr-image == ''
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ inputs.image-tag }}
@@ -139,7 +102,7 @@ runs:
         curobo-only: ${{ inputs.curobo-only }}
         quarantined-only: ${{ inputs.quarantined-only }}
         include-files: ${{ inputs.include-files }}
-        volume-mount-source: ${{ inputs.deps-ecr-image != '' && github.workspace || '' }}
+        volume-mount-source: ${{ github.workspace }}
 
     - name: Check Test Results
       if: always()
