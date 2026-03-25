@@ -277,8 +277,8 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
     Returns:
         Absolute path to the saved file.
     """
-    os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
     path = os.path.join(_COMPARISON_IMAGES_DIR, filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, format="PNG")
     return path
 
