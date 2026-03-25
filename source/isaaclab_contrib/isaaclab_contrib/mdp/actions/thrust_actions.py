@@ -407,7 +407,7 @@ class NavigationAction(ThrustAction):
         # Reset controller internal states
         self._lc.reset_idx(env_ids)
 
-        if env_ids is not None:
+        if env_ids is None:
             env_ids = slice(None)
 
         self._commands[env_ids] = 0.0
