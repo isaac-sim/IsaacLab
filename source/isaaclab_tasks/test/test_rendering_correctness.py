@@ -473,7 +473,7 @@ def _validate_camera_outputs(
             "img_golden_b64": None,
         }
 
-        if not succeeded:
+        if diff_pct > 0:
             entry["img_result_b64"] = _image_to_base64(result_image)
             entry["img_golden_b64"] = _image_to_base64(golden_image)
 

@@ -131,13 +131,14 @@ if comparison_scores:
     print("")
     print("</details>")
 
-# Show side-by-side golden vs result images for failed comparisons.
-failed_images = {k: v for k, v in comparison_scores.items() if v["img_result"] and v["img_golden"]}
-if failed_images:
-    print(f"\n<details><summary>🔵 Failed Image Comparisons ({len(failed_images)})</summary>")
+# Show side-by-side golden vs result images when pixel diff > 0.
+diff_images = {k: v for k, v in comparison_scores.items() if v["img_result"] and v["img_golden"]}
+if diff_images:
+    print(f"\n<details><summary>🔵 Image Comparisons ({len(diff_images)})</summary>")
     print("")
-    for (name, label), scores in failed_images.items():
-        print(f"**`{name}`** — {label} (Diff {scores['diff_pct']}%, SSIM {scores['ssim']})")
+    for (name, label), scores in diff_images.items():
+        status = "FAIL" if not scores["passed"] else "PASS"
+        print(f"**`{name}`** — {label} (Diff {scores['diff_pct']}%, SSIM {scores['ssim']}, {status})")
         print("")
         print("| Golden (expected) | Result (actual) |")
         print("|:-:|:-:|")
