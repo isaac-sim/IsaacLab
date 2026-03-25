@@ -108,6 +108,7 @@ class NewtonManager(PhysicsManager):
     # cubric GPU transform hierarchy (replaces CPU update_world_xforms)
     _cubric = None
     _cubric_adapter: int | None = None
+    _cubric_bound_fabric_id: int | None = None
 
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
@@ -231,6 +232,7 @@ class NewtonManager(PhysicsManager):
                     device=str(PhysicsManager._device),
                 )
                 if selection.GetCount() == 0:
+                    cls._transforms_dirty = False
                     return
 
                 fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
@@ -247,7 +249,9 @@ class NewtonManager(PhysicsManager):
 
                 if use_cubric and fabric_hierarchy is not None:
                     fabric_id = cls._usdrt_stage.GetFabricId().id
-                    cls._cubric.bind_to_stage(cls._cubric_adapter, fabric_id)
+                    if fabric_id != cls._cubric_bound_fabric_id:
+                        cls._cubric.bind_to_stage(cls._cubric_adapter, fabric_id)
+                        cls._cubric_bound_fabric_id = fabric_id
                     cls._cubric.compute(cls._cubric_adapter)
                 elif fabric_hierarchy is not None:
                     fabric_hierarchy.update_world_xforms()
@@ -341,6 +345,7 @@ class NewtonManager(PhysicsManager):
             cls._cubric.release_adapter(cls._cubric_adapter)
         cls._cubric = None
         cls._cubric_adapter = None
+        cls._cubric_bound_fabric_id = None
         cls._builder = None
         cls._model = None
         cls._solver = None
@@ -733,6 +738,13 @@ class NewtonManager(PhysicsManager):
             logger.warning("cudaStreamEndCapture failed (code %d)", end_ret)
             return None
 
+        # Patch the Warp Graph object with the raw CUDA graph handle obtained
+        # from our external cudaStreamEndCapture.  wp.capture_end(external=True)
+        # returns a Graph with a stale handle; we overwrite it so that
+        # wp.capture_launch() replays the correct graph.
+        # NOTE: This relies on Warp internals (Graph.graph / Graph.graph_exec).
+        # Setting graph_exec = None triggers lazy cudaGraphInstantiate on
+        # the next capture_launch.  Replace with public API when available.
         graph.graph = raw_graph
         graph.graph_exec = None
         return graph
