@@ -51,6 +51,10 @@ inputs:
     description: 'Total number of shards (used with shard-index to split tests across parallel jobs)'
     default: ''
     required: false
+  volume-mount-source:
+    description: 'Host path to bind-mount at /workspace/isaaclab (for deps-cache-hit mode)'
+    default: ''
+    required: false
 
 runs:
   using: composite
@@ -72,6 +76,7 @@ runs:
           local quarantined_only="${10}"
           local shard_index="${11}"
           local shard_count="${12}"
+          local volume_mount_source="${13}"
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
@@ -148,6 +153,14 @@ runs:
 
           echo "Docker environment variables: '$docker_env_vars'"
 
+          # Volume mount for deps-cache-hit mode: bind-mount the checked-out
+          # source code over /workspace/isaaclab instead of baking it into the image.
+          docker_volume_args=""
+          if [ -n "$volume_mount_source" ]; then
+            docker_volume_args="-v ${volume_mount_source}:/workspace/isaaclab"
+            echo "🔵 Volume-mounting ${volume_mount_source} → /workspace/isaaclab"
+          fi
+
           # Run tests in container.
           # --init: proper signal forwarding inside the container (PID 1 reaps + forwards signals)
           # --stop-timeout 5: after SIGTERM, wait only 5s before SIGKILL (default is 10s)
@@ -162,6 +175,7 @@ runs:
             --oom-kill-disable=false \
             --ulimit nofile=65536:65536 \
             --ulimit nproc=4096:4096 \
+            $docker_volume_args \
             $docker_env_vars \
             $image_tag \
             -c "
@@ -178,9 +192,14 @@ runs:
             echo "🟠 Docker container failed (exit $DOCKER_EXIT), but continuing to copy results..."
           fi
 
-          # Copy test results with error handling
+          # Copy test results with error handling.
+          # When volume-mounted, test output lands on the host filesystem directly
+          # (docker cp cannot see bind-mounted paths after the container stops).
           echo "🔵 Attempting to copy test results..."
-          if cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>&1); then
+          if [ -n "$volume_mount_source" ] && [ -f "${volume_mount_source}/tests/$result_file" ]; then
+            cp "${volume_mount_source}/tests/$result_file" "$reports_dir/$result_file"
+            echo "🟢 Test results copied from volume mount to $reports_dir/$result_file"
+          elif cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>&1); then
             echo "🟢 Test results copied successfully to $reports_dir/$result_file"
           else
             echo "🔴 Failed to copy specific result file: $cp_err"
@@ -224,7 +243,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}"
 
     - name: Write job summary
       if: always()
