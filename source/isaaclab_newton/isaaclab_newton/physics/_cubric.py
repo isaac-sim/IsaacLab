@@ -57,10 +57,10 @@ _IA_OFF_COMPUTE = 56
 _INVALID_ADAPTER_ID = ctypes.c_uint64(~0).value
 
 # AdapterComputeOptions flags  (from IAdapter.h)
-_OPT_FORCE_UPDATE = 1 << 0              # Force update, ignoring invalidation status
+_OPT_FORCE_UPDATE = 1 << 0  # Force update, ignoring invalidation status
 _OPT_FORCE_STATE_RECONSTRUCTION = 1 << 1  # Force full rebuild of internal accel structures
-_OPT_SKIP_ISOLATED = 1 << 2             # Skip prims with connectivity degree 0
-_OPT_RIGID_BODY = 1 << 3                # Use PhysicsRigidBodyAPI tag for inverse propagation
+_OPT_SKIP_ISOLATED = 1 << 2  # Skip prims with connectivity degree 0
+_OPT_RIGID_BODY = 1 << 3  # Use PhysicsRigidBodyAPI tag for inverse propagation
 
 # Newton prims get tagged with PhysicsRigidBodyAPI at init time so
 # cubric's eRigidBody mode can distinguish rigid-body buckets
@@ -70,7 +70,7 @@ _OPT_RIGID_BODY = 1 << 3                # Use PhysicsRigidBodyAPI tag for invers
 _OPT_DEFAULT = _OPT_RIGID_BODY | _OPT_FORCE_UPDATE
 
 # AdapterDirtyMode
-_DIRTY_ALL = 0     # eAll — dirty all prims in the stage
+_DIRTY_ALL = 0  # eAll — dirty all prims in the stage
 _DIRTY_COARSE = 1  # eCoarse — dirty all prims in visited buckets
 
 
@@ -83,6 +83,7 @@ class _Version(ctypes.Structure):
 
 class _InterfaceDesc(ctypes.Structure):
     """``carb::InterfaceDesc`` — {const char* name, Version version}."""
+
     _fields_ = [
         ("name", ctypes.c_char_p),
         ("version", _Version),
@@ -149,10 +150,10 @@ class CubricBindings:
             return False
 
         try_acquire_fn = ctypes.CFUNCTYPE(
-            ctypes.c_void_p,   # return: void* (IAdapter*)
-            ctypes.c_char_p,   # clientName
-            _InterfaceDesc,    # desc (by value)
-            ctypes.c_char_p,   # pluginName
+            ctypes.c_void_p,  # return: void* (IAdapter*)
+            ctypes.c_char_p,  # clientName
+            _InterfaceDesc,  # desc (by value)
+            ctypes.c_char_p,  # pluginName
         )(try_acquire_addr)
 
         desc = _InterfaceDesc(
@@ -194,24 +195,28 @@ class CubricBindings:
             return False
 
         self._create_fn = ctypes.CFUNCTYPE(
-            ctypes.c_bool, ctypes.POINTER(ctypes.c_uint64),
+            ctypes.c_bool,
+            ctypes.POINTER(ctypes.c_uint64),
         )(create_addr)
 
         self._release_fn = ctypes.CFUNCTYPE(
-            ctypes.c_bool, ctypes.c_uint64,
+            ctypes.c_bool,
+            ctypes.c_uint64,
         )(release_addr)
 
         # FabricId is uint64, passed by const-ref -> pointer on x86_64
         self._bind_fn = ctypes.CFUNCTYPE(
-            ctypes.c_bool, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64),
+            ctypes.c_bool,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_uint64),
         )(bind_addr)
 
         self._compute_fn = ctypes.CFUNCTYPE(
             ctypes.c_bool,
-            ctypes.c_uint64,   # adapterId
-            ctypes.c_uint32,   # options  (AdapterComputeOptions)
-            ctypes.c_int32,    # dirtyMode (AdapterDirtyMode)
-            ctypes.c_void_p,   # outAccountFlags* (nullable)
+            ctypes.c_uint64,  # adapterId
+            ctypes.c_uint32,  # options  (AdapterComputeOptions)
+            ctypes.c_int32,  # dirtyMode (AdapterDirtyMode)
+            ctypes.c_void_p,  # outAccountFlags* (nullable)
         )(compute_addr)
 
         logger.info("cubric IAdapter bindings ready")

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import inspect
 import logging
@@ -714,10 +715,8 @@ class NewtonManager(PhysicsManager):
                 err_during_capture = exc
                 graph = None
         else:
-            try:
+            with contextlib.suppress(Exception):
                 wp.capture_end(stream=fresh_stream)
-            except Exception:
-                pass
             graph = None
 
         raw_graph = ctypes.c_void_p()
