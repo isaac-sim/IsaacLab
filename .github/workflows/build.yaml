@@ -18,6 +18,7 @@
 # | test-isaaclab-assets               | isaaclab-assets | isaaclab-core | infra             |
 # | test-isaaclab-newton               | isaaclab-newton | isaaclab-core | infra             |
 # | test-isaaclab-physx                | isaaclab-physx | isaaclab-core | infra              |
+# | test-isaaclab-ov                   | isaaclab-ov | isaaclab-core | infra                 |
 # | test-environments-training         | isaaclab-tasks | isaaclab-core | infra              |
 # | test-curobo (needs build-curobo)   | isaaclab-mimic | isaaclab-core | infra              |
 # | test-skillgen (needs build-curobo) | isaaclab-mimic | isaaclab-tasks | isaaclab-core     |
@@ -81,6 +82,7 @@ jobs:
       isaaclab-teleop: ${{ steps.check.outputs.isaaclab-teleop }}
       isaaclab-visualizers: ${{ steps.check.outputs.isaaclab-visualizers }}
       isaaclab-assets: ${{ steps.check.outputs.isaaclab-assets }}
+      isaaclab-ov: ${{ steps.check.outputs.isaaclab-ov }}
       infra: ${{ steps.check.outputs.infra }}
     steps:
     - name: Checkout Code
@@ -97,7 +99,7 @@ jobs:
         if [ "${{ github.event_name }}" != "pull_request" ]; then
           for pkg in isaaclab-core isaaclab-physx isaaclab-newton isaaclab-tasks \
                      isaaclab-rl isaaclab-mimic isaaclab-contrib isaaclab-teleop \
-                     isaaclab-visualizers isaaclab-assets infra; do
+                     isaaclab-visualizers isaaclab-assets isaaclab-ov infra; do
             echo "$pkg=true" >> "$GITHUB_OUTPUT"
           done
           exit 0
@@ -111,7 +113,7 @@ jobs:
           echo "::warning::No changed files detected between FETCH_HEAD and HEAD — running all tests as a safety measure"
           for pkg in isaaclab-core isaaclab-physx isaaclab-newton isaaclab-tasks \
                      isaaclab-rl isaaclab-mimic isaaclab-contrib isaaclab-teleop \
-                     isaaclab-visualizers isaaclab-assets infra; do
+                     isaaclab-visualizers isaaclab-assets isaaclab-ov infra; do
             echo "$pkg=true" >> "$GITHUB_OUTPUT"
           done
           exit 0
@@ -153,6 +155,7 @@ jobs:
         echo "isaaclab-teleop=$(has '^source/isaaclab_teleop/')" >> "$GITHUB_OUTPUT"
         echo "isaaclab-visualizers=$(has '^source/isaaclab_visualizers/')" >> "$GITHUB_OUTPUT"
         echo "isaaclab-assets=$(has '^source/isaaclab_assets/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-ov=$(has '^source/isaaclab_ov/')" >> "$GITHUB_OUTPUT"
         echo "infra=$(has '^(\.github/|docker/|tools/|scripts/)')" >> "$GITHUB_OUTPUT"
 
         echo ""
@@ -169,6 +172,7 @@ jobs:
             source/isaaclab_teleop/*)    echo "$f (isaaclab-teleop)" ;;
             source/isaaclab_visualizers/*) echo "$f (isaaclab-visualizers)" ;;
             source/isaaclab_assets/*)    echo "$f (isaaclab-assets)" ;;
+            source/isaaclab_ov/*)        echo "$f (isaaclab-ov)" ;;
             .github/*|docker/*|tools/*|scripts/*) echo "$f (infra)" ;;
             apps/*)                          echo "$f (apps - core/physx/newton/tasks)" ;;
             *)                               echo "$f" ;;
@@ -194,6 +198,7 @@ jobs:
               source/isaaclab_teleop/*)      echo "| \`$f\` | isaaclab-teleop |" ;;
               source/isaaclab_visualizers/*) echo "| \`$f\` | isaaclab-visualizers |" ;;
               source/isaaclab_assets/*)      echo "| \`$f\` | isaaclab-assets |" ;;
+              source/isaaclab_ov/*)          echo "| \`$f\` | isaaclab-ov |" ;;
               .github/*|docker/*|tools/*|scripts/*) echo "| \`$f\` | infra |" ;;
               apps/*)                        echo "| \`$f\` | apps - core/physx/newton/tasks |" ;;
               *)                             echo "| \`$f\` | - |" ;;
@@ -599,6 +604,30 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_physx"
         container-name: isaac-lab-physx-test
+
+  test-isaaclab-ov:
+    name: isaaclab_ov
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-ov == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        filter-pattern: "isaaclab_ov"
+        container-name: isaac-lab-ov-test
 
   test-curobo:
     name: test-curobo
