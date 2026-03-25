@@ -138,7 +138,7 @@ if diff_images:
     print("")
     for (name, label), scores in diff_images.items():
         status = "FAIL" if not scores["passed"] else "PASS"
-        print(f"**`{name}`** — {label} (Diff {scores['diff_pct']}%, SSIM {scores['ssim']}, {status})")
+        print(f"**`{name}`** - {label} (Diff {scores['diff_pct']}%, SSIM {scores['ssim']}, {status})")
         print("")
         print("| Golden (expected) | Result (actual) |")
         print("|:-:|:-:|")

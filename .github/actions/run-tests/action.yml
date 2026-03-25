@@ -137,7 +137,7 @@ runs:
 
           if [ -n "$filter_pattern" ]; then
             if [[ "$filter_pattern" == "not "* ]]; then
-              # Handle "not <pattern>" case — note the trailing space to avoid
+              # Handle "not <pattern>" case - note the trailing space to avoid
               # matching words that happen to start with "not".
               exclude_pattern="${filter_pattern#not }"
               docker_env_vars="$docker_env_vars -e TEST_EXCLUDE_PATTERN=$exclude_pattern"
@@ -162,7 +162,7 @@ runs:
           fi
 
           # Run tests in a detached container and follow logs.  Running detached
-          # means the container lifecycle is independent of the shell — if the
+          # means the container lifecycle is independent of the shell - if the
           # runner kills this step on cancellation, the `if: always()` cleanup
           # step can still `docker kill` the container reliably.
           # `docker logs -f` is the foreground process and is trivially killable.
@@ -268,10 +268,10 @@ runs:
         fi
 
         # Parse JUnit XML and produce a markdown summary.
-        # Exit code 2 means the report was corrupt/unreadable — surface the
+        # Exit code 2 means the report was corrupt/unreadable - surface the
         # error in the summary but don't mask the real test exit code.
         if ! python3 .github/actions/run-tests/junit_summary.py "$report" >> "$GITHUB_STEP_SUMMARY"; then
-          echo "::warning::junit_summary.py failed to parse $report — test results may be missing from the summary"
+          echo "::warning::junit_summary.py failed to parse $report - test results may be missing from the summary"
         fi
 
     - name: Clean up Docker container

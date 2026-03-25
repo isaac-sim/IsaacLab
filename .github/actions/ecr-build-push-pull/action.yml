@@ -65,7 +65,7 @@ runs:
           echo "🔵 Logging into nvcr.io..."
           docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
         else
-          echo "🟠 NGC_API_KEY not set — skipping nvcr.io login (normal for fork PRs)"
+          echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
         fi
 
     ##### 2: Resolve ECR URL #####
@@ -131,7 +131,7 @@ runs:
         AWS_REGION=$(echo "${REGISTRY}" | sed 's/.*\.dkr\.ecr\.\(.*\)\.amazonaws\.com/\1/')
 
         if [ "${AWS_REGION}" = "${REGISTRY}" ]; then
-          echo "🔴 Invalid ECR URL — cannot extract AWS region: ${ECR_URL}"
+          echo "🔴 Invalid ECR URL - cannot extract AWS region: ${ECR_URL}"
           echo "🔴 Expected format: <account-id>.dkr.ecr.<region>.amazonaws.com/<repo>"
           exit 1
         fi
@@ -149,7 +149,7 @@ runs:
 
     ##### 4: Check if exact image exists in ECR #####
 
-    # Lightweight manifest check — fetches only the image manifest (~KB),
+    # Lightweight manifest check - fetches only the image manifest (~KB),
     # not the actual layers.  If the exact per-commit image already exists
     # in ECR, sets output `hit: true` to skip all subsequent build/push steps.
 
@@ -229,7 +229,7 @@ runs:
         echo "🔵 Deps hash: ${DEPS_HASH}"
         echo "🔵 Checking if deps image ${DEPS_ECR_IMAGE} exists in ECR..."
 
-        # Lightweight manifest check — fetches only the image manifest (~KB),
+        # Lightweight manifest check - fetches only the image manifest (~KB),
         # not the actual layers, so this completes in seconds.
         if docker manifest inspect "${DEPS_ECR_IMAGE}" >/dev/null 2>&1; then
           echo "🟢 Deps cache HIT!!! Image exists in ECR: ${DEPS_ECR_IMAGE}"

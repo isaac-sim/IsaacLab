@@ -110,7 +110,7 @@ jobs:
         changed=$(git diff --name-only FETCH_HEAD HEAD)
 
         if [ -z "$changed" ]; then
-          echo "::warning::No changed files detected between FETCH_HEAD and HEAD — running all tests as a safety measure"
+          echo "::warning::No changed files detected between FETCH_HEAD and HEAD - running all tests as a safety measure"
           for pkg in isaaclab-core isaaclab-physx isaaclab-newton isaaclab-tasks \
                      isaaclab-rl isaaclab-mimic isaaclab-contrib isaaclab-teleop \
                      isaaclab-visualizers isaaclab-assets isaaclab-ov infra; do
