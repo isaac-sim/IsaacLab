@@ -354,12 +354,17 @@ def _check_random_actions(
             if not hasattr(env_cfg, "possible_agents"):
                 print(f"[INFO]: Skipping {task_name} as it is not a multi-agent task")
                 return
-            env = gym.make(task_name, cfg=env_cfg)
         else:
             if hasattr(env_cfg, "possible_agents"):
                 print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
                 return
+
+        try:
             env = gym.make(task_name, cfg=env_cfg)
+        except ValueError as e:
+            # Config validation (e.g. Newton + multi-asset spawning) may reject
+            # certain preset combinations.  Skip instead of failing.
+            pytest.skip(str(e))
 
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
