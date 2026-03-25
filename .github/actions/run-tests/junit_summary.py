@@ -56,7 +56,7 @@ for tc in root.iter("testcase"):
         for prop in props.findall("property"):
             prop_name = prop.get("name", "")
             if prop_name.startswith("ssim:"):
-                label = prop_name[len("ssim:"):]
+                label = prop_name[len("ssim:") :]
                 ssim_scores.append((name, label, prop.get("value", ""), not (tc_failed or tc_errored)))
 
 mins, secs = divmod(total_time, 60)

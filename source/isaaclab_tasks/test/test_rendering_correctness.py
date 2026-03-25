@@ -404,14 +404,16 @@ def _validate_camera_outputs(
         # validate the consistency of rendering outputs.
         succeeded, error_message, ssim_score = _compare_images(result_image, golden_image, min_ssim)
 
-        _SSIM_SCORES.append({
-            "test": test_name,
-            "backend": physics_backend,
-            "renderer": renderer,
-            "aov": data_type,
-            "ssim": ssim_score,
-            "passed": succeeded,
-        })
+        _SSIM_SCORES.append(
+            {
+                "test": test_name,
+                "backend": physics_backend,
+                "renderer": renderer,
+                "aov": data_type,
+                "ssim": ssim_score,
+                "passed": succeeded,
+            }
+        )
 
         if not succeeded:
             timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
