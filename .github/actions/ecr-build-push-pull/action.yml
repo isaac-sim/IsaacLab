@@ -70,7 +70,7 @@ runs:
 
     ##### 2: Resolve ECR URL #####
 
-    # Tries: explicit input → ECR_CACHE_URL env var → SSM parameter on EC2.
+    # Tries: explicit input >> ECR_CACHE_URL env var >> SSM parameter on EC2.
     # Exports ECR_URL to GITHUB_ENV and sets output `available`.
 
     - name: Resolve ECR URL
@@ -147,23 +147,39 @@ runs:
         aws ecr get-login-password --region "${AWS_REGION}" | \
           docker login --username AWS --password-stdin "${REGISTRY}"
 
-    ##### 4: Pull exact image from ECR #####
+    ##### 4: Check if exact image exists in ECR #####
 
-    # If the exact per-commit image already exists in ECR, pull and tag it locally.
-    # Sets output `hit: true` to skip all subsequent build/push steps.
+    # Lightweight manifest check — fetches only the image manifest (~KB),
+    # not the actual layers.  If the exact per-commit image already exists
+    # in ECR, sets output `hit: true` to skip all subsequent build/push steps.
 
-    - name: Pull exact image from ECR
+    - name: Check exact image in ECR
       id: pull-exact
       if: steps.resolve-ecr.outputs.available == 'true'
       shell: bash
       run: |
-        echo "🔵 Trying to pull commit-tagged ${ECR_IMAGE} from ECR..."
-        if docker pull "${ECR_IMAGE}" 2>/dev/null; then
-          docker tag "${ECR_IMAGE}" "${{ inputs.image-tag }}"
-          echo "🟢 Commit-tagged image pulled, skipping build!"
+        echo "🔵 Checking if commit-tagged image exists in ECR >> ${ECR_IMAGE}"
+        if docker manifest inspect "${ECR_IMAGE}" >/dev/null 2>&1; then
+          echo "🟢 Commit-tagged image found in ECR, skipping build!"
           echo "hit=true" >> "$GITHUB_OUTPUT"
         else
           echo "🟠 Image ${ECR_IMAGE} not found in ECR, will try deps-cache strategy..."
+        fi
+
+    # Pull the image when the manifest check succeeded but the image is not
+    # available locally (test jobs need it for `docker run`).  Build jobs
+    # that only push to ECR will already have the image or don't need it.
+    - name: Pull exact image from ECR
+      if: steps.pull-exact.outputs.hit == 'true'
+      shell: bash
+      run: |
+        if docker image inspect "${{ inputs.image-tag }}" >/dev/null 2>&1; then
+          echo "🟢 Image already available locally, skipping pull"
+        else
+          echo "🔵 Pulling ${ECR_IMAGE} from ECR..."
+          docker pull "${ECR_IMAGE}"
+          docker tag "${ECR_IMAGE}" "${{ inputs.image-tag }}"
+          echo "🟢 Image pulled and tagged as ${{ inputs.image-tag }}"
         fi
 
     ##### 5: Check deps cache #####
@@ -221,7 +237,7 @@ runs:
           # no layer download). Test jobs will pull this tag normally.
           echo "🔵 Tagging as commit image ${ECR_IMAGE}..."
           docker buildx imagetools create -t "${ECR_IMAGE}" "${DEPS_ECR_IMAGE}"
-          echo "🟢 Tagged ${ECR_IMAGE} → ${DEPS_ECR_IMAGE}"
+          echo "🟢 Tagged ${ECR_IMAGE} >> ${DEPS_ECR_IMAGE}"
           echo "deps-cache-hit=true" >> "$GITHUB_OUTPUT"
         else
           echo "🟠 Deps cache MISS 😿😿😿 (${DEPS_HASH}). Will build now. 🐢🐢🐢"

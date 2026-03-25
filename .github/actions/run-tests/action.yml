@@ -158,7 +158,7 @@ runs:
           docker_volume_args=""
           if [ -n "$volume_mount_source" ]; then
             docker_volume_args="-v ${volume_mount_source}:/workspace/isaaclab"
-            echo "🔵 Volume-mounting ${volume_mount_source} → /workspace/isaaclab"
+            echo "🔵 Volume-mounting ${volume_mount_source} >> /workspace/isaaclab"
           fi
 
           # Run tests in a detached container and follow logs.  Running detached
