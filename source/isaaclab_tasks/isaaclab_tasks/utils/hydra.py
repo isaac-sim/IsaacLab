@@ -113,11 +113,36 @@ def collect_presets(cfg, path: str = "") -> dict:
     """
     result = {}
 
+    def _collect_fields(preset_obj):
+        """Collect fields from a PresetCfg, preferring class attrs over instance attrs.
+
+        Robot-specific modules (e.g. ``joint_pos_env_cfg.py``) add new fields
+        and reassign ``default`` on the class after instances are created.
+        Class-level values take priority so that ``collect_presets`` sees them.
+        """
+        cls = type(preset_obj)
+        d = {}
+        for fn in preset_obj.__dataclass_fields__:
+            cls_val = getattr(cls, fn, None)
+            d[fn] = cls_val if cls_val is not None else getattr(preset_obj, fn)
+        for attr in vars(cls):
+            if attr.startswith("_") or attr in d or callable(getattr(cls, attr)):
+                continue
+            d[attr] = getattr(cls, attr)
+        return d
+
+    def _collect_from_dict(d: dict, dict_path: str) -> None:
+        """Recursively collect presets from dict values, including nested dicts."""
+        for dict_key, dict_val in d.items():
+            child_path = f"{dict_path}.{dict_key}"
+            if hasattr(dict_val, "__dataclass_fields__"):
+                result.update(collect_presets(dict_val, child_path))
+            elif isinstance(dict_val, dict):
+                _collect_from_dict(dict_val, child_path)
+
     # Root-level PresetCfg: the cfg itself is a PresetCfg subclass
     if isinstance(cfg, PresetCfg) and hasattr(cfg, "__dataclass_fields__"):
-        preset_dict = {}
-        for field_name in cfg.__dataclass_fields__:
-            preset_dict[field_name] = getattr(cfg, field_name)
+        preset_dict = _collect_fields(cfg)
         result[path] = preset_dict
         for alt in preset_dict.values():
             if hasattr(alt, "__dataclass_fields__"):
@@ -137,9 +162,7 @@ def collect_presets(cfg, path: str = "") -> dict:
 
         if hasattr(value, "__dataclass_fields__"):
             if isinstance(value, PresetCfg):
-                preset_dict = {}
-                for field_name in value.__dataclass_fields__:
-                    preset_dict[field_name] = getattr(value, field_name)
+                preset_dict = _collect_fields(value)
                 result[child_path] = preset_dict
                 for alt in preset_dict.values():
                     if hasattr(alt, "__dataclass_fields__"):
@@ -147,19 +170,9 @@ def collect_presets(cfg, path: str = "") -> dict:
             else:
                 result.update(collect_presets(value, child_path))
         elif isinstance(value, dict):
-            _collect_from_dict(value, child_path, result)
+            _collect_from_dict(value, child_path)
 
     return result
-
-
-def _collect_from_dict(d: dict, path: str, result: dict) -> None:
-    """Recursively collect presets from dict values, including nested dicts."""
-    for dict_key, dict_val in d.items():
-        child_path = f"{path}.{dict_key}"
-        if hasattr(dict_val, "__dataclass_fields__"):
-            result.update(collect_presets(dict_val, child_path))
-        elif isinstance(dict_val, dict):
-            _collect_from_dict(dict_val, child_path, result)
 
 
 def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
