@@ -18,6 +18,8 @@ from isaaclab.app import AppLauncher
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
+import base64  # noqa: E402
+import io  # noqa: E402
 import os  # noqa: E402
 from datetime import datetime  # noqa: E402
 from typing import Any  # noqa: E402
@@ -57,9 +59,13 @@ _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
 )
 
+# Maximum width (in pixels) for thumbnail images embedded in JUnit XML properties.
+_THUMBNAIL_MAX_WIDTH = 256
+
 # Collects comparison scores from all golden-image comparisons during the session.
 # Each entry: {"test": str, "backend": str, "renderer": str, "aov": str,
-#              "ssim": float, "diff_pct": float, "passed": bool}
+#              "ssim": float, "diff_pct": float, "passed": bool,
+#              "img_result_b64": str | None, "img_golden_b64": str | None}
 _COMPARISON_SCORES: list[dict] = []
 
 
@@ -84,13 +90,16 @@ def cleanup_simulation_context():
 
 @pytest.fixture(autouse=True)
 def _attach_comparison_properties(request):
-    """Attach pixel-diff and SSIM scores collected during the test as JUnit XML properties."""
+    """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
     initial_count = len(_COMPARISON_SCORES)
     yield
     for entry in _COMPARISON_SCORES[initial_count:]:
         label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
         request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
         request.node.user_properties.append((f"ssim:{label}", f"{entry['ssim']:.4f}"))
+        if entry.get("img_result_b64"):
+            request.node.user_properties.append((f"img_result:{label}", entry["img_result_b64"]))
+            request.node.user_properties.append((f"img_golden:{label}", entry["img_golden_b64"]))
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +266,24 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
         normalized = normalized / 255.0
 
     return normalized
+
+
+def _image_to_base64(img: Image.Image, max_width: int = _THUMBNAIL_MAX_WIDTH) -> str:
+    """Encode a PIL image as a base64 PNG string, resizing if wider than max_width.
+
+    Args:
+        img: PIL Image to encode.
+        max_width: Maximum width in pixels; image is downscaled proportionally if wider.
+
+    Returns:
+        Base64-encoded PNG string.
+    """
+    if img.width > max_width:
+        ratio = max_width / img.width
+        img = img.resize((max_width, int(img.height * ratio)), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 def _make_grid(images: torch.Tensor) -> torch.Tensor:
@@ -434,17 +461,23 @@ def _validate_camera_outputs(
             result_image, golden_image, max_different_pixels_percentage
         )
 
-        _COMPARISON_SCORES.append(
-            {
-                "test": test_name,
-                "backend": physics_backend,
-                "renderer": renderer,
-                "aov": data_type,
-                "diff_pct": diff_pct,
-                "ssim": ssim_score,
-                "passed": succeeded,
-            }
-        )
+        entry = {
+            "test": test_name,
+            "backend": physics_backend,
+            "renderer": renderer,
+            "aov": data_type,
+            "diff_pct": diff_pct,
+            "ssim": ssim_score,
+            "passed": succeeded,
+            "img_result_b64": None,
+            "img_golden_b64": None,
+        }
+
+        if not succeeded:
+            entry["img_result_b64"] = _image_to_base64(result_image)
+            entry["img_golden_b64"] = _image_to_base64(golden_image)
+
+        _COMPARISON_SCORES.append(entry)
 
         if not succeeded:
             timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
