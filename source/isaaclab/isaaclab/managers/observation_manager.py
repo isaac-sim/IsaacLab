@@ -580,15 +580,15 @@ class ObservationManager(ManagerBase):
                     for mod_cfg in term_cfg.modifiers:
                         # check if class modifier and initialize with observation size when adding
                         if isinstance(mod_cfg, modifiers.ModifierCfg):
-                            # to list of modifiers
+                            # to list of modifiers - instantiate class-based modifiers
                             if inspect.isclass(mod_cfg.func):
-                                if not issubclass(mod_cfg.func, modifiers.ModifierBase):
+                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                                # verify the instance is the correct type
+                                if not isinstance(mod_cfg.func, modifiers.ModifierBase):
                                     raise TypeError(
                                         f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
-                                        f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                                        f" is not an instance of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
                                     )
-                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
-
                                 # add to list of class modifiers
                                 self._group_obs_class_instances.append(mod_cfg.func)
                         else:
