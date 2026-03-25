@@ -53,7 +53,7 @@ def aggregate_inertia_about_robot_com(
     Method (base frame throughout):
       1) COM of each link: com_link_b = body_pos_b + R_link_base @ body_com_pos_b
       2) Robot COM: mass-weighted average of com_link_b
-      3) Rotate each link inertia: I_b = (R_link_base @ R_mass_link) I_local (⋯)^T
+      3) Transform each link inertia via R: I_b = R I_local R^T
       4) Parallel-axis: I_pa = m (‖r‖² I - r rᵀ), r = com_link_b - com_robot_b
       5) Sum over links and symmetrize
     """
@@ -66,12 +66,12 @@ def aggregate_inertia_about_robot_com(
     m_sum = m.sum(dim=1, keepdim=True)
     valid = (m > 0).float().unsqueeze(-1)
 
-    # Rotations: link->base (R_link_base) and mass->link (R_mass_link)
+    # Link COM positions in base frame
     R_link_base = matrix_from_quat(body_quat_b)
-    R_mass_link = body_pos_b + (R_link_base @ body_com_pos_b[..., :, None]).squeeze(-1)
+    com_link_b = body_pos_b + (R_link_base @ body_com_pos_b[..., :, None]).squeeze(-1)
 
     # Robot COM base frame (mass-weighted)
-    com_robot_b = (m.unsqueeze(-1) * R_mass_link).sum(dim=1) / (m_sum + eps)
+    com_robot_b = (m.unsqueeze(-1) * com_link_b).sum(dim=1) / (m_sum + eps)
 
     # Rotate inertia from mass frame to world: R = R_link_base * R_mass
     R_mass = matrix_from_quat(body_com_quat_b)
@@ -79,7 +79,7 @@ def aggregate_inertia_about_robot_com(
     I_world = R @ I_local @ R.transpose(-1, -2)
 
     # Parallel-axis to robot COM
-    r = R_mass_link - com_robot_b[:, None, :]
+    r = com_link_b - com_robot_b[:, None, :]
     rrT = r[..., :, None] @ r[..., None, :]
     r2 = (r * r).sum(dim=-1, keepdim=True)
     I3 = torch.eye(3, device=body_pos_b.device).reshape(1, 1, 3, 3).expand(num_envs, num_bodies, 3, 3)

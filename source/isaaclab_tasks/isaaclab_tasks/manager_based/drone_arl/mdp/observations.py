@@ -131,8 +131,8 @@ class ImageLatentObservation(ManagerTermBase):
             cfg.params["sensor_cfg"].name
         ]
         self.data_type: str = cfg.params["data_type"]
-        self.convert_perspective_to_orthogonal: bool = (False,)
-        self.normalize: bool = True
+        self.convert_perspective_to_orthogonal = bool(cfg.params.get("convert_perspective_to_orthogonal", False))
+        self.normalize = bool(cfg.params.get("normalize", True))
 
     @classmethod
     def _get_model(cls, device):
@@ -189,7 +189,7 @@ class ImageLatentObservation(ManagerTermBase):
             already stored during initialization. They are included in the signature only
             to satisfy the observation manager's parameter validation.
         """
-        images = self.camera_sensor.data.output[self.data_type]
+        images = self.camera_sensor.data.output[self.data_type].clone()
 
         if (self.data_type == "distance_to_camera") and self.convert_perspective_to_orthogonal:
             images = math_utils.orthogonalize_perspective_depth(images, self.camera_sensor.data.intrinsic_matrices)

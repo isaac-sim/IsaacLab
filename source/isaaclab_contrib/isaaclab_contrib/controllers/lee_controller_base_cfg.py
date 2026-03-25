@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
 from dataclasses import MISSING
 
 from isaaclab.utils import configclass
@@ -51,7 +52,7 @@ class LeeControllerBaseCfg:
         ((0.5, 0.5, 0.09), (0.5, 0.5, 0.09)) for fixed gains
     """
 
-    max_inclination_angle_rad: float = MISSING
+    max_inclination_angle_rad: float = math.pi / 3
     """Maximum allowed roll/pitch magnitude (inclination) in radians.
 
     This limits the maximum tilt angle of the quadrotor during control.
