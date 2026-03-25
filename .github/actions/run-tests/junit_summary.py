@@ -24,7 +24,8 @@ except OSError as exc:
     sys.exit(0)
 
 passed, failed, errored, skipped = [], [], [], []
-ssim_scores = []  # (test_name, property_label, score_str, passed)
+# Keyed by (test_name, label) -> {"diff_pct": str, "ssim": str, "passed": bool}
+comparison_scores = {}
 total_time = 0.0
 
 
@@ -50,14 +51,18 @@ for tc in root.iter("testcase"):
     else:
         passed.append((name, t))
 
-    # Collect ssim:* properties emitted by test_rendering_correctness.
+    # Collect diff_pct:* and ssim:* properties emitted by test_rendering_correctness.
     props = tc.find("properties")
     if props is not None:
         for prop in props.findall("property"):
             prop_name = prop.get("name", "")
-            if prop_name.startswith("ssim:"):
-                label = prop_name[len("ssim:") :]
-                ssim_scores.append((name, label, prop.get("value", ""), not (tc_failed or tc_errored)))
+            for prefix in ("diff_pct:", "ssim:"):
+                if prop_name.startswith(prefix):
+                    label = prop_name[len(prefix) :]
+                    key = (name, label)
+                    if key not in comparison_scores:
+                        comparison_scores[key] = {"diff_pct": "", "ssim": "", "passed": not (tc_failed or tc_errored)}
+                    comparison_scores[key][prefix.rstrip(":")] = prop.get("value", "")
 
 mins, secs = divmod(total_time, 60)
 time_str = f"{int(mins)}m:{secs:.0f}s"
@@ -106,15 +111,15 @@ if skipped:
     print("")
     print("</details>")
 
-if ssim_scores:
-    print(f"\n<details><summary>🔵 SSIM Scores ({len(ssim_scores)})</summary>")
+if comparison_scores:
+    print(f"\n<details><summary>🔵 Image Comparison Scores ({len(comparison_scores)})</summary>")
     print("")
     print("<br>")
     print("")
-    print("| Test | AOV | SSIM | Status |")
-    print("|------|-----|------|--------|")
-    for name, label, score, ok in ssim_scores:
-        status = "PASS" if ok else "FAIL"
-        print(f"| `{name}` | {label} | {score} | {status} |")
+    print("| Test | AOV | Pixel_Diff % | SSIM | Status |")
+    print("|------|-----|--------|------|--------|")
+    for (name, label), scores in comparison_scores.items():
+        status = "PASS" if scores["passed"] else "FAIL"
+        print(f"| `{name}` | {label} | {scores['diff_pct']} | {scores['ssim']} | {status} |")
     print("")
     print("</details>")

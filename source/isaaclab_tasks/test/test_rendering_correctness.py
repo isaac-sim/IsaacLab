@@ -26,7 +26,7 @@ import gymnasium as gym  # noqa: E402
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
-from PIL import Image  # noqa: E402
+from PIL import Image, ImageChops  # noqa: E402
 
 from isaaclab.envs.utils.spaces import sample_space  # noqa: E402
 from isaaclab.sim import SimulationContext  # noqa: E402
@@ -45,19 +45,22 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg  # noqa: E402
 # Directory containing golden images.
 _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_images")
 
-# Minimum SSIM (Structural Similarity Index) score for golden-image comparison.
-# SSIM measures perceptual similarity (1.0 = identical). A threshold of 0.75
-# tolerates per-pixel noise from non-deterministic rendering while still
-# catching meaningful regressions (missing objects, wrong colors, etc.).
-_MIN_SSIM_THRESHOLD = 0.75
+# Pixel L2 norm difference threshold. L2 norm difference is the Euclidean distance between two pixels:
+#
+#   d = sqrt((R1 - R2)^2 + (G1 - G2)^2 + (B1 - B2)^2)
+#
+# If the difference between two pixels is less than this threshold, consider them "equal" (i.e. within the tolerance).
+#
+_PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 
 _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
 )
 
-# Collects SSIM scores from all golden-image comparisons during the session.
-# Each entry: {"test": str, "backend": str, "renderer": str, "aov": str, "ssim": float, "passed": bool}
-_SSIM_SCORES: list[dict] = []
+# Collects comparison scores from all golden-image comparisons during the session.
+# Each entry: {"test": str, "backend": str, "renderer": str, "aov": str,
+#              "ssim": float, "diff_pct": float, "passed": bool}
+_COMPARISON_SCORES: list[dict] = []
 
 
 # ---------------------------------------------------------------------------
@@ -80,13 +83,14 @@ def cleanup_simulation_context():
 
 
 @pytest.fixture(autouse=True)
-def _attach_ssim_properties(request):
-    """Attach SSIM scores collected during the test as JUnit XML properties."""
-    initial_count = len(_SSIM_SCORES)
+def _attach_comparison_properties(request):
+    """Attach pixel-diff and SSIM scores collected during the test as JUnit XML properties."""
+    initial_count = len(_COMPARISON_SCORES)
     yield
-    for entry in _SSIM_SCORES[initial_count:]:
-        key = f"ssim:{entry['backend']}-{entry['renderer']}-{entry['aov']}"
-        request.node.user_properties.append((key, f"{entry['ssim']:.4f}"))
+    for entry in _COMPARISON_SCORES[initial_count:]:
+        label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
+        request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
+        request.node.user_properties.append((f"ssim:{label}", f"{entry['ssim']:.4f}"))
 
 
 # ---------------------------------------------------------------------------
@@ -309,42 +313,66 @@ def _ssim(img1: torch.Tensor, img2: torch.Tensor, window_size: int = 11) -> floa
     return ssim_map.mean().item()
 
 
+def _pixel_diff_percentage(
+    result_image: Image.Image,
+    golden_image: Image.Image,
+    pixel_diff_threshold: float = _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD,
+) -> float:
+    """Compute the percentage of pixels whose L2 norm difference exceeds a threshold.
+
+    Args:
+        result_image: Result image as PIL Image.
+        golden_image: Golden image as PIL Image (must be same size/mode).
+        pixel_diff_threshold: Pixel L2 norm difference threshold.
+
+    Returns:
+        Percentage of pixels that differ beyond the threshold.
+    """
+    diff_array = np.array(ImageChops.difference(result_image, golden_image))
+    l2_norm_array = np.linalg.norm(diff_array, axis=2)
+    num_different_pixels = np.sum(l2_norm_array > pixel_diff_threshold)
+    return 100.0 * num_different_pixels / l2_norm_array.size
+
+
 def _compare_images(
     result_image: Image.Image,
     golden_image: Image.Image,
-    min_ssim: float = _MIN_SSIM_THRESHOLD,
-) -> tuple[bool, str | None, float]:
-    """Compare result and golden images using SSIM.
+    max_different_pixels_percentage: float,
+) -> tuple[bool, str | None, float, float]:
+    """Compare result and golden images using pixel L2 norm (pass/fail) and SSIM (reference).
 
     Args:
         result_image: Result image as PIL Image to compare with golden image.
         golden_image: Golden image as PIL Image to compare with result image.
-        min_ssim: Minimum SSIM score to consider images structurally similar.
+        max_different_pixels_percentage: Maximum percentage of pixels allowed to exceed pixel_diff_threshold.
 
     Returns:
-        (passed, error_message_or_None, ssim_score). Score is 0.0 when comparison
-        cannot be performed (size/mode mismatch).
+        (passed, error_message_or_None, diff_percentage, ssim_score).
+        Scores are 0.0 / 0.0 when comparison cannot be performed (size/mode mismatch).
     """
     if result_image.size != golden_image.size:
-        return False, f"Size mismatch: expected {golden_image.size}, got {result_image.size}.", 0.0
+        return False, f"Size mismatch: expected {golden_image.size}, got {result_image.size}.", 0.0, 0.0
 
     if result_image.mode != golden_image.mode:
-        return False, f"Mode mismatch: expected {golden_image.mode}, got {result_image.mode}.", 0.0
+        return False, f"Mode mismatch: expected {golden_image.mode}, got {result_image.mode}.", 0.0, 0.0
 
-    # Convert PIL images to (1, C, H, W) float tensors in [0, 1] for SSIM.
+    diff_pct = _pixel_diff_percentage(result_image, golden_image)
+
+    # SSIM (reference only, not used for pass/fail).
     result_tensor = torch.from_numpy(np.array(result_image, dtype=np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
     golden_tensor = torch.from_numpy(np.array(golden_image, dtype=np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
+    ssim_score = _ssim(result_tensor, golden_tensor)
 
-    score = _ssim(result_tensor, golden_tensor)
-
-    if score < min_ssim:
+    if diff_pct > max_different_pixels_percentage:
         return (
             False,
-            f"SSIM score ({score:.4f}) is below the minimum threshold ({min_ssim:.4f}).",
-            score,
+            f"The percentage of different pixels ({diff_pct:.2f}%) exceeds the threshold of"
+            f" {max_different_pixels_percentage:.2f}%. SSIM={ssim_score:.4f} (reference).",
+            diff_pct,
+            ssim_score,
         )
 
-    return True, None, score
+    return True, None, diff_pct, ssim_score
 
 
 def _validate_camera_outputs(
@@ -352,7 +380,7 @@ def _validate_camera_outputs(
     physics_backend: str,
     renderer: str,
     camera_outputs: dict[str, torch.Tensor],
-    min_ssim: float = _MIN_SSIM_THRESHOLD,
+    max_different_pixels_percentage: float,
 ) -> None:
     """Validate correctness and consistency of camera outputs.
 
@@ -361,7 +389,7 @@ def _validate_camera_outputs(
         physics_backend: Physics backend.
         renderer: Renderer.
         camera_outputs: {data_type -> tensor}.
-        min_ssim: Minimum SSIM score for golden-image comparison.
+        max_different_pixels_percentage: Maximum percentage of pixels allowed to exceed pixel_diff_threshold.
     """
     assert len(camera_outputs) > 0, f"[{test_name}] No camera outputs produced by {physics_backend} + {renderer}."
 
@@ -402,14 +430,17 @@ def _validate_camera_outputs(
             pytest.fail(f"Error opening golden image: {e}")
 
         # validate the consistency of rendering outputs.
-        succeeded, error_message, ssim_score = _compare_images(result_image, golden_image, min_ssim)
+        succeeded, error_message, diff_pct, ssim_score = _compare_images(
+            result_image, golden_image, max_different_pixels_percentage
+        )
 
-        _SSIM_SCORES.append(
+        _COMPARISON_SCORES.append(
             {
                 "test": test_name,
                 "backend": physics_backend,
                 "renderer": renderer,
                 "aov": data_type,
+                "diff_pct": diff_pct,
                 "ssim": ssim_score,
                 "passed": succeeded,
             }
@@ -502,6 +533,7 @@ def test_shadow_hand(shadow_hand_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
+        max_different_pixels_percentage=5.0,
     )
 
 
@@ -547,6 +579,7 @@ def test_cartpole(cartpole_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
+        max_different_pixels_percentage=5.0,
     )
 
 
@@ -596,6 +629,7 @@ def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
         physics_backend,
         renderer,
         env.scene.sensors["base_camera"].data.output,
+        max_different_pixels_percentage=10.0,
     )
 
 
@@ -679,6 +713,7 @@ def test_registered_tasks(task_id):
             "default_physics",
             "default_renderer",
             camera_outputs,
+            max_different_pixels_percentage=5.0,
         )
     finally:
         if env is not None:
