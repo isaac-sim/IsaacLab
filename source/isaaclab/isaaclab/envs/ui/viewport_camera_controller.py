@@ -50,9 +50,9 @@ class ViewportCameraController:
         # store inputs
         self._env = env
         self._cfg = copy.deepcopy(cfg)
-        # cast viewer eye and look-at to numpy arrays
-        self.default_cam_eye = np.array(self._cfg.eye, dtype=float)
-        self.default_cam_lookat = np.array(self._cfg.lookat, dtype=float)
+        # cast viewer position and target to numpy arrays
+        self.default_cam_eye = np.array(self._cfg.position, dtype=float)
+        self.default_cam_lookat = np.array(self._cfg.target_position, dtype=float)
 
         # set the camera origins
         if self.cfg.origin_type == "env":

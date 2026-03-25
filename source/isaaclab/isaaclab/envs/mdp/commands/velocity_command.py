@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -26,6 +28,7 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+_VIS_DEBUG_ENABLED = os.getenv("ISAACLAB_VIS_DEBUG", "0").lower() in {"1", "true", "yes", "on"}
 
 
 class UniformVelocityCommand(CommandTerm):
@@ -84,6 +87,9 @@ class UniformVelocityCommand(CommandTerm):
         self.heading_target = torch.zeros(self.num_envs, device=self.device)
         self.is_heading_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.is_standing_env = torch.zeros_like(self.is_heading_env)
+        self._debug_vis_callback_count = 0
+        self._debug_env0_probe_body_path: str | None = None
+        self._debug_env0_probe_status: str = "uninitialized"
         # -- metrics
         self.metrics["error_vel_xy"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_vel_yaw"] = torch.zeros(self.num_envs, device=self.device)
@@ -201,6 +207,83 @@ class UniformVelocityCommand(CommandTerm):
         # display markers
         self.goal_vel_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
         self.current_vel_visualizer.visualize(base_pos_w, vel_arrow_quat, vel_arrow_scale)
+        self._debug_vis_callback_count += 1
+        if _VIS_DEBUG_ENABLED and (
+            self._debug_vis_callback_count <= 3 or self._debug_vis_callback_count % 120 == 0
+        ):
+            mean_cmd = float(torch.linalg.norm(self.command[:, :2], dim=-1).mean().item())
+            mean_vel = float(torch.linalg.norm(wp.to_torch(self.robot.data.root_lin_vel_b)[:, :2], dim=-1).mean().item())
+            tensor_root_pos = wp.to_torch(self.robot.data.root_pos_w)[0].detach().cpu()
+            fabric_root_pos = self._get_env0_fabric_probe_position()
+            root_view_pos = self._get_env0_root_view_position()
+            robot_root = self._resolve_env0_robot_root_path()
+            fabric_base_pos = self._get_fabric_position_for_path(f"{robot_root}/base") if robot_root else None
+            fabric_trunk_pos = self._get_fabric_position_for_path(f"{robot_root}/trunk") if robot_root else None
+            if fabric_root_pos is not None:
+                fabric_root_pos_t = torch.tensor(fabric_root_pos, dtype=tensor_root_pos.dtype)
+                delta = torch.linalg.norm(tensor_root_pos - fabric_root_pos_t).item()
+                root_view_delta = None
+                if root_view_pos is not None:
+                    root_view_pos_t = torch.tensor(root_view_pos, dtype=tensor_root_pos.dtype)
+                    root_view_delta = torch.linalg.norm(tensor_root_pos - root_view_pos_t).item()
+                logger.warning(
+                    "[VIS-DEBUG][UniformVelocityCommand._debug_vis_callback] count=%d mean_cmd_xy=%.4f "
+                    "mean_vel_xy=%.4f env0_tensor_root=(%.3f, %.3f, %.3f) env0_fabric_root=(%.3f, %.3f, %.3f) "
+                    "tensor_fabric_delta=%.5f root_view_delta=%s fabric_base=%s fabric_trunk=%s "
+                    "probe_path=%s probe_status=%s",
+                    self._debug_vis_callback_count,
+                    mean_cmd,
+                    mean_vel,
+                    float(tensor_root_pos[0]),
+                    float(tensor_root_pos[1]),
+                    float(tensor_root_pos[2]),
+                    float(fabric_root_pos_t[0]),
+                    float(fabric_root_pos_t[1]),
+                    float(fabric_root_pos_t[2]),
+                    float(delta),
+                    f"{root_view_delta:.5f}" if root_view_delta is not None else "<unavailable>",
+                    (
+                        f"({fabric_base_pos[0]:.3f}, {fabric_base_pos[1]:.3f}, {fabric_base_pos[2]:.3f})"
+                        if fabric_base_pos is not None
+                        else "<unavailable>"
+                    ),
+                    (
+                        f"({fabric_trunk_pos[0]:.3f}, {fabric_trunk_pos[1]:.3f}, {fabric_trunk_pos[2]:.3f})"
+                        if fabric_trunk_pos is not None
+                        else "<unavailable>"
+                    ),
+                    self._debug_env0_probe_body_path or "<unresolved>",
+                    self._debug_env0_probe_status,
+                )
+            else:
+                logger.warning(
+                    "[VIS-DEBUG][UniformVelocityCommand._debug_vis_callback] count=%d mean_cmd_xy=%.4f "
+                    "mean_vel_xy=%.4f env0_tensor_root=(%.3f, %.3f, %.3f) env0_fabric_root=<unavailable> "
+                    "root_view=%s fabric_base=%s fabric_trunk=%s probe_path=%s probe_status=%s",
+                    self._debug_vis_callback_count,
+                    mean_cmd,
+                    mean_vel,
+                    float(tensor_root_pos[0]),
+                    float(tensor_root_pos[1]),
+                    float(tensor_root_pos[2]),
+                    (
+                        f"({root_view_pos[0]:.3f}, {root_view_pos[1]:.3f}, {root_view_pos[2]:.3f})"
+                        if root_view_pos is not None
+                        else "<unavailable>"
+                    ),
+                    (
+                        f"({fabric_base_pos[0]:.3f}, {fabric_base_pos[1]:.3f}, {fabric_base_pos[2]:.3f})"
+                        if fabric_base_pos is not None
+                        else "<unavailable>"
+                    ),
+                    (
+                        f"({fabric_trunk_pos[0]:.3f}, {fabric_trunk_pos[1]:.3f}, {fabric_trunk_pos[2]:.3f})"
+                        if fabric_trunk_pos is not None
+                        else "<unavailable>"
+                    ),
+                    self._debug_env0_probe_body_path or "<unresolved>",
+                    self._debug_env0_probe_status,
+                )
 
     """
     Internal helpers.
@@ -222,6 +305,109 @@ class UniformVelocityCommand(CommandTerm):
         arrow_quat = math_utils.quat_mul(base_quat_w, arrow_quat)
 
         return arrow_scale, arrow_quat
+
+    def _resolve_env0_robot_root_path(self) -> str | None:
+        """Best-effort resolve env_0 robot root path from articulation cfg prim path."""
+        prim_path = getattr(self.robot.cfg, "prim_path", None)
+        if not isinstance(prim_path, str) or not prim_path:
+            return None
+        path = prim_path
+        if "{ENV_REGEX_NS}" in path:
+            path = path.replace("{ENV_REGEX_NS}", "/World/envs/env_0")
+        path = path.replace("env_.*", "env_0")
+        path = re.sub(r"\.\*$", "0", path)
+        return path
+
+    def _resolve_env0_fabric_probe_body_path(self) -> str | None:
+        """Resolve a rigid-body prim path for env_0 suitable for Fabric world-matrix probing."""
+        if self._debug_env0_probe_body_path is not None:
+            return self._debug_env0_probe_body_path
+        try:
+            from pxr import UsdPhysics
+
+            stage = self._env.sim.stage
+            if stage is None:
+                self._debug_env0_probe_status = "no_stage"
+                return None
+            robot_root = self._resolve_env0_robot_root_path()
+            if not robot_root:
+                self._debug_env0_probe_status = "no_robot_root_path"
+                return None
+            root_prim = stage.GetPrimAtPath(robot_root)
+            if not root_prim.IsValid():
+                self._debug_env0_probe_status = f"invalid_robot_root:{robot_root}"
+                return None
+
+            # First try common body names directly under Robot to avoid brittle traversal assumptions.
+            fallback_candidates = [
+                f"{robot_root}/base",
+                f"{robot_root}/base_link",
+                f"{robot_root}/trunk",
+                f"{robot_root}/pelvis",
+            ]
+            for candidate in fallback_candidates:
+                prim = stage.GetPrimAtPath(candidate)
+                if prim.IsValid() and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    self._debug_env0_probe_body_path = candidate
+                    self._debug_env0_probe_status = "resolved_fallback_candidate"
+                    return self._debug_env0_probe_body_path
+
+            preferred_names = {"base", "base_link", "trunk", "pelvis"}
+            for prim in root_prim.Traverse():
+                if not prim.IsValid() or not prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    continue
+                if prim.GetName() in preferred_names:
+                    self._debug_env0_probe_body_path = prim.GetPath().pathString
+                    self._debug_env0_probe_status = "resolved_traverse_preferred"
+                    return self._debug_env0_probe_body_path
+            for prim in root_prim.Traverse():
+                if prim.IsValid() and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    self._debug_env0_probe_body_path = prim.GetPath().pathString
+                    self._debug_env0_probe_status = "resolved_traverse_first_rigidbody"
+                    return self._debug_env0_probe_body_path
+            self._debug_env0_probe_status = "no_rigidbody_under_robot_root"
+        except Exception:
+            self._debug_env0_probe_status = "resolve_exception"
+            return None
+        return None
+
+    def _get_env0_fabric_probe_position(self) -> tuple[float, float, float] | None:
+        """Read env_0 probe body world translation from Fabric backend."""
+        body_path = self._resolve_env0_fabric_probe_body_path()
+        if not body_path:
+            return None
+        return self._get_fabric_position_for_path(body_path)
+
+    def _get_fabric_position_for_path(self, body_path: str) -> tuple[float, float, float] | None:
+        """Read a body world translation from Fabric backend."""
+        try:
+            import isaacsim.core.experimental.utils.backend as backend_utils
+            import isaacsim.core.experimental.utils.prim as prim_utils
+            import numpy as np
+
+            with backend_utils.use_backend("fabric"):
+                world_matrix = prim_utils.get_prim_attribute_value(body_path, "omni:fabric:worldMatrix")
+            translation = np.array(world_matrix.ExtractTranslation(), dtype=float)
+            self._debug_env0_probe_status = "fabric_read_ok"
+            return (float(translation[0]), float(translation[1]), float(translation[2]))
+        except Exception:
+            self._debug_env0_probe_status = "fabric_read_exception"
+            return None
+
+    def _get_env0_root_view_position(self) -> tuple[float, float, float] | None:
+        """Read env_0 articulation root position directly from PhysX root_view."""
+        try:
+            root_transforms = self.robot.root_view.get_root_transforms()
+            root_transforms_t = wp.to_torch(root_transforms)
+            if root_transforms_t.ndim >= 2 and root_transforms_t.shape[1] >= 3 and root_transforms_t.shape[0] > 0:
+                return (
+                    float(root_transforms_t[0, 0].item()),
+                    float(root_transforms_t[0, 1].item()),
+                    float(root_transforms_t[0, 2].item()),
+                )
+        except Exception:
+            return None
+        return None
 
 
 class NormalVelocityCommand(UniformVelocityCommand):

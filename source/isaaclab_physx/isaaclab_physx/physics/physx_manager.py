@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 __all__ = ["IsaacEvents", "PhysxManager"]
 
 logger = logging.getLogger(__name__)
+_VIS_DEBUG_ENABLED = os.getenv("ISAACLAB_VIS_DEBUG", "0").lower() in {"1", "true", "yes", "on"}
 
 
 class IsaacEvents(Enum):
@@ -175,6 +176,8 @@ class PhysxManager(PhysicsManager):
     _subscriptions: ClassVar[dict[str, Any]] = {}
     _fabric: ClassVar[Any] = None
     _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
+    _debug_forward_counter: ClassVar[int] = 0
+    _debug_last_forward_signature: ClassVar[tuple[bool, bool, bool] | None] = None
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
     _callback_exception: ClassVar[Exception | None] = None
 
@@ -244,9 +247,29 @@ class PhysxManager(PhysicsManager):
         """Update articulation kinematics and fabric for rendering."""
         sim = PhysicsManager._sim
         if cls._fabric is not None and cls._update_fabric is not None:
-            if cls._view is not None and sim is not None and sim.is_playing():
+            sim_is_playing = bool(sim is not None and sim.is_playing())
+            timeline_playing = bool(cls._timeline is not None and cls._timeline.is_playing())
+            has_view = bool(cls._view is not None)
+            did_update_kinematics = False
+            if has_view and sim_is_playing:
                 cls._view.update_articulations_kinematic()
+                did_update_kinematics = True
             cls._update_fabric(0.0, 0.0)
+            cls._debug_forward_counter += 1
+            if _VIS_DEBUG_ENABLED:
+                signature = (sim_is_playing, has_view, did_update_kinematics)
+                if cls._debug_last_forward_signature != signature or (cls._debug_forward_counter % 120 == 0):
+                    logger.warning(
+                        "[VIS-DEBUG][PhysxManager.forward] count=%d sim_playing=%s timeline_playing=%s has_view=%s "
+                        "updated_kinematics=%s updated_fabric=%s",
+                        cls._debug_forward_counter,
+                        sim_is_playing,
+                        timeline_playing,
+                        has_view,
+                        did_update_kinematics,
+                        True,
+                    )
+                cls._debug_last_forward_signature = signature
 
     @classmethod
     def step(cls) -> None:

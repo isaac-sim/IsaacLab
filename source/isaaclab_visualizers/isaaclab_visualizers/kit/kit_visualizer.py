@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import TYPE_CHECKING
 
 from pxr import UsdGeom
@@ -18,6 +19,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from .kit_visualizer_cfg import KitVisualizerCfg
 
 logger = logging.getLogger(__name__)
+_VIS_DEBUG_ENABLED = os.getenv("ISAACLAB_VIS_DEBUG", "0").lower() in {"1", "true", "yes", "on"}
 
 if TYPE_CHECKING:
     from isaaclab.physics import BaseSceneDataProvider
@@ -46,6 +48,9 @@ class KitVisualizer(BaseVisualizer):
         # user-switching the GUI viewport to a sensor camera does not corrupt the sensor's prim.
         self._controlled_camera_path: str | None = None
         self._runtime_headless = bool(cfg.headless)
+        self._debug_last_step_state: tuple[bool, bool, bool | None] | None = None
+        self._debug_period_steps = 120
+        self._last_timeline_playing: bool | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -105,6 +110,7 @@ class KitVisualizer(BaseVisualizer):
         try:
             import carb.settings
             import omni.kit.app
+            import omni.timeline
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
@@ -112,12 +118,43 @@ class KitVisualizer(BaseVisualizer):
                 settings = carb.settings.get_settings()
                 play_simulations_path = "/app/player/playSimulations"
                 previous_play_simulations = None if settings is None else settings.get(play_simulations_path)
-                should_restore = bool(previous_play_simulations)
-                if should_restore:
-                    settings.set_bool(play_simulations_path, False)
+                timeline = omni.timeline.get_timeline_interface()
+                timeline_playing = bool(timeline is not None and timeline.is_playing())
+                timeline_stopped = bool(timeline is not None and timeline.is_stopped())
+                timeline_pause_state = (not timeline_playing) and (not timeline_stopped)
+                should_temporarily_pause = bool(previous_play_simulations)
+                did_app_update = False
+                try:
+                    # Prevent app.update() from stepping physics. SimulationContext owns stepping.
+                    if should_temporarily_pause and settings is not None:
+                        settings.set_bool(play_simulations_path, False)
                     app.update()
-                if should_restore:
-                    settings.set_bool(play_simulations_path, True)
+                    did_app_update = True
+                finally:
+                    if should_temporarily_pause and settings is not None:
+                        settings.set_bool(play_simulations_path, True)
+
+                if _VIS_DEBUG_ENABLED:
+                    state = (timeline_playing, timeline_stopped, previous_play_simulations)
+                    if (
+                        self._debug_last_step_state != state
+                        or (self._step_counter % self._debug_period_steps == 0)
+                        or not did_app_update
+                    ):
+                        logger.warning(
+                            "[VIS-DEBUG][KitVisualizer.step] step=%d dt=%.4f timeline_playing=%s timeline_stopped=%s "
+                            "playSim_before=%s playSim_target=%s timeline_paused=%s app_update=%s",
+                            self._step_counter,
+                            dt,
+                            timeline_playing,
+                            timeline_stopped,
+                            previous_play_simulations,
+                            bool(not should_temporarily_pause),
+                            timeline_pause_state,
+                            did_app_update,
+                        )
+                    self._debug_last_step_state = state
+                self._last_timeline_playing = timeline_playing
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 

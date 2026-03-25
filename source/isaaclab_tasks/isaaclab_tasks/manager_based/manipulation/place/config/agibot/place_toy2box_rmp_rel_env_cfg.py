@@ -202,8 +202,8 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
         )
 
         # set viewer to see the whole scene
-        self.viewer.eye = [1.5, -1.0, 1.5]
-        self.viewer.lookat = [0.5, 0.0, 0.0]
+        self.viewer.position = [1.5, -1.0, 1.5]
+        self.viewer.target_position = [0.5, 0.0, 0.0]
 
 
 """

@@ -275,8 +275,8 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 1
         self.episode_length_s = 8.0
-        self.viewer.eye = (-2.0, 2.0, 2.0)
-        self.viewer.lookat = (0.8, 0.0, 0.5)
+        self.viewer.position = (-2.0, 2.0, 2.0)
+        self.viewer.target_position = (0.8, 0.0, 0.5)
         # simulation settings
         self.sim.dt = 1 / 60  # 60Hz
         self.sim.render_interval = self.decimation
