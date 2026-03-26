@@ -30,7 +30,7 @@ from isaaclab.physics.scene_data_requirements import (
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-
+from isaaclab.scene.scene_data_provider import SceneDataProvider as NewSceneDataProvider
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
@@ -167,6 +167,7 @@ class SimulationContext:
         self._apply_render_cfg_settings()
 
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
+        self._new_scene_data_provider = NewSceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
         self._scene_data_requirements = SceneDataRequirement()
@@ -582,6 +583,9 @@ class SimulationContext:
             if callable(close_provider):
                 close_provider()
             self._scene_data_provider = None
+
+    def get_new_scene_data_provider(self) -> NewSceneDataProvider:
+        return self._new_scene_data_provider
 
     def initialize_scene_data_provider(self) -> BaseSceneDataProvider:
         if self._scene_data_provider is None:

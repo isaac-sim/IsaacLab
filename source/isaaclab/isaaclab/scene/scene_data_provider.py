@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 from __future__ import annotations
 import numpy as np
 import warp as wp
@@ -22,7 +27,7 @@ class SceneDataFormat:
         matrices: wp.array(dtype=wp.mat44f) = None
     
 
-class SimBackend:
+class SceneDataBackend:
     @property
     def transforms(self) -> SceneDataFormat.Vec3_Quat | SceneDataFormat.Transform | SceneDataFormat.Matrix44 | SceneDataFormat.Vec3_Matrix33:
         """Return the sim backends transforms as one of the SceneDataFormat structs."""
@@ -36,21 +41,22 @@ class SimBackend:
     @property
     def transform_paths(self) -> list[str]:
         """Return the paths for each transform."""
+        raise NotImplementedError
 
 
 class SceneDataProvider:
-    def __init__(self, sim_backend: SimBackend):
+    def __init__(self, backend: SceneDataBackend):
         """Initialize the scene data provider.
 
         Args:
-            sim_backend: The simulation backend that supplies raw transform data.
+            backend: The simulation backend that supplies raw transform data.
         """
-        self.sim_backend = sim_backend
+        self.backend = backend
 
     @property
     def transform_count(self) -> int:
         """Number of transforms available from the sim backend."""
-        return self.sim_backend.transform_count
+        return self.backend.transform_count
 
     def get_transforms(self, output: SceneDataFormat.Vec3_Quat | SceneDataFormat.Transform | SceneDataFormat.Matrix44 | SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32) | None = None, allow_passthrough: bool = True) -> bool:
         """Convert sim backend transforms into the requested output format.
@@ -75,7 +81,7 @@ class SceneDataProvider:
             ``True`` if the conversion succeeded, ``False`` if no suitable conversion
             kernel exists for the input/output format pair.
         """
-        input = self.sim_backend.transforms
+        input = self.backend.transforms
 
         if type(input) is type(output):
             if allow_passthrough:
@@ -127,7 +133,7 @@ class SceneDataProvider:
             remapped indices, or ``None`` if the sim backend provides no transform
             paths.
         """
-        if input_paths := self.sim_backend.transform_paths:
+        if input_paths := self.backend.transform_paths:
             mapping = [-1] * len(input_paths)
             for i, path in enumerate(input_paths):
                 try:
@@ -258,35 +264,36 @@ class ConversionKernels:
 ############################
 ## Example
 
-class ExampleSimBackend(SimBackend):
-    def __init__(self):
-        self.__transforms = SceneDataFormat.Transform()
-        self.__transforms.transforms = wp.array(np.hstack([np.arange(10).reshape(10, 1)] * 7), dtype=wp.transformf)
-
-    @property
-    def transforms(self) -> SceneDataFormat.Transform:
-        return self.__transforms
-
-    @property
-    def transform_count(self) -> int:
-        return self.__transforms.transforms.shape[0]
-    
-    @property
-    def transform_paths(self):
-        return ["/world/shape_01", 
-                "/world/shape_02", 
-                "/world/shape_03", 
-                "/world/shape_04", 
-                "/world/shape_05",
-                "/world/shape_06",
-                "/world/shape_07",
-                "/world/shape_08",
-                "/world/shape_09",
-                "/world/shape_10"]
-
-
 if __name__ == "__main__":
-    sim = ExampleSimBackend()
+
+    class ExampleSceneDataBackend(SceneDataBackend):
+        def __init__(self):
+            self.__transforms = SceneDataFormat.Transform()
+            self.__transforms.transforms = wp.array(np.hstack([np.arange(10).reshape(10, 1)] * 7), dtype=wp.transformf)
+
+        @property
+        def transforms(self) -> SceneDataFormat.Transform:
+            return self.__transforms
+
+        @property
+        def transform_count(self) -> int:
+            return self.__transforms.transforms.shape[0]
+        
+        @property
+        def transform_paths(self):
+            return ["/world/shape_01", 
+                    "/world/shape_02", 
+                    "/world/shape_03", 
+                    "/world/shape_04", 
+                    "/world/shape_05",
+                    "/world/shape_06",
+                    "/world/shape_07",
+                    "/world/shape_08",
+                    "/world/shape_09",
+                    "/world/shape_10"]
+
+
+    sim = ExampleSceneDataBackend()
     sdp = SceneDataProvider(sim)
 
     output_data = SceneDataFormat.Vec3_Matrix33()

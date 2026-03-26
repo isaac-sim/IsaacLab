@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
+    from isaaclab.scene.scene_data_provider import SceneDataBackend
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,12 @@ class PhysicsManager(ABC):
     @abstractmethod
     def forward(cls) -> None:
         """Update kinematics without stepping physics (for rendering)."""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def get_scene_data_backend(cls) -> SceneDataBackend:
+        """Return the SceneDataBackend for the SceneDataProvider."""
         pass
 
     @classmethod
