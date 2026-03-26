@@ -58,7 +58,7 @@ for tc in root.iter("testcase"):
     if props is not None:
         for prop in props.findall("property"):
             prop_name = prop.get("name", "")
-            for prefix in ("diff_pct:", "ssim:", "img_result:", "img_golden:"):
+            for prefix in ("diff_pct:", "ssim:", "threshold:", "img_result:", "img_golden:"):
                 if prop_name.startswith(prefix):
                     label = prop_name[len(prefix) :]
                     key = (name, label)
@@ -66,6 +66,7 @@ for tc in root.iter("testcase"):
                         comparison_scores[key] = {
                             "diff_pct": "",
                             "ssim": "",
+                            "threshold": "",
                             "passed": not (tc_failed or tc_errored),
                             "img_result": "",
                             "img_golden": "",
@@ -129,15 +130,17 @@ if skipped:
     print("</details>")
 
 if comparison_scores:
-    print(f"\n<details><summary>🔵 Image Comparison Scores ({len(comparison_scores)})</summary>")
+    print(f"\n<details><summary>🔵 Image Comparison Scores ({len(comparison_scores)})"
+          " — PASS/FAIL by PixelDiff, SSIM for reference.</summary>")
     print("")
     print("<br>")
     print("")
-    print("| Test | AOV | Diff % | SSIM | Status |")
-    print("|------|-----|--------|------|--------|")
+    print("| Test | AOV | PixelDiff % | Threshold % | SSIM | Status |")
+    print("|------|-----|-------------|-------------|------|--------|")
     for (name, label), scores in comparison_scores.items():
         status = "PASS" if scores["passed"] else "FAIL"
-        print(f"| {fmt_name(name)} | {label} | {scores['diff_pct']} | {scores['ssim']} | {status} |")
+        threshold = scores["threshold"] or "—"
+        print(f"| {fmt_name(name)} | {label} | {scores['diff_pct']} | {threshold} | {scores['ssim']} | {status} |")
     print("")
     print("</details>")
 
@@ -158,7 +161,7 @@ if diff_images:
     print("")
     print(f"Download **comparison-images** from {artifacts_link} to view golden vs result PNGs.")
     print("")
-    print("| Test | AOV | Diff % | SSIM | Status | Result | Golden |")
+    print("| Test | AOV | PixelDiff % | SSIM | Status | Result | Golden |")
     print("|------|-----|--------|------|--------|--------|--------|")
     for (name, label), scores in diff_images.items():
         status = "PASS" if scores["passed"] else "FAIL"

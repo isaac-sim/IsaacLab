@@ -96,6 +96,7 @@ def _attach_comparison_properties(request):
         label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
         request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
         request.node.user_properties.append((f"ssim:{label}", f"{entry['ssim']:.4f}"))
+        request.node.user_properties.append((f"threshold:{label}", f"{entry['threshold']:.1f}"))
         if entry.get("img_result_path"):
             request.node.user_properties.append((f"img_result:{label}", entry["img_result_path"]))
             request.node.user_properties.append((f"img_golden:{label}", entry["img_golden_path"]))
@@ -465,6 +466,7 @@ def _validate_camera_outputs(
             "aov": data_type,
             "diff_pct": diff_pct,
             "ssim": ssim_score,
+            "threshold": max_different_pixels_percentage,
             "passed": succeeded,
             "img_result_path": None,
             "img_golden_path": None,
