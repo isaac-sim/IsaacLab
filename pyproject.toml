@@ -155,4 +155,5 @@ explicit = false
 index-strategy = "unsafe-best-match"
 
 [tool.uv.pip]
+index-strategy = "unsafe-best-match"
 prerelease = "allow"
