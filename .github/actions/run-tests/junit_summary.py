@@ -162,7 +162,9 @@ if diff_images:
     artifacts_link = f"[artifacts]({run_url}#artifacts)" if run_url else "artifacts"
     print(f"\n<details><summary>🔵 Image Comparison Artifacts ({len(diff_images)})</summary>")
     print("")
-    print(f"Download **comparison-images** from {artifacts_link} to view golden vs result PNGs.")
+    print("<br>")
+    print(f"Golden vs result images can be downloaded at: {artifacts_link}.")
+    print("<br>")
     print("")
     print("| Test | AOV | PixelDiff % | SSIM | Status | Result | Golden |")
     print("|------|-----|--------|------|--------|--------|--------|")
