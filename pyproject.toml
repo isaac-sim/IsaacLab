@@ -153,6 +153,7 @@ explicit = false
 # that only publish pre-release wheels (e.g. tinyobjloader==2.0.0rc13).
 [tool.uv]
 index-strategy = "unsafe-best-match"
+prerelease = "allow"
 
 [tool.uv.pip]
 index-strategy = "unsafe-best-match"
