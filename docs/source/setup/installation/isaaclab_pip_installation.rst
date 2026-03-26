@@ -61,14 +61,14 @@ Isaac Lab sub-packages:
          uv pip install isaaclab==3.0.0 # specific version
 
          # Isaac Lab + Isaac Sim
-         uv pip install "isaaclab[isaacsim]"
+         uv pip install "isaaclab[isaacsim]" --index-strategy unsafe-best-match --prerelease=allow
 
          # Isaac Lab + specific sub-package(s)
          uv pip install "isaaclab[assets]"
          uv pip install "isaaclab[rl,tasks]"
 
          # Isaac Lab + Isaac Sim + all sub-packages
-         uv pip install "isaaclab[isaacsim,all]"
+         uv pip install "isaaclab[isaacsim,all]" --index-strategy unsafe-best-match --prerelease=allow
 
    .. tab-item:: pip
 
@@ -79,14 +79,14 @@ Isaac Lab sub-packages:
          pip install isaaclab==3.0.0 # specific version
 
          # Isaac Lab + Isaac Sim
-         pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com
+         pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com --pre
 
          # Isaac Lab + specific sub-package(s)
          pip install "isaaclab[assets]"
          pip install "isaaclab[rl,tasks]"
 
          # Isaac Lab + Isaac Sim + all Isaac Lab sub-packages
-         pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com
+         pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --pre
 
 Installing dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~
