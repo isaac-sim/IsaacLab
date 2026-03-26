@@ -136,9 +136,19 @@ if comparison_scores:
 # List saved comparison images (available as workflow artifacts).
 diff_images = {k: v for k, v in comparison_scores.items() if v["img_result"] and v["img_golden"]}
 if diff_images:
-    print(f"\n<details><summary>🔵 Image Comparisons ({len(diff_images)}) - see artifacts</summary>")
+    import os
+
+    run_url = ""
+    server = os.environ.get("GITHUB_SERVER_URL", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    run_id = os.environ.get("GITHUB_RUN_ID", "")
+    if server and repo and run_id:
+        run_url = f"{server}/{repo}/actions/runs/{run_id}"
+
+    artifacts_link = f"[artifacts]({run_url}#artifacts)" if run_url else "artifacts"
+    print(f"\n<details><summary>🔵 Image Comparison Artifacts ({len(diff_images)})</summary>")
     print("")
-    print("Download the **comparison-images** artifact to view golden vs result PNGs.")
+    print(f"Download **comparison-images** from {artifacts_link} to view golden vs result PNGs.")
     print("")
     print("| Test | AOV | Diff % | SSIM | Status | Result | Golden |")
     print("|------|-----|--------|------|--------|--------|--------|")
@@ -146,8 +156,7 @@ if diff_images:
         status = "PASS" if scores["passed"] else "FAIL"
         result_file = scores["img_result"].rsplit("/", 1)[-1] if "/" in scores["img_result"] else scores["img_result"]
         golden_file = scores["img_golden"].rsplit("/", 1)[-1] if "/" in scores["img_golden"] else scores["img_golden"]
-        diff_pct = scores["diff_pct"]
-        ssim = scores["ssim"]
+        diff_pct, ssim = scores["diff_pct"], scores["ssim"]
         print(f"| `{name}` | {label} | {diff_pct} | {ssim} | {status} | {result_file} | {golden_file} |")
     print("")
     print("</details>")
