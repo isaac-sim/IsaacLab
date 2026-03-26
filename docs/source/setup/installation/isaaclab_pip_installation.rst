@@ -64,6 +64,7 @@ Isaac Lab sub-packages:
          uv pip install "isaaclab[isaacsim]" --index-strategy unsafe-best-match --prerelease=allow
 
          # Isaac Lab + specific sub-package(s)
+         # Note: flags above are only needed when installing the isaacsim extra
          uv pip install "isaaclab[assets]"
          uv pip install "isaaclab[rl,tasks]"
 
@@ -82,6 +83,7 @@ Isaac Lab sub-packages:
          pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com --pre
 
          # Isaac Lab + specific sub-package(s)
+         # Note: flags above are only needed when installing the isaacsim extra
          pip install "isaaclab[assets]"
          pip install "isaaclab[rl,tasks]"
 
