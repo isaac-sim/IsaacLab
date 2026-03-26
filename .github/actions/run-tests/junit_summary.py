@@ -82,6 +82,14 @@ def sanitize_msg(msg, max_len=300):
     return msg.replace("\n", " ").replace("\r", "").replace("|", "\\|")[:max_len]
 
 
+def fmt_name(name):
+    """Format a test name for markdown: strip ``source.`` prefix, allow word-breaking."""
+    if name.startswith("source."):
+        name = name[len("source."):]
+    # Insert zero-width spaces after dots and brackets so tables can wrap.
+    return name.replace(".", ".\u200b").replace("[", "[\u200b").replace("]", "]\u200b")
+
+
 if failed or errored:
     print(f"🔴 {len(failed) + len(errored)} FAILED, {len(passed)} PASSED ({time_str})")
 elif not passed and not skipped:
@@ -92,9 +100,9 @@ if failed or errored:
     print("| Status | Test | Time | Message |")
     print("|--------|------|------|---------|")
     for name, t, msg in failed:
-        print(f"| ASSERTION | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
+        print(f"| ASSERTION | {fmt_name(name)} | {t:.1f}s | {sanitize_msg(msg)} |")
     for name, t, msg in errored:
-        print(f"| ERROR | `{name}` | {t:.1f}s | {sanitize_msg(msg)} |")
+        print(f"| ERROR | {fmt_name(name)} | {t:.1f}s | {sanitize_msg(msg)} |")
 
 if passed:
     print(f"\n<details><summary>🟢 {len(passed)} PASSED ({time_str})</summary>")
@@ -104,7 +112,7 @@ if passed:
     print("| Test | Time |")
     print("|------|------|")
     for name, t in passed:
-        print(f"| `{name}` | {t:.1f}s |")
+        print(f"| {fmt_name(name)} | {t:.1f}s |")
     print("")
     print("</details>")
 
@@ -116,7 +124,7 @@ if skipped:
     print("| Test | Reason |")
     print("|------|--------|")
     for name, t, msg in skipped:
-        print(f"| `{name}` | {sanitize_msg(msg)} |")
+        print(f"| {fmt_name(name)} | {sanitize_msg(msg)} |")
     print("")
     print("</details>")
 
@@ -129,7 +137,7 @@ if comparison_scores:
     print("|------|-----|--------|------|--------|")
     for (name, label), scores in comparison_scores.items():
         status = "PASS" if scores["passed"] else "FAIL"
-        print(f"| `{name}` | {label} | {scores['diff_pct']} | {scores['ssim']} | {status} |")
+        print(f"| {fmt_name(name)} | {label} | {scores['diff_pct']} | {scores['ssim']} | {status} |")
     print("")
     print("</details>")
 
@@ -157,6 +165,6 @@ if diff_images:
         result_file = scores["img_result"].rsplit("/", 1)[-1] if "/" in scores["img_result"] else scores["img_result"]
         golden_file = scores["img_golden"].rsplit("/", 1)[-1] if "/" in scores["img_golden"] else scores["img_golden"]
         diff_pct, ssim = scores["diff_pct"], scores["ssim"]
-        print(f"| `{name}` | {label} | {diff_pct} | {ssim} | {status} | {result_file} | {golden_file} |")
+        print(f"| {fmt_name(name)} | {label} | {diff_pct} | {ssim} | {status} | {result_file} | {golden_file} |")
     print("")
     print("</details>")
