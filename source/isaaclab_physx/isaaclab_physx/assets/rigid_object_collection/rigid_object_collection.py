@@ -1081,7 +1081,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             shape=(self.num_instances, self.num_bodies),
             dtype=data.dtype,
             strides=(element_size, self.num_instances * element_size),
-            device=self.device,
+            # PhysX returns some data on CPU, use self.device may cause a device mismatch error
+            device=data.device,
         )
         # Clone to make contiguous
         return wp.clone(strided_view, device=device)
@@ -1115,7 +1116,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             shape=(self.num_instances, self.num_bodies, data_dim),
             dtype=data.dtype,
             strides=(row_size, self.num_instances * row_size, element_size),
-            device=self.device,
+            # PhysX returns some data on CPU, use self.device may cause a device mismatch error
+            device=data.device,
         )
         return wp.clone(strided_view, device=device)
 

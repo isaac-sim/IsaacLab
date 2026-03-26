@@ -27,6 +27,42 @@
 # | build-curobo                       | isaaclab-mimic | isaaclab-tasks | isaaclab-core     |
 # |                                    |   | infra                                           |
 # +------------------------------------+-----------------------------------------------------+
+#
+# =============================================================================
+# CI DEBUGGING TIPS
+# =============================================================================
+#
+# 1. DISABLE A TEST JOB (to isolate a specific job):
+#    Change the job's `if:` clause to `if: false`
+#    Example:
+#      test-isaaclab-tasks:
+#        ...
+#        if: false  # TEMP: Disabled for debugging
+#
+# 2. RUN ONLY SPECIFIC TEST FILES (within a job):
+#    Add `include-files:` parameter to run-package-tests action
+#    Example:
+#      - uses: ./.github/actions/run-package-tests
+#        with:
+#          ...
+#          include-files: "test_rigid_object_collection.py"  # Comma-separated
+#
+# 3. SKIP CONCURRENCY WAIT (run immediately without waiting for other runs):
+#    Comment out the concurrency block:
+#      # concurrency:
+#      #   group: ${{ github.workflow }}-${{ github.ref }}
+#      #   cancel-in-progress: true
+#
+# 4. TEST LOCALLY LIKE CI:
+#    docker run -it --rm --gpus all --network=host --entrypoint bash \
+#      -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
+#      -e TEST_FILTER_PATTERN="isaaclab_physx" \
+#      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
+#      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
+#      -c 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest tools -v'
+#
+# Remember to REVERT all temporary changes before merging!
+# =============================================================================
 
 name: Docker + Tests
 
