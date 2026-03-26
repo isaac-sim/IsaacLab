@@ -100,9 +100,9 @@ if failed or errored:
     print("")
     print("| Status | Test | Time | Message |")
     print("|--------|------|------|---------|")
-    for name, t, msg in failed:
+    for name, t, msg in sorted(failed, key=lambda x: x[1], reverse=True):
         print(f"| ASSERTION | {fmt_name(name)} | {t:.1f}s | {sanitize_msg(msg)} |")
-    for name, t, msg in errored:
+    for name, t, msg in sorted(errored, key=lambda x: x[1], reverse=True):
         print(f"| ERROR | {fmt_name(name)} | {t:.1f}s | {sanitize_msg(msg)} |")
 
 if passed:
@@ -112,7 +112,7 @@ if passed:
     print("")
     print("| Test | Time |")
     print("|------|------|")
-    for name, t in passed:
+    for name, t in sorted(passed, key=lambda x: x[1], reverse=True):
         print(f"| {fmt_name(name)} | {t:.1f}s |")
     print("")
     print("</details>")
@@ -139,7 +139,8 @@ if comparison_scores:
     print("")
     print("| Test | AOV | PixelDiff % | Threshold % | SSIM | Status |")
     print("|------|-----|-------------|-------------|------|--------|")
-    for (name, label), scores in comparison_scores.items():
+    sorted_scores = sorted(comparison_scores.items(), key=lambda x: safe_float(x[1]["diff_pct"]), reverse=True)
+    for (name, label), scores in sorted_scores:
         status = "PASS" if scores["passed"] else "FAIL"
         threshold = scores["threshold"] or "—"
         print(f"| {fmt_name(name)} | {label} | {scores['diff_pct']} | {threshold} | {scores['ssim']} | {status} |")
@@ -165,7 +166,8 @@ if diff_images:
     print("")
     print("| Test | AOV | PixelDiff % | SSIM | Status | Result | Golden |")
     print("|------|-----|--------|------|--------|--------|--------|")
-    for (name, label), scores in diff_images.items():
+    sorted_images = sorted(diff_images.items(), key=lambda x: safe_float(x[1]["diff_pct"]), reverse=True)
+    for (name, label), scores in sorted_images:
         status = "PASS" if scores["passed"] else "FAIL"
         result_file = scores["img_result"].rsplit("/", 1)[-1] if "/" in scores["img_result"] else scores["img_result"]
         golden_file = scores["img_golden"].rsplit("/", 1)[-1] if "/" in scores["img_golden"] else scores["img_golden"]
