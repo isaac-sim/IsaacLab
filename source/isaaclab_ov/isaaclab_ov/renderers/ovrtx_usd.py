@@ -31,7 +31,7 @@ def get_render_var_config(data_types: list[str], simple_shading_mode: bool) -> t
     if use_albedo and not (use_rgb or use_semantic):
         return "/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"
     if use_semantic and not (use_rgb or use_albedo):
-        return "/Render/Vars/semantic", "semantic", "SemanticSegmentationSD"
+        return "/Render/Vars/semantic", "semantic", "SemanticSegmentation"
     if simple_shading_mode:
         return "/Render/Vars/SimpleShading", "SimpleShading", "SimpleShadingSD"
     return "/Render/Vars/LdrColor", "LdrColor", "LdrColor"

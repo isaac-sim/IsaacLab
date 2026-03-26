@@ -48,6 +48,7 @@ from .ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
     extract_depth_tile_from_tiled_buffer_kernel,
     extract_tile_from_tiled_buffer_kernel,
+    generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
@@ -121,6 +122,7 @@ class OVRTXRenderer(BaseRenderer):
         self._sensor_ref: weakref.ref[object] | None = None
         self._exported_usd_path: str | None = None
         self._camera_rel_path: str | None = None
+        self._output_semantic_color_buffer: wp.array | None = None
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Export the USD stage for OVRTX before create_render_data.
@@ -398,6 +400,22 @@ class OVRTXRenderer(BaseRenderer):
         if src.ptr != output_data.data_ptr():
             wp.copy(dest=wp.from_torch(output_data), src=src)
 
+    def _generate_random_colors_from_ids(self, input_ids: wp.array) -> wp.array:
+        """Generate pseudo-random colors from semantic IDs."""
+        if self._output_semantic_color_buffer is None or self._output_semantic_color_buffer.shape != input_ids.shape:
+            self._output_semantic_color_buffer = wp.zeros(shape=input_ids.shape, dtype=wp.uint32, device=DEVICE)
+
+        output_colors = self._output_semantic_color_buffer
+
+        wp.launch(
+            kernel=generate_random_colors_from_ids_kernel,
+            dim=input_ids.shape,
+            inputs=[input_ids, output_colors],
+            device=DEVICE,
+        )
+
+        return output_colors
+
     def _extract_rgba_tiles(
         self,
         render_data: OVRTXRenderData,
@@ -478,16 +496,22 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
-        if "SemanticSegmentationSD" in frame.render_vars and "semantic_segmentation" in output_buffers:
-            with frame.render_vars["SemanticSegmentationSD"].map(device=Device.CUDA) as mapping:
+        if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
+            with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
+
                 if tiled_semantic_data.dtype == wp.uint32:
-                    semantic_torch = wp.to_torch(tiled_semantic_data)
+                    semantic_colors = self._generate_random_colors_from_ids(tiled_semantic_data)
+
+                    semantic_torch = wp.to_torch(semantic_colors)
                     semantic_uint8 = semantic_torch.view(torch.uint8)
+
                     if semantic_torch.dim() == 2:
                         h, w = semantic_torch.shape
                         semantic_uint8 = semantic_uint8.reshape(h, w, 4)
+
                     tiled_semantic_data = wp.from_torch(semantic_uint8, dtype=wp.uint8)
+
                 self._extract_rgba_tiles(
                     render_data,
                     tiled_semantic_data,
@@ -549,4 +573,5 @@ class OVRTXRenderer(BaseRenderer):
             self._renderer = None
 
         self._render_product_paths.clear()
+        self._output_semantic_color_buffer = None
         self._initialized_scene = False
