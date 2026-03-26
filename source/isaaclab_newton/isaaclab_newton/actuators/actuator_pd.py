@@ -154,7 +154,7 @@ class ImplicitActuator(ActuatorBase):
         # update the joint effort
         wp.launch(
             update_array2D_with_array2D_masked,
-            dim=(self._num_envs, self.num_joints),
+            dim=(self._num_envs, self._num_joints),
             inputs=[
                 self.data._actuator_effort_target,
                 self.data.joint_effort,
@@ -228,7 +228,7 @@ class IdealPDActuator(ActuatorBase):
         # update the joint effort
         wp.launch(
             update_array2D_with_array2D_masked,
-            dim=(self._num_envs, self.num_joints),
+            dim=(self._num_envs, self._num_joints),
             inputs=[
                 self.data._applied_effort,
                 self.data.joint_effort,
