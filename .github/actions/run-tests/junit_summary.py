@@ -86,7 +86,7 @@ def sanitize_msg(msg, max_len=300):
 def fmt_name(name):
     """Format a test name for markdown: strip ``source.`` prefix, allow word-breaking."""
     if name.startswith("source."):
-        name = name[len("source."):]
+        name = name[len("source.") :]
     # Insert zero-width spaces after dots and brackets so tables can wrap.
     return name.replace(".", ".\u200b").replace("[", "[\u200b").replace("]", "]\u200b")
 
@@ -130,8 +130,10 @@ if skipped:
     print("</details>")
 
 if comparison_scores:
-    print(f"\n<details><summary>🔵 Image Comparison Scores ({len(comparison_scores)})"
-          " — PASS/FAIL by PixelDiff, SSIM for reference.</summary>")
+    print(
+        f"\n<details><summary>🔵 Image Comparison Scores ({len(comparison_scores)})"
+        " — PASS/FAIL by PixelDiff, SSIM for reference.</summary>"
+    )
     print("")
     print("<br>")
     print("")
