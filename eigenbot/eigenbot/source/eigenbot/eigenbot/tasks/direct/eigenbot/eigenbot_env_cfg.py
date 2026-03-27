@@ -11,11 +11,15 @@ import math
 
 from eigenbot.assets import EIGENBOT_CFG
 
+import isaaclab.sim as sim_utils
+import isaaclab.terrains as terrain_gen
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import PhysxCfg, SimulationCfg
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.terrains.terrain_generator_cfg import TerrainGeneratorCfg
 from isaaclab.utils import configclass
 
 # ---------------------------------------------------------------------------
@@ -150,22 +154,23 @@ class NoiseCfg:
     noise_scales: NoiseScalesCfg = NoiseScalesCfg()
 
 
-@configclass
-class TerrainCfg:
-    """Terrain configuration (flat-only for initial port)."""
-
-    mesh_type: str = "plane"  # "plane" for flat, "trimesh" for curriculum (future)
-    measure_heights: bool = True  # still compute height obs (constant on flat terrain)
-    measured_points_x: tuple = (
-        -0.45, -0.3, -0.15, 0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2,
-    )
-    measured_points_y: tuple = (
-        -0.75, -0.6, -0.45, -0.3, -0.15, 0.0, 0.15, 0.3, 0.45, 0.6, 0.75,
-    )
-    static_friction: float = 1.0
-    dynamic_friction: float = 1.0
-    restitution: float = 0.0
-    curriculum: bool = False
+EIGENBOT_ROUGH_TERRAIN_CFG = TerrainGeneratorCfg(
+    size=(8.0, 8.0),
+    border_width=20.0,
+    num_rows=10,
+    num_cols=20,
+    horizontal_scale=0.1,
+    vertical_scale=0.005,
+    slope_threshold=0.75,
+    sub_terrains={
+        "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
+            proportion=1.0,
+            noise_range=(0.02, 0.10),
+            noise_step=0.02,
+            border_width=0.25,
+        ),
+    },
+)
 
 
 # ---------------------------------------------------------------------------
@@ -231,10 +236,35 @@ class EigenbotEnvCfg(DirectRLEnvCfg):
     # action scale: target angle = action_scale * action + default_joint_pos
     action_scale: float = 0.25
 
+    # terrain (defaults to flat plane; set terrain_type="generator" and
+    # terrain_generator=EIGENBOT_ROUGH_TERRAIN_CFG for rough terrain)
+    terrain: TerrainImporterCfg = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="plane",
+        collision_group=-1,
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            friction_combine_mode="multiply",
+            restitution_combine_mode="multiply",
+            static_friction=1.0,
+            dynamic_friction=1.0,
+            restitution=0.0,
+        ),
+        debug_vis=False,
+    )
+
+    # height scanner (12x11 = 132 rays, 0.15m spacing, offset 0.375m forward)
+    height_scanner: RayCasterCfg = RayCasterCfg(
+        prim_path="/World/envs/env_.*/Robot/base_link",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.375, 0.0, 20.0)),
+        ray_alignment="yaw",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.15, size=[1.65, 1.5]),
+        mesh_prim_paths=["/World/ground"],
+        debug_vis=False,
+    )
+
     # sub-configs
     rewards: RewardsCfg = RewardsCfg()
     commands: CommandsCfg = CommandsCfg()
     domain_rand: DomainRandCfg = DomainRandCfg()
     normalization: NormalizationCfg = NormalizationCfg()
     noise: NoiseCfg = NoiseCfg()
-    terrain: TerrainCfg = TerrainCfg()

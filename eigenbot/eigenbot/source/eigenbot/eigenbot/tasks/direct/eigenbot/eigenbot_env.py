@@ -15,8 +15,7 @@ from collections.abc import Sequence
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sensors import ContactSensor
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+from isaaclab.sensors import ContactSensor, RayCaster
 from isaaclab.utils.math import quat_apply, wrap_to_pi
 
 from .eigenbot_env_cfg import (
@@ -75,28 +74,26 @@ class EigenbotEnv(DirectRLEnv):
     # Scene setup
     # ------------------------------------------------------------------
     def _setup_scene(self):
-        # Spawn robot articulation
         self.robot = Articulation(self.cfg.robot_cfg)
 
-        # Ground plane
-        spawn_ground_plane("/World/ground", GroundPlaneCfg())
+        # Terrain (flat plane by default, or generated rough terrain)
+        self.cfg.terrain.num_envs = self.scene.cfg.num_envs
+        self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
+        self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
 
-        # Contact sensor
         self.contact_sensor = ContactSensor(self.cfg.contact_sensor)
 
-        # Attach USDZ visual overlay (disabled for now)
-        # self._attach_usdz_visual_asset()
+        # Height scanner (132-ray grid for terrain observation)
+        self._height_scanner = RayCaster(self.cfg.height_scanner)
+        self.scene.sensors["height_scanner"] = self._height_scanner
 
-        # Clone environments
         self.scene.clone_environments(copy_from_source=False)
         if self.device == "cpu":
-            self.scene.filter_collisions(global_prim_paths=[])
+            self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
 
-        # Register assets
         self.scene.articulations["robot"] = self.robot
         self.scene.sensors["contact_sensor"] = self.contact_sensor
 
-        # Lighting
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
@@ -145,6 +142,12 @@ class EigenbotEnv(DirectRLEnv):
         self.actions = torch.zeros(ne, nj, device=dev)
         self.last_actions = torch.zeros(ne, nj, device=dev)
         self.last_dof_vel = torch.zeros(ne, nj, device=dev)
+
+        # Action delay ring buffer (simulates actuator latency)
+        if self.cfg.domain_rand.action_delay:
+            buf_len = self.cfg.domain_rand.action_buf_len
+            self.action_history_buf = torch.zeros(ne, buf_len, nj, device=dev)
+            self.action_delay_idx = 0
 
         # Commands: [lin_vel_x, lin_vel_y, ang_vel_yaw, heading]
         self.commands = torch.zeros(ne, self.cfg.commands.num_commands, device=dev)
@@ -274,12 +277,21 @@ class EigenbotEnv(DirectRLEnv):
         clip_val = self.cfg.normalization.clip_actions
         self.actions = torch.clamp(actions, -clip_val, clip_val)
 
+        if self.cfg.domain_rand.action_delay:
+            buf_len = self.cfg.domain_rand.action_buf_len
+            self.action_history_buf[:, self.action_delay_idx % buf_len] = self.actions
+            self.action_delay_idx += 1
+
     def _apply_action(self) -> None:
-        # Position control: target = action_scale * action + default_joint_pos
-        targets = self._action_scale * self.actions + self.default_dof_pos
+        if self.cfg.domain_rand.action_delay:
+            buf_len = self.cfg.domain_rand.action_buf_len
+            oldest = self.action_delay_idx % buf_len
+            delayed_actions = self.action_history_buf[:, oldest]
+            targets = self._action_scale * delayed_actions + self.default_dof_pos
+        else:
+            targets = self._action_scale * self.actions + self.default_dof_pos
         self.robot.set_joint_position_target(targets)
 
-        # Compute torques for reward function (PD controller model)
         self.torques = (
             self._p_gain * (targets - self.robot.data.joint_pos)
             - self._d_gain * self.robot.data.joint_vel
@@ -313,7 +325,7 @@ class EigenbotEnv(DirectRLEnv):
 
         # Reset root state
         default_root_state = self.robot.data.default_root_state[env_ids].clone()
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        default_root_state[:, :3] += self._terrain.env_origins[env_ids]
         # Random base velocity [-0.5, 0.5] m/s and rad/s
         default_root_state[:, 7:13] = (
             torch.rand(len(env_ids), 6, device=self.device) - 0.5
@@ -329,6 +341,8 @@ class EigenbotEnv(DirectRLEnv):
         self.last_dof_vel[env_ids] = 0.0
         self.feet_air_time[env_ids] = 0.0
         self.obs_history_buf[env_ids] = 0.0
+        if self.cfg.domain_rand.action_delay:
+            self.action_history_buf[env_ids] = 0.0
         self.last_contacts[env_ids] = False
         self.middle_liftoff_time_lpsi[env_ids] = 0.0
         self.middle_liftoff_time_contra[env_ids] = 0.0
@@ -577,12 +591,8 @@ class EigenbotEnv(DirectRLEnv):
     # Height measurements
     # ------------------------------------------------------------------
     def _update_height_measurements(self):
-        """Update measured heights. On flat terrain, ground is at z=0."""
-        # On flat terrain, all measurement points are at ground level (0)
-        # so measured_heights stays zero and the observation becomes:
-        #   clip(root_z - 0.3 - 0, -1, 1) = clip(root_z - 0.3, -1, 1)
-        # This is handled in _compute_observations directly.
-        pass
+        """Update measured heights from RayCaster sensor."""
+        self.measured_heights = self._height_scanner.data.ray_hits_w[..., 2]
 
     # ------------------------------------------------------------------
     # USDZ visual attachment
