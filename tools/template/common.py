@@ -11,5 +11,5 @@ TASKS_DIR = os.path.join(ROOT_DIR, "source", "isaaclab_tasks", "isaaclab_tasks")
 TEMPLATE_DIR = os.path.join(ROOT_DIR, "tools", "template", "templates")
 
 # RL algorithms
-SINGLE_AGENT_ALGORITHMS = ["AMP", "PPO"]
+SINGLE_AGENT_ALGORITHMS = ["AMP", "PPO", "DISTILLATION"]
 MULTI_AGENT_ALGORITHMS = ["IPPO", "MAPPO"]

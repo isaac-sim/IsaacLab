@@ -7,6 +7,7 @@ import enum
 import importlib
 import os
 from collections.abc import Callable
+from textwrap import fill
 
 import rich.console
 import rich.table
@@ -213,21 +214,21 @@ def main() -> None:
     # - show supported RL libraries and features
     rl_library_table = rich.table.Table(title="Supported RL libraries")
     rl_library_table.add_column("RL/training feature", no_wrap=True)
-    rl_library_table.add_column("rl_games")
-    rl_library_table.add_column("rsl_rl")
-    rl_library_table.add_column("skrl")
-    rl_library_table.add_column("sb3")
+    rl_library_table.add_column("rl_games", overflow="fold")
+    rl_library_table.add_column("rsl_rl", overflow="fold")
+    rl_library_table.add_column("skrl", overflow="fold")
+    rl_library_table.add_column("sb3", overflow="fold")
     rl_library_table.add_row("ML frameworks", "PyTorch", "PyTorch", "PyTorch, JAX", "PyTorch")
     rl_library_table.add_row("Relative performance", "~1X", "~1X", "~1X", "~0.03X")
     rl_library_table.add_row(
         "Algorithms",
-        ", ".join(algorithms_per_rl_library.get("rl_games", [])),
-        ", ".join(algorithms_per_rl_library.get("rsl_rl", [])),
-        ", ".join(algorithms_per_rl_library.get("skrl", [])),
-        ", ".join(algorithms_per_rl_library.get("sb3", [])),
+        fill(", ".join(algorithms_per_rl_library.get("rl_games", [])), width=12, break_long_words=False),
+        fill(", ".join(algorithms_per_rl_library.get("rsl_rl", [])), width=12, break_long_words=False),
+        fill(", ".join(algorithms_per_rl_library.get("skrl", [])), width=12, break_long_words=False),
+        fill(", ".join(algorithms_per_rl_library.get("sb3", [])), width=12, break_long_words=False),
     )
     rl_library_table.add_row("Multi-agent support", State.No, State.No, State.Yes, State.No)
-    rl_library_table.add_row("Distributed training", State.Yes, State.No, State.Yes, State.No)
+    rl_library_table.add_row("Distributed training", State.Yes, State.Yes, State.Yes, State.No)
     rl_library_table.add_row("Vectorized training", State.Yes, State.Yes, State.Yes, State.No)
     rl_library_table.add_row("Fundamental/composite spaces", State.No, State.No, State.Yes, State.No)
     cli_handler.output_table(rl_library_table)
