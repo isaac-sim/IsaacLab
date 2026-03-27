@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -85,7 +85,9 @@ class EventCfg:
     )
 
     dead_zone_thresholds = EventTerm(
-        func=randomize_dead_zone, mode="interval", interval_range_s=(2.0, 2.0)  # (0.25, 0.25)
+        func=randomize_dead_zone,
+        mode="interval",
+        interval_range_s=(2.0, 2.0),  # (0.25, 0.25)
     )
 
 

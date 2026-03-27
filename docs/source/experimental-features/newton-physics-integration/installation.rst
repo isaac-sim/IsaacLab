@@ -1,82 +1,68 @@
 Installation
 ============
 
-Installing the Newton physics integration branch requires three things:
+Installing the Newton physics integration requires three things:
 
-1) Isaac sim 5.0
-2) The ``feature/newton`` branch of Isaac Lab
-3) Ubuntu 22.04 or 24.04 (Windows will be supported soon)
+1) The ``develop`` branch of Isaac Lab
+2) Ubuntu 22.04 or 24.04
+3) [Optional] Isaac Sim 6.0 (Isaac Sim is not required if the Omniverse visualizer is not used)
 
-To begin, verify the version of Isaac Sim by checking the title of the window created when launching the simulation app.  Alternatively, you can
-find more explicit version information under the ``Help -> About`` menu within the app.
-If your version is less than 5.0, you must first `update or reinstall Isaac Sim <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/quick-install.html>`_ before
-you can proceed further.
+To begin, navigate to the root directory of your local copy of the Isaac Lab repository and open a terminal.
 
-Next, navigate to the root directory of your local copy of the Isaac Lab repository and open a terminal.
-
-Make sure we are on the ``feature/newton`` branch by running the following command:
+Make sure we are on the ``develop`` branch by running the following command:
 
 .. code-block:: bash
 
-    git checkout feature/newton
-
-Below, we provide instructions for installing Isaac Sim through pip or binary.
+    git checkout develop
 
 
-Pip Installation
-----------------
+Installation
+------------
 
-We recommend using conda for managing your python environments. Conda can be downloaded and installed from `here <https://docs.conda.io/en/latest/miniconda.html>`_.
+We recommend using **uv** as the package manager — it is significantly faster than pip and conda.
+To install ``uv``, please follow the instructions `here <https://docs.astral.sh/uv/getting-started/installation/>`__.
 
-Create a new conda environment:
+If you previously already have a virtual environment for Isaac Lab, please ensure to start from a fresh environment to avoid any dependency conflicts.
+If you have installed earlier versions of mujoco, mujoco-warp, or newton packages through pip, we recommend first
+cleaning your pip cache with ``pip cache purge`` to remove any cache of earlier versions that may be conflicting with the latest.
+
+Create a new virtual environment with Python 3.12:
 
 .. code-block:: bash
 
-    conda create -n env_isaaclab python=3.11
+    uv venv --python 3.12 --seed env_isaaclab
 
 Activate the environment:
 
 .. code-block:: bash
 
-    conda activate env_isaaclab
+    source env_isaaclab/bin/activate
+
+.. note::
+
+   If you are using ``pip`` directly instead of ``uv pip``, replace ``uv pip`` with ``pip`` in the commands below.
+
+
+Ensure pip is up to date:
+
+.. code-block:: bash
+
+    uv pip install --upgrade pip
+
+[Optional] Install Isaac Sim 6.0:
+
+.. code-block:: bash
+
+    uv pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com
+
 
 Install the correct version of torch and torchvision:
 
 .. code-block:: bash
 
-    pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+    uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
-Install Isaac Sim 5.0:
-
-.. code-block:: bash
-
-    pip install "isaacsim[all,extscache]==5.0.0" --extra-index-url https://pypi.nvidia.com
-
-Install Isaac Lab extensions and dependencies:
-
-.. code-block:: bash
-
-    ./isaaclab.sh -i
-
-
-Binary Installation
--------------------
-
-Follow the Isaac Sim `documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html>`_ to install Isaac Sim 5.0 binaries.
-
-Enter the Isaac Lab directory:
-
-.. code-block:: bash
-
-    cd IsaacLab
-
-Add a symbolic link to the Isaac Sim installation:
-
-.. code-block:: bash
-
-    ln -s path_to_isaac_sim _isaac_sim
-
-Install Isaac Lab extensions and dependencies:
+Install Isaac Lab extensions and dependencies (this includes Newton 1.0):
 
 .. code-block:: bash
 

@@ -89,11 +89,9 @@ PY
 
 # check if running in docker
 is_docker() {
-    [ -f /.dockerenv ] || \
-    grep -q docker /proc/1/cgroup || \
-    [[ $(cat /proc/1/comm) == "containerd-shim" ]] || \
-    grep -q docker /proc/mounts || \
-    [[ "$(hostname)" == *"."* ]]
+    [ -f /.dockerenv ] || [ -f /run/.containerenv ] || \
+    grep -qaE '(docker|containerd|kubepods|podman)' /proc/1/cgroup || \
+    [[ $(cat /proc/1/comm) == "containerd-shim" ]]
 }
 
 # check if running on ARM architecture
@@ -569,6 +567,10 @@ while [[ $# -gt 0 ]]; do
             python_exe=$(extract_python_exe)
             pip_command=$(extract_pip_command)
             pip_uninstall_command=$(extract_pip_uninstall_command)
+
+            # force install setuptools <82.0.0 to avoid pkg_resources issues
+            echo "[INFO] Installing setuptools<82.0.0..."
+            ${pip_command} "setuptools<82.0.0"
 
             # if on ARM arch, temporarily clear LD_PRELOAD
             # LD_PRELOAD is restored below, after installation

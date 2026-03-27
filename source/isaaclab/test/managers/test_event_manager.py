@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,6 +7,7 @@
 # pyright: reportPrivateUsage=none
 
 """Launch Isaac Sim Simulator first."""
+
 from collections.abc import Sequence
 
 from isaaclab.app import AppLauncher
@@ -17,10 +18,10 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 
-import torch
 from collections import namedtuple
 
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg

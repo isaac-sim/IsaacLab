@@ -31,6 +31,11 @@
     RayCasterCfg
     RayCasterCamera
     RayCasterCameraCfg
+    MultiMeshRayCaster
+    MultiMeshRayCasterData
+    MultiMeshRayCasterCfg
+    MultiMeshRayCasterCamera
+    MultiMeshRayCasterCameraCfg
     Imu
     ImuCfg
 
@@ -151,7 +156,40 @@ Ray-Cast Camera
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__, class_type
+    :exclude-members: __init__, class_type, OffsetCfg
+
+Multi-Mesh Ray-Cast Sensor
+--------------------------
+
+.. autoclass:: MultiMeshRayCaster
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: MultiMeshRayCasterData
+    :members:
+    :inherited-members:
+    :exclude-members: __init__
+
+.. autoclass:: MultiMeshRayCasterCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type, OffsetCfg
+
+Multi-Mesh Ray-Cast Camera
+--------------------------
+
+.. autoclass:: MultiMeshRayCasterCamera
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: MultiMeshRayCasterCameraCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type, OffsetCfg, RaycastTargetCfg
 
 Inertia Measurement Unit
 ------------------------

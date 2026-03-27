@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -45,12 +45,13 @@ class ManagerTermBase(ABC):
         from isaaclab.utils import configclass
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
+
         @configclass
         class MyManagerCfg:
-
             my_term_1: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_2: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_3: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
+
 
         # define manager instance
         my_manager = ManagerBase(cfg=ManagerCfg(), env=env)

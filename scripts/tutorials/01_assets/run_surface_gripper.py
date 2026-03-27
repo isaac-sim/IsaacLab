@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -35,8 +35,6 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaacsim.core.utils.prims as prim_utils
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, SurfaceGripper, SurfaceGripperCfg
 from isaaclab.sim import SimulationContext
@@ -60,9 +58,9 @@ def design_scene():
     # Each group will have a robot in it
     origins = [[2.75, 0.0, 0.0], [-2.75, 0.0, 0.0]]
     # Origin 1
-    prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
+    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # Origin 2
-    prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
+    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
 
     # Articulation: First we define the robot config
     pick_and_place_robot_cfg = PICK_AND_PLACE_CFG.copy()

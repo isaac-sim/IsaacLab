@@ -1,6 +1,78 @@
 Changelog
 ---------
 
+0.11.15 (2026-03-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-RedGreen-Franka-IK-Rel-v0``, ``Isaac-Stack-Cube-RedGreenBlue-Franka-IK-Rel-v0``,
+  ``Isaac-Stack-Cube-BlueGreen-Franka-IK-Rel-v0``, and ``Isaac-Stack-Cube-BlueGreenRed-Franka-IK-Rel-v0`` environments.
+
+
+0.11.14 (2026-02-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refactored automation scripts (``run_w_id.py`` and ``run_disassembly_w_id.py``) to use list-based command execution
+  via ``subprocess.run``. This avoids potential command injection risks by disabling shell execution and
+  properly handling environment variables.
+
+
+0.11.13 (2026-02-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed incorrect hardcoded joint index for ``drawer_top_joint`` in
+  :class:`~isaaclab_tasks.direct.franka_cabinet.FrankaCabinetEnv`. The drawer joint
+  index is now dynamically resolved using ``find_joints()`` at start, instead of assuming
+  index 3, which caused incorrect rewards and termination conditions.
+
+
+0.11.12 (2025-12-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Deploy-GearAssembly`` environments.
+
+
+0.11.11 (2025-12-16)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added reaching task environments for OpenArm unimanual robot:
+  * :class:`OpenArmReachEnvCfg`; Gym ID ``Isaac-Reach-OpenArm-v0``.
+  * :class:`OpenArmReachEnvCfg_PLAY`; Gym ID ``Isaac-Reach-OpenArm-Play-v0``.
+* Added lifting a cube task environments for OpenArm unimanual robot:
+  * :class:`OpenArmCubeLiftEnvCfg`; Gym ID ``Isaac-Lift-Cube-OpenArm-v0``.
+  * :class:`OpenArmCubeLiftEnvCfg_PLAY`; Gym ID ``Isaac-Lift-Cube-OpenArm-Play-v0``.
+* Added opening a drawer task environments for OpenArm unimanual robot:
+  * :class:`OpenArmCabinetEnvCfg`; Gym ID ``Isaac-Open-Drawer-OpenArm-v0``.
+  * :class:`OpenArmCabinetEnvCfg_PLAY`; Gym ID ``Isaac-Open-Drawer-OpenArm-Play-v0``.
+* Added reaching task environments for OpenArm bimanual robot:
+  * :class:`OpenArmReachEnvCfg`; Gym ID ``Isaac-Reach-OpenArm-Bi-v0``.
+  * :class:`OpenArmReachEnvCfg_PLAY`; Gym ID ``Isaac-Reach-OpenArm-Bi-Play-v0``.
+
+
+0.11.10 (2025-12-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added obs_groups to the RSL-RL PPO agent configuration for the ``Isaac-Reach-UR10e-v0`` environment.
+* Changed self.state_space to 19 in the ``Isaac-Reach-UR10e-ROS-Inference-v0`` environment.
+
+
 0.11.9 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~
 

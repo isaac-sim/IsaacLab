@@ -53,7 +53,7 @@ in seconds through the :attr:`sensors.SensorBaseCfg.update_period` attribute.
 Depending on the specified path and the sensor type, the sensors are attached to the prims in the scene.
 They may have an associated prim that is created in the scene or they may be attached to an existing prim.
 For instance, the camera sensor has a corresponding prim that is created in the scene, whereas for the
-contact sensor, the activating the contact reporting is a property on a rigid body prim.
+contact sensor, activating the contact reporting is a property on a rigid body prim.
 
 In the following, we introduce the different sensors we use in this tutorial and how they are configured.
 For more description about them, please check the :mod:`sensors` module.

@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -7,7 +7,9 @@
 Selection strategies used by Isaac Lab Mimic to select subtask segments from
 source human demonstrations.
 """
+
 import abc  # for abstract base class definitions
+
 import torch
 
 import isaaclab.utils.math as PoseUtils

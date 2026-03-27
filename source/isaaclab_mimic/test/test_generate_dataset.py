@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -91,9 +91,9 @@ def setup_test_environment():
     # Extract the number from the line
     try:
         successful_count = int(success_line.split(":")[-1].strip())
-        assert (
-            successful_count == EXPECTED_SUCCESSFUL_ANNOTATIONS
-        ), f"Expected 10 successful annotations but got {successful_count}"
+        assert successful_count == EXPECTED_SUCCESSFUL_ANNOTATIONS, (
+            f"Expected 10 successful annotations but got {successful_count}"
+        )
     except (ValueError, IndexError) as e:
         pytest.fail(f"Could not parse successful task count from line: '{success_line}'. Error: {e}")
 

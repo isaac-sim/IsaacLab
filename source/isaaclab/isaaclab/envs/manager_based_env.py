@@ -1,18 +1,18 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import builtins
 import logging
-import torch
 import warnings
 from collections.abc import Sequence
 from typing import Any
 
+import torch
+
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
 
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
@@ -21,6 +21,7 @@ from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
@@ -32,7 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 class ManagerBasedEnv:
-    """The base environment encapsulates the simulation scene and the environment managers for the manager-based workflow.
+    """The base environment encapsulates the simulation scene and the environment managers for
+    the manager-based workflow.
 
     While a simulation scene or world comprises of different components such as the robots, objects,
     and sensors (cameras, lidars, etc.), the environment is a higher level abstraction
@@ -171,7 +173,8 @@ class ManagerBasedEnv:
                     self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
+                # this shouldn't cause an issue since later on, users do a reset over all the environments
+                # so the lazy buffers would be reset.
                 self.scene.update(dt=self.physics_dt)
             # add timeline event to load managers
             self.load_managers()
@@ -263,6 +266,7 @@ class ManagerBasedEnv:
             output_dir: The directory to export the IO descriptors to.
         """
         import os
+
         import yaml
 
         IO_descriptors = self.get_IO_descriptors
@@ -529,7 +533,7 @@ class ManagerBasedEnv:
             del self.scene
 
             # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
+            if get_isaac_sim_version().major >= 5:
                 if self.cfg.sim.create_stage_in_memory:
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()

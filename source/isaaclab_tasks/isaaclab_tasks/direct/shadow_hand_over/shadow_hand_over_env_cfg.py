@@ -1,10 +1,8 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -17,6 +15,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
+
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 
 @configclass

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,6 +11,10 @@ from .humanoid.unitree.g1_motion_controller_locomotion import (
     G1LowerBodyStandingMotionControllerRetargeterCfg,
 )
 from .humanoid.unitree.inspire.g1_upper_body_retargeter import UnitreeG1Retargeter, UnitreeG1RetargeterCfg
+from .humanoid.unitree.trihand.g1_upper_body_motion_ctrl_gripper import (
+    G1TriHandUpperBodyMotionControllerGripperRetargeter,
+    G1TriHandUpperBodyMotionControllerGripperRetargeterCfg,
+)
 from .humanoid.unitree.trihand.g1_upper_body_motion_ctrl_retargeter import (
     G1TriHandUpperBodyMotionControllerRetargeter,
     G1TriHandUpperBodyMotionControllerRetargeterCfg,

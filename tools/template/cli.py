@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -73,7 +73,7 @@ class CLIHandler:
         def transformer(result: list[str]) -> str:
             if "all" in result or "both" in result:
                 token = "all" if "all" in result else "both"
-                return f'{token} ({", ".join(choices[:choices.index("---")])})'
+                return f"{token} ({', '.join(choices[: choices.index('---')])})"
             return ", ".join(result)
 
         return inquirer.checkbox(

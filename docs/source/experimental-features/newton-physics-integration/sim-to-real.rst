@@ -40,7 +40,7 @@ Train the teacher policy for the G1 velocity task using the Newton backend. The 
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Flat-G1-v1 --num_envs=4096 --headless
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Velocity-Flat-G1-v1 --num_envs=4096
 
 The teacher policy includes privileged observations (e.g., root linear velocity) defined in ``PolicyCfg(ObsGroup)``.
 
@@ -59,7 +59,7 @@ Run the student distillation task ``Velocity-G1-Distillation-v1`` using ``--load
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Velocity-G1-Distillation-v1 --num_envs=4096 --headless --load_run 2025-08-13_23-53-28 --checkpoint model_1499.pt
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Velocity-G1-Distillation-v1 --num_envs=4096 --load_run 2025-08-13_23-53-28 --checkpoint model_1499.pt
 
 .. note::
 
@@ -74,7 +74,7 @@ Use ``--load_run`` and ``--checkpoint`` to initialize from the distilled policy.
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Velocity-G1-Student-Finetune-v1 --num_envs=4096 --headless --load_run 2025-08-20_16-06-52_distillation --checkpoint model_1499.pt
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Velocity-G1-Student-Finetune-v1 --num_envs=4096 --load_run 2025-08-20_16-06-52_distillation --checkpoint model_1499.pt
 
 This starts from the distilled student policy and improves it further with RL training.
 
@@ -86,7 +86,7 @@ You can replay the student policy via:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=Velocity-G1-Student-Finetune-v1 --num_envs=32
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task=Velocity-G1-Student-Finetune-v1 --num_envs=32 --visualizer newton
 
 
 This exports the policy as ``.pt`` and ``.onnx`` files in the run's export directory, ready for real robot deployment.

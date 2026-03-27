@@ -1,12 +1,13 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import torch
-from dataclasses import dataclass
 from scipy.spatial.transform import Rotation
 
 from isaaclab.devices.device_base import DeviceBase
@@ -42,8 +43,10 @@ class Se3RelRetargeter(RetargeterBase):
             use_wrist_position: If True, use wrist position instead of pinch position (midpoint between fingers)
             delta_pos_scale_factor: Amplification factor for position changes (higher = larger robot movements)
             delta_rot_scale_factor: Amplification factor for rotation changes (higher = larger robot rotations)
-            alpha_pos: Position smoothing parameter (0-1); higher values track more closely to input, lower values smooth more
-            alpha_rot: Rotation smoothing parameter (0-1); higher values track more closely to input, lower values smooth more
+            alpha_pos: Position smoothing parameter (0-1); higher values track more closely to input,
+                lower values smooth more
+            alpha_rot: Rotation smoothing parameter (0-1); higher values track more closely to input,
+                lower values smooth more
             enable_visualization: If True, show a visual marker representing the target end-effector pose
             device: The device to place the returned tensor on ('cpu' or 'cuda')
         """

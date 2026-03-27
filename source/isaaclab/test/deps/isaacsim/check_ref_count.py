@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -36,15 +36,17 @@ simulation_app = SimulationApp({"headless": True})
 import ctypes
 import gc
 import logging
+
 import torch  # noqa: F401
 
+import isaacsim.core.utils.nucleus as nucleus_utils
 import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.simulation_context import SimulationContext
 from isaacsim.core.prims import Articulation
 
 # import logger
 logger = logging.getLogger(__name__)
-import isaaclab.sim.utils.nucleus as nucleus_utils
+
 
 # check nucleus connection
 if nucleus_utils.get_assets_root_path() is None:

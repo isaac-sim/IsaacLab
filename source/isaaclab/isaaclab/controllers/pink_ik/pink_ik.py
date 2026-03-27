@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,10 +14,10 @@ Reference:
 
 from __future__ import annotations
 
-import numpy as np
-import torch
 from typing import TYPE_CHECKING
 
+import numpy as np
+import torch
 from pink import solve_ik
 
 from isaaclab.assets import ArticulationCfg
@@ -39,7 +39,8 @@ class PinkIKController:
     Multiple tasks are resolved through weighted optimization, formulating a quadratic program that minimizes
     weighted task errors while respecting joint velocity limits.
 
-    It supports user defined tasks, and we have provided a NullSpacePostureTask for maintaining desired joint configurations.
+    It supports user defined tasks, and we have provided a NullSpacePostureTask for maintaining desired
+    joint configurations.
 
     Reference:
         Pink IK Solver: https://github.com/stephane-caron/pink

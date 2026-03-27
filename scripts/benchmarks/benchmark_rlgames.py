@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -62,13 +62,13 @@ from isaacsim.benchmark.services import BaseIsaacBenchmark
 
 imports_time_begin = time.perf_counter_ns()
 
-import gymnasium as gym
 import math
 import os
 import random
-import torch
 from datetime import datetime
 
+import gymnasium as gym
+import torch
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
@@ -87,6 +87,7 @@ imports_time_end = time.perf_counter_ns()
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from isaaclab.utils.timer import Timer
+
 from scripts.benchmarks.utils import (
     log_app_start_time,
     log_python_imports_time,

@@ -1,11 +1,12 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import torch
 from abc import ABC, abstractmethod
 from typing import Any
+
+import torch
 
 from isaaclab.assets import Articulation
 from isaaclab.envs.manager_based_env import ManagerBasedEnv

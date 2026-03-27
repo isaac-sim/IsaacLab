@@ -114,7 +114,7 @@ Here we make an Xform prim to group all the primitive shapes under it.
 .. literalinclude:: ../../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python
    :start-at: # create a new xform prim for all objects to be spawned under
-   :end-at: prim_utils.create_prim("/World/Objects", "Xform")
+   :end-at: sim_utils.create_prim("/World/Objects", "Xform")
 
 Next, we spawn a cone using the :class:`~sim.spawners.shapes.ConeCfg` class. It is possible to specify
 the radius, height, physics properties, and material properties of the cone. By default, the physics and material

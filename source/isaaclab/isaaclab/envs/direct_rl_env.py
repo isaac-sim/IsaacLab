@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,12 +6,9 @@
 from __future__ import annotations
 
 import builtins
-import gymnasium as gym
 import inspect
 import logging
 import math
-import numpy as np
-import torch
 import warnings
 import weakref
 from abc import abstractmethod
@@ -19,10 +16,13 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import Any, ClassVar
 
+import gymnasium as gym
+import numpy as np
+import torch
+
 import omni.kit.app
 import omni.physx
 from isaacsim.core.simulation_manager import SimulationManager
-from isaacsim.core.version import get_version
 
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
@@ -31,6 +31,7 @@ from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import get_isaac_sim_version
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
@@ -70,7 +71,6 @@ class DirectRLEnv(gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
-        "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
 
@@ -167,7 +167,8 @@ class DirectRLEnv(gym.Env):
                     self.sim.reset()
                 # update scene to pre populate data buffers for assets and sensors.
                 # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy buffers would be reset.
+                # this shouldn't cause an issue since later on, users do a reset over all the environments
+                # so the lazy buffers would be reset.
                 self.scene.update(dt=self.physics_dt)
 
         # check if debug visualization is has been implemented by the environment
@@ -512,7 +513,7 @@ class DirectRLEnv(gym.Env):
                 del self.viewport_camera_controller
 
             # clear callbacks and instance
-            if float(".".join(get_version()[2])) >= 5:
+            if get_isaac_sim_version().major >= 5:
                 if self.cfg.sim.create_stage_in_memory:
                     # detach physx stage
                     omni.physx.get_physx_simulation_interface().detach_stage()

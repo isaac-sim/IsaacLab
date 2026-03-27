@@ -1,23 +1,407 @@
-# Copyright (c) 2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Class-based reward terms for the gear assembly manipulation environment."""
+
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
 
-from isaacsim.core.utils.torch.transformations import tf_combine
+import torch
 
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
+from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
+    from .events import randomize_gear_type
 
-def get_keypoint_offsets_full_6d(add_cube_center_kp: bool = False, device: torch.device | None = None) -> torch.Tensor:
+
+class keypoint_command_error(ManagerTermBase):
+    """Compute keypoint distance between current and desired poses from command.
+
+    This class-based term uses _compute_keypoint_distance internally.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the keypoint command error term.
+
+        Args:
+            cfg: Reward term configuration
+            env: Environment instance
+        """
+        super().__init__(cfg, env)
+
+        # Cache asset configuration
+        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("ee_frame"))
+        self.command_name: str = cfg.params.get("command_name", "ee_pose")
+
+        # Create keypoint distance computer
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        keypoint_scale: float = 1.0,
+        add_cube_center_kp: bool = True,
+    ) -> torch.Tensor:
+        """Compute keypoint distance error.
+
+        Args:
+            env: Environment instance
+            command_name: Name of the command containing desired pose
+            asset_cfg: Configuration of the asset to track
+            keypoint_scale: Scale factor for keypoint offsets
+            add_cube_center_kp: Whether to include center keypoint
+
+        Returns:
+            Mean keypoint distance tensor of shape (num_envs,)
+        """
+        # Extract frame transformer sensor
+        asset: FrameTransformer = env.scene[asset_cfg.name]
+        command = env.command_manager.get_command(command_name)
+
+        # Get desired pose from command
+        des_pos_w = command[:, :3]
+        des_quat_w = command[:, 3:7]
+
+        # Get current pose from frame transformer
+        curr_pos_w = asset.data.target_pos_source[:, 0]
+        curr_quat_w = asset.data.target_quat_source[:, 0]
+
+        # Compute keypoint distance
+        keypoint_dist_sep = self.keypoint_computer.compute(
+            current_pos=curr_pos_w,
+            current_quat=curr_quat_w,
+            target_pos=des_pos_w,
+            target_quat=des_quat_w,
+            keypoint_scale=keypoint_scale,
+        )
+
+        return keypoint_dist_sep.mean(-1)
+
+
+class keypoint_command_error_exp(ManagerTermBase):
+    """Compute exponential keypoint reward between current and desired poses from command.
+
+    This class-based term uses _compute_keypoint_distance internally and applies
+    exponential reward transformation.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the keypoint command error exponential term.
+
+        Args:
+            cfg: Reward term configuration
+            env: Environment instance
+        """
+        super().__init__(cfg, env)
+
+        # Cache asset configuration
+        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("ee_frame"))
+        self.command_name: str = cfg.params.get("command_name", "ee_pose")
+
+        # Create keypoint distance computer
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        kp_exp_coeffs: list[tuple[float, float]] = [(1.0, 0.1)],
+        kp_use_sum_of_exps: bool = True,
+        keypoint_scale: float = 1.0,
+        add_cube_center_kp: bool = True,
+    ) -> torch.Tensor:
+        """Compute exponential keypoint reward.
+
+        Args:
+            env: Environment instance
+            command_name: Name of the command containing desired pose
+            asset_cfg: Configuration of the asset to track
+            kp_exp_coeffs: List of (a, b) coefficient pairs for exponential reward
+            kp_use_sum_of_exps: Whether to use sum of exponentials
+            keypoint_scale: Scale factor for keypoint offsets
+            add_cube_center_kp: Whether to include center keypoint
+
+        Returns:
+            Exponential keypoint reward tensor of shape (num_envs,)
+        """
+        # Extract frame transformer sensor
+        asset: FrameTransformer = env.scene[asset_cfg.name]
+        command = env.command_manager.get_command(command_name)
+
+        # Get desired pose from command
+        des_pos_w = command[:, :3]
+        des_quat_w = command[:, 3:7]
+
+        # Get current pose from frame transformer
+        curr_pos_w = asset.data.target_pos_source[:, 0]
+        curr_quat_w = asset.data.target_quat_source[:, 0]
+
+        # Compute keypoint distance
+        keypoint_dist_sep = self.keypoint_computer.compute(
+            current_pos=curr_pos_w,
+            current_quat=curr_quat_w,
+            target_pos=des_pos_w,
+            target_quat=des_quat_w,
+            keypoint_scale=keypoint_scale,
+        )
+
+        # Compute exponential reward
+        keypoint_reward_exp = torch.zeros_like(keypoint_dist_sep[:, 0])
+
+        if kp_use_sum_of_exps:
+            for coeff in kp_exp_coeffs:
+                a, b = coeff
+                keypoint_reward_exp += (
+                    1.0 / (torch.exp(a * keypoint_dist_sep) + b + torch.exp(-a * keypoint_dist_sep))
+                ).mean(-1)
+        else:
+            keypoint_dist = keypoint_dist_sep.mean(-1)
+            for coeff in kp_exp_coeffs:
+                a, b = coeff
+                keypoint_reward_exp += 1.0 / (torch.exp(a * keypoint_dist) + b + torch.exp(-a * keypoint_dist))
+
+        return keypoint_reward_exp
+
+
+class keypoint_entity_error(ManagerTermBase):
+    """Compute keypoint distance between a RigidObject and the dynamically selected gear.
+
+    This class-based term pre-caches gear type mapping and asset references.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the keypoint entity error term.
+
+        Args:
+            cfg: Reward term configuration
+            env: Environment instance
+        """
+        super().__init__(cfg, env)
+
+        # Cache asset configuration
+        self.asset_cfg_1: SceneEntityCfg = cfg.params.get("asset_cfg_1", SceneEntityCfg("factory_gear_base"))
+        self.asset_1 = env.scene[self.asset_cfg_1.name]
+
+        # Pre-allocate gear type mapping and indices
+        self.gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
+        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
+        self.env_indices = torch.arange(env.num_envs, device=env.device)
+
+        # Cache gear assets
+        self.gear_assets = {
+            "gear_small": env.scene["factory_gear_small"],
+            "gear_medium": env.scene["factory_gear_medium"],
+            "gear_large": env.scene["factory_gear_large"],
+        }
+
+        # Create keypoint distance computer
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg_1: SceneEntityCfg,
+        keypoint_scale: float = 1.0,
+        add_cube_center_kp: bool = True,
+    ) -> torch.Tensor:
+        """Compute keypoint distance error.
+
+        Args:
+            env: Environment instance
+            asset_cfg_1: Configuration of the first asset (RigidObject)
+            keypoint_scale: Scale factor for keypoint offsets
+            add_cube_center_kp: Whether to include center keypoint
+
+        Returns:
+            Mean keypoint distance tensor of shape (num_envs,)
+        """
+        # Get current pose of asset_1 (RigidObject)
+        curr_pos_1 = self.asset_1.data.body_pos_w[:, 0]
+        curr_quat_1 = self.asset_1.data.body_quat_w[:, 0]
+
+        # Check if gear type manager exists
+        if not hasattr(env, "_gear_type_manager"):
+            raise RuntimeError(
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
+                "in your environment's event configuration before this reward term is used."
+            )
+
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
+        # Get gear type indices directly as tensor
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
+
+        # Stack all gear positions and quaternions
+        all_gear_pos = torch.stack(
+            [
+                self.gear_assets["gear_small"].data.body_pos_w[:, 0],
+                self.gear_assets["gear_medium"].data.body_pos_w[:, 0],
+                self.gear_assets["gear_large"].data.body_pos_w[:, 0],
+            ],
+            dim=1,
+        )
+
+        all_gear_quat = torch.stack(
+            [
+                self.gear_assets["gear_small"].data.body_quat_w[:, 0],
+                self.gear_assets["gear_medium"].data.body_quat_w[:, 0],
+                self.gear_assets["gear_large"].data.body_quat_w[:, 0],
+            ],
+            dim=1,
+        )
+
+        # Select positions and quaternions using advanced indexing
+        curr_pos_2 = all_gear_pos[self.env_indices, self.gear_type_indices]
+        curr_quat_2 = all_gear_quat[self.env_indices, self.gear_type_indices]
+
+        # Compute keypoint distance
+        keypoint_dist_sep = self.keypoint_computer.compute(
+            current_pos=curr_pos_1,
+            current_quat=curr_quat_1,
+            target_pos=curr_pos_2,
+            target_quat=curr_quat_2,
+            keypoint_scale=keypoint_scale,
+        )
+
+        return keypoint_dist_sep.mean(-1)
+
+
+class keypoint_entity_error_exp(ManagerTermBase):
+    """Compute exponential keypoint reward between a RigidObject and the dynamically selected gear.
+
+    This class-based term pre-caches gear type mapping and asset references.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the keypoint entity error exponential term.
+
+        Args:
+            cfg: Reward term configuration
+            env: Environment instance
+        """
+        super().__init__(cfg, env)
+
+        # Cache asset configuration
+        self.asset_cfg_1: SceneEntityCfg = cfg.params.get("asset_cfg_1", SceneEntityCfg("factory_gear_base"))
+        self.asset_1 = env.scene[self.asset_cfg_1.name]
+
+        # Pre-allocate gear type mapping and indices
+        self.gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
+        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
+        self.env_indices = torch.arange(env.num_envs, device=env.device)
+
+        # Cache gear assets
+        self.gear_assets = {
+            "gear_small": env.scene["factory_gear_small"],
+            "gear_medium": env.scene["factory_gear_medium"],
+            "gear_large": env.scene["factory_gear_large"],
+        }
+
+        # Create keypoint distance computer
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg_1: SceneEntityCfg,
+        kp_exp_coeffs: list[tuple[float, float]] = [(1.0, 0.1)],
+        kp_use_sum_of_exps: bool = True,
+        keypoint_scale: float = 1.0,
+        add_cube_center_kp: bool = True,
+    ) -> torch.Tensor:
+        """Compute exponential keypoint reward.
+
+        Args:
+            env: Environment instance
+            asset_cfg_1: Configuration of the first asset (RigidObject)
+            kp_exp_coeffs: List of (a, b) coefficient pairs for exponential reward
+            kp_use_sum_of_exps: Whether to use sum of exponentials
+            keypoint_scale: Scale factor for keypoint offsets
+            add_cube_center_kp: Whether to include center keypoint
+
+        Returns:
+            Exponential keypoint reward tensor of shape (num_envs,)
+        """
+        # Get current pose of asset_1 (RigidObject)
+        curr_pos_1 = self.asset_1.data.body_pos_w[:, 0]
+        curr_quat_1 = self.asset_1.data.body_quat_w[:, 0]
+
+        # Check if gear type manager exists
+        if not hasattr(env, "_gear_type_manager"):
+            raise RuntimeError(
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
+                "in your environment's event configuration before this reward term is used."
+            )
+
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
+        # Get gear type indices directly as tensor
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
+
+        # Stack all gear positions and quaternions
+        all_gear_pos = torch.stack(
+            [
+                self.gear_assets["gear_small"].data.body_pos_w[:, 0],
+                self.gear_assets["gear_medium"].data.body_pos_w[:, 0],
+                self.gear_assets["gear_large"].data.body_pos_w[:, 0],
+            ],
+            dim=1,
+        )
+
+        all_gear_quat = torch.stack(
+            [
+                self.gear_assets["gear_small"].data.body_quat_w[:, 0],
+                self.gear_assets["gear_medium"].data.body_quat_w[:, 0],
+                self.gear_assets["gear_large"].data.body_quat_w[:, 0],
+            ],
+            dim=1,
+        )
+
+        # Select positions and quaternions using advanced indexing
+        curr_pos_2 = all_gear_pos[self.env_indices, self.gear_type_indices]
+        curr_quat_2 = all_gear_quat[self.env_indices, self.gear_type_indices]
+
+        # Compute keypoint distance
+        keypoint_dist_sep = self.keypoint_computer.compute(
+            current_pos=curr_pos_1,
+            current_quat=curr_quat_1,
+            target_pos=curr_pos_2,
+            target_quat=curr_quat_2,
+            keypoint_scale=keypoint_scale,
+        )
+
+        # Compute exponential reward
+        keypoint_reward_exp = torch.zeros_like(keypoint_dist_sep[:, 0])
+
+        if kp_use_sum_of_exps:
+            for coeff in kp_exp_coeffs:
+                a, b = coeff
+                keypoint_reward_exp += (
+                    1.0 / (torch.exp(a * keypoint_dist_sep) + b + torch.exp(-a * keypoint_dist_sep))
+                ).mean(-1)
+        else:
+            keypoint_dist = keypoint_dist_sep.mean(-1)
+            for coeff in kp_exp_coeffs:
+                a, b = coeff
+                keypoint_reward_exp += 1.0 / (torch.exp(a * keypoint_dist) + b + torch.exp(-a * keypoint_dist))
+
+        return keypoint_reward_exp
+
+
+##
+# Helper functions and classes
+##
+
+
+def _get_keypoint_offsets_full_6d(add_cube_center_kp: bool = False, device: torch.device | None = None) -> torch.Tensor:
     """Get keypoints for pose alignment comparison. Pose is aligned if all axis are aligned.
 
     Args:
@@ -33,199 +417,97 @@ def get_keypoint_offsets_full_6d(add_cube_center_kp: bool = False, device: torch
         keypoint_corners = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 
     keypoint_corners = torch.tensor(keypoint_corners, device=device, dtype=torch.float32)
-    keypoint_corners = torch.cat((keypoint_corners, -keypoint_corners[-3:]), dim=0)  # use both negative and positive
+    keypoint_corners = torch.cat((keypoint_corners, -keypoint_corners[-3:]), dim=0)
 
     return keypoint_corners
 
 
-def compute_keypoint_distance(
-    current_pos: torch.Tensor,
-    current_quat: torch.Tensor,
-    target_pos: torch.Tensor,
-    target_quat: torch.Tensor,
-    keypoint_scale: float = 1.0,
-    add_cube_center_kp: bool = True,
-    device: torch.device | None = None,
-) -> torch.Tensor:
+class _compute_keypoint_distance:
     """Compute keypoint distance between current and target poses.
 
-    This function creates keypoints from the current and target poses and calculates
-    the L2 norm distance between corresponding keypoints. The keypoints are created
-    by applying offsets to the poses and transforming them to world coordinates.
-
-    Args:
-        current_pos: Current position tensor of shape (num_envs, 3)
-        current_quat: Current quaternion tensor of shape (num_envs, 4)
-        target_pos: Target position tensor of shape (num_envs, 3)
-        target_quat: Target quaternion tensor of shape (num_envs, 4)
-        keypoint_scale: Scale factor for keypoint offsets
-        add_cube_center_kp: Whether to include the center keypoint (0, 0, 0)
-        device: Device to create tensors on
-
-    Returns:
-        Keypoint distance tensor of shape (num_envs, num_keypoints) where each element
-        is the L2 norm distance between corresponding keypoints
+    This helper class pre-caches keypoint offsets and identity quaternions
+    to avoid repeated allocations during reward computation.
     """
-    if device is None:
-        device = current_pos.device
 
-    num_envs = current_pos.shape[0]
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        """Initialize the compute keypoint distance helper.
 
-    # Get keypoint offsets
-    keypoint_offsets = get_keypoint_offsets_full_6d(add_cube_center_kp, device)
-    keypoint_offsets = keypoint_offsets * keypoint_scale
-    num_keypoints = keypoint_offsets.shape[0]
+        Args:
+            cfg: Reward term configuration
+            env: Environment instance
+        """
+        # Get keypoint configuration
+        add_cube_center_kp = cfg.params.get("add_cube_center_kp", True)
 
-    # Create identity quaternion for transformations
-    identity_quat = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device).unsqueeze(0).repeat(num_envs, 1)
+        # Pre-compute base keypoint offsets (unscaled)
+        self.keypoint_offsets_base = _get_keypoint_offsets_full_6d(
+            add_cube_center_kp=add_cube_center_kp, device=env.device
+        )
+        self.num_keypoints = self.keypoint_offsets_base.shape[0]
 
-    # Initialize keypoint tensors
-    keypoints_current = torch.zeros((num_envs, num_keypoints, 3), device=device)
-    keypoints_target = torch.zeros((num_envs, num_keypoints, 3), device=device)
+        # Pre-allocate identity quaternion for keypoint transforms
+        self.identity_quat_keypoints = (
+            torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=env.device, dtype=torch.float32)
+            .repeat(env.num_envs * self.num_keypoints, 1)
+            .contiguous()
+        )
 
-    # Compute keypoints for current and target poses
-    for idx, keypoint_offset in enumerate(keypoint_offsets):
-        # Transform keypoint offset to world coordinates for current pose
-        keypoints_current[:, idx] = tf_combine(
-            current_quat, current_pos, identity_quat, keypoint_offset.repeat(num_envs, 1)
-        )[1]
+        # Pre-allocate buffer for batched keypoint offsets
+        self.keypoint_offsets_buffer = torch.zeros(
+            env.num_envs, self.num_keypoints, 3, device=env.device, dtype=torch.float32
+        )
 
-        # Transform keypoint offset to world coordinates for target pose
-        keypoints_target[:, idx] = tf_combine(
-            target_quat, target_pos, identity_quat, keypoint_offset.repeat(num_envs, 1)
-        )[1]
-    # Calculate L2 norm distance between corresponding keypoints
-    keypoint_dist_sep = torch.norm(keypoints_target - keypoints_current, p=2, dim=-1)
+    def compute(
+        self,
+        current_pos: torch.Tensor,
+        current_quat: torch.Tensor,
+        target_pos: torch.Tensor,
+        target_quat: torch.Tensor,
+        keypoint_scale: float = 1.0,
+    ) -> torch.Tensor:
+        """Compute keypoint distance between current and target poses.
 
-    return keypoint_dist_sep
+        Args:
+            current_pos: Current position tensor of shape (num_envs, 3)
+            current_quat: Current quaternion tensor of shape (num_envs, 4)
+            target_pos: Target position tensor of shape (num_envs, 3)
+            target_quat: Target quaternion tensor of shape (num_envs, 4)
+            keypoint_scale: Scale factor for keypoint offsets
 
+        Returns:
+            Keypoint distance tensor of shape (num_envs, num_keypoints)
+        """
+        num_envs = current_pos.shape[0]
 
-def keypoint_command_error(
-    env: ManagerBasedRLEnv,
-    command_name: str,
-    asset_cfg: SceneEntityCfg,
-    keypoint_scale: float = 1.0,
-    add_cube_center_kp: bool = True,
-) -> torch.Tensor:
-    """Compute keypoint distance between current and desired poses from command.
+        # Scale keypoint offsets
+        keypoint_offsets = self.keypoint_offsets_base * keypoint_scale
 
-    The function computes the keypoint distance between the current pose of the end effector from
-    the frame transformer sensor and the desired pose from the command. Keypoints are created by
-    applying offsets to both poses and the distance is computed as the L2-norm between corresponding keypoints.
+        # Create batched keypoints (in-place operation)
+        self.keypoint_offsets_buffer[:num_envs] = keypoint_offsets.unsqueeze(0)
 
-    Args:
-        env: The environment containing the asset
-        command_name: Name of the command containing desired pose
-        asset_cfg: Configuration of the asset to track (not used, kept for compatibility)
-        keypoint_scale: Scale factor for keypoint offsets
-        add_cube_center_kp: Whether to include the center keypoint (0, 0, 0)
+        # Flatten for batch processing
+        keypoint_offsets_flat = self.keypoint_offsets_buffer[:num_envs].reshape(-1, 3)
+        identity_quat = self.identity_quat_keypoints[: num_envs * self.num_keypoints]
 
-    Returns:
-        Keypoint distance tensor of shape (num_envs, num_keypoints) where each element
-        is the L2 norm distance between corresponding keypoints
-    """
-    # extract the frame transformer sensor
-    asset: FrameTransformer = env.scene[asset_cfg.name]
-    command = env.command_manager.get_command(command_name)
+        # Expand quaternions and positions for all keypoints
+        current_quat_expanded = current_quat.unsqueeze(1).expand(-1, self.num_keypoints, -1).reshape(-1, 4)
+        current_pos_expanded = current_pos.unsqueeze(1).expand(-1, self.num_keypoints, -1).reshape(-1, 3)
+        target_quat_expanded = target_quat.unsqueeze(1).expand(-1, self.num_keypoints, -1).reshape(-1, 4)
+        target_pos_expanded = target_pos.unsqueeze(1).expand(-1, self.num_keypoints, -1).reshape(-1, 3)
 
-    # obtain the desired pose from command (position and orientation)
-    des_pos_b = command[:, :3]
-    des_quat_b = command[:, 3:7]
+        # Transform all keypoints at once
+        keypoints_current_flat, _ = combine_frame_transforms(
+            current_pos_expanded, current_quat_expanded, keypoint_offsets_flat, identity_quat
+        )
+        keypoints_target_flat, _ = combine_frame_transforms(
+            target_pos_expanded, target_quat_expanded, keypoint_offsets_flat, identity_quat
+        )
 
-    # transform desired pose to world frame using source frame from frame transformer
-    des_pos_w = des_pos_b
-    des_quat_w = des_quat_b
+        # Reshape back
+        keypoints_current = keypoints_current_flat.reshape(num_envs, self.num_keypoints, 3)
+        keypoints_target = keypoints_target_flat.reshape(num_envs, self.num_keypoints, 3)
 
-    # get current pose in world frame from frame transformer (end effector pose)
-    curr_pos_w = asset.data.target_pos_source[:, 0]  # First target frame is end_effector
-    curr_quat_w = asset.data.target_quat_source[:, 0]  # First target frame is end_effector
+        # Calculate L2 norm distance
+        keypoint_dist_sep = torch.norm(keypoints_target - keypoints_current, p=2, dim=-1)
 
-    # compute keypoint distance
-    keypoint_dist_sep = compute_keypoint_distance(
-        current_pos=curr_pos_w,
-        current_quat=curr_quat_w,
-        target_pos=des_pos_w,
-        target_quat=des_quat_w,
-        keypoint_scale=keypoint_scale,
-        add_cube_center_kp=add_cube_center_kp,
-        device=curr_pos_w.device,
-    )
-
-    # Return mean distance across keypoints to match expected reward shape (num_envs,)
-    return keypoint_dist_sep.mean(-1)
-
-
-def keypoint_command_error_exp(
-    env: ManagerBasedRLEnv,
-    command_name: str,
-    asset_cfg: SceneEntityCfg,
-    kp_exp_coeffs: list[tuple[float, float]] = [(1.0, 0.1)],
-    kp_use_sum_of_exps: bool = True,
-    keypoint_scale: float = 1.0,
-    add_cube_center_kp: bool = True,
-) -> torch.Tensor:
-    """Compute exponential keypoint reward between current and desired poses from command.
-
-    The function computes the keypoint distance between the current pose of the end effector from
-    the frame transformer sensor and the desired pose from the command, then applies an exponential
-    reward function. The reward is computed using the formula: 1 / (exp(a * distance) + b + exp(-a * distance))
-    where a and b are coefficients.
-
-    Args:
-        env: The environment containing the asset
-        command_name: Name of the command containing desired pose
-        asset_cfg: Configuration of the asset to track (not used, kept for compatibility)
-        kp_exp_coeffs: List of (a, b) coefficient pairs for exponential reward
-        kp_use_sum_of_exps: Whether to use sum of exponentials (True) or single exponential (False)
-        keypoint_scale: Scale factor for keypoint offsets
-        add_cube_center_kp: Whether to include the center keypoint (0, 0, 0)
-
-    Returns:
-        Exponential keypoint reward tensor of shape (num_envs,) where each element
-        is the exponential reward value
-    """
-    # extract the frame transformer sensor
-    asset: FrameTransformer = env.scene[asset_cfg.name]
-    command = env.command_manager.get_command(command_name)
-
-    # obtain the desired pose from command (position and orientation)
-    des_pos_b = command[:, :3]
-    des_quat_b = command[:, 3:7]
-
-    # transform desired pose to world frame using source frame from frame transformer
-    des_pos_w = des_pos_b
-    des_quat_w = des_quat_b
-
-    # get current pose in world frame from frame transformer (end effector pose)
-    curr_pos_w = asset.data.target_pos_source[:, 0]  # First target frame is end_effector
-    curr_quat_w = asset.data.target_quat_source[:, 0]  # First target frame is end_effector
-
-    # compute keypoint distance
-    keypoint_dist_sep = compute_keypoint_distance(
-        current_pos=curr_pos_w,
-        current_quat=curr_quat_w,
-        target_pos=des_pos_w,
-        target_quat=des_quat_w,
-        keypoint_scale=keypoint_scale,
-        add_cube_center_kp=add_cube_center_kp,
-        device=curr_pos_w.device,
-    )
-
-    # compute exponential reward
-    keypoint_reward_exp = torch.zeros_like(keypoint_dist_sep[:, 0])  # shape: (num_envs,)
-
-    if kp_use_sum_of_exps:
-        # Use sum of exponentials: average across keypoints for each coefficient
-        for coeff in kp_exp_coeffs:
-            a, b = coeff
-            keypoint_reward_exp += (
-                1.0 / (torch.exp(a * keypoint_dist_sep) + b + torch.exp(-a * keypoint_dist_sep))
-            ).mean(-1)
-    else:
-        # Use single exponential: average keypoint distance first, then apply exponential
-        keypoint_dist = keypoint_dist_sep.mean(-1)  # shape: (num_envs,)
-        for coeff in kp_exp_coeffs:
-            a, b = coeff
-            keypoint_reward_exp += 1.0 / (torch.exp(a * keypoint_dist) + b + torch.exp(-a * keypoint_dist))
-
-    return keypoint_reward_exp
+        return keypoint_dist_sep

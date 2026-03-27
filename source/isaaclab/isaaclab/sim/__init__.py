@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -32,3 +32,4 @@ from .simulation_cfg import PhysxCfg, RenderCfg, SimulationCfg  # noqa: F401, F4
 from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
 from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403
+from .views import *  # noqa: F401, F403

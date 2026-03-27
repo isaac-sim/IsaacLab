@@ -1,10 +1,12 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Launch Isaac Sim Simulator first."""
-# Import pinocchio in the main script to force the use of the dependencies installed by IsaacLab and not the one installed by Isaac Sim
+
+# Import pinocchio in the main script to force the use of the dependencies
+# installed by IsaacLab and not the one installed by Isaac Sim
 # pinocchio is required by the Pink IK controller
 import sys
 
@@ -19,17 +21,18 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import contextlib
-import gymnasium as gym
 import json
-import numpy as np
 import re
-import torch
 from pathlib import Path
 
-import omni.usd
+import gymnasium as gym
+import numpy as np
 import pytest
+import torch
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
+
+import omni.usd
 
 from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_from_matrix, quat_inv
 
@@ -110,9 +113,9 @@ def env_and_cfg(request):
     # Try to infer which is left and which is right
     left_candidates = [f for f in frames if "left" in f.lower()]
     right_candidates = [f for f in frames if "right" in f.lower()]
-    assert (
-        len(left_candidates) == 1 and len(right_candidates) == 1
-    ), f"Could not uniquely identify left/right frames from: {frames}"
+    assert len(left_candidates) == 1 and len(right_candidates) == 1, (
+        f"Could not uniquely identify left/right frames from: {frames}"
+    )
     left_eef_urdf_link_name = left_candidates[0]
     right_eef_urdf_link_name = right_candidates[0]
 

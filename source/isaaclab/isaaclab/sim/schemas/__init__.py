@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -33,6 +33,7 @@ Locally, the schemas are defined in the following files:
 """
 
 from .schemas import (
+    MESH_APPROXIMATION_TOKENS,
     PHYSX_MESH_COLLISION_CFGS,
     USD_MESH_COLLISION_CFGS,
     activate_contact_sensors,
@@ -122,4 +123,5 @@ __all__ = [
     # Constants for configs that use PhysX vs USD API
     "PHYSX_MESH_COLLISION_CFGS",
     "USD_MESH_COLLISION_CFGS",
+    "MESH_APPROXIMATION_TOKENS",
 ]

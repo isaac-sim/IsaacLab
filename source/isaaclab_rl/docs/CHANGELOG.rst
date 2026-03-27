@@ -1,6 +1,60 @@
 Changelog
 ---------
 
+0.5.0 (2026-3-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+* Added function to handle deprecated RSL-RL configurations and automatically convert them to the new format compatible
+  with RSL-RL 4.0 and 5.0.
+* Added new configuration classes "MLPModelCfg", "RNNModelCfg", and "CNNModelCfg", and "DistributionCfg" for the new
+  versions of RSL-RL.
+* Added "check_for_nan" and "share_cnn_encoders" parameters to the configuration classes for RSL-RL 5.0.
+* Added recurrent configurations for the "Isaac-Velocity-Flat-Anymal-D-v0" task for RSL-RL. to run RSL-RL CI.
+
+Changed
+^^^^^^^
+* Adapted RSL-RL's train.py and play.py scripts to work with both old and the new versions of RSL-RL.
+
+Deprecated
+^^^^^^^^^^
+* Deprecated old configuration classes "RslRlDistillationStudentTeacherCfg",
+  "RslRlDistillationStudentTeacherRecurrentCfg", "RslRlPpoActorCriticCfg", and "RslRlPpoActorCriticRecurrentCfg" in
+  favor of the new "MLPModelCfg", "RNNModelCfg", and "CNNModelCfg" configuration classes for RSL-RL 4.0.
+* Deprecated old parameters "stochastic", "init_noise_std", "noise_std_type", amd "state_dependent_std" in favor of the
+  new "DistributionCfg" configuration class for RSL-RL 5.0.
+
+
+0.4.7 (2025-12-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added :mod:`isaaclab_rl.utils.pretrained_checkpoint` sub-module to handle various pre-trained checkpoint tasks.
+  This module was previously located in the :mod:`isaaclab.utils` module.
+
+
+0.4.6 (2025-11-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added support for decoupling RL device from simulation device in for RL games wrapper.
+  This allows users to run simulation on one device (e.g., CPU) while running RL training/inference on another device.
+
+
+0.4.5 (2025-12-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added state_dependent_std rsl_rl param to RSL-RL wrapper.
+
+
 0.4.4 (2025-10-15)
 ~~~~~~~~~~~~~~~~~~
 

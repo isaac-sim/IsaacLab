@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import logging
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 import omni.physics.tensors.impl.api as physx
 from isaacsim.core.simulation_manager import SimulationManager
@@ -211,7 +212,8 @@ class DeformableObject(AssetBase):
         """Set the kinematic targets of the simulation mesh for the deformable bodies indicated by the indices.
 
         The kinematic targets comprise of individual nodal positions of the simulation mesh for the deformable body
-        and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation frame.
+        and a flag indicating whether the node is kinematically driven or not. The positions are in the simulation
+        frame.
 
         Note:
             The flag is set to 0.0 for kinematically driven nodes and 1.0 for free nodes.
