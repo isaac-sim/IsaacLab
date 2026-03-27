@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import gymnasium as gym
 
-from isaaclab_assets.robots.ant import ANT_CFG
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
