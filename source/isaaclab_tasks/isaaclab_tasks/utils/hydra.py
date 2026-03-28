@@ -118,8 +118,10 @@ def _walk_cfg(cfg, path: str, on_preset: Callable) -> None:
     """Depth-first walk of a config tree, calling *on_preset(parent, key, obj, path)*
     for every :class:`PresetCfg` node.  Recurses through dataclass attrs, dicts, and
     nested dicts transparently."""
-    items = cfg.items() if isinstance(cfg, dict) else (
-        (n, v) for n in dir(cfg) if not n.startswith("_") for v in [getattr(cfg, n, None)] if v is not None
+    items = (
+        cfg.items()
+        if isinstance(cfg, dict)
+        else ((n, v) for n in dir(cfg) if not n.startswith("_") for v in [getattr(cfg, n, None)] if v is not None)
     )
     for key, val in items:
         child_path = f"{path}.{key}" if path else key
