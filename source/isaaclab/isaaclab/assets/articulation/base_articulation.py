@@ -15,9 +15,8 @@ from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
-from leapp import OutputKindEnum
 
-from ...utils.leapp.leapp_semantics import joint_names_resolver, leapp_tensor_semantics
+from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:

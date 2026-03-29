@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import warp as wp
 
-from isaaclab.utils.leapp.leapp_semantics import (
+from isaaclab.utils.leapp import (
     QUAT_WXYZ_ELEMENT_NAMES,
     XYZ_ELEMENT_NAMES,
     leapp_tensor_semantics,

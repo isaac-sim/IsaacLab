@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import warp as wp
-from leapp import InputKindEnum
-
-from isaaclab.utils.leapp.leapp_semantics import XYZ_ELEMENT_NAMES, leapp_tensor_semantics
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.leapp import (
+    InputKindEnum,
+    XYZ_ELEMENT_NAMES,
+    leapp_tensor_semantics,
+)
 
 
 class BaseImuData(ABC):

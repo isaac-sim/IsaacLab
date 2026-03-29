@@ -111,7 +111,7 @@ from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.leapp.export_annotator import patch_env_for_export
+from isaaclab.utils.leapp import patch_env_for_export
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint

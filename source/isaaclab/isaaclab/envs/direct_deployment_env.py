@@ -28,7 +28,7 @@ from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.configclass import resolve_cfg_presets
-from isaaclab.utils.leapp.utils import ensure_torch_tensor
+from isaaclab.utils.leapp import ensure_torch_tensor
 
 from .ui import ViewportCameraController
 
@@ -89,7 +89,11 @@ def _resolve_joint_ids(element_names: list | None, entity: Any) -> list[int] | N
 
 
 def _first_param_name(method: Any) -> str:
-    """Return the name of the first non-self parameter of *method*."""
+    """Return the name of the first non-self parameter of *method*.
+
+    Expects a bound method — ``inspect.signature`` on a bound method
+    already excludes ``self``, so ``params[0]`` is the first real parameter.
+    """
     params = list(inspect.signature(method).parameters.values())
     if not params:
         raise TypeError(f"{method} has no parameters")

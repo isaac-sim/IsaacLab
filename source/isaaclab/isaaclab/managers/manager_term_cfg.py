@@ -118,8 +118,10 @@ class CommandTermCfg:
     debug_vis: bool = False
     """Whether to visualize debug information. Defaults to False."""
 
-    cmd_kind: str | None = None  # type hint for the command for deployment
-    element_names: list[str] | list[list[str]] | None = None  # element names for the command for deployment
+    cmd_kind: str | None = None
+    """Type hint for the command for deployment."""
+    element_names: list[str] | list[list[str]] | None = None
+    """Element names for the command for deployment."""
 
 
 ##

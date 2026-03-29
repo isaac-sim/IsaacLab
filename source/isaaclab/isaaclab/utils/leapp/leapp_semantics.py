@@ -13,6 +13,26 @@ from typing import Any
 
 from .utils import select_element_names
 
+try:
+    from leapp import InputKindEnum, OutputKindEnum
+except ImportError:
+
+    class _LeappEnumSentinel:
+        """Stand-in when leapp is not installed.
+
+        Any attribute access returns ``None`` so that
+        ``@leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE)``
+        silently stores ``kind=None`` instead of crashing at import time.
+        The real enum values are only needed at export time, when leapp
+        *is* guaranteed to be available.
+        """
+
+        def __getattr__(self, name: str):
+            return None
+
+    InputKindEnum = _LeappEnumSentinel()  # type: ignore[assignment,misc]
+    OutputKindEnum = _LeappEnumSentinel()  # type: ignore[assignment,misc]
+
 
 @dataclass(frozen=True)
 class LeappTensorSemantics:
@@ -25,8 +45,8 @@ class LeappTensorSemantics:
 
 
 XYZ_ELEMENT_NAMES: list[str] = ["x", "y", "z"]
-QUAT_WXYZ_ELEMENT_NAMES: list[str] = ["qw", "qx", "qy", "qz"]
-POSE7_ELEMENT_NAMES: list[str] = ["x", "y", "z", "qw", "qx", "qy", "qz"]
+QUAT_WXYZ_ELEMENT_NAMES: list[str] = ["qx", "qy", "qz", "qw"]
+POSE7_ELEMENT_NAMES: list[str] = ["x", "y", "z", "qx", "qy", "qz", "qw"]
 WRENCH6_ELEMENT_NAMES: list[str] = ["fx", "fy", "fz", "tx", "ty", "tz"]
 
 

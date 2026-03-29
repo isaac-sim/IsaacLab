@@ -33,10 +33,8 @@ def ensure_torch_tensor(value):
     """Convert Warp arrays to torch tensors while leaving torch tensors unchanged."""
     if isinstance(value, torch.Tensor):
         return value
-    try:
-        return wp.to_torch(value)
-    except Exception:
-        return value
+
+    return wp.to_torch(value)
 
 
 def patch_warp_to_torch_passthrough() -> None:

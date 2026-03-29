@@ -7,9 +7,9 @@ import warnings
 from abc import ABC, abstractmethod
 
 import warp as wp
-from leapp import InputKindEnum
 
-from isaaclab.utils.leapp.leapp_semantics import (
+from isaaclab.utils.leapp import (
+    InputKindEnum,
     body_pose_resolver,
     body_quat_resolver,
     body_wrench_resolver,
