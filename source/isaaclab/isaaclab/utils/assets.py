@@ -22,10 +22,21 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
-import omni.client
+try:
+    import omni.client
+
+    _OMNI_AVAILABLE = True
+except ModuleNotFoundError:
+    _OMNI_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
-from pxr import Sdf
+
+try:
+    from pxr import Sdf
+
+    _PXR_AVAILABLE = True
+except ModuleNotFoundError:
+    _PXR_AVAILABLE = False
 
 NUCLEUS_ASSET_ROOT_DIR = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
 """Path to the root directory on the cloud storage."""
@@ -57,9 +68,19 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
     """
     if os.path.isfile(path):
         return 1
-    # we need to convert backslash to forward slash on Windows for omni.client API
-    elif omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
+    elif _OMNI_AVAILABLE and omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
         return 2
+    elif not _OMNI_AVAILABLE and path.startswith(("http://", "https://")):
+        import urllib.request
+
+        try:
+            req = urllib.request.Request(path, method="HEAD")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    return 2
+        except Exception:
+            pass
+        return 0
     else:
         return 0
 
@@ -116,9 +137,19 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
             if not os.path.isfile(target_path) or force_download:
-                result = omni.client.copy(cur_url, target_path, omni.client.CopyBehavior.OVERWRITE)
-                if result != omni.client.Result.OK and force_download:
-                    raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
+                if _OMNI_AVAILABLE:
+                    result = omni.client.copy(cur_url, target_path, omni.client.CopyBehavior.OVERWRITE)
+                    if result != omni.client.Result.OK and force_download:
+                        raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
+                elif cur_url.startswith(("http://", "https://")):
+                    import urllib.request
+
+                    try:
+                        urllib.request.urlretrieve(cur_url, target_path)
+                    except Exception as e:
+                        raise RuntimeError(f"Unable to download file: '{cur_url}'. Error: {e}")
+                else:
+                    raise RuntimeError(f"Unable to copy file: '{cur_url}'. omni.client not available.")
 
             if local_root is None:
                 local_root = target_path
@@ -153,8 +184,14 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
-        file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
-        return io.BytesIO(memoryview(file_content).tobytes())
+        if _OMNI_AVAILABLE:
+            file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
+            return io.BytesIO(memoryview(file_content).tobytes())
+        else:
+            import urllib.request
+
+            with urllib.request.urlopen(path) as resp:
+                return io.BytesIO(resp.read())
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
@@ -176,6 +213,8 @@ def _is_downloadable_asset(path: str) -> bool:
 
 def _find_usd_references(local_usd_path: str) -> set[str]:
     """Use Sdf API to collect referenced assets from a USD layer."""
+    if not _PXR_AVAILABLE:
+        return set()
     try:
         layer = Sdf.Layer.FindOrOpen(local_usd_path)
     except Exception:

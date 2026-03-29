@@ -20,7 +20,7 @@ INSTALL_REQUIRES = [
     # generic
     "numpy>2",
     "torch>=2.7",
-    "warp-lang>=1.9.0.dev20250825",  # TODO: update to 1.11.0
+    "warp-lang==1.11.1",
     "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
     "protobuf>=3.20.2,!=5.26.0",
     # basic logger

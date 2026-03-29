@@ -40,8 +40,6 @@ INSTALL_REQUIRES = [
     "pillow==11.2.1",
     # livestream
     "starlette==0.45.3",
-    # assets
-    "omniverseclient",
     # testing
     "pytest",
     "pytest-mock",

@@ -34,7 +34,10 @@ from .simulation_cfg import RenderCfg, SimulationCfg  # noqa: F401, F403
 from .simulation_context import SimulationContext, build_simulation_context  # noqa: F401, F403
 from .spawners import *  # noqa: F401, F403
 from .utils import *  # noqa: F401, F403
-from .views import *  # noqa: F401, F403
+try:
+    from .views import *  # noqa: F401, F403
+except ModuleNotFoundError:
+    pass
 
 # Deprecated alias for PhysxCfg -> PhysxCfg
 # This supports old code that uses `from isaaclab.sim import PhysxCfg`

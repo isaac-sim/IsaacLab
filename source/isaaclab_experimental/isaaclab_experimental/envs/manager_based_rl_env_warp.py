@@ -25,7 +25,10 @@ from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from isaaclab.ui.widgets import ManagerLiveVisualizer
+try:
+    from isaaclab.ui.widgets import ManagerLiveVisualizer
+except ModuleNotFoundError:
+    ManagerLiveVisualizer = None
 from isaaclab.utils.timer import Timer
 
 from .manager_based_env_warp import ManagerBasedEnvWarp, ManagerCallMode

@@ -28,7 +28,10 @@ from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
-from .ui import ViewportCameraController
+try:
+    from .ui import ViewportCameraController
+except ModuleNotFoundError:
+    ViewportCameraController = None
 from .utils.spaces import sample_space, spec_to_gym_space
 
 # import logger

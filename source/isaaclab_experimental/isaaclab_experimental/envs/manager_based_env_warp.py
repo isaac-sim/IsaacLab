@@ -28,12 +28,18 @@ import warp as wp
 
 from isaaclab.envs.common import VecEnvObs
 from isaaclab.envs.manager_based_env_cfg import ManagerBasedEnvCfg
-from isaaclab.envs.ui import ViewportCameraController
+try:
+    from isaaclab.envs.ui import ViewportCameraController
+except ModuleNotFoundError:
+    ViewportCameraController = None
 from isaaclab.envs.utils.io_descriptors import export_articulations_data, export_scene_data
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
-from isaaclab.ui.widgets import ManagerLiveVisualizer
+try:
+    from isaaclab.ui.widgets import ManagerLiveVisualizer
+except ModuleNotFoundError:
+    ManagerLiveVisualizer = None
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.warp.utils import resolve_1d_mask

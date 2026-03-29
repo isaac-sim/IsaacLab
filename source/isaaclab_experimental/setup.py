@@ -19,7 +19,7 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 INSTALL_REQUIRES = [
     # generic
     "numpy>2",
-    "warp-lang>=1.9.0.dev20250825",  # TODO: update to 1.11.0
+    "warp-lang==1.11.1",
     "torch>=2.7",
     "prettytable==3.3.0",
     "toml",

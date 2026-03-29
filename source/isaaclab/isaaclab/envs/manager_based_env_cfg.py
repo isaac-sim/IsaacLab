@@ -19,7 +19,10 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from .common import ViewerCfg
-from .ui import BaseEnvWindow
+try:
+    from .ui import BaseEnvWindow
+except ModuleNotFoundError:
+    BaseEnvWindow = None
 
 
 @configclass

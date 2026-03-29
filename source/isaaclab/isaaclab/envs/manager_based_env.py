@@ -15,13 +15,19 @@ from isaaclab.managers import ActionManager, EventManager, ObservationManager, R
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
-from isaaclab.ui.widgets import ManagerLiveVisualizer
+try:
+    from isaaclab.ui.widgets import ManagerLiveVisualizer
+except ModuleNotFoundError:
+    ManagerLiveVisualizer = None
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .ui import ViewportCameraController
+try:
+    from .ui import ViewportCameraController
+except ModuleNotFoundError:
+    ViewportCameraController = None
 from .utils.io_descriptors import export_articulations_data, export_scene_data
 
 logger = logging.getLogger(__name__)

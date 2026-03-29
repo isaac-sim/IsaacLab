@@ -11,7 +11,10 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import NoiseModelCfg
 
 from .common import SpaceType, ViewerCfg
-from .ui import BaseEnvWindow
+try:
+    from .ui import BaseEnvWindow
+except ModuleNotFoundError:
+    BaseEnvWindow = None
 
 
 @configclass

@@ -42,7 +42,12 @@ For more information about the workflow design patterns, see the `Task Design Wo
 .. _`Task Design Workflows`: https://isaac-sim.github.io/IsaacLab/source/features/task_workflows.html
 """
 
-from . import mdp, ui
+from . import mdp
+
+try:
+    from . import ui
+except ModuleNotFoundError:
+    pass
 from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
 from .direct_rl_env import DirectRLEnv
 from .direct_rl_env_cfg import DirectRLEnvCfg
