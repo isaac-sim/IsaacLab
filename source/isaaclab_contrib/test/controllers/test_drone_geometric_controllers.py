@@ -36,18 +36,19 @@ from isaaclab_contrib.controllers.lee_position_control_cfg import LeePosControll
 from isaaclab_contrib.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
 
 
-class _DummyPhysxView:
-    """Minimal physx view providing inertia and inv-mass tensors."""
+class _DummyRootView:
+    """Stub articulation view with ``get_masses`` and ``get_inertias`` for controller tests."""
 
     def __init__(self, num_envs: int, num_bodies: int, device: torch.device):
-        self._inertias = torch.eye(3, device=device).repeat(num_envs, num_bodies, 1, 1)
-        self._inv_masses = torch.ones((num_envs, num_bodies), device=device)
+        inertia_flat = torch.eye(3, device=device).reshape(9)
+        self._inertias = inertia_flat.unsqueeze(0).unsqueeze(0).expand(num_envs, num_bodies, 9).clone()
+        self._masses = torch.ones((num_envs, num_bodies), device=device)
 
     def get_inertias(self) -> torch.Tensor:
         return self._inertias
 
-    def get_inv_masses(self) -> torch.Tensor:
-        return self._inv_masses
+    def get_masses(self) -> torch.Tensor:
+        return self._masses
 
 
 class _DummyRobot:
@@ -67,7 +68,7 @@ class _DummyRobot:
             body_com_pos_b=torch.zeros((num_envs, num_bodies, 3), device=device),
             body_com_quat_b=quat_id.repeat(num_envs, num_bodies, 1),
         )
-        self.root_physx_view = _DummyPhysxView(num_envs, num_bodies, device)
+        self.root_view = _DummyRootView(num_envs, num_bodies, device)
 
 
 class _DummySimCfg:
