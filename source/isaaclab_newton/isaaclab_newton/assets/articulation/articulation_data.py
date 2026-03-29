@@ -2240,16 +2240,19 @@ class ArticulationData(BaseArticulationData):
         n_dof = self._root_view.joint_dof_count
 
         # -- root properties
+        root_transforms = self._root_view.get_root_transforms(NewtonManager.get_state_0())
         if self._root_view.is_fixed_base:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0, 0]
+            self._sim_bind_root_link_pose_w = root_transforms[(slice(None),) + (0,) * (root_transforms.ndim - 1)]
         else:
-            self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(NewtonManager.get_state_0())[:, 0]
-        self._sim_bind_root_com_vel_w = self._root_view.get_root_velocities(NewtonManager.get_state_0())
-        if self._sim_bind_root_com_vel_w is not None:
+            self._sim_bind_root_link_pose_w = root_transforms[:, 0] if root_transforms.ndim > 1 else root_transforms
+        root_velocities = self._root_view.get_root_velocities(NewtonManager.get_state_0())
+        if root_velocities is not None:
             if self._root_view.is_fixed_base:
-                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0, 0]
+                self._sim_bind_root_com_vel_w = root_velocities[(slice(None),) + (0,) * (root_velocities.ndim - 1)]
             else:
-                self._sim_bind_root_com_vel_w = self._sim_bind_root_com_vel_w[:, 0]
+                self._sim_bind_root_com_vel_w = root_velocities[:, 0] if root_velocities.ndim > 1 else root_velocities
+        else:
+            self._sim_bind_root_com_vel_w = None
         # -- body properties
         self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", NewtonManager.get_model())[:, 0]
         self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(NewtonManager.get_state_0())[:, 0]

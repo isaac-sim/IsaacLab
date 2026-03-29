@@ -677,7 +677,7 @@ class DirectRLEnvWarp(gym.Env):
             env_ids: List of environment ids which must be reset
         """
 
-        self.scene.reset(env_ids=None, mask=mask)
+        self.scene.reset(env_ids=None, env_mask=mask)
 
         # apply events such as randomization for environments that need a reset
         # if self.cfg.events:

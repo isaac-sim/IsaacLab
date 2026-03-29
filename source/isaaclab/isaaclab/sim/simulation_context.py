@@ -201,6 +201,10 @@ class SimulationContext:
         """Returns whether GUI is enabled (cached at init)."""
         return self._has_gui
 
+    def has_rtx_sensors(self) -> bool:
+        """Returns whether RTX sensors are available. Always False in kit-less mode."""
+        return False
+
     @property
     def has_offscreen_render(self) -> bool:
         """Returns whether offscreen rendering is enabled (cached at init)."""
