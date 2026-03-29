@@ -177,6 +177,7 @@ Guidelines for modifications:
 * Weihua Zhang
 * Tsz Ki GAO
 * Anke Zhao
+* Harshith Deshalli Ravi
 
 ## Acknowledgements
 
