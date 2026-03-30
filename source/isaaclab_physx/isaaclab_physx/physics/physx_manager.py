@@ -159,6 +159,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def __init__(self):
         self._simulation_view: omni.physics.tensors.SimulationView | None = None
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
+        self._scene_data = SceneDataFormat.Transform()
 
     @property
     def simulation_view(self) -> omni.physics.tensors.SimulationView | None:
@@ -200,10 +201,9 @@ class PhysxSceneDataBackend(SceneDataBackend):
     @property
     def transforms(self) -> SceneDataFormat.Transform:
         """Return the current PhysX rigid body transforms as :class:`SceneDataFormat.Transform`."""
-        result = SceneDataFormat.Transform()
         if view := self.get_rigid_body_view():
-            result.transforms = view.get_transforms().view(wp.transformf)
-        return result
+            self._scene_data.transforms = view.get_transforms().view(wp.transformf)
+        return self._scene_data
 
     @property
     def transform_count(self) -> int:

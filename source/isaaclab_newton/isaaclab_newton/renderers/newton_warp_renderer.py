@@ -212,7 +212,7 @@ class NewtonWarpRenderer(BaseRenderer):
             self._scene_data_mapping = sdp.create_mapping(self._newton_model.body_label)
 
         if not sdp.get_transforms(self._scene_data, mapping=self._scene_data_mapping, allow_passthrough=True):
-            print("Newton Renderer - Failed to update transforms!")
+            logger.warning("Newton Renderer - Failed to update transforms!")
 
         self.newton_sensor.update(
             self._newton_state,

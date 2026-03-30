@@ -83,7 +83,7 @@ class SceneDataProvider:
         """
         input = self.backend.transforms
 
-        if not mapping and type(input) is type(output):
+        if mapping is None and type(input) is type(output):
             if allow_passthrough:
                 for field_name in input._cls.vars:
                     setattr(output, field_name, getattr(input, field_name))
@@ -93,7 +93,7 @@ class SceneDataProvider:
                     wp.copy(getattr(output, field_name), getattr(input, field_name))
             return True
 
-        conversion_kernel_name = f"convert_{input.cls.__name__}_to_{output.cls.__name__}"
+        conversion_kernel_name = f"convert_{input._cls.__name__}_to_{output._cls.__name__}"
 
         if conversion_kernel := getattr(ConversionKernels, conversion_kernel_name, None):
             self.init_output(output)
