@@ -320,7 +320,7 @@ def _generate_html_report() -> None:
             golden_img_html = f'<a href="{golden_fname}"><img src="{golden_fname}" width="120" loading="lazy"></a>'
 
         rows.append(
-            f"<tr class=\"{status_class}\">"
+            f'<tr class="{status_class}">'
             f"<td>{entry['test']}</td>"
             f"<td>{entry['backend']}</td>"
             f"<td>{entry['renderer']}</td>"
@@ -328,7 +328,7 @@ def _generate_html_report() -> None:
             f"<td>{entry['diff_pct']:.2f}</td>"
             f"<td>{entry['threshold']:.1f}</td>"
             f"<td>{entry['ssim']:.4f}</td>"
-            f"<td class=\"status-{status_class}\">{status_text}</td>"
+            f'<td class="status-{status_class}">{status_text}</td>'
             f"<td>{actual_img_html}</td>"
             f"<td>{golden_img_html}</td>"
             "</tr>"
@@ -370,9 +370,7 @@ def _generate_html_report() -> None:
         "<th>ACTUAL</th>"
         "<th>GOLDEN</th>"
         "</tr></thead>\n"
-        "<tbody>\n"
-        + "\n".join(rows)
-        + "\n</tbody>\n</table>\n</body>\n</html>\n"
+        "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n</body>\n</html>\n"
     )
 
     with open(report_path, "w", encoding="utf-8") as f:
