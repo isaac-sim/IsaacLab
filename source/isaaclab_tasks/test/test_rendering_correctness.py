@@ -314,8 +314,8 @@ def _generate_html_report() -> None:
         actual_img_html = ""
         golden_img_html = ""
         if entry.get("img_result_path"):
-            actual_fname = os.path.basename(entry["img_result_path"])
-            golden_fname = os.path.basename(entry["img_golden_path"])
+            actual_fname = os.path.relpath(entry["img_result_path"], _COMPARISON_IMAGES_DIR)
+            golden_fname = os.path.relpath(entry["img_golden_path"], _COMPARISON_IMAGES_DIR)
             actual_img_html = f'<a href="{actual_fname}"><img src="{actual_fname}" width="120" loading="lazy"></a>'
             golden_img_html = f'<a href="{golden_fname}"><img src="{golden_fname}" width="120" loading="lazy"></a>'
 
