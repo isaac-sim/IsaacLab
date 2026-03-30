@@ -25,7 +25,7 @@ class SceneDataFormat:
     @wp.struct
     class Matrix44:
         matrices: wp.array(dtype=wp.mat44f) = None
-    
+
 
 class SceneDataBackend:
     @property
@@ -37,7 +37,7 @@ class SceneDataBackend:
     def transform_count(self) -> int:
         """Return the number of transforms in the sim backend."""
         raise NotImplementedError
-    
+
     @property
     def transform_paths(self) -> list[str]:
         """Return the paths for each transform."""
@@ -92,7 +92,7 @@ class SceneDataProvider:
                 for field_name in input._cls.vars:
                     wp.copy(getattr(output, field_name), getattr(input, field_name))
             return True
-        
+
         conversion_kernel_name = f"convert_{input.cls.__name__}_to_{output.cls.__name__}"
 
         if conversion_kernel := getattr(ConversionKernels, conversion_kernel_name, None):
@@ -312,13 +312,13 @@ if __name__ == "__main__":
         @property
         def transform_count(self) -> int:
             return self.__transforms.transforms.shape[0]
-        
+
         @property
         def transform_paths(self):
-            return ["/world/shape_01", 
-                    "/world/shape_02", 
-                    "/world/shape_03", 
-                    "/world/shape_04", 
+            return ["/world/shape_01",
+                    "/world/shape_02",
+                    "/world/shape_03",
+                    "/world/shape_04",
                     "/world/shape_05",
                     "/world/shape_06",
                     "/world/shape_07",
@@ -333,12 +333,12 @@ if __name__ == "__main__":
     output_data = SceneDataFormat.Vec3_Matrix33()
     output_data.positions = wp.empty(sdp.transform_count, dtype=wp.vec3f)
     output_data.orientations = wp.empty(sdp.transform_count, dtype=wp.mat33f)
-    
+
     print(sim.transforms.transforms)
     mapping = sdp.create_mapping([
-        "/world/shape_02", 
-        "/world/shape_01", 
-        "/world/shape_03", 
+        "/world/shape_02",
+        "/world/shape_01",
+        "/world/shape_03",
         "/world/shape_04",
         "/world/shape_05",
         None,
