@@ -470,24 +470,18 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
 
                 _original_reset = env.reset
-                _n_warmup = max(getattr(env.cfg, "num_rerenders_on_reset", 0), 1)
+
+                import omni.kit.app
+
+                _app = omni.kit.app.get_app()
 
                 def _patched_reset(*args, **kwargs):
                     obs, extras = _original_reset(*args, **kwargs)
-                    try:
-                        import isaaclab_physx.renderers.isaac_rtx_renderer_utils as _rtx_utils
-
-                        import omni.kit.app
-
-                        _app = omni.kit.app.get_app()
-                        for _ in range(_n_warmup):
-                            _rtx_utils._last_render_update_key = (0, -1)
-                            env.sim.set_setting("/app/player/playSimulations", False)
-                            _app.update()
-                            env.sim.set_setting("/app/player/playSimulations", True)
-                            env.scene.update(dt=0)
-                    except ImportError:
-                        pass
+                    env.sim.set_setting("/app/player/playSimulations", False)
+                    _app.update()
+                    env.sim.set_setting("/app/player/playSimulations", True)
+                    for sensor in env.scene.sensors.values():
+                        sensor.update(dt=0.0, force_recompute=True)
                     obs = env.observation_manager.compute(update_history=True)
                     env.obs_buf = obs
                     return obs, extras
