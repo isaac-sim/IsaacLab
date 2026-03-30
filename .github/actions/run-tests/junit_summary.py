@@ -157,7 +157,6 @@ if diff_images:
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     if server and repo and run_id:
-        run_url = f"{server}/{repo}/actions/runs/{run_id}"
 
     print(f"\n<details><summary>🔵 Image Comparison Artifacts ({len(diff_images)})</summary>")
     print("")
