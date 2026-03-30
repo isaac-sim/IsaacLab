@@ -161,16 +161,20 @@ class NewtonWarpRenderer(BaseRenderer):
         if merged != current_req:
             sim.update_scene_data_requirements(merged)
 
-        model = self.get_newton_model()
-        if model is None:
+        self._newton_model = SimulationContext.instance().initialize_scene_data_provider().get_newton_model()
+        if self._newton_model is None:
             raise RuntimeError(
                 "NewtonWarpRenderer requires a Newton model but the scene data provider returned None. "
                 "This usually means the Newton model failed to build from the USD stage "
                 "(e.g., unsupported PhysX schemas such as tendons). "
                 "Check the log for earlier Newton model build errors."
             )
-        self.newton_sensor = newton.sensors.SensorTiledCamera(model)
+
+        self.newton_sensor = newton.sensors.SensorTiledCamera(self._newton_model)
+
+        self._newton_state = SimulationContext.instance().initialize_scene_data_provider().get_newton_state()
         self._scene_data = SceneDataFormat.Transform()
+        self._scene_data.transforms = self._newton_state.body_q
         self._scene_data_mapping = None
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
@@ -202,19 +206,16 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        state = self.get_newton_state()
-        self._scene_data.transforms = state.body_q
-
         sdp = SimulationContext.instance().get_new_scene_data_provider()
 
         if self._scene_data_mapping is None:
-            self._scene_data_mapping = sdp.create_mapping(self.get_newton_model().body_label)
+            self._scene_data_mapping = sdp.create_mapping(self._newton_model.body_label)
 
         if not sdp.get_transforms(self._scene_data, mapping=self._scene_data_mapping, allow_passthrough=True):
             print("Newton Renderer - Failed to update transforms!")
 
         self.newton_sensor.update(
-            state,
+            self._newton_state,
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
@@ -237,9 +238,3 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         if render_data:
             render_data.sensor = None
-
-    def get_newton_model(self) -> newton.Model:
-        return SimulationContext.instance().initialize_scene_data_provider().get_newton_model()
-
-    def get_newton_state(self) -> newton.State:
-        return SimulationContext.instance().initialize_scene_data_provider().get_newton_state()
