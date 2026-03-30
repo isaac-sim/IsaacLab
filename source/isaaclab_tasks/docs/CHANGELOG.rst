@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+1.5.16 (2026-03-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.utils.hydra.collect_presets` not discovering
+  presets inside nested dicts (e.g. ``EventTerm.params.terms.*.params``).
+
+
+1.5.15 (2026-03-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added semantic segmentation to preset data types for the Cartpole Camera environment.
+* Added semantic segmentation to preset data types for the Shadow Hand environment.
+* Added semantic_segmentation64 to preset data types for for the Dexsuite Kuka-Allegro environment.
+
 1.5.13 (2026-03-18)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -175,7 +195,6 @@ Changed
   Newton-compatible randomizations (joint gains, joint position limits, object mass, gravity).
   Material and fixed-tendon randomization remain exclusively in
   :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`.
-
 
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~

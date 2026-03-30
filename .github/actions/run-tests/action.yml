@@ -51,6 +51,10 @@ inputs:
     description: 'Total number of shards (used with shard-index to split tests across parallel jobs)'
     default: ''
     required: false
+  volume-mount-source:
+    description: 'Host path to bind-mount at /workspace/isaaclab (for deps-cache-hit mode)'
+    default: ''
+    required: false
 
 runs:
   using: composite
@@ -72,6 +76,7 @@ runs:
           local quarantined_only="${10}"
           local shard_index="${11}"
           local shard_count="${12}"
+          local volume_mount_source="${13}"
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
@@ -132,7 +137,7 @@ runs:
 
           if [ -n "$filter_pattern" ]; then
             if [[ "$filter_pattern" == "not "* ]]; then
-              # Handle "not <pattern>" case — note the trailing space to avoid
+              # Handle "not <pattern>" case - note the trailing space to avoid
               # matching words that happen to start with "not".
               exclude_pattern="${filter_pattern#not }"
               docker_env_vars="$docker_env_vars -e TEST_EXCLUDE_PATTERN=$exclude_pattern"
@@ -148,12 +153,21 @@ runs:
 
           echo "Docker environment variables: '$docker_env_vars'"
 
-          # Run tests in container.
-          # --init: proper signal forwarding inside the container (PID 1 reaps + forwards signals)
-          # --stop-timeout 5: after SIGTERM, wait only 5s before SIGKILL (default is 10s)
-          # Running in foreground so the runner can kill the process group directly on cancellation.
+          # Volume mount for deps-cache-hit mode: bind-mount the checked-out
+          # source code over /workspace/isaaclab instead of baking it into the image.
+          docker_volume_args=""
+          if [ -n "$volume_mount_source" ]; then
+            docker_volume_args="-v ${volume_mount_source}:/workspace/isaaclab"
+            echo "🔵 Volume-mounting ${volume_mount_source} >> /workspace/isaaclab"
+          fi
+
+          # Run tests in a detached container and follow logs.  Running detached
+          # means the container lifecycle is independent of the shell - if the
+          # runner kills this step on cancellation, the `if: always()` cleanup
+          # step can still `docker kill` the container reliably.
+          # `docker logs -f` is the foreground process and is trivially killable.
           echo "🔵 Starting Docker container for tests..."
-          docker run --name $container_name \
+          docker run -d --name $container_name \
             --init --stop-timeout 5 \
             --entrypoint bash --gpus all --network=host \
             --security-opt=no-new-privileges:true \
@@ -162,6 +176,7 @@ runs:
             --oom-kill-disable=false \
             --ulimit nofile=65536:65536 \
             --ulimit nproc=4096:4096 \
+            $docker_volume_args \
             $docker_env_vars \
             $image_tag \
             -c "
@@ -170,7 +185,18 @@ runs:
               mkdir -p tests
               echo 'Starting pytest with path: $test_path'
               /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
-            " && DOCKER_EXIT=0 || DOCKER_EXIT=$?
+            "
+
+          # Stream container logs to CI output (this is the killable foreground process).
+          docker logs -f $container_name &
+          local logs_pid=$!
+
+          # Wait for the container to exit and capture its exit code.
+          DOCKER_EXIT=$(docker wait $container_name) || DOCKER_EXIT=1
+
+          # Stop following logs.
+          kill $logs_pid 2>/dev/null || true
+          wait $logs_pid 2>/dev/null || true
 
           if [ $DOCKER_EXIT -eq 0 ]; then
             echo "🟢 Docker container completed successfully"
@@ -178,9 +204,14 @@ runs:
             echo "🟠 Docker container failed (exit $DOCKER_EXIT), but continuing to copy results..."
           fi
 
-          # Copy test results with error handling
+          # Copy test results with error handling.
+          # When volume-mounted, test output lands on the host filesystem directly
+          # (docker cp cannot see bind-mounted paths after the container stops).
           echo "🔵 Attempting to copy test results..."
-          if cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>&1); then
+          if [ -n "$volume_mount_source" ] && [ -f "${volume_mount_source}/tests/$result_file" ]; then
+            cp "${volume_mount_source}/tests/$result_file" "$reports_dir/$result_file"
+            echo "🟢 Test results copied from volume mount to $reports_dir/$result_file"
+          elif cp_err=$(docker cp $container_name:/workspace/isaaclab/tests/$result_file "$reports_dir/$result_file" 2>&1); then
             echo "🟢 Test results copied successfully to $reports_dir/$result_file"
           else
             echo "🔴 Failed to copy specific result file: $cp_err"
@@ -216,6 +247,15 @@ runs:
             fi
           fi
 
+          # Copy comparison images (saved by test_rendering_correctness.py).
+          local img_dir="$reports_dir/comparison-images"
+          if [ -n "$volume_mount_source" ] && [ -d "${volume_mount_source}/tests/comparison-images" ]; then
+            cp -r "${volume_mount_source}/tests/comparison-images" "$img_dir"
+            echo "🟢 Comparison images copied to $img_dir"
+          elif docker cp "$container_name:/workspace/isaaclab/tests/comparison-images" "$img_dir" 2>/dev/null; then
+            echo "🟢 Comparison images copied from container to $img_dir"
+          fi
+
           # Clean up container
           echo "🔵 Cleaning up Docker container..."
           docker rm $container_name 2>/dev/null || echo "🟠 Container cleanup failed, but continuing..."
@@ -224,7 +264,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}"
 
     - name: Write job summary
       if: always()
@@ -237,16 +277,25 @@ runs:
         fi
 
         # Parse JUnit XML and produce a markdown summary.
-        # Exit code 2 means the report was corrupt/unreadable — surface the
+        # Exit code 2 means the report was corrupt/unreadable - surface the
         # error in the summary but don't mask the real test exit code.
         if ! python3 .github/actions/run-tests/junit_summary.py "$report" >> "$GITHUB_STEP_SUMMARY"; then
-          echo "::warning::junit_summary.py failed to parse $report — test results may be missing from the summary"
+          echo "::warning::junit_summary.py failed to parse $report - test results may be missing from the summary"
         fi
 
-    - name: Clean up container on cancellation
-      if: cancelled()
+    - name: Upload comparison images
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: comparison-images-${{ inputs.container-name }}
+        path: ${{ inputs.reports-dir }}/comparison-images/
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Clean up Docker container
+      if: always()
       shell: bash
       run: |
-        echo "🟠 Workflow cancelled, force-removing container..."
+        echo "🔵 Cleaning up Docker container..."
         docker kill "${{ inputs.container-name }}" 2>/dev/null || true
         docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true

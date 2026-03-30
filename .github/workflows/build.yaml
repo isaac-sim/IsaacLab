@@ -18,6 +18,7 @@
 # | test-isaaclab-assets               | isaaclab-assets | isaaclab-core | infra             |
 # | test-isaaclab-newton               | isaaclab-newton | isaaclab-core | infra             |
 # | test-isaaclab-physx                | isaaclab-physx | isaaclab-core | infra              |
+# | test-isaaclab-ov                   | isaaclab-ov | isaaclab-core | infra                 |
 # | test-environments-training         | isaaclab-tasks | isaaclab-core | infra              |
 # | test-curobo (needs build-curobo)   | isaaclab-mimic | isaaclab-core | infra              |
 # | test-skillgen (needs build-curobo) | isaaclab-mimic | isaaclab-tasks | isaaclab-core     |
@@ -26,6 +27,42 @@
 # | build-curobo                       | isaaclab-mimic | isaaclab-tasks | isaaclab-core     |
 # |                                    |   | infra                                           |
 # +------------------------------------+-----------------------------------------------------+
+#
+# =============================================================================
+# CI DEBUGGING TIPS
+# =============================================================================
+#
+# 1. DISABLE A TEST JOB (to isolate a specific job):
+#    Change the job's `if:` clause to `if: false`
+#    Example:
+#      test-isaaclab-tasks:
+#        ...
+#        if: false  # TEMP: Disabled for debugging
+#
+# 2. RUN ONLY SPECIFIC TEST FILES (within a job):
+#    Add `include-files:` parameter to run-package-tests action
+#    Example:
+#      - uses: ./.github/actions/run-package-tests
+#        with:
+#          ...
+#          include-files: "test_rigid_object_collection.py"  # Comma-separated
+#
+# 3. SKIP CONCURRENCY WAIT (run immediately without waiting for other runs):
+#    Comment out the concurrency block:
+#      # concurrency:
+#      #   group: ${{ github.workflow }}-${{ github.ref }}
+#      #   cancel-in-progress: true
+#
+# 4. TEST LOCALLY LIKE CI:
+#    docker run -it --rm --gpus all --network=host --entrypoint bash \
+#      -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
+#      -e TEST_FILTER_PATTERN="isaaclab_physx" \
+#      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
+#      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
+#      -c 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest tools -v'
+#
+# Remember to REVERT all temporary changes before merging!
+# =============================================================================
 
 name: Docker + Tests
 
@@ -81,6 +118,7 @@ jobs:
       isaaclab-teleop: ${{ steps.check.outputs.isaaclab-teleop }}
       isaaclab-visualizers: ${{ steps.check.outputs.isaaclab-visualizers }}
       isaaclab-assets: ${{ steps.check.outputs.isaaclab-assets }}
+      isaaclab-ov: ${{ steps.check.outputs.isaaclab-ov }}
       infra: ${{ steps.check.outputs.infra }}
     steps:
     - name: Checkout Code
@@ -97,7 +135,7 @@ jobs:
         if [ "${{ github.event_name }}" != "pull_request" ]; then
           for pkg in isaaclab-core isaaclab-physx isaaclab-newton isaaclab-tasks \
                      isaaclab-rl isaaclab-mimic isaaclab-contrib isaaclab-teleop \
-                     isaaclab-visualizers isaaclab-assets infra; do
+                     isaaclab-visualizers isaaclab-assets isaaclab-ov infra; do
             echo "$pkg=true" >> "$GITHUB_OUTPUT"
           done
           exit 0
@@ -108,10 +146,10 @@ jobs:
         changed=$(git diff --name-only FETCH_HEAD HEAD)
 
         if [ -z "$changed" ]; then
-          echo "::warning::No changed files detected between FETCH_HEAD and HEAD — running all tests as a safety measure"
+          echo "::warning::No changed files detected between FETCH_HEAD and HEAD - running all tests as a safety measure"
           for pkg in isaaclab-core isaaclab-physx isaaclab-newton isaaclab-tasks \
                      isaaclab-rl isaaclab-mimic isaaclab-contrib isaaclab-teleop \
-                     isaaclab-visualizers isaaclab-assets infra; do
+                     isaaclab-visualizers isaaclab-assets isaaclab-ov infra; do
             echo "$pkg=true" >> "$GITHUB_OUTPUT"
           done
           exit 0
@@ -153,6 +191,7 @@ jobs:
         echo "isaaclab-teleop=$(has '^source/isaaclab_teleop/')" >> "$GITHUB_OUTPUT"
         echo "isaaclab-visualizers=$(has '^source/isaaclab_visualizers/')" >> "$GITHUB_OUTPUT"
         echo "isaaclab-assets=$(has '^source/isaaclab_assets/')" >> "$GITHUB_OUTPUT"
+        echo "isaaclab-ov=$(has '^source/isaaclab_ov/')" >> "$GITHUB_OUTPUT"
         echo "infra=$(has '^(\.github/|docker/|tools/|scripts/)')" >> "$GITHUB_OUTPUT"
 
         echo ""
@@ -169,6 +208,7 @@ jobs:
             source/isaaclab_teleop/*)    echo "$f (isaaclab-teleop)" ;;
             source/isaaclab_visualizers/*) echo "$f (isaaclab-visualizers)" ;;
             source/isaaclab_assets/*)    echo "$f (isaaclab-assets)" ;;
+            source/isaaclab_ov/*)        echo "$f (isaaclab-ov)" ;;
             .github/*|docker/*|tools/*|scripts/*) echo "$f (infra)" ;;
             apps/*)                          echo "$f (apps - core/physx/newton/tasks)" ;;
             *)                               echo "$f" ;;
@@ -194,6 +234,7 @@ jobs:
               source/isaaclab_teleop/*)      echo "| \`$f\` | isaaclab-teleop |" ;;
               source/isaaclab_visualizers/*) echo "| \`$f\` | isaaclab-visualizers |" ;;
               source/isaaclab_assets/*)      echo "| \`$f\` | isaaclab-assets |" ;;
+              source/isaaclab_ov/*)          echo "| \`$f\` | isaaclab-ov |" ;;
               .github/*|docker/*|tools/*|scripts/*) echo "| \`$f\` | infra |" ;;
               apps/*)                        echo "| \`$f\` | apps - core/physx/newton/tasks |" ;;
               *)                             echo "| \`$f\` | - |" ;;
@@ -279,6 +320,7 @@ jobs:
         shard-count: "3"
         container-name: isaac-lab-tasks-1-test
 
+
   test-isaaclab-tasks-2:
     name: isaaclab_tasks [2/3]
     runs-on: [self-hosted, gpu]
@@ -305,6 +347,7 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         container-name: isaac-lab-tasks-2-test
+
 
   test-isaaclab-tasks-3:
     name: isaaclab_tasks [3/3]
@@ -333,6 +376,7 @@ jobs:
         shard-count: "3"
         container-name: isaac-lab-tasks-3-test
 
+
   test-isaaclab-core:
     name: isaaclab (core) [1/3]
     runs-on: [self-hosted, gpu]
@@ -357,6 +401,7 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         container-name: isaac-lab-core-1-test
+
 
   test-isaaclab-core-2:
     name: isaaclab (core) [2/3]
@@ -383,6 +428,7 @@ jobs:
         shard-count: "3"
         container-name: isaac-lab-core-2-test
 
+
   test-isaaclab-core-3:
     name: isaaclab (core) [3/3]
     runs-on: [self-hosted, gpu]
@@ -408,6 +454,7 @@ jobs:
         shard-count: "3"
         container-name: isaac-lab-core-3-test
 
+
   test-isaaclab-rl:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]
@@ -431,6 +478,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_rl"
         container-name: isaac-lab-rl-test
+
 
   test-isaaclab-mimic:
     name: isaaclab_mimic
@@ -456,6 +504,7 @@ jobs:
         filter-pattern: "isaaclab_mimic"
         container-name: isaac-lab-mimic-test
 
+
   test-isaaclab-contrib:
     name: isaaclab_contrib
     runs-on: [self-hosted, gpu]
@@ -479,6 +528,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_contrib"
         container-name: isaac-lab-contrib-test
+
 
   test-isaaclab-teleop:
     name: isaaclab_teleop
@@ -504,6 +554,7 @@ jobs:
         filter-pattern: "isaaclab_teleop"
         container-name: isaac-lab-teleop-test
 
+
   test-isaaclab-visualizers:
     name: isaaclab_visualizers
     runs-on: [self-hosted, gpu]
@@ -527,6 +578,7 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_visualizers"
         container-name: isaac-lab-visualizers-test
+
 
   test-isaaclab-assets:
     name: isaaclab_assets
@@ -552,6 +604,7 @@ jobs:
         filter-pattern: "isaaclab_assets"
         container-name: isaac-lab-assets-test
 
+
   test-isaaclab-newton:
     name: isaaclab_newton
     runs-on: [self-hosted, gpu]
@@ -576,6 +629,7 @@ jobs:
         filter-pattern: "isaaclab_newton"
         container-name: isaac-lab-newton-test
 
+
   test-isaaclab-physx:
     name: isaaclab_physx
     runs-on: [self-hosted, gpu]
@@ -599,6 +653,32 @@ jobs:
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_physx"
         container-name: isaac-lab-physx-test
+
+
+  test-isaaclab-ov:
+    name: isaaclab_ov
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, detect-changes]
+    if: >-
+      always() && needs.build.result == 'success' && (
+        needs.detect-changes.outputs.isaaclab-ov == 'true' ||
+        needs.detect-changes.outputs.isaaclab-core == 'true' ||
+        needs.detect-changes.outputs.infra == 'true'
+      )
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        filter-pattern: "isaaclab_ov"
+        container-name: isaac-lab-ov-test
+
 
   test-curobo:
     name: test-curobo
@@ -627,6 +707,7 @@ jobs:
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
         container-name: isaac-lab-curobo-test
 
+
   test-skillgen:
     name: test-skillgen
     runs-on: [self-hosted, gpu]
@@ -654,6 +735,7 @@ jobs:
         cache-tag: cache-curobo
         include-files: "test_generate_dataset_skillgen.py,test_environments_skillgen.py,test_environments_automate.py"
         container-name: isaac-lab-skillgen-test
+
 
   # test-quarantined:
   #   name: "Quarantined Tests"

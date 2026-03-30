@@ -21,103 +21,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 
-def _is_preset_cfg(obj: object) -> bool:
-    """Return True if *obj* is an instance of a PresetCfg subclass (new typed-field style).
-
-    Uses MRO class-name matching so that this module has no dependency on the
-    hydra-gated ``isaaclab_tasks.utils.hydra`` import path.
-    """
-    return any(cls.__name__ == "PresetCfg" for cls in type(obj).__mro__)
-
-
-def _is_old_style_preset(obj: object) -> bool:
-    """Return True if *obj* is an old-style preset wrapper (has ``presets`` dict with a ``'default'`` key)."""
-    presets = getattr(obj, "presets", None)
-    return hasattr(obj, "__dataclass_fields__") and isinstance(presets, dict) and "default" in presets
-
-
-def _resolve_presets_to_default(cfg: object) -> object:
-    """Recursively replace preset wrapper fields with their *default* preset.
-
-    Handles two preset patterns used in IsaacLab task configs:
-
-    * **New style** (``PresetCfg`` subclass): typed fields where ``default`` is a class attribute.
-    * **Old style** (``presets`` dict): configclass with ``presets: dict[str, Cfg]`` and a ``'default'`` key.
-
-    Both are resolved in-place so the config can be used without a Hydra CLI override (e.g. in tests).
-    """
-    if not hasattr(cfg, "__dataclass_fields__"):
-        return cfg
-    for field_name in list(cfg.__dataclass_fields__):
-        value = getattr(cfg, field_name, None)
-        if value is None:
-            continue
-        if hasattr(value, "__dataclass_fields__"):
-            if _is_preset_cfg(value):
-                resolved = value.default
-                setattr(cfg, field_name, resolved)
-                _resolve_presets_to_default(resolved)
-            elif _is_old_style_preset(value):
-                resolved = value.presets["default"]
-                setattr(cfg, field_name, resolved)
-                _resolve_presets_to_default(resolved)
-            else:
-                _resolve_presets_to_default(value)
-        elif isinstance(value, dict):
-            for dict_val in value.values():
-                if hasattr(dict_val, "__dataclass_fields__"):
-                    _resolve_presets_to_default(dict_val)
-    return cfg
-
-
-def apply_named_preset(env_cfg: object, raw_cfg: object, preset_name: str) -> None:
-    """Apply a named preset to all preset-wrapper fields in *env_cfg*, guided by *raw_cfg*.
-
-    Walks *raw_cfg* to find preset wrappers (both :class:`PresetCfg` subclasses and
-    old-style wrappers with a ``presets`` dict). For each wrapper that contains
-    *preset_name*, overrides the corresponding already-resolved field in *env_cfg*.
-
-    This is used in tests to apply a non-default physics preset (e.g. ``'newton'``)
-    after :func:`parse_env_cfg` has already resolved all wrappers to ``'default'``.
-
-    Args:
-        env_cfg: Resolved env config (from :func:`parse_env_cfg`) to update in-place.
-        raw_cfg: Raw env config (from :func:`load_cfg_from_registry`) with preset
-            wrappers still intact.
-        preset_name: Name of the preset to apply (e.g., ``'newton'``).
-    """
-    if not hasattr(raw_cfg, "__dataclass_fields__"):
-        return
-    for field_name in raw_cfg.__dataclass_fields__:
-        raw_value = getattr(raw_cfg, field_name, None)
-        if raw_value is None:
-            continue
-        if hasattr(raw_value, "__dataclass_fields__"):
-            if _is_preset_cfg(raw_value):
-                if hasattr(raw_value, preset_name):
-                    resolved = getattr(raw_value, preset_name)
-                    setattr(env_cfg, field_name, resolved)
-                    apply_named_preset(resolved, resolved, preset_name)
-            elif _is_old_style_preset(raw_value):
-                if preset_name in raw_value.presets:
-                    resolved = raw_value.presets[preset_name]
-                    setattr(env_cfg, field_name, resolved)
-                    apply_named_preset(resolved, resolved, preset_name)
-            else:
-                env_value = getattr(env_cfg, field_name, None)
-                if env_value is not None and hasattr(env_value, "__dataclass_fields__"):
-                    apply_named_preset(env_value, raw_value, preset_name)
-        elif isinstance(raw_value, dict):
-            env_dict = getattr(env_cfg, field_name, None)
-            if not isinstance(env_dict, dict):
-                continue
-            for key, raw_dict_val in raw_value.items():
-                if hasattr(raw_dict_val, "__dataclass_fields__") and key in env_dict:
-                    env_dict_val = env_dict[key]
-                    if hasattr(env_dict_val, "__dataclass_fields__"):
-                        apply_named_preset(env_dict_val, raw_dict_val, preset_name)
-
-
 def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:
     """Load default configuration given its entry point from the gym registry.
 
@@ -238,6 +141,8 @@ def parse_env_cfg(
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
     """
+    from isaaclab_tasks.utils.hydra import resolve_preset_defaults
+
     # load the default configuration
     cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")
 
@@ -246,17 +151,12 @@ def parse_env_cfg(
     if isinstance(cfg, dict):
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
-    # If the top-level cfg is itself a PresetCfg wrapper, resolve to the default preset before
-    # attempting any attribute access (e.g. cfg.sim, cfg.scene).
-    if _is_preset_cfg(cfg):
-        cfg = cfg.default
-
     # Resolve any PresetCfg wrappers to their default preset so the config
     # is usable without a Hydra CLI override (e.g. in tests).
     # Must happen BEFORE attribute overrides, otherwise overrides on PresetCfg wrapper
     # fields (e.g. cfg.scene when scene is a PresetCfg) get discarded when the wrapper
     # is replaced by its .default.
-    _resolve_presets_to_default(cfg)
+    cfg = resolve_preset_defaults(cfg)
 
     # simulation device
     cfg.sim.device = device

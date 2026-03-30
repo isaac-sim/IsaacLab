@@ -20,7 +20,8 @@ from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
-from isaaclab_tasks.utils.parse_cfg import apply_named_preset, load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
 
 def _is_teleop_env(task_spec) -> bool:
@@ -326,21 +327,12 @@ def _check_random_actions(
         # apply physics preset override before creating the environment
         if physics_preset_name is not None:
             # parse_env_cfg already resolved PresetCfg wrappers to their default,
-            # so we load the raw config to retrieve the named preset.
+            # so we load the raw config to retrieve preset alternatives.
             raw_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-            # Unwrap if the top-level cfg is itself a PresetCfg wrapper.
-            raw_env_cfg = raw_cfg
-            if (
-                not isinstance(raw_cfg, dict)
-                and hasattr(raw_cfg, "__dataclass_fields__")
-                and hasattr(raw_cfg, "default")
-                and not hasattr(type(raw_cfg), "class_type")
-            ):
-                raw_env_cfg = raw_cfg.default
-            # Apply the named preset to all preset wrappers in the config tree
-            # (e.g. sim.physics, scene.contact_forces, ...), not just sim.physics.
-            apply_named_preset(env_cfg, raw_env_cfg, physics_preset_name)
-            # Re-apply num_envs since apply_named_preset may have replaced
+            presets = {"env": collect_presets(raw_cfg), "agent": {}}
+            hydra_cfg = {"env": env_cfg.to_dict(), "agent": None}
+            apply_overrides(env_cfg, None, hydra_cfg, [physics_preset_name], [], [], presets)
+            # Re-apply num_envs since apply_overrides may have replaced
             # the scene config with the preset's default num_envs.
             if num_envs is not None:
                 env_cfg.scene.num_envs = num_envs
@@ -354,12 +346,16 @@ def _check_random_actions(
             if not hasattr(env_cfg, "possible_agents"):
                 print(f"[INFO]: Skipping {task_name} as it is not a multi-agent task")
                 return
-            env = gym.make(task_name, cfg=env_cfg)
         else:
             if hasattr(env_cfg, "possible_agents"):
                 print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
                 return
-            env = gym.make(task_name, cfg=env_cfg)
+
+        # TODO: Some Newton preset + multi-asset spawning combinations fail config validation
+        # here with a ValueError. Consider filtering invalid combinations in setup_environment()
+        # rather than forgiving them at runtime. See PR #5097 commit fb2c74a3862 for a workaround
+        # that caught the error and called pytest.skip().
+        env = gym.make(task_name, cfg=env_cfg)
 
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
