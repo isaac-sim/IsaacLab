@@ -83,7 +83,7 @@ class SceneDataProvider:
         """
         input = self.backend.transforms
 
-        if type(input) is type(output):
+        if not mapping and type(input) is type(output):
             if allow_passthrough:
                 for field_name in input._cls.vars:
                     setattr(output, field_name, getattr(input, field_name))
@@ -131,7 +131,7 @@ class SceneDataProvider:
         Returns:
             A Warp int32 array of length :attr:`transform_count` containing the
             remapped indices, or ``None`` if the sim backend provides no transform
-            paths.
+            paths or if no mapping is needed.
         """
         if input_paths := self.backend.transform_paths:
             mapping = [-1] * len(input_paths)
@@ -140,7 +140,8 @@ class SceneDataProvider:
                     mapping[i] = paths.index(path)
                 except ValueError:
                     pass
-            return wp.array(mapping, dtype=wp.int32)
+            if not np.array_equal(mapping, np.arange(len(input_paths))):
+                return wp.array(mapping, dtype=wp.int32)
         return None
 
 class ConversionKernels:
@@ -151,6 +152,15 @@ class ConversionKernels:
         if tid < mapping.shape[0]:
             return mapping[tid]
         return wp.int32(-1)
+
+    @wp.kernel
+    def convert_Vec3_Quat_to_Vec3_Quat(input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Quat):
+        """Pass-through Vec3/Quat"""
+        tid = wp.tid()
+        idx = ConversionKernels.get_output_index(tid, mapping)
+        if idx > -1:
+            output.positions[idx] = input.positions[tid]
+            output.orientations[idx] = input.orientations[tid]
 
     @wp.kernel
     def convert_Vec3_Quat_to_Vec3_Matrix33(input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33):
@@ -186,6 +196,15 @@ class ConversionKernels:
         if idx > -1:
             output.positions[idx] = input.positions[tid]
             output.orientations[idx] = wp.quat_from_matrix(input.orientations[tid])
+
+    @wp.kernel
+    def convert_Vec3_Matrix33_to_Vec3_Matrix33(input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33):
+        """Pass-through Vec3/Matrix33"""
+        tid = wp.tid()
+        idx = ConversionKernels.get_output_index(tid, mapping)
+        if idx > -1:
+            output.positions[idx] = input.positions[tid]
+            output.orientations[idx] = input.orientations[tid]
 
     @wp.kernel
     def convert_Vec3_Matrix33_to_Transform(input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform):
@@ -224,6 +243,14 @@ class ConversionKernels:
             output.orientations[idx] = wp.quat_to_matrix(wp.transform_get_rotation(input.transforms[tid]))
 
     @wp.kernel
+    def convert_Transform_to_Transform(input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform):
+        """Pass-through Transform"""
+        tid = wp.tid()
+        idx = ConversionKernels.get_output_index(tid, mapping)
+        if idx > -1:
+            output.transforms[idx] = input.transforms[tid]
+
+    @wp.kernel
     def convert_Transform_to_Matrix44(input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44):
         """Convert Transform to Matrix44"""
         tid = wp.tid()
@@ -260,12 +287,19 @@ class ConversionKernels:
         if idx > -1:
             output.transforms[idx] = wp.transform_from_matrix(input.matrices[tid])
 
+    @wp.kernel
+    def convert_Matrix44_to_Matrix44(input: SceneDataFormat.Matrix44, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44):
+        """Pass-through Matrix44"""
+        tid = wp.tid()
+        idx = ConversionKernels.get_output_index(tid, mapping)
+        if idx > -1:
+            output.matrices[idx] = input.matrices[tid]
+
 
 ############################
 ## Example
 
 if __name__ == "__main__":
-
     class ExampleSceneDataBackend(SceneDataBackend):
         def __init__(self):
             self.__transforms = SceneDataFormat.Transform()
