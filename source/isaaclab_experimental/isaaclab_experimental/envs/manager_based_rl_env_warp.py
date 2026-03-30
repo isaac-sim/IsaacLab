@@ -119,6 +119,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # -- set the framerate of the gym video recorder wrapper so that the playback speed
         # of the produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
+        self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
 
         print("[INFO]: Completed setting up the environment...")
 
@@ -255,9 +256,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
         # check if we need to do rendering within the physics loop
         # note: checked here once to avoid multiple checks within the loop
-        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or self.sim.settings.get(
-            "/isaaclab/render/rtx_sensors"
-        )
+        is_rendering = self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -350,7 +349,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
                 self._reset_idx(env_ids=reset_env_ids, env_mask=self.reset_mask_wp)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.settings.get("/isaaclab/render/rtx_sensors") and self.cfg.num_rerenders_on_reset > 0:
+            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 
@@ -406,7 +405,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         """
         # run a rendering step of the simulator
         # if we have rtx sensors, we do not need to render again sin
-        if not self.sim.settings.get("/isaaclab/render/rtx_sensors") and not recompute:
+        if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:
