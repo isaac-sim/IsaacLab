@@ -294,15 +294,15 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
 def _generate_html_report() -> None:
     """Generate an HTML report of all comparison scores and save it alongside the comparison images.
 
-    The report is written to ``<_COMPARISON_IMAGES_DIR>/report.html`` and includes a table of
-    all image comparison results sorted by PixelDiff % ascending, with thumbnail links to actual
+    The report is written to ``<_COMPARISON_IMAGES_DIR>/_report_.html`` and includes a table of
+    all image comparison results sorted by PixelDiff % descending, with thumbnail links to actual
     and golden images where available.
     """
     if not _COMPARISON_SCORES:
         return
 
     os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
-    report_path = os.path.join(_COMPARISON_IMAGES_DIR, "report.html")
+    report_path = os.path.join(_COMPARISON_IMAGES_DIR, "_report_.html")
 
     sorted_scores = sorted(_COMPARISON_SCORES, key=lambda e: -e["diff_pct"])
 
