@@ -304,12 +304,12 @@ def _generate_html_report() -> None:
     os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
     report_path = os.path.join(_COMPARISON_IMAGES_DIR, "report.html")
 
-    sorted_scores = sorted(_COMPARISON_SCORES, key=lambda e: e["diff_pct"])
+    sorted_scores = sorted(_COMPARISON_SCORES, key=lambda e: -e["diff_pct"])
 
     rows = []
     for entry in sorted_scores:
         status_class = "pass" if entry["passed"] else "fail"
-        status_text = "PASS" if entry["passed"] else "FAIL"
+        status_text = status_class.upper()
 
         actual_img_html = ""
         golden_img_html = ""
@@ -356,7 +356,7 @@ def _generate_html_report() -> None:
         "</head>\n"
         "<body>\n"
         "<h1>Rendering Correctness — Image Comparison Report</h1>\n"
-        f"<p>Sorted by PixelDiff&nbsp;% ascending &mdash; {len(sorted_scores)}&nbsp;comparisons.</p>\n"
+        f"<p>Sorted by PixelDiff&nbsp;% (desc) &mdash; {len(sorted_scores)}&nbsp; total.</p>\n"
         "<table>\n"
         "<thead><tr>"
         "<th>Test</th>"
