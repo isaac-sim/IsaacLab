@@ -20,8 +20,7 @@ from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.external_functions import call_externally_defined_function
-from isaaclab.utils.string import list_intersection
+from isaaclab.utils.string import list_intersection, string_to_callable
 
 from isaaclab_rl.rsl_rl import (
     RslRlBaseRunnerCfg,
@@ -72,11 +71,18 @@ if args_cli.video:
 
 
 # Call an external callback if requested. This gives opportunity to external code to register the environments
+# The function is expected to return a list of arguments that were not consumed by the callback.
 remaining_args_env_registration = None
 if args_cli.external_callback:
-    remaining_args_env_registration = call_externally_defined_function(args_cli.external_callback)
+    assert args_cli.external_callback.count(".") >= 1, (
+        "The externally defined callback path must be in the format 'module_path.function_name'"
+    )
+    function_name = string_to_callable(args_cli.external_callback, separator=".")
+    remaining_args_env_registration = function_name()
 
 # clear out sys.argv for Hydra
+# The remaining arguments are the arguments that were not consumed by both this scripts
+# argparser and (optionally) the external callback function.
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
 sys.argv = [sys.argv[0]] + remaining_args
 
