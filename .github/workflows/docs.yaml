@@ -43,7 +43,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Setup python
       uses: actions/setup-python@v5
@@ -60,7 +60,7 @@ jobs:
       run: make current-docs
 
     - name: Upload docs artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: docs-html
         path: ./docs/_build
@@ -74,7 +74,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Setup python
       uses: actions/setup-python@v5
@@ -102,7 +102,7 @@ jobs:
         make multi-docs
 
     - name: Upload docs artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: docs-html
         path: ./docs/_build
@@ -116,13 +116,13 @@ jobs:
 
     steps:
     - name: Download docs artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: docs-html
         path: ./docs/_build
 
     - name: Deploy to gh-pages
-      uses: peaceiris/actions-gh-pages@v3
+      uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./docs/_build

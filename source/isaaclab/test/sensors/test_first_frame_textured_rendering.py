@@ -3,6 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# TODO: These tests appear to be flaky because 3 warmup steps may not be enough for textures to stream in.
+# A polling-based fix was prototyped in https://github.com/isaac-sim/IsaacLab/pull/5097 — see commits:
+#   69e73530c84 Fix test_first_frame_textured_rendering (core 1/3): poll for texture load instead of fixed warmup
+#   1a7c4036da1 Fix test_first_frame_textured_rendering.py (core 1/3) - increase warmup time
+#   1632d3ae859 test_first_frame_textured_rendering.py: increase # of warmup steps
+
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher

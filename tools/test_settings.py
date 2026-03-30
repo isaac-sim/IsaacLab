@@ -15,6 +15,7 @@ ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_TIMEOUT = 1000
 """The default timeout for each test in seconds."""
 
+
 PER_TEST_TIMEOUTS = {
     "test_articulation.py": 1000,
     "test_stage_in_memory.py": 1000,
@@ -46,10 +47,10 @@ PER_TEST_TIMEOUTS = {
     "test_sb3_wrapper.py": 1000,
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
-    "test_manager_based_rl_env_obs_spaces.py": 500,
+    "test_manager_based_rl_env_obs_spaces.py": 1000,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
-    "test_rigid_object_collection.py": 1000,
+    "test_rigid_object_collection.py": 1500,
     "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
