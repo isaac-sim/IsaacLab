@@ -161,7 +161,7 @@ class NewtonWarpRenderer(BaseRenderer):
         if merged != current_req:
             sim.update_scene_data_requirements(merged)
 
-        self._newton_model = SimulationContext.instance().initialize_scene_data_provider().get_newton_model()
+        self._newton_model: newton.Model = SimulationContext.instance().initialize_scene_data_provider().get_newton_model()
         if self._newton_model is None:
             raise RuntimeError(
                 "NewtonWarpRenderer requires a Newton model but the scene data provider returned None. "
@@ -172,7 +172,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(self._newton_model)
 
-        self._newton_state = SimulationContext.instance().initialize_scene_data_provider().get_newton_state()
+        self._newton_state = self._newton_model.state()
         self._scene_data = SceneDataFormat.Transform()
         self._scene_data.transforms = self._newton_state.body_q
         self._scene_data_mapping = None
