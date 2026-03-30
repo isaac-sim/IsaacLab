@@ -159,11 +159,10 @@ if diff_images:
     if server and repo and run_id:
         run_url = f"{server}/{repo}/actions/runs/{run_id}"
 
-    artifacts_link = f"[artifacts]({run_url}#artifacts)" if run_url else "artifacts"
     print(f"\n<details><summary>🔵 Image Comparison Artifacts ({len(diff_images)})</summary>")
     print("")
     print("<br>")
-    print(f"Golden vs result images can be downloaded at: {artifacts_link}.")
+    print("GOLDEN vs ACTUAL images can be downloaded at the bottom of this page.")
     print("<br>")
     print("")
     print("| Test | AOV | PixelDiff % | SSIM | Status | Result | Golden |")
