@@ -74,11 +74,8 @@ if args_cli.video:
 # The function is expected to return a list of arguments that were not consumed by the callback.
 remaining_args_env_registration = None
 if args_cli.external_callback:
-    assert args_cli.external_callback.count(".") >= 1, (
-        "The externally defined callback path must be in the format 'module_path.function_name'"
-    )
-    function_name = string_to_callable(args_cli.external_callback, separator=".")
-    remaining_args_env_registration = function_name()
+    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
+    remaining_args_env_registration = external_callback_function()
 
 # clear out sys.argv for Hydra
 # The remaining arguments are the arguments that were not consumed by both this scripts
