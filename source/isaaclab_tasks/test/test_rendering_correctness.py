@@ -276,7 +276,7 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
 
 
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
-    """Save a PIL image to the comparison-images directory.
+    """Save a PIL image to the comparison-images/images directory.
 
     Args:
         img: PIL Image to save.
@@ -285,7 +285,7 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
     Returns:
         Absolute path to the saved file.
     """
-    path = os.path.join(_COMPARISON_IMAGES_DIR, filename)
+    path = os.path.join(_COMPARISON_IMAGES_DIR, "images", filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, format="PNG")
     return path
