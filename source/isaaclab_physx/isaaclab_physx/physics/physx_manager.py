@@ -39,7 +39,6 @@ from isaaclab.scene.scene_data_provider import SceneDataBackend, SceneDataFormat
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
-
     from .physx_cfg import PhysxCfg
 
 __all__ = ["IsaacEvents", "PhysxManager"]
