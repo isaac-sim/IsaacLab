@@ -145,7 +145,8 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                     import urllib.request
 
                     try:
-                        urllib.request.urlretrieve(cur_url, target_path)
+                        with urllib.request.urlopen(cur_url) as resp, open(target_path, "wb") as f:
+                            f.write(resp.read())
                     except Exception as e:
                         raise RuntimeError(f"Unable to download file: '{cur_url}'. Error: {e}")
                 else:
