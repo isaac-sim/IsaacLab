@@ -170,7 +170,9 @@ class MockArticulationData(BaseArticulationData):
     def default_root_vel(self) -> wp.array:
         """Default root velocity. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._default_root_vel is None:
-            return wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device).view(wp.spatial_vectorf)
+            self._default_root_vel = wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device).view(
+                wp.spatial_vectorf
+            )
         return self._default_root_vel
 
     @property

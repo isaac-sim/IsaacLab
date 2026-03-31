@@ -57,6 +57,16 @@ _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
 )
 
+# Directory for comparison images saved during the test session.
+# Located under the pytest output root so it gets copied alongside test reports.
+_COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
+
+# Collects comparison scores from all golden-image comparisons during the session.
+# Each entry: {"test": str, "backend": str, "renderer": str, "aov": str,
+#              "ssim": float, "diff_pct": float, "passed": bool,
+#              "img_result_path": str | None, "img_golden_path": str | None}
+_COMPARISON_SCORES: list[dict] = []
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -75,6 +85,21 @@ def cleanup_simulation_context():
     yield
 
     SimulationContext.clear_instance()
+
+
+@pytest.fixture(autouse=True)
+def _attach_comparison_properties(request):
+    """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
+    initial_count = len(_COMPARISON_SCORES)
+    yield
+    for entry in _COMPARISON_SCORES[initial_count:]:
+        label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
+        request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
+        request.node.user_properties.append((f"ssim:{label}", f"{entry['ssim']:.4f}"))
+        request.node.user_properties.append((f"threshold:{label}", f"{entry['threshold']:.1f}"))
+        if entry.get("img_result_path"):
+            request.node.user_properties.append((f"img_result:{label}", entry["img_result_path"]))
+            request.node.user_properties.append((f"img_golden:{label}", entry["img_golden_path"]))
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +268,22 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
     return normalized
 
 
+def _save_comparison_image(img: Image.Image, filename: str) -> str:
+    """Save a PIL image to the comparison-images directory.
+
+    Args:
+        img: PIL Image to save.
+        filename: File name (e.g. ``"test-backend-renderer-aov-result.png"``).
+
+    Returns:
+        Absolute path to the saved file.
+    """
+    path = os.path.join(_COMPARISON_IMAGES_DIR, filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    img.save(path, format="PNG")
+    return path
+
+
 def _make_grid(images: torch.Tensor) -> torch.Tensor:
     """Make a grid of images from a tensor of shape (B, H, W, C).
 
@@ -257,45 +298,106 @@ def _make_grid(images: torch.Tensor) -> torch.Tensor:
     return make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5))
 
 
+def _ssim(img1: torch.Tensor, img2: torch.Tensor, window_size: int = 11) -> float:
+    """Compute mean SSIM between two (1, C, H, W) float tensors in [0, 1].
+
+    https://en.wikipedia.org/wiki/Structural_similarity_index_measure
+
+    Uses a uniform averaging window and the standard SSIM constants (K1=0.01, K2=0.03,
+    data_range=1.0).
+
+    Args:
+        img1: First image tensor of shape (1, C, H, W) in [0, 1].
+        img2: Second image tensor of shape (1, C, H, W) in [0, 1].
+        window_size: Side length of the square averaging window.
+
+    Returns:
+        Mean SSIM score (1.0 = identical).
+    """
+    c1 = 0.01**2
+    c2 = 0.03**2
+    channels = img1.shape[1]
+    pad = window_size // 2
+
+    kernel = torch.ones(channels, 1, window_size, window_size, device=img1.device, dtype=img1.dtype) / (
+        window_size * window_size
+    )
+
+    mu1 = torch.nn.functional.conv2d(img1, kernel, padding=pad, groups=channels)
+    mu2 = torch.nn.functional.conv2d(img2, kernel, padding=pad, groups=channels)
+
+    mu1_sq = mu1 * mu1
+    mu2_sq = mu2 * mu2
+    mu1_mu2 = mu1 * mu2
+
+    sigma1_sq = torch.nn.functional.conv2d(img1 * img1, kernel, padding=pad, groups=channels) - mu1_sq
+    sigma2_sq = torch.nn.functional.conv2d(img2 * img2, kernel, padding=pad, groups=channels) - mu2_sq
+    sigma12 = torch.nn.functional.conv2d(img1 * img2, kernel, padding=pad, groups=channels) - mu1_mu2
+
+    ssim_map = ((2 * mu1_mu2 + c1) * (2 * sigma12 + c2)) / ((mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2))
+    return ssim_map.mean().item()
+
+
+def _pixel_diff_percentage(
+    result_image: Image.Image,
+    golden_image: Image.Image,
+    pixel_diff_threshold: float = _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD,
+) -> float:
+    """Compute the percentage of pixels whose L2 norm difference exceeds a threshold.
+
+    Args:
+        result_image: Result image as PIL Image.
+        golden_image: Golden image as PIL Image (must be same size/mode).
+        pixel_diff_threshold: Pixel L2 norm difference threshold.
+
+    Returns:
+        Percentage of pixels that differ beyond the threshold.
+    """
+    diff_array = np.array(ImageChops.difference(result_image, golden_image))
+    l2_norm_array = np.linalg.norm(diff_array, axis=2)
+    num_different_pixels = np.sum(l2_norm_array > pixel_diff_threshold)
+    return 100.0 * num_different_pixels / l2_norm_array.size
+
+
 def _compare_images(
     result_image: Image.Image,
     golden_image: Image.Image,
     max_different_pixels_percentage: float,
-    pixel_diff_threshold: float = _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD,
-) -> tuple[bool, str | None]:
-    """Compare result and golden images; return (True, \"\") if deemed equal.
+) -> tuple[bool, str | None, float, float]:
+    """Compare result and golden images using pixel L2 norm (pass/fail) and SSIM (reference).
 
     Args:
         result_image: Result image as PIL Image to compare with golden image.
         golden_image: Golden image as PIL Image to compare with result image.
         max_different_pixels_percentage: Maximum percentage of pixels allowed to exceed pixel_diff_threshold.
-        pixel_diff_threshold: Pixel L2 norm difference threshold.
 
     Returns:
-        (True, None) if images are deemed equal, else (False, error_message as str).
+        (passed, error_message_or_None, diff_percentage, ssim_score).
+        Scores are 0.0 / 0.0 when comparison cannot be performed (size/mode mismatch).
     """
     if result_image.size != golden_image.size:
-        return False, f"Size mismatch: expected {golden_image.size}, got {result_image.size}."
+        return False, f"Size mismatch: expected {golden_image.size}, got {result_image.size}.", 0.0, 0.0
 
     if result_image.mode != golden_image.mode:
-        return False, f"Mode mismatch: expected {golden_image.mode}, got {result_image.mode}."
+        return False, f"Mode mismatch: expected {golden_image.mode}, got {result_image.mode}.", 0.0, 0.0
 
-    # Compute pixel-wise L2 norm difference between result and golden images.
-    diff_array = np.array(ImageChops.difference(result_image, golden_image))
-    l2_norm_array = np.linalg.norm(diff_array, axis=2)
+    diff_pct = _pixel_diff_percentage(result_image, golden_image)
 
-    num_different_pixels = np.sum(l2_norm_array > pixel_diff_threshold)
-    num_total_pixels = l2_norm_array.size
-    different_pixels_percentage = 100.0 * num_different_pixels / num_total_pixels
+    # SSIM (reference only, not used for pass/fail).
+    result_tensor = torch.from_numpy(np.array(result_image, dtype=np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
+    golden_tensor = torch.from_numpy(np.array(golden_image, dtype=np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
+    ssim_score = _ssim(result_tensor, golden_tensor)
 
-    if different_pixels_percentage > max_different_pixels_percentage:
+    if diff_pct > max_different_pixels_percentage:
         return (
             False,
-            f"The percentage of different pixels ({different_pixels_percentage:.2f}%, {num_different_pixels} / "
-            f"{num_total_pixels} pixels) exceeds the threshold of {max_different_pixels_percentage:.2f}%.",
+            f"The percentage of different pixels ({diff_pct:.2f}%) exceeds the threshold of"
+            f" {max_different_pixels_percentage:.2f}%. SSIM={ssim_score:.4f} (reference).",
+            diff_pct,
+            ssim_score,
         )
 
-    return True, None
+    return True, None, diff_pct, ssim_score
 
 
 def _validate_camera_outputs(
@@ -353,7 +455,30 @@ def _validate_camera_outputs(
             pytest.fail(f"Error opening golden image: {e}")
 
         # validate the consistency of rendering outputs.
-        succeeded, error_message = _compare_images(result_image, golden_image, max_different_pixels_percentage)
+        succeeded, error_message, diff_pct, ssim_score = _compare_images(
+            result_image, golden_image, max_different_pixels_percentage
+        )
+
+        entry = {
+            "test": test_name,
+            "backend": physics_backend,
+            "renderer": renderer,
+            "aov": data_type,
+            "diff_pct": diff_pct,
+            "ssim": ssim_score,
+            "threshold": max_different_pixels_percentage,
+            "passed": succeeded,
+            "img_result_path": None,
+            "img_golden_path": None,
+        }
+
+        if diff_pct > 0:
+            prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
+            entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-result.png")
+            entry["img_golden_path"] = _save_comparison_image(golden_image, f"{prefix}-golden.png")
+
+        _COMPARISON_SCORES.append(entry)
+
         if not succeeded:
             timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
             result_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}-{timestamp}.png")

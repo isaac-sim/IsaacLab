@@ -58,7 +58,6 @@ inputs:
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
-
 runs:
   using: composite
   steps:
@@ -103,20 +102,10 @@ runs:
         curobo-only: ${{ inputs.curobo-only }}
         quarantined-only: ${{ inputs.quarantined-only }}
         include-files: ${{ inputs.include-files }}
+        volume-mount-source: ${{ github.workspace }}
 
-    - name: Report Test Results
-      if: always() && github.event.pull_request.head.repo.full_name == github.repository
-      uses: dorny/test-reporter@v2.6.0
-      with:
-        name: "${{ github.job }}"
-        path: reports/${{ github.job }}-report.xml
-        reporter: java-junit
-        fail-on-error: false
-        only-summary: false
-        max-annotations: '50'
-
-    - name: Check Test Results for Fork PRs
-      if: always() && github.event.pull_request.head.repo.full_name != github.repository
+    - name: Check Test Results
+      if: always()
       shell: bash
       run: |
         if [ -f "reports/${{ github.job }}-report.xml" ]; then

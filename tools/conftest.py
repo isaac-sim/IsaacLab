@@ -23,6 +23,14 @@ def pytest_ignore_collect(collection_path, config):
     return True
 
 
+# TODO: SimulationApp.close() can hang indefinitely in some tests (especially those using
+# cameras or render products), causing CI timeouts. A fix that detects test completion via
+# the JUnit XML report file and kills the process after a grace period was prototyped in
+# https://github.com/isaac-sim/IsaacLab/pull/5097 — see commits:
+#   242315b3722 Handle hanging subprocesses causing timeouts
+#   bd4953019ab Add comment explaining intentional return 0 in shutdown-hang path
+# A per-test-file conftest.py using atexit.register(os._exit) was also tried:
+#   6840e5a3aeb Force stalled test subprocesses that hang after SimulationApp.close()
 def capture_test_output_with_timeout(cmd, timeout, env):
     """Run a command with timeout and capture all output while streaming in real-time."""
     stdout_data = b""
@@ -102,28 +110,15 @@ def capture_test_output_with_timeout(cmd, timeout, env):
         return -1, str(e).encode(), b"", False
 
 
-def _create_error_test_suite(test_file, error_msg, details, elapsed_time=0):
-    """Create a JUnit test suite with a single errored test case.
-
-    Used for synthetic reports when the test process fails to produce its own
-    XML output (e.g. timeout, crash, missing report).
-    """
-    base_name = os.path.splitext(os.path.basename(test_file))[0]
-    test_suite = TestSuite(name=base_name)
-    test_case = TestCase(name="test_execution", classname=base_name)
-    test_case.time = elapsed_time
-
-    error = Error(message=error_msg)
-    error.text = details
-    test_case.result = error
-
-    test_suite.add_testcase(test_case)
-    return test_suite
-
-
 def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
     """Create a test case entry for a timeout test with captured logs."""
+    test_suite = TestSuite(name=f"timeout_{os.path.splitext(os.path.basename(test_file))[0]}")
+    test_case = TestCase(name="test_execution", classname=os.path.splitext(os.path.basename(test_file))[0])
+
+    # Create error message with timeout info and captured logs
     error_msg = f"Test timed out after {timeout} seconds"
+
+    # Add captured output to error details
     details = f"Timeout after {timeout} seconds\n\n"
 
     if stdout_data:
@@ -134,7 +129,12 @@ def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
         details += "=== STDERR ===\n"
         details += stderr_data.decode("utf-8", errors="replace") + "\n"
 
-    return _create_error_test_suite(test_file, error_msg, details, elapsed_time=timeout)
+    error = Error(message=error_msg)
+    error.text = details
+    test_case.result = error
+
+    test_suite.add_testcase(test_case)
+    return test_suite
 
 
 def run_individual_tests(test_files, workspace_root, isaacsim_ci):
@@ -155,7 +155,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         # Note: Command options matter as they are used for cleanups inside AppLauncher
         cmd = [
             sys.executable,
-            "-u",
             "-m",
             "pytest",
             "--no-header",
@@ -197,29 +196,19 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             }
             continue
 
+        if returncode != 0:
+            failed_tests.append(test_file)
+
         # check report for any failures
         report_file = f"tests/test-reports-{str(file_name)}.xml"
         if not os.path.exists(report_file):
             print(f"Warning: Test report not found at {report_file}")
             failed_tests.append(test_file)
-
-            # Write a synthetic error report so the result appears in the
-            # merged JUnit XML and CI summary instead of silently vanishing.
-            error_suite = _create_error_test_suite(
-                test_file,
-                error_msg=f"Test crashed without producing a report (exit code {returncode})",
-                details=f"No JUnit XML report found at {report_file}.\n"
-                f"The test process exited with code {returncode}.\n",
-            )
-            crash_report = JUnitXml()
-            crash_report.add_testsuite(error_suite)
-            crash_report.write(report_file)
-
             test_status[test_file] = {
-                "errors": 1,
+                "errors": 1,  # Assume error since we can't read the report
                 "failures": 0,
                 "skipped": 0,
-                "tests": 1,
+                "tests": 0,
                 "result": "FAILED",
                 "time_elapsed": 0.0,
             }
@@ -247,22 +236,11 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         except Exception as e:
             print(f"Error reading test report {report_file}: {e}")
             failed_tests.append(test_file)
-
-            # Overwrite the corrupt report with a synthetic error entry.
-            error_suite = _create_error_test_suite(
-                test_file,
-                error_msg=f"Failed to parse test report: {e}",
-                details=f"The report at {report_file} could not be parsed.\n",
-            )
-            error_report = JUnitXml()
-            error_report.add_testsuite(error_suite)
-            error_report.write(report_file)
-
             test_status[test_file] = {
                 "errors": 1,
                 "failures": 0,
                 "skipped": 0,
-                "tests": 1,
+                "tests": 0,
                 "result": "FAILED",
                 "time_elapsed": 0.0,
             }
@@ -271,14 +249,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         # Check if there were any failures
         if errors > 0 or failures > 0:
             failed_tests.append(test_file)
-        elif returncode != 0:
-            # Process exited non-zero but XML report shows no failures (e.g. segfault
-            # after report was written).  Mark as failed so crashes are never silent.
-            print(
-                f"Warning: {test_file} exited with code {returncode} but report shows no failures. Marking as failed."
-            )
-            failed_tests.append(test_file)
-            errors = 1
 
         test_status[test_file] = {
             "errors": errors,
@@ -358,6 +328,15 @@ def _collect_test_files(
     return test_files
 
 
+def _write_empty_report():
+    """Write an empty JUnit XML report so downstream CI steps find a valid file."""
+    os.makedirs("tests", exist_ok=True)
+    result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
+    report = JUnitXml()
+    report.write(f"tests/{result_file}")
+    print(f"Wrote empty report to tests/{result_file}")
+
+
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     # Get the workspace root directory (one level up from tools)
@@ -426,7 +405,12 @@ def pytest_sessionstart(session):
     if not test_files:
         if quarantined_only:
             print("No quarantined tests configured — nothing to run.")
+            _write_empty_report()
             pytest.exit("No quarantined tests configured", returncode=0)
+        if filter_pattern:
+            print(f"No test files found matching filter pattern '{filter_pattern}' — nothing to run.")
+            _write_empty_report()
+            pytest.exit("No test files found for filter", returncode=0)
         print("No test files found in source directory")
         pytest.exit("No test files found", returncode=1)
 

@@ -115,11 +115,11 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_obs_space_follows_clip_contraint(env_cfg_cls, device):
-    """Ensure curriculum terms apply correctly after the fallback and replacement."""
+    """Ensure observation space bounds reflect the clip constraint on each term."""
     # new USD stage
     sim_utils.create_new_stage()
 
-    # configure the cartpole env
+    # configure the env
     env_cfg = env_cfg_cls()
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
     env_cfg.observations.policy.concatenate_terms = False
