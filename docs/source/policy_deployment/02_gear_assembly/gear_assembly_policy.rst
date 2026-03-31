@@ -8,9 +8,12 @@ This tutorial walks you through how to train a gear insertion assembly reinforce
 1. **Simulation Training in Isaac Lab**: Train the policy in a high-fidelity physics simulation with domain randomization
 2. **Real Robot Deployment with Isaac ROS**: Deploy the trained policy on real hardware using Isaac ROS and a custom ROS inference node
 
-This walkthrough covers the key principles and best practices for sim-to-real transfer using Isaac Lab, illustrated with a real-world example:
+This walkthrough covers the key principles and best practices for sim-to-real transfer using Isaac Lab.
 
-- the Gear Assembly task for the UR10e robot with the Robotiq 2F-140 gripper or 2F-85 gripper
+**Supported Robots:**
+
+- **Universal Robots UR10e**: 6-DOF industrial robot arm with Robotiq 2F-140 or 2F-85 gripper
+- **Flexiv Rizon 4s**: 7-DOF collaborative robot arm with Grav parallel gripper
 
 **Task Details:**
 
@@ -29,7 +32,7 @@ The gear assembly policy operates as follows:
 
     Sim-to-real transfer: Gear assembly policy trained in Isaac Lab (left) successfully deployed on real UR10e robot (right).
 
-This environment has been successfully deployed on real UR10e robots without an IsaacLab dependency.
+This environment has been successfully deployed on real UR10e and Flexiv Rizon 4s robots without an IsaacLab dependency.
 
 **Scope of This Tutorial:**
 
@@ -62,35 +65,42 @@ Using Real-Robot-Available Observations
 Your simulation environment should only use observations that are available on the real robot and not use "privileged" information that wouldn't be available in deployment.
 
 
-Observation Specification: Isaac-Deploy-GearAssembly-UR10e-2F140-v0
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Observation Specification
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The Gear Assembly environment uses both proprioceptive and exteroceptive (vision) observations:
 
 .. list-table:: Gear Assembly Environment Observations
-   :widths: 25 25 25 25
+   :widths: 20 15 15 25 25
    :header-rows: 1
 
    * - Observation
-     - Dimension
+     - UR10e Dim
+     - Rizon 4s Dim
      - Real-World Source
      - Noise in Training
    * - ``joint_pos``
-     - 6 (UR10e arm joints)
-     - UR10e controller
+     - 6
+     - 7
+     - Robot controller
      - None (proprioceptive)
    * - ``joint_vel``
-     - 6 (UR10e arm joints)
-     - UR10e controller
+     - 6
+     - 7
+     - Robot controller
      - None (proprioceptive)
    * - ``gear_shaft_pos``
-     - 3 (x, y, z position)
+     - 3
+     - 3
      - FoundationPose + RealSense depth
-     - ±0.005 m (5mm, estimated error from FoundationPose + RealSense depth pipeline)
+     - ±0.005 m (5mm)
    * - ``gear_shaft_quat``
-     - 4 (quaternion orientation)
+     - 4
+     - 4
      - FoundationPose + RealSense depth
-     - ±0.01 per component (~5° angular error, estimated error from FoundationPose + RealSense depth pipeline)
+     - ±0.01 per component (~5°)
+
+**Total observation dimension:** 19 (UR10e) or 21 (Rizon 4s)
 
 **Implementation:**
 
@@ -271,21 +281,59 @@ For the UR10e deployment, we use an impedance controller interface. Using a simp
 - Have more predictable behavior that's easier to replicate
 - Reduce the controller complexity as a source of sim-real gap
 
-**Example: UR10e Actuator Configuration**
+**Actuator Configurations:**
 
-.. code-block:: python
+.. tab-set::
 
-    # Default UR10e actuator configuration
-    actuators = {
-        "arm": ImplicitActuatorCfg(
-            joint_names_expr=["shoulder_pan_joint", "shoulder_lift_joint",
-                            "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"],
-            effort_limit=87.0,           # From UR10e specifications
-            velocity_limit=2.0,          # From UR10e specifications
-            stiffness=800.0,             # Calibrated to match real behavior
-            damping=40.0,                # Calibrated to match real behavior
-        ),
-    }
+    .. tab-item:: UR10e
+
+        .. code-block:: python
+
+            # Default UR10e actuator configuration
+            actuators = {
+                "arm": ImplicitActuatorCfg(
+                    joint_names_expr=["shoulder_pan_joint", "shoulder_lift_joint",
+                                    "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"],
+                    effort_limit=87.0,           # From UR10e specifications
+                    velocity_limit=2.0,          # From UR10e specifications
+                    stiffness=800.0,             # Calibrated to match real behavior
+                    damping=40.0,                # Calibrated to match real behavior
+                ),
+            }
+
+    .. tab-item:: Flexiv Rizon 4s + Grav Gripper
+
+        The Rizon 4s uses ``IdealPDActuatorCfg`` with per-joint-group tuning, plus actuators for the Grav parallel gripper:
+
+        .. code-block:: python
+
+            actuators = {
+                "shoulder": IdealPDActuatorCfg(
+                    joint_names_expr=["joint[1-2]"],
+                    effort_limit=123.0, velocity_limit=2.094,
+                    stiffness=6000.0, damping=108.4,
+                ),
+                "elbow": IdealPDActuatorCfg(
+                    joint_names_expr=["joint[3-4]"],
+                    effort_limit=64.0, velocity_limit=2.443,
+                    stiffness=4200.0, damping=90.7,
+                ),
+                "wrist": IdealPDActuatorCfg(
+                    joint_names_expr=["joint[5-7]"],
+                    effort_limit=39.0, velocity_limit=4.887,
+                    stiffness=1500.0, damping=54.2,
+                ),
+                "gripper_drive": IdealPDActuatorCfg(
+                    joint_names_expr=["finger_joint"],
+                    effort_limit=2.0, velocity_limit=1.0,
+                    stiffness=2e3, damping=1e1,
+                ),
+                "gripper_passive": IdealPDActuatorCfg(
+                    joint_names_expr=[".*_knuckle_joint"],
+                    effort_limit=1.0, velocity_limit=1.0,
+                    stiffness=0.0, damping=0.0,
+                ),
+            }
 
 **Domain Randomization of Actuator Parameters**
 
@@ -330,6 +378,10 @@ To quantify this behavior, we plotted the step response of the impedance control
 
 **Why Joint Friction Matters**: Without modeling joint friction in simulation, the policy learns to expect that commanded joint positions are always reached. On the real robot, stiction prevents small movements and causes steady-state errors. By adding friction during training, the policy learns to account for these effects and commands appropriately larger motions to overcome friction.
 
+.. note::
+
+    **Flexiv Rizon 4s**: Domain randomization for actuator gains and joint friction is currently disabled for the Rizon 4s gear assembly configuration while the base simulation is being stabilized. Once the base simulation is verified, these can be re-enabled in the ``EventCfg`` class in ``config/rizon_4s/joint_pos_env_cfg.py``.
+
 **Compensating for Stiction with Action Scaling:**
 
 To help the policy overcome stiction on the real robot, we also increased the output action scaling. The Isaac ROS documentation notes that a higher action scale (0.0325 vs 0.025) is needed to overcome the higher static friction (stiction) compared to the 2F-85 gripper. This increased scaling ensures the policy commands are large enough to overcome the friction forces observed in the step response analysis.
@@ -339,20 +391,41 @@ Action Space Design
 
 Your action space should match what the real robot controller can execute. For this task we found that **incremental joint position control** is the most reliable approach.
 
-**Example: Gear Assembly Action Configuration**
+**Action Configuration:**
 
-.. code-block:: python
+.. tab-set::
 
-    # For contact-rich manipulation, smaller action scale for more precise control
-    self.joint_action_scale = 0.025  # ±2.5 degrees per step
+    .. tab-item:: UR10e
 
-    self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
-        asset_name="robot",
-        joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
-                    "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"],
-        scale=self.joint_action_scale,
-        use_zero_offset=True,
-    )
+        .. code-block:: python
+
+            self.joint_action_scale = 0.025  # ±1.4 degrees per step
+
+            self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
+                asset_name="robot",
+                joint_names=["shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
+                            "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"],
+                scale=self.joint_action_scale,
+                use_zero_offset=True,
+            )
+
+        **Action dimension:** 6
+
+    .. tab-item:: Flexiv Rizon 4s
+
+        .. code-block:: python
+
+            self.joint_action_scale = 0.025  # ±1.4 degrees per step
+
+            self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
+                asset_name="robot",
+                joint_names=["joint1", "joint2", "joint3", "joint4",
+                            "joint5", "joint6", "joint7"],
+                scale=self.joint_action_scale,
+                use_zero_offset=True,
+            )
+
+        **Action dimension:** 7
 
 The action scale is a critical hyperparameter that should be tuned based on:
 
@@ -427,16 +500,34 @@ Step 1: Visualize the Environment
 
 First, launch the training with a small number of environments and visualization enabled to verify that the environment is set up correctly:
 
-.. code-block:: bash
+.. tab-set::
 
-    # Launch training with visualization
-    python scripts/reinforcement_learning/rsl_rl/train.py \
-        --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-        --num_envs 4
+    .. tab-item:: UR10e (2F-140)
 
-.. note::
+        .. code-block:: bash
 
-   For the Robotiq 2F-85 gripper, use ``--task Isaac-Deploy-GearAssembly-UR10e-2F85-v0`` instead.
+            python scripts/reinforcement_learning/rsl_rl/train.py \
+                --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
+                --num_envs 4 \
+                --visualizer kit
+
+    .. tab-item:: UR10e (2F-85)
+
+        .. code-block:: bash
+
+            python scripts/reinforcement_learning/rsl_rl/train.py \
+                --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
+                --num_envs 4 \
+                --visualizer kit
+
+    .. tab-item:: Flexiv Rizon 4s + Grav
+
+        .. code-block:: bash
+
+            python scripts/reinforcement_learning/rsl_rl/train.py \
+                --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
+                --num_envs 4 \
+                --visualizer kit
 
 This will open the Isaac Sim viewer where you can observe the training process in real-time.
 
@@ -456,21 +547,44 @@ Step 2: Full-Scale Training with Video Recording
 
 Now launch the full training run with more parallel environments in headless mode for faster training. We'll also enable video recording to monitor progress:
 
-.. code-block:: bash
+.. tab-set::
 
-    # Full training with video recording
-    python scripts/reinforcement_learning/rsl_rl/train.py \
-        --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-        --headless \
-        --num_envs 256 \
-        --video --video_length 800 --video_interval 5000
+    .. tab-item:: UR10e (2F-140)
 
-This command will:
+        .. code-block:: bash
 
-- Run 256 parallel environments for efficient training
-- Run in headless mode (no visualization) for maximum performance
-- Record videos every 5000 steps to monitor training progress
-- Save videos with 800 frames each
+            python scripts/reinforcement_learning/rsl_rl/train.py \
+                --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
+                --headless \
+                --num_envs 256 \
+                --video --video_length 200 --video_interval 76800
+
+    .. tab-item:: UR10e (2F-85)
+
+        .. code-block:: bash
+
+            python scripts/reinforcement_learning/rsl_rl/train.py \
+                --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
+                --headless \
+                --num_envs 256 \
+                --video --video_length 200 --video_interval 76800
+
+    .. tab-item:: Flexiv Rizon 4s + Grav
+
+        .. code-block:: bash
+
+            python scripts/reinforcement_learning/rsl_rl/train.py \
+                --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
+                --headless \
+                --num_envs 256 \
+                --video --video_length 200 --video_interval 76800
+
+**Command breakdown:**
+
+- ``--headless``: Disables visualization for maximum training speed
+- ``--num_envs 256``: Runs 256 parallel environments for efficient training
+- ``--video_length 200``: Each video captures approximately one full episode (``episode_length_s / (sim.dt * decimation)`` = ``6.66 / (1/1000 * 33)`` ≈ 200 steps)
+- ``--video_interval 76800``: Records a video every 76,800 environment steps (~every 150 iterations), producing ~10 videos over full training
 
 Training typically takes ~12-24 hours for a robust insertion policy. The videos will be saved in the ``logs`` directory and can be reviewed to assess policy performance during training.
 
@@ -483,11 +597,21 @@ Training typically takes ~12-24 hours for a robust insertion policy. The videos 
 
 You can monitor training metrics in real-time using TensorBoard. Open a new terminal and run:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p -m tensorboard.main --logdir <log_dir>
+    .. tab-item:: UR10e
 
-Replace ``<log_dir>`` with the path to your training logs (e.g., ``logs/rsl_rl/gear_assembly_ur10e/2025-11-19_19-31-01``). TensorBoard will display plots showing rewards, episode lengths, and other metrics. Verify that the rewards are increasing over iterations to ensure the policy is learning successfully.
+        .. code-block:: bash
+
+            ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_ur10e
+
+    .. tab-item:: Flexiv Rizon 4s
+
+        .. code-block:: bash
+
+            ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/gear_assembly_rizon4s_grav
+
+Replace the log directory path with your actual training log location if different. TensorBoard will display plots showing rewards, episode lengths, and other metrics. Verify that the rewards are increasing over iterations to ensure the policy is learning successfully.
 
 
 Step 3: Deploy on Real Robot
