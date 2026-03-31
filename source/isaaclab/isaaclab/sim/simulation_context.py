@@ -17,7 +17,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
-import flatdict
 import numpy as np
 import toml
 import torch
@@ -763,7 +762,7 @@ class SimulationContext(_SimulationContext):
             preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
             with open(preset_filename) as file:
                 preset_dict = toml.load(file)
-            preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+            preset_dict = _flatten_dict(preset_dict)
 
             # set presets
             for key, value in preset_dict.items():
@@ -1131,3 +1130,15 @@ def build_simulation_context(
             exception_to_raise = builtins.ISAACLAB_CALLBACK_EXCEPTION
             builtins.ISAACLAB_CALLBACK_EXCEPTION = None
             raise exception_to_raise
+
+
+def _flatten_dict(d: dict, parent_key: str = "", delimiter: str = ".") -> dict:
+    """Flatten a nested dictionary into a single-level dictionary with delimited keys."""
+    items: list[tuple[str, Any]] = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{delimiter}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(_flatten_dict(v, new_key, delimiter).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)

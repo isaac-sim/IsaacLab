@@ -16,7 +16,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import os
 
-import flatdict
 import pytest
 import toml
 
@@ -115,7 +114,7 @@ def test_render_cfg_presets():
         preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
         with open(preset_filename) as file:
             preset_dict = toml.load(file)
-        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+        preset_dict = _flatten_dict(preset_dict)
 
         render_cfg = RenderCfg(
             rendering_mode=rendering_mode,
@@ -207,3 +206,15 @@ def test_render_cfg_defaults():
     assert carb_settings_iface.get("/rtx/shadows/enabled") == sim.cfg.render.enable_shadows
     assert carb_settings_iface.get("/rtx/ambientOcclusion/enabled") == sim.cfg.render.enable_ambient_occlusion
     assert carb_settings_iface.get("/rtx/post/aa/op") == 3  # dlss = 3, dlaa=4
+
+
+def _flatten_dict(d: dict, parent_key: str = "", delimiter: str = ".") -> dict:
+    """Flatten a nested dictionary into a single-level dictionary with delimited keys."""
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{delimiter}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(_flatten_dict(v, new_key, delimiter).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
