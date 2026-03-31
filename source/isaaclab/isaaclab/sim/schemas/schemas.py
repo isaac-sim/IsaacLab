@@ -329,6 +329,10 @@ def modify_rigid_body_properties(
     for attr_name in ["rigid_body_enabled", "kinematic_enabled"]:
         value = cfg.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value, camel_case=True)
+
+    gravity_comp = cfg.pop("gravity_compensation_scale", None)
+    if gravity_comp is not None:
+        safe_set_attribute_on_usd_prim(rigid_body_prim, "mjc:gravcomp", gravity_comp, camel_case=False)
     # set into PhysX API (prim attributes under physxRigidBody:*)
     for attr_name, value in cfg.items():
         safe_set_attribute_on_usd_prim(
@@ -684,6 +688,11 @@ def modify_joint_drive_properties(
     }
     # convert to dict
     cfg = cfg.to_dict()
+
+    # -- gravity compensation (Newton/MuJoCo only)
+    gravity_comp = cfg.pop("gravity_compensation", None)
+    if gravity_comp is not None:
+        safe_set_attribute_on_usd_prim(prim, "mjc:actuatorgravcomp", gravity_comp, camel_case=False)
 
     # check if linear drive
     is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)

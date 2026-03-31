@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.5.25 (2026-03-31)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg.gravity_compensation_scale` to
+  :class:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg` for setting body-level gravity compensation
+  (written as ``mjc:gravcomp`` on USD rigid body prims).
+* Added :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.gravity_compensation` to
+  :class:`~isaaclab.sim.schemas.JointDrivePropertiesCfg` for setting joint-level gravity
+  compensation (written as ``mjc:actuatorgravcomp`` on USD joint prims).
+
 4.5.24 (2026-03-25)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -250,7 +263,6 @@ Changed
 * Fixed mask type handling in ``test_rigid_object_collection_iface.py`` to use
   consistent mask types across backends.
 
-
 4.5.6 (2026-03-06)
 ~~~~~~~~~~~~~~~~~~
 
@@ -284,7 +296,6 @@ Changed
   (``s``/``ms``/``us``/``ns``), global enable/disable toggle, display output
   control, and ``wp.synchronize()`` before stopping to ensure accurate
   GPU timing.
-
 
 4.5.3 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~

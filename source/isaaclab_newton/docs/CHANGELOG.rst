@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.10 (2026-03-31)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved joint-level gravity compensation (``mjc:actuatorgravcomp``) from
+  :class:`~isaaclab_newton.assets.Articulation` to the schemas layer in
+  :class:`~isaaclab.sim.schemas.JointDrivePropertiesCfg`.
+
 0.5.9 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~
 

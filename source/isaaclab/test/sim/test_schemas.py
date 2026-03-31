@@ -60,6 +60,7 @@ def setup_simulation():
         solver_velocity_iteration_count=1,
         sleep_threshold=1.0,
         stabilization_threshold=6.0,
+        gravity_compensation_scale=1.0,
     )
     collision_cfg = schemas.CollisionPropertiesCfg(
         collision_enabled=True,
@@ -70,7 +71,12 @@ def setup_simulation():
     )
     mass_cfg = schemas.MassPropertiesCfg(mass=1.0, density=100.0)
     joint_cfg = schemas.JointDrivePropertiesCfg(
-        drive_type="acceleration", max_effort=80.0, max_velocity=10.0, stiffness=10.0, damping=0.1
+        drive_type="acceleration",
+        max_effort=80.0,
+        max_velocity=10.0,
+        stiffness=10.0,
+        damping=0.1,
+        gravity_compensation=True,
     )
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg
     # Teardown
@@ -271,6 +277,84 @@ def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
     assert result is False, "Prim without tendon root schema should return False"
 
 
+@pytest.mark.isaacsim_ci
+def test_gravity_compensation_scale_on_rigid_body(setup_simulation):
+    """Test that gravity_compensation_scale is written as mjc:gravcomp on rigid body prims."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    # create a cube prim and apply rigid body with gravity_compensation_scale
+    sim_utils.create_prim("/World/cube", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+    rigid_cfg = schemas.RigidBodyPropertiesCfg(gravity_compensation_scale=0.5)
+    schemas.define_rigid_body_properties("/World/cube", rigid_cfg)
+
+    # check the mjc:gravcomp attribute is set
+    prim = stage.GetPrimAtPath("/World/cube")
+    attr = prim.GetAttribute("mjc:gravcomp")
+    assert attr.IsValid(), "mjc:gravcomp attribute not found on rigid body prim"
+    assert attr.Get() == pytest.approx(0.5)
+
+
+@pytest.mark.isaacsim_ci
+def test_gravity_compensation_scale_not_set_when_none(setup_simulation):
+    """Test that mjc:gravcomp is not written when gravity_compensation_scale is None."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    # create a cube prim with default rigid body (no gravity_compensation_scale)
+    sim_utils.create_prim("/World/cube2", prim_type="Cube", translation=(1.0, 0.0, 0.62))
+    rigid_cfg = schemas.RigidBodyPropertiesCfg()
+    schemas.define_rigid_body_properties("/World/cube2", rigid_cfg)
+
+    # mjc:gravcomp should not exist
+    prim = stage.GetPrimAtPath("/World/cube2")
+    attr = prim.GetAttribute("mjc:gravcomp")
+    assert not attr.IsValid(), "mjc:gravcomp should not be set when gravity_compensation_scale is None"
+
+
+@pytest.mark.isaacsim_ci
+def test_joint_gravity_compensation_written(setup_simulation):
+    """Test that gravity_compensation is written as mjc:actuatorgravcomp on joint prims."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    # create two bodies and a revolute joint
+    sim_utils.create_prim("/World/jgc_test", prim_type="Xform")
+    sim_utils.create_prim("/World/jgc_test/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/jgc_test/body1", prim_type="Cube")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/jgc_test/body1/joint0")
+
+    # apply with gravity_compensation=True
+    joint_cfg = schemas.JointDrivePropertiesCfg(gravity_compensation=True)
+    schemas.modify_joint_drive_properties("/World/jgc_test", joint_cfg)
+
+    joint_prim = stage.GetPrimAtPath("/World/jgc_test/body1/joint0")
+    attr = joint_prim.GetAttribute("mjc:actuatorgravcomp")
+    assert attr.IsValid(), "mjc:actuatorgravcomp not set on joint prim"
+    assert attr.Get() is True
+
+
+@pytest.mark.isaacsim_ci
+def test_joint_gravity_compensation_not_set_when_none(setup_simulation):
+    """Test that mjc:actuatorgravcomp is not written when gravity_compensation is None."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    # create two bodies and a revolute joint
+    sim_utils.create_prim("/World/jgc_test2", prim_type="Xform")
+    sim_utils.create_prim("/World/jgc_test2/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/jgc_test2/body1", prim_type="Cube")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/jgc_test2/body1/joint0")
+
+    # apply with default gravity_compensation=None
+    joint_cfg = schemas.JointDrivePropertiesCfg()
+    schemas.modify_joint_drive_properties("/World/jgc_test2", joint_cfg)
+
+    joint_prim = stage.GetPrimAtPath("/World/jgc_test2/body1/joint0")
+    attr = joint_prim.GetAttribute("mjc:actuatorgravcomp")
+    assert not attr.IsValid(), "mjc:actuatorgravcomp should not be set when gravity_compensation is None"
+
+
 """
 Helper functions.
 """
@@ -335,7 +419,7 @@ def _validate_rigid_body_properties_on_prim(prim_path: str, rigid_cfg, verbose: 
         if UsdPhysics.RigidBodyAPI(link_prim):
             for attr_name, attr_value in rigid_cfg.__dict__.items():
                 # skip names we know are not present
-                if attr_name in ["func", "rigid_body_enabled", "kinematic_enabled"]:
+                if attr_name in ["func", "rigid_body_enabled", "kinematic_enabled", "gravity_compensation_scale"]:
                     continue
                 # convert attribute name in prim to cfg name
                 prim_prop_name = f"physxRigidBody:{to_camel_case(attr_name, to='cC')}"
@@ -424,7 +508,7 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                 # iterate over the joint properties
                 for attr_name, attr_value in joint_cfg.__dict__.items():
                     # skip names we know are not present
-                    if attr_name == "func":
+                    if attr_name in ["func", "gravity_compensation"]:
                         continue
                     # resolve the drive (linear or angular)
                     drive_model = "linear" if joint_prim.IsA(UsdPhysics.PrismaticJoint) else "angular"
