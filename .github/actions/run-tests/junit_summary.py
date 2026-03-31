@@ -130,50 +130,5 @@ if skipped:
     print("</details>")
 
 if comparison_scores:
-    print(
-        f"\n<details><summary>🔵 Image Comparison Scores ({len(comparison_scores)})"
-        " — PASS/FAIL by PixelDiff, SSIM for reference.</summary>"
-    )
-    print("")
-    print("<br>")
-    print("")
-    print("| Test | AOV | PixelDiff % | Threshold % | SSIM | Status |")
-    print("|------|-----|-------------|-------------|------|--------|")
-    sorted_scores = sorted(comparison_scores.items(), key=lambda x: safe_float(x[1]["diff_pct"]), reverse=True)
-    for (name, label), scores in sorted_scores:
-        status = "PASS" if scores["passed"] else "FAIL"
-        threshold = scores["threshold"] or "—"
-        print(f"| {fmt_name(name)} | {label} | {scores['diff_pct']} | {threshold} | {scores['ssim']} | {status} |")
-    print("")
-    print("</details>")
-
-# List saved comparison images (available as workflow artifacts).
-diff_images = {k: v for k, v in comparison_scores.items() if v["img_result"] and v["img_golden"]}
-if diff_images:
-    import os
-
-    run_url = ""
-    server = os.environ.get("GITHUB_SERVER_URL", "")
-    repo = os.environ.get("GITHUB_REPOSITORY", "")
-    run_id = os.environ.get("GITHUB_RUN_ID", "")
-    if server and repo and run_id:
-        run_url = f"{server}/{repo}/actions/runs/{run_id}"
-
-    artifacts_link = f"[artifacts]({run_url}#artifacts)" if run_url else "artifacts"
-    print(f"\n<details><summary>🔵 Image Comparison Artifacts ({len(diff_images)})</summary>")
-    print("")
-    print("<br>")
-    print(f"Golden vs result images can be downloaded at: {artifacts_link}.")
-    print("<br>")
-    print("")
-    print("| Test | AOV | PixelDiff % | SSIM | Status | Result | Golden |")
-    print("|------|-----|--------|------|--------|--------|--------|")
-    sorted_images = sorted(diff_images.items(), key=lambda x: safe_float(x[1]["diff_pct"]), reverse=True)
-    for (name, label), scores in sorted_images:
-        status = "PASS" if scores["passed"] else "FAIL"
-        result_file = scores["img_result"].rsplit("/", 1)[-1] if "/" in scores["img_result"] else scores["img_result"]
-        golden_file = scores["img_golden"].rsplit("/", 1)[-1] if "/" in scores["img_golden"] else scores["img_golden"]
-        diff_pct, ssim = scores["diff_pct"], scores["ssim"]
-        print(f"| {fmt_name(name)} | {label} | {diff_pct} | {ssim} | {status} | {result_file} | {golden_file} |")
-    print("")
-    print("</details>")
+    print("\n")
+    print("🔵 GOLDEN vs ACTUAL report is attached as artifact (at the bottom of this page).")
