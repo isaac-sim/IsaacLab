@@ -131,4 +131,4 @@ if skipped:
 
 if comparison_scores:
     print("\n")
-    print("**🔵 See GOLDEN vs ACTUAL report attached as artifact (at the bottom of this page).**")
+    print("🔵 GOLDEN vs ACTUAL report is attached as artifact (at the bottom of this page).")
