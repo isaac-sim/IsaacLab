@@ -146,6 +146,51 @@ def make_clone_plan(
     return src, dest, masking
 
 
+def _replicate_env_batch(
+    rl: Sdf.Layer,
+    src: str,
+    tmpl: str,
+    wid_list: list[int],
+    positions: torch.Tensor | None,
+    quaternions: torch.Tensor | None,
+) -> None:
+    """Copy a batch of envs within a single ChangeBlock.
+
+    Using small batches (default: 1 env per ChangeBlock) avoids commit contention
+    in multi-process distributed training scenarios. Larger batches perform better
+    in single-process but cause severe slowdowns when multiple processes commit
+    simultaneously due to contention in the USD/Kit runtime.
+    """
+    with Sdf.ChangeBlock():
+        for wid in wid_list:
+            dp = tmpl.format(wid)
+            Sdf.CreatePrimInLayer(rl, dp)
+            if src != dp:
+                Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
+            if positions is not None or quaternions is not None:
+                ps = rl.GetPrimAtPath(dp)
+                op_names = []
+                if positions is not None:
+                    p = positions[wid]
+                    t_attr = ps.GetAttributeAtPath(dp + ".xformOp:translate")
+                    if t_attr is None:
+                        t_attr = Sdf.AttributeSpec(ps, "xformOp:translate", Sdf.ValueTypeNames.Double3)
+                    t_attr.default = Gf.Vec3d(float(p[0]), float(p[1]), float(p[2]))
+                    op_names.append("xformOp:translate")
+                if quaternions is not None:
+                    q = quaternions[wid]
+                    o_attr = ps.GetAttributeAtPath(dp + ".xformOp:orient")
+                    if o_attr is None:
+                        o_attr = Sdf.AttributeSpec(ps, "xformOp:orient", Sdf.ValueTypeNames.Quatd)
+                    o_attr.default = Gf.Quatd(float(q[3]), Gf.Vec3d(float(q[0]), float(q[1]), float(q[2])))
+                    op_names.append("xformOp:orient")
+                if op_names:
+                    op_order = ps.GetAttributeAtPath(dp + ".xformOpOrder") or Sdf.AttributeSpec(
+                        ps, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
+                    )
+                    op_order.default = Vt.TokenArray(op_names)
+
+
 def usd_replicate(
     stage: Usd.Stage,
     sources: list[str],
@@ -154,12 +199,18 @@ def usd_replicate(
     mask: torch.Tensor | None = None,
     positions: torch.Tensor | None = None,
     quaternions: torch.Tensor | None = None,
+    _batch_size: int = 1,
 ) -> None:
     """Replicate USD prims to per-environment destinations.
 
     Copies each source prim spec to destination templates for selected environments
     (``mask``). Optionally authors translate/orient from position/quaternion buffers.
     Replication runs in path-depth order (parents before children) for robust composition.
+
+    Uses batched ChangeBlock commits (default: 1 env per block) to avoid commit
+    contention in multi-process distributed training. Larger batch sizes may
+    improve single-process replication throughput, while smaller batches reduce
+    simultaneous USD commit contention across distributed ranks.
 
     Args:
         stage: USD stage.
@@ -169,64 +220,35 @@ def usd_replicate(
         mask: Optional per-source or shared mask. ``None`` selects all.
         positions: Optional positions (``[E, 3]``) -> ``xformOp:translate``.
         quaternions: Optional orientations (``[E, 4]``) in ``xyzw`` -> ``xformOp:orient``.
-
+        _batch_size: Number of environments per ChangeBlock commit. Default 1 avoids
+            multi-process contention. Larger values may improve single-process perf.
     """
     rl = stage.GetRootLayer()
+    if _batch_size < 1:
+        raise ValueError(f"_batch_size must be >= 1, got {_batch_size}.")
 
-    # Group replication by destination path depth so ancestors land before deeper paths.
-    # This avoids composition issues for nested or interdependent specs.
     def dp_depth(template: str) -> int:
-        """Return destination prim path depth for stable parent-first replication."""
         dp = template.format(0)
         return Sdf.Path(dp).pathElementCount
 
     order = sorted(range(len(sources)), key=lambda i: dp_depth(destinations[i]))
 
-    # Process in layers of equal depth, committing at each depth to stabilize composition
     depth_to_indices: dict[int, list[int]] = {}
     for i in order:
         d = dp_depth(destinations[i])
         depth_to_indices.setdefault(d, []).append(i)
 
     for depth in sorted(depth_to_indices.keys()):
-        with Sdf.ChangeBlock():
-            for i in depth_to_indices[depth]:
-                src = sources[i]
-                tmpl = destinations[i]
-                # Select target environments for this source (supports None, [E], or [S, E])
-                target_envs = env_ids if mask is None else env_ids[mask[i]]
-                for wid in target_envs.tolist():
-                    dp = tmpl.format(wid)
-                    Sdf.CreatePrimInLayer(rl, dp)
-                    if src == dp:
-                        pass  # self-copy: CreatePrimInLayer already ensures it exists; CopySpec would be destructive
-                    else:
-                        Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
+        for i in depth_to_indices[depth]:
+            src = sources[i]
+            tmpl = destinations[i]
+            target_envs = env_ids if mask is None else env_ids[mask[i]]
+            wid_list = target_envs.tolist()
 
-                    if positions is not None or quaternions is not None:
-                        ps = rl.GetPrimAtPath(dp)
-                        op_names = []
-                        if positions is not None:
-                            p = positions[wid]
-                            t_attr = ps.GetAttributeAtPath(dp + ".xformOp:translate")
-                            if t_attr is None:
-                                t_attr = Sdf.AttributeSpec(ps, "xformOp:translate", Sdf.ValueTypeNames.Double3)
-                            t_attr.default = Gf.Vec3d(float(p[0]), float(p[1]), float(p[2]))
-                            op_names.append("xformOp:translate")
-                        if quaternions is not None:
-                            q = quaternions[wid]
-                            o_attr = ps.GetAttributeAtPath(dp + ".xformOp:orient")
-                            if o_attr is None:
-                                o_attr = Sdf.AttributeSpec(ps, "xformOp:orient", Sdf.ValueTypeNames.Quatd)
-                            # xyzw convention: q[3] is w, q[0:3] is xyz
-                            o_attr.default = Gf.Quatd(float(q[3]), Gf.Vec3d(float(q[0]), float(q[1]), float(q[2])))
-                            op_names.append("xformOp:orient")
-                        # Only author xformOpOrder for the ops we actually authored
-                        if op_names:
-                            op_order = ps.GetAttributeAtPath(dp + ".xformOpOrder") or Sdf.AttributeSpec(
-                                ps, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
-                            )
-                            op_order.default = Vt.TokenArray(op_names)
+            # Batch into smaller ChangeBlocks to avoid multi-process commit contention
+            for start in range(0, len(wid_list), _batch_size):
+                chunk = wid_list[start : start + _batch_size]
+                _replicate_env_batch(rl, src, tmpl, chunk, positions, quaternions)
 
 
 def filter_collisions(

@@ -143,6 +143,60 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
     assert any(dst == "/World/envs/env_1" for _, dst in copy_calls), "CopySpec was not called for env_1"
 
 
+def test_usd_replicate_changeblock_batch_size(sim):
+    """Replicate envs in multi-env ChangeBlock batches without changing authored results."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/template", "Xform")
+    sim_utils.create_prim("/World/template/Robot", "Xform")
+    sim_utils.create_prim("/World/envs", "Xform")
+    for i in range(5):
+        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
+
+    env_ids = torch.arange(5, dtype=torch.long)
+    positions = torch.tensor(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0],
+            [3.0, 0.0, 0.0],
+            [4.0, 0.0, 0.0],
+        ],
+        dtype=torch.float64,
+    )
+
+    usd_replicate(
+        stage,
+        sources=["/World/template/Robot"],
+        destinations=["/World/envs/env_{}/Robot"],
+        env_ids=env_ids,
+        positions=positions,
+        _batch_size=2,
+    )
+
+    for i in range(5):
+        prim = stage.GetPrimAtPath(f"/World/envs/env_{i}/Robot")
+        assert prim.IsValid()
+        translate = prim.GetAttribute("xformOp:translate").Get()
+        assert tuple(translate) == pytest.approx(tuple(positions[i].tolist()))
+
+
+def test_usd_replicate_rejects_invalid_batch_size(sim):
+    """Batch size must be positive to avoid an infinite chunking loop."""
+    sim_utils.create_prim("/World/template", "Xform")
+    sim_utils.create_prim("/World/template/Robot", "Xform")
+    sim_utils.create_prim("/World/envs", "Xform")
+    sim_utils.create_prim("/World/envs/env_0", "Xform")
+
+    with pytest.raises(ValueError, match="_batch_size must be >= 1"):
+        usd_replicate(
+            sim_utils.get_current_stage(),
+            sources=["/World/template/Robot"],
+            destinations=["/World/envs/env_{}/Robot"],
+            env_ids=torch.tensor([0], dtype=torch.long),
+            _batch_size=0,
+        )
+
+
 @pytest.mark.parametrize(
     "parent_paths, spawn_pattern, expected_child_paths, bad_path, match_expr",
     [
