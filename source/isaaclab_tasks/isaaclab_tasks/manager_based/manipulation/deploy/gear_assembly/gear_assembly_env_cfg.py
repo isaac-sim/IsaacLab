@@ -289,7 +289,6 @@ class RewardsCfg:
         },
     )
 
-
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06)
     # action = RewTerm(func=mdp.action_l2, weight=-5.0e-06)
 

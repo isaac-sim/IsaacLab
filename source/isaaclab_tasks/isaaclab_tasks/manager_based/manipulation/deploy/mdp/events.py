@@ -342,19 +342,19 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             joint_pos = joint_pos + delta_dof_pos
 
             # Wrap arm joint positions to fall within robot's actual joint limits
-            joint_pos_limits = wp.to_torch(self.robot_asset.data.joint_pos_limits)[env_ids, :self.num_arm_joints, :]
+            joint_pos_limits = wp.to_torch(self.robot_asset.data.joint_pos_limits)[env_ids, : self.num_arm_joints, :]
             joint_min = joint_pos_limits[:, :, 0]
             joint_max = joint_pos_limits[:, :, 1]
             joint_range = joint_max - joint_min
 
             # Wrap only the arm joint positions (not gripper joints)
-            arm_joint_pos = joint_pos[:, :self.num_arm_joints]
+            arm_joint_pos = joint_pos[:, : self.num_arm_joints]
             arm_joint_pos = torch.where(
                 joint_range > 0,
                 joint_min + torch.remainder(arm_joint_pos - joint_min, joint_range),
                 arm_joint_pos,
             )
-            joint_pos[:, :self.num_arm_joints] = arm_joint_pos
+            joint_pos[:, : self.num_arm_joints] = arm_joint_pos
 
             joint_vel = torch.zeros_like(joint_pos)
 
