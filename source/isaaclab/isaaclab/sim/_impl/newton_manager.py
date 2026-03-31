@@ -486,7 +486,9 @@ class NewtonManager:
         # MJWarp computes its own collisions.
         if NewtonManager._needs_collision_pipeline:
             contacts = NewtonManager._model.collide(
-                NewtonManager._state_0, collision_pipeline=NewtonManager._collision_pipeline
+                NewtonManager._state_0,
+                contacts=NewtonManager._contacts,
+                collision_pipeline=NewtonManager._collision_pipeline,
             )
             # Update class-level contacts for sensor evaluation
             NewtonManager._contacts = contacts

@@ -152,9 +152,9 @@ class Articulation(BaseArticulation):
 
         _JOINT_TYPES = {"PhysicsRevoluteJoint", "PhysicsPrismaticJoint", "PhysicsSphericalJoint", "PhysicsD6Joint"}
 
-        for artic_prim_path in sim_utils.find_matching_prims(self.cfg.prim_path):
+        for artic_prim in sim_utils.find_matching_prims(self.cfg.prim_path):
             joint_prims = sim_utils.get_all_matching_child_prims(
-                artic_prim_path,
+                artic_prim.GetPath().pathString,
                 predicate=lambda prim: prim.GetTypeName() in _JOINT_TYPES,
             )
             for joint_prim in joint_prims:
