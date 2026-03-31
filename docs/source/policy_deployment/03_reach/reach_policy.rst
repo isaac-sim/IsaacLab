@@ -80,8 +80,8 @@ The policy receives only proprioceptive observations, which are reliably availab
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        joint_pos = ObsTerm(func=mdp.joint_pos)
-        joint_vel = ObsTerm(func=mdp.joint_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0))
+        joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0))
         pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
 
         def __post_init__(self):
@@ -90,7 +90,7 @@ The policy receives only proprioceptive observations, which are reliably availab
 
 .. note::
 
-    Unlike vision-based tasks, proprioceptive observations do not require noise modeling. Modern robot controllers provide sufficiently accurate joint state feedback that adding noise during training does not improve sim-to-real transfer for this task.
+    The noise terms are set to zero by default (``Unoise(n_min=-0.0, n_max=0.0)``), meaning no observation noise is applied. This can be adjusted if noise modeling is desired for additional robustness. Modern robot controllers provide sufficiently accurate joint state feedback that adding noise during training is not required for sim-to-real transfer of this task.
 
 
 Action Space
@@ -98,16 +98,31 @@ Action Space
 
 The policy outputs **incremental joint position commands**. Each action specifies a delta (change) to apply to the current joint positions:
 
-.. code-block:: python
+.. tab-set::
 
-    self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
-        asset_name="robot",
-        joint_names=[".*"],
-        scale=0.0625,        # ~3.6 degrees per action step
-        use_zero_offset=True,
-    )
+    .. tab-item:: UR10e
 
-The action scale of 0.0625 radians (~3.6 degrees) per step provides a balance between responsiveness and smooth motion.
+        .. code-block:: python
+
+            self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
+                asset_name="robot",
+                joint_names=[".*"],
+                scale=0.0625,        # ~3.6 degrees per action step
+                use_zero_offset=True,
+            )
+
+    .. tab-item:: Flexiv Rizon 4s
+
+        .. code-block:: python
+
+            self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
+                asset_name="robot",
+                joint_names=["joint[1-7]"],
+                scale=0.0625,        # ~3.6 degrees per action step
+                use_zero_offset=True,
+            )
+
+The action scale of 0.0625 radians (~3.6 degrees) per step provides a balance between responsiveness and smooth motion. The UR10e uses ``[".*"]`` to match all joints, while the Rizon 4s explicitly specifies ``["joint[1-7]"]`` to match its 7 arm joints.
 
 **Action dimension:** 6 (UR10e) or 7 (Rizon 4s)
 
@@ -130,16 +145,22 @@ Each robot has specific actuator configurations and workspace definitions.
                     joint_names_expr=["shoulder_.*"],
                     stiffness=1320.0,
                     damping=72.66,
+                    friction=0.0,
+                    armature=0.0,
                 ),
                 "elbow": ImplicitActuatorCfg(
                     joint_names_expr=["elbow_joint"],
                     stiffness=600.0,
                     damping=34.64,
+                    friction=0.0,
+                    armature=0.0,
                 ),
                 "wrist": ImplicitActuatorCfg(
                     joint_names_expr=["wrist_.*"],
                     stiffness=216.0,
                     damping=29.39,
+                    friction=0.0,
+                    armature=0.0,
                 ),
             }
 
@@ -162,7 +183,7 @@ Each robot has specific actuator configurations and workspace definitions.
 
     .. tab-item:: Flexiv Rizon 4s
 
-        The Rizon 4s is a 7-DOF collaborative robot with different torque and speed characteristics per joint group:
+        The Rizon 4s is a 7-DOF collaborative robot with different torque, speed, and stiffness characteristics per joint group:
 
         .. code-block:: python
 
@@ -172,18 +193,30 @@ Each robot has specific actuator configurations and workspace definitions.
                     joint_names_expr=["joint[1-2]"],
                     effort_limit_sim=123.0,
                     velocity_limit_sim=2.094,  # 120 deg/s
+                    stiffness=6000.0,
+                    damping=108.5,
+                    friction=0.0,
+                    armature=0.0,
                 ),
                 # Joints 3-4: Medium torque (64 Nm), medium speed
                 "elbow": ImplicitActuatorCfg(
                     joint_names_expr=["joint[3-4]"],
                     effort_limit_sim=64.0,
                     velocity_limit_sim=2.443,  # 140 deg/s
+                    stiffness=4200.0,
+                    damping=90.7,
+                    friction=0.0,
+                    armature=0.0,
                 ),
                 # Joints 5-7: Lower torque (39 Nm), higher speed
                 "wrist": ImplicitActuatorCfg(
                     joint_names_expr=["joint[5-7]"],
                     effort_limit_sim=39.0,
                     velocity_limit_sim=4.887,  # 280 deg/s
+                    stiffness=1500.0,
+                    damping=54.2,
+                    friction=0.0,
+                    armature=0.0,
                 ),
             }
 
@@ -289,6 +322,7 @@ Domain randomization helps the policy generalize across variations in real robot
 
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
+        min_step_count_between_reset=200,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
@@ -299,12 +333,15 @@ Domain randomization helps the policy generalize across variations in real robot
         },
     )
 
+The ``min_step_count_between_reset=200`` ensures that actuator gains are not re-randomized too frequently, giving the policy time to adapt to each set of parameters before they change.
+
 **Joint Friction Randomization:**
 
 .. code-block:: python
 
     joint_friction = EventTerm(
         func=mdp.randomize_joint_parameters,
+        min_step_count_between_reset=200,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
@@ -373,27 +410,6 @@ The keypoint-based reward places virtual markers on the end-effector frame and m
 Training the Policy
 -------------------
 
-Registered Environments
-~~~~~~~~~~~~~~~~~~~~~~~
-
-The following environments are available for training:
-
-.. list-table:: Registered Reach Environments
-   :widths: 50 50
-   :header-rows: 1
-
-   * - Environment ID
-     - Description
-   * - ``Isaac-Deploy-Reach-UR10e-v0``
-     - UR10e training environment
-   * - ``Isaac-Deploy-Reach-UR10e-Play-v0``
-     - UR10e evaluation (no randomization)
-   * - ``Isaac-Deploy-Reach-Rizon4s-v0``
-     - Rizon 4s training environment
-   * - ``Isaac-Deploy-Reach-Rizon4s-Play-v0``
-     - Rizon 4s evaluation (no randomization)
-
-
 Step 1: Verify the Environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -406,16 +422,18 @@ Before starting full training, launch a quick visualization run to verify the en
         .. code-block:: bash
 
             python scripts/reinforcement_learning/rsl_rl/train.py \
-                --task Isaac-Deploy-Reach-UR10e-v0 \
-                --num_envs 4
+                --task Isaac-Deploy-Reach-UR10e-ROS-Inference-v0 \
+                --num_envs 4 \
+                --visualizer kit
 
     .. tab-item:: Flexiv Rizon 4s
 
         .. code-block:: bash
 
             python scripts/reinforcement_learning/rsl_rl/train.py \
-                --task Isaac-Deploy-Reach-Rizon4s-v0 \
-                --num_envs 4
+                --task Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0 \
+                --num_envs 4 \
+                --visualizer kit
 
 This opens the Isaac Sim viewer where you can observe the training in real-time.
 
@@ -431,7 +449,7 @@ This opens the Isaac Sim viewer where you can observe the training in real-time.
 - The robot should be moving its arm attempting to reach different poses
 - Early on, motion will be erratic as the policy explores; this is expected
 - For **Rizon 4s**: Target pose markers appear as coordinate frames in the scene
-- For **UR10e**: Target visualization is disabled due to a coordinate frame offset in the configuration. The robot will still track targets, but markers won't be visible.
+- For **UR10e**: Target visualization is disabled (``debug_vis = False``) because commands are generated in the ``base`` frame, which is 180 degrees offset from the ``base_link`` frame used for rendering. The robot will still track targets, but markers won't be visible.
 
 Once you confirm the environment looks correct, stop training with ``Ctrl+C`` and proceed to full-scale training.
 
@@ -448,36 +466,40 @@ Launch full training with many parallel environments in headless mode:
         .. code-block:: bash
 
             python scripts/reinforcement_learning/rsl_rl/train.py \
-                --task Isaac-Deploy-Reach-UR10e-v0 \
+                --task Isaac-Deploy-Reach-UR10e-ROS-Inference-v0 \
                 --headless \
                 --num_envs 4096 \
-                --video --video_length 800 --video_interval 5000
+                --video --video_length 720 --video_interval 72000
 
     .. tab-item:: Flexiv Rizon 4s
 
         .. code-block:: bash
 
             python scripts/reinforcement_learning/rsl_rl/train.py \
-                --task Isaac-Deploy-Reach-Rizon4s-v0 \
+                --task Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0 \
                 --headless \
                 --num_envs 4096 \
-                --video --video_length 800 --video_interval 5000
+                --video --video_length 720 --video_interval 72000
 
 **Command breakdown:**
 
 - ``--headless``: Disables visualization for maximum training speed
 - ``--num_envs 4096``: Runs 4096 parallel environments for efficient data collection
 - ``--video``: Records videos to monitor training progress
-- ``--video_length 800``: Each video contains 800 frames
-- ``--video_interval 5000``: Records a video every 5000 training steps
+- ``--video_length 720``: Each video captures exactly one full episode (``episode_length_s / (sim.dt * decimation)`` = ``12.0 / (1/120 * 2)`` = 720 steps)
+- ``--video_interval 72000``: Records a video every 72000 environment steps (~every 100 training iterations).
 
 **Training Configuration:**
+
+The training hyperparameters are the same for both robots:
 
 .. code-block:: python
 
     num_steps_per_env = 512
     max_iterations = 1500
     save_interval = 50
+    empirical_normalization = True
+    obs_groups = {"policy": ["policy"], "critic": ["policy"]}
 
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
@@ -487,16 +509,21 @@ Launch full training with many parallel environments in headless mode:
     )
 
     algorithm = RslRlPpoAlgorithmCfg(
-        learning_rate=5.0e-4,
-        gamma=0.99,
-        lam=0.95,
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.0,
         num_learning_epochs=8,
         num_mini_batches=8,
-        clip_param=0.2,
+        learning_rate=5.0e-4,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
         desired_kl=0.008,
+        max_grad_norm=1.0,
     )
 
-Training typically takes 1-3 hours depending on your GPU.
+The ``experiment_name`` is ``"reach_ur10e"`` for UR10e and ``"reach_rizon4s"`` for Rizon 4s. Training typically takes 1-3 hours depending on your GPU.
 
 
 Step 3: Monitor Training Progress
@@ -504,17 +531,33 @@ Step 3: Monitor Training Progress
 
 Use TensorBoard to monitor training metrics:
 
-.. code-block:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/reach_ur10e
+    .. tab-item:: UR10e
 
-Replace the log directory path with your actual training log location.
+        .. code-block:: bash
+
+            ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/reach_ur10e
+
+    .. tab-item:: Flexiv Rizon 4s
+
+        .. code-block:: bash
+
+            ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/reach_rizon4s
+
+Replace the log directory path with your actual training log location if different.
 
 **Key metrics to watch:**
 
 - **Mean reward**: Should increase steadily and plateau once the policy converges
-- **Mean episode length**: Should stabilize as the policy learns
-- **Policy loss**: Should decrease and stabilize
+- **Reward terms**: Monitor individual reward components to understand policy behavior:
+
+  - ``end_effector_keypoint_tracking``: Linear keypoint tracking penalty -- should become less negative as the policy improves
+  - ``end_effector_keypoint_tracking_exp``: Exponential precision reward -- should increase as the policy achieves finer tracking
+  - ``action_rate`` and ``action``: Motion smoothness penalties -- these are small in magnitude but should increase (become less negative) over training, indicating the policy is converging toward smoother motion
+
+- **Position error**: Tracks the Euclidean distance (in meters) between the end-effector and target position -- should decrease over training
+- **Orientation error**: Tracks the angular difference between the end-effector and target orientation -- should decrease over training
 
 
 Step 4: Evaluate the Trained Policy
@@ -530,7 +573,8 @@ Once training completes, evaluate the policy in the play environment:
 
             python scripts/reinforcement_learning/rsl_rl/play.py \
                 --task Isaac-Deploy-Reach-UR10e-Play-v0 \
-                --num_envs 50
+                --num_envs 50 \
+                --visualizer kit
 
     .. tab-item:: Flexiv Rizon 4s
 
@@ -538,7 +582,8 @@ Once training completes, evaluate the policy in the play environment:
 
             python scripts/reinforcement_learning/rsl_rl/play.py \
                 --task Isaac-Deploy-Reach-Rizon4s-Play-v0 \
-                --num_envs 50
+                --num_envs 50 \
+                --visualizer kit
 
 The play environments disable observation corruption for cleaner evaluation and use fewer environments for better visualization.
 
