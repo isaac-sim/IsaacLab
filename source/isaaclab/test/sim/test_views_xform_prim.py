@@ -62,8 +62,6 @@ def _skip_if_backend_unavailable(backend: str, device: str):
     """Skip tests when the requested backend is unavailable."""
     if device.startswith("cuda") and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
-    if backend == "fabric" and device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
 
 
 def _prim_type_for_backend(backend: str) -> str:
