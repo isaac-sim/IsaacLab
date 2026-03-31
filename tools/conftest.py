@@ -202,14 +202,45 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         # check report for any failures
         report_file = f"tests/test-reports-{str(file_name)}.xml"
         if not os.path.exists(report_file):
-            print(f"Warning: Test report not found at {report_file}")
+            if returncode < 0:
+                sig = -returncode
+                reason = f"Process killed by signal {sig}"
+                if sig == 9:
+                    reason += " (SIGKILL — likely OOM killed)"
+                elif sig == 6:
+                    reason += " (SIGABRT)"
+                print(f"⚠️  {test_file}: {reason}")
+            else:
+                reason = f"Process exited with code {returncode} but produced no report"
+                print(f"Warning: Test report not found at {report_file}")
+
+            crash_suite = TestSuite(name=f"crash_{os.path.splitext(file_name)[0]}")
+            crash_case = TestCase(
+                name="test_execution",
+                classname=os.path.splitext(file_name)[0],
+            )
+            details = f"{reason}\n\n"
+            if stdout_data:
+                details += "=== STDOUT (last 2000 chars) ===\n"
+                details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+            if stderr_data:
+                details += "=== STDERR (last 2000 chars) ===\n"
+                details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+            error = Error(message=reason)
+            error.text = details
+            crash_case.result = error
+            crash_suite.add_testcase(crash_case)
+            crash_report = JUnitXml()
+            crash_report.add_testsuite(crash_suite)
+            crash_report.write(report_file)
+
             failed_tests.append(test_file)
             test_status[test_file] = {
-                "errors": 1,  # Assume error since we can't read the report
+                "errors": 1,
                 "failures": 0,
                 "skipped": 0,
-                "tests": 0,
-                "result": "FAILED",
+                "tests": 1,
+                "result": "CRASHED",
                 "time_elapsed": 0.0,
             }
             continue
@@ -448,6 +479,7 @@ def pytest_sessionstart(session):
     num_passing = len([test_path for test_path in test_files if test_status[test_path]["result"] == "passed"])
     num_failing = len([test_path for test_path in test_files if test_status[test_path]["result"] == "FAILED"])
     num_timeout = len([test_path for test_path in test_files if test_status[test_path]["result"] == "TIMEOUT"])
+    num_crashed = len([test_path for test_path in test_files if test_status[test_path]["result"] == "CRASHED"])
 
     if num_tests == 0:
         passing_percentage = 100
@@ -463,6 +495,7 @@ def pytest_sessionstart(session):
     summary_str += f"Total: {num_tests}\n"
     summary_str += f"Passing: {num_passing}\n"
     summary_str += f"Failing: {num_failing}\n"
+    summary_str += f"Crashed: {num_crashed}\n"
     summary_str += f"Timeout: {num_timeout}\n"
     summary_str += f"Passing Percentage: {passing_percentage:.2f}%\n"
 
@@ -503,4 +536,7 @@ def pytest_sessionstart(session):
     print(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit("Custom test execution completed", returncode=0 if (num_failing == 0 and num_timeout == 0) else 1)
+    pytest.exit(
+        "Custom test execution completed",
+        returncode=0 if (num_failing == 0 and num_timeout == 0 and num_crashed == 0) else 1,
+    )
