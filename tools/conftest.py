@@ -35,6 +35,7 @@ def capture_test_output_with_timeout(cmd, timeout, env):
     """Run a command with timeout and capture all output while streaming in real-time."""
     stdout_data = b""
     stderr_data = b""
+    process = None
 
     try:
         # Use Popen to capture output in real-time
@@ -99,15 +100,29 @@ def capture_test_output_with_timeout(cmd, timeout, env):
                 time.sleep(0.1)
                 continue
 
-        # Get any remaining output
-        remaining_stdout, remaining_stderr = process.communicate()
-        stdout_data += remaining_stdout
-        stderr_data += remaining_stderr
+        # Drain any output the process wrote before or just after exiting.
+        # Wrapped in try/except so a pipe error doesn't discard what was already captured.
+        try:
+            remaining_stdout, remaining_stderr = process.communicate(timeout=10)
+            stdout_data += remaining_stdout
+            stderr_data += remaining_stderr
+        except Exception:
+            pass
 
         return process.returncode, stdout_data, stderr_data, False
 
     except Exception as e:
-        return -1, str(e).encode(), b"", False
+        # Kill the process if it is still alive, then drain whatever it wrote.
+        if process is not None and process.poll() is None:
+            process.kill()
+            with contextlib.suppress(Exception):
+                rem_out, rem_err = process.communicate(timeout=5)
+                stdout_data += rem_out
+                stderr_data += rem_err
+        # Append the exception message so the caller can see what went wrong,
+        # but preserve any output already captured.
+        stdout_data += f"\n[capture error: {e}]\n".encode()
+        return -1, stdout_data, stderr_data, False
 
 
 def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
