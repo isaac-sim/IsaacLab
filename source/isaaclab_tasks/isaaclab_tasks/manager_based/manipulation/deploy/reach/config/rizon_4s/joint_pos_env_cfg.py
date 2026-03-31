@@ -105,23 +105,3 @@ class Rizon4sReachEnvCfg_PLAY(Rizon4sReachEnvCfg):
         self.scene.env_spacing = 2.5
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-
-        # Set custom fixed target pose (position in meters, angles in radians)
-        # Modify these values to set your desired target pose
-        custom_x = 0.5
-        custom_y = 0.0
-        custom_z = 0.4
-        custom_roll = math.pi  # end-effector facing down
-        custom_pitch = 0.0
-        custom_yaw = 0.0
-
-        # Disable resampling by setting a very long resampling time
-        self.commands.ee_pose.resampling_time_range = (1e9, 1e9)
-
-        # Set ranges to same min/max for fixed pose
-        self.commands.ee_pose.ranges.pos_x = (custom_x, custom_x)
-        self.commands.ee_pose.ranges.pos_y = (custom_y, custom_y)
-        self.commands.ee_pose.ranges.pos_z = (custom_z, custom_z)
-        self.commands.ee_pose.ranges.roll = (custom_roll, custom_roll)
-        self.commands.ee_pose.ranges.pitch = (custom_pitch, custom_pitch)
-        self.commands.ee_pose.ranges.yaw = (custom_yaw, custom_yaw)
