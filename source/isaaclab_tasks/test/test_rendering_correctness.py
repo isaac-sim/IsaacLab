@@ -91,7 +91,11 @@ def cleanup_simulation_context():
 def _generate_comparison_html_report():
     """Generate an HTML comparison report after all tests in the session complete."""
     yield
-    _generate_html_report()
+    try:
+        _generate_html_report()
+    except Exception as exc:  # noqa: BLE001
+        import warnings
+        warnings.warn(f"Failed to generate HTML comparison report: {exc}", stacklevel=1)
 
 
 @pytest.fixture(autouse=True)
