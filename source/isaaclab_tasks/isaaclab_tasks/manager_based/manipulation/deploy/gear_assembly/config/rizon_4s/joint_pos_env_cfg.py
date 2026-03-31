@@ -411,7 +411,9 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.rewards.end_effector_base_keypoint_tracking.params["grasp_rot_offset"] = self.grasp_rot_offset
         self.rewards.end_effector_base_keypoint_tracking.params["gear_offsets_grasp"] = self.gear_offsets_grasp
 
-        self.rewards.end_effector_base_keypoint_tracking_exp.params["end_effector_body_name"] = self.end_effector_body_name
+        self.rewards.end_effector_base_keypoint_tracking_exp.params["end_effector_body_name"] = (
+            self.end_effector_body_name
+        )
         self.rewards.end_effector_base_keypoint_tracking_exp.params["grasp_rot_offset"] = self.grasp_rot_offset
         self.rewards.end_effector_base_keypoint_tracking_exp.params["gear_offsets_grasp"] = self.gear_offsets_grasp
 
