@@ -95,6 +95,7 @@ def _generate_comparison_html_report():
         _generate_html_report()
     except Exception as exc:  # noqa: BLE001
         import warnings
+
         warnings.warn(f"Failed to generate HTML comparison report: {exc}", stacklevel=1)
 
 
