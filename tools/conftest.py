@@ -141,6 +141,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
     test_status = {}
+    xml_reports = []  # in-memory JUnitXml objects, used to build the merged report
 
     for test_file in test_files:
         print(f"\n\n🚀 Running {test_file} independently...\n")
@@ -185,6 +186,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             # Write timeout report
             report_file = f"tests/test-reports-{str(file_name)}.xml"
             timeout_report.write(report_file)
+            xml_reports.append(timeout_report)
 
             test_status[test_file] = {
                 "errors": 1,
@@ -233,6 +235,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             crash_report = JUnitXml()
             crash_report.add_testsuite(crash_suite)
             crash_report.write(report_file)
+            xml_reports.append(crash_report)
 
             failed_tests.append(test_file)
             test_status[test_file] = {
@@ -257,6 +260,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
             # Write the updated report back
             report.write(report_file)
+            xml_reports.append(report)
 
             # Parse the integer values with None handling
             errors = int(report.errors) if report.errors is not None else 0
@@ -292,7 +296,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
     print("~~~~~~~~~~~~ Finished running all tests")
 
-    return failed_tests, test_status
+    return failed_tests, test_status, xml_reports
 
 
 def _collect_test_files(
@@ -450,21 +454,20 @@ def pytest_sessionstart(session):
         print(f"  - {test_file}")
 
     # Run all tests individually
-    failed_tests, test_status = run_individual_tests(test_files, workspace_root, isaacsim_ci)
+    failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, isaacsim_ci)
 
     print("failed tests:", failed_tests)
 
     # Collect reports
     print("~~~~~~~~~ Collecting final report...")
 
-    # create new full report
+    # Merge in-memory report objects collected during the test run.  Reading the
+    # on-disk files again risks losing <failure> elements if the junitparser
+    # read/write round-trip does not preserve them faithfully.
     full_report = JUnitXml()
-    # read all reports and merge them
-    for report in os.listdir("tests"):
-        if report.endswith(".xml"):
-            print(report)
-            report_file = JUnitXml.fromfile(f"tests/{report}")
-            full_report += report_file
+    for xml_report in xml_reports:
+        print(xml_report)
+        full_report += xml_report
     print("~~~~~~~~~~~~ Writing final report...")
     # write content to full report
     result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
