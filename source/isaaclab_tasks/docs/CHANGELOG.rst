@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.5.17 (2026-03-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.utils.hydra.apply_overrides` raising a false
+  conflict error when two global presets resolve to the same value for a path
+  (e.g. ``newton`` aliased to ``cube``).
+
+
 1.5.16 (2026-03-24)
 ~~~~~~~~~~~~~~~~~~~
 
