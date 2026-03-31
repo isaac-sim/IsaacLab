@@ -87,6 +87,18 @@ def cleanup_simulation_context():
     SimulationContext.clear_instance()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _generate_comparison_html_report():
+    """Generate an HTML comparison report after all tests in the session complete."""
+    yield
+    try:
+        _generate_html_report()
+    except Exception as exc:  # noqa: BLE001
+        import warnings
+
+        warnings.warn(f"Failed to generate HTML comparison report: {exc}", stacklevel=1)
+
+
 @pytest.fixture(autouse=True)
 def _attach_comparison_properties(request):
     """Attach pixel-diff, SSIM scores, and failure images as JUnit XML properties."""
@@ -269,7 +281,7 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
 
 
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
-    """Save a PIL image to the comparison-images directory.
+    """Save a PIL image to the comparison-images/images directory.
 
     Args:
         img: PIL Image to save.
@@ -278,10 +290,96 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
     Returns:
         Absolute path to the saved file.
     """
-    path = os.path.join(_COMPARISON_IMAGES_DIR, filename)
+    path = os.path.join(_COMPARISON_IMAGES_DIR, "images", filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, format="PNG")
     return path
+
+
+def _generate_html_report() -> None:
+    """Generate an HTML report of all comparison scores and save it alongside the comparison images.
+
+    The report is written to ``<_COMPARISON_IMAGES_DIR>/_report_.html`` and includes a table of
+    all image comparison results sorted by PixelDiff % descending, with thumbnail links to actual
+    and golden images where available.
+    """
+    if not _COMPARISON_SCORES:
+        return
+
+    os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
+    report_path = os.path.join(_COMPARISON_IMAGES_DIR, "_report_.html")
+
+    sorted_scores = sorted(_COMPARISON_SCORES, key=lambda e: -e["diff_pct"])
+
+    rows = []
+    for entry in sorted_scores:
+        status_class = "pass" if entry["passed"] else "fail"
+        status_text = status_class.upper()
+
+        actual_img_html = ""
+        golden_img_html = ""
+        if entry.get("img_result_path"):
+            actual_fname = os.path.relpath(entry["img_result_path"], _COMPARISON_IMAGES_DIR)
+            golden_fname = os.path.relpath(entry["img_golden_path"], _COMPARISON_IMAGES_DIR)
+            actual_img_html = f'<a href="{actual_fname}"><img src="{actual_fname}" width="120" loading="lazy"></a>'
+            golden_img_html = f'<a href="{golden_fname}"><img src="{golden_fname}" width="120" loading="lazy"></a>'
+
+        rows.append(
+            f'<tr class="{status_class}">'
+            f"<td>{entry['test']}</td>"
+            f"<td>{entry['backend']}</td>"
+            f"<td>{entry['renderer']}</td>"
+            f"<td>{entry['aov']}</td>"
+            f"<td>{entry['diff_pct']:.2f}</td>"
+            f"<td>{entry['threshold']:.1f}</td>"
+            f"<td>{entry['ssim']:.4f}</td>"
+            f'<td class="status-{status_class}">{status_text}</td>'
+            f"<td>{actual_img_html}</td>"
+            f"<td>{golden_img_html}</td>"
+            "</tr>"
+        )
+
+    html = (
+        "<!DOCTYPE html>\n"
+        "<html>\n"
+        "<head>\n"
+        '<meta charset="utf-8">\n'
+        "<title>Rendering Correctness — Image Comparison Report</title>\n"
+        "<style>\n"
+        "  body { font-family: sans-serif; font-size: 13px; margin: 16px; }\n"
+        "  h1 { font-size: 1.3em; margin-bottom: 4px; }\n"
+        "  p { margin-top: 4px; color: #555; }\n"
+        "  table { border-collapse: collapse; width: 100%; }\n"
+        "  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: middle; }\n"
+        "  th { background: #f0f0f0; white-space: nowrap; }\n"
+        "  tr.fail { background: #fff0f0; }\n"
+        "  tr.pass:hover, tr.fail:hover { filter: brightness(0.96); }\n"
+        "  .status-pass { color: #2a7a2a; font-weight: bold; }\n"
+        "  .status-fail { color: #cc0000; font-weight: bold; }\n"
+        "  img { display: block; max-width: 120px; height: auto; }\n"
+        "</style>\n"
+        "</head>\n"
+        "<body>\n"
+        "<h1>Rendering Correctness — Image Comparison Report</h1>\n"
+        f"<p>Sorted by PixelDiff&nbsp;% (desc) &mdash; {len(sorted_scores)}&nbsp; total.</p>\n"
+        "<table>\n"
+        "<thead><tr>"
+        "<th>Test</th>"
+        "<th>Backend</th>"
+        "<th>Renderer</th>"
+        "<th>AOV</th>"
+        "<th>PixelDiff&nbsp;%</th>"
+        "<th>Threshold&nbsp;%</th>"
+        "<th>SSIM</th>"
+        "<th>Status</th>"
+        "<th>ACTUAL</th>"
+        "<th>GOLDEN</th>"
+        "</tr></thead>\n"
+        "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n</body>\n</html>\n"
+    )
+
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
 
 def _make_grid(images: torch.Tensor) -> torch.Tensor:
@@ -474,7 +572,7 @@ def _validate_camera_outputs(
 
         if diff_pct > 0:
             prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
-            entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-result.png")
+            entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-actual.png")
             entry["img_golden_path"] = _save_comparison_image(golden_image, f"{prefix}-golden.png")
 
         _COMPARISON_SCORES.append(entry)

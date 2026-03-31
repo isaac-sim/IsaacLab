@@ -35,6 +35,7 @@ def capture_test_output_with_timeout(cmd, timeout, env):
     """Run a command with timeout and capture all output while streaming in real-time."""
     stdout_data = b""
     stderr_data = b""
+    process = None
 
     try:
         # Use Popen to capture output in real-time
@@ -99,15 +100,29 @@ def capture_test_output_with_timeout(cmd, timeout, env):
                 time.sleep(0.1)
                 continue
 
-        # Get any remaining output
-        remaining_stdout, remaining_stderr = process.communicate()
-        stdout_data += remaining_stdout
-        stderr_data += remaining_stderr
+        # Drain any output the process wrote before or just after exiting.
+        # Wrapped in try/except so a pipe error doesn't discard what was already captured.
+        try:
+            remaining_stdout, remaining_stderr = process.communicate(timeout=10)
+            stdout_data += remaining_stdout
+            stderr_data += remaining_stderr
+        except Exception:
+            pass
 
         return process.returncode, stdout_data, stderr_data, False
 
     except Exception as e:
-        return -1, str(e).encode(), b"", False
+        # Kill the process if it is still alive, then drain whatever it wrote.
+        if process is not None and process.poll() is None:
+            process.kill()
+            with contextlib.suppress(Exception):
+                rem_out, rem_err = process.communicate(timeout=5)
+                stdout_data += rem_out
+                stderr_data += rem_err
+        # Append the exception message so the caller can see what went wrong,
+        # but preserve any output already captured.
+        stdout_data += f"\n[capture error: {e}]\n".encode()
+        return -1, stdout_data, stderr_data, False
 
 
 def create_timeout_test_case(test_file, timeout, stdout_data, stderr_data):
@@ -141,6 +156,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
     test_status = {}
+    xml_reports = []  # in-memory JUnitXml objects, used to build the merged report
 
     for test_file in test_files:
         print(f"\n\n🚀 Running {test_file} independently...\n")
@@ -185,6 +201,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             # Write timeout report
             report_file = f"tests/test-reports-{str(file_name)}.xml"
             timeout_report.write(report_file)
+            xml_reports.append(timeout_report)
 
             test_status[test_file] = {
                 "errors": 1,
@@ -202,14 +219,46 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         # check report for any failures
         report_file = f"tests/test-reports-{str(file_name)}.xml"
         if not os.path.exists(report_file):
-            print(f"Warning: Test report not found at {report_file}")
+            if returncode < 0:
+                sig = -returncode
+                reason = f"Process killed by signal {sig}"
+                if sig == 9:
+                    reason += " (SIGKILL — likely OOM killed)"
+                elif sig == 6:
+                    reason += " (SIGABRT)"
+                print(f"⚠️  {test_file}: {reason}")
+            else:
+                reason = f"Process exited with code {returncode} but produced no report"
+                print(f"Warning: Test report not found at {report_file}")
+
+            crash_suite = TestSuite(name=f"crash_{os.path.splitext(file_name)[0]}")
+            crash_case = TestCase(
+                name="test_execution",
+                classname=os.path.splitext(file_name)[0],
+            )
+            details = f"{reason}\n\n"
+            if stdout_data:
+                details += "=== STDOUT (last 2000 chars) ===\n"
+                details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+            if stderr_data:
+                details += "=== STDERR (last 2000 chars) ===\n"
+                details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+            error = Error(message=reason)
+            error.text = details
+            crash_case.result = error
+            crash_suite.add_testcase(crash_case)
+            crash_report = JUnitXml()
+            crash_report.add_testsuite(crash_suite)
+            crash_report.write(report_file)
+            xml_reports.append(crash_report)
+
             failed_tests.append(test_file)
             test_status[test_file] = {
-                "errors": 1,  # Assume error since we can't read the report
+                "errors": 1,
                 "failures": 0,
                 "skipped": 0,
-                "tests": 0,
-                "result": "FAILED",
+                "tests": 1,
+                "result": "CRASHED",
                 "time_elapsed": 0.0,
             }
             continue
@@ -226,6 +275,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
             # Write the updated report back
             report.write(report_file)
+            xml_reports.append(report)
 
             # Parse the integer values with None handling
             errors = int(report.errors) if report.errors is not None else 0
@@ -261,7 +311,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
     print("~~~~~~~~~~~~ Finished running all tests")
 
-    return failed_tests, test_status
+    return failed_tests, test_status, xml_reports
 
 
 def _collect_test_files(
@@ -419,21 +469,20 @@ def pytest_sessionstart(session):
         print(f"  - {test_file}")
 
     # Run all tests individually
-    failed_tests, test_status = run_individual_tests(test_files, workspace_root, isaacsim_ci)
+    failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, isaacsim_ci)
 
     print("failed tests:", failed_tests)
 
     # Collect reports
     print("~~~~~~~~~ Collecting final report...")
 
-    # create new full report
+    # Merge in-memory report objects collected during the test run.  Reading the
+    # on-disk files again risks losing <failure> elements if the junitparser
+    # read/write round-trip does not preserve them faithfully.
     full_report = JUnitXml()
-    # read all reports and merge them
-    for report in os.listdir("tests"):
-        if report.endswith(".xml"):
-            print(report)
-            report_file = JUnitXml.fromfile(f"tests/{report}")
-            full_report += report_file
+    for xml_report in xml_reports:
+        print(xml_report)
+        full_report += xml_report
     print("~~~~~~~~~~~~ Writing final report...")
     # write content to full report
     result_file = os.environ.get("TEST_RESULT_FILE", "full_report.xml")
@@ -448,6 +497,7 @@ def pytest_sessionstart(session):
     num_passing = len([test_path for test_path in test_files if test_status[test_path]["result"] == "passed"])
     num_failing = len([test_path for test_path in test_files if test_status[test_path]["result"] == "FAILED"])
     num_timeout = len([test_path for test_path in test_files if test_status[test_path]["result"] == "TIMEOUT"])
+    num_crashed = len([test_path for test_path in test_files if test_status[test_path]["result"] == "CRASHED"])
 
     if num_tests == 0:
         passing_percentage = 100
@@ -463,6 +513,7 @@ def pytest_sessionstart(session):
     summary_str += f"Total: {num_tests}\n"
     summary_str += f"Passing: {num_passing}\n"
     summary_str += f"Failing: {num_failing}\n"
+    summary_str += f"Crashed: {num_crashed}\n"
     summary_str += f"Timeout: {num_timeout}\n"
     summary_str += f"Passing Percentage: {passing_percentage:.2f}%\n"
 
@@ -503,4 +554,7 @@ def pytest_sessionstart(session):
     print(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit("Custom test execution completed", returncode=0 if (num_failing == 0 and num_timeout == 0) else 1)
+    pytest.exit(
+        "Custom test execution completed",
+        returncode=0 if (num_failing == 0 and num_timeout == 0 and num_crashed == 0) else 1,
+    )

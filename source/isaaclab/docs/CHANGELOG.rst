@@ -12,6 +12,17 @@ Added
   Previously only relative imports and absolute wildcard fallbacks were
   handled; explicit names from absolute packages are now eagerly resolved
   and re-exported.
+  
+Fixed
+^^^^^
+
+* Fixed incorrect mass matrix and gravity compensation force indexing for
+  floating-base robots in :class:`~isaaclab.envs.mdp.actions.OperationalSpaceControllerAction`.
+  The method ``_compute_dynamic_quantities()`` used ``self._joint_ids`` to index into PhysX
+  generalized quantities, which does not account for the 6 virtual base DOFs prepended by PhysX
+  for floating-base articulations. Replaced with ``self._jacobi_joint_idx`` which correctly
+  applies the +6 offset for floating-base robots and is identical to ``self._joint_ids`` for
+  fixed-base robots.
 
 
 4.5.23 (2026-03-16)
