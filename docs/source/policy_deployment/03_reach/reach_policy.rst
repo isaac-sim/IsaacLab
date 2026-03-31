@@ -419,13 +419,12 @@ Before starting full training, launch a quick visualization run to verify the en
 
 This opens the Isaac Sim viewer where you can observe the training in real-time.
 
-.. TODO: Add figure once available
-.. .. figure:: ../../_static/policy_deployment/03_reach/reach_training_visualization.jpg
-..     :align: center
-..     :figwidth: 100%
-..     :alt: Reach policy training visualization in Isaac Lab
-..
-..     Training visualization showing multiple parallel environments with robots reaching toward target poses.
+.. figure:: ../../_static/policy_deployment/03_reach/reach_train.jpg
+    :align: center
+    :figwidth: 100%
+    :alt: Reach policy training visualization in Isaac Lab
+
+    Training visualization showing multiple parallel environments with robots reaching toward target poses.
 
 **What to look for:**
 
