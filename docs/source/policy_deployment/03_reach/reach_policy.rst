@@ -419,7 +419,7 @@ Before starting full training, launch a quick visualization run to verify the en
 
 This opens the Isaac Sim viewer where you can observe the training in real-time.
 
-.. figure:: ../../_static/policy_deployment/03_reach/reach_train.jpg
+.. figure:: ../../_static/policy_deployment/03_reach/reach_train.png
     :align: center
     :figwidth: 100%
     :alt: Reach policy training visualization in Isaac Lab
