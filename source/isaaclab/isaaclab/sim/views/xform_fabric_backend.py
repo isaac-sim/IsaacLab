@@ -112,12 +112,9 @@ class FabricBackend:
                 0,
             )
 
-            hierarchy = (
-                usdrt.hierarchy.IFabricHierarchy()
-                .get_fabric_hierarchy(
-                    fabric_stage.GetFabricId(),
-                    fabric_stage.GetStageIdAsStageId(),
-                )
+            hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                fabric_stage.GetFabricId(),
+                fabric_stage.GetStageIdAsStageId(),
             )
             hierarchy.update_world_xforms()
             hierarchy.track_local_xform_changes(True)
@@ -182,12 +179,8 @@ class FabricBackend:
         self._fabric_local_translations_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=self._device)
         self._fabric_local_orientations_torch = torch.zeros((self.count, 4), dtype=torch.float32, device=self._device)
 
-        self._fabric_local_translations_buffer = wp.from_torch(
-            self._fabric_local_translations_torch, dtype=wp.float32
-        )
-        self._fabric_local_orientations_buffer = wp.from_torch(
-            self._fabric_local_orientations_torch, dtype=wp.float32
-        )
+        self._fabric_local_translations_buffer = wp.from_torch(self._fabric_local_translations_torch, dtype=wp.float32)
+        self._fabric_local_orientations_buffer = wp.from_torch(self._fabric_local_orientations_torch, dtype=wp.float32)
 
         # Dummy buffer for unused kernel outputs (always empty)
         self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32).to(self._device)

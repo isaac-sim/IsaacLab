@@ -1620,10 +1620,13 @@ def test_output_equal_to_usd_camera_intrinsics(setup_camera, device):
     [(TiledCamera, TiledCameraCfg), (Camera, CameraCfg)],
     ids=["tiled", "non_tiled"],
 )
-@pytest.mark.parametrize("device", [
-    "cpu",
-    "cuda:0",
-    ])
+@pytest.mark.parametrize(
+    "device",
+    [
+        "cpu",
+        "cuda:0",
+    ],
+)
 @pytest.mark.isaacsim_ci
 def test_camera_pose_update_reflected_in_render(setup_camera, device, camera_cls, cfg_cls):
     """Test that moving a camera is reflected in rendered depth.

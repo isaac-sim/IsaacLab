@@ -450,7 +450,9 @@ class Camera(SensorBase):
         super()._initialize_impl()
         # Create a view for the sensor with Fabric enabled for fast pose queries, otherwise position will be stale.
         self._view = XformPrimView(
-            self.cfg.prim_path, device=self._device, stage=self.stage,
+            self.cfg.prim_path,
+            device=self._device,
+            stage=self.stage,
         )
         # Check that sizes are correct
         if self._view.count != self._num_envs:

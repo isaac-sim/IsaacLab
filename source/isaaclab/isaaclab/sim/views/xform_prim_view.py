@@ -152,13 +152,9 @@ class XformPrimView:
 
         # ---- Create backends ------------------------------------------------
         if use_fabric:
-            self._backend: XformBackend = FabricBackend(
-                self._prims, self._device
-            )
+            self._backend: XformBackend = FabricBackend(self._prims, self._device)
             self._sync_backends: list[XformBackend] = (
-                [UsdBackend(self._prims, self._device)]
-                if sync_usd_on_fabric_write
-                else []
+                [UsdBackend(self._prims, self._device)] if sync_usd_on_fabric_write else []
             )
         else:
             self._backend = UsdBackend(self._prims, self._device)
