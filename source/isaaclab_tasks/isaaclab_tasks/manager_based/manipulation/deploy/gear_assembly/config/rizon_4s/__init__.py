@@ -14,7 +14,7 @@ from . import agents
 
 # Flexiv Rizon 4s
 gym.register(
-    id="Isaac-Deploy-GearAssembly-Rizon4s-v0",
+    id="Isaac-Deploy-GearAssembly-Rizon4s-Grav-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -24,7 +24,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Deploy-GearAssembly-Rizon4s-Play-v0",
+    id="Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -34,7 +34,7 @@ gym.register(
 
 # Flexiv Rizon 4s - ROS Inference
 gym.register(
-    id="Isaac-Deploy-GearAssembly-Rizon4s-ROS-Inference-v0",
+    id="Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
