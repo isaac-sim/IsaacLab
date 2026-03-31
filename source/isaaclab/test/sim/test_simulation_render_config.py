@@ -16,7 +16,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import os
 
-import flatdict
 import pytest
 import toml
 
@@ -113,7 +112,17 @@ def test_render_cfg_presets():
         preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
         with open(preset_filename) as file:
             preset_dict = toml.load(file)
-        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+        def _flatten_dict(d, parent_key="", delimiter="."):
+            items = []
+            for k, v in d.items():
+                key = f"{parent_key}{delimiter}{k}" if parent_key else k
+                if isinstance(v, dict):
+                    items.extend(_flatten_dict(v, key, delimiter).items())
+                else:
+                    items.append((key, v))
+            return dict(items)
+
+        preset_dict = _flatten_dict(preset_dict)
 
         render_cfg = RenderCfg(
             rendering_mode=rendering_mode,
