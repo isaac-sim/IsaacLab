@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+import re
 
 import torch
 
@@ -493,6 +494,13 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
             ),
         )
 
+        # Enable actuator-level gravity compensation on arm joints (not gripper).
+        # Match actuators whose joint_names_expr targets UR10e arm joints.
+        _ARM_JOINT_RE = re.compile(r"(shoulder|elbow|wrist).*")
+        for act_cfg in self.scene.robot.actuators.values():
+            if any(_ARM_JOINT_RE.match(expr) for expr in act_cfg.joint_names_expr):
+                act_cfg.gravity_compensation = True
+
         # 2F-140 gripper actuator configuration
         self.scene.robot.actuators["gripper_finger"] = ImplicitActuatorCfg(
             joint_names_expr=[".*_inner_finger_joint"],
@@ -593,6 +601,15 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
                 rot=(0.0, 0.0, 0.0, 1.0),
             ),
         )
+        # Enable actuator-level gravity compensation on arm joints.
+        # With disable_gravity=False, gravity acts on all bodies. The actuator
+        # gravcomp flag routes compensation forces through qfrc_actuator so the
+        # controller sees them, rather than hiding them in qfrc_passive.
+        _ARM_JOINT_RE = re.compile(r"(shoulder|elbow|wrist).*")
+        for act_cfg in self.scene.robot.actuators.values():
+            if any(_ARM_JOINT_RE.match(expr) for expr in act_cfg.joint_names_expr):
+                act_cfg.gravity_compensation = True
+
         # Gripper actuator is imported from MJCF (tendon-targeted, CTRL_DIRECT mode).
         # No IsaacLab ImplicitActuatorCfg needed for the gripper.
         # The arm actuators (shoulder, elbow, wrist) come from UR10e_CFG.
