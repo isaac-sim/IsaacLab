@@ -25,6 +25,17 @@ from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
 
+def _flatten_dict(d, parent_key="", delimiter="."):
+    items = []
+    for k, v in d.items():
+        key = f"{parent_key}{delimiter}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(_flatten_dict(v, key, delimiter).items())
+        else:
+            items.append((key, v))
+    return dict(items)
+
+
 @pytest.mark.skip(reason="Timeline not stopped")
 @pytest.mark.isaacsim_ci
 def test_render_cfg():
@@ -112,16 +123,6 @@ def test_render_cfg_presets():
         preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
         with open(preset_filename) as file:
             preset_dict = toml.load(file)
-        def _flatten_dict(d, parent_key="", delimiter="."):
-            items = []
-            for k, v in d.items():
-                key = f"{parent_key}{delimiter}{k}" if parent_key else k
-                if isinstance(v, dict):
-                    items.extend(_flatten_dict(v, key, delimiter).items())
-                else:
-                    items.append((key, v))
-            return dict(items)
-
         preset_dict = _flatten_dict(preset_dict)
 
         render_cfg = RenderCfg(
