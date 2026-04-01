@@ -112,6 +112,7 @@ from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.leapp import patch_env_for_export
+from isaaclab.utils.leapp.utils import ensure_env_spec_id
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -206,25 +207,22 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     # create isaac environment
     # Note: observation functions are already patched at module level (before isaaclab_tasks import)
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
-    if not isinstance(env.unwrapped, ManagerBasedRLEnv):
-        raise NotImplementedError(
-            "Export currently supports only manager-based environments. "
-            f"Task '{args_cli.task}' created env type '{type(env.unwrapped).__name__}'."
-        )
+    annotation_task_name = ensure_env_spec_id(env)
+
     export_task_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
-    # Patch only the observation groups consumed by the actor policy.
-    obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
-    if isinstance(obs_groups_cfg, Mapping):
-        required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
-    else:
-        required_obs_groups = {"policy"}
-    patch_env_for_export(
-        env,
-        task_name=export_task_name,
-        export_method=args_cli.export_method,
-        required_obs_groups=required_obs_groups,
-    )
+    if isinstance(env.unwrapped, ManagerBasedRLEnv):
+        # Patch only the observation groups consumed by the actor policy.
+        obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
+        if isinstance(obs_groups_cfg, Mapping):
+            required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
+        else:
+            required_obs_groups = {"policy"}
+        patch_env_for_export(
+            env,
+            export_method=args_cli.export_method,
+            required_obs_groups=required_obs_groups,
+        )
 
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
@@ -264,7 +262,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
                     dtype=next(policy_nn.parameters()).dtype,
                 )
                 registered_state = annotate.state_tensors(
-                    export_task_name,
+                    annotation_task_name,
                     state_dict_from_actor_hidden(actor_hidden),
                 )
                 actor_memory = get_actor_memory_module(policy_nn)
@@ -278,7 +276,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
             if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
                 actor_hidden_after = policy_nn.get_hidden_states()[0]
                 annotate.update_state(
-                    export_task_name,
+                    annotation_task_name,
                     state_dict_from_actor_hidden(actor_hidden_after),
                 )
 

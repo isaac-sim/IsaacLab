@@ -90,8 +90,8 @@ class ExportPatcher:
     in as a constant.
     """
 
-    def __init__(self, task_name: str, export_method: str, required_obs_groups: set[str] | None = None):
-        self.task_name = task_name
+    def __init__(self, export_method: str, required_obs_groups: set[str] | None = None):
+        self.task_name: str | None = None
         self.export_method = export_method
         self.required_obs_groups = required_obs_groups
         self._annotated_tensor_cache: dict[tuple[int, str], torch.Tensor] = {}
@@ -109,6 +109,7 @@ class ExportPatcher:
     def setup(self, env):
         """Patch observation and action managers on the unwrapped env."""
         unwrapped = env.env.unwrapped
+        self.task_name = unwrapped.spec.id
 
         proxy_env = _EnvProxy(
             unwrapped,
@@ -535,7 +536,6 @@ class ExportPatcher:
 
 def patch_env_for_export(
     env: ManagerBasedEnv,
-    task_name: str,
     export_method: str,
     required_obs_groups: set[str] | None = None,
 ) -> None:
@@ -564,5 +564,5 @@ def patch_env_for_export(
     of the pipeline; only the manager call paths are redirected.
     """
     patch_warp_to_torch_passthrough()
-    patcher = ExportPatcher(task_name, export_method, required_obs_groups=required_obs_groups)
+    patcher = ExportPatcher(export_method, required_obs_groups=required_obs_groups)
     patcher.setup(env)

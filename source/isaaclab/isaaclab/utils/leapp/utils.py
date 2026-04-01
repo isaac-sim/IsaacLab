@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+from types import SimpleNamespace
 from typing import Any
 
 import torch
@@ -51,6 +52,21 @@ def patch_warp_to_torch_passthrough() -> None:
 
     patched_to_torch._leapp_passthrough_patch = True  # type: ignore[attr-defined]
     wp.to_torch = patched_to_torch
+
+
+def ensure_env_spec_id(env, fallback_task_name: str = "policy") -> str:
+    """Return ``env.unwrapped.spec.id``, creating a fallback spec when needed."""
+    spec = getattr(env.unwrapped, "spec", None)
+    if spec is None:
+        env.unwrapped.spec = SimpleNamespace(id=fallback_task_name)
+        return fallback_task_name
+
+    task_name = getattr(spec, "id", None)
+    if task_name is None:
+        spec.id = fallback_task_name
+        return fallback_task_name
+
+    return task_name
 
 
 # ══════════════════════════════════════════════════════════════════
