@@ -108,3 +108,14 @@ tutorials show you how to use motion generators to control the robots at the tas
 
     05_controllers/run_diff_ik
     05_controllers/run_osc
+
+Exporting Policies
+------------------
+
+The following tutorial shows how to prepare a direct deployment policy for export with LEAPP.
+
+.. toctree::
+    :maxdepth: 1
+    :titlesonly:
+
+    06_exporting/exporting_direct_deployment_policies_with_leapp

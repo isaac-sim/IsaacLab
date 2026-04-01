@@ -78,12 +78,14 @@ class AnymalCEnv(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: torch.Tensor):
-        annotate.update_state(self.spec.id, {"previous_actions": actions})
         self._actions = actions.clone()
         self._processed_actions = self.cfg.action_scale * self._actions + wp.to_torch(
             self._robot.data.default_joint_pos
         )
-        annotate.output_tensors(self.spec.id, {"processed_actions": self._processed_actions}, export_with="onnx")
+        # start LEAPP annotations for outputs
+        annotate.update_state(self.spec.id, {"previous_actions": actions})
+        annotate.output_tensors(self.spec.id, {"processed_actions": self._processed_actions}, export_with="onnx-dynamo")
+        # end LEAPP annotations for outputs
 
     def _apply_action(self):
         self._robot.set_joint_position_target_index(target=self._processed_actions)
@@ -95,23 +97,25 @@ class AnymalCEnv(DirectRLEnv):
             height_data = (
                 self._height_scanner.data.pos_w[:, 2].unsqueeze(1) - self._height_scanner.data.ray_hits_w[..., 2] - 0.5
             ).clip(-1.0, 1.0)
-        task_name = self.spec.id
+        # start LEAPP annotations for inputs
+        # NOTE: height data is not used by the flat policy. not needed for this example
         root_lin_vel_b = annotate.input_tensors(
-            task_name, {"root_lin_vel_b": wp.to_torch(self._robot.data.root_lin_vel_b)}
+            self.spec.id, {"root_lin_vel_b": wp.to_torch(self._robot.data.root_lin_vel_b)}
         )
         root_ang_vel_b = annotate.input_tensors(
-            task_name, {"root_ang_vel_b": wp.to_torch(self._robot.data.root_ang_vel_b)}
+            self.spec.id, {"root_ang_vel_b": wp.to_torch(self._robot.data.root_ang_vel_b)}
         )
         projected_gravity_b = annotate.input_tensors(
-            task_name, {"projected_gravity_b": wp.to_torch(self._robot.data.projected_gravity_b)}
+            self.spec.id, {"projected_gravity_b": wp.to_torch(self._robot.data.projected_gravity_b)}
         )
-        commands = annotate.input_tensors(task_name, {"commands": self._commands})
-        joint_pos = annotate.input_tensors(task_name, {"joint_pos": wp.to_torch(self._robot.data.joint_pos)})
+        commands = annotate.input_tensors(self.spec.id, {"commands": self._commands})
+        joint_pos = annotate.input_tensors(self.spec.id, {"joint_pos": wp.to_torch(self._robot.data.joint_pos)})
         default_joint_pos = annotate.input_tensors(
-            task_name, {"default_joint_pos": wp.to_torch(self._robot.data.default_joint_pos)}
+            self.spec.id, {"default_joint_pos": wp.to_torch(self._robot.data.default_joint_pos)}
         )
-        joint_vel = annotate.input_tensors(task_name, {"joint_vel": wp.to_torch(self._robot.data.joint_vel)})
-        previous_actions = annotate.state_tensors(task_name, {"previous_actions": self._actions})
+        joint_vel = annotate.input_tensors(self.spec.id, {"joint_vel": wp.to_torch(self._robot.data.joint_vel)})
+        previous_actions = annotate.state_tensors(self.spec.id, {"previous_actions": self._actions})
+        # end LEAPP annotations for inputs
 
         obs = torch.cat(
             [
@@ -123,7 +127,7 @@ class AnymalCEnv(DirectRLEnv):
                     commands,
                     joint_pos - default_joint_pos,
                     joint_vel,
-                    height_data,
+                    height_data,  # height data is not used by the flat policy. not needed for this example
                     previous_actions,
                 )
                 if tensor is not None
