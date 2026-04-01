@@ -735,6 +735,16 @@ class RigidObjectData(BaseRigidObjectData):
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
             :, 0
         ]
+        # -- shape material properties (for collision shapes)
+        self._sim_bind_shape_material_mu = self._root_view.get_attribute(
+            "shape_material_mu", SimulationManager.get_model()
+        )[:, 0]
+        self._sim_bind_shape_material_restitution = self._root_view.get_attribute(
+            "shape_material_restitution", SimulationManager.get_model()
+        )[:, 0]
+        self._num_shapes = (
+            self._sim_bind_shape_material_mu.shape[1] if len(self._sim_bind_shape_material_mu.shape) > 1 else 1
+        )
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""

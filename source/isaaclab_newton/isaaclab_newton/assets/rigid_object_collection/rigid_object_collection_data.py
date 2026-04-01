@@ -608,6 +608,14 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             device=_body_inertia_raw.device,
             copy=False,
         )
+        # -- shape material properties (for collision shapes)
+        self._sim_bind_shape_material_mu = self._root_view.get_attribute("shape_material_mu", model)[:, :, 0]
+        self._sim_bind_shape_material_restitution = self._root_view.get_attribute("shape_material_restitution", model)[
+            :, :, 0
+        ]
+        self._num_shapes = (
+            self._sim_bind_shape_material_mu.shape[1] if len(self._sim_bind_shape_material_mu.shape) > 1 else 1
+        )
 
     def _create_buffers(self) -> None:
         """Create buffers for computing and caching derived quantities."""
