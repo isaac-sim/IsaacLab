@@ -19,6 +19,7 @@ from newton.sensors import SensorContact as NewtonContactSensor
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.scene.scene_data_provider import SceneDataBackend, SceneDataFormat
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
 
@@ -44,6 +45,44 @@ def _set_fabric_transforms(
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
     fabric_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
+
+
+class NewtonSceneDataBackend(SceneDataBackend):
+    """Scene data backend that reads rigid body transforms from Newton's simulation state.
+
+    The backend reads ``body_q`` (an array of :class:`wp.transformf`) from
+    Newton's current state and exposes it as :class:`SceneDataFormat.Transform`.
+    Body paths come from the model's ``body_label`` attribute.
+    """
+
+    def __init__(self):
+        self._scene_data = SceneDataFormat.Transform()
+
+    @property
+    def transforms(self) -> SceneDataFormat.Transform:
+        """Return the current Newton rigid body transforms as :class:`SceneDataFormat.Transform`."""
+        self._scene_data.transforms = self.state.body_q
+        return self._scene_data
+
+    @property
+    def transform_count(self) -> int:
+        """Return the number of rigid body transforms in the Newton sim."""
+        return self.model.body_count
+
+    @property
+    def transform_paths(self) -> list[str]:
+        """Return the prim paths for each rigid body transform."""
+        if self.model.body_label is not None:
+            return list(self.model.body_label)
+        return []
+
+    @property
+    def model(self) -> Model:
+        return NewtonManager.get_model()
+
+    @property
+    def state(self) -> Model:
+        return NewtonManager.get_state_0()
 
 
 class NewtonManager(PhysicsManager):
@@ -93,6 +132,9 @@ class NewtonManager(PhysicsManager):
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
 
+    # Scene data backend
+    _scene_data_backend: NewtonSceneDataBackend | None = None
+
     # Views list for assets to register their views
     _views: list = []
 
@@ -122,6 +164,8 @@ class NewtonManager(PhysicsManager):
 
             cameras_enabled = bool(get_settings_manager().get("/isaaclab/cameras_enabled", False))
             cls._clone_physics_only = "kit" not in requested and not cameras_enabled
+
+        cls._scene_data_backend = NewtonSceneDataBackend()
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -220,6 +264,11 @@ class NewtonManager(PhysicsManager):
         super().close()
 
     @classmethod
+    def get_scene_data_backend(cls) -> SceneDataBackend:
+        """Return the SceneDataBackend for the SceneDataProvider."""
+        return cls._scene_data_backend
+
+    @classmethod
     def get_physics_sim_view(cls) -> list:
         """Get the list of registered views.
 
@@ -256,6 +305,7 @@ class NewtonManager(PhysicsManager):
         cls._usdrt_stage = None
         cls._up_axis = "Z"
         cls._model_changes = set()
+        cls._scene_data_backend = None
         cls._views = []
 
     @classmethod
