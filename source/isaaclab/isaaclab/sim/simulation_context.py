@@ -27,10 +27,11 @@ from isaaclab.physics.scene_data_requirements import (
     VisualizerPrebuiltArtifacts,
     resolve_scene_data_requirements,
 )
+from isaaclab.scene.scene_data_provider import SceneDataProvider as NewSceneDataProvider
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.scene.scene_data_provider import SceneDataProvider as NewSceneDataProvider
+
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 

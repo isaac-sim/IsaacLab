@@ -17,11 +17,12 @@ import torch
 import warp as wp
 
 from isaaclab.renderers import BaseRenderer
+from isaaclab.scene.scene_data_provider import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
-from isaaclab.scene.scene_data_provider import SceneDataFormat
-from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
 from ..physics.newton_manager import NewtonSceneDataBackend
+from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
@@ -166,7 +167,9 @@ class NewtonWarpRenderer(BaseRenderer):
         if isinstance(scene_data_provider.backend, NewtonSceneDataBackend):
             self._newton_model = scene_data_provider.backend.model
         else:
-            self._newton_model: newton.Model = SimulationContext.instance().initialize_scene_data_provider().get_newton_model()
+            self._newton_model: newton.Model = (
+                SimulationContext.instance().initialize_scene_data_provider().get_newton_model()
+            )
 
         if self._newton_model is None:
             raise RuntimeError(

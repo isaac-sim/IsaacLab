@@ -4,8 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from __future__ import annotations
+
+import contextlib
+
 import numpy as np
 import warp as wp
+
 
 class SceneDataFormat:
     @wp.struct
@@ -29,7 +33,11 @@ class SceneDataFormat:
 
 class SceneDataBackend:
     @property
-    def transforms(self) -> SceneDataFormat.Vec3_Quat | SceneDataFormat.Transform | SceneDataFormat.Matrix44 | SceneDataFormat.Vec3_Matrix33:
+    def transforms(
+        self,
+    ) -> (
+        SceneDataFormat.Vec3_Quat | SceneDataFormat.Transform | SceneDataFormat.Matrix44 | SceneDataFormat.Vec3_Matrix33
+    ):
         """Return the sim backends transforms as one of the SceneDataFormat structs."""
         raise NotImplementedError
 
@@ -58,7 +66,15 @@ class SceneDataProvider:
         """Number of transforms available from the sim backend."""
         return self.backend.transform_count
 
-    def get_transforms(self, output: SceneDataFormat.Vec3_Quat | SceneDataFormat.Transform | SceneDataFormat.Matrix44 | SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32) | None = None, allow_passthrough: bool = True) -> bool:
+    def get_transforms(
+        self,
+        output: SceneDataFormat.Vec3_Quat
+        | SceneDataFormat.Transform
+        | SceneDataFormat.Matrix44
+        | SceneDataFormat.Vec3_Matrix33,
+        mapping: wp.array(dtype=wp.int32) | None = None,
+        allow_passthrough: bool = True,
+    ) -> bool:
         """Convert sim backend transforms into the requested output format.
 
         When the backend's native format matches ``output``, data is either passed
@@ -102,7 +118,13 @@ class SceneDataProvider:
 
         return False
 
-    def init_output(self, output: SceneDataFormat.Vec3_Quat | SceneDataFormat.Transform | SceneDataFormat.Matrix44 | SceneDataFormat.Vec3_Matrix33):
+    def init_output(
+        self,
+        output: SceneDataFormat.Vec3_Quat
+        | SceneDataFormat.Transform
+        | SceneDataFormat.Matrix44
+        | SceneDataFormat.Vec3_Matrix33,
+    ):
         """Allocate any uninitialized fields in ``output`` with empty Warp arrays.
 
         Only fields that are currently ``None`` are allocated; already-initialized
@@ -136,13 +158,12 @@ class SceneDataProvider:
         if input_paths := self.backend.transform_paths:
             mapping = [-1] * len(input_paths)
             for i, path in enumerate(input_paths):
-                try:
+                with contextlib.suppress(ValueError):
                     mapping[i] = paths.index(path)
-                except ValueError:
-                    pass
             if not np.array_equal(mapping, np.arange(len(input_paths))):
                 return wp.array(mapping, dtype=wp.int32)
         return None
+
 
 class ConversionKernels:
     @wp.func
@@ -154,7 +175,9 @@ class ConversionKernels:
         return wp.int32(-1)
 
     @wp.kernel
-    def convert_Vec3_Quat_to_Vec3_Quat(input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Quat):
+    def convert_Vec3_Quat_to_Vec3_Quat(
+        input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Quat
+    ):
         """Pass-through Vec3/Quat"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -163,7 +186,9 @@ class ConversionKernels:
             output.orientations[idx] = input.orientations[tid]
 
     @wp.kernel
-    def convert_Vec3_Quat_to_Vec3_Matrix33(input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33):
+    def convert_Vec3_Quat_to_Vec3_Matrix33(
+        input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33
+    ):
         """Convert Vec3/Quat to Vec3/Matrix33"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -172,7 +197,9 @@ class ConversionKernels:
             output.orientations[idx] = wp.quat_to_matrix(input.orientations[tid])
 
     @wp.kernel
-    def convert_Vec3_Quat_to_Transform(input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform):
+    def convert_Vec3_Quat_to_Transform(
+        input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform
+    ):
         """Convert Vec3/Quat to Transform"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -180,16 +207,19 @@ class ConversionKernels:
             output.transforms[idx] = wp.transformf(input.positions[tid], input.orientations[tid])
 
     @wp.kernel
-    def convert_Vec3_Quat_to_Matrix44(input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44):
+    def convert_Vec3_Quat_to_Matrix44(
+        input: SceneDataFormat.Vec3_Quat, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44
+    ):
         """Convert Vec3/Quat to Matrix44"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
         if idx > -1:
             output.matrices[idx] = wp.transform_to_matrix(wp.transformf(input.positions[tid], input.orientations[tid]))
 
-
     @wp.kernel
-    def convert_Vec3_Matrix33_to_Vec3_Quat(input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Quat):
+    def convert_Vec3_Matrix33_to_Vec3_Quat(
+        input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Quat
+    ):
         """Convert Vec3/Matrix33 to Vec3/Quat"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -198,7 +228,9 @@ class ConversionKernels:
             output.orientations[idx] = wp.quat_from_matrix(input.orientations[tid])
 
     @wp.kernel
-    def convert_Vec3_Matrix33_to_Vec3_Matrix33(input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33):
+    def convert_Vec3_Matrix33_to_Vec3_Matrix33(
+        input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33
+    ):
         """Pass-through Vec3/Matrix33"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -207,7 +239,9 @@ class ConversionKernels:
             output.orientations[idx] = input.orientations[tid]
 
     @wp.kernel
-    def convert_Vec3_Matrix33_to_Transform(input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform):
+    def convert_Vec3_Matrix33_to_Transform(
+        input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform
+    ):
         """Convert Vec3/Matrix33 to Transform"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -215,7 +249,9 @@ class ConversionKernels:
             output.transforms[idx] = wp.transformf(input.positions[tid], wp.quat_from_matrix(input.orientations[tid]))
 
     @wp.kernel
-    def convert_Vec3_Matrix33_to_Matrix44(input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44):
+    def convert_Vec3_Matrix33_to_Matrix44(
+        input: SceneDataFormat.Vec3_Matrix33, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44
+    ):
         """Convert Vec3/Matrix33 to Matrix44"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -223,9 +259,10 @@ class ConversionKernels:
             transform = wp.transformf(input.positions[tid], wp.quat_from_matrix(input.orientations[tid]))
             output.matrices[idx] = wp.transform_to_matrix(transform)
 
-
     @wp.kernel
-    def convert_Transform_to_Vec3_Quat(input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Quat):
+    def convert_Transform_to_Vec3_Quat(
+        input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Quat
+    ):
         """Convert Transform to Vec3/Quat"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -234,7 +271,9 @@ class ConversionKernels:
             output.orientations[idx] = wp.transform_get_rotation(input.transforms[tid])
 
     @wp.kernel
-    def convert_Transform_to_Vec3_Matrix33(input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33):
+    def convert_Transform_to_Vec3_Matrix33(
+        input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33
+    ):
         """Convert Transform to Vec3/Matrix33"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -243,7 +282,9 @@ class ConversionKernels:
             output.orientations[idx] = wp.quat_to_matrix(wp.transform_get_rotation(input.transforms[tid]))
 
     @wp.kernel
-    def convert_Transform_to_Transform(input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform):
+    def convert_Transform_to_Transform(
+        input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform
+    ):
         """Pass-through Transform"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -251,16 +292,19 @@ class ConversionKernels:
             output.transforms[idx] = input.transforms[tid]
 
     @wp.kernel
-    def convert_Transform_to_Matrix44(input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44):
+    def convert_Transform_to_Matrix44(
+        input: SceneDataFormat.Transform, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44
+    ):
         """Convert Transform to Matrix44"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
         if idx > -1:
             output.matrices[idx] = wp.transform_to_matrix(input.transforms[tid])
 
-
     @wp.kernel
-    def convert_Matrix44_to_Vec3_Quat(input: SceneDataFormat.Matrix44, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Quat):
+    def convert_Matrix44_to_Vec3_Quat(
+        input: SceneDataFormat.Matrix44, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Quat
+    ):
         """Convert Matrix44 to Vec3/Quat"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -270,7 +314,9 @@ class ConversionKernels:
             output.orientations[idx] = wp.transform_get_rotation(transform)
 
     @wp.kernel
-    def convert_Matrix44_to_Vec3_Matrix33(input: SceneDataFormat.Matrix44, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33):
+    def convert_Matrix44_to_Vec3_Matrix33(
+        input: SceneDataFormat.Matrix44, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Vec3_Matrix33
+    ):
         """Convert Matrix44 to Vec3/Matrix33"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -280,7 +326,9 @@ class ConversionKernels:
             output.orientations[idx] = wp.quat_to_matrix(wp.transform_get_rotation(transform))
 
     @wp.kernel
-    def convert_Matrix44_to_Transform(input: SceneDataFormat.Matrix44, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform):
+    def convert_Matrix44_to_Transform(
+        input: SceneDataFormat.Matrix44, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Transform
+    ):
         """Convert Matrix44 to Transform"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -288,7 +336,9 @@ class ConversionKernels:
             output.transforms[idx] = wp.transform_from_matrix(input.matrices[tid])
 
     @wp.kernel
-    def convert_Matrix44_to_Matrix44(input: SceneDataFormat.Matrix44, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44):
+    def convert_Matrix44_to_Matrix44(
+        input: SceneDataFormat.Matrix44, mapping: wp.array(dtype=wp.int32), output: SceneDataFormat.Matrix44
+    ):
         """Pass-through Matrix44"""
         tid = wp.tid()
         idx = ConversionKernels.get_output_index(tid, mapping)
@@ -300,6 +350,7 @@ class ConversionKernels:
 ## Example
 
 if __name__ == "__main__":
+
     class ExampleSceneDataBackend(SceneDataBackend):
         def __init__(self):
             self.__transforms = SceneDataFormat.Transform()
@@ -315,17 +366,18 @@ if __name__ == "__main__":
 
         @property
         def transform_paths(self):
-            return ["/world/shape_01",
-                    "/world/shape_02",
-                    "/world/shape_03",
-                    "/world/shape_04",
-                    "/world/shape_05",
-                    "/world/shape_06",
-                    "/world/shape_07",
-                    "/world/shape_08",
-                    "/world/shape_09",
-                    "/world/shape_10"]
-
+            return [
+                "/world/shape_01",
+                "/world/shape_02",
+                "/world/shape_03",
+                "/world/shape_04",
+                "/world/shape_05",
+                "/world/shape_06",
+                "/world/shape_07",
+                "/world/shape_08",
+                "/world/shape_09",
+                "/world/shape_10",
+            ]
 
     sim = ExampleSceneDataBackend()
     sdp = SceneDataProvider(sim)
@@ -335,18 +387,20 @@ if __name__ == "__main__":
     output_data.orientations = wp.empty(sdp.transform_count, dtype=wp.mat33f)
 
     print(sim.transforms.transforms)
-    mapping = sdp.create_mapping([
-        "/world/shape_02",
-        "/world/shape_01",
-        "/world/shape_03",
-        "/world/shape_04",
-        "/world/shape_05",
-        None,
-        None,
-        "/world/shape_10",
-        None,
-        None,
-    ])
+    mapping = sdp.create_mapping(
+        [
+            "/world/shape_02",
+            "/world/shape_01",
+            "/world/shape_03",
+            "/world/shape_04",
+            "/world/shape_05",
+            None,
+            None,
+            "/world/shape_10",
+            None,
+            None,
+        ]
+    )
     print(mapping)
     if sdp.get_transforms(output_data, mapping):
         print(output_data.positions)
