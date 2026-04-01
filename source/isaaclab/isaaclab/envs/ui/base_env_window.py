@@ -225,14 +225,14 @@ class BaseEnvWindow:
                 self.ui_window_elements["viewer_eye"] = isaacsim.gui.components.ui_utils.xyz_builder(
                     label="Camera Eye",
                     tooltip="Modify the XYZ location of the viewer eye.",
-                    default_val=self.env.cfg.viewer.position,
+                    default_val=self.env.cfg.viewer.eye,
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
                 )
                 self.ui_window_elements["viewer_lookat"] = isaacsim.gui.components.ui_utils.xyz_builder(
                     label="Camera Target",
                     tooltip="Modify the XYZ location of the viewer target.",
-                    default_val=self.env.cfg.viewer.target_position,
+                    default_val=self.env.cfg.viewer.lookat,
                     step=0.1,
                     on_value_changed_fn=[self._set_viewer_location_fn] * 3,
                 )

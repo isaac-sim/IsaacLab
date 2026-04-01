@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import TYPE_CHECKING
 
 from pxr import UsdGeom
@@ -19,7 +18,6 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from .kit_visualizer_cfg import KitVisualizerCfg
 
 logger = logging.getLogger(__name__)
-_VIS_DEBUG_ENABLED = os.getenv("ISAACLAB_VIS_DEBUG", "0").lower() in {"1", "true", "yes", "on"}
 
 if TYPE_CHECKING:
     from isaaclab.physics import BaseSceneDataProvider
@@ -48,9 +46,6 @@ class KitVisualizer(BaseVisualizer):
         # user-switching the GUI viewport to a sensor camera does not corrupt the sensor's prim.
         self._controlled_camera_path: str | None = None
         self._runtime_headless = bool(cfg.headless)
-        self._debug_last_step_state: tuple[bool, bool, bool | None] | None = None
-        self._debug_period_steps = 120
-        self._last_timeline_playing: bool | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -86,8 +81,8 @@ class KitVisualizer(BaseVisualizer):
             logger=logger,
             title="KitVisualizer Configuration",
             rows=[
-                ("camera_position", self.cfg.camera_position),
-                ("camera_target", self.cfg.camera_target),
+                ("eye", self.cfg.eye),
+                ("lookat", self.cfg.lookat),
                 ("camera_source", self.cfg.camera_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("create_viewport", self.cfg.create_viewport),
@@ -108,53 +103,11 @@ class KitVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
         try:
-            import carb.settings
             import omni.kit.app
-            import omni.timeline
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
-                # Pump Kit/UI events only; SimulationContext owns physics stepping.
-                settings = carb.settings.get_settings()
-                play_simulations_path = "/app/player/playSimulations"
-                previous_play_simulations = None if settings is None else settings.get(play_simulations_path)
-                timeline = omni.timeline.get_timeline_interface()
-                timeline_playing = bool(timeline is not None and timeline.is_playing())
-                timeline_stopped = bool(timeline is not None and timeline.is_stopped())
-                timeline_pause_state = (not timeline_playing) and (not timeline_stopped)
-                should_temporarily_pause = bool(previous_play_simulations)
-                did_app_update = False
-                try:
-                    # Prevent app.update() from stepping physics. SimulationContext owns stepping.
-                    if should_temporarily_pause and settings is not None:
-                        settings.set_bool(play_simulations_path, False)
-                    app.update()
-                    did_app_update = True
-                finally:
-                    if should_temporarily_pause and settings is not None:
-                        settings.set_bool(play_simulations_path, True)
-
-                if _VIS_DEBUG_ENABLED:
-                    state = (timeline_playing, timeline_stopped, previous_play_simulations)
-                    if (
-                        self._debug_last_step_state != state
-                        or (self._step_counter % self._debug_period_steps == 0)
-                        or not did_app_update
-                    ):
-                        logger.warning(
-                            "[VIS-DEBUG][KitVisualizer.step] step=%d dt=%.4f timeline_playing=%s timeline_stopped=%s "
-                            "playSim_before=%s playSim_target=%s timeline_paused=%s app_update=%s",
-                            self._step_counter,
-                            dt,
-                            timeline_playing,
-                            timeline_stopped,
-                            previous_play_simulations,
-                            bool(not should_temporarily_pause),
-                            timeline_pause_state,
-                            did_app_update,
-                        )
-                    self._debug_last_step_state = state
-                self._last_timeline_playing = timeline_playing
+                app.update()
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 
@@ -270,6 +223,8 @@ class KitVisualizer(BaseVisualizer):
             # In headless mode we keep the visualizer active but skip viewport/window setup.
             self._viewport_window = None
             self._viewport_api = None
+            self._controlled_camera_path = "/OmniverseKit_Persp"
+            self._apply_cfg_camera_pose_if_configured()
             return
 
         if self.cfg.create_viewport and self.cfg.viewport_name:
@@ -310,9 +265,9 @@ class KitVisualizer(BaseVisualizer):
                     "[KitVisualizer] camera_usd_path '%s' not found; using configured camera.",
                     self.cfg.camera_usd_path,
                 )
-                self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
+                self._apply_cfg_camera_pose_if_configured()
         else:
-            self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
+            self._apply_cfg_camera_pose_if_configured()
 
     async def _dock_viewport_async(self, viewport_name: str, dock_position) -> None:
         """Dock a created viewport window relative to main viewport."""
@@ -361,8 +316,6 @@ class KitVisualizer(BaseVisualizer):
         """Apply eye/target camera view to the active viewport."""
         import isaacsim.core.utils.viewports as isaacsim_viewports
 
-        if self._viewport_api is None:
-            return
         # Use the camera path pinned at initialization. This prevents user-switching the GUI
         # viewport to a sensor camera from corrupting the sensor's USD prim transform.
         camera_path = self._controlled_camera_path
@@ -370,10 +323,26 @@ class KitVisualizer(BaseVisualizer):
             camera_path = self._viewport_api.get_active_camera() if self._viewport_api else None
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"
+        kwargs = {"eye": list(position), "target": list(target), "camera_prim_path": camera_path}
+        if self._viewport_api is not None:
+            kwargs["viewport_api"] = self._viewport_api
+        isaacsim_viewports.set_camera_view(**kwargs)
 
-        isaacsim_viewports.set_camera_view(
-            eye=list(position), target=list(target), camera_prim_path=camera_path, viewport_api=self._viewport_api
-        )
+    def _apply_cfg_camera_pose_if_configured(self) -> None:
+        """Apply configured camera pose if both position and target are provided.
+
+        When either field is ``None``, keep the current/default perspective
+        camera transform unchanged.
+        """
+        if self.cfg.eye is None and self.cfg.lookat is None:
+            return
+        if self.cfg.eye is None or self.cfg.lookat is None:
+            logger.warning(
+                "[KitVisualizer] eye/lookat must be both set or both None. "
+                "Keeping current camera pose."
+            )
+            return
+        self._set_viewport_camera(self.cfg.eye, self.cfg.lookat)
 
     def _set_active_camera_path(self, camera_path: str) -> bool:
         """Set active camera path for viewport if the prim exists.

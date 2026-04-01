@@ -314,7 +314,9 @@ class NewtonVisualizer(BaseVisualizer):
             max_worlds = self.cfg.max_worlds
             self._viewer.set_model(self._model, max_worlds=max_worlds)
             self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-            self._apply_camera_pose(self._resolve_initial_camera_pose())
+            initial_pose = self._resolve_initial_camera_pose()
+            if initial_pose is not None:
+                self._apply_camera_pose(initial_pose)
             self._viewer.up_axis = 2  # Z-up
 
             self._viewer.scaling = 1.0
@@ -342,12 +344,12 @@ class NewtonVisualizer(BaseVisualizer):
             title="NewtonVisualizer Configuration",
             rows=[
                 (
-                    "camera_position",
+                    "eye",
                     tuple(float(x) for x in self._viewer.camera.pos)
                     if self._viewer is not None
-                    else self.cfg.camera_position,
+                    else self.cfg.eye,
                 ),
-                ("camera_target", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.camera_target),
+                ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
                 ("camera_source", self.cfg.camera_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
@@ -431,11 +433,11 @@ class NewtonVisualizer(BaseVisualizer):
             return False
         return self._viewer.is_running()
 
-    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
         """Resolve initial camera pose from config or USD camera path.
 
         Returns:
-            Camera eye and target tuples.
+            Camera eye and target tuples, or ``None`` to keep viewer defaults.
         """
         if self.cfg.camera_source == "usd_path":
             pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
@@ -445,7 +447,7 @@ class NewtonVisualizer(BaseVisualizer):
                 "[NewtonVisualizer] camera_usd_path '%s' not found; using configured camera.",
                 self.cfg.camera_usd_path,
             )
-        return self.cfg.camera_position, self.cfg.camera_target
+        return self._resolve_cfg_camera_pose("NewtonVisualizer")
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply camera eye/target pose to the Newton viewer.

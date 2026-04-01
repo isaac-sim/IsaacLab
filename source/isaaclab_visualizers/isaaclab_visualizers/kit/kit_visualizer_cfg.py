@@ -16,6 +16,20 @@ class KitVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
 
+    eye: tuple[float, float, float] | None = (8.0, 8.0, 3.0)
+    """Initial camera eye override.
+
+    If set to ``None`` (with :attr:`lookat` also set to ``None``), the
+    visualizer keeps the current/default perspective camera pose.
+    """
+
+    lookat: tuple[float, float, float] | None = (0.0, 0.0, 0.0)
+    """Initial camera look-at override.
+
+    If set to ``None`` (with :attr:`eye` also set to ``None``), the
+    visualizer keeps the current/default perspective camera pose.
+    """
+
     viewport_name: str | None = "Visualizer Viewport"
     """Viewport name to use. If None, uses active viewport."""
 

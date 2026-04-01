@@ -312,7 +312,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.episode_length_s = 6.66
-        self.viewer.position = (3.5, 3.5, 3.5)
+        self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
         self.decimation = 4
         self.sim.render_interval = self.decimation

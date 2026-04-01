@@ -162,8 +162,8 @@ class ViserVisualizer(BaseVisualizer):
             logger=logger,
             title="ViserVisualizer Configuration",
             rows=[
-                ("camera_position", self.cfg.camera_position),
-                ("camera_target", self.cfg.camera_target),
+                ("eye", self.cfg.eye),
+                ("lookat", self.cfg.lookat),
                 ("camera_source", self.cfg.camera_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("port", self.cfg.port),
@@ -259,7 +259,9 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         if self.cfg.open_browser:
             _open_viser_web_viewer(self.cfg.port)
-        self._set_viser_camera_view(self._resolve_initial_camera_pose())
+        initial_pose = self._resolve_initial_camera_pose()
+        if initial_pose is not None:
+            self._set_viser_camera_view(initial_pose)
         self._sim_time = 0.0
 
     def _close_viewer(self, finalize_viser: bool = False) -> None:
@@ -275,7 +277,7 @@ class ViserVisualizer(BaseVisualizer):
                 logger.warning("[ViserVisualizer] Recording file not found: %s", self._active_record_path)
         self._viewer = None
 
-    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
         """Resolve initial camera pose from config or USD camera path."""
         if self.cfg.camera_source == "usd_path":
             pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
@@ -285,7 +287,7 @@ class ViserVisualizer(BaseVisualizer):
                 "[ViserVisualizer] camera_usd_path '%s' not found; using configured camera.",
                 self.cfg.camera_usd_path,
             )
-        return self.cfg.camera_position, self.cfg.camera_target
+        return self._resolve_cfg_camera_pose("ViserVisualizer")
 
     def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
         """Try applying camera pose to active viser clients.

@@ -35,7 +35,6 @@ from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
-_VIS_DEBUG_ENABLED = os.getenv("ISAACLAB_VIS_DEBUG", "0").lower() in {"1", "true", "yes", "on"}
 
 # Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
 _VISUALIZER_TYPES = ("newton", "rerun", "viser", "kit")
@@ -181,7 +180,9 @@ class SimulationContext:
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
         self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
+        self._video_auto_start_kit = bool(self.get_setting("/isaaclab/video/auto_start_kit"))
         # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
+        self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
         # Simulation state
         self._is_playing = False
@@ -189,8 +190,6 @@ class SimulationContext:
 
         # Monotonic physics-step counter used by camera sensors for
         self._physics_step_count: int = 0
-        self._debug_last_pause_signature: tuple[bool, bool, bool, int] | None = None
-        self._debug_period_steps = 120
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -537,6 +536,26 @@ class SimulationContext:
                         exc,
                     )
 
+        # Headless video auto-start: inject a KitVisualizer when needed so that
+        # app.update() is pumped and viewer camera updates can be applied in
+        # rgb-array recording flows.
+        if self._video_auto_start_kit and not cli_disable_all:
+            has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
+            if not has_kit:
+                try:
+                    import importlib
+
+                    mod = importlib.import_module("isaaclab_visualizers.kit")
+                    kit_cfg_cls = getattr(mod, "KitVisualizerCfg")
+                    resolved.append(kit_cfg_cls(headless=True))
+                    logger.info("[SimulationContext] Auto-injecting KitVisualizer for headless video recording.")
+                except (ImportError, ModuleNotFoundError, AttributeError, TypeError) as exc:
+                    logger.warning(
+                        "[SimulationContext] Headless video could not auto-inject a KitVisualizer: %s. "
+                        "Install isaaclab_visualizers[kit] or pass --visualizer kit.",
+                        exc,
+                    )
+
         return resolved
 
     def initialize_visualizers(self) -> None:
@@ -579,6 +598,12 @@ class SimulationContext:
                     type(cfg).__name__,
                     exc,
                 )
+
+        # Replay any camera pose requested before visualizers were initialized.
+        if self._pending_camera_view is not None:
+            eye, target = self._pending_camera_view
+            for viz in self._visualizers:
+                viz.set_camera_view(eye, target)
 
         if not self._visualizers and self._scene_data_provider is not None:
             close_provider = getattr(self._scene_data_provider, "close", None)
@@ -630,6 +655,7 @@ class SimulationContext:
 
     def set_camera_view(self, eye: tuple, target: tuple) -> None:
         """Set camera view on all visualizers that support it."""
+        self._pending_camera_view = (tuple(eye), tuple(target))
         for viz in self._visualizers:
             viz.set_camera_view(eye, target)
 
@@ -691,19 +717,6 @@ class SimulationContext:
         if not self._visualizers:
             return
 
-        if _VIS_DEBUG_ENABLED and (
-            self._visualizer_step_counter % self._debug_period_steps == 0 or self._visualizer_step_counter < 5
-        ):
-            logger.warning(
-                "[VIS-DEBUG][SimulationContext.update_visualizers] step=%d dt=%.4f sim_playing=%s "
-                "visualizer_count=%d requires_forward=%s",
-                self._visualizer_step_counter,
-                dt,
-                self.is_playing(),
-                len(self._visualizers),
-                self._should_forward_before_visualizer_update(),
-            )
-
         self.update_scene_data_provider()
 
         visualizers_to_remove = []
@@ -722,23 +735,6 @@ class SimulationContext:
                     viz.step(0.0)
                     continue
                 while viz.is_training_paused() and viz.is_running():
-                    if _VIS_DEBUG_ENABLED:
-                        pause_signature = (
-                            bool(self.is_playing()),
-                            bool(viz.is_running()),
-                            bool(viz.is_training_paused()),
-                            id(viz),
-                        )
-                        if pause_signature != self._debug_last_pause_signature:
-                            logger.warning(
-                                "[VIS-DEBUG][SimulationContext.update_visualizers] training paused loop: "
-                                "viz=%s sim_playing=%s viz_running=%s viz_training_paused=%s",
-                                type(viz).__name__,
-                                self.is_playing(),
-                                viz.is_running(),
-                                viz.is_training_paused(),
-                            )
-                            self._debug_last_pause_signature = pause_signature
                     viz.step(0.0)
                 viz.step(dt)
             except Exception as exc:

@@ -142,8 +142,8 @@ class CartpoleRGBCameraEnvCfg(CartpoleEnvCfg):
         # remove ground as it obstructs the camera
         self.scene.ground = None
         # viewer settings
-        self.viewer.position = (7.0, 0.0, 2.5)
-        self.viewer.target_position = (0.0, 0.0, 2.5)
+        self.viewer.eye = (7.0, 0.0, 2.5)
+        self.viewer.lookat = (0.0, 0.0, 2.5)
 
 
 @configclass
@@ -158,8 +158,8 @@ class CartpoleDepthCameraEnvCfg(CartpoleEnvCfg):
         # remove ground as it obstructs the camera
         self.scene.ground = None
         # viewer settings
-        self.viewer.position = (7.0, 0.0, 2.5)
-        self.viewer.target_position = (0.0, 0.0, 2.5)
+        self.viewer.eye = (7.0, 0.0, 2.5)
+        self.viewer.lookat = (0.0, 0.0, 2.5)
 
 
 @configclass

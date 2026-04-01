@@ -187,6 +187,27 @@ class BaseVisualizer(ABC):
         """
         pass
 
+    def _resolve_cfg_camera_pose(
+        self, visualizer_name: str
+    ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+        """Resolve camera pose from cfg fields, allowing opt-out via ``None``.
+
+        Returns ``None`` when both cfg camera fields are ``None`` (keep backend
+        default camera) or when only one field is ``None`` (invalid partial pose).
+        """
+        eye = getattr(self.cfg, "eye", None)
+        lookat = getattr(self.cfg, "lookat", None)
+        if eye is None and lookat is None:
+            return None
+        if eye is None or lookat is None:
+            logger.warning(
+                "[%s] eye/lookat must be both set or both None. "
+                "Keeping current camera pose.",
+                visualizer_name,
+            )
+            return None
+        return eye, lookat
+
     def _resolve_camera_pose_from_usd_path(
         self, usd_path: str
     ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
