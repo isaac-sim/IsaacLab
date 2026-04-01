@@ -12,7 +12,7 @@ Added
   Previously only relative imports and absolute wildcard fallbacks were
   handled; explicit names from absolute packages are now eagerly resolved
   and re-exported.
-  
+
 Fixed
 ^^^^^
 
