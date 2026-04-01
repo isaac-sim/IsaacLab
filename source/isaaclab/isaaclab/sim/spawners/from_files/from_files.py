@@ -8,12 +8,14 @@ from __future__ import annotations
 import fcntl
 import logging
 import os
+import shutil
 import tempfile
 from typing import TYPE_CHECKING
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab.sim import converters, schemas
+from isaaclab.utils.string import to_camel_case
 from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.sim.utils import (
     add_labels,
@@ -35,6 +37,263 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def _create_modified_usd_with_overrides(
+    usd_path: str, cfg: "from_files_cfg.UsdFileCfg"
+) -> str | None:
+    """Create a modified copy of USD with physics properties baked in for instanced prims.
+
+    File I/O is required because USD prototypes are read-only after composition.
+    This function modifies source layers to set physics schema attributes and
+    optionally creates randomizable visual materials for per-body color randomization.
+    """
+    # Collect physics properties to apply
+    prop_schema_map = {
+        "collision_props": ("CollisionAPI", "physxCollision:"),
+        "rigid_props": ("RigidBodyAPI", "physxRigidBody:"),
+        "articulation_props": ("ArticulationRootAPI", "physxArticulation:"),
+        "joint_drive_props": ("DriveAPI", "physxJoint:"),
+        "mass_props": ("MassAPI", "physics:"),
+        "deformable_props": ("DeformableAPI", "physxDeformable:"),
+    }
+    props = []
+    for name, (api, prefix) in prop_schema_map.items():
+        prop_cfg = getattr(cfg, name, None)
+        if prop_cfg:
+            props.append((prop_cfg, api, prefix))
+
+    # Check if we need to create randomizable visual materials
+    create_visual_materials = getattr(cfg, "randomizable_visual_materials", False)
+
+    if not props and not create_visual_materials:
+        return None
+
+    # Copy USD and all referenced layers to temp directory
+    stage = Usd.Stage.Open(usd_path)
+    if not stage:
+        return None
+    layers = [l for l in stage.GetUsedLayers() if not l.anonymous]
+    paths = [l.identifier for l in layers]
+    del stage
+
+    common_root = os.path.commonpath(paths) if len(paths) > 1 else os.path.dirname(paths[0])
+    temp_dir = tempfile.mkdtemp(prefix="isaaclab_usd_")
+    path_map = {p: os.path.join(temp_dir, os.path.relpath(p, common_root)) for p in paths}
+    for src, dst in path_map.items():
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(src, dst)
+
+    temp_path = path_map[usd_path]
+    temp_stage = Usd.Stage.Open(temp_path)
+    if not temp_stage:
+        return None
+
+    # Modify physics properties in each layer
+    modified = False
+    for layer in (l for l in temp_stage.GetUsedLayers() if not l.anonymous):
+        stack = list(layer.rootPrims.values())
+        while stack:
+            prim_spec = stack.pop()
+            stack.extend(prim_spec.nameChildren.values())
+
+            # Get applied API schemas
+            schemas = prim_spec.GetInfo("apiSchemas")
+            apis = set()
+            if schemas:
+                for attr in ("explicitItems", "prependedItems", "appendedItems"):
+                    apis.update(str(s) for s in getattr(schemas, attr, []))
+
+            # Apply matching properties
+            for prop_cfg, api_schema, prefix in props:
+                if not any(api_schema in a for a in apis):
+                    continue
+                modified = True
+                for field, value in prop_cfg.to_dict().items():
+                    if value is None or field.startswith("_") or hasattr(value, "to_dict"):
+                        continue
+                    vtype = {bool: Sdf.ValueTypeNames.Bool, int: Sdf.ValueTypeNames.Int,
+                             float: Sdf.ValueTypeNames.Float}.get(type(value))
+                    if vtype:
+                        attr_name = f"{prefix}{to_camel_case(field, 'cC')}"
+                        path = prim_spec.path.AppendProperty(attr_name)
+                        attr = layer.GetAttributeAtPath(path) or Sdf.AttributeSpec(
+                            prim_spec, attr_name, vtype)
+                        attr.default = value
+        layer.Save()
+
+    # Create randomizable visual materials in the source layer
+    if create_visual_materials:
+        materials_modified = _add_visual_materials_to_layer(temp_stage, cfg)
+        modified = modified or materials_modified
+
+    del temp_stage
+    return temp_path if modified else None
+
+
+def _add_visual_materials_to_layer(stage: Usd.Stage, cfg: "from_files_cfg.FileCfg") -> bool:
+    """Create UsdPreviewSurface materials for per-body color randomization.
+
+    This function enables per-body color randomization while keeping visual geometry
+    INSTANCED for memory efficiency. Supports two modes:
+
+    - ``"full"``: Each visual body part gets its own unique material (fully random colors)
+    - ``"style"``: Body parts sharing the same original material share a randomizable material
+      (preserves color groupings, like changing the robot's color scheme)
+
+    The approach:
+    1. Find link prims that have 'visuals' children
+    2. Create UsdPreviewSurface materials in a RandomizableMaterials container
+    3. Bind materials to 'visuals' prims with 'strongerThanDescendants' binding strength
+    4. The binding strength overrides instance proxy bindings, enabling per-env colors
+       without breaking geometry instancing
+
+    Args:
+        stage: The USD stage (opened from temp copy).
+        cfg: The configuration instance.
+
+    Returns:
+        True if materials were added, False otherwise.
+    """
+    from pxr import UsdShade, Usd  # noqa: PLC0415
+
+    root_layer = stage.GetRootLayer()
+    default_prim = stage.GetDefaultPrim()
+    if not default_prim:
+        logger.warning("[randomizable_visual_materials] No default prim found")
+        return False
+
+    default_prim_path = default_prim.GetPath()
+    stage.Load()
+
+    # Get mode: "full" (each body gets unique material) or "style" (preserve material groups)
+    mode = getattr(cfg, "randomizable_visual_materials_mode", "full")
+
+    # Find link prims that have a 'visuals' child (these are NOT instance proxies)
+    link_prims_with_visuals = []
+    for prim in stage.TraverseAll():
+        path_str = str(prim.GetPath())
+        if "/visuals" in path_str or "/collision" in path_str:
+            continue
+        visuals_child = prim.GetChild("visuals")
+        if visuals_child and visuals_child.IsValid():
+            link_prims_with_visuals.append(prim)
+
+    if not link_prims_with_visuals:
+        logger.info("[randomizable_visual_materials] No link prims with visuals found")
+        return False
+
+    # Create materials container
+    materials_path = getattr(cfg, "randomizable_visual_materials_path", "RandomizableMaterials")
+    container_path = f"{default_prim_path}/{materials_path}"
+
+    container_spec = Sdf.CreatePrimInLayer(root_layer, container_path)
+    container_spec.specifier = Sdf.SpecifierDef
+    container_spec.typeName = "Scope"
+
+    # For "style" mode, detect original material bindings and group by material name
+    original_material_map = {}  # visuals_path -> original_material_name
+    if mode == "style":
+        for link_prim in link_prims_with_visuals:
+            visuals_prim = link_prim.GetChild("visuals")
+            if not visuals_prim:
+                continue
+            # Find the first mesh inside visuals and get its material binding
+            for child in stage.Traverse(Usd.TraverseInstanceProxies()):
+                if not child.IsA(UsdGeom.Mesh):
+                    continue
+                child_path = str(child.GetPath())
+                visuals_path = str(visuals_prim.GetPath())
+                if not child_path.startswith(visuals_path):
+                    continue
+                if "collision" in child_path.lower():
+                    continue
+                # Get the bound material
+                binding_api = UsdShade.MaterialBindingAPI(child)
+                bound_mat, _ = binding_api.ComputeBoundMaterial()
+                if bound_mat:
+                    mat_name = bound_mat.GetPrim().GetName()
+                    original_material_map[visuals_path] = mat_name
+                break
+
+    # Create materials - one per group in "style" mode, one per link in "full" mode
+    created_materials = {}  # material_name -> mat_path (for style mode)
+    mat_index = 0
+
+    def _create_material(mat_name: str) -> Sdf.Path:
+        """Create a UsdPreviewSurface material and return its path."""
+        nonlocal mat_index
+        mat_path = Sdf.Path(f"{container_path}/mat_{mat_index}")
+        shader_path = mat_path.AppendChild("Shader")
+        mat_index += 1
+
+        # Create Material prim
+        mat_spec = Sdf.CreatePrimInLayer(root_layer, mat_path)
+        mat_spec.specifier = Sdf.SpecifierDef
+        mat_spec.typeName = "Material"
+
+        # Create UsdPreviewSurface Shader
+        shader_spec = Sdf.CreatePrimInLayer(root_layer, shader_path)
+        shader_spec.specifier = Sdf.SpecifierDef
+        shader_spec.typeName = "Shader"
+
+        id_attr = Sdf.AttributeSpec(shader_spec, "info:id", Sdf.ValueTypeNames.Token)
+        id_attr.default = "UsdPreviewSurface"
+
+        diffuse_attr = Sdf.AttributeSpec(shader_spec, "inputs:diffuseColor", Sdf.ValueTypeNames.Color3f)
+        diffuse_attr.default = Gf.Vec3f(0.8, 0.8, 0.8)
+
+        Sdf.AttributeSpec(shader_spec, "outputs:surface", Sdf.ValueTypeNames.Token)
+        mat_surface_attr = Sdf.AttributeSpec(mat_spec, "outputs:surface", Sdf.ValueTypeNames.Token)
+        mat_surface_attr.connectionPathList.explicitItems = [shader_path.AppendProperty("outputs:surface")]
+
+        return mat_path
+
+    # Bind materials to visuals prims
+    for link_prim in link_prims_with_visuals:
+        link_path = link_prim.GetPath()
+        visuals_path = link_path.AppendChild("visuals")
+        visuals_path_str = str(visuals_path)
+
+        # Determine which material to use
+        if mode == "style" and visuals_path_str in original_material_map:
+            original_mat_name = original_material_map[visuals_path_str]
+            if original_mat_name not in created_materials:
+                created_materials[original_mat_name] = _create_material(original_mat_name)
+            mat_path = created_materials[original_mat_name]
+        else:
+            # Full mode: create unique material for each
+            mat_path = _create_material(f"body_{mat_index}")
+
+        # Create override for the VISUALS prim to add material binding
+        # KEY: Use 'strongerThanDescendants' to override instance proxy bindings
+        visuals_spec = root_layer.GetPrimAtPath(visuals_path)
+        if not visuals_spec:
+            visuals_spec = Sdf.CreatePrimInLayer(root_layer, visuals_path)
+            visuals_spec.specifier = Sdf.SpecifierOver
+
+        # Add MaterialBindingAPI
+        visuals_spec.SetInfo("apiSchemas", Sdf.TokenListOp.Create(prependedItems=["MaterialBindingAPI"]))
+
+        # Create material:binding with 'strongerThanDescendants' binding strength
+        binding_rel = Sdf.RelationshipSpec(visuals_spec, "material:binding", custom=False)
+        binding_rel.targetPathList.explicitItems = [mat_path]
+        binding_rel.SetInfo("bindMaterialAs", "strongerThanDescendants")
+
+    root_layer.Save()
+    num_materials = mat_index
+    if mode == "style":
+        logger.info(
+            f"[randomizable_visual_materials] Style mode: created {num_materials} materials "
+            f"for {len(link_prims_with_visuals)} visuals (grouped by original material)"
+        )
+    else:
+        logger.info(
+            f"[randomizable_visual_materials] Full mode: created {num_materials} materials "
+            f"for {len(link_prims_with_visuals)} visuals (one per body)"
+        )
+
+    return True
 
 
 @clone
@@ -311,18 +570,29 @@ def _spawn_from_usd_file(
     if file_status == 0:
         raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
 
+    # Handle physics properties via layer copying to preserve instancing
+    # Note: We cannot avoid file I/O here because:
+    # 1. USD prototypes are read-only after stage composition
+    # 2. Modifying prototype prims at runtime doesn't propagate to instance proxies
+    # 3. The only way to modify instanced prim properties is to modify the source layer
+    spawn_usd_path = usd_path
+    resolved_path = usd_path if file_status != 2 else retrieve_file_path(usd_path, force_download=False)
+    modified_path = _create_modified_usd_with_overrides(resolved_path, cfg)
+    if modified_path:
+        spawn_usd_path = modified_path
+
     if _world_size > 1:
         lock_path = os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock")
         lock_fd = open(lock_path, "w")  # noqa: SIM115
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
     try:
-        if file_status == 2:
-            usd_path = retrieve_file_path(usd_path, force_download=False)
+        if file_status == 2 and spawn_usd_path == usd_path:
+            spawn_usd_path = retrieve_file_path(usd_path, force_download=False)
         stage = get_current_stage()
         if not stage.GetPrimAtPath(prim_path).IsValid():
             create_prim(
                 prim_path,
-                usd_path=usd_path,
+                usd_path=spawn_usd_path,
                 translation=translation,
                 orientation=orientation,
                 scale=cfg.scale,
@@ -339,33 +609,14 @@ def _spawn_from_usd_file(
     if hasattr(cfg, "variants") and cfg.variants is not None:
         select_usd_variants(prim_path, cfg.variants)
 
-    # modify rigid body properties
-    if cfg.rigid_props is not None:
-        schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
-    # modify collision properties
-    if cfg.collision_props is not None:
-        schemas.modify_collision_properties(prim_path, cfg.collision_props)
-    # modify mass properties
-    if cfg.mass_props is not None:
-        schemas.modify_mass_properties(prim_path, cfg.mass_props)
-
-    # modify articulation root properties
-    if cfg.articulation_props is not None:
-        schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
-    # modify tendon properties
+    # Modify physics properties
+    # Note: Most properties are handled via layer copying above to preserve instancing.
+    # Tendons use multi-instance API schemas (e.g. PhysxTendonAxisRootAPI:tendon0) which
+    # require special handling via runtime modification.
     if cfg.fixed_tendons_props is not None:
         schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
     if cfg.spatial_tendons_props is not None:
         schemas.modify_spatial_tendon_properties(prim_path, cfg.spatial_tendons_props)
-    # define drive API on the joints
-    # note: these are only for setting low-level simulation properties. all others should be set or are
-    #  and overridden by the articulation/actuator properties.
-    if cfg.joint_drive_props is not None:
-        schemas.modify_joint_drive_properties(prim_path, cfg.joint_drive_props)
-
-    # modify deformable body properties
-    if cfg.deformable_props is not None:
-        schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props)
 
     # apply visual material
     if cfg.visual_material is not None:
@@ -380,6 +631,10 @@ def _spawn_from_usd_file(
         cfg.visual_material.func(material_path, cfg.visual_material)
         # apply material
         bind_visual_material(prim_path, material_path, stage=stage)
+
+    # Note: randomizable_visual_materials are created at the layer level in
+    # _create_modified_usd_with_overrides to enable per-body color randomization.
+    # They get copied with the asset when cloner uses Sdf.CopySpec.
 
     # return the prim
     return stage.GetPrimAtPath(prim_path)

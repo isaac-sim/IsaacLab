@@ -1857,6 +1857,161 @@ class randomize_visual_color(ManagerTermBase):
             rep.functional.modify.attribute(self.material_prims, "diffuse_color_constant", random_colors)
 
 
+class randomize_visual_color_instanced(ManagerTermBase):
+    """Randomize visual color of instanced prims using spawn-time created materials.
+
+    This event term works with assets spawned using ``randomizable_visual_materials=True``
+    in their spawner configuration. The materials are created at spawn time inside the
+    asset hierarchy, so when the cloner copies the asset, each environment gets its own
+    copy of the materials.
+
+    Unlike :class:`randomize_visual_color`, this approach:
+
+    1. Preserves USD instancing performance (materials are copied with the asset)
+    2. Enables true per-environment color randomization
+    3. Works with both ``replicate_physics=True`` and ``False``
+
+    .. note::
+        The asset must be spawned with ``randomizable_visual_materials=True`` in its
+        spawner config (e.g., :class:`~isaaclab.sim.spawners.from_files.UsdFileCfg`).
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the color randomization term by finding spawn-time created materials.
+
+        The spawner creates UsdPreviewSurface materials in a RandomizableMaterials container
+        and binds them to link prims. These materials are NOT instance proxies, so we can
+        modify them at runtime.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+        """
+        from isaacsim.core.utils.extensions import enable_extension  # noqa: PLC0415
+        from pxr import UsdShade  # noqa: PLC0415
+
+        enable_extension("omni.replicator.core")
+        import omni.replicator.core as rep  # noqa: PLC0415
+
+        super().__init__(cfg, env)
+
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
+        materials_path: str = cfg.params.get("materials_path", "RandomizableMaterials")
+
+        asset = env.scene[asset_cfg.name]
+        stage = env.sim.stage
+
+        # Get env paths
+        import re  # noqa: PLC0415
+        env0_path = re.sub(r"\{ENV_REGEX_NS\}|env_\.\*", "env_0", asset.cfg.prim_path)
+
+        # Find shaders in the RandomizableMaterials container
+        self._shader_prims = []
+        self._shaders_per_env = 0
+        self._color_attr_name = "diffuseColor"  # UsdPreviewSurface uses diffuseColor
+
+        # Find all material shaders in env_0's RandomizableMaterials container
+        env0_materials_path = f"{env0_path}/{materials_path}"
+        env0_container = stage.GetPrimAtPath(env0_materials_path)
+
+        if not env0_container or not env0_container.IsValid():
+            logger.warning(
+                f"[randomize_visual_color_instanced] No materials container at {env0_materials_path}. "
+                "Make sure the asset is spawned with randomizable_visual_materials=True."
+            )
+            self._rep = rep
+            self.color_rng = None
+            return
+
+        # Find all mat_* prims and their shaders
+        env0_shaders = []  # relative shader paths
+        for child in env0_container.GetChildren():
+            if child.IsA(UsdShade.Material):
+                shader_prim = child.GetChild("Shader")
+                if shader_prim and shader_prim.IsValid():
+                    # Store relative path from asset root
+                    rel_path = str(shader_prim.GetPath()).replace(env0_path, "")
+                    env0_shaders.append(rel_path)
+
+        if not env0_shaders:
+            logger.warning("[randomize_visual_color_instanced] No shaders found in materials container")
+            self._rep = rep
+            self.color_rng = None
+            return
+
+        self._shaders_per_env = len(env0_shaders)
+
+        # Find shaders in all envs
+        for env_id in range(env.num_envs):
+            env_path = env0_path.replace("/env_0/", f"/env_{env_id}/")
+            for rel_shader_path in env0_shaders:
+                shader_path = f"{env_path}{rel_shader_path}"
+                shader_prim = stage.GetPrimAtPath(shader_path)
+                if shader_prim and shader_prim.IsValid():
+                    self._shader_prims.append(shader_prim)
+
+        if not self._shader_prims:
+            logger.warning("[randomize_visual_color_instanced] No shaders found across envs")
+            self._rep = rep
+            self.color_rng = None
+            return
+
+        logger.info(f"[randomize_visual_color_instanced] Found {len(self._shader_prims)} shaders ({self._shaders_per_env} per env)")
+
+        # Store Replicator reference and RNG
+        self._rep = rep
+        self.color_rng = rep.rng.ReplicatorRNG()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        asset_cfg: SceneEntityCfg,
+        colors: dict[str, tuple[float, float]],
+        materials_path: str = "RandomizableMaterials",
+    ):
+        """Randomize colors of the spawn-time created materials.
+
+        Only randomizes colors for the environments specified in ``env_ids``, not all environments.
+
+        Args:
+            env: The environment instance.
+            env_ids: The environment indices to randomize (only these envs get new colors).
+            asset_cfg: The asset configuration (used to identify the asset).
+            colors: Dictionary with "r", "g", "b" keys, each mapping to (min, max) tuple.
+            materials_path: Path to the materials container (must match spawner config).
+        """
+        if not self._shader_prims or self._shaders_per_env == 0:
+            return
+
+        rep = self._rep
+
+        # Parse colors into ranges
+        color_low = [colors[key][0] for key in ["r", "g", "b"]]
+        color_high = [colors[key][1] for key in ["r", "g", "b"]]
+
+        # Only update shaders for the resetting environments (env_ids)
+        # Shaders are stored in order: [env_0 shaders..., env_1 shaders..., ...]
+        env_ids_list = env_ids.cpu().tolist() if hasattr(env_ids, "cpu") else list(env_ids)
+
+        # Collect shader prims for only the resetting environments
+        shaders_to_update = []
+        for env_id in env_ids_list:
+            start_idx = env_id * self._shaders_per_env
+            end_idx = start_idx + self._shaders_per_env
+            shaders_to_update.extend(self._shader_prims[start_idx:end_idx])
+
+        if not shaders_to_update:
+            return
+
+        # Generate random colors only for the shaders being updated
+        num_shaders = len(shaders_to_update)
+        random_colors = self.color_rng.generator.uniform(color_low, color_high, size=(num_shaders, 3))
+
+        # Use Replicator's batched API for efficient color updates
+        rep.functional.modify.attribute(shaders_to_update, self._color_attr_name, random_colors)
+
+
 """
 Internal helper functions.
 """

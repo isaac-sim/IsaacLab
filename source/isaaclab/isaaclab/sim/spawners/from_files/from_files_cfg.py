@@ -67,6 +67,34 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         If None, then no visual material will be added.
     """
 
+    randomizable_visual_materials: bool = False
+    """Whether to create randomizable UsdPreviewSurface materials for visual meshes. Defaults to False.
+
+    When True, the spawner will:
+
+    1. Find all visual meshes in the asset (paths containing "visuals", excluding "collision")
+    2. Create UsdPreviewSurface materials in a RandomizableMaterials container
+    3. Bind each visuals prim to its corresponding material with 'strongerThanDescendants'
+
+    This enables per-environment visual material randomization while keeping geometry instanced.
+    The materials can be randomized using event terms like
+    :class:`~isaaclab.envs.mdp.events.randomize_visual_color_instanced`.
+    """
+
+    randomizable_visual_materials_mode: str = "full"
+    """Mode for creating randomizable materials. Defaults to "full".
+
+    - ``"full"``: Each visual body part gets its own unique material (fully random colors).
+    - ``"style"``: Body parts that originally shared the same material will share the same
+      randomizable material (preserves color groupings, like changing the robot's color scheme).
+    """
+
+    randomizable_visual_materials_path: str = "RandomizableMaterials"
+    """Path within the asset hierarchy to create randomizable materials. Defaults to "RandomizableMaterials".
+
+    This is relative to the spawned prim's path.
+    """
+
 
 @configclass
 class UsdFileCfg(FileCfg):

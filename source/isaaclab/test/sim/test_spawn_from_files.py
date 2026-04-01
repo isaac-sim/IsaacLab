@@ -196,3 +196,123 @@ def test_spawn_usd_with_compliant_contact_material_no_prim_path(sim):
     material_prim = sim.stage.GetPrimAtPath(material_prim_path)
     assert material_prim is not None
     assert not material_prim.IsValid()
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_usd_collision_props_applied_to_instanced_prims(sim):
+    """Test that collision_props are applied to ALL collision meshes, including instanced ones.
+
+    This is a regression test for an issue where @apply_nested skipped instanced prims,
+    causing collision properties to not be applied to robot collision meshes that were
+    USD instances.
+    """
+    from pxr import Usd, UsdPhysics
+
+    # Spawn instanceable robot with collision_props
+    # The panda_instanceable.usd has instanced collision meshes
+    rest_offset_value = 0.05
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        collision_props=sim_utils.CollisionPropertiesCfg(rest_offset=rest_offset_value),
+    )
+    prim = cfg.func("/World/Franka", cfg)
+
+    # Check validity
+    assert prim.IsValid()
+
+    # Find all collision meshes under the robot and verify rest_offset is applied
+    collision_mesh_count = 0
+    props_applied_count = 0
+
+    # Use Usd.PrimRange with TraverseInstanceProxies to traverse into instanced prims
+    for descendant in Usd.PrimRange(prim, Usd.TraverseInstanceProxies()):
+        # Check if this prim has collision API
+        if descendant.HasAPI(UsdPhysics.CollisionAPI):
+            collision_mesh_count += 1
+            # Check if rest_offset was applied (use approximate comparison for float32 precision)
+            rest_offset_attr = descendant.GetAttribute("physxCollision:restOffset")
+            if rest_offset_attr:
+                actual_value = rest_offset_attr.Get()
+                if actual_value is not None and abs(actual_value - rest_offset_value) < 1e-6:
+                    props_applied_count += 1
+
+    # There should be collision meshes in the robot
+    assert collision_mesh_count > 0, "Robot should have collision meshes"
+
+    # ALL collision meshes should have the rest_offset applied
+    assert props_applied_count == collision_mesh_count, (
+        f"collision_props not applied to all collision meshes: "
+        f"{props_applied_count}/{collision_mesh_count} have rest_offset={rest_offset_value}. "
+        "This may indicate instanced prims are being skipped."
+    )
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize(
+    "material_cfg,material_name",
+    [
+        (sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)), "PreviewSurface"),
+        (sim_utils.GlassMdlCfg(glass_color=(0.0, 1.0, 0.0)), "GlassMdl"),
+    ],
+)
+def test_spawn_usd_visual_material_binding_on_instanced_prims(sim, material_cfg, material_name):
+    """Test that visual_material binding propagates to ALL meshes, including instanced ones.
+
+    This tests whether USD material binding inheritance works through instance proxies
+    for different material types (PreviewSurface and MDL materials).
+    """
+    from pxr import Usd, UsdShade, UsdGeom
+
+    # Spawn instanceable robot with visual_material
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        visual_material=material_cfg,
+        visual_material_path=f"Looks/Test{material_name}",
+    )
+    prim = cfg.func("/World/Franka", cfg)
+
+    # Check validity
+    assert prim.IsValid()
+
+    # Get the material path
+    material_path = f"/World/Franka/Looks/Test{material_name}"
+    stage = prim.GetStage()
+    material_prim = stage.GetPrimAtPath(material_path)
+    assert material_prim.IsValid(), f"Material prim should exist at {material_path}"
+
+    # Find all mesh prims under the robot and check material binding
+    mesh_count = 0
+    correct_binding_count = 0
+    wrong_binding_meshes = []
+
+    for descendant in Usd.PrimRange(prim, Usd.TraverseInstanceProxies()):
+        if descendant.IsA(UsdGeom.Mesh):
+            mesh_count += 1
+            # Check material binding - verify it's OUR material, not pre-existing
+            binding_api = UsdShade.MaterialBindingAPI(descendant)
+            bound_material, _ = binding_api.ComputeBoundMaterial()
+            if bound_material:
+                bound_path = bound_material.GetPrim().GetPath()
+                if str(bound_path) == material_path:
+                    correct_binding_count += 1
+                else:
+                    wrong_binding_meshes.append((str(descendant.GetPath()), str(bound_path)))
+            else:
+                wrong_binding_meshes.append((str(descendant.GetPath()), "None"))
+
+    # There should be meshes in the robot
+    assert mesh_count > 0, "Robot should have mesh prims"
+
+    # Log results for debugging
+    print(f"{material_name} binding test: {correct_binding_count}/{mesh_count} meshes bound to our material")
+    if wrong_binding_meshes:
+        print(f"Wrong/missing bindings (first 5): {wrong_binding_meshes[:5]}")
+
+    # ALL meshes should be bound to OUR material (not pre-existing ones)
+    # This verifies that bind_visual_material with stronger_than_descendants=True
+    # actually overrides existing bindings on all descendants including instance proxies
+    assert correct_binding_count == mesh_count, (
+        f"{material_name}: Only {correct_binding_count}/{mesh_count} meshes bound to our material. "
+        f"Expected all meshes to use {material_path}. "
+        f"Wrong bindings: {wrong_binding_meshes[:5]}"
+    )

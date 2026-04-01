@@ -7,6 +7,8 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import ArticulationCfg
+from isaaclab.envs import mdp as lab_mdp
+from isaaclab.managers import EventTermCfg
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg, TiledCameraCfg
@@ -14,7 +16,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
+from isaaclab_assets.robots import KUKA_ALLEGRO_CFG, KUKA_ALLEGRO_RANDOMIZABLE_CFG
 
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
@@ -83,7 +85,13 @@ class KukaAllegroSceneCfg(PresetCfg):
                     ),
                 )
 
-    default = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    # Default scene uses randomizable robot for color randomization (materials created at spawn time)
+    default = KukaAllegroSceneCfg(
+        num_envs=4096, env_spacing=3, replicate_physics=True,
+        robot=KUKA_ALLEGRO_RANDOMIZABLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    )
+    # Non-randomizable variant for faster startup when color randomization is not needed
+    no_color = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     single_camera = default.replace(base_camera=BaseTiledCameraCfg())
     duo_camera = default.replace(base_camera=BaseTiledCameraCfg(), wrist_camera=WristTiledCameraCfg())
 
@@ -138,9 +146,23 @@ class KukaAllegroEventCfg(PresetCfg):
     class KukaAllegroPhysxEventCfg(dexsuite.StartupEventCfg, dexsuite.EventCfg):
         pass
 
-    default = KukaAllegroPhysxEventCfg()
+    @configclass
+    class KukaAllegroWithColorRandomizationCfg(dexsuite.StartupEventCfg, dexsuite.EventCfg):
+        """Event config with layer-based color randomization (preserves instancing)."""
+
+        randomize_robot_color = EventTermCfg(
+            func=lab_mdp.randomize_visual_color_instanced,
+            mode="reset",
+            params={
+                "asset_cfg": SceneEntityCfg("robot"),
+                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+            },
+        )
+
+    default = KukaAllegroWithColorRandomizationCfg()
+    no_color = KukaAllegroPhysxEventCfg()  # Use with scene=no_color
     newton = dexsuite.EventCfg()
-    physx = default
+    physx = KukaAllegroWithColorRandomizationCfg()
 
 
 @configclass
