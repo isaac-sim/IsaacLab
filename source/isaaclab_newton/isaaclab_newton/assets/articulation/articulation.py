@@ -140,7 +140,7 @@ class Articulation(BaseArticulation):
     @property
     def num_fixed_tendons(self) -> int:
         """Number of fixed tendons in articulation."""
-        return 0
+        return self._root_view.tendon_count
 
     @property
     def num_spatial_tendons(self) -> int:
@@ -177,7 +177,7 @@ class Articulation(BaseArticulation):
     @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
-        return []
+        return list(self._root_view.tendon_names)
 
     @property
     def spatial_tendon_names(self) -> list[str]:
@@ -3135,6 +3135,52 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
+    def write_actuator_ctrl_target_to_sim_index(
+            self,
+            *,
+            ctrl_target: float | wp.array | torch.Tensor,
+            ctrl_ids: wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
+    ) -> None:
+        if isinstance(ctrl_target, float):
+            wp.launch(
+                articulation_kernels.float_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], ctrl_ids.shape[0]),
+                inputs=[
+                    ctrl_target,
+                    env_ids,
+                    ctrl_ids,
+                ],
+                outputs=[
+                    self.data.ctrl_target,
+                ],
+                device=self.device,
+            )
+        else:
+            self.assert_shape_and_dtype(ctrl_target, (env_ids.shape[0], ctrl_ids.shape[0]), wp.float32, "ctrl_target")
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], ctrl_ids.shape[0]),
+                inputs=[
+                    ctrl_target,
+                    env_ids,
+                    ctrl_ids,
+                ],
+                outputs=[
+                    self.data.ctrl_target,
+                ],
+                device=self.device,
+            )
+
+    def write_actuator_ctrl_target_to_sim_mask(
+        self,
+        *,
+        ctrl_target=float | wp.array | torch.Tensor,
+        ctrl_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        return
+
     """
     Internal helper.
     """
@@ -3465,12 +3511,34 @@ class Articulation(BaseArticulation):
 
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
-        # create a list to store the fixed tendon names
-        self._fixed_tendon_names = list()
-        self._spatial_tendon_names = list()
-        # parse fixed tendons properties if they exist
-        if self.num_fixed_tendons > 0 or self.num_spatial_tendons > 0:
-            raise NotImplementedError("Fixed and spatial tendons are not supported yet.")
+        # Build mapping from tendon name -> ctrl index for CTRL_DIRECT tendon actuators.
+        # Newton stores tendon actuators with trntype=2 and ctrl_source=CTRL_DIRECT.
+        # Their index in control.mujoco.ctrl equals their MJCF-order actuator index.
+        self._tendon_name_to_ctrl_idx: dict[str, int] = {}
+
+        model = SimulationManager.get_model()
+        mujoco_attrs = getattr(model, "mujoco", None)
+        if mujoco_attrs is None or not hasattr(mujoco_attrs, "actuator_trntype"):
+            raise Exception("Mujoco has no actuator trntype")
+
+        trntype_arr = mujoco_attrs.actuator_trntype.numpy()
+        trnid_arr = mujoco_attrs.actuator_trnid.numpy()
+
+        view_tendon_names = list(self._root_view.tendon_names)
+
+        # Only iterate over first world's actuators — the model stores actuators
+        # for ALL worlds, but ctrl indices must be per-world offsets.
+        n_worlds = model.world_count if hasattr(model, "world_count") else 1
+        n_actuators_per_world = len(trntype_arr) // max(n_worlds, 1)
+
+        for act_idx in range(n_actuators_per_world):
+            if int(trntype_arr[act_idx]) == 2:  # tendon transmission
+                tendon_idx = int(trnid_arr[act_idx, 0]) if trnid_arr.ndim > 1 else int(trnid_arr[act_idx])
+                if tendon_idx < len(view_tendon_names):
+                    tendon_name = view_tendon_names[tendon_idx]
+                else:
+                    tendon_name = f"tendon_{tendon_idx}"
+                self._tendon_name_to_ctrl_idx[tendon_name] = act_idx
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.

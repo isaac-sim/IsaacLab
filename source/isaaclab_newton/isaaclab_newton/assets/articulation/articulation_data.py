@@ -1383,6 +1383,16 @@ class ArticulationData(BaseArticulationData):
             (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
         )
 
+        if self._num_fixed_tendons > 0:
+            self._tendon_stiffness = wp.zeros((self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device)
+            self._tendon_damping = wp.zeros((self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device)
+
+        # check for actuator controls
+        mujoco_ns = getattr(SimulationManager.get_control(), "mujoco", None)
+        mjc_ctrl = getattr(mujoco_ns, "ctrl", None) if mujoco_ns is not None else None
+        if mjc_ctrl is not None:
+            self._ctrl = wp.zeros((self._num_instances, mjc_ctrl.shape[1]), dtype=wp.float32, device=self.device)
+
         # Initialize history for finite differencing
         if self._num_joints > 0:
             self._previous_joint_vel = wp.clone(
