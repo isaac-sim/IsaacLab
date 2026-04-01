@@ -32,4 +32,4 @@ class NewtonWarpRendererCfg(RendererCfg):
     """Maximum ray distance [m]."""
 
     create_default_light: bool = True
-    """Create default light."""
+    """Create a default directional light source in the scene."""
