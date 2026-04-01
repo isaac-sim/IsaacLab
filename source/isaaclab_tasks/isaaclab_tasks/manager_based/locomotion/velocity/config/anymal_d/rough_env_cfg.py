@@ -7,6 +7,9 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.sim import SimulationCfg
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import SceneEntityCfg
+import isaaclab.envs.mdp as mdp
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
@@ -51,11 +54,23 @@ class RoughPhysicsCfg(PresetCfg):
 class AnymalDPhysxEventsCfg(EventsCfg, StartupEventsCfg):
     pass
 
+@configclass
+class AnymalDNewtonEventsCfg(EventsCfg):
+
+    collider_offsets = EventTerm(
+        func=mdp.randomize_rigid_body_collider_offsets,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "contact_offset_distribution_params": (0.01, 0.01),
+            "rest_offset_distribution_params": (0.01, 0.01),
+        },
+    )
 
 @configclass
 class AnymalDEventsCfg(PresetCfg):
     default = AnymalDPhysxEventsCfg()
-    newton = EventsCfg()
+    newton = AnymalDNewtonEventsCfg()
     physx = default
 
 
@@ -69,10 +84,7 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # switch robot to anymal-d
         self.scene.robot = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        # # RayCaster height scanner requires Kit (omni.physics) — disable for Newton.
-        self.scene.height_scanner = preset(default=self.scene.height_scanner, newton=None)
-        self.observations.policy.height_scan = preset(default=self.observations.policy.height_scan, newton=None)
-
+        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton=0.05, physx=0.0)
 
 @configclass
 class AnymalDRoughEnvCfg_PLAY(AnymalDRoughEnvCfg):

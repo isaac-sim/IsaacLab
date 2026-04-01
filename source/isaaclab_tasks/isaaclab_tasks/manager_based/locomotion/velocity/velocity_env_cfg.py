@@ -210,17 +210,6 @@ class EventsCfg:
 @configclass
 class StartupEventsCfg:
     # startup
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 0.8),
-            "dynamic_friction_range": (0.6, 0.6),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 64,
-        },
-    )
 
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
@@ -238,6 +227,16 @@ class StartupEventsCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="base"),
             "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
+        },
+    )
+
+    collider_offsets = EventTerm(
+        func=mdp.randomize_rigid_body_collider_offsets,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "contact_offset_distribution_params": (0.01, 0.01),
+            "rest_offset_distribution_params": (0.01, 0.01),
         },
     )
 

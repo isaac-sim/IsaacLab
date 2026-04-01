@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab.sim import converters, schemas
-from isaaclab.utils.string import to_camel_case
 from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
 from isaaclab.sim.utils import (
     add_labels,
@@ -30,6 +29,7 @@ from isaaclab.sim.utils import (
     set_prim_visibility,
 )
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.string import to_camel_case
 from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
@@ -39,9 +39,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _create_modified_usd_with_overrides(
-    usd_path: str, cfg: "from_files_cfg.UsdFileCfg"
-) -> str | None:
+def _create_modified_usd_with_overrides(usd_path: str, cfg: from_files_cfg.UsdFileCfg) -> str | None:
     """Create a modified copy of USD with physics properties baked in for instanced prims.
 
     File I/O is required because USD prototypes are read-only after composition.
@@ -112,13 +110,15 @@ def _create_modified_usd_with_overrides(
                 for field, value in prop_cfg.to_dict().items():
                     if value is None or field.startswith("_") or hasattr(value, "to_dict"):
                         continue
-                    vtype = {bool: Sdf.ValueTypeNames.Bool, int: Sdf.ValueTypeNames.Int,
-                             float: Sdf.ValueTypeNames.Float}.get(type(value))
+                    vtype = {
+                        bool: Sdf.ValueTypeNames.Bool,
+                        int: Sdf.ValueTypeNames.Int,
+                        float: Sdf.ValueTypeNames.Float,
+                    }.get(type(value))
                     if vtype:
                         attr_name = f"{prefix}{to_camel_case(field, 'cC')}"
                         path = prim_spec.path.AppendProperty(attr_name)
-                        attr = layer.GetAttributeAtPath(path) or Sdf.AttributeSpec(
-                            prim_spec, attr_name, vtype)
+                        attr = layer.GetAttributeAtPath(path) or Sdf.AttributeSpec(prim_spec, attr_name, vtype)
                         attr.default = value
         layer.Save()
 
@@ -131,7 +131,7 @@ def _create_modified_usd_with_overrides(
     return temp_path if modified else None
 
 
-def _add_visual_materials_to_layer(stage: Usd.Stage, cfg: "from_files_cfg.FileCfg") -> bool:
+def _add_visual_materials_to_layer(stage: Usd.Stage, cfg: from_files_cfg.FileCfg) -> bool:
     """Create UsdPreviewSurface materials for per-body color randomization.
 
     This function enables per-body color randomization while keeping visual geometry
@@ -155,7 +155,7 @@ def _add_visual_materials_to_layer(stage: Usd.Stage, cfg: "from_files_cfg.FileCf
     Returns:
         True if materials were added, False otherwise.
     """
-    from pxr import UsdShade, Usd  # noqa: PLC0415
+    from pxr import Usd, UsdShade  # noqa: PLC0415
 
     root_layer = stage.GetRootLayer()
     default_prim = stage.GetDefaultPrim()

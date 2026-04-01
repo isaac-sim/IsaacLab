@@ -638,71 +638,217 @@ def randomize_rigid_body_com(
         ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device
     ).unsqueeze(1)
 
-    # get the current com of the bodies (num_assets, num_bodies)
+    # get the current com of the bodies (num_assets, num_bodies, 7)
     coms = wp.to_torch(asset.data.body_com_pose_b).clone()
 
-    # Randomize the com in range
+    # Randomize the com position
     coms[env_ids[:, None], body_ids, :3] += rand_samples
 
-    # Set the new coms
-    asset.set_coms_index(coms=coms, env_ids=env_ids)
+    # Newton's set_coms_index expects position-only (vec3f), while PhysX expects
+    # the full pose (pos + quat). Detect backend to pass the correct shape.
+    manager_name = env.sim.physics_manager.__name__.lower()
+    if "newton" in manager_name:
+        asset.set_coms_index(coms=coms[..., :3], env_ids=env_ids)
+    else:
+        asset.set_coms_index(coms=coms, env_ids=env_ids)
 
 
-def randomize_rigid_body_collider_offsets(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor | None,
-    asset_cfg: SceneEntityCfg,
-    rest_offset_distribution_params: tuple[float, float] | None = None,
-    contact_offset_distribution_params: tuple[float, float] | None = None,
-    distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
-):
-    """Randomize the collider parameters of rigid bodies in an asset by adding, scaling, or setting random values.
+class randomize_rigid_body_collider_offsets(ManagerTermBase):
+    """Randomize the collider parameters of rigid bodies by setting random values.
 
     This function allows randomizing the collider parameters of the asset, such as rest and contact offsets.
-    These correspond to the physics engine collider properties that affect the collision checking.
+    These correspond to the physics engine collider properties that affect collision checking.
 
-    The function samples random values from the given distribution parameters and applies the operation to
-    the collider properties. It then sets the values into the physics simulation. If the distribution parameters
-    are not provided for a particular property, the function does not modify the property.
+    Automatically detects the active physics backend (PhysX or Newton) and applies the appropriate
+    collider offset randomization strategy:
 
-    Currently, the distribution parameters are applied as absolute values.
+    - **PhysX**: Uses rest offset and contact offset directly via the PhysX tensor API
+      (``root_view.set_rest_offsets`` / ``root_view.set_contact_offsets``).
+    - **Newton**: Maps PhysX concepts to Newton's geometry properties. PhysX ``rest_offset``
+      maps to Newton ``shape_margin``, and PhysX ``contact_offset`` is converted to Newton
+      ``shape_gap`` via ``gap = contact_offset - margin``.
+      See the `Newton collision schema`_ for details on this mapping.
+
+    The function samples random values from the given distribution parameters and applies them
+    as absolute values to the collider properties. If the distribution parameters are not
+    provided for a particular property, the function does not modify it.
+
+    .. _Newton collision schema: https://newton-physics.github.io/newton/latest/concepts/collisions.html
 
     .. tip::
-        This function uses CPU tensors to assign the collision properties. It is recommended to use this function
-        only during the initialization of the environment.
+        This function uses CPU tensors (PhysX) or GPU tensors (Newton) to assign the collision
+        properties. It is recommended to use this function only during the initialization of
+        the environment.
     """
-    # extract the used quantities (to enable type-hinting)
-    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
-    # resolve environment ids
-    if env_ids is None:
-        env_ids = torch.arange(env.scene.num_envs, device="cpu")
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the term.
 
-    # sample collider properties from the given ranges and set into the physics simulation
-    # -- rest offsets
-    if rest_offset_distribution_params is not None:
-        rest_offset = wp.to_torch(asset.root_view.get_rest_offsets()).clone()
-        rest_offset = _randomize_prop_by_op(
-            rest_offset,
-            rest_offset_distribution_params,
-            None,
-            slice(None),
-            operation="abs",
-            distribution=distribution,
-        )
-        asset.root_view.set_rest_offsets(rest_offset, env_ids.cpu())
-    # -- contact offsets
-    if contact_offset_distribution_params is not None:
-        contact_offset = wp.to_torch(asset.root_view.get_contact_offsets()).clone()
-        contact_offset = _randomize_prop_by_op(
-            contact_offset,
-            contact_offset_distribution_params,
-            None,
-            slice(None),
-            operation="abs",
-            distribution=distribution,
-        )
-        asset.root_view.set_contact_offsets(contact_offset, env_ids.cpu())
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+
+        Raises:
+            ValueError: If the asset is not a RigidObject or an Articulation.
+        """
+        from isaaclab.assets import BaseArticulation, BaseRigidObject  # noqa: PLC0415
+
+        super().__init__(cfg, env)
+
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
+
+        if not isinstance(self.asset, (BaseRigidObject, BaseArticulation)):
+            raise ValueError(
+                f"Randomization term 'randomize_rigid_body_collider_offsets' not supported for asset:"
+                f" '{self.asset_cfg.name}' with type: '{type(self.asset)}'."
+            )
+
+        manager_name = env.sim.physics_manager.__name__.lower()
+        self._backend = "newton" if "newton" in manager_name else "physx"
+
+        if self._backend == "newton":
+            self._init_newton()
+        else:
+            self._init_physx()
+
+    def _init_physx(self) -> None:
+        """Initialize PhysX-specific state: cache default offsets."""
+        asset: PhysXArticulation | PhysXRigidObject | PhysXRigidObjectCollection = self.asset  # type: ignore[assignment]
+        self.default_rest_offsets = wp.to_torch(asset.root_view.get_rest_offsets()).clone()
+        self.default_contact_offsets = wp.to_torch(asset.root_view.get_contact_offsets()).clone()
+
+    def _init_newton(self) -> None:
+        """Initialize Newton-specific state: bind to shape_margin and shape_gap."""
+        import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
+        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+
+        self._newton_manager = newton_manager_module.NewtonManager
+        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
+
+        asset: NewtonArticulation | NewtonRigidObject | NewtonRigidObjectCollection = self.asset  # type: ignore[assignment]
+        model = self._newton_manager.get_model()
+        # TODO(newton-collider-api): We access root_view.get_attribute directly to create
+        # bindings for shape_margin and shape_gap because Newton doesn't yet expose dedicated
+        # APIs for these properties on its asset classes. This mirrors the approach used for
+        # material properties in randomize_rigid_body_material. When Newton adds proper
+        # getter/setter APIs for collision geometry properties, update this code.
+        self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]
+        self._sim_bind_shape_gap = asset._root_view.get_attribute("shape_gap", model)[:, 0]
+
+        self.default_margin = wp.to_torch(self._sim_bind_shape_margin).clone()
+        self.default_gap = wp.to_torch(self._sim_bind_shape_gap).clone()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        asset_cfg: SceneEntityCfg,
+        rest_offset_distribution_params: tuple[float, float] | None = None,
+        contact_offset_distribution_params: tuple[float, float] | None = None,
+        distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+    ):
+        if self._backend == "newton":
+            self._call_newton(
+                env, env_ids, rest_offset_distribution_params, contact_offset_distribution_params, distribution
+            )
+        else:
+            self._call_physx(
+                env, env_ids, rest_offset_distribution_params, contact_offset_distribution_params, distribution
+            )
+
+    def _call_physx(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        rest_offset_params: tuple[float, float] | None,
+        contact_offset_params: tuple[float, float] | None,
+        distribution: Literal["uniform", "log_uniform", "gaussian"],
+    ) -> None:
+        """Apply collider offset randomization via PhysX's tensor API."""
+        asset: PhysXRigidObject | PhysXArticulation | PhysXRigidObjectCollection = self.asset  # type: ignore[assignment]
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device="cpu")
+        else:
+            env_ids = env_ids.cpu()
+
+        if rest_offset_params is not None:
+            rest_offset = self.default_rest_offsets.clone()
+            rest_offset = _randomize_prop_by_op(
+                rest_offset,
+                rest_offset_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            asset.root_view.set_rest_offsets(rest_offset, env_ids)
+
+        if contact_offset_params is not None:
+            contact_offset = self.default_contact_offsets.clone()
+            contact_offset = _randomize_prop_by_op(
+                contact_offset,
+                contact_offset_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            asset.root_view.set_contact_offsets(contact_offset, env_ids)
+
+    def _call_newton(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        rest_offset_params: tuple[float, float] | None,
+        contact_offset_params: tuple[float, float] | None,
+        distribution: Literal["uniform", "log_uniform", "gaussian"],
+    ) -> None:
+        """Apply collider offset randomization via Newton's shape geometry properties.
+
+        Maps PhysX concepts to Newton (see ``SchemaResolverPhysx`` in newton):
+
+        - ``rest_offset`` → ``shape_margin`` (Newton margin)
+        - ``contact_offset`` → ``shape_gap`` (Newton gap = contact_offset - rest_offset)
+        """
+        device = env.device
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device=device, dtype=torch.int32)
+        else:
+            env_ids = env_ids.to(device)
+
+        margin_view = wp.to_torch(self._sim_bind_shape_margin)
+
+        if rest_offset_params is not None:
+            margin = self.default_margin.clone()
+            margin = _randomize_prop_by_op(
+                margin,
+                rest_offset_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            self.default_margin[env_ids] = margin[env_ids]
+            margin_view[env_ids] = margin[env_ids]
+
+        if contact_offset_params is not None:
+            current_margin = self.default_margin
+            contact_offset = torch.zeros_like(self.default_gap)
+            contact_offset = _randomize_prop_by_op(
+                contact_offset,
+                contact_offset_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            gap = torch.clamp(contact_offset - current_margin, min=0.0)
+            self.default_gap[env_ids] = gap[env_ids]
+            gap_view = wp.to_torch(self._sim_bind_shape_gap)
+            gap_view[env_ids] = gap[env_ids]
+
+        self._newton_manager.add_model_change(self._notify_shape_properties)
 
 
 class randomize_physics_scene_gravity(ManagerTermBase):
@@ -2117,6 +2263,7 @@ class randomize_visual_color_instanced(ManagerTermBase):
 
         # Get env paths
         import re  # noqa: PLC0415
+
         env0_path = re.sub(r"\{ENV_REGEX_NS\}|env_\.\*", "env_0", asset.cfg.prim_path)
 
         # Find shaders in the RandomizableMaterials container
@@ -2170,7 +2317,9 @@ class randomize_visual_color_instanced(ManagerTermBase):
             self.color_rng = None
             return
 
-        logger.info(f"[randomize_visual_color_instanced] Found {len(self._shader_prims)} shaders ({self._shaders_per_env} per env)")
+        logger.info(
+            f"[randomize_visual_color_instanced] Found {len(self._shader_prims)} shaders ({self._shaders_per_env} per env)"
+        )
 
         # Store Replicator reference and RNG
         self._rep = rep

@@ -18,7 +18,7 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.views import XformPrimView
+from isaaclab.sim.views import XformPrimView, XformPrimViewFactory
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
@@ -362,16 +362,9 @@ class RayCaster(SensorBase):
         prim_view = None
 
         while prim_view is None:
-            # TODO: Need to handle the case where API is present but it is disabled
-            if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-                prim_view = self._physics_sim_view.create_articulation_view(current_path_expr.replace(".*", "*"))
-                logger.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
-                break
-
-            # TODO: Need to handle the case where API is present but it is disabled
-            if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                prim_view = self._physics_sim_view.create_rigid_body_view(current_path_expr.replace(".*", "*"))
-                logger.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
+            if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                prim_view = XformPrimViewFactory(current_path_expr, device=self._device, stage=self.stage)
+                logger.info(f"Created {type(prim_view).__name__} for physics prim at path: {current_path_expr}")
                 break
 
             new_root_prim = current_prim.GetParent()
@@ -387,7 +380,6 @@ class RayCaster(SensorBase):
                 )
                 break
 
-            # switch the current prim to the parent prim
             current_prim = new_root_prim
 
         # obtain the relative transforms between target prim and the view prims

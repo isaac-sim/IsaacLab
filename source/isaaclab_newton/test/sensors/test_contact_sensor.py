@@ -27,6 +27,7 @@ import math
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
     STABLE_SHAPES,
@@ -42,10 +43,8 @@ from physics.physics_test_utils import (
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab.sim import SimulationCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.sim import build_simulation_context
+from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -788,7 +787,11 @@ def test_rough_terrain_contact_sanity(device: str):
         solver_cfg=solver_cfg, collision_cfg=collision_cfg, num_substeps=1, debug_mode=False, use_cuda_graph=False
     )
     sim_cfg = SimulationCfg(
-        dt=1.0 / 120.0, device=device, gravity=(0.0, 0.0, -gravity_mag), create_stage_in_memory=False, physics=newton_cfg
+        dt=1.0 / 120.0,
+        device=device,
+        gravity=(0.0, 0.0, -gravity_mag),
+        create_stage_in_memory=False,
+        physics=newton_cfg,
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:

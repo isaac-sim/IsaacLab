@@ -261,7 +261,7 @@ def test_spawn_usd_visual_material_binding_on_instanced_prims(sim, material_cfg,
     This tests whether USD material binding inheritance works through instance proxies
     for different material types (PreviewSurface and MDL materials).
     """
-    from pxr import Usd, UsdShade, UsdGeom
+    from pxr import Usd, UsdGeom, UsdShade
 
     # Spawn instanceable robot with visual_material
     cfg = sim_utils.UsdFileCfg(

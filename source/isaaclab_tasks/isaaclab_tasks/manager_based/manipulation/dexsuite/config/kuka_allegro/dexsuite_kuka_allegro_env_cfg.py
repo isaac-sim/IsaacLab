@@ -8,9 +8,8 @@ from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import mdp as lab_mdp
-from isaaclab.managers import EventTermCfg
+from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensorCfg, TiledCameraCfg
 from isaaclab.utils import configclass
 
@@ -87,8 +86,10 @@ class KukaAllegroSceneCfg(PresetCfg):
 
     # Default scene uses randomizable robot for color randomization (materials created at spawn time)
     default = KukaAllegroSceneCfg(
-        num_envs=4096, env_spacing=3, replicate_physics=True,
-        robot=KUKA_ALLEGRO_RANDOMIZABLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        num_envs=4096,
+        env_spacing=3,
+        replicate_physics=True,
+        robot=KUKA_ALLEGRO_RANDOMIZABLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot"),
     )
     # Non-randomizable variant for faster startup when color randomization is not needed
     no_color = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)

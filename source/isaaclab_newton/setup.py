@@ -74,6 +74,8 @@ setup(
         "isaaclab_newton.physics",
         "isaaclab_newton.renderers",
         "isaaclab_newton.scene_data_providers",
+        "isaaclab_newton.sim",
+        "isaaclab_newton.sim.views",
         "isaaclab_newton.sensors",
         "isaaclab_newton.sensors.contact_sensor",
         "isaaclab_newton.sensors.frame_transformer",

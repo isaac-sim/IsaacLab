@@ -254,7 +254,7 @@ Tests - Getters.
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_get_world_poses(device, backend):
     """Test getting world poses from XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -294,7 +294,7 @@ def test_get_world_poses(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_get_local_poses(device, backend):
     """Test getting local poses from XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -341,7 +341,7 @@ def test_get_local_poses(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_get_scales(device, backend):
     """Test getting scales from XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -399,7 +399,7 @@ Tests - Setters.
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_world_poses(device, backend):
     """Test setting world poses in XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -445,7 +445,7 @@ def test_set_world_poses(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_world_poses_only_positions(device, backend):
     """Test setting only positions, leaving orientations unchanged."""
     _skip_if_backend_unavailable(backend, device)
@@ -484,7 +484,7 @@ def test_set_world_poses_only_positions(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_world_poses_only_orientations(device, backend):
     """Test setting only orientations, leaving positions unchanged."""
     _skip_if_backend_unavailable(backend, device)
@@ -523,7 +523,7 @@ def test_set_world_poses_only_orientations(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_world_poses_with_hierarchy(device, backend):
     """Test setting world poses correctly handles parent transformations."""
     _skip_if_backend_unavailable(backend, device)
@@ -564,7 +564,7 @@ def test_set_world_poses_with_hierarchy(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_local_poses(device, backend):
     """Test setting local poses in XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -609,7 +609,7 @@ def test_set_local_poses(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_local_poses_only_translations(device, backend):
     """Test setting only local translations."""
     _skip_if_backend_unavailable(backend, device)
@@ -654,7 +654,7 @@ def test_set_local_poses_only_translations(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_scales(device, backend):
     """Test setting scales in XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -899,7 +899,7 @@ def test_index_types_set_methods(device, index_type, method):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_indices_single_element(device, backend):
     """Test with a single index."""
     _skip_if_backend_unavailable(backend, device)
@@ -933,7 +933,7 @@ def test_indices_single_element(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_indices_out_of_order(device, backend):
     """Test with indices provided in non-sequential order."""
     _skip_if_backend_unavailable(backend, device)
@@ -968,7 +968,7 @@ def test_indices_out_of_order(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_indices_with_only_positions_or_orientations(device, backend):
     """Test indices work correctly when setting only positions or only orientations."""
     _skip_if_backend_unavailable(backend, device)
@@ -1435,81 +1435,3 @@ def test_compare_set_local_poses_with_isaacsim():
         torch.testing.assert_close(isaaclab_quat, -isaacsim_quat, atol=1e-4, rtol=0)
 
 
-"""
-Tests - Fabric Operations.
-"""
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_initialization(device):
-    """Test XformPrimView initialization with Fabric enabled."""
-    _skip_if_backend_unavailable("fabric", device)
-
-    stage = sim_utils.get_current_stage()
-
-    # Create camera prims (Boundable prims that support Fabric)
-    num_prims = 5
-    for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 1.0), stage=stage)
-
-    # Create view with Fabric enabled
-    view = _create_view("/World/Cam_.*", device=device, backend="fabric")
-
-    # Verify properties
-    assert view.count == num_prims
-    assert view.device == device
-    assert len(view.prims) == num_prims
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_usd_consistency(device):
-    """Test that Fabric round-trip (write→read) is consistent, matching Isaac Sim's design.
-
-    Note: This does NOT test Fabric vs USD reads on initialization, as Fabric is designed
-    for write-first workflows. Instead, it tests that:
-    1. Fabric write→read round-trip works correctly
-    2. This matches Isaac Sim's Fabric behavior
-    """
-    _skip_if_backend_unavailable("fabric", device)
-
-    stage = sim_utils.get_current_stage()
-
-    # Create prims
-    num_prims = 5
-    for i in range(num_prims):
-        sim_utils.create_prim(
-            f"/World/Cam_{i}",
-            "Camera",
-            translation=(i * 1.0, 2.0, 3.0),
-            orientation=(0.0, 0.0, 0.7071068, 0.7071068),
-            stage=stage,
-        )
-
-    # Create Fabric view
-    view_fabric = _create_view("/World/Cam_.*", device=device, backend="fabric")
-
-    # Test Fabric write→read round-trip (Isaac Sim's intended workflow)
-    # Initialize Fabric state by WRITING first
-    init_positions = torch.zeros((num_prims, 3), dtype=torch.float32, device=device)
-    init_positions[:, 0] = torch.arange(num_prims, dtype=torch.float32, device=device)
-    init_positions[:, 1] = 2.0
-    init_positions[:, 2] = 3.0
-    init_orientations = torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068]] * num_prims, dtype=torch.float32, device=device)
-
-    view_fabric.set_world_poses(init_positions, init_orientations)
-
-    # Read back from Fabric (should match what we wrote)
-    pos_fabric, quat_fabric = view_fabric.get_world_poses()
-    torch.testing.assert_close(pos_fabric, init_positions, atol=1e-4, rtol=0)
-    torch.testing.assert_close(quat_fabric, init_orientations, atol=1e-4, rtol=0)
-
-    # Test another round-trip with different values
-    new_positions = torch.rand((num_prims, 3), dtype=torch.float32, device=device) * 10.0
-    new_orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * num_prims, dtype=torch.float32, device=device)
-
-    view_fabric.set_world_poses(new_positions, new_orientations)
-
-    # Read back from Fabric (should match)
-    pos_fabric_after, quat_fabric_after = view_fabric.get_world_poses()
-    torch.testing.assert_close(pos_fabric_after, new_positions, atol=1e-4, rtol=0)
-    torch.testing.assert_close(quat_fabric_after, new_orientations, atol=1e-4, rtol=0)

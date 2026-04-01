@@ -27,8 +27,8 @@ except OSError:
     except OSError:
         _cudart = None
 from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
-from newton.geometry import HydroelasticSDF
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
+from newton.geometry import HydroelasticSDF
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 

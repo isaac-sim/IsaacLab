@@ -8,19 +8,19 @@
 from __future__ import annotations
 
 import torch
-import warp as wp
 
-import omni.physics.tensors.impl.api as physx
-
-from isaaclab.sim.views import XformPrimView
+from isaaclab.sim.views import BaseXformPrimView
 
 
 def obtain_world_pose_from_view(
-    physx_view: XformPrimView | physx.ArticulationView | physx.RigidBodyView,
+    physx_view: BaseXformPrimView,
     env_ids: torch.Tensor,
     clone: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Get the world poses of the prim referenced by the prim view.
+
+    Accepts any :class:`~isaaclab.sim.views.BaseXformPrimView` subclass
+    (USD/Fabric ``XformPrimView``, Newton GPU-backed ``XformPrimView``, etc.).
 
     Args:
         physx_view: The prim view to get the world poses from.
@@ -29,17 +29,12 @@ def obtain_world_pose_from_view(
 
     Returns:
         A tuple containing the world positions and orientations of the prims.
-        Orientation is in (x, y, z, w) format.
 
     Raises:
-        NotImplementedError: If the prim view is not of the supported type.
+        NotImplementedError: If the prim view is not a BaseXformPrimView subclass.
     """
-    if isinstance(physx_view, XformPrimView):
+    if isinstance(physx_view, BaseXformPrimView):
         pos_w, quat_w = physx_view.get_world_poses(env_ids)
-    elif isinstance(physx_view, physx.ArticulationView):
-        pos_w, quat_w = wp.to_torch(physx_view.get_root_transforms())[env_ids].split([3, 4], dim=-1)
-    elif isinstance(physx_view, physx.RigidBodyView):
-        pos_w, quat_w = wp.to_torch(physx_view.get_transforms())[env_ids].split([3, 4], dim=-1)
     else:
         raise NotImplementedError(f"Cannot get world poses for prim view of type '{type(physx_view)}'.")
 
