@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from enum import Enum, auto
 
 import pytest
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -28,12 +28,13 @@ from isaaclab.sim import SimulationCfg
 
 
 def make_sim_cfg(
-    use_mujoco_contacts: bool = False, device: str = "cuda:0", gravity: tuple = (0.0, 0.0, -9.81)
+    use_mujoco_contacts: bool = True, device: str = "cuda:0", gravity: tuple = (0.0, 0.0, -9.81)
 ) -> SimulationCfg:
     """Create simulation configuration with specified collision pipeline.
 
     Args:
-        use_mujoco_contacts: If True, use MuJoCo contact pipeline. If False, use Newton contact pipeline.
+        use_mujoco_contacts: If True, use MuJoCo contact pipeline (default).
+            If False, use Newton collision pipeline.
         device: Device to run simulation on ("cuda:0" or "cpu").
         gravity: Gravity vector (x, y, z).
 
@@ -46,11 +47,14 @@ def make_sim_cfg(
         cone="elliptic",
         ls_parallel=False,
         integrator="implicitfast",
-        use_mujoco_contacts=use_mujoco_contacts,
     )
+
+    # collision_cfg=None means MuJoCo contacts, otherwise Newton collision pipeline
+    collision_cfg = None if use_mujoco_contacts else NewtonCollisionPipelineCfg()
 
     newton_cfg = NewtonCfg(
         solver_cfg=solver_cfg,
+        collision_cfg=collision_cfg,
         num_substeps=1,
         debug_mode=False,
         use_cuda_graph=False,

@@ -42,12 +42,15 @@ from physics.physics_test_utils import (
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
+from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 
 ##
 # Scene Configuration
@@ -751,6 +754,138 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
                         f"highest force, but '{other_finger}' had "
                         f"{peak_forces[other_finger][env_idx]:.4f}N"
                     )
+
+
+@pytest.mark.parametrize(
+    "device", ["cuda:0", pytest.param("cpu", marks=pytest.mark.skip(reason="CPU segfaults with mesh terrain"))]
+)
+def test_rough_terrain_contact_sanity(device: str):
+    """Test that dropping robot on rough terrain only produces foot contacts.
+
+    This test drops the robot and verifies:
+    - Only feet should have contact forces
+    - All other bodies (base, thighs, shanks, hips) should have zero contact
+
+    Physics or asset bugs manifest as spurious contact forces on non-foot bodies.
+    """
+
+    num_envs = 16
+    simulation_steps = 200
+    settling_steps = 10
+    gravity_mag = 9.81
+    contact_threshold = 1.0
+
+    solver_cfg = MJWarpSolverCfg(
+        njmax=300,
+        nconmax=300,
+        ls_iterations=20,
+        cone="pyramidal",
+        ls_parallel=False,
+        integrator="implicitfast",
+    )
+    collision_cfg = NewtonCollisionPipelineCfg(max_triangle_pairs=2_000_000)
+    newton_cfg = NewtonCfg(
+        solver_cfg=solver_cfg, collision_cfg=collision_cfg, num_substeps=1, debug_mode=False, use_cuda_graph=False
+    )
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0, device=device, gravity=(0.0, 0.0, -gravity_mag), create_stage_in_memory=False, physics=newton_cfg
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=3.0, lazy_sensor_update=False)
+
+        # Use rough terrain instead of flat ground plane
+        scene_cfg.terrain = TerrainImporterCfg(
+            prim_path="/World/ground",
+            terrain_type="generator",
+            terrain_generator=TerrainGeneratorCfg(
+                seed=0,
+                size=(16.0, 16.0),
+                border_width=0.0,
+                num_rows=1,
+                num_cols=1,
+                sub_terrains={
+                    "random_rough": HfRandomUniformTerrainCfg(
+                        proportion=1.0, noise_range=(0.0, 0.05), noise_step=0.01, border_width=0.25
+                    ),
+                },
+            ),
+        )
+
+        # Use Anymal-D articulated robot - same as rough terrain locomotion task
+        scene_cfg.robot = ANYMAL_D_CFG.copy()
+        scene_cfg.robot.prim_path = "{ENV_REGEX_NS}/Robot"
+        scene_cfg.robot.init_state.pos = (0.0, 0.0, 0.6)
+
+        # Single contact sensor on all bodies
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/.*",
+            update_period=0.0,
+            history_length=1,
+        )
+
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        contact_sensor: ContactSensor = scene["contact_sensor_a"]
+        robot: Articulation = scene["robot"]
+
+        # Find foot vs non-foot body indices
+        sensor_names = contact_sensor.sensor_names
+        foot_indices = [i for i, name in enumerate(sensor_names) if "FOOT" in name]
+        non_foot_indices = [i for i, name in enumerate(sensor_names) if "FOOT" not in name]
+
+        # Set default joint positions to standing pose
+        default_jpos = wp.to_torch(robot.data.default_joint_pos).clone()
+        default_jvel = wp.to_torch(robot.data.default_joint_vel).clone()
+        robot.write_joint_position_to_sim_index(position=default_jpos)
+        robot.write_joint_velocity_to_sim_index(velocity=default_jvel)
+
+        nan_step = -1
+        spurious_contact_step = -1
+        total_spurious_contacts = 0
+        max_foot_force = 0.0
+        max_non_foot_force = 0.0
+
+        for step in range(simulation_steps):
+            perform_sim_step(sim, scene, SIM_DT)
+
+            forces = wp.to_torch(contact_sensor.data.net_forces_w)
+            # forces shape: [num_envs, num_bodies, 3]
+
+            # Extract foot and non-foot forces
+            foot_forces = forces[:, foot_indices, :]
+            non_foot_forces = forces[:, non_foot_indices, :]
+
+            foot_force_mag = torch.norm(foot_forces, dim=-1).max().item()
+            non_foot_force_mag = torch.norm(non_foot_forces, dim=-1).max().item()
+            max_foot_force = max(max_foot_force, foot_force_mag)
+            max_non_foot_force = max(max_non_foot_force, non_foot_force_mag)
+
+            # Skip settling period for spurious contact check
+            if step >= settling_steps and non_foot_force_mag > contact_threshold:
+                total_spurious_contacts += 1
+                if spurious_contact_step < 0:
+                    spurious_contact_step = step
+
+            # Check for NaN
+            if torch.isnan(forces).any():
+                if nan_step < 0:
+                    nan_step = step
+
+        assert nan_step < 0, f"NaN detected at step {nan_step}."
+
+        # Spurious contacts on non-foot bodies indicates corrupted contact forces
+        # After settling, should have very few spurious contacts
+        checked_steps = simulation_steps - settling_steps
+        assert total_spurious_contacts < checked_steps * 0.2, (
+            f"Spurious contacts on non-foot bodies: {total_spurious_contacts}/{checked_steps} steps "
+            f"(first at step {spurious_contact_step}, max force {max_non_foot_force:.1f} N). "
+            f"Only feet should have contact forces (max {max_foot_force:.1f} N)."
+        )
 
 
 # ===================================================================

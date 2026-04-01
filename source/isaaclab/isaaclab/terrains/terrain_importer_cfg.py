@@ -96,6 +96,12 @@ class TerrainImporterCfg:
         This parameter is used only when the ``terrain_type`` is "generator" or "plane".
     """
 
+    collision_props: sim_utils.CollisionPropertiesCfg | None = None
+    """The collision properties of the terrain. Defaults to None (use USD defaults).
+
+    This can be used to configure collision parameters such as ``contact_offset`` and ``rest_offset``.
+    """
+
     max_init_terrain_level: int | None = None
     """The maximum initial terrain level for defining environment origins. Defaults to None.
 

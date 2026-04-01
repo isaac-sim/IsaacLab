@@ -862,6 +862,7 @@ def build_simulation_context(
 
         if visualizers:
             sim.set_setting("/isaaclab/visualizer/types", " ".join(visualizers))
+            sim.set_setting("/isaaclab/visualizer/explicit", True)
 
         if add_ground_plane:
             cfg = GroundPlaneCfg()

@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
 
+from .newton_collision_cfg import NewtonCollisionPipelineCfg
+
 if TYPE_CHECKING:
     from .newton_manager import NewtonManager
 
@@ -104,7 +106,17 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     """Whether to use parallel line search."""
 
     use_mujoco_contacts: bool = True
-    """Whether to use MuJoCo's contact solver."""
+    """Whether to use MuJoCo's internal contact solver.
+
+    If ``True`` (default), MuJoCo handles collision detection and contact resolution internally.
+    If ``False``, MuJoCo's collision detection is disabled, and Newton's :class:`CollisionPipeline`
+    must be used instead (set :attr:`NewtonCfg.collision_cfg`).
+
+    .. warning::
+        This must be consistent with :attr:`NewtonCfg.collision_cfg`. If ``use_mujoco_contacts=False``,
+        you must also set ``collision_cfg`` to a :class:`NewtonCollisionPipelineCfg` instance.
+        Mismatched settings will cause simulation errors (e.g., NaN values).
+    """
 
 
 @configclass
@@ -218,3 +230,14 @@ class NewtonCfg(PhysicsCfg):
 
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()
     """Solver configuration. Default is MJWarpSolverCfg()."""
+
+    collision_cfg: NewtonCollisionPipelineCfg | None = None
+    """Newton collision pipeline configuration.
+
+    If ``None`` (default), the solver's native collision pipeline is used (e.g., MuJoCo's
+    internal contact solver for :class:`MJWarpSolverCfg`).
+
+    If set, Newton's :class:`CollisionPipeline` is used with the specified parameters.
+    This is required for scenarios where the solver's native collision does not support
+    the geometry (e.g., mesh terrain with MuJoCo Warp).
+    """

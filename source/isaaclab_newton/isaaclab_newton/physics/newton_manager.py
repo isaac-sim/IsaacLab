@@ -27,6 +27,7 @@ except OSError:
     except OSError:
         _cudart = None
 from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
+from newton.geometry import HydroelasticSDF
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
@@ -91,6 +92,7 @@ class NewtonManager(PhysicsManager):
     _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
+    _collision_cfg = None  # CollisionPipelineCfg, set during initialize()
     _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
     _report_contacts: bool = False
     _fk_dirty: bool = False
@@ -418,20 +420,6 @@ class NewtonManager(PhysicsManager):
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
 
-        # WAR: USD import produces shapes with zero contact margin. Zero margin causes
-        # CCD to use the is_discrete path (epsilon=0), where GJK fails to converge on
-        # mesh terrain, producing NaN in body_q/joint_q.
-        # TODO: file upstream Newton issue for USD importer zero-margin default.
-        contact_margin = 0.01
-        n_margin_fixed = 0
-        for i in range(len(cls._builder.shape_margin)):
-            if cls._builder.shape_margin[i] == 0.0:
-                cls._builder.shape_margin[i] = contact_margin
-                n_margin_fixed += 1
-        if n_margin_fixed > 0:
-            n_total = len(cls._builder.shape_margin)
-            logger.info(f"Set contact margin={contact_margin} on {n_margin_fixed}/{n_total} shapes with zero margin")
-
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
             cls._model = cls._builder.finalize(device=device)
             cls._model.set_gravity(cls._gravity_vector)
@@ -546,12 +534,15 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                # WAR: default max_triangle_pairs (1M) overflows with mesh terrain at
-                # 4096+ envs (~2M triangle pairs). Overflow silently drops contacts.
-                # No upstream issue tracking auto-sizing yet.
-                cls._collision_pipeline = CollisionPipeline(
-                    cls._model, broad_phase="explicit", max_triangle_pairs=2_000_000
-                )
+                # Convert config to dict, handling nested hydroelastic config
+                cfg_dict = cls._collision_cfg.to_dict()
+
+                # Convert HydroelasticSDFCfg to Newton's HydroelasticSDF.Config if present
+                hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
+                cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg) if hydro_cfg else None
+
+                cls._collision_pipeline = CollisionPipeline(cls._model, **cfg_dict)
+
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
@@ -616,16 +607,14 @@ class NewtonManager(PhysicsManager):
             # - SolverMuJoCo with use_mujoco_contacts=False: needs Newton's unified collision pipeline
             # - Other solvers (XPBD, Featherstone): always need Newton's unified collision pipeline
             if isinstance(cls._solver, SolverMuJoCo):
-                # Handle both dict and object configs
-                if hasattr(solver_cfg, "use_mujoco_contacts"):
-                    use_mujoco_contacts = solver_cfg.use_mujoco_contacts
-                elif isinstance(solver_cfg, dict):
-                    use_mujoco_contacts = solver_cfg.get("use_mujoco_contacts", False)
-                else:
-                    use_mujoco_contacts = getattr(solver_cfg, "use_mujoco_contacts", False)
-                cls._needs_collision_pipeline = not use_mujoco_contacts
+                cls._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
+                if cls._collision_cfg is not None:
+                    raise ValueError("NewtonManager: collision_cfg is not supported with use_mujoco_contacts=True")
             else:
                 cls._needs_collision_pipeline = True
+
+            # Store collision pipeline config
+            cls._collision_cfg = getattr(cfg, "collision_cfg", None)
 
             # Initialize contacts and collision pipeline
             cls._initialize_contacts()

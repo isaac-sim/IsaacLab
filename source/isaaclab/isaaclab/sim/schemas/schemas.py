@@ -411,7 +411,7 @@ def modify_collision_properties(
     # get USD prim
     collider_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has collision applied on it
-    if not UsdPhysics.CollisionAPI(collider_prim):
+    if not collider_prim.HasAPI(UsdPhysics.CollisionAPI):
         return False
     # retrieve the USD collision api
     usd_collision_api = UsdPhysics.CollisionAPI(collider_prim)

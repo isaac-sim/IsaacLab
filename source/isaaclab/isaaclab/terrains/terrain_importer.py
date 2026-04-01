@@ -222,6 +222,9 @@ class TerrainImporter:
         # get the mesh
         ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
         ground_plane_cfg.func(prim_path, ground_plane_cfg)
+        # apply collision properties if specified
+        if self.cfg.collision_props is not None:
+            sim_utils.define_collision_properties(prim_path, self.cfg.collision_props)
 
     def import_mesh(self, name: str, mesh: trimesh.Trimesh):
         """Import a mesh into the simulator.
@@ -251,6 +254,10 @@ class TerrainImporter:
         create_prim_from_mesh(
             prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
         )
+        # apply collision properties if specified
+        # note: the actual mesh prim is at {prim_path}/mesh (see create_prim_from_mesh)
+        if self.cfg.collision_props is not None:
+            sim_utils.define_collision_properties(f"{prim_path}/mesh", self.cfg.collision_props)
 
     def import_usd(self, name: str, usd_path: str):
         """Import a mesh from a USD file.

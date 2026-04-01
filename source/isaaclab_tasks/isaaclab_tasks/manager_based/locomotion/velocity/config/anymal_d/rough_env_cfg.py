@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.sim import SimulationCfg
@@ -28,8 +28,8 @@ class RoughPhysicsCfg(PresetCfg):
     # WAR: Rough terrain requires pyramidal cone — elliptic cone + high impratio diverges
     # in float32 with many mesh contacts due to MuJoCo Warp single-precision limitations.
     # Upstream (open): https://github.com/google-deepmind/mujoco_warp/issues/1000
-    # Also uses Newton collision pipeline (use_mujoco_contacts=False) since MuJoCo's
-    # built-in collision does not support mesh terrain geometry.
+    # Uses Newton collision pipeline since MuJoCo's built-in collision does not support
+    # mesh terrain geometry.
     newton = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=200,
@@ -40,6 +40,7 @@ class RoughPhysicsCfg(PresetCfg):
             use_mujoco_contacts=False,
             ccd_iterations=100,
         ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_250_000),
         num_substeps=1,
         debug_mode=False,
     )
@@ -68,7 +69,7 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # switch robot to anymal-d
         self.scene.robot = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        # RayCaster height scanner requires Kit (omni.physics) — disable for Newton.
+        # # RayCaster height scanner requires Kit (omni.physics) — disable for Newton.
         self.scene.height_scanner = preset(default=self.scene.height_scanner, newton=None)
         self.observations.policy.height_scan = preset(default=self.observations.policy.height_scan, newton=None)
 
