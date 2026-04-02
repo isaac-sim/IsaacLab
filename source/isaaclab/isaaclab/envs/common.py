@@ -38,7 +38,7 @@ class ViewerCfg:
     """
 
     origin_type: Literal["world", "env", "asset_root", "asset_body"] = "world"
-    """The frame in which the camera eye and lookat are defined in. Default is "world".
+    """The frame in which the camera position (eye) and target (lookat) are defined in. Default is "world".
 
     Available options are:
 

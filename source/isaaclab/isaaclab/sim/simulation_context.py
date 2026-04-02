@@ -190,6 +190,10 @@ class SimulationContext:
 
         # Monotonic physics-step counter used by camera sensors for
         self._physics_step_count: int = 0
+        # Monotonic render-generation counter. This increments whenever render()
+        # is executed and lets downstream camera freshness logic distinguish
+        # render/reset transitions that occur without advancing physics steps.
+        self._render_generation: int = 0
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -339,6 +343,16 @@ class SimulationContext:
         """Returns whether offscreen rendering is enabled (cached at init)."""
         return self._has_offscreen_render
 
+    def has_active_visualizers(self) -> bool:
+        """Return whether any visualizer path is active for rendering/camera control."""
+        return bool(self.get_setting("/isaaclab/visualizer/types")) or bool(
+            self.get_setting("/isaaclab/video/auto_start_kit")
+        )
+
+    def can_render_rgb_array(self) -> bool:
+        """Return whether rgb-array rendering is currently available."""
+        return self.has_gui or self.has_offscreen_render or self.has_active_visualizers()
+
     @property
     def is_rendering(self) -> bool:
         """Returns whether rendering is active (GUI, RTX sensors, visualizers, or XR)."""
@@ -353,6 +367,11 @@ class SimulationContext:
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""
         return self.physics_manager.get_physics_dt()
+
+    @property
+    def render_generation(self) -> int:
+        """Returns a monotonic counter for render() executions."""
+        return self._render_generation
 
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configs for requested types.
@@ -725,6 +744,7 @@ class SimulationContext:
         """
         self.physics_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt())
+        self._render_generation += 1
 
         # Call render callbacks
         if hasattr(self, "_render_callbacks"):

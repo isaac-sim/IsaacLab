@@ -168,9 +168,7 @@ class ManagerBasedEnv:
         # non-rendering modes.
         # Initialize when GUI is available OR when visualizers are active (headless rendering)
         # ViewerCfg camera updates are applied through renderer camera control.
-        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer/types")) or bool(
-            self.sim.get_setting("/isaaclab/video/auto_start_kit")
-        )
+        has_visualizers = self.sim.has_active_visualizers()
         if self.sim.has_gui or has_visualizers:
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:

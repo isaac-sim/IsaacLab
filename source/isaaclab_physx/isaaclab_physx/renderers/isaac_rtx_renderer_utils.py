@@ -14,11 +14,11 @@ import isaaclab.sim as sim_utils
 
 logger = logging.getLogger(__name__)
 
-# Module-level dedup stamp: tracks the last (sim instance, physics step) at
+# Module-level dedup stamp: tracks the last (sim instance, physics step, render generation) at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
 # new ``SimulationContext`` (e.g. in a new test) automatically invalidates
 # any stale stamp from a previous instance.
-_last_render_update_key: tuple[int, int] = (0, -1)
+_last_render_update_key: tuple[int, int, int] = (0, -1, -1)
 
 # ---------------------------------------------------------------------------
 # RTX streaming status tracking
@@ -91,7 +91,7 @@ def _wait_for_streaming_complete() -> None:
 
 
 def ensure_isaac_rtx_render_update() -> None:
-    """Ensure the Isaac RTX renderer has been pumped for the current physics step.
+    """Ensure the Isaac RTX renderer has been pumped for the current sim step.
 
     This keeps the Kit-specific ``app.update()`` logic inside the renderers
     package rather than in the backend-agnostic ``SimulationContext``.
@@ -99,11 +99,11 @@ def ensure_isaac_rtx_render_update() -> None:
     Safe to call from multiple ``Camera`` / ``TiledCamera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
     because the module-level ``_last_render_update_key`` already matches the
-    current ``(id(sim), step_count)`` pair.
+    current ``(id(sim), step_count, render_generation)`` tuple.
 
-    The key is a ``(sim_instance_id, step_count)`` tuple so that creating a new
-    ``SimulationContext`` (e.g. in a subsequent test) automatically invalidates
-    any stale stamp left over from a previous instance.
+    The key is a ``(sim_instance_id, step_count, render_generation)`` tuple so that:
+    - creating a new ``SimulationContext`` invalidates stale stamps, and
+    - render/reset transitions that do not advance physics step count still force a fresh update.
 
     If RTX texture/geometry streaming is in progress, additional
     ``app.update()`` calls are pumped until the streaming subsystem reports
@@ -120,7 +120,8 @@ def ensure_isaac_rtx_render_update() -> None:
     if sim is None:
         return
 
-    key = (id(sim), sim._physics_step_count)
+    render_generation = getattr(sim, "render_generation", getattr(sim, "_render_generation", 0))
+    key = (id(sim), sim._physics_step_count, render_generation)
     if _last_render_update_key == key:
         return  # Already pumped this step (by another camera or a visualizer)
 
