@@ -206,7 +206,6 @@ class randomize_rigid_body_material(ManagerTermBase):
         # check if the physics backend supports material property randomization
         self._supported = hasattr(self.asset.root_view, "get_material_properties")
         if not self._supported:
-            import logging
 
             logging.getLogger(__name__).warning(
                 "randomize_rigid_body_material: skipping because the current physics backend"
