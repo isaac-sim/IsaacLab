@@ -77,12 +77,6 @@ parser.add_argument(
     default=False,
     help="Disable LEAPP graph visualization during compile_graph().",
 )
-parser.add_argument(
-    "--disable_automatic_module_annotation",
-    action="store_true",
-    default=False,
-    help="Disables automatic detection and annotation of modules that have internal states",
-)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -123,6 +117,7 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 
 def get_actor_memory_module(policy_nn):
+    """Return the actor-side recurrent memory module when the policy exposes one."""
     if hasattr(policy_nn, "memory_a"):
         return policy_nn.memory_a
     if hasattr(policy_nn, "memory_s"):
@@ -131,6 +126,7 @@ def get_actor_memory_module(policy_nn):
 
 
 def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device: torch.device, dtype: torch.dtype):
+    """Initialize and return the actor hidden state when a recurrent policy has not created it yet."""
     actor_state, _ = policy_nn.get_hidden_states()
     if actor_state is not None:
         return actor_state
@@ -151,6 +147,7 @@ def ensure_actor_hidden_state_initialized(policy_nn, batch_size: int, device: to
 
 
 def state_dict_from_actor_hidden(actor_hidden):
+    """Convert the actor hidden state into the named tensor mapping expected by LEAPP state APIs."""
     if actor_hidden is None:
         return {}
     if isinstance(actor_hidden, tuple):
@@ -159,6 +156,7 @@ def state_dict_from_actor_hidden(actor_hidden):
 
 
 def actor_hidden_from_registered(registered_state, original_hidden):
+    """Restore the registered LEAPP state to the hidden-state structure expected by the actor memory module."""
     if isinstance(original_hidden, tuple):
         if isinstance(registered_state, tuple):
             return registered_state

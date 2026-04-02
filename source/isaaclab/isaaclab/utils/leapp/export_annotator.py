@@ -107,7 +107,7 @@ class ExportPatcher:
         self._action_term_scene_keys: dict[str, str] = {}
 
     def setup(self, env):
-        """Patch observation and action managers on the unwrapped env."""
+        """Patch the unwrapped env in place for LEAPP-aware observation and action export."""
         unwrapped = env.env.unwrapped
         self.task_name = unwrapped.spec.id
 
@@ -551,9 +551,12 @@ def patch_env_for_export(
       reads **and** ``Articulation`` write methods.
 
     Data properties are resolved lazily through proxies — no hardcoded
-    class list is required. Properties with ``_leapp_semantics`` produce
-    rich annotations; properties without it are still traced so that no
-    tensor is silently baked as a constant.
+    class list is required. To produce LEAPP input annotations, the
+    accessed data property getter must carry ``_leapp_semantics``.
+    Likewise, action-side write methods must be annotated to produce
+    semantic LEAPP outputs. Undecorated reads and writes are forwarded
+    as normal runtime access, but they do not gain semantic annotation
+    metadata through this patching path.
 
     State reads are deduplicated across observation and action paths via a
     shared cache, so a property like ``joint_pos`` that is read by both an
