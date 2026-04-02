@@ -223,6 +223,7 @@ class UniformVelocityCommand(CommandTerm):
 
         return arrow_scale, arrow_quat
 
+
 class NormalVelocityCommand(UniformVelocityCommand):
     """Command generator that generates a velocity command in SE(2) from a normal distribution.
 

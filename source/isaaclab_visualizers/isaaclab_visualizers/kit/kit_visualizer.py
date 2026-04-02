@@ -83,7 +83,9 @@ class KitVisualizer(BaseVisualizer):
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
-                ("camera_source", self.cfg.camera_source),
+                ("cam_source", self.cfg.cam_source),
+                ("visualizer_camera_prim_path", self.cfg.visualizer_camera_prim_path),
+                ("enable_visualizer_cam", self.cfg.enable_visualizer_cam),
                 ("num_visualized_envs", num_visualized_envs),
                 ("create_viewport", self.cfg.create_viewport),
                 ("headless", self._runtime_headless),
@@ -181,6 +183,9 @@ class KitVisualizer(BaseVisualizer):
         if not self._is_initialized:
             logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
+        if not self.cfg.enable_visualizer_cam:
+            logger.debug("[KitVisualizer] set_camera_view() ignored because enable_visualizer_cam=False.")
+            return
         self._set_viewport_camera(tuple(eye), tuple(target))
 
     # ---- Viewport + camera ----------------------------------------------------------------
@@ -223,11 +228,17 @@ class KitVisualizer(BaseVisualizer):
             # In headless mode we keep the visualizer active but skip viewport/window setup.
             self._viewport_window = None
             self._viewport_api = None
-            self._controlled_camera_path = "/OmniverseKit_Persp"
+            self._controlled_camera_path = "/OmniverseKit_Persp" if self.cfg.enable_visualizer_cam else None
+            if not self.cfg.enable_visualizer_cam:
+                return
             self._apply_cfg_camera_pose_if_configured()
             return
 
-        if self.cfg.create_viewport and self.cfg.viewport_name:
+        if self.cfg.create_viewport:
+            if not self.cfg.viewport_name.strip():
+                raise RuntimeError(
+                    "[KitVisualizer] viewport_name must be a non-empty string when create_viewport=True."
+                )
             dock_position_name = self.cfg.dock_position.upper()
             dock_position_map = {
                 "LEFT": DockPosition.LEFT,
@@ -247,7 +258,6 @@ class KitVisualizer(BaseVisualizer):
             )
 
             asyncio.ensure_future(self._dock_viewport_async(self.cfg.viewport_name, dock_pos))
-            self._create_and_assign_camera(usd_stage)
         else:
             self._viewport_window = vp_utils.get_active_viewport_window()
 
@@ -256,16 +266,18 @@ class KitVisualizer(BaseVisualizer):
             self._viewport_api = None
             return
         self._viewport_api = self._viewport_window.viewport_api
-        # Pin the camera path we will write to, using the active camera at init time.
-        # This must happen before any _set_viewport_camera() call so the path is known.
-        self._controlled_camera_path = self._viewport_api.get_active_camera() or "/OmniverseKit_Persp"
-        if self.cfg.camera_source == "usd_path":
-            if not self._set_active_camera_path(self.cfg.camera_usd_path):
-                logger.warning(
-                    "[KitVisualizer] camera_usd_path '%s' not found; using configured camera.",
-                    self.cfg.camera_usd_path,
+        if not self.cfg.enable_visualizer_cam:
+            self._controlled_camera_path = None
+            return
+        # Always create/use a dedicated visualizer-controlled camera so we never mutate
+        # existing viewport cameras (e.g. /OmniverseKit_Persp or sensor cameras).
+        self._create_and_assign_camera(usd_stage)
+        if self.cfg.cam_source == "prim_path":
+            if not self._set_active_camera_path(self.cfg.cam_prim_path):
+                raise RuntimeError(
+                    "[KitVisualizer] cam_source='prim_path' requires a valid cam_prim_path. "
+                    f"Camera prim not found: '{self.cfg.cam_prim_path}'."
                 )
-                self._apply_cfg_camera_pose_if_configured()
         else:
             self._apply_cfg_camera_pose_if_configured()
 
@@ -301,8 +313,10 @@ class KitVisualizer(BaseVisualizer):
             viewport_window.focus()
 
     def _create_and_assign_camera(self, usd_stage) -> None:
-        """Create viewport camera prim (if needed) and set it active."""
-        camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera".replace(" ", "_")
+        """Create dedicated visualizer camera prim (if needed) and set it active."""
+        camera_path = self.cfg.visualizer_camera_prim_path
+        if not camera_path:
+            raise RuntimeError("[KitVisualizer] visualizer_camera_prim_path must be a non-empty prim path.")
 
         camera_prim = usd_stage.GetPrimAtPath(camera_path)
         if not camera_prim.IsValid():
@@ -329,19 +343,7 @@ class KitVisualizer(BaseVisualizer):
         isaacsim_viewports.set_camera_view(**kwargs)
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
-        """Apply configured camera pose if both position and target are provided.
-
-        When either field is ``None``, keep the current/default perspective
-        camera transform unchanged.
-        """
-        if self.cfg.eye is None and self.cfg.lookat is None:
-            return
-        if self.cfg.eye is None or self.cfg.lookat is None:
-            logger.warning(
-                "[KitVisualizer] eye/lookat must be both set or both None. "
-                "Keeping current camera pose."
-            )
-            return
+        """Apply configured camera pose from eye/lookat."""
         self._set_viewport_camera(self.cfg.eye, self.cfg.lookat)
 
     def _set_active_camera_path(self, camera_path: str) -> bool:

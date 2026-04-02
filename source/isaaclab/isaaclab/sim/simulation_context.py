@@ -659,6 +659,25 @@ class SimulationContext:
         for viz in self._visualizers:
             viz.set_camera_view(eye, target)
 
+    def set_renderer_camera_view(
+        self,
+        eye: tuple[float, float, float] | list[float],
+        target: tuple[float, float, float] | list[float],
+        camera_prim_path: str = "/OmniverseKit_Persp",
+    ) -> None:
+        """Set camera view for renderer/viewport camera only.
+
+        This does not broadcast to visualizers.
+        """
+        try:
+            import isaacsim.core.utils.viewports as isaacsim_viewports
+
+            isaacsim_viewports.set_camera_view(
+                eye=list(eye), target=list(target), camera_prim_path=str(camera_prim_path)
+            )
+        except Exception as exc:
+            logger.debug("[SimulationContext] Renderer camera update skipped: %s", exc)
+
     def forward(self) -> None:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()

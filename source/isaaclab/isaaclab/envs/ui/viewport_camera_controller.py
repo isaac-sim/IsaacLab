@@ -218,8 +218,8 @@ class ViewportCameraController:
         cam_eye = viewer_origin + self.default_cam_eye
         cam_target = viewer_origin + self.default_cam_lookat
 
-        # set the camera view
-        self._env.sim.set_camera_view(eye=cam_eye, target=cam_target)
+        # set the renderer viewport camera view (does not broadcast to visualizers)
+        self._env.sim.set_renderer_camera_view(eye=cam_eye, target=cam_target, camera_prim_path=self.cfg.cam_prim_path)
 
     """
     Private Functions

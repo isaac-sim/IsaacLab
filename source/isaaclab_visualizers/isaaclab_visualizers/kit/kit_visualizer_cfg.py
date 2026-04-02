@@ -16,25 +16,21 @@ class KitVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
 
-    eye: tuple[float, float, float] | None = (8.0, 8.0, 3.0)
-    """Initial camera eye override.
-
-    If set to ``None`` (with :attr:`lookat` also set to ``None``), the
-    visualizer keeps the current/default perspective camera pose.
-    """
-
-    lookat: tuple[float, float, float] | None = (0.0, 0.0, 0.0)
-    """Initial camera look-at override.
-
-    If set to ``None`` (with :attr:`eye` also set to ``None``), the
-    visualizer keeps the current/default perspective camera pose.
-    """
-
-    viewport_name: str | None = "Visualizer Viewport"
-    """Viewport name to use. If None, uses active viewport."""
+    viewport_name: str = "Visualizer Viewport"
+    """Viewport name to use when :attr:`create_viewport` is True."""
 
     create_viewport: bool = False
     """Create new viewport with specified name and camera pose."""
+
+    visualizer_camera_prim_path: str = "/World/Cameras/KitVisualizerCamera"
+    """Dedicated camera prim path controlled by the Kit visualizer."""
+
+    enable_visualizer_cam: bool = False
+    """Whether the Kit visualizer should control/bind a dedicated viewport camera.
+
+    If False, Kit does not create/switch camera prims and ignores visualizer camera control
+    updates (including eye/lookat and cam_source handling).
+    """
 
     headless: bool = False
     """Run without creating viewport windows when supported by the app."""

@@ -21,7 +21,7 @@ from isaaclab.utils import configclass
 class ViewerCfg:
     """Configuration of the scene viewport camera."""
 
-    eye: tuple[float, float, float] = (7.5, 7.5, 117.5)
+    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Initial camera position (in m). Default is (7.5, 7.5, 7.5)."""
 
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
@@ -66,6 +66,7 @@ class ViewerCfg:
 
     This quantity is only effective if :attr:`origin` is set to "asset_body".
     """
+
 
 ##
 # Types.
