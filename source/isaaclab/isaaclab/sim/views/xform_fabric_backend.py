@@ -74,10 +74,6 @@ class FabricBackend:
         self._prims = prims
         self._device = device
 
-        # Lazy-initialized state (None until __init__ body completes)
-        self._view_indices: wp.array | None = None
-        self._fabric_indices: wp.array | None = None
-
         # Resolve the Fabric device string (SelectPrims only supports cuda:0)
         if self._device.startswith("cuda"):
             if self._device == "cuda":
@@ -87,63 +83,65 @@ class FabricBackend:
                     "SelectPrims only supports cuda:0. Using cuda:0 even though simulation device is %s.",
                     self._device,
                 )
-            fabric_device = "cuda:0"
+            device = "cuda:0"
         else:
-            fabric_device = self._device
-        self._fabric_device = fabric_device
+            device = self._device
+        self._device = device
 
         import usdrt
         from usdrt import Rt  # noqa: F401 — imported for side-effects
 
-        stage_id = sim_utils.get_current_stage_id()
-        fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
-        self._fabric_stage = fabric_stage
+        self._stage_id = sim_utils.get_current_stage_id()
+        self._stage = usdrt.Usd.Stage.Attach(self._stage_id)
 
         # Reuse (or create) a hierarchy handle for this stage.
-        if stage_id not in FabricBackend._hierarchy_cache:
+        if self._stage_id not in FabricBackend._hierarchy_cache:
             pop = usdrt.population.IUtils()
-            pop.set_enable_usd_notice_handling(
-                fabric_stage.GetStageIdAsStageId(),
-                fabric_stage.GetFabricId(),
-                True,
-            )
             pop.populate_from_usd(
-                fabric_stage.GetStageReaderWriterId(),
-                fabric_stage.GetStageIdAsStageId(),
+                self._stage.GetStageReaderWriterId(),
+                self._stage.GetStageIdAsStageId(),
                 usdrt.Sdf.Path("/"),
                 0,
             )
-            pop.apply_pending_usd_updates(
-                fabric_stage.GetStageIdAsStageId(),
-                fabric_stage.GetStageReaderWriterId(),
-                0,
-            )
-
             hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                fabric_stage.GetFabricId(),
-                fabric_stage.GetStageIdAsStageId(),
+                self._stage.GetFabricId(),
+                self._stage.GetStageIdAsStageId(),
             )
             hierarchy.update_world_xforms()
             hierarchy.track_local_xform_changes(True)
             hierarchy.track_world_xform_changes(True)
-            FabricBackend._hierarchy_cache[stage_id] = hierarchy
+            FabricBackend._hierarchy_cache[self._stage_id] = hierarchy
 
-        self._fabric_hierarchy = FabricBackend._hierarchy_cache[stage_id]
-        self._stage_id = stage_id
+        self._fabric_hierarchy = FabricBackend._hierarchy_cache[self._stage_id]
 
-        # Index selection for all primitives populated by the hierarchy, used for tracking topology changes.
-        self._index_selection = fabric_stage.SelectPrims(
-            require_attrs=[
-                (usdrt.Sdf.ValueTypeNames.Matrix4d, self._LOCAL_MATRIX_ATTR, usdrt.Usd.Access.Read),
-                (usdrt.Sdf.ValueTypeNames.Matrix4d, self._WORLD_MATRIX_ATTR, usdrt.Usd.Access.Read),
-            ],
-            device=fabric_device,
+        matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
+        ro = usdrt.Usd.Access.Read
+        rw = usdrt.Usd.Access.ReadWrite
+        world_matrix_ro = (matrix, self._WORLD_MATRIX_ATTR, ro)
+        local_matrix_ro = (matrix, self._LOCAL_MATRIX_ATTR, ro)
+        world_matrix_rw = (matrix, self._WORLD_MATRIX_ATTR, rw)
+        local_matrix_rw = (matrix, self._LOCAL_MATRIX_ATTR, rw)
+
+        # Persistent selections — one per (attribute x access-mode) combination.
+        # PrepareForReuse() is called before each use to detect topology changes.
+        self._index_selection_ro = self._stage.SelectPrims(
+            require_attrs=[world_matrix_ro, local_matrix_ro],
+            device=device,
             want_paths=True,
         )
+        self._world_selection_rw = self._stage.SelectPrims(require_attrs=[world_matrix_rw], device=device)
+        self._local_selection_rw = self._stage.SelectPrims(require_attrs=[local_matrix_rw], device=device)
+
+        # Cached indexed fabric arrays (rebuilt when topology changes)
+        self._world_ifa_ro: wp.indexedfabricarray | None = None
+        self._local_ifa_ro: wp.indexedfabricarray | None = None
+        self._world_ifa_rw: wp.indexedfabricarray | None = None
+        self._local_ifa_rw: wp.indexedfabricarray | None = None
 
         # Build the view → fabric index array from PrimSelection path ordering.
         # Default view-index array [0, 1, ..., count-1] for "all prims".
-        self._rebuild_view_to_fabric_index_mapping(force_rebuild=True)
+        self._view_indices: wp.array = wp.array(list(range(self.count)), dtype=wp.uint32, device=self._device)
+        self._fabric_indices: wp.array = self._compute_fabric_indices()
 
         # Pre-allocate reusable output buffers (world poses)
         self._fabric_positions_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=self._device)
@@ -248,9 +246,7 @@ class FabricBackend:
             positions_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._device)
             orientations_wp = wp.zeros((count, 4), dtype=wp.float32).to(self._device)
 
-        self._decompose_transforms(
-            self._get_world_ro_array(), fabric_indices, positions_wp, orientations_wp, dummy
-        )
+        self._decompose_transforms(self._get_world_ro_array(), fabric_indices, positions_wp, orientations_wp, dummy)
 
         if use_cached_buffers:
             return self._fabric_positions_torch, self._fabric_orientations_torch
@@ -270,9 +266,7 @@ class FabricBackend:
             translations_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._device)
             orientations_wp = wp.zeros((count, 4), dtype=wp.float32).to(self._device)
 
-        self._decompose_transforms(
-            self._get_local_ro_array(), fabric_indices, translations_wp, orientations_wp, dummy
-        )
+        self._decompose_transforms(self._get_local_ro_array(), fabric_indices, translations_wp, orientations_wp, dummy)
 
         if use_cached_buffers:
             return self._fabric_local_translations_torch, self._fabric_local_orientations_torch
@@ -332,7 +326,7 @@ class FabricBackend:
                 False,
                 indices_wp,
             ],
-            device=self._fabric_device,
+            device=self._device,
         )
         wp.synchronize()
 
@@ -349,22 +343,13 @@ class FabricBackend:
             kernel=fabric_utils.decompose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[matrices, positions_wp, orientations_wp, scales_wp, indices_wp],
-            device=self._fabric_device,
+            device=self._device,
         )
         wp.synchronize()
 
-    def _rebuild_view_to_fabric_index_mapping(self, force_rebuild: bool = False) -> None:
-        """Build the view index to fabric index array from PrimSelection path ordering."""
-
-        # Rebuild indexing only when fabric topology has changed or whenever forced.
-        topology_changed = self._index_selection.PrepareForReuse()
-        if not (topology_changed or force_rebuild):
-            return
-
-        self._view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=self._device)
-
+    def _compute_fabric_indices(self) -> wp.array:
         # Assign to each prim an index
-        fabric_paths = self._index_selection.GetPaths()
+        fabric_paths = self._index_selection_ro.GetPaths()
         path_to_fabric_idx: dict[str, int] = {str(p): i for i, p in enumerate(fabric_paths)}
 
         # Look up the index for each prim observed by this view
@@ -377,36 +362,53 @@ class FabricBackend:
                 )
             fabric_indices.append(fabric_idx)
 
-        self._fabric_indices = wp.array(fabric_indices, dtype=wp.int32).to(self._fabric_device)
+        return wp.array(fabric_indices, dtype=wp.int32).to(self._device)
+
+    def _ensure_fabric_indices_are_up_to_date(self, force_rebuild: bool = False) -> None:
+        """Build the view index to fabric index array from PrimSelection path ordering."""
+
+        # Rebuild indexing only when fabric topology has changed or whenever forced.
+        topology_changed = self._index_selection_ro.PrepareForReuse()
+        if not (topology_changed or force_rebuild):
+            return
+
+        self._fabric_indices = self._compute_fabric_indices()
 
     def _select_indexed(self, attr_name: str, access) -> wp.indexedfabricarray:
         """Create an indexed fabric array for a single attribute with the given access mode."""
         import usdrt
-        selection = self._fabric_stage.SelectPrims(
+
+        selection = self._stage.SelectPrims(
             require_attrs=[
                 (usdrt.Sdf.ValueTypeNames.Matrix4d, attr_name, access),
             ],
-            device=self._fabric_device,
+            device=self._device,
         )
         fa = wp.fabricarray(selection, attr_name)
         return wp.indexedfabricarray(fa=fa, indices=self._fabric_indices)
 
     def _get_world_ro_array(self) -> wp.indexedfabricarray:
         import usdrt
+
+        self._ensure_fabric_indices_are_up_to_date()
         return self._select_indexed(self._WORLD_MATRIX_ATTR, usdrt.Usd.Access.Read)
 
     def _get_world_rw_array(self) -> wp.indexedfabricarray:
         import usdrt
-        self._rebuild_view_to_fabric_index_mapping()
+
+        self._ensure_fabric_indices_are_up_to_date()
         return self._select_indexed(self._WORLD_MATRIX_ATTR, usdrt.Usd.Access.ReadWrite)
 
     def _get_local_ro_array(self) -> wp.indexedfabricarray:
         import usdrt
+
+        self._ensure_fabric_indices_are_up_to_date()
         return self._select_indexed(self._LOCAL_MATRIX_ATTR, usdrt.Usd.Access.Read)
 
     def _get_local_rw_array(self) -> wp.indexedfabricarray:
         import usdrt
-        self._rebuild_view_to_fabric_index_mapping()
+
+        self._ensure_fabric_indices_are_up_to_date()
         return self._select_indexed(self._LOCAL_MATRIX_ATTR, usdrt.Usd.Access.ReadWrite)
 
     def _convert_view_to_fabric_indices(self, indices: Sequence[int] | None) -> wp.array:
