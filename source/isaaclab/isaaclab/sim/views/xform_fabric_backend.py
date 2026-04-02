@@ -24,6 +24,40 @@ class FabricBackend:
 
     Uses NVIDIA's Fabric API with Warp GPU kernels for high-performance batch
     transform operations.
+
+    Selected primitives based on attributes such as local and world matrices.
+    (all prims in selection, could be in different buckets):
+    ┌─────────┬───────────────┬───────────┐
+    │ Fab Idx │ Prim Path     │ attribute │
+    ├─────────┼───────────────┼───────────┤
+    │    0    │ /World/Light  │  [ ... ]  │
+    │    1    │ /World/Cam_2  │  [ ... ]  │
+    │    2    │ /World/Ground │  [ ... ]  │
+    │    3    │ /World/Cam_0  │  [ ... ]  │
+    │    4    │ /World/Table  │  [ ... ]  │
+    │    5    │ /World/Cam_1  │  [ ... ]  │
+    │    6    │ /World/Robot  │  [ ... ]  │
+    └─────────┴───────────────┴───────────┘
+
+    Example view of 3 prims, order of the paths defines order of indices
+    ┌──────────┬──────────────┐
+    │ View Idx │ Prim Path    │
+    ├──────────┼──────────────┤
+    │    0     │ /World/Cam_0 │
+    │    1     │ /World/Cam_1 │
+    │    2     │ /World/Cam_2 │
+    └──────────┴──────────────┘
+
+    Mapping from view indices to fabric indices happens through a fabric index array:
+    ┌──────────┬─────────┐
+    │ View Idx │ Fab Idx │
+    ├──────────┼─────────┤
+    │    0     │    3    │
+    │    1     │    5    │
+    │    2     │    1    │
+    └──────────┴─────────┘
+
+    If topology of the fabric changes, then all fabric indices need to be rebuilt.
     """
 
     _WORLD_MATRIX_ATTR = "omni:fabric:worldMatrix"
@@ -39,58 +73,32 @@ class FabricBackend:
     ):
         self._prims = prims
         self._device = device
-        self._view_index_attr = f"isaaclab:view_index:{abs(id(self))}"
 
         # Lazy-initialized state (None until initialize() runs)
-        self._view_to_fabric: wp.array | None = None
-        self._default_view_indices: wp.array | None = None
-        self._fabric_hierarchy = None
-        self._world_selection = None
-        self._local_selection = None
+        self._view_indices: wp.array | None = None
+        self._fabric_indices: wp.array | None = None
+        self._selection = None
 
-    # ------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------
+        # Resolve the Fabric device string (SelectPrims only supports cuda:0)
+        if self._device.startswith("cuda"):
+            if self._device == "cuda":
+                logger.warning("Fabric device is not specified, defaulting to 'cuda:0'.")
+            elif self._device != "cuda:0":
+                logger.debug(
+                    "SelectPrims only supports cuda:0. Using cuda:0 even though simulation device is %s.",
+                    self._device,
+                )
+            fabric_device = "cuda:0"
+        else:
+            fabric_device = self._device
+        self._fabric_device = fabric_device
 
-    @property
-    def count(self) -> int:
-        """Number of prims managed by this backend."""
-        return len(self._prims)
-
-    @property
-    def prim_paths(self) -> list[str]:
-        """Prim path strings (lazily cached)."""
-        if not hasattr(self, "_prim_paths_cache"):
-            self._prim_paths_cache = [p.GetPath().pathString for p in self._prims]
-        return self._prim_paths_cache
-
-    # ------------------------------------------------------------------
-    # Initialization
-    # ------------------------------------------------------------------
-
-    def initialize(self) -> None:
-        """Set up Fabric batch infrastructure for GPU-accelerated pose queries.
-
-        Idempotent — subsequent calls after the first are no-ops.
-
-        Ensures all prims have the required Fabric hierarchy attributes
-        (``omni:fabric:localMatrix`` and ``omni:fabric:worldMatrix``) and
-        creates the index mapping, selections, and pre-allocated buffers
-        needed for Warp kernel launches.
-        """
-        if self._fabric_hierarchy is not None:
-            return
         import usdrt
         from usdrt import Rt  # noqa: F401 — imported for side-effects
 
         stage_id = sim_utils.get_current_stage_id()
         fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
-
-        # Ensure every prim carries the view-index attribute
-        for i in range(self.count):
-            rt_prim = fabric_stage.GetPrimAtPath(self.prim_paths[i])
-            rt_prim.CreateAttribute(self._view_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
-            rt_prim.GetAttribute(self._view_index_attr).Set(i)
+        self._fabric_stage = fabric_stage
 
         # Reuse (or create) a hierarchy handle for this stage.
         if stage_id not in FabricBackend._hierarchy_cache:
@@ -124,47 +132,12 @@ class FabricBackend:
         self._fabric_hierarchy = FabricBackend._hierarchy_cache[stage_id]
         self._stage_id = stage_id
 
-        # Default view-index array (0 … count-1)
-        self._default_view_indices = wp.zeros((self.count,), dtype=wp.uint32).to(self._device)
-        wp.launch(
-            kernel=fabric_utils.arange_k,
-            dim=self.count,
-            inputs=[self._default_view_indices],
-            device=self._device,
-        )
-        wp.synchronize()
+        # Build the view → fabric index array from PrimSelection path ordering.
+        # Default view-index array [0, 1, ..., count-1] for "all prims".
+        self._build_view_to_fabric_index_mapping()
 
-        # Resolve the Fabric device string (SelectPrims only supports cuda:0)
-        fabric_device = self._device
-        if self._device == "cuda":
-            logger.warning("Fabric device is not specified, defaulting to 'cuda:0'.")
-            fabric_device = "cuda:0"
-        elif self._device.startswith("cuda:"):
-            if self._device != "cuda:0":
-                logger.debug(
-                    f"SelectPrims only supports cuda:0. Using cuda:0 for SelectPrims "
-                    f"even though simulation device is {self._device}."
-                )
-            fabric_device = "cuda:0"
-
-        # Build the bidirectional view ↔ fabric index mapping
-        index_selection = fabric_stage.SelectPrims(
-            require_attrs=[
-                (usdrt.Sdf.ValueTypeNames.UInt, self._view_index_attr, usdrt.Usd.Access.Read),
-            ],
-            device=fabric_device,
-        )
-
-        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32).to(fabric_device)
-        fabric_to_view = wp.fabricarray(index_selection, self._view_index_attr)
-
-        wp.launch(
-            kernel=fabric_utils.set_view_to_fabric_array,
-            dim=fabric_to_view.shape[0],
-            inputs=[fabric_to_view, self._view_to_fabric],
-            device=fabric_device,
-        )
-        wp.synchronize()
+        self._world_selection = self._select_single_attr(self._WORLD_MATRIX_ATTR)
+        self._local_selection = self._select_single_attr(self._LOCAL_MATRIX_ATTR)
 
         # Pre-allocate reusable output buffers (world poses)
         self._fabric_positions_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=self._device)
@@ -185,11 +158,21 @@ class FabricBackend:
         # Dummy buffer for unused kernel outputs (always empty)
         self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
 
-        self._local_selection = None
-        self._fabric_local_array = None
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
 
-        self._fabric_stage = fabric_stage
-        self._fabric_device = fabric_device
+    @property
+    def count(self) -> int:
+        """Number of prims managed by this backend."""
+        return len(self._prims)
+
+    @property
+    def prim_paths(self) -> list[str]:
+        """Prim path strings (lazily cached)."""
+        if not hasattr(self, "_prim_paths_cache"):
+            self._prim_paths_cache = [p.GetPath().pathString for p in self._prims]
+        return self._prim_paths_cache
 
     # ------------------------------------------------------------------
     # Setters
@@ -202,45 +185,16 @@ class FabricBackend:
         indices: Sequence[int] | None = None,
     ) -> None:
         """Write world poses to Fabric ``omni:fabric:worldMatrix`` via a Warp kernel."""
-        self.initialize()
 
+        # if local transforms were set, we need to update the world transforms
         if self._stage_id in FabricBackend._dirty_stages:
             self._fabric_hierarchy.update_world_xforms()
             FabricBackend._dirty_stages.discard(self._stage_id)
 
-        indices_wp = self._resolve_indices_wp(indices)
-        count = indices_wp.shape[0]
-
-        if positions is not None:
-            positions_wp = wp.from_torch(positions)
-        else:
-            positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
-
-        if orientations is not None:
-            orientations_wp = wp.from_torch(orientations)
-        else:
-            orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._device)
-
-        scales_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
-        world_matrices = self._get_world_matrices_as_fabricarray()
-
-        wp.launch(
-            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
-            dim=count,
-            inputs=[
-                world_matrices,
-                positions_wp,
-                orientations_wp,
-                scales_wp,
-                False,
-                False,
-                False,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._fabric_device,
+        fabric_indices = self._convert_view_to_fabric_indices(indices)
+        self._compose_transforms(
+            self._get_world_indexed_fabricarray(), fabric_indices, positions=positions, orientations=orientations
         )
-        wp.synchronize()
 
     def set_local_poses(
         self,
@@ -254,73 +208,17 @@ class FabricBackend:
         :pyobj:`IFabricHierarchy` and marks world transforms as dirty so that a
         subsequent read will propagate the change.
         """
-        self.initialize()
-
-        indices_wp = self._resolve_indices_wp(indices)
-        count = indices_wp.shape[0]
-
-        if translations is not None:
-            translations_wp = wp.from_torch(translations)
-        else:
-            translations_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
-
-        if orientations is not None:
-            orientations_wp = wp.from_torch(orientations)
-        else:
-            orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._device)
-
-        scales_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
-        local_matrices = self._get_local_matrices_as_fabricarray()
-
-        wp.launch(
-            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
-            dim=count,
-            inputs=[
-                local_matrices,
-                translations_wp,
-                orientations_wp,
-                scales_wp,
-                False,
-                False,
-                False,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._fabric_device,
+        fabric_indices = self._convert_view_to_fabric_indices(indices)
+        self._compose_transforms(
+            self._get_local_indexed_fabricarray(), fabric_indices, positions=translations, orientations=orientations
         )
-        wp.synchronize()
 
         FabricBackend._dirty_stages.add(self._stage_id)
 
     def set_scales(self, scales: torch.Tensor, indices: Sequence[int] | None = None) -> None:
         """Write scales into the Fabric world matrix via a Warp kernel."""
-        self.initialize()
-
-        indices_wp = self._resolve_indices_wp(indices)
-        count = indices_wp.shape[0]
-
-        scales_wp = wp.from_torch(scales)
-        positions_wp = wp.zeros((0, 3), dtype=wp.float32).to(self._device)
-        orientations_wp = wp.zeros((0, 4), dtype=wp.float32).to(self._device)
-        world_matrices = self._get_world_matrices_as_fabricarray()
-
-        wp.launch(
-            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
-            dim=count,
-            inputs=[
-                world_matrices,
-                positions_wp,
-                orientations_wp,
-                scales_wp,
-                False,
-                False,
-                False,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._fabric_device,
-        )
-        wp.synchronize()
+        fabric_indices = self._convert_view_to_fabric_indices(indices)
+        self._compose_transforms(self._get_world_indexed_fabricarray(), fabric_indices, scales=scales)
 
     # ------------------------------------------------------------------
     # Getters
@@ -328,95 +226,57 @@ class FabricBackend:
 
     def get_world_poses(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Read world poses from Fabric and decompose via a Warp kernel."""
-        self.initialize()
         if self._stage_id in FabricBackend._dirty_stages:
             self._fabric_hierarchy.update_world_xforms()
             FabricBackend._dirty_stages.discard(self._stage_id)
 
-        indices_wp = self._resolve_indices_wp(indices)
-        count = indices_wp.shape[0]
+        fabric_indices = self._convert_view_to_fabric_indices(indices)
+        count = fabric_indices.shape[0]
+        dummy = self._fabric_dummy_buffer
 
         use_cached_buffers = indices is None or indices == slice(None)
         if use_cached_buffers:
             positions_wp = self._fabric_positions_buffer
             orientations_wp = self._fabric_orientations_buffer
-            scales_wp = self._fabric_dummy_buffer
         else:
             positions_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._device)
             orientations_wp = wp.zeros((count, 4), dtype=wp.float32).to(self._device)
-            scales_wp = self._fabric_dummy_buffer
 
-        world_matrices = self._get_world_matrices_as_fabricarray()
-
-        wp.launch(
-            kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
-            dim=count,
-            inputs=[
-                world_matrices,
-                positions_wp,
-                orientations_wp,
-                scales_wp,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._fabric_device,
+        self._decompose_transforms(
+            self._get_world_indexed_fabricarray(), fabric_indices, positions_wp, orientations_wp, dummy
         )
 
         if use_cached_buffers:
-            wp.synchronize()
             return self._fabric_positions_torch, self._fabric_orientations_torch
-        else:
-            positions = wp.to_torch(positions_wp)
-            orientations = wp.to_torch(orientations_wp)
-            return positions, orientations
+        return wp.to_torch(positions_wp), wp.to_torch(orientations_wp)
 
     def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Read local poses from Fabric and decompose via a Warp kernel."""
-        self.initialize()
-
-        indices_wp = self._resolve_indices_wp(indices)
-        count = indices_wp.shape[0]
+        fabric_indices = self._convert_view_to_fabric_indices(indices)
+        count = fabric_indices.shape[0]
+        dummy = self._fabric_dummy_buffer
 
         use_cached_buffers = indices is None or indices == slice(None)
         if use_cached_buffers:
             translations_wp = self._fabric_local_translations_buffer
             orientations_wp = self._fabric_local_orientations_buffer
-            scales_wp = self._fabric_dummy_buffer
         else:
             translations_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._device)
             orientations_wp = wp.zeros((count, 4), dtype=wp.float32).to(self._device)
-            scales_wp = self._fabric_dummy_buffer
 
-        local_matrices = self._get_local_matrices_as_fabricarray()
-
-        wp.launch(
-            kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
-            dim=count,
-            inputs=[
-                local_matrices,
-                translations_wp,
-                orientations_wp,
-                scales_wp,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._fabric_device,
+        self._decompose_transforms(
+            self._get_local_indexed_fabricarray(), fabric_indices, translations_wp, orientations_wp, dummy
         )
 
         if use_cached_buffers:
-            wp.synchronize()
             return self._fabric_local_translations_torch, self._fabric_local_orientations_torch
-        else:
-            translations = wp.to_torch(translations_wp)
-            orientations = wp.to_torch(orientations_wp)
-            return translations, orientations
+        return wp.to_torch(translations_wp), wp.to_torch(orientations_wp)
 
     def get_scales(self, indices: Sequence[int] | None = None) -> torch.Tensor:
         """Read scales from Fabric world matrices and extract via a Warp kernel."""
-        self.initialize()
-
-        indices_wp = self._resolve_indices_wp(indices)
-        count = indices_wp.shape[0]
+        fabric_indices = self._convert_view_to_fabric_indices(indices)
+        count = fabric_indices.shape[0]
+        dummy = self._fabric_dummy_buffer
 
         use_cached_buffers = indices is None or indices == slice(None)
         if use_cached_buffers:
@@ -424,80 +284,152 @@ class FabricBackend:
         else:
             scales_wp = wp.zeros((count, 3), dtype=wp.float32).to(self._device)
 
-        positions_wp = self._fabric_dummy_buffer
-        orientations_wp = self._fabric_dummy_buffer
-        world_matrices = self._get_world_matrices_as_fabricarray()
-
-        wp.launch(
-            kernel=fabric_utils.decompose_fabric_transformation_matrix_to_warp_arrays,
-            dim=count,
-            inputs=[
-                world_matrices,
-                positions_wp,
-                orientations_wp,
-                scales_wp,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._fabric_device,
-        )
+        self._decompose_transforms(self._get_world_indexed_fabricarray(), fabric_indices, dummy, dummy, scales_wp)
 
         if use_cached_buffers:
-            wp.synchronize()
             return self._fabric_scales_torch
-        else:
-            return wp.to_torch(scales_wp)
+        return wp.to_torch(scales_wp)
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
-    def _get_world_matrices_as_fabricarray(self) -> wp.fabricarray:
-        """Create a fresh :class:`wp.fabricarray` backed by ``omni:fabric:worldMatrix``.
+    def _compose_transforms(
+        self,
+        matrices: wp.indexedfabricarray,
+        indices_wp: wp.array,
+        positions: torch.Tensor | None = None,
+        orientations: torch.Tensor | None = None,
+        scales: torch.Tensor | None = None,
+    ) -> None:
+        """Launch the compose kernel to write transform components into Fabric matrices.
 
-        Rebuilding both the :class:`PrimSelection` and fabricarray each call
-        ensures Fabric's journaling marks the attribute dirty for downstream
-        consumers (renderers, etc.).
+        Converts non-``None`` torch tensors to Warp arrays and substitutes a
+        pre-allocated zero-length dummy for omitted components so the kernel
+        leaves existing values untouched.
         """
+        dummy = self._fabric_dummy_buffer
+        positions_wp = wp.from_torch(positions) if positions is not None else dummy
+        orientations_wp = wp.from_torch(orientations) if orientations is not None else dummy
+        scales_wp = wp.from_torch(scales) if scales is not None else dummy
+
+        wp.launch(
+            kernel=fabric_utils.compose_indexed_fabric_transforms,
+            dim=indices_wp.shape[0],
+            inputs=[
+                matrices,
+                positions_wp,
+                orientations_wp,
+                scales_wp,
+                False,
+                False,
+                False,
+                indices_wp,
+            ],
+            device=self._fabric_device,
+        )
+        wp.synchronize()
+
+    def _decompose_transforms(
+        self,
+        matrices: wp.indexedfabricarray,
+        indices_wp: wp.array,
+        positions_wp: wp.array,
+        orientations_wp: wp.array,
+        scales_wp: wp.array,
+    ) -> None:
+        """Launch the decompose kernel to read transform components from Fabric matrices."""
+        wp.launch(
+            kernel=fabric_utils.decompose_indexed_fabric_transforms,
+            dim=indices_wp.shape[0],
+            inputs=[matrices, positions_wp, orientations_wp, scales_wp, indices_wp],
+            device=self._fabric_device,
+        )
+        wp.synchronize()
+
+    def _build_view_to_fabric_index_mapping(self) -> None:
+        """Build the view index to fabric index array from PrimSelection path ordering."""
+
+        self._view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=self._device)
+
+        # Assign to each prim an index
+        fabric_paths = self._index_selection.GetPaths()
+        path_to_fabric_idx: dict[str, int] = {str(p): i for i, p in enumerate(fabric_paths)}
+
+        # Look up the index for each prim observed by this view
+        fabric_indices: list[int] = []
+        for prim_path in self.prim_paths:
+            fabric_idx = path_to_fabric_idx.get(prim_path)
+            if fabric_idx is None:
+                raise RuntimeError(
+                    f"Prim '{prim_path}' not found in Fabric selection. Ensure the hierarchy has been populated."
+                )
+            fabric_indices.append(fabric_idx)
+
+        self._fabric_indices = wp.array(fabric_indices, dtype=wp.int32).to(self._fabric_device)
+
+    def _select_single_attr(self, attr_name: str):
+        """Create a ``PrimSelection`` requiring only *one* matrix attribute."""
         import usdrt
 
-        if True:
-            self._world_selection = self._fabric_stage.SelectPrims(
-                require_attrs=[
-                    (usdrt.Sdf.ValueTypeNames.UInt, self._view_index_attr, usdrt.Usd.Access.Read),
-                    (usdrt.Sdf.ValueTypeNames.Matrix4d, self._WORLD_MATRIX_ATTR, usdrt.Usd.Access.ReadWrite),
-                ],
-                device=self._fabric_device,
+        selection = self._fabric_stage.SelectPrims(
+            require_attrs=[
+                (usdrt.Sdf.ValueTypeNames.Matrix4d, attr_name, usdrt.Usd.Access.ReadWrite),
+            ],
+            device=self._fabric_device,
+            want_paths=True,
+        )
+
+        self._maybe_rebuild_fabric_indices(selection)
+        return selection
+
+    def _maybe_rebuild_fabric_indices(self, selection) -> None:
+        """Rebuild ``_fabric_indices`` if the selection ordering changed."""
+        sel_paths = selection.GetPaths()
+        path_to_idx: dict[str, int] = {str(p): i for i, p in enumerate(sel_paths)}
+
+        needs_rebuild = False
+        current_indices = self._fabric_indices.numpy()
+        for view_idx, prim_path in enumerate(self.prim_paths):
+            new_fabric_idx = path_to_idx.get(prim_path)
+            if new_fabric_idx is None:
+                raise RuntimeError(f"Prim '{prim_path}' disappeared from Fabric selection after topology change.")
+            if new_fabric_idx != current_indices[view_idx]:
+                needs_rebuild = True
+                break
+
+        if needs_rebuild:
+            logger.debug(
+                "Fabric topology changed — rebuilding fabric indices for %d prims.",
+                self.count,
             )
-            self._fabric_array = wp.fabricarray(self._world_selection, self._WORLD_MATRIX_ATTR)
-        else:
-            self._world_selection.PrepareForReuse()
+            new_indices = [path_to_idx[p] for p in self.prim_paths]
+            self._fabric_indices = wp.array(new_indices, dtype=wp.int32).to(self._fabric_device)
 
-        return self._fabric_array
+    def _get_world_indexed_fabricarray(self) -> wp.indexedfabricarray:
+        # if self._world_selection.PrepareForReuse():
+        self._world_selection = self._select_single_attr(self._WORLD_MATRIX_ATTR)
+        fa = wp.fabricarray(self._world_selection, self._WORLD_MATRIX_ATTR)
+        return wp.indexedfabricarray(fa=fa, indices=self._fabric_indices)
 
-    def _get_local_matrices_as_fabricarray(self) -> wp.fabricarray:
-        """Create a fresh :class:`wp.fabricarray` backed by ``omni:fabric:localMatrix``."""
-        import usdrt
+    def _get_local_indexed_fabricarray(self) -> wp.indexedfabricarray:
+        # if self._local_selection.PrepareForReuse():
+        self._local_selection = self._select_single_attr(self._LOCAL_MATRIX_ATTR)
+        fa = wp.fabricarray(self._local_selection, self._LOCAL_MATRIX_ATTR)
+        return wp.indexedfabricarray(fa=fa, indices=self._fabric_indices)
 
-        if True:
-            self._local_selection = self._fabric_stage.SelectPrims(
-                require_attrs=[
-                    (usdrt.Sdf.ValueTypeNames.UInt, self._view_index_attr, usdrt.Usd.Access.Read),
-                    (usdrt.Sdf.ValueTypeNames.Matrix4d, self._LOCAL_MATRIX_ATTR, usdrt.Usd.Access.ReadWrite),
-                ],
-                device=self._fabric_device,
-            )
-            self._fabric_local_array = wp.fabricarray(self._local_selection, self._LOCAL_MATRIX_ATTR)
-        else:
-            self._local_selection.PrepareForReuse()
+    def _convert_view_to_fabric_indices(self, indices: Sequence[int] | None) -> wp.array:
+        """Convert requested view indices to fabric indices.
 
-        return self._fabric_local_array
+        Args:
+            indices: Requested path indices. If None, then all indices are used.
 
-    def _resolve_indices_wp(self, indices: Sequence[int] | None) -> wp.array:
-        """Convert view indices to a Warp :class:`wp.array`."""
+        Returns:
+            A warp array of fabric indices.
+        """
         if indices is None or indices == slice(None):
-            if self._default_view_indices is None:
+            if self._view_indices is None:
                 raise RuntimeError("Fabric indices are not initialized.")
-            return self._default_view_indices
+            return self._view_indices
         indices_list = indices.tolist() if isinstance(indices, torch.Tensor) else list(indices)
         return wp.array(indices_list, dtype=wp.uint32).to(self._device)

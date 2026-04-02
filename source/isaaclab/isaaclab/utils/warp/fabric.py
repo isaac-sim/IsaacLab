@@ -18,12 +18,14 @@ import warp as wp
 if TYPE_CHECKING:
     FabricArrayUInt32 = Any
     FabricArrayMat44d = Any
+    IndexedFabricArrayMat44d = Any
     ArrayUInt32 = Any
     ArrayUInt32_1d = Any
     ArrayFloat32_2d = Any
 else:
     FabricArrayUInt32 = wp.fabricarray(dtype=wp.uint32)
     FabricArrayMat44d = wp.fabricarray(dtype=wp.mat44d)
+    IndexedFabricArrayMat44d = wp.indexedfabricarray(dtype=wp.mat44d)
     ArrayUInt32 = wp.array(ndim=1, dtype=wp.uint32)
     ArrayUInt32_1d = wp.array(dtype=wp.uint32)
     ArrayFloat32_2d = wp.array(ndim=2, dtype=wp.float32)
@@ -35,13 +37,6 @@ def set_view_to_fabric_array(fabric_to_view: FabricArrayUInt32, view_to_fabric: 
     fabric_idx = int(wp.tid())
     view_idx = int(fabric_to_view[fabric_idx])
     view_to_fabric[view_idx] = wp.uint32(fabric_idx)
-
-
-@wp.kernel(enable_backward=False)
-def arange_k(a: ArrayUInt32_1d):
-    """Fill array with sequential indices."""
-    tid = int(wp.tid())
-    a[tid] = wp.uint32(tid)
 
 
 @wp.kernel(enable_backward=False)
@@ -159,6 +154,109 @@ def compose_fabric_transformation_matrix_from_warp_arrays(
     # set transform matrix (need transpose for column-major ordering)
     # Using transform_compose as wp.matrix() is deprecated
     fabric_matrices[fabric_index] = wp.mat44d(  # type: ignore[arg-type]
+        wp.transpose(wp.transform_compose(position, rotation, scale))  # type: ignore[arg-type]
+    )
+
+
+@wp.kernel(enable_backward=False)
+def decompose_indexed_fabric_transforms(
+    fabric_matrices: IndexedFabricArrayMat44d,
+    array_positions: ArrayFloat32_2d,
+    array_orientations: ArrayFloat32_2d,
+    array_scales: ArrayFloat32_2d,
+    indices: ArrayUInt32,
+):
+    """Decompose indexed Fabric transformation matrices into position, orientation, and scale.
+
+    Like :func:`decompose_fabric_transformation_matrix_to_warp_arrays` but operates on a
+    :class:`wp.indexedfabricarray` that already encodes the view-to-fabric mapping, removing
+    the need for a separate ``mapping`` array.
+
+    Args:
+        fabric_matrices: Indexed fabric array containing 4x4 transformation matrices.
+        array_positions: Output array for positions [m], shape (N, 3).
+        array_orientations: Output array for quaternions in xyzw format, shape (N, 4).
+        array_scales: Output array for scales, shape (N, 3).
+        indices: View indices to process (subset selection).
+    """
+    output_index = wp.tid()
+    view_index = indices[output_index]
+
+    position, rotation, scale = _decompose_transformation_matrix(wp.mat44f(fabric_matrices[view_index]))
+
+    if array_positions.shape[0] > 0:
+        array_positions[output_index, 0] = position[0]
+        array_positions[output_index, 1] = position[1]
+        array_positions[output_index, 2] = position[2]
+    if array_orientations.shape[0] > 0:
+        array_orientations[output_index, 0] = rotation[0]
+        array_orientations[output_index, 1] = rotation[1]
+        array_orientations[output_index, 2] = rotation[2]
+        array_orientations[output_index, 3] = rotation[3]
+    if array_scales.shape[0] > 0:
+        array_scales[output_index, 0] = scale[0]
+        array_scales[output_index, 1] = scale[1]
+        array_scales[output_index, 2] = scale[2]
+
+
+@wp.kernel(enable_backward=False)
+def compose_indexed_fabric_transforms(
+    fabric_matrices: IndexedFabricArrayMat44d,
+    array_positions: ArrayFloat32_2d,
+    array_orientations: ArrayFloat32_2d,
+    array_scales: ArrayFloat32_2d,
+    broadcast_positions: bool,
+    broadcast_orientations: bool,
+    broadcast_scales: bool,
+    indices: ArrayUInt32,
+):
+    """Compose indexed Fabric transformation matrices from position, orientation, and scale.
+
+    Like :func:`compose_fabric_transformation_matrix_from_warp_arrays` but operates on a
+    :class:`wp.indexedfabricarray` that already encodes the view-to-fabric mapping, removing
+    the need for a separate ``mapping`` array.
+
+    Args:
+        fabric_matrices: Indexed fabric array containing 4x4 transformation matrices to update.
+        array_positions: Input array for positions [m], shape (N, 3).
+        array_orientations: Input array for quaternions in xyzw format, shape (N, 4).
+        array_scales: Input array for scales, shape (N, 3).
+        broadcast_positions: If True, use first position for all prims.
+        broadcast_orientations: If True, use first orientation for all prims.
+        broadcast_scales: If True, use first scale for all prims.
+        indices: View indices to process (subset selection).
+    """
+    i = wp.tid()
+    view_index = indices[i]
+    position, rotation, scale = _decompose_transformation_matrix(wp.mat44f(fabric_matrices[view_index]))
+
+    if array_positions.shape[0] > 0:
+        if broadcast_positions:
+            index = 0
+        else:
+            index = i
+        position[0] = array_positions[index, 0]
+        position[1] = array_positions[index, 1]
+        position[2] = array_positions[index, 2]
+    if array_orientations.shape[0] > 0:
+        if broadcast_orientations:
+            index = 0
+        else:
+            index = i
+        rotation[0] = array_orientations[index, 0]
+        rotation[1] = array_orientations[index, 1]
+        rotation[2] = array_orientations[index, 2]
+        rotation[3] = array_orientations[index, 3]
+    if array_scales.shape[0] > 0:
+        if broadcast_scales:
+            index = 0
+        else:
+            index = i
+        scale[0] = array_scales[index, 0]
+        scale[1] = array_scales[index, 1]
+        scale[2] = array_scales[index, 2]
+
+    fabric_matrices[view_index] = wp.mat44d(  # type: ignore[arg-type]
         wp.transpose(wp.transform_compose(position, rotation, scale))  # type: ignore[arg-type]
     )
 
