@@ -1511,3 +1511,68 @@ def test_fabric_usd_consistency(device):
     pos_fabric_after, quat_fabric_after = view_fabric.get_world_poses()
     torch.testing.assert_close(pos_fabric_after, new_positions, atol=1e-4, rtol=0)
     torch.testing.assert_close(quat_fabric_after, new_orientations, atol=1e-4, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_fabric_topology_change_write_lands_on_correct_prim(device):
+    """Test that writes land on the correct prim after Fabric topology changes.
+
+    Creates 3 Camera prims, builds a view for Cam_0 and Cam_2 only, then
+    adds a custom attribute to Cam_1 (forcing a bucket reorganization in
+    Fabric). After that, writes new positions through the view and verifies
+    via raw usdrt reads that the correct prims received the data.
+    """
+    import usdrt
+
+    _skip_if_backend_unavailable("fabric", device)
+
+    stage = sim_utils.get_current_stage()
+
+    # Step 1: create 3 Camera prims with known positions
+    sim_utils.create_prim("/World/Cam_0", "Camera", translation=(1.0, 0.0, 0.0), stage=stage)
+    sim_utils.create_prim("/World/Cam_1", "Camera", translation=(2.0, 0.0, 0.0), stage=stage)
+    sim_utils.create_prim("/World/Cam_2", "Camera", translation=(3.0, 0.0, 0.0), stage=stage)
+
+    # Step 2: create a Fabric view for Cam_0 and Cam_2 only
+    sim_ctx = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view = XformPrimView("/World/Cam_[02]", device=device)
+    assert view.count == 2
+    assert set(view.prim_paths) == {"/World/Cam_0", "/World/Cam_2"}
+
+    # Step 3: add a custom attribute to Cam_1 to force a bucket change
+    fab_stage = usdrt.Usd.Stage.Attach(sim_utils.get_current_stage_id())
+    cam1 = fab_stage.GetPrimAtPath(usdrt.Sdf.Path("/World/Cam_1"))
+    cam1.CreateAttribute("custom:dummyFloat", usdrt.Sdf.ValueTypeNames.Float, True).Set(42.0)
+
+    # Step 4: write new positions through the view
+    new_positions = torch.tensor(
+        [[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]],
+        dtype=torch.float32,
+        device=device,
+    )
+    view.set_world_poses(positions=new_positions)
+
+    # Step 5: verify via raw usdrt that the correct prims got the new data
+    def _read_fabric_position(prim_path: str) -> tuple[float, float, float]:
+        prim = fab_stage.GetPrimAtPath(usdrt.Sdf.Path(prim_path))
+        mat = prim.GetAttribute("omni:fabric:worldMatrix").Get()
+        return (mat[3][0], mat[3][1], mat[3][2])
+
+    pos_cam0 = _read_fabric_position("/World/Cam_0")
+    pos_cam1 = _read_fabric_position("/World/Cam_1")
+    pos_cam2 = _read_fabric_position("/World/Cam_2")
+
+    # Cam_0 should have (10, 20, 30)
+    assert abs(pos_cam0[0] - 10.0) < 0.01, f"Cam_0 x: expected 10.0, got {pos_cam0[0]}"
+    assert abs(pos_cam0[1] - 20.0) < 0.01, f"Cam_0 y: expected 20.0, got {pos_cam0[1]}"
+    assert abs(pos_cam0[2] - 30.0) < 0.01, f"Cam_0 z: expected 30.0, got {pos_cam0[2]}"
+
+    # Cam_2 should have (40, 50, 60)
+    assert abs(pos_cam2[0] - 40.0) < 0.01, f"Cam_2 x: expected 40.0, got {pos_cam2[0]}"
+    assert abs(pos_cam2[1] - 50.0) < 0.01, f"Cam_2 y: expected 50.0, got {pos_cam2[1]}"
+    assert abs(pos_cam2[2] - 60.0) < 0.01, f"Cam_2 z: expected 60.0, got {pos_cam2[2]}"
+
+    # Cam_1 should NOT have been touched (still at its original position)
+    assert abs(pos_cam1[0] - 2.0) < 0.01 or abs(pos_cam1[0]) < 0.01, (
+        f"Cam_1 x: expected ~2.0 or ~0.0, got {pos_cam1[0]} — write leaked to wrong prim!"
+    )
