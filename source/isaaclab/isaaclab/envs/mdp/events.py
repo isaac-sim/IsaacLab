@@ -216,7 +216,7 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         # obtain number of shapes per body (needed for indexing the material properties correctly)
         if isinstance(self.asset, BaseArticulation) and self.asset_cfg.body_ids != slice(None):
-            # check if the asset already provides num_shapes_per_body (e.g. Newton backend)
+            # check if the asset directly provides num_shapes_per_body (e.g. future backends that expose it)
             if hasattr(self.asset, "num_shapes_per_body"):
                 self.num_shapes_per_body = self.asset.num_shapes_per_body
             else:
