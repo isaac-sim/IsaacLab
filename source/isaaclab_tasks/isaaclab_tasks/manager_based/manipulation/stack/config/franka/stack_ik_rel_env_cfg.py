@@ -10,7 +10,11 @@ from isaaclab.devices.openxr.openxr_device import OpenXRDeviceCfg
 from isaaclab.devices.openxr.retargeters.manipulator.gripper_retargeter import GripperRetargeterCfg
 from isaaclab.devices.openxr.retargeters.manipulator.se3_rel_retargeter import Se3RelRetargeterCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
+
+from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import mdp
 
 from . import stack_joint_pos_env_cfg
 
@@ -66,4 +70,60 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                     sim_device=self.sim.device,
                 ),
             }
+        )
+
+
+@configclass
+class FrankaCubeStackRedGreenEnvCfg(FrankaCubeStackEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        self.terminations.success = DoneTerm(
+            func=mdp.cubes_stacked,
+            params={"cube_1_cfg": SceneEntityCfg("cube_2"), "cube_2_cfg": SceneEntityCfg("cube_3"), "cube_3_cfg": None},
+        )
+
+
+@configclass
+class FrankaCubeStackRedGreenBlueEnvCfg(FrankaCubeStackEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        self.terminations.success = DoneTerm(
+            func=mdp.cubes_stacked,
+            params={
+                "cube_1_cfg": SceneEntityCfg("cube_2"),
+                "cube_2_cfg": SceneEntityCfg("cube_3"),
+                "cube_3_cfg": SceneEntityCfg("cube_1"),
+            },
+        )
+
+
+@configclass
+class FrankaCubeStackBlueGreenEnvCfg(FrankaCubeStackEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        self.terminations.success = DoneTerm(
+            func=mdp.cubes_stacked,
+            params={"cube_1_cfg": SceneEntityCfg("cube_1"), "cube_2_cfg": SceneEntityCfg("cube_3"), "cube_3_cfg": None},
+        )
+
+
+@configclass
+class FrankaCubeStackBlueGreenRedEnvCfg(FrankaCubeStackEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        self.terminations.success = DoneTerm(
+            func=mdp.cubes_stacked,
+            params={
+                "cube_1_cfg": SceneEntityCfg("cube_1"),
+                "cube_2_cfg": SceneEntityCfg("cube_3"),
+                "cube_3_cfg": SceneEntityCfg("cube_2"),
+            },
         )
