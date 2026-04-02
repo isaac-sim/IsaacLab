@@ -1,0 +1,104 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Newton-only image for headless HPC training (no Omniverse/Isaac Sim).
+# Designed for Singularity/Apptainer conversion on SLURM clusters.
+#
+# Build:
+#   docker build -t isaac-lab-newton -f docker/Dockerfile.newton .
+#
+# Run:
+#   docker run --rm --gpus all isaac-lab-newton \
+#     python /workspace/isaaclab/scripts/reinforcement_learning/rsl_rl/train.py \
+#     --task Isaac-Reach-Franka-v0 --num_envs 64 --headless \
+#     env.sim.physics=newton --max_iterations 5
+#
+# Singularity conversion:
+#   docker save isaac-lab-newton -o isaac-lab-newton.tar
+#   apptainer build isaac-lab-newton.sif docker-archive://isaac-lab-newton.tar
+
+FROM nvidia/cuda:12.8.1-devel-ubuntu22.04
+
+SHELL ["/bin/bash", "-c"]
+
+LABEL description="Isaac Lab Newton-only image for headless HPC training (no Omniverse/Isaac Sim)."
+
+ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
+ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
+
+ENV LANG=C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ---- System packages + Python 3.12 ----
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3.12 \
+        python3.12-dev \
+        python3.12-venv \
+        build-essential \
+        cmake \
+        git \
+        libglib2.0-0 \
+        libgl1-mesa-glx \
+        libusb-1.0-0 \
+        ncurses-term \
+        wget && \
+    apt -y autoremove && apt clean autoclean && \
+    rm -rf /var/lib/apt/lists/*
+
+# ---- Python virtual environment ----
+RUN python3.12 -m venv /opt/isaaclab-venv
+ENV PATH="/opt/isaaclab-venv/bin:$PATH"
+
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# ---- Install PyTorch (CUDA 12.8) ----
+# Cached as a separate layer since it's ~2GB and rarely changes.
+RUN pip install --no-cache-dir \
+    torch==2.10.0+cu128 \
+    torchvision==0.25.0+cu128 \
+    --index-url https://download.pytorch.org/whl/cu128
+
+# ---- Copy Isaac Lab source tree ----
+COPY . ${ISAACLAB_PATH}
+RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
+
+# ---- Install Isaac Lab packages via isaaclab.sh ----
+# This installs all extensions including Newton, RL frameworks, etc.
+RUN ${ISAACLAB_PATH}/isaaclab.sh -i
+
+# ---- Singularity/Apptainer compatibility ----
+RUN touch /bin/nvidia-smi && \
+    touch /bin/nvidia-debugdump && \
+    touch /bin/nvidia-persistenced && \
+    touch /bin/nvidia-cuda-mps-control && \
+    touch /bin/nvidia-cuda-mps-server && \
+    touch /etc/localtime && \
+    mkdir -p /var/run/nvidia-persistenced && \
+    touch /var/run/nvidia-persistenced/socket
+
+RUN mkdir -p /root/.cache/pip && \
+    mkdir -p /root/.cache/nvidia/GLCache && \
+    mkdir -p /root/.nv/ComputeCache
+
+# ---- Build-time verification ----
+RUN python -c "\
+import isaaclab; \
+import isaaclab_newton; \
+import newton; \
+import warp; \
+import torch; \
+print(f'torch {torch.__version__}, CUDA available: {torch.cuda.is_available()}'); \
+print('All Newton imports OK')"
+
+# ---- Shell convenience ----
+RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> /root/.bashrc && \
+    echo "export PATH=/opt/isaaclab-venv/bin:\$PATH" >> /root/.bashrc && \
+    echo "export TZ=$(date +%Z)" >> /root/.bashrc
+
+WORKDIR ${ISAACLAB_PATH}
