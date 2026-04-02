@@ -170,7 +170,19 @@ class NewtonWarpRenderer(BaseRenderer):
                 "Check the log for earlier Newton model build errors."
             )
 
-        self.newton_sensor = newton.sensors.SensorTiledCamera(newton_model)
+        self.newton_sensor = newton.sensors.SensorTiledCamera(
+            newton_model,
+            config=newton.sensors.SensorTiledCamera.RenderConfig(
+                enable_textures=cfg.enable_textures,
+                enable_shadows=cfg.enable_shadows,
+                enable_ambient_lighting=cfg.enable_ambient_lighting,
+                enable_backface_culling=cfg.enable_backface_culling,
+                max_distance=cfg.max_distance,
+            ),
+        )
+
+        if cfg.create_default_light:
+            self.newton_sensor.utils.create_default_light(enable_shadows=cfg.enable_shadows)
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Newton Warp - uses Newton scene directly without stage export.

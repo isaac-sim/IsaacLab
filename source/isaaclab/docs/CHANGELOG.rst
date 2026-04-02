@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+4.5.25 (2026-04-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added app launcher initialization marker to app launcher for auto hanging detection.
+
+
 4.5.24 (2026-03-25)
 ~~~~~~~~~~~~~~~~~~~
 
