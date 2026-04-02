@@ -3135,51 +3135,20 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
-    def write_actuator_ctrl_target_to_sim_index(
+    def write_actuator_ctrl_to_sim(
             self,
             *,
-            ctrl_target: float | wp.array | torch.Tensor,
+            ctrl: float | wp.array | torch.Tensor,
             ctrl_ids: wp.array | None = None,
             env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
     ) -> None:
-        if isinstance(ctrl_target, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], ctrl_ids.shape[0]),
-                inputs=[
-                    ctrl_target,
-                    env_ids,
-                    ctrl_ids,
-                ],
-                outputs=[
-                    self.data.ctrl_target,
-                ],
-                device=self.device,
-            )
+        env_ids = self._resolve_env_ids(env_ids)
+        # ctrl_ids = self._resolve_ctrl_ids(ctrl_ids)
+        if isinstance(ctrl, float):
+            self.data._sim_bind_actuator_ctrl = 0
         else:
-            self.assert_shape_and_dtype(ctrl_target, (env_ids.shape[0], ctrl_ids.shape[0]), wp.float32, "ctrl_target")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], ctrl_ids.shape[0]),
-                inputs=[
-                    ctrl_target,
-                    env_ids,
-                    ctrl_ids,
-                ],
-                outputs=[
-                    self.data.ctrl_target,
-                ],
-                device=self.device,
-            )
-
-    def write_actuator_ctrl_target_to_sim_mask(
-        self,
-        *,
-        ctrl_target=float | wp.array | torch.Tensor,
-        ctrl_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        return
+            # self.assert_shape_and_dtype(ctrl, (env_ids.shape[0]*ctrl_ids.shape[0],), wp.float32, "ctrl_target")
+            self.data._sim_bind_actuator_ctrl = ctrl
 
     """
     Internal helper.
@@ -3731,8 +3700,6 @@ class Articulation(BaseArticulation):
         logger.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
         # read out all fixed tendon parameters from simulation
-        if self.num_fixed_tendons > 0:
-            raise NotImplementedError("Fixed tendons are not supported yet.")
 
         if self.num_spatial_tendons > 0:
             raise NotImplementedError("Spatial tendons are not supported yet.")

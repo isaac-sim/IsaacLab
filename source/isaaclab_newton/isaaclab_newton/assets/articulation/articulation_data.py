@@ -1213,7 +1213,7 @@ class ArticulationData(BaseArticulationData):
         self._num_instances = self._root_view.count
         self._num_joints = self._root_view.joint_dof_count
         self._num_bodies = self._root_view.link_count
-        self._num_fixed_tendons = 0  # self._root_view.max_fixed_tendons
+        self._num_fixed_tendons = self._root_view.tendon_count # self._root_view.max_fixed_tendons
         self._num_spatial_tendons = 0  # self._root_view.max_spatial_tendons
 
         # -- root properties
@@ -1324,6 +1324,21 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
 
+        # tendon bindings
+        if self._num_fixed_tendons > 0:
+            self._sim_bind_tendon_stiffness = self._root_view.get_attribute("mujoco.tendon_stiffness",
+                                                                   SimulationManager.get_model())
+            self._sim_bind_tendon_damping = self._root_view.get_attribute("mujoco.tendon_damping",
+                                                                 SimulationManager.get_model())
+
+        # check for actuator controls
+        mujoco_attrs = getattr(SimulationManager.get_model(), "mujoco", None)
+        if hasattr(mujoco_attrs, "actuator_trntype"):
+            self.actuator_count = len(mujoco_attrs.actuator_trntype)
+            mujoco_act_attr = getattr(SimulationManager.get_control(), "mujoco", None)
+            self._sim_bind_actuator_ctrl = getattr(mujoco_act_attr, "ctrl", None)
+
+
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
         super()._create_buffers()
@@ -1351,6 +1366,18 @@ class ArticulationData(BaseArticulationData):
         self._default_joint_vel = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
+
+        # -- mujoco ctrl api
+        if self.actuator_count > 0:
+            self._default_actuator_ctrl = wp.zeros((self._num_instances, self.actuator_count,), wp.float32, device=self.device)
+
+        if self._num_fixed_tendons > 0:
+            self._tendon_stiffness = wp.clone(self._sim_bind_tendon_stiffness)
+            self._tendon_damping = wp.clone(self._sim_bind_tendon_damping)
+        else:
+            self._tendon_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._tendon_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+
         # -- joint commands (sent to the actuator from the user)
         self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         self._joint_vel_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
@@ -1367,6 +1394,7 @@ class ArticulationData(BaseArticulationData):
         else:
             self._actuator_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._actuator_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+
         # -- other data that are filled based on explicit actuator models
         self._joint_dynamic_friction = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
@@ -1383,15 +1411,6 @@ class ArticulationData(BaseArticulationData):
             (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
         )
 
-        if self._num_fixed_tendons > 0:
-            self._tendon_stiffness = wp.zeros((self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device)
-            self._tendon_damping = wp.zeros((self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device)
-
-        # check for actuator controls
-        mujoco_ns = getattr(SimulationManager.get_control(), "mujoco", None)
-        mjc_ctrl = getattr(mujoco_ns, "ctrl", None) if mujoco_ns is not None else None
-        if mjc_ctrl is not None:
-            self._ctrl = wp.zeros((self._num_instances, mjc_ctrl.shape[1]), dtype=wp.float32, device=self.device)
 
         # Initialize history for finite differencing
         if self._num_joints > 0:
