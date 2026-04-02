@@ -7,6 +7,9 @@ Changelog
 Added
 ^^^^^
 
+* Added :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` for configuring
+  Newton's collision pipeline parameters (broad phase, contact limits, triangle pairs).
+  Set via :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg`.
 * Added :class:`~isaaclab_newton.physics.SDFCfg` for configuring SDF-based mesh
   collisions via Newton's ``mesh.build_sdf()`` API. Supports per-body and per-shape
   regex pattern matching, per-pattern resolution overrides, and optional creation of

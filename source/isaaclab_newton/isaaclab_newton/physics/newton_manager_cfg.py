@@ -164,6 +164,44 @@ class SDFCfg:
 
 
 @configclass
+class NewtonCollisionPipelineCfg:
+    """Configuration for Newton's collision pipeline.
+
+    Full-featured collision pipeline with GJK/MPR narrow phase and pluggable broad phase.
+    When set on :attr:`NewtonCfg.collision_cfg`, Newton's collision pipeline replaces the
+    solver's native collision handling.
+
+    For more details, see the `Newton Collisions Guide`_.
+
+    .. _Newton Collisions Guide: https://newton-physics.github.io/newton/latest/concepts/collisions.html
+    """
+
+    broad_phase: str = "explicit"
+    """Broad phase algorithm for collision detection.
+
+    Options: ``"explicit"`` (precomputed pairs), ``"nxn"`` (all-pairs), ``"sap"`` (sweep-and-prune).
+    """
+
+    reduce_contacts: bool = True
+    """Whether to reduce contacts for mesh-mesh collisions."""
+
+    rigid_contact_max: int | None = None
+    """Maximum number of rigid contacts to allocate. If None, auto-estimated from model."""
+
+    max_triangle_pairs: int = 1_000_000
+    """Maximum triangle pairs allocated by narrow phase for mesh/heightfield collisions."""
+
+    soft_contact_max: int | None = None
+    """Maximum number of soft contacts. If None, computed as ``shape_count * particle_count``."""
+
+    soft_contact_margin: float = 0.01
+    """Margin [m] for soft contact generation."""
+
+    requires_grad: bool | None = None
+    """Whether to enable gradient computation. If None, uses ``model.requires_grad``."""
+
+
+@configclass
 class NewtonSolverCfg:
     """Configuration for Newton solver-related parameters.
 
@@ -365,6 +403,14 @@ class NewtonCfg(PhysicsCfg):
 
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()
     """Solver configuration. Default is MJWarpSolverCfg()."""
+
+    collision_cfg: NewtonCollisionPipelineCfg | None = None
+    """Newton collision pipeline configuration.
+
+    If None (default), the solver's native collision is used (e.g., MuJoCo's internal
+    contact solver). If set, Newton's :class:`CollisionPipeline` is used with the
+    specified parameters.
+    """
 
     sdf_cfg: SDFCfg | None = None
     """SDF collision configuration. If None (default), SDF is disabled."""

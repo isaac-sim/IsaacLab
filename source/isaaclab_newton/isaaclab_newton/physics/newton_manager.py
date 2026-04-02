@@ -556,20 +556,27 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _create_collision_pipeline(cls, model: Model):
-        """Create a collision pipeline with optional hydroelastic support.
+        """Create a collision pipeline from :attr:`collision_cfg` and optional hydroelastic config.
 
-        When ``hydroelastic_cfg`` is set on the active :class:`SDFCfg`, the pipeline
-        is created with a :class:`HydroelasticSDF.Config` so that shapes with the
-        ``HYDROELASTIC`` flag use distributed surface contacts. Otherwise the pipeline
-        is created with default settings (point contacts only).
+        Pipeline parameters come from :class:`NewtonCollisionPipelineCfg` on ``NewtonCfg.collision_cfg``.
+        Hydroelastic config comes from :class:`HydroelasticCfg` on ``SDFCfg.hydroelastic_cfg``.
+        Falls back to ``broad_phase="explicit"`` when no ``collision_cfg`` is provided.
         """
         cfg = PhysicsManager._cfg
+
+        # Pipeline parameters from collision_cfg (or defaults)
+        collision_cfg = getattr(cfg, "collision_cfg", None)
+        if collision_cfg is not None:
+            pipeline_kwargs = collision_cfg.to_dict() if hasattr(collision_cfg, "to_dict") else {}
+        else:
+            pipeline_kwargs = {"broad_phase": "explicit"}
+
+        # Hydroelastic config from sdf_cfg
         sdf_cfg = getattr(cfg, "sdf_cfg", None)
         hydro_cfg = sdf_cfg.hydroelastic_cfg if sdf_cfg is not None else None
 
-        hydro_config = None
         if hydro_cfg is not None:
-            hydro_config = HydroelasticSDF.Config(
+            pipeline_kwargs["sdf_hydroelastic_config"] = HydroelasticSDF.Config(
                 reduce_contacts=hydro_cfg.reduce_contacts,
                 output_contact_surface=hydro_cfg.output_contact_surface,
                 normal_matching=hydro_cfg.normal_matching,
@@ -585,7 +592,7 @@ class NewtonManager(PhysicsManager):
                 f"reduce_contacts={hydro_cfg.reduce_contacts})"
             )
 
-        return CollisionPipeline(model, broad_phase="explicit", sdf_hydroelastic_config=hydro_config)
+        return CollisionPipeline(model, **pipeline_kwargs)
 
     @classmethod
     def start_simulation(cls) -> None:
@@ -802,7 +809,11 @@ class NewtonManager(PhysicsManager):
             else:
                 cls._needs_collision_pipeline = True
 
-            # Force Newton pipeline when SDF is enabled
+            # Force Newton pipeline when collision_cfg or SDF is configured
+            if getattr(cfg, "collision_cfg", None) is not None and not cls._needs_collision_pipeline:
+                logger.warning("collision_cfg set — enabling Newton collision pipeline.")
+                cls._needs_collision_pipeline = True
+
             sdf_cfg = getattr(cfg, "sdf_cfg", None)
             has_sdf = (
                 sdf_cfg is not None
