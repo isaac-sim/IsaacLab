@@ -17,6 +17,153 @@ if TYPE_CHECKING:
 
 
 @configclass
+class HydroelasticCfg:
+    """Configuration for hydroelastic contact handling.
+
+    Hydroelastic contacts use SDF overlap between shape pairs to compute distributed
+    contact surfaces with area-weighted forces via marching cubes. This requires SDF
+    to be enabled on the parent :class:`SDFCfg`.
+
+    Both shapes in a colliding pair must have the hydroelastic flag for hydroelastic
+    contacts to be generated. Shapes that only have SDF (but not hydroelastic) will
+    fall back to standard point contacts.
+
+    .. note::
+        Hydroelastic contacts require the unified collision pipeline, which is used
+        when ``use_mujoco_contacts=False`` on :class:`MJWarpSolverCfg`, or when using
+        a non-MuJoCo solver (XPBD, Featherstone).
+    """
+
+    k_hydro: float = 1e10
+    """Hydroelastic stiffness coefficient [Pa] applied to shapes.
+
+    Controls the compliance of the hydroelastic contact surface. Higher values produce
+    stiffer contacts.
+    """
+
+    shape_patterns: list[str] | None = None
+    """Regex patterns to select which shapes get hydroelastic contacts.
+
+    If None, all shapes that have SDF enabled will also get hydroelastic contacts.
+    If provided, only shapes whose label (USD prim path) matches at least one pattern
+    will have the ``HYDROELASTIC`` flag set.
+
+    Example: ``[".*Gear.*", ".*gear.*"]``
+    """
+
+    reduce_contacts: bool = True
+    """Whether to reduce contacts to a smaller representative set per shape pair."""
+
+    output_contact_surface: bool = False
+    """Whether to output hydroelastic contact surface vertices for visualization."""
+
+    normal_matching: bool = True
+    """Whether to adjust reduced contact normals so their net force direction matches
+    the unreduced reference. Only active when :attr:`reduce_contacts` is True."""
+
+    moment_matching: bool = False
+    """Whether to adjust reduced contact friction coefficients so their net maximum
+    moment matches the unreduced reference. Only active when :attr:`reduce_contacts`
+    is True."""
+
+    margin_contact_area: float = 1e-2
+    """Contact area [m^2] used for non-penetrating contacts at the margin."""
+
+    buffer_mult_broad: int = 1
+    """Multiplier for the preallocated broadphase buffer. Increase if a broadphase
+    overflow warning is issued."""
+
+    buffer_mult_iso: int = 1
+    """Multiplier for preallocated iso-surface extraction buffers. Increase if an
+    iso buffer overflow warning is issued."""
+
+    buffer_mult_contact: int = 1
+    """Multiplier for the preallocated face contact buffer. Increase if a face
+    contact overflow warning is issued."""
+
+    grid_size: int = 256 * 8 * 128
+    """Grid size for contact handling. Can be tuned for performance."""
+
+
+@configclass
+class SDFCfg:
+    """Configuration for SDF (Signed Distance Field) collision on Newton meshes.
+
+    When provided as ``sdf_cfg`` on :class:`NewtonCfg`, mesh collision shapes loaded
+    from USD will have SDF-based collision enabled via Newton's ``mesh.build_sdf()``
+    API at simulation start. At least one of ``max_resolution`` or ``target_voxel_size``
+    must be set.
+
+    Regex patterns in ``shape_patterns`` and ``pattern_resolutions`` allow selective
+    SDF application and per-shape resolution tuning.
+    """
+
+    max_resolution: int | None = None
+    """Maximum dimension [voxels] for sparse SDF grid (must be divisible by 8).
+
+    If set, mesh collision shapes loaded from USD will have SDF-based collision enabled.
+    Typical values: 128, 256, 512.
+    """
+
+    narrow_band_range: tuple[float, float] = (-0.1, 0.1)
+    """Narrow band distance range (inner, outer) [m] for SDF computation."""
+
+    target_voxel_size: float | None = None
+    """Target voxel size [m] for sparse SDF grid.
+
+    If provided, takes precedence over :attr:`max_resolution`.
+    """
+
+    margin: float | None = None
+    """Collision margin [m] for SDF shapes. If None, uses the builder's default."""
+
+    body_patterns: list[str] | None = None
+    """List of regex patterns to match body labels (USD prim paths) for SDF.
+
+    If None, no body-level filtering is applied. If provided, bodies whose label
+    matches at least one pattern will have SDF applied to all their mesh shapes.
+    Example: ``[".*elbow.*", ".*wrist.*"]``
+    """
+
+    shape_patterns: list[str] | None = None
+    """List of regex patterns to match shape labels (USD prim paths) for SDF.
+
+    If None, no shape-level filtering is applied. If provided, only shapes whose
+    label matches at least one pattern get SDF.
+    Example: ``[".*Gear.*", ".*gear.*"]``
+
+    .. note::
+        At least one of :attr:`body_patterns` or :attr:`shape_patterns` must be set
+        for SDF to be applied. If both are None, no shapes will receive SDF.
+    """
+
+    use_visual_meshes: bool = False
+    """Whether to create collision shapes from visual meshes for bodies that have
+    no collision geometry. When False (default), only existing collision meshes
+    are patched with SDF. When True, bodies that match the configured patterns
+    but lack collision shapes will get a new collision shape created from their
+    first visual mesh.
+    """
+
+    pattern_resolutions: dict[str, int] | None = None
+    """Per-pattern SDF resolution overrides.
+
+    Maps regex pattern to max_resolution for matching shapes. Shapes not matching any
+    pattern here use the global ``max_resolution``. First matching pattern wins.
+    Example: ``{".*elbow.*": 128, ".*power_supply.*": 512}``
+    """
+
+    hydroelastic_cfg: HydroelasticCfg | None = None
+    """Hydroelastic contact configuration.
+
+    If None (default), hydroelastic contacts are disabled and standard point contacts
+    are used. When set, shapes matching the SDF patterns (or the hydroelastic-specific
+    ``shape_patterns``) will have the ``HYDROELASTIC`` flag enabled and use distributed
+    surface contacts computed via SDF overlap.
+    """
+
+
+@configclass
 class NewtonSolverCfg:
     """Configuration for Newton solver-related parameters.
 
@@ -218,3 +365,6 @@ class NewtonCfg(PhysicsCfg):
 
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()
     """Solver configuration. Default is MJWarpSolverCfg()."""
+
+    sdf_cfg: SDFCfg | None = None
+    """SDF collision configuration. If None (default), SDF is disabled."""

@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.5.10 (2026-04-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.SDFCfg` for configuring SDF-based mesh
+  collisions via Newton's ``mesh.build_sdf()`` API. Supports per-body and per-shape
+  regex pattern matching, per-pattern resolution overrides, and optional creation of
+  collision shapes from visual meshes.
+* Added :class:`~isaaclab_newton.physics.HydroelasticCfg` for distributed surface
+  contacts computed via SDF overlap with marching cubes.
+* Added SDF pattern skip in the Newton cloner to preserve original triangle
+  meshes for shapes that will use SDF collision.
+
+
 0.5.9 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~
 

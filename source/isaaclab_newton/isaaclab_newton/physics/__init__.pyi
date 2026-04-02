@@ -5,12 +5,22 @@
 
 __all__ = [
     "FeatherstoneSolverCfg",
+    "HydroelasticCfg",
     "MJWarpSolverCfg",
     "NewtonCfg",
     "NewtonManager",
     "NewtonSolverCfg",
+    "SDFCfg",
     "XPBDSolverCfg",
 ]
 
 from .newton_manager import NewtonManager
-from .newton_manager_cfg import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg, XPBDSolverCfg
+from .newton_manager_cfg import (
+    FeatherstoneSolverCfg,
+    HydroelasticCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonSolverCfg,
+    SDFCfg,
+    XPBDSolverCfg,
+)

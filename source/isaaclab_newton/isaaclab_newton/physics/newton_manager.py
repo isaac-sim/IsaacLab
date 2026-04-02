@@ -11,6 +11,7 @@ import contextlib
 import ctypes
 import inspect
 import logging
+import re
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -28,6 +29,7 @@ except OSError:
         _cudart = None
 from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
+from newton.geometry import HydroelasticSDF
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
@@ -377,6 +379,214 @@ class NewtonManager(PhysicsManager):
         """Register a model change to notify the solver."""
         cls._model_changes.add(change)
 
+    @staticmethod
+    def _build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, label: str):
+        """Build SDF on a mesh, resolving per-pattern resolution overrides.
+
+        Args:
+            mesh: Newton mesh object to build SDF on.
+            sdf_cfg: The active :class:`SDFCfg` instance.
+            res_overrides: Compiled (pattern, resolution) pairs, or None.
+            label: Shape label used for pattern resolution matching.
+        """
+        if mesh is None:
+            return
+        if mesh.sdf is not None:
+            mesh.clear_sdf()
+        resolution = sdf_cfg.max_resolution
+        if res_overrides is not None:
+            for pat, res in res_overrides:
+                if pat.search(label):
+                    resolution = res
+                    break
+        sdf_kwargs = dict(narrow_band_range=sdf_cfg.narrow_band_range)
+        if resolution is not None:
+            sdf_kwargs["max_resolution"] = resolution
+        if sdf_cfg.target_voxel_size is not None:
+            sdf_kwargs["target_voxel_size"] = sdf_cfg.target_voxel_size
+        mesh.build_sdf(**sdf_kwargs)
+
+    @classmethod
+    def _create_sdf_collision_from_visual(
+        cls, builder: ModelBuilder, sdf_shape_indices: set[int], sdf_cfg, res_overrides
+    ):
+        """Create collision shapes from visual meshes for matched bodies that lack collision geometry.
+
+        Args:
+            builder: Newton model builder to modify.
+            sdf_shape_indices: Shape indices that matched SDF patterns.
+            sdf_cfg: The active :class:`SDFCfg` instance.
+            res_overrides: Compiled (pattern, resolution) pairs, or None.
+
+        Returns:
+            Tuple of (num_added, num_hydro) counts.
+        """
+        from newton import ShapeFlags
+
+        hydro_cfg = sdf_cfg.hydroelastic_cfg
+
+        matched_bodies: set[int] = {builder.shape_body[si] for si in sdf_shape_indices}
+        bodies_with_collision: set[int] = set()
+        for si in range(builder.shape_count):
+            if builder.shape_flags[si] & ShapeFlags.COLLIDE_SHAPES and builder.shape_body[si] in matched_bodies:
+                bodies_with_collision.add(builder.shape_body[si])
+
+        shape_cfg_kwargs = dict(
+            density=0.0,
+            has_shape_collision=True,
+            has_particle_collision=True,
+            is_visible=True,
+        )
+        if sdf_cfg.margin is not None:
+            shape_cfg_kwargs["margin"] = sdf_cfg.margin
+        if hydro_cfg is not None:
+            shape_cfg_kwargs["is_hydroelastic"] = True
+            shape_cfg_kwargs["kh"] = hydro_cfg.k_hydro
+        sdf_shape_cfg = ModelBuilder.ShapeConfig(**shape_cfg_kwargs)
+
+        num_added = 0
+        num_hydro = 0
+        for body_idx in matched_bodies - bodies_with_collision:
+            visual_si = None
+            for si in sdf_shape_indices:
+                if builder.shape_body[si] == body_idx and builder.shape_source[si] is not None:
+                    visual_si = si
+                    break
+            if visual_si is None:
+                body_lbl = builder.body_label[body_idx]
+                logger.warning(f"SDF: body '{body_lbl}' matched but has no visual mesh to create collision from.")
+                continue
+
+            mesh = builder.shape_source[visual_si]
+            cls._build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, builder.shape_label[visual_si])
+
+            body_lbl = builder.body_label[body_idx]
+            builder.add_shape_mesh(
+                body=body_idx,
+                xform=builder.shape_transform[visual_si],
+                mesh=mesh,
+                scale=builder.shape_scale[visual_si],
+                cfg=sdf_shape_cfg,
+                label=f"{body_lbl}/sdf_collision",
+            )
+            num_added += 1
+            if hydro_cfg is not None:
+                num_hydro += 1
+
+        return num_added, num_hydro
+
+    @classmethod
+    def _apply_sdf_config(cls, builder: ModelBuilder):
+        """Apply SDF collision and optional hydroelastic flags to matching mesh shapes."""
+        from newton import GeoType, ShapeFlags
+
+        cfg = PhysicsManager._cfg
+        sdf_cfg = getattr(cfg, "sdf_cfg", None)
+        if sdf_cfg is None:
+            return
+
+        if sdf_cfg.max_resolution is None and sdf_cfg.target_voxel_size is None:
+            logger.warning("SDFCfg provided but neither max_resolution nor target_voxel_size is set. SDF disabled.")
+            return
+
+        hydro_cfg = sdf_cfg.hydroelastic_cfg
+
+        # Compile patterns
+        body_patterns = [re.compile(p) for p in sdf_cfg.body_patterns] if sdf_cfg.body_patterns else None
+        shape_patterns = [re.compile(p) for p in sdf_cfg.shape_patterns] if sdf_cfg.shape_patterns else None
+        res_overrides = (
+            [(re.compile(p), r) for p, r in sdf_cfg.pattern_resolutions.items()]
+            if sdf_cfg.pattern_resolutions
+            else None
+        )
+        hydro_patterns = None
+        if hydro_cfg is not None and hydro_cfg.shape_patterns is not None:
+            hydro_patterns = [re.compile(p) for p in hydro_cfg.shape_patterns]
+
+        # --- Collect shape indices that should get SDF ---
+        sdf_shape_indices: set[int] = set()
+
+        if body_patterns is not None:
+            for body_idx in range(len(builder.body_label)):
+                if any(p.search(builder.body_label[body_idx]) for p in body_patterns):
+                    for si in range(builder.shape_count):
+                        if builder.shape_body[si] == body_idx and builder.shape_type[si] == GeoType.MESH:
+                            sdf_shape_indices.add(si)
+
+        if shape_patterns is not None:
+            for si in range(builder.shape_count):
+                if builder.shape_type[si] == GeoType.MESH:
+                    if any(p.search(builder.shape_label[si]) for p in shape_patterns):
+                        sdf_shape_indices.add(si)
+
+        if body_patterns is None and shape_patterns is None:
+            logger.warning("SDFCfg has no body_patterns or shape_patterns set. No shapes will receive SDF.")
+            return
+
+        # --- Patch existing collision meshes ---
+        num_patched = 0
+        num_hydro = 0
+        for si in sdf_shape_indices:
+            if not (builder.shape_flags[si] & ShapeFlags.COLLIDE_SHAPES):
+                continue
+            cls._build_sdf_on_mesh(builder.shape_source[si], sdf_cfg, res_overrides, builder.shape_label[si])
+            if sdf_cfg.margin is not None:
+                builder.shape_margin[si] = sdf_cfg.margin
+            if hydro_cfg is not None:
+                apply_hydro = hydro_patterns is None or any(p.search(builder.shape_label[si]) for p in hydro_patterns)
+                if apply_hydro:
+                    builder.shape_flags[si] |= ShapeFlags.HYDROELASTIC
+                    builder.shape_material_kh[si] = hydro_cfg.k_hydro
+                    num_hydro += 1
+            num_patched += 1
+
+        # --- Optionally create collision shapes from visual meshes ---
+        num_added = 0
+        if sdf_cfg.use_visual_meshes:
+            num_added, hydro_from_visual = cls._create_sdf_collision_from_visual(
+                builder, sdf_shape_indices, sdf_cfg, res_overrides
+            )
+            num_hydro += hydro_from_visual
+
+        hydro_msg = f", {num_hydro} hydroelastic shape(s)" if hydro_cfg is not None else ""
+        logger.info(
+            f"SDF config: {num_added} collision shape(s) added, {num_patched} existing shape(s) patched{hydro_msg}. "
+            f"(max_resolution={sdf_cfg.max_resolution}, narrow_band={sdf_cfg.narrow_band_range})"
+        )
+
+    @classmethod
+    def _create_collision_pipeline(cls, model: Model):
+        """Create a collision pipeline with optional hydroelastic support.
+
+        When ``hydroelastic_cfg`` is set on the active :class:`SDFCfg`, the pipeline
+        is created with a :class:`HydroelasticSDF.Config` so that shapes with the
+        ``HYDROELASTIC`` flag use distributed surface contacts. Otherwise the pipeline
+        is created with default settings (point contacts only).
+        """
+        cfg = PhysicsManager._cfg
+        sdf_cfg = getattr(cfg, "sdf_cfg", None)
+        hydro_cfg = sdf_cfg.hydroelastic_cfg if sdf_cfg is not None else None
+
+        hydro_config = None
+        if hydro_cfg is not None:
+            hydro_config = HydroelasticSDF.Config(
+                reduce_contacts=hydro_cfg.reduce_contacts,
+                output_contact_surface=hydro_cfg.output_contact_surface,
+                normal_matching=hydro_cfg.normal_matching,
+                moment_matching=hydro_cfg.moment_matching,
+                margin_contact_area=hydro_cfg.margin_contact_area,
+                buffer_mult_broad=hydro_cfg.buffer_mult_broad,
+                buffer_mult_iso=hydro_cfg.buffer_mult_iso,
+                buffer_mult_contact=hydro_cfg.buffer_mult_contact,
+                grid_size=hydro_cfg.grid_size,
+            )
+            logger.info(
+                f"Hydroelastic contacts enabled (k_hydro={hydro_cfg.k_hydro}, "
+                f"reduce_contacts={hydro_cfg.reduce_contacts})"
+            )
+
+        return CollisionPipeline(model, broad_phase="explicit", sdf_hydroelastic_config=hydro_config)
+
     @classmethod
     def start_simulation(cls) -> None:
         """Start simulation by finalizing model and initializing state.
@@ -390,6 +600,9 @@ class NewtonManager(PhysicsManager):
         # Create builder from USD stage if not provided
         if cls._builder is None:
             cls.instantiate_builder_from_stage()
+        else:
+            # Builder was set externally (e.g. by newton_replicate) — still apply SDF
+            cls._apply_sdf_config(cls._builder)
 
         logger.info("Dispatching MODEL_INIT callbacks")
         cls.dispatch_event(PhysicsEvent.MODEL_INIT)
@@ -500,6 +713,7 @@ class NewtonManager(PhysicsManager):
 
             cls._num_envs = len(env_paths)
 
+        cls._apply_sdf_config(builder)
         cls.set_builder(builder)
 
     @classmethod
@@ -512,7 +726,7 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+                cls._collision_pipeline = cls._create_collision_pipeline(cls._model)
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
@@ -586,6 +800,17 @@ class NewtonManager(PhysicsManager):
                     use_mujoco_contacts = getattr(solver_cfg, "use_mujoco_contacts", False)
                 cls._needs_collision_pipeline = not use_mujoco_contacts
             else:
+                cls._needs_collision_pipeline = True
+
+            # Force Newton pipeline when SDF is enabled
+            sdf_cfg = getattr(cfg, "sdf_cfg", None)
+            has_sdf = (
+                sdf_cfg is not None
+                and (sdf_cfg.body_patterns is not None or sdf_cfg.shape_patterns is not None)
+                and (sdf_cfg.max_resolution is not None or sdf_cfg.target_voxel_size is not None)
+            )
+            if has_sdf and not cls._needs_collision_pipeline:
+                logger.warning("SDF collision requires Newton collision pipeline. Overriding use_mujoco_contacts.")
                 cls._needs_collision_pipeline = True
 
             # Initialize contacts and collision pipeline

@@ -62,6 +62,21 @@ def _build_newton_builder_from_mapping(
     # The prototype is built from env_0 in absolute world coordinates.
     # add_builder xforms are deltas from env_0 so positions don't get double-counted.
     env0_pos = positions[0]
+
+    # SDF collision requires original triangle meshes for mesh.build_sdf().
+    # Convex hull approximation destroys the source geometry, so shapes
+    # matching SDF patterns must be excluded from approximation here.
+    # _apply_sdf_config() will build the SDF on these meshes later.
+    import re
+
+    from isaaclab.physics import PhysicsManager
+
+    cfg = PhysicsManager._cfg
+    sdf_cfg = getattr(cfg, "sdf_cfg", None) if cfg is not None else None
+    body_pats = [re.compile(x) for x in sdf_cfg.body_patterns] if sdf_cfg and sdf_cfg.body_patterns else None
+    shape_pats = [re.compile(x) for x in sdf_cfg.shape_patterns] if sdf_cfg and sdf_cfg.shape_patterns else None
+    has_sdf_patterns = body_pats is not None or shape_pats is not None
+
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
         p = ModelBuilder(up_axis=up_axis)
@@ -74,7 +89,31 @@ def _build_newton_builder_from_mapping(
             schema_resolvers=schema_resolvers,
         )
         if simplify_meshes:
-            p.approximate_meshes("convex_hull", keep_visual_shapes=True)
+            if has_sdf_patterns:
+                from newton import GeoType
+
+                sdf_bodies: set[int] = set()
+                if body_pats is not None:
+                    for bi in range(len(p.body_label)):
+                        if any(pat.search(p.body_label[bi]) for pat in body_pats):
+                            sdf_bodies.add(bi)
+
+                approx_indices = []
+                for i in range(len(p.shape_type)):
+                    if p.shape_type[i] != GeoType.MESH:
+                        continue
+                    # Skip shapes that will use SDF (matched by body or shape pattern)
+                    if p.shape_body[i] in sdf_bodies:
+                        continue
+                    if shape_pats is not None:
+                        lbl = p.shape_label[i] if i < len(p.shape_label) else ""
+                        if any(pat.search(lbl) for pat in shape_pats):
+                            continue
+                    approx_indices.append(i)
+                if approx_indices:
+                    p.approximate_meshes("convex_hull", shape_indices=approx_indices, keep_visual_shapes=True)
+            else:
+                p.approximate_meshes("convex_hull", keep_visual_shapes=True)
         protos[src_path] = p
 
     # create a separate world for each environment (heterogeneous spawning)
