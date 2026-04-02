@@ -29,7 +29,7 @@ INSTALL_REQUIRES = [
     "gymnasium==1.2.1",
     # procedural-generation
     "trimesh",
-    "pyglet>=2.1.6,<3.0",
+    "pyglet>=2.1.6,<3.0",  # pyglet 3.0 removes pyglet.graphics.shader.Shader, breaking the Newton OpenGL viewer
     "mujoco>=3.5",
     "mujoco-warp>=3.5",
     # image processing
