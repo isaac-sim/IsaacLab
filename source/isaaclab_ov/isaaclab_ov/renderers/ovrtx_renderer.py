@@ -46,8 +46,8 @@ from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     DEVICE,
     create_camera_transforms_kernel,
-    extract_depth_tile_from_tiled_buffer_kernel,
-    extract_tile_from_tiled_buffer_kernel,
+    extract_all_depth_tiles_kernel,
+    extract_all_rgba_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
@@ -424,46 +424,38 @@ class OVRTXRenderer(BaseRenderer):
         buffer_key: str,
         suffix: str = "",
     ) -> None:
-        """Extract per-env RGBA tiles from tiled buffer into output_buffers."""
-        for env_idx in range(render_data.num_envs):
-            tile_x = env_idx % render_data.num_cols
-            tile_y = env_idx // render_data.num_cols
-            wp.launch(
-                kernel=extract_tile_from_tiled_buffer_kernel,
-                dim=(render_data.height, render_data.width),
-                inputs=[
-                    tiled_data,
-                    output_buffers[buffer_key][env_idx],
-                    tile_x,
-                    tile_y,
-                    render_data.width,
-                    render_data.height,
-                ],
-                device=DEVICE,
-            )
+        """Extract per-env RGBA tiles from tiled buffer into output_buffers (single kernel launch)."""
+        wp.launch(
+            kernel=extract_all_rgba_tiles_kernel,
+            dim=(render_data.num_envs, render_data.height, render_data.width),
+            inputs=[
+                tiled_data,
+                output_buffers[buffer_key],
+                render_data.num_cols,
+                render_data.width,
+                render_data.height,
+            ],
+            device=DEVICE,
+        )
 
     def _extract_depth_tiles(
         self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
     ) -> None:
-        """Extract per-env depth tiles into output_buffers."""
-        for env_idx in range(render_data.num_envs):
-            tile_x = env_idx % render_data.num_cols
-            tile_y = env_idx // render_data.num_cols
-            for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
-                if depth_type in output_buffers:
-                    wp.launch(
-                        kernel=extract_depth_tile_from_tiled_buffer_kernel,
-                        dim=(render_data.height, render_data.width),
-                        inputs=[
-                            tiled_depth_data,
-                            output_buffers[depth_type][env_idx],
-                            tile_x,
-                            tile_y,
-                            render_data.width,
-                            render_data.height,
-                        ],
-                        device=DEVICE,
-                    )
+        """Extract per-env depth tiles into output_buffers (single kernel launch)."""
+        for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
+            if depth_type in output_buffers:
+                wp.launch(
+                    kernel=extract_all_depth_tiles_kernel,
+                    dim=(render_data.num_envs, render_data.height, render_data.width),
+                    inputs=[
+                        tiled_depth_data,
+                        output_buffers[depth_type],
+                        render_data.num_cols,
+                        render_data.width,
+                        render_data.height,
+                    ],
+                    device=DEVICE,
+                )
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
