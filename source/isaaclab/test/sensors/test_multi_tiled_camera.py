@@ -29,6 +29,10 @@ from pxr import Gf, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
 
+# Deprecation warnings from TiledCamera/TiledCameraCfg are expected in this file;
+# the deprecation mechanism itself is validated in test_tiled_camera.py.
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
+
 
 @pytest.fixture()
 def setup_camera():
@@ -241,9 +245,9 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         assert output["semantic_segmentation"].dtype == torch.uint8
         assert output["instance_segmentation_fast"].dtype == torch.uint8
         assert output["instance_id_segmentation_fast"].dtype == torch.uint8
-        assert isinstance(info["semantic_segmentation"], dict)
-        assert isinstance(info["instance_segmentation_fast"], dict)
-        assert isinstance(info["instance_id_segmentation_fast"], dict)
+        assert isinstance(info[0]["semantic_segmentation"], dict)
+        assert isinstance(info[0]["instance_segmentation_fast"], dict)
+        assert isinstance(info[0]["instance_id_segmentation_fast"], dict)
 
     for camera in tiled_cameras:
         del camera
