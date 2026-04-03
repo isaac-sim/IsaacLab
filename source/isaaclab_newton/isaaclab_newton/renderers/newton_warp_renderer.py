@@ -221,6 +221,9 @@ class NewtonWarpRenderer(BaseRenderer):
             depth_image=render_data.outputs.depth_image,
             normal_image=render_data.outputs.normals_image,
             shape_index_image=render_data.outputs.instance_segmentation_image,
+            clear_data=newton.sensors.SensorTiledCamera.ClearData(
+                clear_color=0xFFFFFFFF, clear_albedo=0xFFFFFFFF,
+            ),
         )
 
     def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
