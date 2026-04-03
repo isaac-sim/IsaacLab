@@ -8,7 +8,6 @@
 import re
 from unittest.mock import MagicMock, patch
 
-import pytest
 from newton import GeoType, ModelBuilder, ShapeFlags
 
 
@@ -197,8 +196,18 @@ class TestApplySdfConfig:
         builder = self._make_builder(
             bodies=["/World/Robot/base", "/World/Robot/arm"],
             shapes=[
-                {"body_idx": 0, "label": "/World/Robot/base/gear_mesh", "geo_type": GeoType.MESH, "flags": ShapeFlags.COLLIDE_SHAPES},
-                {"body_idx": 1, "label": "/World/Robot/arm/plain_mesh", "geo_type": GeoType.MESH, "flags": ShapeFlags.COLLIDE_SHAPES},
+                {
+                    "body_idx": 0,
+                    "label": "/World/Robot/base/gear_mesh",
+                    "geo_type": GeoType.MESH,
+                    "flags": ShapeFlags.COLLIDE_SHAPES,
+                },
+                {
+                    "body_idx": 1,
+                    "label": "/World/Robot/arm/plain_mesh",
+                    "geo_type": GeoType.MESH,
+                    "flags": ShapeFlags.COLLIDE_SHAPES,
+                },
             ],
         )
         # Mock the mesh sources
@@ -232,9 +241,24 @@ class TestApplySdfConfig:
         builder = self._make_builder(
             bodies=["/World/Robot/arm", "/World/Robot/base"],
             shapes=[
-                {"body_idx": 0, "label": "/World/Robot/arm/mesh_a", "geo_type": GeoType.MESH, "flags": ShapeFlags.COLLIDE_SHAPES},
-                {"body_idx": 0, "label": "/World/Robot/arm/mesh_b", "geo_type": GeoType.MESH, "flags": ShapeFlags.COLLIDE_SHAPES},
-                {"body_idx": 1, "label": "/World/Robot/base/mesh_c", "geo_type": GeoType.MESH, "flags": ShapeFlags.COLLIDE_SHAPES},
+                {
+                    "body_idx": 0,
+                    "label": "/World/Robot/arm/mesh_a",
+                    "geo_type": GeoType.MESH,
+                    "flags": ShapeFlags.COLLIDE_SHAPES,
+                },
+                {
+                    "body_idx": 0,
+                    "label": "/World/Robot/arm/mesh_b",
+                    "geo_type": GeoType.MESH,
+                    "flags": ShapeFlags.COLLIDE_SHAPES,
+                },
+                {
+                    "body_idx": 1,
+                    "label": "/World/Robot/base/mesh_c",
+                    "geo_type": GeoType.MESH,
+                    "flags": ShapeFlags.COLLIDE_SHAPES,
+                },
             ],
         )
         for s in builder.shape_source:
@@ -268,8 +292,18 @@ class TestApplySdfConfig:
         builder = self._make_builder(
             bodies=["/World/Robot/base"],
             shapes=[
-                {"body_idx": 0, "label": "/World/Robot/base/box", "geo_type": GeoType.BOX, "flags": ShapeFlags.COLLIDE_SHAPES},
-                {"body_idx": 0, "label": "/World/Robot/base/mesh", "geo_type": GeoType.MESH, "flags": ShapeFlags.COLLIDE_SHAPES},
+                {
+                    "body_idx": 0,
+                    "label": "/World/Robot/base/box",
+                    "geo_type": GeoType.BOX,
+                    "flags": ShapeFlags.COLLIDE_SHAPES,
+                },
+                {
+                    "body_idx": 0,
+                    "label": "/World/Robot/base/mesh",
+                    "geo_type": GeoType.MESH,
+                    "flags": ShapeFlags.COLLIDE_SHAPES,
+                },
             ],
         )
         for s in builder.shape_source:
@@ -302,7 +336,12 @@ class TestApplySdfConfig:
         builder = self._make_builder(
             bodies=["/World/Robot/arm"],
             shapes=[
-                {"body_idx": 0, "label": "/World/Robot/arm/visual", "geo_type": GeoType.MESH, "flags": ShapeFlags.VISIBLE},
+                {
+                    "body_idx": 0,
+                    "label": "/World/Robot/arm/visual",
+                    "geo_type": GeoType.MESH,
+                    "flags": ShapeFlags.VISIBLE,
+                },
             ],
         )
         for s in builder.shape_source:
@@ -334,7 +373,12 @@ class TestApplySdfConfig:
         builder = self._make_builder(
             bodies=["/World/Robot/arm"],
             shapes=[
-                {"body_idx": 0, "label": "/World/Robot/arm/mesh", "geo_type": GeoType.MESH, "flags": ShapeFlags.COLLIDE_SHAPES},
+                {
+                    "body_idx": 0,
+                    "label": "/World/Robot/arm/mesh",
+                    "geo_type": GeoType.MESH,
+                    "flags": ShapeFlags.COLLIDE_SHAPES,
+                },
             ],
         )
         for s in builder.shape_source:
@@ -365,7 +409,12 @@ class TestApplySdfConfig:
         builder = self._make_builder(
             bodies=["/World/Robot/arm"],
             shapes=[
-                {"body_idx": 0, "label": "/World/Robot/arm/mesh", "geo_type": GeoType.MESH, "flags": ShapeFlags.COLLIDE_SHAPES},
+                {
+                    "body_idx": 0,
+                    "label": "/World/Robot/arm/mesh",
+                    "geo_type": GeoType.MESH,
+                    "flags": ShapeFlags.COLLIDE_SHAPES,
+                },
             ],
         )
         for s in builder.shape_source:
