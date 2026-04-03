@@ -43,6 +43,9 @@ class NewtonVisualizerCfg(VisualizerCfg):
     show_springs: bool = False
     """Show spring visualization."""
 
+    show_collision: bool = False
+    """Show collision visualization."""
+
     show_com: bool = False
     """Show center of mass visualization."""
 

@@ -190,6 +190,9 @@ class NewtonViewerGL(ViewerGL):
                     show_contacts = self.show_contacts
                     changed, self.show_contacts = imgui.checkbox("Show Contacts", show_contacts)
 
+                    show_collision = self.show_collision
+                    changed, self.show_collision = imgui.checkbox("Show Collision", show_collision)
+
                     show_springs = self.show_springs
                     changed, self.show_springs = imgui.checkbox("Show Springs", show_springs)
 
@@ -316,6 +319,7 @@ class NewtonVisualizer(BaseVisualizer):
 
             self._viewer.show_joints = self.cfg.show_joints
             self._viewer.show_contacts = self.cfg.show_contacts
+            self._viewer.show_collision = self.cfg.show_collision
             self._viewer.show_springs = self.cfg.show_springs
             self._viewer.show_com = self.cfg.show_com
 
