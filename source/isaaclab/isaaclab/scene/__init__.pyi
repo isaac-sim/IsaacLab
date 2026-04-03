@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "CollisionGroupCfg",
     "InteractiveScene",
     "InteractiveSceneCfg",
 ]
 
 from .interactive_scene import InteractiveScene
-from .interactive_scene_cfg import InteractiveSceneCfg
+from .interactive_scene_cfg import CollisionGroupCfg, InteractiveSceneCfg

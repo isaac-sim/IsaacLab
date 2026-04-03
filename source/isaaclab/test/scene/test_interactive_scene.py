@@ -18,10 +18,13 @@ import pytest
 import torch
 import warp as wp
 
+from pxr import PhysxSchema
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.scene import CollisionGroupCfg, InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -197,6 +200,181 @@ def assert_state_equal(s1: dict, s2: dict, path=""):
             if not torch.equal(v1, v2):
                 diff = (v1 - v2).abs().max()
                 pytest.fail(f"Tensor mismatch at {subpath}, max abs diff = {diff}")
+
+
+@configclass
+class CollisionGroupSceneCfg(InteractiveSceneCfg):
+    """Scene config for collision group tests."""
+
+    cube_a = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/CubeA",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.5, 0.5, 0.5),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
+    )
+    cube_b = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/CubeB",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.5, 0.5, 0.5),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(1.0, 0.0, 0.5)),
+    )
+    cube_c = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/CubeC",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.5, 0.5, 0.5),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 0.5)),
+    )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_collision_groups_prim_creation(device):
+    """Verify collision group USD prims are created with correct structure."""
+    with build_simulation_context(device=device, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = CollisionGroupSceneCfg(num_envs=2, env_spacing=2.0)
+        scene_cfg.collision_groups = {
+            "group_ab": CollisionGroupCfg(assets=["cube_a", "cube_b"], collides_with=["group_c"]),
+            "group_c": CollisionGroupCfg(assets=["cube_c"], collides_with=["group_ab"]),
+        }
+        scene = InteractiveScene(scene_cfg)
+
+        # check scope prim exists
+        scope_prim = scene.stage.GetPrimAtPath("/World/collisions")
+        assert scope_prim.IsValid()
+
+        # check each env/group combo
+        for env_idx in range(2):
+            for group_name in ["group_ab", "group_c"]:
+                prim_path = f"/World/collisions/env{env_idx}_{group_name}"
+                prim = scene.stage.GetPrimAtPath(prim_path)
+                assert prim.IsValid(), f"Missing prim: {prim_path}"
+                assert prim.GetPrimTypeInfo().GetTypeName() == "PhysicsCollisionGroup"
+
+                # check expansion rule
+                assert prim.GetAttribute("collection:colliders:expansionRule").Get() == "expandPrims"
+
+                # check includes relationship has targets
+                includes = prim.GetRelationship("collection:colliders:includes").GetTargets()
+                assert len(includes) > 0
+
+                # check filteredGroups relationship has targets
+                filtered = prim.GetRelationship("physics:filteredGroups").GetTargets()
+                assert len(filtered) > 0
+
+        # check includes targets point to correct assets
+        prim_ab_env0 = scene.stage.GetPrimAtPath("/World/collisions/env0_group_ab")
+        includes_ab = [str(t) for t in prim_ab_env0.GetRelationship("collection:colliders:includes").GetTargets()]
+        assert "/World/envs/env_0/CubeA" in includes_ab
+        assert "/World/envs/env_0/CubeB" in includes_ab
+
+        prim_c_env0 = scene.stage.GetPrimAtPath("/World/collisions/env0_group_c")
+        includes_c = [str(t) for t in prim_c_env0.GetRelationship("collection:colliders:includes").GetTargets()]
+        assert "/World/envs/env_0/CubeC" in includes_c
+
+        # check InvertCollisionGroupFilterAttr is set
+        physx_scene = PhysxSchema.PhysxSceneAPI(scene.stage.GetPrimAtPath(scene.physics_scene_path))
+        assert physx_scene.GetInvertCollisionGroupFilterAttr().Get() is True
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_collision_groups_mutual_agreement(device):
+    """Verify that collisions require mutual agreement between groups.
+
+    group_a wants to collide with group_b, but group_b says collides_with=[].
+    Since both sides must agree, they should NOT collide.
+    """
+    with build_simulation_context(device=device, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = CollisionGroupSceneCfg(num_envs=1, env_spacing=2.0)
+        scene_cfg.collision_groups = {
+            "group_a": CollisionGroupCfg(assets=["cube_a"], collides_with=["group_b"]),
+            "group_b": CollisionGroupCfg(assets=["cube_b"], collides_with=[]),
+        }
+        scene = InteractiveScene(scene_cfg)
+
+        # group_a should only have self (group_b rejected)
+        prim_a = scene.stage.GetPrimAtPath("/World/collisions/env0_group_a")
+        filtered_a = [str(t) for t in prim_a.GetRelationship("physics:filteredGroups").GetTargets()]
+        assert "/World/collisions/env0_group_a" in filtered_a
+        assert "/World/collisions/env0_group_b" not in filtered_a
+
+        # group_b should only have self
+        prim_b = scene.stage.GetPrimAtPath("/World/collisions/env0_group_b")
+        filtered_b = [str(t) for t in prim_b.GetRelationship("physics:filteredGroups").GetTargets()]
+        assert "/World/collisions/env0_group_b" in filtered_b
+        assert "/World/collisions/env0_group_a" not in filtered_b
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_collision_groups_collides_with_none(device):
+    """Verify collides_with=None means willing to collide with all, but requires mutual agreement."""
+    with build_simulation_context(device=device, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = CollisionGroupSceneCfg(num_envs=1, env_spacing=2.0)
+        scene_cfg.collision_groups = {
+            "group_a": CollisionGroupCfg(assets=["cube_a"], collides_with=None),  # willing to collide with all
+            "group_b": CollisionGroupCfg(assets=["cube_b"], collides_with=[]),  # isolated
+            "group_c": CollisionGroupCfg(assets=["cube_c"], collides_with=None),  # willing to collide with all
+        }
+        scene = InteractiveScene(scene_cfg)
+
+        # group_a (None) + group_c (None) → both agree → collide
+        prim_a = scene.stage.GetPrimAtPath("/World/collisions/env0_group_a")
+        filtered_a = [str(t) for t in prim_a.GetRelationship("physics:filteredGroups").GetTargets()]
+        assert "/World/collisions/env0_group_a" in filtered_a
+        assert "/World/collisions/env0_group_c" in filtered_a
+
+        # group_a (None) + group_b ([]) → group_b rejects → no collision
+        assert "/World/collisions/env0_group_b" not in filtered_a
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_collision_groups_invalid_asset_name(device):
+    """Verify ValueError when collision group references nonexistent asset."""
+    with build_simulation_context(device=device, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = CollisionGroupSceneCfg(num_envs=1, env_spacing=2.0)
+        scene_cfg.collision_groups = {
+            "group_a": CollisionGroupCfg(assets=["nonexistent_asset"], collides_with=[]),
+        }
+        with pytest.raises(ValueError, match="nonexistent_asset"):
+            InteractiveScene(scene_cfg)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_collision_groups_invalid_group_reference(device):
+    """Verify ValueError when collides_with references undefined group."""
+    with build_simulation_context(device=device, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = CollisionGroupSceneCfg(num_envs=1, env_spacing=2.0)
+        scene_cfg.collision_groups = {
+            "group_a": CollisionGroupCfg(assets=["cube_a"], collides_with=["nonexistent_group"]),
+        }
+        with pytest.raises(ValueError, match="nonexistent_group"):
+            InteractiveScene(scene_cfg)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_collision_groups_none_preserves_existing_behavior(device):
+    """Verify that collision_groups=None (default) doesn't create per-env collision group prims."""
+    with build_simulation_context(device=device, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = CollisionGroupSceneCfg(num_envs=2, env_spacing=2.0)
+        # collision_groups defaults to None
+        scene = InteractiveScene(scene_cfg)
+
+        # no per-env collision group prims should exist
+        env0_group_prim = scene.stage.GetPrimAtPath("/World/collisions/env0_group_ab")
+        assert not env0_group_prim.IsValid()
 
 
 def assert_state_different(s1: dict, s2: dict, path=""):

@@ -9,6 +9,56 @@ from isaaclab.utils.configclass import configclass
 
 
 @configclass
+class CollisionGroupCfg:
+    """Configuration for a named collision group within each environment.
+
+    This allows specifying which assets belong to a collision group and which
+    other groups this group is allowed to collide with (allowlist semantics).
+
+    Example:
+        .. code-block:: python
+
+            collision_groups = {
+                "robot": CollisionGroupCfg(
+                    assets=["robot_arm", "robot_hand"],
+                    collides_with=["obstacles"],
+                ),
+                "obstacles": CollisionGroupCfg(
+                    assets=["table", "wall"],
+                    collides_with=["robot"],
+                ),
+                "phantom": CollisionGroupCfg(
+                    assets=["sensor_body"],
+                    collides_with=[],  # collides with nothing
+                ),
+            }
+    """
+
+    assets: list[str] = MISSING
+    """List of scene entity names that belong to this collision group.
+
+    Each name must correspond to an attribute name in the :class:`InteractiveSceneCfg`.
+    """
+
+    collides_with: list[str] | None = None
+    """List of collision group names that this group is allowed to collide with.
+
+    * ``None`` (default): This group collides with all other defined collision groups.
+    * ``[]`` (empty list): This group collides with nothing (fully isolated).
+    * ``["group_a", "group_b"]``: This group collides only with the listed groups.
+
+    Collision between two groups requires **mutual agreement**: groups A and B
+    collide only if A accepts B (A lists B, or A uses ``None``) **and** B accepts A
+    (B lists A, or B uses ``None``). This means ``collides_with=[]`` is always
+    respected — no other group can force collisions onto an isolated group.
+
+    .. note::
+        Each group always collides with itself (assets within the same group
+        can collide with each other).
+    """
+
+
+@configclass
 class InteractiveSceneCfg:
     """Configuration for the interactive scene.
 
@@ -109,6 +159,47 @@ class InteractiveSceneCfg:
         Collisions can only be filtered automatically in direct workflows when physics replication is enabled.
         If :attr:`replicated_physics` is ``False`` and collision filtering is desired, make sure to call
         ``scene.filter_collisions()``.
+    """
+
+    collision_groups: dict[str, CollisionGroupCfg] | None = None
+    """Optional dictionary of named collision groups for intra-environment collision filtering.
+
+    Keys are group names, values are :class:`CollisionGroupCfg` instances defining which assets
+    belong to each group and which groups are allowed to collide with each other.
+
+    When set, the scene creates USD ``PhysicsCollisionGroup`` prims that control which assets
+    within the same environment can collide. This is orthogonal to :attr:`filter_collisions`,
+    which controls *inter*-environment collision isolation.
+
+    Assets not assigned to any collision group follow default physics behavior and collide
+    with everything in their environment.
+
+    If ``None`` (default), no intra-environment collision filtering is applied.
+
+    Example:
+
+    .. code-block:: python
+
+        @configclass
+        class MySceneCfg(InteractiveSceneCfg):
+            collision_groups = {
+                "robot": CollisionGroupCfg(
+                    assets=["robot_arm"],
+                    collides_with=["obstacles"],
+                ),
+                "obstacles": CollisionGroupCfg(
+                    assets=["table"],
+                    collides_with=["robot"],
+                ),
+                "phantom": CollisionGroupCfg(
+                    assets=["sensor_body"],
+                    collides_with=[],
+                ),
+            }
+
+            robot_arm = FRANKA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+            table = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/Table", ...)
+            sensor_body = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/Sensor", ...)
     """
 
     clone_in_fabric: bool = False

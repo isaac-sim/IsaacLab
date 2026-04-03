@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 import torch
 import warp as wp
 
-from pxr import Sdf
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -206,8 +206,16 @@ class InteractiveScene:
         if has_scene_cfg_entities:
             self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
             # Collision filtering is PhysX-specific (PhysxSchema.PhysxSceneAPI)
-            if self.cfg.filter_collisions and "physx" in self.physics_backend:
-                self.filter_collisions(self._global_prim_paths)
+            if "physx" in self.physics_backend:
+                # When collision_groups is configured, _apply_collision_groups handles both inter-env
+                # isolation and intra-env filtering in a single unified set of collision groups.
+                # Using filter_collisions alongside collision_groups would create conflicting groups
+                # (the cloner's per-env group allows all intra-env collisions, overriding the
+                # finer-grained intra-env restrictions).
+                if self.cfg.collision_groups:
+                    self._apply_collision_groups()
+                elif self.cfg.filter_collisions:
+                    self.filter_collisions(self._global_prim_paths)
 
     def clone_environments(self, copy_from_source: bool = False):
         """Creates clones of the environment ``/World/envs/env_0``.
@@ -859,3 +867,165 @@ class InteractiveScene:
         )
         found = sim_utils.find_matching_prim_paths(search)
         return f"{found[0]}/{leaf}" if found else f"{template_base}/{proto_id}_.*"
+
+    def _apply_collision_groups(self):
+        """Create USD PhysicsCollisionGroup prims for unified collision filtering.
+
+        This method replaces the cloner's ``filter_collisions`` when :attr:`InteractiveSceneCfg.collision_groups`
+        is configured. It creates a single, unified set of collision groups that handles both:
+
+        - **Inter-environment isolation**: each env's groups only reference same-env groups in
+          ``filteredGroups``, so prims in different environments never collide.
+        - **Intra-environment filtering**: within each environment, only groups listed in each
+          other's ``filteredGroups`` can collide (allowlist semantics).
+        - **Global prim collisions**: a dedicated global group (for ground plane, etc.) is created
+          and wired so all env groups can collide with it.
+
+        Raises:
+            ValueError: If an asset name in a collision group does not exist in the scene config.
+            ValueError: If a group name in ``collides_with`` does not exist in ``collision_groups``.
+        """
+        collision_groups_cfg = self.cfg.collision_groups
+        if not collision_groups_cfg:
+            return
+
+        # -- Step 1: Collect all scene entity names and their prim paths
+        entity_prim_paths: dict[str, str] = {}
+        for asset_name, asset_cfg in self.cfg.__dict__.items():
+            if asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None:
+                continue
+            if hasattr(asset_cfg, "prim_path"):
+                entity_prim_paths[asset_name] = asset_cfg.prim_path
+
+        # -- Step 2: Validate config
+        group_names = list(collision_groups_cfg.keys())
+        for group_name, group_cfg in collision_groups_cfg.items():
+            # validate asset references
+            for asset_name in group_cfg.assets:
+                if asset_name not in entity_prim_paths:
+                    available = list(entity_prim_paths.keys())
+                    raise ValueError(
+                        f"Collision group '{group_name}' references asset '{asset_name}' which does not"
+                        f" exist in the scene config. Available entities: {available}"
+                    )
+            # validate collides_with references
+            if group_cfg.collides_with is not None:
+                for ref_group in group_cfg.collides_with:
+                    if ref_group not in collision_groups_cfg:
+                        raise ValueError(
+                            f"Collision group '{group_name}' lists '{ref_group}' in collides_with,"
+                            f" but no such group is defined. Available groups: {group_names}"
+                        )
+
+        # -- Step 3: Build collision matrix
+        # Two groups collide only when BOTH sides agree. A pair (A, B) collides iff:
+        #   - A lists B (or A uses None = "all") AND B lists A (or B uses None = "all")
+        # This means collides_with=[] is always respected — no other group can force
+        # collisions onto an isolated group.
+        group_collides: dict[str, set[str]] = {}
+        for group_name in group_names:
+            group_collides[group_name] = set()
+
+        for i, name_a in enumerate(group_names):
+            cfg_a = collision_groups_cfg[name_a]
+            for name_b in group_names[i:]:
+                cfg_b = collision_groups_cfg[name_b]
+                # check if A accepts B
+                a_accepts_b = cfg_a.collides_with is None or name_b in cfg_a.collides_with or name_a == name_b
+                # check if B accepts A
+                b_accepts_a = cfg_b.collides_with is None or name_a in cfg_b.collides_with or name_a == name_b
+                if a_accepts_b and b_accepts_a:
+                    group_collides[name_a].add(name_b)
+                    group_collides[name_b].add(name_a)
+
+        # -- Step 4: Resolve prim paths per group for env_0
+        group_env0_paths: dict[str, list[str]] = {name: [] for name in group_names}
+        for group_name, group_cfg in collision_groups_cfg.items():
+            for asset_name in group_cfg.assets:
+                prim_path = entity_prim_paths[asset_name]
+                # resolve regex to env_0 path
+                env0_path = prim_path.replace(self.env_regex_ns, self.env_prim_paths[0])
+                group_env0_paths[group_name].append(env0_path)
+
+        # -- Step 5: Ensure InvertCollisionGroupFilterAttr is set
+        physx_scene = PhysxSchema.PhysxSceneAPI(self.stage.GetPrimAtPath(self.physics_scene_path))
+        invert_attr = physx_scene.GetInvertCollisionGroupFilterAttr()
+        if not invert_attr or not invert_attr.Get():
+            physx_scene.CreateInvertCollisionGroupFilterAttr().Set(True)
+
+        # -- Step 6: Create USD collision group prims
+        collision_root = "/World/collisions"
+        has_global_paths = len(self._global_prim_paths) > 0
+        global_group_path = f"{collision_root}/global_group"
+
+        # create the scope prim in the root layer
+        with Usd.EditContext(self.stage, Usd.EditTarget(self.stage.GetRootLayer())):
+            UsdGeom.Scope.Define(self.stage, collision_root)
+
+        with Sdf.ChangeBlock():
+            root_spec = self.stage.GetRootLayer().GetPrimAtPath(collision_root)
+
+            # -- create global group for ground plane and other global prims
+            if has_global_paths:
+                global_group = Sdf.PrimSpec(root_spec, "global_group", Sdf.SpecifierDef, "PhysicsCollisionGroup")
+                global_group.SetInfo(Usd.Tokens.apiSchemas, Sdf.TokenListOp.Create({"CollectionAPI:colliders"}))
+
+                expansion_rule = Sdf.AttributeSpec(
+                    global_group,
+                    "collection:colliders:expansionRule",
+                    Sdf.ValueTypeNames.Token,
+                    Sdf.VariabilityUniform,
+                )
+                expansion_rule.default = "expandPrims"
+
+                global_includes = Sdf.RelationshipSpec(global_group, "collection:colliders:includes", False)
+                for gpath in self._global_prim_paths:
+                    global_includes.targetPathList.Append(gpath)
+
+                # filteredGroups for global group — will be populated below with all env groups
+                global_filtered = Sdf.RelationshipSpec(global_group, "physics:filteredGroups", False)
+                # global group collides with itself (e.g. multiple global prims can collide)
+                global_filtered.targetPathList.Append(global_group_path)
+
+            # -- create per-env collision groups
+            for env_idx, env_prim_path in enumerate(self.env_prim_paths):
+                for group_name in group_names:
+                    prim_name = f"env{env_idx}_{group_name}"
+
+                    # create PhysicsCollisionGroup prim
+                    collision_group = Sdf.PrimSpec(root_spec, prim_name, Sdf.SpecifierDef, "PhysicsCollisionGroup")
+                    collision_group.SetInfo(Usd.Tokens.apiSchemas, Sdf.TokenListOp.Create({"CollectionAPI:colliders"}))
+
+                    # expansion rule
+                    expansion_rule = Sdf.AttributeSpec(
+                        collision_group,
+                        "collection:colliders:expansionRule",
+                        Sdf.ValueTypeNames.Token,
+                        Sdf.VariabilityUniform,
+                    )
+                    expansion_rule.default = "expandPrims"
+
+                    # includes relationship — asset prim paths for this env
+                    includes_rel = Sdf.RelationshipSpec(collision_group, "collection:colliders:includes", False)
+                    for env0_asset_path in group_env0_paths[group_name]:
+                        # replace env_0 path with this env's path
+                        env_asset_path = env0_asset_path.replace(self.env_prim_paths[0], env_prim_path)
+                        includes_rel.targetPathList.Append(env_asset_path)
+
+                    # filteredGroups — same-env groups only (provides inter-env isolation)
+                    filtered_groups = Sdf.RelationshipSpec(collision_group, "physics:filteredGroups", False)
+                    for collide_group_name in group_collides[group_name]:
+                        collide_prim_path = f"{collision_root}/env{env_idx}_{collide_group_name}"
+                        filtered_groups.targetPathList.Append(collide_prim_path)
+
+                    # allow collision with global group (ground plane, etc.)
+                    if has_global_paths:
+                        filtered_groups.targetPathList.Append(global_group_path)
+                        # also let global group collide with this env group
+                        global_filtered.targetPathList.Append(f"{collision_root}/{prim_name}")
+
+        logger.info(
+            f"Created collision groups at '{collision_root}'"
+            f" with {len(group_names)} groups across {len(self.env_prim_paths)} environments"
+            f" (global paths: {len(self._global_prim_paths)})."
+        )
