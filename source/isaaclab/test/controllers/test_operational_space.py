@@ -24,18 +24,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.utils.math import (
-    apply_delta_pose,
-    combine_frame_transforms,
-    compute_pose_error,
-    matrix_from_quat,
-    quat_apply_inverse,
-    quat_inv,
-    subtract_frame_transforms,
-)
 
 ##
 # Pre-defined configs
@@ -45,9 +33,21 @@ from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActi
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass as lab_configclass
+from isaaclab.utils.math import (
+    apply_delta_pose,
+    combine_frame_transforms,
+    compute_pose_error,
+    matrix_from_quat,
+    quat_apply_inverse,
+    quat_inv,
+    subtract_frame_transforms,
+)
 
 from isaaclab_assets import FRANKA_PANDA_CFG, G1_29DOF_CFG  # isort:skip
 
@@ -1399,9 +1399,7 @@ def test_floating_base_osc_action_term_indexing():
         assert diag.max().item() < 100.0, (
             f"Mass matrix diagonal too large ({diag.max().item():.1f}), possibly contaminated by base DOFs"
         )
-        assert torch.allclose(term_mass, term_mass.transpose(-2, -1), atol=1e-5), (
-            "Mass matrix should be symmetric"
-        )
+        assert torch.allclose(term_mass, term_mass.transpose(-2, -1), atol=1e-5), "Mass matrix should be symmetric"
 
         # --- 10. Verify shapes ---
         assert term_mass.shape == (num_envs, num_arm_joints, num_arm_joints)
