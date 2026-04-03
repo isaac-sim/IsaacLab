@@ -571,7 +571,12 @@ class NewtonManager(PhysicsManager):
         # Pipeline parameters from collision_cfg (or defaults)
         collision_cfg = cfg.collision_cfg
         if collision_cfg is not None:
-            pipeline_kwargs = {k: v for k, v in collision_cfg.to_dict().items() if v is not None} if hasattr(collision_cfg, "to_dict") else {}
+            if not hasattr(collision_cfg, "to_dict"):
+                raise TypeError(
+                    f"collision_cfg {type(collision_cfg)} does not implement to_dict(). "
+                    "Only @configclass instances are supported."
+                )
+            pipeline_kwargs = {k: v for k, v in collision_cfg.to_dict().items() if v is not None}
         else:
             pipeline_kwargs = {"broad_phase": "explicit"}
 
