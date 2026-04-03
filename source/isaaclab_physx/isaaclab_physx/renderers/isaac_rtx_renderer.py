@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import weakref
 from dataclasses import dataclass
@@ -19,16 +20,19 @@ import warp as wp
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer
+from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
 from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
 
     from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
-# Constants from Camera (SIMPLE_SHADING_MODES, etc.) - avoid circular import
+# RTX simple-shading constants (mode indices, AOV name, carb setting path)
 SIMPLE_SHADING_AOV = "SimpleShadingSD"
 SIMPLE_SHADING_MODES = {
     "simple_shading_constant_diffuse": 0,
@@ -46,6 +50,7 @@ class IsaacRtxRenderData:
     render_product_paths: list[str]
     output_data: dict[str, torch.Tensor] | None = None
     sensor: SensorBase | None = None
+    renderer_info: dict[str, Any] | None = None
 
 
 class IsaacRtxRenderer(BaseRenderer):
@@ -67,6 +72,26 @@ class IsaacRtxRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         import omni.replicator.core as rep
         from pxr import UsdGeom
+
+        settings = get_settings_manager()
+        isaac_sim_version = get_isaac_sim_version()
+
+        if isaac_sim_version.major >= 6:
+            needs_color_render = "rgb" in sensor.cfg.data_types or "rgba" in sensor.cfg.data_types
+            if not needs_color_render:
+                settings.set_bool("/rtx/sdg/force/disableColorRender", True)
+            if settings.get("/isaaclab/has_gui"):
+                settings.set_bool("/rtx/sdg/force/disableColorRender", False)
+        else:
+            if "albedo" in sensor.cfg.data_types:
+                logger.warning(
+                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
+                )
+            if any(dt in SIMPLE_SHADING_MODES for dt in sensor.cfg.data_types):
+                logger.warning(
+                    "Simple shading annotators are only supported in Isaac Sim 6.0+."
+                    " The simple shading data types will be ignored."
+                )
 
         # Get camera prim paths from sensor view
         view = sensor._view
@@ -159,6 +184,12 @@ class IsaacRtxRenderer(BaseRenderer):
         requested = [dt for dt in sensor.cfg.data_types if dt in SIMPLE_SHADING_MODES]
         if not requested:
             return None
+        if len(requested) > 1:
+            logger.warning(
+                "Multiple simple shading modes requested (%s). Using '%s' only.",
+                requested,
+                requested[0],
+            )
         return SIMPLE_SHADING_MODES[requested[0]]
 
     def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, torch.Tensor]):
@@ -205,14 +236,16 @@ class IsaacRtxRenderer(BaseRenderer):
 
         num_tiles_x = tiling_grid_shape()[0]
 
+        if render_data.renderer_info is None:
+            render_data.renderer_info = {}
+
         # Extract the flattened image buffer
         for data_type, annotator in render_data.annotators.items():
             # check whether returned data is a dict (used for segmentation)
             output = annotator.get_data()
             if isinstance(output, dict):
                 tiled_data_buffer = output["data"]
-                if hasattr(sensor, "_data") and sensor._data is not None:
-                    sensor._data.info[data_type] = output["info"]
+                render_data.renderer_info[data_type] = output["info"]
             else:
                 tiled_data_buffer = output
 
