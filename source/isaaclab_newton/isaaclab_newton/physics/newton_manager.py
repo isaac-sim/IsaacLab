@@ -481,6 +481,8 @@ class NewtonManager(PhysicsManager):
         from newton import GeoType, ShapeFlags
 
         cfg = PhysicsManager._cfg
+        if cfg is None:
+            return
         sdf_cfg = cfg.sdf_cfg
         if sdf_cfg is None:
             return
