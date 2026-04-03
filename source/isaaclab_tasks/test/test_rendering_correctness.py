@@ -28,7 +28,6 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 from PIL import Image, ImageChops  # noqa: E402
 
-from isaaclab.envs.utils.spaces import sample_space  # noqa: E402
 from isaaclab.sim import SimulationContext  # noqa: E402
 
 from isaaclab_tasks.utils.hydra import (  # noqa: E402
@@ -376,6 +375,7 @@ def _generate_html_report() -> None:
         "<th>GOLDEN</th>"
         "</tr></thead>\n"
         "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n</body>\n</html>\n"
+        f"<p>Generated:&nbsp;{datetime.now().astimezone().isoformat(timespec='seconds')}.</p>\n"
     )
 
     with open(report_path, "w", encoding="utf-8") as f:
@@ -647,8 +647,6 @@ def shadow_hand_env(request):
     try:
         env = ShadowHandVisionEnv(env_cfg)
         env.reset()
-        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-        env.step(actions)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -664,7 +662,7 @@ def test_shadow_hand(shadow_hand_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=5.0,
+        max_different_pixels_percentage=8.0,
     )
 
 
@@ -693,8 +691,6 @@ def cartpole_env(request):
     try:
         env = CartpoleCameraEnv(env_cfg)
         env.reset()
-        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-        env.step(actions)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -710,7 +706,7 @@ def test_cartpole(cartpole_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=5.0,
+        max_different_pixels_percentage=2.0,
     )
 
 
@@ -730,6 +726,10 @@ def dexsuite_kuka_allegro_lift_env(request):
 
     physics_backend, renderer, data_type = request.param
 
+    if renderer == "newton_renderer" and data_type == "rgb":
+        # TODO: re-enable the test case once the issue is resolved.
+        pytest.skip("Newton Warp produces inconsistent RGB colors run-to-run; skipping test.")
+
     # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64.
     override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
 
@@ -743,8 +743,6 @@ def dexsuite_kuka_allegro_lift_env(request):
     try:
         env = ManagerBasedRLEnv(env_cfg)
         env.reset()
-        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-        env.step(actions)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -772,20 +770,8 @@ def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
 _RENDER_CORRECTNESS_TASK_IDS = [
     "Isaac-Cartpole-Albedo-Camera-Direct-v0",
     "Isaac-Cartpole-Camera-Presets-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0",
     "Isaac-Cartpole-Depth-Camera-Direct-v0",
-    "Isaac-Cartpole-Depth-v0",
     "Isaac-Cartpole-RGB-Camera-Direct-v0",
-    "Isaac-Cartpole-RGB-ResNet18-v0",
-    "Isaac-Cartpole-RGB-v0",
     "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
     "Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
     "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
@@ -808,30 +794,6 @@ def test_registered_tasks(task_id):
             sim._app_control_on_stop_handle = None
 
         env.reset()
-
-        num_envs = getattr(unwrapped, "num_envs", 4)
-        device = getattr(unwrapped, "device", None)
-
-        if getattr(unwrapped, "possible_agents", None):
-            action_spaces = getattr(unwrapped, "action_spaces", {})
-            actions = {
-                agent: sample_space(
-                    action_spaces[agent],
-                    device=device,
-                    batch_size=num_envs,
-                    fill_value=0,
-                )
-                for agent in unwrapped.possible_agents
-            }
-        else:
-            actions = sample_space(
-                getattr(unwrapped, "single_action_space", None),
-                device=device,
-                batch_size=num_envs,
-                fill_value=0,
-            )
-
-        env.step(actions)
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)

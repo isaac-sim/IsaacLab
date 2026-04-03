@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.18 (2026-04-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Set semantic tags on the in-hand object in :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.ObjectCfg`
+  so the object receives the same semantic labels for the Newton and PhysX backends.
+
+
 1.5.17 (2026-03-30)
 ~~~~~~~~~~~~~~~~~~~
 
