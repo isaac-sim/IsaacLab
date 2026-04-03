@@ -162,10 +162,10 @@ class NewtonWarpRenderer(BaseRenderer):
         if merged != current_req:
             sim.update_scene_data_requirements(merged)
 
-        scene_data_provider = SimulationContext.instance().get_new_scene_data_provider()
+        sdp = SimulationContext.instance().get_new_scene_data_provider()
 
-        if isinstance(scene_data_provider.backend, NewtonSceneDataBackend):
-            self._newton_model = scene_data_provider.backend.model
+        if isinstance(sdp.backend, NewtonSceneDataBackend):
+            self._newton_model = sdp.backend.model
         else:
             self._newton_model: newton.Model = (
                 SimulationContext.instance().initialize_scene_data_provider().get_newton_model()
@@ -179,18 +179,11 @@ class NewtonWarpRenderer(BaseRenderer):
                 "Check the log for earlier Newton model build errors."
             )
 
+        self._newton_state = newton.State()
+        self._scene_data = SceneDataFormat.Transform()
+        self._scene_data.transforms = self._newton_state.body_q
+        self._scene_data_mapping = sdp.create_mapping(self._newton_model.body_label)
         self.newton_sensor = newton.sensors.SensorTiledCamera(self._newton_model)
-
-        self._scene_data: SceneDataFormat.Transform | None = None
-        self._scene_data_mapping = None
-
-        if isinstance(scene_data_provider.backend, NewtonSceneDataBackend):
-            self._newton_state = scene_data_provider.backend.state
-        else:
-            self._newton_state = self._newton_model.state()
-            self._scene_data = SceneDataFormat.Transform()
-            self._scene_data.transforms = self._newton_state.body_q
-            self._scene_data_mapping = scene_data_provider.create_mapping(self._newton_model.body_label)
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Newton Warp - uses Newton scene directly without stage export.
@@ -221,22 +214,22 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        if self._scene_data is not None:
-            sdp = SimulationContext.instance().get_new_scene_data_provider()
-            if not sdp.get_transforms(self._scene_data, mapping=self._scene_data_mapping, allow_passthrough=True):
-                logger.warning("Newton Renderer - Failed to update transforms!")
+        sdp = SimulationContext.instance().get_new_scene_data_provider()
+        if sdp.get_transforms(self._scene_data, mapping=self._scene_data_mapping, allow_passthrough=True):
             self._newton_state.body_q = self._scene_data.transforms
 
-        self.newton_sensor.update(
-            self._newton_state,
-            render_data.camera_transforms,
-            render_data.camera_rays,
-            color_image=render_data.outputs.color_image,
-            albedo_image=render_data.outputs.albedo_image,
-            depth_image=render_data.outputs.depth_image,
-            normal_image=render_data.outputs.normals_image,
-            shape_index_image=render_data.outputs.instance_segmentation_image,
-        )
+            self.newton_sensor.update(
+                self._newton_state,
+                render_data.camera_transforms,
+                render_data.camera_rays,
+                color_image=render_data.outputs.color_image,
+                albedo_image=render_data.outputs.albedo_image,
+                depth_image=render_data.outputs.depth_image,
+                normal_image=render_data.outputs.normals_image,
+                shape_index_image=render_data.outputs.instance_segmentation_image,
+            )
+        else:
+            raise BufferError("Newton Renderer - Failed to update transforms!")
 
     def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
         """Copy a specific output to the given buffer.
