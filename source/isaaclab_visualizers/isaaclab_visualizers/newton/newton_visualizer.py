@@ -196,6 +196,9 @@ class NewtonViewerGL(ViewerGL):
                     show_springs = self.show_springs
                     changed, self.show_springs = imgui.checkbox("Show Springs", show_springs)
 
+                    show_inertia_boxes = self.show_inertia_boxes
+                    changed, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", show_inertia_boxes)
+
                     show_com = self.show_com
                     changed, self.show_com = imgui.checkbox("Show Center of Mass", show_com)
 
@@ -321,6 +324,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.show_contacts = self.cfg.show_contacts
             self._viewer.show_collision = self.cfg.show_collision
             self._viewer.show_springs = self.cfg.show_springs
+            self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
             self._viewer.show_com = self.cfg.show_com
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
