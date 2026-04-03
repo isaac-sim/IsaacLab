@@ -51,7 +51,6 @@ class NewtonVisualizerCfg(VisualizerCfg):
 
     show_springs: bool = False
     """Show spring visualization."""
-    """Show spring visualization."""
 
     show_contacts: bool = False
     """Show contact visualization."""
