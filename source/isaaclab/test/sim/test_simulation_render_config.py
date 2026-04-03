@@ -41,6 +41,17 @@ def test_render_cfg():
     samples_per_pixel = 4
     enable_shadows = True
     enable_ambient_occlusion = True
+    # RT2 settings
+    max_bounces = 4
+    split_glass = True
+    split_clearcoat = True
+    split_rough_reflection = True
+    ambient_light_intensity = 0.5
+    ambient_occlusion_denoiser_mode = 0
+    subpixel_mode = 1
+    enable_cached_raytracing = True
+    max_samples_per_launch = 500000
+    view_tile_limit = 500000
 
     render_cfg = RenderCfg(
         enable_translucency=enable_translucency,
@@ -54,6 +65,17 @@ def test_render_cfg():
         samples_per_pixel=samples_per_pixel,
         enable_shadows=enable_shadows,
         enable_ambient_occlusion=enable_ambient_occlusion,
+        # RT2 settings
+        max_bounces=max_bounces,
+        split_glass=split_glass,
+        split_clearcoat=split_clearcoat,
+        split_rough_reflection=split_rough_reflection,
+        ambient_light_intensity=ambient_light_intensity,
+        ambient_occlusion_denoiser_mode=ambient_occlusion_denoiser_mode,
+        subpixel_mode=subpixel_mode,
+        enable_cached_raytracing=enable_cached_raytracing,
+        max_samples_per_launch=max_samples_per_launch,
+        view_tile_limit=view_tile_limit,
     )
 
     cfg = SimulationCfg(render=render_cfg)
@@ -74,6 +96,16 @@ def test_render_cfg():
     assert sim.cfg.render.samples_per_pixel == samples_per_pixel
     assert sim.cfg.render.enable_shadows == enable_shadows
     assert sim.cfg.render.enable_ambient_occlusion == enable_ambient_occlusion
+    assert sim.cfg.render.max_bounces == max_bounces
+    assert sim.cfg.render.split_glass == split_glass
+    assert sim.cfg.render.split_clearcoat == split_clearcoat
+    assert sim.cfg.render.split_rough_reflection == split_rough_reflection
+    assert sim.cfg.render.ambient_light_intensity == ambient_light_intensity
+    assert sim.cfg.render.ambient_occlusion_denoiser_mode == ambient_occlusion_denoiser_mode
+    assert sim.cfg.render.subpixel_mode == subpixel_mode
+    assert sim.cfg.render.enable_cached_raytracing == enable_cached_raytracing
+    assert sim.cfg.render.max_samples_per_launch == max_samples_per_launch
+    assert sim.cfg.render.view_tile_limit == view_tile_limit
 
     assert sim.get_setting("/rtx/translucency/enabled") == sim.cfg.render.enable_translucency
     assert sim.get_setting("/rtx/reflections/enabled") == sim.cfg.render.enable_reflections
@@ -85,6 +117,16 @@ def test_render_cfg():
     assert sim.get_setting("/rtx/directLighting/sampledLighting/samplesPerPixel") == sim.cfg.render.samples_per_pixel
     assert sim.get_setting("/rtx/shadows/enabled") == sim.cfg.render.enable_shadows
     assert sim.get_setting("/rtx/ambientOcclusion/enabled") == sim.cfg.render.enable_ambient_occlusion
+    assert sim.get_setting("/rtx/rtpt/maxBounces") == sim.cfg.render.max_bounces
+    assert sim.get_setting("/rtx/rtpt/splitGlass") == sim.cfg.render.split_glass
+    assert sim.get_setting("/rtx/rtpt/splitClearcoat") == sim.cfg.render.split_clearcoat
+    assert sim.get_setting("/rtx/rtpt/splitRoughReflection") == sim.cfg.render.split_rough_reflection
+    assert sim.get_setting("/rtx/sceneDb/ambientLightIntensity") == sim.cfg.render.ambient_light_intensity
+    assert sim.get_setting("/rtx/ambientOcclusion/denoiserMode") == sim.cfg.render.ambient_occlusion_denoiser_mode
+    assert sim.get_setting("/rtx/raytracing/subpixel/mode") == sim.cfg.render.subpixel_mode
+    assert sim.get_setting("/rtx/raytracing/cached/enabled") == sim.cfg.render.enable_cached_raytracing
+    assert sim.get_setting("/rtx/pathtracing/maxSamplesPerLaunch") == sim.cfg.render.max_samples_per_launch
+    assert sim.get_setting("/rtx/viewTile/limit") == sim.cfg.render.view_tile_limit
     assert sim.get_setting("/rtx/post/aa/op") == 4  # dlss = 3, dlaa=4
 
 
@@ -162,6 +204,17 @@ def test_render_cfg_defaults():
     samples_per_pixel = 1
     enable_shadows = False
     enable_ambient_occlusion = False
+    # RT2 defaults
+    max_bounces = 2
+    split_glass = False
+    split_clearcoat = False
+    split_rough_reflection = False
+    ambient_light_intensity = 1.0
+    ambient_occlusion_denoiser_mode = 1
+    subpixel_mode = 0
+    enable_cached_raytracing = False
+    max_samples_per_launch = 1000000
+    view_tile_limit = 1000000
 
     render_cfg = RenderCfg(
         enable_translucency=enable_translucency,
@@ -175,6 +228,17 @@ def test_render_cfg_defaults():
         samples_per_pixel=samples_per_pixel,
         enable_shadows=enable_shadows,
         enable_ambient_occlusion=enable_ambient_occlusion,
+        # RT2 settings
+        max_bounces=max_bounces,
+        split_glass=split_glass,
+        split_clearcoat=split_clearcoat,
+        split_rough_reflection=split_rough_reflection,
+        ambient_light_intensity=ambient_light_intensity,
+        ambient_occlusion_denoiser_mode=ambient_occlusion_denoiser_mode,
+        subpixel_mode=subpixel_mode,
+        enable_cached_raytracing=enable_cached_raytracing,
+        max_samples_per_launch=max_samples_per_launch,
+        view_tile_limit=view_tile_limit,
     )
 
     cfg = SimulationCfg(render=render_cfg)
@@ -192,6 +256,16 @@ def test_render_cfg_defaults():
     assert sim.cfg.render.samples_per_pixel == samples_per_pixel
     assert sim.cfg.render.enable_shadows == enable_shadows
     assert sim.cfg.render.enable_ambient_occlusion == enable_ambient_occlusion
+    assert sim.cfg.render.max_bounces == max_bounces
+    assert sim.cfg.render.split_glass == split_glass
+    assert sim.cfg.render.split_clearcoat == split_clearcoat
+    assert sim.cfg.render.split_rough_reflection == split_rough_reflection
+    assert sim.cfg.render.ambient_light_intensity == ambient_light_intensity
+    assert sim.cfg.render.ambient_occlusion_denoiser_mode == ambient_occlusion_denoiser_mode
+    assert sim.cfg.render.subpixel_mode == subpixel_mode
+    assert sim.cfg.render.enable_cached_raytracing == enable_cached_raytracing
+    assert sim.cfg.render.max_samples_per_launch == max_samples_per_launch
+    assert sim.cfg.render.view_tile_limit == view_tile_limit
 
     assert sim.get_setting("/rtx/translucency/enabled") == sim.cfg.render.enable_translucency
     assert sim.get_setting("/rtx/reflections/enabled") == sim.cfg.render.enable_reflections
@@ -203,4 +277,14 @@ def test_render_cfg_defaults():
     assert sim.get_setting("/rtx/directLighting/sampledLighting/samplesPerPixel") == sim.cfg.render.samples_per_pixel
     assert sim.get_setting("/rtx/shadows/enabled") == sim.cfg.render.enable_shadows
     assert sim.get_setting("/rtx/ambientOcclusion/enabled") == sim.cfg.render.enable_ambient_occlusion
+    assert sim.get_setting("/rtx/rtpt/maxBounces") == sim.cfg.render.max_bounces
+    assert sim.get_setting("/rtx/rtpt/splitGlass") == sim.cfg.render.split_glass
+    assert sim.get_setting("/rtx/rtpt/splitClearcoat") == sim.cfg.render.split_clearcoat
+    assert sim.get_setting("/rtx/rtpt/splitRoughReflection") == sim.cfg.render.split_rough_reflection
+    assert sim.get_setting("/rtx/sceneDb/ambientLightIntensity") == sim.cfg.render.ambient_light_intensity
+    assert sim.get_setting("/rtx/ambientOcclusion/denoiserMode") == sim.cfg.render.ambient_occlusion_denoiser_mode
+    assert sim.get_setting("/rtx/raytracing/subpixel/mode") == sim.cfg.render.subpixel_mode
+    assert sim.get_setting("/rtx/raytracing/cached/enabled") == sim.cfg.render.enable_cached_raytracing
+    assert sim.get_setting("/rtx/pathtracing/maxSamplesPerLaunch") == sim.cfg.render.max_samples_per_launch
+    assert sim.get_setting("/rtx/viewTile/limit") == sim.cfg.render.view_tile_limit
     assert sim.get_setting("/rtx/post/aa/op") == 3  # dlss = 3, dlaa=4
