@@ -5,14 +5,17 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 
 import torch
 import warp as wp
-from newton import ModelBuilder, solvers
+from newton import GeoType, ModelBuilder, solvers
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
+
+from isaaclab.physics import PhysicsManager
 
 from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 
@@ -67,10 +70,6 @@ def _build_newton_builder_from_mapping(
     # Convex hull approximation destroys the source geometry, so shapes
     # matching SDF patterns must be excluded from approximation here.
     # _apply_sdf_config() will build the SDF on these meshes later.
-    import re
-
-    from isaaclab.physics import PhysicsManager
-
     cfg = PhysicsManager._cfg
     sdf_cfg = getattr(cfg, "sdf_cfg", None) if cfg is not None else None
     body_pats = [re.compile(x) for x in sdf_cfg.body_patterns] if sdf_cfg and sdf_cfg.body_patterns else None
@@ -90,8 +89,6 @@ def _build_newton_builder_from_mapping(
         )
         if simplify_meshes:
             if has_sdf_patterns:
-                from newton import GeoType
-
                 sdf_bodies: set[int] = set()
                 if body_pats is not None:
                     for bi in range(len(p.body_label)):
