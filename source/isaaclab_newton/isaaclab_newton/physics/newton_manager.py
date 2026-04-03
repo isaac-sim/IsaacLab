@@ -435,7 +435,7 @@ class NewtonManager(PhysicsManager):
             density=0.0,
             has_shape_collision=True,
             has_particle_collision=True,
-            is_visible=True,
+            is_visible=False,
         )
         if sdf_cfg.margin is not None:
             shape_cfg_kwargs["margin"] = sdf_cfg.margin
@@ -504,18 +504,22 @@ class NewtonManager(PhysicsManager):
             hydro_patterns = [re.compile(p) for p in hydro_cfg.shape_patterns]
 
         # --- Collect shape indices that should get SDF ---
+        # Build reverse map once: body_idx -> [mesh shape indices]
+        body_to_shapes: dict[int, list[int]] = {}
+        for si in range(builder.shape_count):
+            if builder.shape_type[si] == GeoType.MESH:
+                body_to_shapes.setdefault(builder.shape_body[si], []).append(si)
+
         sdf_shape_indices: set[int] = set()
 
         if body_patterns is not None:
             for body_idx in range(len(builder.body_label)):
                 if any(p.search(builder.body_label[body_idx]) for p in body_patterns):
-                    for si in range(builder.shape_count):
-                        if builder.shape_body[si] == body_idx and builder.shape_type[si] == GeoType.MESH:
-                            sdf_shape_indices.add(si)
+                    sdf_shape_indices.update(body_to_shapes.get(body_idx, []))
 
         if shape_patterns is not None:
-            for si in range(builder.shape_count):
-                if builder.shape_type[si] == GeoType.MESH:
+            for shape_indices in body_to_shapes.values():
+                for si in shape_indices:
                     if any(p.search(builder.shape_label[si]) for p in shape_patterns):
                         sdf_shape_indices.add(si)
 
