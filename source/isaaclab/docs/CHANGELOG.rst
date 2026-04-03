@@ -7,18 +7,15 @@ Changelog
 Added
 ^^^^^
 
-* Added :class:`~isaaclab.scene.CollisionGroupCfg` and
-  :meth:`~isaaclab.scene.InteractiveScene._apply_collision_groups` for unified
-  USD collision group filtering in :class:`~isaaclab.scene.InteractiveScene`.
-  When :attr:`~isaaclab.scene.InteractiveSceneCfg.collision_groups` is configured,
-  it handles both inter-environment isolation and intra-environment filtering in a
-  single set of ``PhysicsCollisionGroup`` prims.
+* Added :class:`~isaaclab.scene.CollisionGroupCfg` and :attr:`~isaaclab.scene.InteractiveSceneCfg.collision_groups`
+  for intra-environment collision filtering. This allows fine-grained control over which assets can
+  collide within each environment using named collision groups with allowlist semantics.
 
 Fixed
 ^^^^^
 
-* Fixed outdated API signature in :func:`~isaaclab.sim.spawners.materials.visual_materials`
-  spawner.
+* Fixed ``CreateShaderPrimFromSdrCommand`` call in :func:`~isaaclab.sim.spawners.materials.visual_materials.spawn_preview_surface`
+  using outdated ``name`` keyword argument (renamed to ``prim_name`` in recent Isaac Sim versions).
 
 
 4.5.25 (2026-04-01)

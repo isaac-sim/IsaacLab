@@ -9,8 +9,9 @@
 
     InteractiveScene
     InteractiveSceneCfg
+    CollisionGroupCfg
 
-interactive Scene
+Interactive Scene
 -----------------
 
 .. autoclass:: InteractiveScene
@@ -19,5 +20,9 @@ interactive Scene
     :show-inheritance:
 
 .. autoclass:: InteractiveSceneCfg
+    :members:
+    :exclude-members: __init__
+
+.. autoclass:: CollisionGroupCfg
     :members:
     :exclude-members: __init__

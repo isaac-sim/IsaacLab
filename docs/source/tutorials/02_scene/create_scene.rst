@@ -164,6 +164,60 @@ In this tutorial, we saw how to use :class:`scene.InteractiveScene` to create a
 scene with multiple assets. We also saw how to use the ``num_envs`` argument
 to clone the scene for multiple environments.
 
+Collision Groups
+----------------
+
+For scenes with multiple assets that should not all collide with each other, you can use
+:class:`scene.CollisionGroupCfg` to define intra-environment collision filtering. This lets you
+control exactly which assets can collide within the same environment.
+
+For example, suppose you have a robot arm, some obstacles, and a sensor body that should not
+physically interact with anything:
+
+.. code-block:: python
+
+    from isaaclab.scene import CollisionGroupCfg, InteractiveSceneCfg
+
+    @configclass
+    class MySceneCfg(InteractiveSceneCfg):
+        collision_groups = {
+            "robot": CollisionGroupCfg(
+                assets=["robot_arm"],
+                collides_with=["obstacles"],
+            ),
+            "obstacles": CollisionGroupCfg(
+                assets=["table"],
+                collides_with=["robot"],
+            ),
+            "phantom": CollisionGroupCfg(
+                assets=["sensor_body"],
+                collides_with=[],  # collides with nothing
+            ),
+        }
+
+        robot_arm = FRANKA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        table = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/Table", ...)
+        sensor_body = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/Sensor", ...)
+
+Key points:
+
+* Each group lists the scene entity names it contains via ``assets``.
+* ``collides_with`` controls which other groups this group can collide with:
+
+  * ``None`` (default) — collides with all other groups.
+  * ``[]`` (empty list) — collides with nothing (fully isolated).
+  * ``["group_a", "group_b"]`` — collides only with the listed groups.
+
+* Collision between two groups requires **mutual agreement**: groups A and B collide only if
+  A accepts B **and** B accepts A. This means ``collides_with=[]`` is always respected.
+* Each group always collides with itself (assets within the same group can collide).
+* Assets not assigned to any group follow default physics behavior.
+* When ``collision_groups`` is set, inter-environment isolation is handled automatically
+  (replacing :attr:`~scene.InteractiveSceneCfg.filter_collisions`).
+
+For the full API reference, see :class:`scene.CollisionGroupCfg` and
+:attr:`scene.InteractiveSceneCfg.collision_groups`.
+
 There are many more example usages of the :class:`scene.InteractiveSceneCfg` in the tasks found
 under the ``isaaclab_tasks`` extension. Please check out the source code to see
 how they are used for more complex scenes.
