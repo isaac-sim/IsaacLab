@@ -608,12 +608,11 @@ class NewtonManager(PhysicsManager):
         """
         logger.debug(f"Builder: {cls._builder}")
 
-        # Create builder from USD stage if not provided
+        # Create builder from USD stage if not provided.
+        # When the builder was set externally (e.g. by newton_replicate),
+        # SDF was already applied on the prototype before replication.
         if cls._builder is None:
             cls.instantiate_builder_from_stage()
-        else:
-            # Builder was set externally (e.g. by newton_replicate) — still apply SDF
-            cls._apply_sdf_config(cls._builder)
 
         logger.info("Dispatching MODEL_INIT callbacks")
         cls.dispatch_event(PhysicsEvent.MODEL_INIT)

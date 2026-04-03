@@ -69,7 +69,7 @@ def _build_newton_builder_from_mapping(
     # SDF collision requires original triangle meshes for mesh.build_sdf().
     # Convex hull approximation destroys the source geometry, so shapes
     # matching SDF patterns must be excluded from approximation here.
-    # _apply_sdf_config() will build the SDF on these meshes later.
+    # _apply_sdf_config() builds the SDF on each prototype after approximation.
     cfg = PhysicsManager._cfg
     sdf_cfg = getattr(cfg, "sdf_cfg", None) if cfg is not None else None
     body_pats = [re.compile(x) for x in sdf_cfg.body_patterns] if sdf_cfg and sdf_cfg.body_patterns else None
@@ -111,6 +111,10 @@ def _build_newton_builder_from_mapping(
                     p.approximate_meshes("convex_hull", shape_indices=approx_indices, keep_visual_shapes=True)
             else:
                 p.approximate_meshes("convex_hull", keep_visual_shapes=True)
+        # Build SDF on prototype before add_builder copies it N times.
+        # Mesh objects are shared by reference, so SDF is built once and
+        # all environments inherit it.
+        NewtonManager._apply_sdf_config(p)
         protos[src_path] = p
 
     # create a separate world for each environment (heterogeneous spawning)
