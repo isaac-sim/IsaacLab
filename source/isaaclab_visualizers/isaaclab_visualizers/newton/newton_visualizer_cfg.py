@@ -40,21 +40,6 @@ class NewtonVisualizerCfg(VisualizerCfg):
     show_contacts: bool = False
     """Show contact visualization."""
 
-    show_joints: bool = False
-    """Show joint visualization."""
-
-    show_contacts: bool = False
-    """Show contact visualization."""
-
-    show_collision: bool = False
-    """Show collision visualization."""
-
-    show_springs: bool = False
-    """Show spring visualization."""
-
-    show_contacts: bool = False
-    """Show contact visualization."""
-
     show_collision: bool = False
     """Show collision visualization."""
 
