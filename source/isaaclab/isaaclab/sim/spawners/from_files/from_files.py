@@ -234,13 +234,19 @@ def spawn_ground_plane(
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:
-        # change the color
+        # change the color on the visual grid shader
         change_prim_property(
             prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
             value=Gf.Vec3f(*cfg.color),
             stage=stage,
             type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
         )
+        # Also set displayColor on the collision plane so non-RTX renderers
+        # (e.g. Newton) can pick up the configured color.
+        if collision_prim is not None:
+            UsdGeom.Gprim(collision_prim).CreateDisplayColorAttr().Set(
+                [Gf.Vec3f(*cfg.color)]
+            )
     # Remove the light from the ground plane (USD API, works without Kit/Newton)
     # It isn't bright enough and messes up with the user's lighting settings
     light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
