@@ -369,7 +369,6 @@ class Articulation(BaseArticulation):
             A tuple of lists containing the tendon indices and names.
         """
         if tendon_subsets is None:
-            # tendons follow the joint names they are attached to
             tendon_subsets = self.fixed_tendon_names
         # find tendons
         return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
@@ -3135,20 +3134,26 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
-    def write_actuator_ctrl_to_sim(
-            self,
-            *,
-            ctrl: float | wp.array | torch.Tensor,
-            ctrl_ids: wp.array | None = None,
-            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None
+    def set_fixed_tendon_ctrl(
+        self,
+        *,
+        ctrl: float | torch.Tensor | wp.array | None = None,
+        tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | wp.array | None = None,
     ) -> None:
         env_ids = self._resolve_env_ids(env_ids)
-        # ctrl_ids = self._resolve_ctrl_ids(ctrl_ids)
-        if isinstance(ctrl, float):
-            self.data._sim_bind_actuator_ctrl = 0
-        else:
-            # self.assert_shape_and_dtype(ctrl, (env_ids.shape[0]*ctrl_ids.shape[0],), wp.float32, "ctrl_target")
-            self.data._sim_bind_actuator_ctrl = ctrl
+        """Resolve tendon indices and set the Mujoco CTRL buffer. 
+        
+        .. note::
+            This method only sets the ctrl buffer. Call write_actuator_ctrl_to_sim to update the sim buffer.
+            
+        Args:
+            ctrl: Value(s) to update. If array, shape is 
+        """
+
+
+    def write_actuator_ctrl_to_sim(self) -> None:
+        self.data._sim_bind_actuator_ctrl.assign(self.data._actuator_ctrl)
 
     """
     Internal helper.
@@ -3241,6 +3246,7 @@ class Articulation(BaseArticulation):
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(self.num_joints, dtype=np.int32), device=self.device)
         self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self.device)
+        self._ALL_ACTUATOR_INDICES =wp.array(np.arange(self.data.actuator_count, dtype=np.int32), device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(self.num_fixed_tendons, dtype=np.int32), device=self.device)
@@ -3744,6 +3750,24 @@ class Articulation(BaseArticulation):
         if (joint_ids is None) or (joint_ids == slice(None)):
             return self._ALL_JOINT_INDICES
         return joint_ids
+
+    def _resolve_ctrl_ids(self, ctrl_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
+        """Resolve joint indices to a warp array or tensor.
+
+        .. note::
+            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
+
+        Args:
+            joint_ids: Joint indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of joint indices or a tensor of joint indices.
+        """
+        if isinstance(ctrl_ids, list):
+            return wp.array(ctrl_ids, dtype=wp.int32, device=self.device)
+        if (ctrl_ids is None) or (ctrl_ids == slice(None)):
+            return self._ALL_ACTUATOR_INDICES
+        return ctrl_ids
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.

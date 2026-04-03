@@ -1369,7 +1369,8 @@ class ArticulationData(BaseArticulationData):
 
         # -- mujoco ctrl api
         if self.actuator_count > 0:
-            self._default_actuator_ctrl = wp.zeros((self._num_instances, self.actuator_count,), wp.float32, device=self.device)
+            self._default_actuator_ctrl = wp.zeros((self.actuator_count,), wp.float32, device=self.device)
+            self._actuator_ctrl = wp.zeros((self.actuator_count,), wp.float32, device=self.device)
 
         if self._num_fixed_tendons > 0:
             self._tendon_stiffness = wp.clone(self._sim_bind_tendon_stiffness)
