@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+4.5.26 (2026-04-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.scene.CollisionGroupCfg` and
+  :meth:`~isaaclab.scene.InteractiveScene._apply_collision_groups` for unified
+  USD collision group filtering in :class:`~isaaclab.scene.InteractiveScene`.
+  When :attr:`~isaaclab.scene.InteractiveSceneCfg.collision_groups` is configured,
+  it handles both inter-environment isolation and intra-environment filtering in a
+  single set of ``PhysicsCollisionGroup`` prims.
+
+Fixed
+^^^^^
+
+* Fixed outdated API signature in :func:`~isaaclab.sim.spawners.materials.visual_materials`
+  spawner.
+
+
 4.5.25 (2026-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
