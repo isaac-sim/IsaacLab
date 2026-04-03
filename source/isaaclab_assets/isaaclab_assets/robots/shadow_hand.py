@@ -18,7 +18,7 @@ Reference:
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import MUJOCO_MENAGERIE_DIR
 
 ##
 # Configuration
@@ -26,7 +26,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 SHADOW_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd",
+        usd_path=f"{MUJOCO_MENAGERIE_DIR}/shadow_hand/right_hand_usd/right_hand/right_hand.usda",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,

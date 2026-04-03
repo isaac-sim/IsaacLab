@@ -72,6 +72,9 @@ ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
 ISAACLAB_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 """Path to the `Isaac/IsaacLab` directory on the NVIDIA Nucleus Server."""
 
+MUJOCO_MENAGERIE_DIR = f"{ISAAC_NUCLEUS_DIR}/Samples/Mujoco_Menagerie"
+"""Path to MuJoCo Menagerie USD samples under the Isaac Nucleus tree."""
+
 
 """
 Main
@@ -106,10 +109,10 @@ def main():
     # -- Robot
     # resolve asset
     if args_cli.asset == "isaaclab":
-        usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
+        usd_path = f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda"
         root_prim_path = "/World/envs/env_.*/Robot/base"
     elif args_cli.asset == "oige":
-        usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
+        usd_path = f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda"
         root_prim_path = "/World/envs/env_.*/Robot"
     elif os.path.exists(args_cli.asset):
         usd_path = args_cli.asset

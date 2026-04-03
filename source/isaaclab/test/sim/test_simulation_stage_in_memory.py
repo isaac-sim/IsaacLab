@@ -25,7 +25,7 @@ from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 from isaaclab.utils.version import get_isaac_sim_version
 
 
@@ -128,7 +128,7 @@ def test_stage_in_memory_with_usds(sim):
     # define parameters
     num_robot_prototypes = 2
     usd_paths = [
-        f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
+        f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda",
         f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
     ]
 
@@ -181,7 +181,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # define parameters
-    usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
+    usd_path = f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda"
     num_clones = 100
 
     # verify stage is attached to USD context (happens automatically now with create_stage_in_memory)

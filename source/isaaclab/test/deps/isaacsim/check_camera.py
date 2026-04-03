@@ -66,6 +66,9 @@ if nucleus_utils.get_assets_root_path() is None:
 ISAAC_NUCLEUS_DIR = f"{nucleus_utils.get_assets_root_path()}/Isaac"
 """Path to the `Isaac` directory on the NVIDIA Nucleus Server."""
 
+MUJOCO_MENAGERIE_DIR = f"{ISAAC_NUCLEUS_DIR}/Samples/Mujoco_Menagerie"
+"""Path to MuJoCo Menagerie USD samples under the Isaac Nucleus tree."""
+
 
 def main():
     """Runs a camera sensor from isaaclab."""
@@ -122,7 +125,7 @@ def main():
         # Robot
         prim_utils.create_prim(
             "/World/Robot",
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd",
+            usd_path=f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda",
             translation=(0.0, 0.0, 0.6),
         )
         # Setup camera sensor on the robot

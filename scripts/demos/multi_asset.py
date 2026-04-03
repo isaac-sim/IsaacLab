@@ -57,7 +57,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import Timer, configclass
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 
 ##
 # Pre-defined Configuration
@@ -187,7 +187,7 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.MultiUsdFileCfg(
             usd_path=[
-                f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
+                f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda",
                 f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
             ],
             random_choice=True,

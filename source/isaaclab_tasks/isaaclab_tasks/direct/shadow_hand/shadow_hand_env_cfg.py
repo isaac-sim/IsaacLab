@@ -18,7 +18,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 from isaaclab_tasks.utils import PresetCfg
@@ -137,7 +137,7 @@ class ShadowHandRobotCfg(PresetCfg):
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
             # newton requires implicitactuators be specified in usd and there's a bug with physx tendons
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable_newton.usd",
+            usd_path=f"{MUJOCO_MENAGERIE_DIR}/shadow_hand/right_hand_usd/usdex/right_shadow_hand.usdc",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
