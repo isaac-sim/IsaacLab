@@ -89,7 +89,7 @@ def test_tiled_camera_cfg_deprecation_warning(setup_camera, device):
     """TiledCameraCfg instantiation emits a DeprecationWarning."""
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        cfg = TiledCameraCfg(
+        _cfg = TiledCameraCfg(
             height=128,
             width=256,
             prim_path="/World/Camera",
