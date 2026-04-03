@@ -19,13 +19,13 @@ class KitVisualizerCfg(VisualizerCfg):
     viewport_name: str = "Visualizer Viewport"
     """Viewport name to use when :attr:`create_viewport` is True."""
 
-    create_viewport: bool = False
+    create_viewport: bool = True
     """Create new viewport with specified name and camera pose."""
 
     visualizer_camera_prim_path: str = "/World/Cameras/KitVisualizerCamera"
     """Dedicated camera prim path controlled by the Kit visualizer."""
 
-    enable_visualizer_cam: bool = False
+    enable_visualizer_cam: bool = True
     """Whether the Kit visualizer should control/bind a dedicated viewport camera.
 
     If False, Kit does not create/switch camera prims and ignores visualizer camera control

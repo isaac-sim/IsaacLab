@@ -5,16 +5,19 @@
 
 import asyncio
 import contextlib
+import os
 import sys
 import traceback
 from typing import Any
 
 import torch
+import warp as wp
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, TerminationTermCfg
 from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
+from isaaclab.utils.math import subtract_frame_transforms
 
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
@@ -25,6 +28,59 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 num_success = 0
 num_failures = 0
 num_attempts = 0
+
+
+def _debug_wrist_cam_pose(env: ManagerBasedRLMimicEnv, env_id: int, tag: str, hand_body_idx: int | None):
+    """Print wrist camera and hand-link transforms for debugging camera alignment."""
+    try:
+        if "wrist_cam" not in env.scene.keys() or "robot" not in env.scene.keys():
+            print(f"[WRIST_CAM_DEBUG] {tag} env={env_id} missing wrist_cam or robot in scene")
+            return
+
+        wrist_cam = env.scene["wrist_cam"]
+        robot = env.scene["robot"]
+        cam_pos = wrist_cam.data.pos_w[env_id].detach().cpu()
+        cam_quat = wrist_cam.data.quat_w_world[env_id].detach().cpu()
+        cam_frame = int(wrist_cam.frame[env_id].item()) if wrist_cam.frame.numel() > env_id else -1
+        live_pos_all, live_quat_all = wrist_cam._view.get_world_poses([env_id])
+        live_cam_pos = live_pos_all[0].detach().cpu()
+        live_cam_quat = live_quat_all[0].detach().cpu()
+
+        if hand_body_idx is None:
+            print(
+                f"[WRIST_CAM_DEBUG] {tag} env={env_id} cam_frame={cam_frame} "
+                f"cam_pos={cam_pos.tolist()} cam_quat_xyzw={cam_quat.tolist()} "
+                f"live_cam_pos={live_cam_pos.tolist()} live_cam_quat_xyzw={live_cam_quat.tolist()} "
+                f"hand_body_idx=None"
+            )
+            return
+
+        hand_pos = wp.to_torch(robot.data.body_pos_w)[env_id, hand_body_idx].detach().cpu()
+        hand_quat = wp.to_torch(robot.data.body_quat_w)[env_id, hand_body_idx].detach().cpu()
+        rel_pos, rel_quat = subtract_frame_transforms(
+            hand_pos.unsqueeze(0),
+            hand_quat.unsqueeze(0),
+            cam_pos.unsqueeze(0),
+            cam_quat.unsqueeze(0),
+        )
+        live_rel_pos, live_rel_quat = subtract_frame_transforms(
+            hand_pos.unsqueeze(0),
+            hand_quat.unsqueeze(0),
+            live_cam_pos.unsqueeze(0),
+            live_cam_quat.unsqueeze(0),
+        )
+        print(
+            f"[WRIST_CAM_DEBUG] {tag} env={env_id} cam_frame={cam_frame} "
+            f"cam_pos={cam_pos.tolist()} cam_quat_xyzw={cam_quat.tolist()} "
+            f"live_cam_pos={live_cam_pos.tolist()} live_cam_quat_xyzw={live_cam_quat.tolist()} "
+            f"hand_pos={hand_pos.tolist()} hand_quat_xyzw={hand_quat.tolist()} "
+            f"cam_rel_hand_pos={rel_pos[0].detach().cpu().tolist()} "
+            f"cam_rel_hand_quat_xyzw={rel_quat[0].detach().cpu().tolist()} "
+            f"live_cam_rel_hand_pos={live_rel_pos[0].detach().cpu().tolist()} "
+            f"live_cam_rel_hand_quat_xyzw={live_rel_quat[0].detach().cpu().tolist()}"
+        )
+    except Exception as exc:
+        print(f"[WRIST_CAM_DEBUG] {tag} env={env_id} logging_failed={exc}")
 
 
 async def run_data_generator(
@@ -94,6 +150,18 @@ def env_loop(
     global num_success, num_failures, num_attempts
     env_id_tensor = torch.tensor([0], dtype=torch.int64, device=env.device)
     prev_num_attempts = 0
+    debug_wrist_cam = os.environ.get("ISAACLAB_DEBUG_WRIST_CAM", "0") == "1"
+    post_reset_step_counters = [0 for _ in range(env.num_envs)]
+    hand_body_idx = None
+    if debug_wrist_cam:
+        try:
+            if "robot" in env.scene.keys():
+                body_ids, _ = env.scene["robot"].find_bodies("panda_hand")
+                hand_body_idx = int(body_ids[0]) if len(body_ids) > 0 else None
+            print(f"[WRIST_CAM_DEBUG] enabled=1 hand_body_idx={hand_body_idx}")
+        except Exception as exc:
+            print(f"[WRIST_CAM_DEBUG] enabled=1 hand_body_idx_lookup_failed={exc}")
+
     # simulate environment -- run everything in inference mode
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
@@ -108,6 +176,11 @@ def env_loop(
                 while not env_reset_queue.empty():
                     env_id_tensor[0] = env_reset_queue.get_nowait()
                     env.reset(env_ids=env_id_tensor)
+                    reset_env_id = int(env_id_tensor[0].item())
+                    if 0 <= reset_env_id < env.num_envs:
+                        post_reset_step_counters[reset_env_id] = 0
+                    if debug_wrist_cam:
+                        _debug_wrist_cam_pose(env, reset_env_id, tag="after_reset", hand_body_idx=hand_body_idx)
                     env_reset_queue.task_done()
 
             actions = torch.zeros(env.action_space.shape)
@@ -118,6 +191,16 @@ def env_loop(
 
             # perform action on environment
             env.step(actions)
+            if debug_wrist_cam:
+                for env_id in range(env.num_envs):
+                    if post_reset_step_counters[env_id] <= 1:
+                        _debug_wrist_cam_pose(
+                            env,
+                            env_id,
+                            tag=f"after_step_{post_reset_step_counters[env_id]}",
+                            hand_body_idx=hand_body_idx,
+                        )
+                        post_reset_step_counters[env_id] += 1
 
             # mark done so the data generators can continue with the step results
             for i in range(env.num_envs):

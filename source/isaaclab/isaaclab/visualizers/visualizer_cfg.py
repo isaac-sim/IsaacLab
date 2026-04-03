@@ -34,7 +34,7 @@ class VisualizerCfg:
     enable_live_plots: bool = True
     """Enable live plotting of data."""
 
-    eye: tuple[float, float, float] = (8.0, 8.0, 3.0)
+    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Initial camera eye position (x, y, z) in world coordinates."""
 
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
