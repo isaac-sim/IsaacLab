@@ -481,7 +481,7 @@ class NewtonManager(PhysicsManager):
         from newton import GeoType, ShapeFlags
 
         cfg = PhysicsManager._cfg
-        sdf_cfg = getattr(cfg, "sdf_cfg", None)
+        sdf_cfg = cfg.sdf_cfg
         if sdf_cfg is None:
             return
 
@@ -565,14 +565,14 @@ class NewtonManager(PhysicsManager):
         cfg = PhysicsManager._cfg
 
         # Pipeline parameters from collision_cfg (or defaults)
-        collision_cfg = getattr(cfg, "collision_cfg", None)
+        collision_cfg = cfg.collision_cfg
         if collision_cfg is not None:
             pipeline_kwargs = {k: v for k, v in collision_cfg.to_dict().items() if v is not None} if hasattr(collision_cfg, "to_dict") else {}
         else:
             pipeline_kwargs = {"broad_phase": "explicit"}
 
         # Hydroelastic config from sdf_cfg
-        sdf_cfg = getattr(cfg, "sdf_cfg", None)
+        sdf_cfg = cfg.sdf_cfg
         hydro_cfg = sdf_cfg.hydroelastic_cfg if sdf_cfg is not None else None
 
         if hydro_cfg is not None:
@@ -810,11 +810,11 @@ class NewtonManager(PhysicsManager):
                 cls._needs_collision_pipeline = True
 
             # Force Newton pipeline when collision_cfg or SDF is configured
-            if getattr(cfg, "collision_cfg", None) is not None and not cls._needs_collision_pipeline:
+            if cfg.collision_cfg is not None and not cls._needs_collision_pipeline:
                 logger.warning("collision_cfg set — enabling Newton collision pipeline.")
                 cls._needs_collision_pipeline = True
 
-            sdf_cfg = getattr(cfg, "sdf_cfg", None)
+            sdf_cfg = cfg.sdf_cfg
             has_sdf = (
                 sdf_cfg is not None
                 and (sdf_cfg.body_patterns is not None or sdf_cfg.shape_patterns is not None)
