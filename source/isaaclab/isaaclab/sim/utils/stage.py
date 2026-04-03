@@ -130,28 +130,65 @@ except ImportError:
     pass
 
 
-def create_new_stage() -> Usd.Stage:
+def create_new_stage(create_fabric_stage: bool = False) -> Usd.Stage:
     """Create a new in-memory USD stage.
 
-    Creates a new stage using pure USD (``Usd.Stage.CreateInMemory()``).
+    When ``create_fabric_stage`` is False (default), creates a pure USD stage
+    via ``Usd.Stage.CreateInMemory()``.
+
+    When ``create_fabric_stage`` is True, creates the stage via
+    ``usdrt.Usd.Stage.CreateInMemory()`` which provides a paired Fabric store
+    alongside the USD stage. USD notice handling is enabled so that subsequent
+    prim creation on the USD stage automatically propagates into Fabric. Both
+    the USD stage and the USDRT stage handle are kept alive in a thread-local
+    context to prevent garbage collection from releasing the Fabric resources.
 
     If Kit is running and Kit extensions need to discover this stage (e.g.
     PhysX, ``isaacsim.core.prims.Articulation``), call
     :func:`attach_stage_to_usd_context` after scene setup.
 
+    Args:
+        create_fabric_stage: If True, create the stage through USDRT with a
+            backing Fabric store and enable USD-to-Fabric notice-driven sync.
+            Defaults to False.
+
     Returns:
-        Usd.Stage: The created USD stage.
+        The created USD stage.
 
     Example:
         >>> import isaaclab.sim as sim_utils
         >>>
         >>> sim_utils.create_new_stage()
-        Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x7fba6c04f840:World7.usd'),
-                       sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
-                       pathResolverContext=<invalid repr>)
+        Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x...'), ...)
+        >>> sim_utils.create_new_stage(create_fabric_stage=True)
+        Usd.Stage.Open(rootLayer=Sdf.Find('anon:0x...'), ...)
     """
+
+    if create_fabric_stage:
+        import uuid
+
+        import usdrt
+
+        rt_stage = usdrt.Usd.Stage.CreateInMemory(f"World_{uuid.uuid4().hex[:8]}.usda")
+        stage = UsdUtils.StageCache.Get().Find(Usd.StageCache.Id.FromLongInt(rt_stage.GetStageId()))
+
+        # Storing stage in the context is required, so both stages aren't going to be garbage collected.
+        _context.stage = stage
+        _context.rt_stage = rt_stage
+
+        stage_id = rt_stage.GetStageIdAsStageId()
+        fabric_id = rt_stage.GetFabricId()
+        srw_id = rt_stage.GetStageReaderWriterId()
+
+        pop = usdrt.population.IUtils()
+        pop.set_enable_usd_notice_handling(stage_id, fabric_id, True)
+        pop.populate_from_usd(srw_id, stage_id, usdrt.Sdf.Path("/"), 0)
+        pop.apply_pending_usd_updates(stage_id, srw_id, 0)
+        return stage
+
     stage: Usd.Stage = Usd.Stage.CreateInMemory()
     _context.stage = stage
+    _context.rt_stage = None
     UsdUtils.StageCache.Get().Insert(stage)
     return stage
 
@@ -400,6 +437,7 @@ def close_stage() -> bool:
     stage_cache = UsdUtils.StageCache.Get()
     stage_cache.Clear()
     _context.stage = None
+    _context.rt_stage = None
 
     return True
 

@@ -54,6 +54,7 @@ parser.add_argument(
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+args_cli.enable_cameras = True
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -105,7 +106,9 @@ def benchmark_xform_prim_view(  # noqa: C901
     # Setup scene
     print("  Setting up scene")
     # Clear stage
-    sim_utils.create_new_stage()
+
+    use_fabric: bool = "fabric" in api.lower()
+    sim_utils.create_new_stage(create_fabric_stage=use_fabric)
     # Create simulation context
     start_time = time.perf_counter()
     sim_cfg = sim_utils.SimulationCfg(

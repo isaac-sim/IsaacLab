@@ -7,8 +7,9 @@
 
 from isaaclab.app import AppLauncher
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+# In order to test Fabric backend we need to enable cameras. This setting will enable
+# Fabric Scene Delegate, allowing us to test Fabric operations, such as hierarchy updates.
+simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
@@ -30,7 +31,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 def test_setup_teardown():
     """Create a blank new stage for each test."""
     # Setup: Create a new stage
-    sim_utils.create_new_stage()
+    sim_utils.create_new_stage(create_fabric_stage=True)
     sim_utils.update_stage()
 
     # Yield for the test
@@ -236,7 +237,7 @@ def test_xform_prim_view_initialization_empty_pattern(device):
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
-    sim_utils.create_new_stage()
+    sim_utils.create_new_stage(create_fabric_stage=True)
 
     # Create view with pattern that matches nothing
     view = XformPrimView("/World/NonExistent_.*", device=device)
