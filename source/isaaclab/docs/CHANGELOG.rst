@@ -1,6 +1,37 @@
 Changelog
 ---------
 
+4.6.0 (2026-04-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Unified :class:`~isaaclab.sensors.camera.Camera` and :class:`~isaaclab.sensors.camera.TiledCamera`
+  into a single implementation. :class:`Camera` now delegates all rendering to the
+  :class:`~isaaclab.renderers.Renderer` abstraction (same approach :class:`TiledCamera` used).
+  The public API is unchanged for :class:`Camera` users.
+* **Breaking (TiledCamera users):** :attr:`~isaaclab.sensors.camera.CameraData.info` now correctly
+  returns ``list[dict[str, Any]]`` (per-camera, then per-data-type) as documented in
+  :class:`~isaaclab.sensors.camera.CameraData`. :class:`TiledCamera` previously returned a flat
+  ``dict``, which violated the documented contract. Migration: replace
+  ``camera.data.info[data_type]`` with ``camera.data.info[cam_idx][data_type]``.
+
+Deprecated
+^^^^^^^^^^
+
+* :class:`~isaaclab.sensors.camera.TiledCamera` is deprecated. Use
+  :class:`~isaaclab.sensors.camera.Camera` directly — it now supports all renderer backends.
+* :class:`~isaaclab.sensors.camera.TiledCameraCfg` is deprecated. Use
+  :class:`~isaaclab.sensors.camera.CameraCfg` directly.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`~isaaclab.sensors.camera.Camera.render_product_paths`. Render products are
+  now managed internally by the renderer backend and are not part of the public API.
+
+
 4.5.33 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 
