@@ -60,8 +60,8 @@ class FabricBackend:
     If topology of the fabric changes, then all fabric indices need to be rebuilt.
     """
 
-    _WORLD_MATRIX_ATTR = "omni:fabric:worldMatrix"
-    _LOCAL_MATRIX_ATTR = "omni:fabric:localMatrix"
+    _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
+    _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
 
     _hierarchy_cache: dict[int, object] = {}
     _dirty_stages: set[int] = set()
@@ -111,10 +111,10 @@ class FabricBackend:
         matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
         ro = usdrt.Usd.Access.Read
         rw = usdrt.Usd.Access.ReadWrite
-        world_matrix_ro = (matrix, self._WORLD_MATRIX_ATTR, ro)
-        local_matrix_ro = (matrix, self._LOCAL_MATRIX_ATTR, ro)
-        world_matrix_rw = (matrix, self._WORLD_MATRIX_ATTR, rw)
-        local_matrix_rw = (matrix, self._LOCAL_MATRIX_ATTR, rw)
+        world_matrix_ro = (matrix, self._WORLD_MATRIX_NAME, ro)
+        local_matrix_ro = (matrix, self._LOCAL_MATRIX_NAME, ro)
+        world_matrix_rw = (matrix, self._WORLD_MATRIX_NAME, rw)
+        local_matrix_rw = (matrix, self._LOCAL_MATRIX_NAME, rw)
 
         # Persistent selections — one per (attribute x access-mode) combination.
         # PrepareForReuse() is called before each use to detect topology changes.
@@ -132,10 +132,10 @@ class FabricBackend:
         self._fabric_indices: wp.array = self._compute_fabric_indices(self._trans_sel_ro)
 
         # Cached indexed fabric arrays (rebuilt when topology changes).
-        self._world_ifa_ro: wp.indexedfabricarray = self._build_array(self._trans_sel_ro, self._WORLD_MATRIX_ATTR)
-        self._local_ifa_ro: wp.indexedfabricarray = self._build_array(self._trans_sel_ro, self._LOCAL_MATRIX_ATTR)
-        self._world_ifa_rw: wp.indexedfabricarray = self._build_array(self._world_sel_rw, self._WORLD_MATRIX_ATTR)
-        self._local_ifa_rw: wp.indexedfabricarray = self._build_array(self._local_sel_rw, self._LOCAL_MATRIX_ATTR)
+        self._world_ifa_ro: wp.indexedfabricarray = self._build_array(self._trans_sel_ro, self._WORLD_MATRIX_NAME)
+        self._local_ifa_ro: wp.indexedfabricarray = self._build_array(self._trans_sel_ro, self._LOCAL_MATRIX_NAME)
+        self._world_ifa_rw: wp.indexedfabricarray = self._build_array(self._world_sel_rw, self._WORLD_MATRIX_NAME)
+        self._local_ifa_rw: wp.indexedfabricarray = self._build_array(self._local_sel_rw, self._LOCAL_MATRIX_NAME)
 
         # Pre-allocate reusable output buffers (world poses)
         self._fabric_positions_torch = torch.zeros((self.count, 3), dtype=torch.float32, device=self._device)
@@ -171,7 +171,6 @@ class FabricBackend:
         if not hasattr(self, "_prim_paths_cache"):
             self._prim_paths_cache = [p.GetPath().pathString for p in self._prims]
         return self._prim_paths_cache
-
 
     # ------------------------------------------------------------------
     # Setters
@@ -397,36 +396,36 @@ class FabricBackend:
 
     def _get_world_ro_array(self) -> wp.indexedfabricarray:
         # import usdrt
-        # return self._select_indexed(self._WORLD_MATRIX_ATTR, usdrt.Usd.Access.Read)
+        # return self._select_indexed(self._WORLD_MATRIX_NAME, usdrt.Usd.Access.Read)
         if self._trans_sel_ro.PrepareForReuse():
             self._fabric_indices = self._compute_fabric_indices(self._trans_sel_ro)
-            self._world_ifa_ro = self._build_array(self._trans_sel_ro, self._WORLD_MATRIX_ATTR)
-            self._local_ifa_ro = self._build_array(self._trans_sel_ro, self._LOCAL_MATRIX_ATTR)
+            self._world_ifa_ro = self._build_array(self._trans_sel_ro, self._WORLD_MATRIX_NAME)
+            self._local_ifa_ro = self._build_array(self._trans_sel_ro, self._LOCAL_MATRIX_NAME)
         return self._world_ifa_ro
 
     def _get_local_ro_array(self) -> wp.indexedfabricarray:
         # import usdrt
-        # return self._select_indexed(self._LOCAL_MATRIX_ATTR, usdrt.Usd.Access.Read)
+        # return self._select_indexed(self._LOCAL_MATRIX_NAME, usdrt.Usd.Access.Read)
         if self._trans_sel_ro.PrepareForReuse():
             self._fabric_indices = self._compute_fabric_indices(self._trans_sel_ro)
-            self._world_ifa_ro = self._build_array(self._trans_sel_ro, self._WORLD_MATRIX_ATTR)
-            self._local_ifa_ro = self._build_array(self._trans_sel_ro, self._LOCAL_MATRIX_ATTR)
+            self._world_ifa_ro = self._build_array(self._trans_sel_ro, self._WORLD_MATRIX_NAME)
+            self._local_ifa_ro = self._build_array(self._trans_sel_ro, self._LOCAL_MATRIX_NAME)
         return self._local_ifa_ro
 
     def _get_world_rw_array(self) -> wp.indexedfabricarray:
         # import usdrt
-        # return self._select_indexed(self._WORLD_MATRIX_ATTR, usdrt.Usd.Access.ReadWrite)
+        # return self._select_indexed(self._WORLD_MATRIX_NAME, usdrt.Usd.Access.ReadWrite)
         if self._world_sel_rw.PrepareForReuse():
             self._fabric_indices = self._compute_fabric_indices(self._world_sel_rw)
-            self._world_ifa_rw = self._build_array(self._world_sel_rw, self._WORLD_MATRIX_ATTR)
+            self._world_ifa_rw = self._build_array(self._world_sel_rw, self._WORLD_MATRIX_NAME)
         return self._world_ifa_rw
 
     def _get_local_rw_array(self) -> wp.indexedfabricarray:
         # import usdrt
-        # return self._select_indexed(self._LOCAL_MATRIX_ATTR, usdrt.Usd.Access.ReadWrite)
+        # return self._select_indexed(self._LOCAL_MATRIX_NAME, usdrt.Usd.Access.ReadWrite)
         if self._local_sel_rw.PrepareForReuse():
             self._fabric_indices = self._compute_fabric_indices(self._local_sel_rw)
-            self._local_ifa_rw = self._build_array(self._local_sel_rw, self._LOCAL_MATRIX_ATTR)
+            self._local_ifa_rw = self._build_array(self._local_sel_rw, self._LOCAL_MATRIX_NAME)
         return self._local_ifa_rw
 
     def _convert_view_to_fabric_indices(self, indices: Sequence[int] | None) -> wp.array:
@@ -476,10 +475,10 @@ class FabricBackend:
             world_mat = None
             local_mat = None
             if rt_prim.IsValid():
-                if rt_prim.HasAttribute(self._WORLD_MATRIX_ATTR):
-                    world_mat = rt_prim.GetAttribute(self._WORLD_MATRIX_ATTR).Get()
-                if rt_prim.HasAttribute(self._LOCAL_MATRIX_ATTR):
-                    local_mat = rt_prim.GetAttribute(self._LOCAL_MATRIX_ATTR).Get()
+                if rt_prim.HasAttribute(self._WORLD_MATRIX_NAME):
+                    world_mat = rt_prim.GetAttribute(self._WORLD_MATRIX_NAME).Get()
+                if rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME):
+                    local_mat = rt_prim.GetAttribute(self._LOCAL_MATRIX_NAME).Get()
 
             result["prim_path"].append(prim_path)
             result["world_matrix"].append(world_mat)
@@ -503,8 +502,16 @@ class FabricBackend:
         for fi, fp in enumerate(fabric_paths):
             marker = " *" if fp in view_paths else "  "
             rt_prim = self._stage.GetPrimAtPath(usdrt.Sdf.Path(str(fp)))
-            wm = rt_prim.GetAttribute(self._WORLD_MATRIX_ATTR).Get() if rt_prim.HasAttribute(self._WORLD_MATRIX_ATTR) else None
-            lm = rt_prim.GetAttribute(self._LOCAL_MATRIX_ATTR).Get() if rt_prim.HasAttribute(self._LOCAL_MATRIX_ATTR) else None
+            wm = (
+                rt_prim.GetAttribute(self._WORLD_MATRIX_NAME).Get()
+                if rt_prim.HasAttribute(self._WORLD_MATRIX_NAME)
+                else None
+            )
+            lm = (
+                rt_prim.GetAttribute(self._LOCAL_MATRIX_NAME).Get()
+                if rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME)
+                else None
+            )
             lines.append(f"{marker} fabric_idx={fi}  path={fp}")
             lines.append(f"      world: {wm}")
             lines.append(f"      local: {lm}")
