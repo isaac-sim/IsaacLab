@@ -487,35 +487,42 @@ class FabricBackend:
 
         return result
 
-    def debug_print_fabric_state(self, indices: Sequence[int] | None = None) -> None:
-        """Print Fabric matrix state, index mapping, and selection paths to stdout.
-
-        Args:
-            indices: Prim indices to print. Defaults to all prims.
-        """
-        if indices is None:
-            indices = list(range(self.count))
+    def __repr__(self) -> str:
+        lines: list[str] = []
+        indices = list(range(self.count))
 
         fabric_indices_np = self._fabric_indices.numpy()
         fabric_paths = self._trans_sel_ro.GetPaths()
 
-        print(f"[Fabric Debug] stage_id={self._stage_id}  device={self._device}  count={self.count}")
-        print(f"[Fabric Debug] SelectPrims returned {len(fabric_paths)} paths:")
-        for fi, fp in enumerate(fabric_paths):
-            print(f"  fabric_idx={fi}  path={fp}")
+        view_paths = self.prim_paths
 
-        print("[Fabric Debug] View → Fabric index mapping:")
+        lines.append(f"[FabricBackend] stage_id={self._stage_id}  device={self._device}  count={self.count}")
+        import usdrt
+
+        lines.append(f"SelectPrims returned {len(fabric_paths)} paths:")
+        for fi, fp in enumerate(fabric_paths):
+            marker = " *" if fp in view_paths else "  "
+            rt_prim = self._stage.GetPrimAtPath(usdrt.Sdf.Path(str(fp)))
+            wm = rt_prim.GetAttribute(self._WORLD_MATRIX_ATTR).Get() if rt_prim.HasAttribute(self._WORLD_MATRIX_ATTR) else None
+            lm = rt_prim.GetAttribute(self._LOCAL_MATRIX_ATTR).Get() if rt_prim.HasAttribute(self._LOCAL_MATRIX_ATTR) else None
+            lines.append(f"{marker} fabric_idx={fi}  path={fp}")
+            lines.append(f"      world: {wm}")
+            lines.append(f"      local: {lm}")
+
+        lines.append("View → Fabric index mapping:")
         for vi in range(self.count):
             fi = int(fabric_indices_np[vi])
-            print(f"  view_idx={vi}  fabric_idx={fi}  path={self.prim_paths[vi]}")
+            lines.append(f"  view_idx={vi}  fabric_idx={fi}  path={self.prim_paths[vi]}")
 
         data = self.debug_read_fabric_matrices(indices)
-        print(f"[Fabric Debug] Matrices for requested indices {list(indices)}:")
+        lines.append("Matrices:")
         for i, path in enumerate(data["prim_path"]):
             vi = indices[i]
             fi = int(fabric_indices_np[vi])
             wm = data["world_matrix"][i]
             lm = data["local_matrix"][i]
-            print(f"  [{vi}] {path} (fabric_idx={fi})")
-            print(f"    world: {wm}")
-            print(f"    local: {lm}")
+            lines.append(f"  [{vi}] {path} (fabric_idx={fi})")
+            lines.append(f"    world: {wm}")
+            lines.append(f"    local: {lm}")
+
+        return "\n".join(lines)
