@@ -3,7 +3,7 @@
 Training a Reach Policy for Real Robot Deployment
 =================================================
 
-This tutorial walks you through training an end-effector pose tracking (reach) reinforcement learning (RL) policy that transfers from simulation to a real robot. By the end of this guide, you will have a trained policy capable of controlling a robot arm to reach arbitrary target poses within its workspace.
+This tutorial walks you through training an end-effector pose tracking (reach) reinforcement learning (RL) policy that transfers from simulation to a real robot. By the end of this guide, you will have a trained policy capable of controlling a robot arm to reach arbitrary target end-effector poses within its workspace.
 
 **Supported Robots:**
 
