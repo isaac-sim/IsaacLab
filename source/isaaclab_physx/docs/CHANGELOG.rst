@@ -1,7 +1,364 @@
 Changelog
 ---------
 
-1.0.0 (2026-01-28)
+0.5.13 (2026-03-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed device mismatch in :meth:`~isaaclab_physx.assets.RigidObjectCollection.reshape_view_to_data_2d`
+  and :meth:`~isaaclab_physx.assets.RigidObjectCollection.reshape_view_to_data_3d` that caused
+  ``wp.clone`` to fail with CUDA errors when PhysX returns data on CPU (e.g., masses, COMs, inertias)
+  while the simulation runs on GPU. The strided view now correctly uses ``data.device`` instead of
+  ``self.device``, matching the fix already present in :class:`~isaaclab_physx.assets.RigidObjectCollectionData`.
+
+
+0.5.12 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``test_body_incoming_joint_wrench_b_single_joint`` computing the expected
+  wrench in the parent body's frame instead of the child body's frame. The expected
+  wrench is now expressed in
+  :attr:`~isaaclab_physx.assets.ArticulationData.body_incoming_joint_wrench_b`'s
+  actual convention (child body frame) and body indices are resolved by name to be
+  robust across backends. Also corrected the docstring for
+  :attr:`~isaaclab_physx.assets.ArticulationData.body_incoming_joint_wrench_b` to
+  accurately describe the frame convention.
+
+
+0.5.11 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed articulation root prim discovery failing when the
+  ``physxArticulation:articulationEnabled`` attribute is not authored on the
+  USD prim. The predicate now treats an unset attribute as enabled (the PhysX
+  default) instead of rejecting the prim.
+
+
+0.5.10 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed verbose ``logger.info`` calls from
+  :class:`~isaaclab_physx.assets.RigidObject` and
+  :class:`~isaaclab_physx.assets.Articulation` initialization that logged body
+  names, joint names, and instance counts. Articulation joint parameter tables and
+  actuator group summaries are retained.
+
+
+0.5.9 (2026-03-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed device mismatch in
+  :class:`~isaaclab_physx.assets.RigidObjectCollectionData` where
+  ``_reshape_view_to_data_2d`` and ``_reshape_view_to_data_3d`` created
+  strided pointer views with the target GPU device instead of the source
+  array's device. PhysX returns masses, COMs, and inertias on CPU, so the
+  strided view incorrectly claimed a CPU pointer lived on GPU. This caused
+  ``CUDA error 1: invalid argument`` during ``wp.clone`` on GPUs without
+  HMM (Heterogeneous Memory Management).
+
+
+0.5.8 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Removed redundant ``ArticulationView`` from
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`.
+  Creating a single ``ArticulationView`` for heterogeneous articulation types
+  (e.g. Robot + Cabinet) triggered PhysX "Incorrect DofIdx" errors. The
+  ``RigidBodyView`` already covers all body transforms including articulation
+  links, so the articulation view was unnecessary. Articulation paths from
+  prebuilt artifacts are now merged into rigid body paths for the
+  ``RigidBodyView``.
+* Fixed pre-existing test fixture in
+  ``test_physx_scene_data_provider_visualizer_contract.py`` where
+  ``_make_provider()`` was missing the
+  ``_force_usd_fallback_for_newton_model_build`` attribute and the force
+  fallback test used an incorrect attribute name.
+
+
+0.5.7 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made several PhysX articulation tests more backend-agnostic by relaxing
+  PhysX-specific assumptions in ``test_articulation.py``.
+
+
+0.5.6 (2026-03-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fix asset writer methods in :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and
+  :class:`~isaaclab_physx.assets.RigidObjectCollection` to use public data
+  properties instead of internal timestamped buffer ``.data`` fields, removing
+  redundant manual timestamp updates.
+
+
+0.5.5 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Replaced all ``wp.nonzero()`` calls in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and
+  :class:`~isaaclab_physx.assets.RigidObjectCollection` mask methods with
+  ``torch.nonzero()`` via new ``_resolve_env_mask``, ``_resolve_body_mask``,
+  ``_resolve_joint_mask``, ``_resolve_fixed_tendon_mask``, and
+  ``_resolve_spatial_tendon_mask`` helpers, fixing mask-based writers that previously
+  raised errors at runtime.
+
+* Fixed device mismatch in ``RigidObjectCollection._env_body_ids_to_view_ids`` where GPU
+  index arrays were passed to a CPU kernel launch. Inputs are now cloned to the target
+  device before use.
+
+* Added ``_get_cpu_env_ids`` helper to :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and
+  :class:`~isaaclab_physx.assets.RigidObjectCollection` to safely clone environment
+  indices to CPU for PhysX model-property setters.
+
+* Fixed ``MockArticulationViewWarp`` to support the mock test infrastructure.
+
+
+0.5.4 (2026-03-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* fixed :func:`~isaaclab_physx.cloner.physx_replicate` to not exclude self replication by default.
+
+
+0.5.3 (2026-02-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime shape and dtype validation to all write methods in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper` using
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype`. Validates input dimensions
+  and types before kernel launch to catch mismatches early.
+
+
+0.5.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added runtime shape and dtype validation to all write methods in
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper` using
+  :meth:`~isaaclab.assets.AssetBase.assert_shape_and_dtype`. Validates input dimensions
+  and types before kernel launch to catch mismatches early.
+
+
+0.5.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ContactSensor ``body_names`` property to use ``num_sensors`` instead of
+  deprecated ``num_bodies``.
+
+
+0.5.0 (2026-02-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Aligned asset API with the multi-backend architecture. Base class abstract methods
+  in :class:`~isaaclab.assets.BaseArticulation` and :class:`~isaaclab.assets.BaseRigidObject`
+  have been refined so that PhysX and Newton backends share a consistent interface.
+
+* Improved docstrings across all asset classes with precise shape and dtype annotations
+  for warp array properties and write methods.
+
+* Migrated tests to use the new ``_index`` / ``_mask`` write method APIs, removing
+  usage of deprecated write methods.
+
+
+0.4.1 (2026-02-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a bug in :meth:~isaaclab_physx.assets.Articulation.process_actuators_cfg where explicit actuator joints could receive non-zero PhysX stiffness/damping, causing double PD control.
+
+
+0.4.0 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all PhysX asset classes to warp backend:
+  :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`,
+  :class:`~isaaclab_physx.assets.RigidObjectCollection`,
+  :class:`~isaaclab_physx.assets.DeformableObject`, and
+  :class:`~isaaclab_physx.assets.SurfaceGripper`.
+  Internal state buffers now use ``wp.array`` with structured warp types
+  (``wp.vec3f``, ``wp.quatf``, ``wp.transformf``, ``wp.spatial_vectorf``).
+
+* Migrated all PhysX sensor classes to warp backend:
+  :class:`~isaaclab_physx.sensors.ContactSensor`,
+  :class:`~isaaclab_physx.sensors.Imu`, and
+  :class:`~isaaclab_physx.sensors.FrameTransformer`.
+
+* Split all write methods into ``_index`` and ``_mask`` variants for explicit
+  sparse-index vs. boolean-mask semantics.
+
+Added
+^^^^^
+
+* Added warp kernel modules for fused GPU computations:
+
+  * :mod:`isaaclab_physx.assets.kernels` — shared kernels for root state extraction,
+    velocity transforms, and data write-back.
+  * :mod:`isaaclab_physx.assets.articulation.kernels` — articulation-specific kernels
+    for joint state, body properties, and COM computations.
+  * :mod:`isaaclab_physx.assets.deformable_object.kernels` — nodal state and mean
+    vertex computations.
+  * :mod:`isaaclab_physx.assets.rigid_object_collection.kernels` — 2D indexed kernels
+    for multi-body collections.
+  * :mod:`isaaclab_physx.sensors.contact_sensor.kernels` — contact force aggregation
+    and history buffer management.
+  * :mod:`isaaclab_physx.sensors.imu.kernels` — fused IMU update combining acceleration,
+    gyroscope, and gravity projection.
+  * :mod:`isaaclab_physx.sensors.frame_transformer.kernels` — frame transform computations.
+
+* Added warp-based mock PhysX views for unit testing:
+  ``MockArticulationViewWarp``, ``MockRigidBodyViewWarp``, ``MockRigidContactViewWarp``.
+
+
+0.3.0 (2026-02-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab_physx.physics.PhysxManager` to properly handle physics initialization
+  order. ``attach_stage()`` is now called before ``start_simulation()`` to ensure GPU buffers are
+  correctly allocated.
+* Removed ``device`` field from :class:`~isaaclab_physx.physics.PhysxManagerCfg`. Device is now
+  inherited from :attr:`SimulationCfg.device`.
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.physics.PhysxManager` as the concrete PhysX backend implementation
+  of :class:`~isaaclab.physics.PhysicsManager`.
+* Added :class:`~isaaclab_physx.physics.IsaacEvents` enum for PhysX-specific simulation events.
+* Added monkey-patching of ``isaacsim.core.simulation_manager.SimulationManager`` in package init
+  to ensure Isaac Sim uses :class:`~isaaclab_physx.physics.PhysxManager` for callback handling.
+
+
+0.2.0 (2026-02-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated all PhysX benchmarks in :mod:`isaaclab_physx.benchmark` to use the new
+  :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark` framework from ``isaaclab.test.benchmark``.
+
+* Added support for configurable output backends via ``--benchmark_backend`` argument.
+  Supported backends: ``json``, ``osmo``, ``omniperf``.
+
+
+0.1.4 (2026-02-05)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed all the deprecated properties and shorthands in the assets. They now live in the base classes.
+
+
+0.1.3 (2026-02-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_physx.benchmark` module containing performance micro-benchmarks for
+  PhysX asset classes. Includes:
+
+  * ``benchmark_articulation.py``: Benchmarks for setter/writer methods on
+    :class:`~isaaclab_physx.assets.Articulation` including root state, joint state,
+    joint parameters, and body property operations.
+  * ``benchmark_articulation_data.py``: Benchmarks for property accessors on
+    :class:`~isaaclab_physx.assets.ArticulationData` covering root link/COM properties,
+    joint properties, and body link/COM properties.
+  * ``benchmark_rigid_object.py``: Benchmarks for setter/writer methods on
+    :class:`~isaaclab_physx.assets.RigidObject` including root state and body property operations.
+  * ``benchmark_rigid_object_data.py``: Benchmarks for property accessors on
+    :class:`~isaaclab_physx.assets.RigidObjectData`.
+  * ``benchmark_rigid_object_collection.py``: Benchmarks for setter/writer methods on
+    :class:`~isaaclab_physx.assets.RigidObjectCollection` including body state, pose,
+    velocity, and property operations.
+  * ``benchmark_rigid_object_collection_data.py``: Benchmarks for property accessors on
+    :class:`~isaaclab_physx.assets.RigidObjectCollectionData`.
+
+  All benchmarks support configurable iterations, warmup steps, instance counts, multiple
+  input modes (torch list, torch tensor), and output to JSON/CSV formats with hardware
+  information capture.
+
+
+0.1.2 (2026-02-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_physx.test.mock_interfaces` module providing mock PhysX view implementations
+  for unit testing without requiring Isaac Sim. Includes:
+
+  * :class:`MockRigidBodyView`: Mock for ``physx.RigidBodyView`` with transforms, velocities,
+    accelerations, and mass properties.
+  * :class:`MockArticulationView`: Mock for ``physx.ArticulationView`` with root/link states,
+    DOF properties, and joint control.
+  * :class:`MockRigidContactView`: Mock for ``physx.RigidContactView`` with contact forces,
+    positions, normals, and friction data.
+  * Factory functions including pre-configured quadruped and humanoid views.
+  * Patching utilities and decorators for easy test injection.
+
+
+0.1.0 (2026-01-28)
 ~~~~~~~~~~~~~~~~~~
 
 Added

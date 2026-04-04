@@ -88,6 +88,7 @@ def test_build_simulation_context_cfg():
     )
 
     with build_simulation_context(sim_cfg=cfg, gravity_enabled=False, dt=0.01, device="cpu") as sim:
+        # Values from sim_cfg should not be overridden by build_simulation_context args
         assert sim.cfg.gravity == gravity
         assert sim.cfg.device == device
         assert sim.cfg.dt == dt

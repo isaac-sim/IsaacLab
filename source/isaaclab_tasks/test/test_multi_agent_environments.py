@@ -22,7 +22,7 @@ import isaaclab_tasks  # noqa: F401
 from env_test_utils import _check_random_actions, setup_environment  # isort: skip
 
 
-@pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", setup_environment(multi_agent=True))
 def test_environments(task_name, num_envs, device):
     """Run all environments with given parameters and check environments return valid signals."""

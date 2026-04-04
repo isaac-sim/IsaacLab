@@ -13,6 +13,7 @@ Benchmark Results
 
 All benchmarking results were performed with the RL Games library with ``--headless`` flag on Ubuntu 22.04.
 ``Isaac-Velocity-Rough-G1-v0`` environment benchmarks were performed with the RSL RL library.
+The PhysX backend was used for all benchmarks.
 
 
 Memory Consumption

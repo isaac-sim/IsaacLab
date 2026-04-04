@@ -7,10 +7,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pxr import PhysxSchema, Usd, UsdPhysics, UsdShade
+from pxr import Usd, UsdPhysics, UsdShade
 
-from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_schema
+from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim, safe_set_attribute_on_usd_schema
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from . import physics_materials_cfg
@@ -56,10 +57,10 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     usd_physics_material_api = UsdPhysics.MaterialAPI(prim)
     if not usd_physics_material_api:
         usd_physics_material_api = UsdPhysics.MaterialAPI.Apply(prim)
-    # retrieve the collision api
-    physx_material_api = PhysxSchema.PhysxMaterialAPI(prim)
-    if not physx_material_api:
-        physx_material_api = PhysxSchema.PhysxMaterialAPI.Apply(prim)
+    # ensure PhysX material API is applied
+    applied = prim.GetAppliedSchemas()
+    if "PhysxMaterialAPI" not in applied:
+        prim.AddAppliedSchema("PhysxMaterialAPI")
 
     # convert to dict
     cfg = cfg.to_dict()
@@ -68,9 +69,9 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     for attr_name in ["static_friction", "dynamic_friction", "restitution"]:
         value = cfg.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_physics_material_api, attr_name, value, camel_case=True)
-    # set into PhysX API
+    # set into PhysX API (prim attributes: physxMaterial:*)
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_schema(physx_material_api, attr_name, value, camel_case=True)
+        safe_set_attribute_on_usd_prim(prim, f"physxMaterial:{to_camel_case(attr_name, 'cC')}", value, camel_case=False)
     # return the prim
     return prim
 
@@ -113,16 +114,18 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
     # check if prim is a material
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
-    # retrieve the deformable-body api
-    physx_deformable_body_material_api = PhysxSchema.PhysxDeformableBodyMaterialAPI(prim)
-    if not physx_deformable_body_material_api:
-        physx_deformable_body_material_api = PhysxSchema.PhysxDeformableBodyMaterialAPI.Apply(prim)
+    # ensure PhysX deformable body material API is applied
+    applied = prim.GetAppliedSchemas()
+    if "PhysxDeformableBodyMaterialAPI" not in applied:
+        prim.AddAppliedSchema("PhysxDeformableBodyMaterialAPI")
 
     # convert to dict
     cfg = cfg.to_dict()
     del cfg["func"]
-    # set into PhysX API
+    # set into PhysX API (prim attributes: physxDeformableBodyMaterial:*)
     for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_schema(physx_deformable_body_material_api, attr_name, value, camel_case=True)
+        safe_set_attribute_on_usd_prim(
+            prim, f"physxDeformableBodyMaterial:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+        )
     # return the prim
     return prim

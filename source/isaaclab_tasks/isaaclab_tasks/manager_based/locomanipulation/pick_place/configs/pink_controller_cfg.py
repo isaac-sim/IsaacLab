@@ -9,9 +9,7 @@ This module provides configurations for humanoid robot pink IK controllers,
 including both fixed base and mobile configurations for upper body manipulation.
 """
 
-from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
-from isaaclab.controllers.pink_ik.null_space_posture_task import NullSpacePostureTask
-from isaaclab.controllers.pink_ik.pink_ik_cfg import PinkIKControllerCfg
+from isaaclab.controllers.pink_ik import LocalFrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 
 ##
@@ -25,25 +23,25 @@ G1_UPPER_BODY_IK_CONTROLLER_CFG = PinkIKControllerCfg(
     show_ik_warnings=True,
     fail_on_joint_limit_violation=False,
     variable_input_tasks=[
-        LocalFrameTask(
-            "g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link",
+        LocalFrameTaskCfg(
+            frame="g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link",
             base_link_frame_name="g1_29dof_with_hand_rev_1_0_pelvis",
             position_cost=8.0,  # [cost] / [m]
-            orientation_cost=2.0,  # [cost] / [rad]
-            lm_damping=10,  # dampening for solver for step jumps
-            gain=0.5,
+            orientation_cost=4.0,  # [cost] / [rad]
+            lm_damping=75,  # dampening for solver for step jumps
+            gain=0.075,
         ),
-        LocalFrameTask(
-            "g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link",
+        LocalFrameTaskCfg(
+            frame="g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link",
             base_link_frame_name="g1_29dof_with_hand_rev_1_0_pelvis",
             position_cost=8.0,  # [cost] / [m]
-            orientation_cost=2.0,  # [cost] / [rad]
-            lm_damping=10,  # dampening for solver for step jumps
-            gain=0.5,
+            orientation_cost=4.0,  # [cost] / [rad]
+            lm_damping=75,  # dampening for solver for step jumps
+            gain=0.075,
         ),
-        NullSpacePostureTask(
-            cost=0.5,
-            lm_damping=1,
+        NullSpacePostureTaskCfg(
+            cost=0.05,
+            lm_damping=75,
             controlled_frames=[
                 "g1_29dof_with_hand_rev_1_0_left_wrist_yaw_link",
                 "g1_29dof_with_hand_rev_1_0_right_wrist_yaw_link",
@@ -59,7 +57,7 @@ G1_UPPER_BODY_IK_CONTROLLER_CFG = PinkIKControllerCfg(
                 "waist_pitch_joint",
                 "waist_roll_joint",
             ],
-            gain=0.3,
+            gain=0.075,
         ),
     ],
     fixed_input_tasks=[],

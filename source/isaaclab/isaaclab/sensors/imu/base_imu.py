@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import warp as wp
 
 from ..sensor_base import SensorBase
 from .base_imu_data import BaseImuData
@@ -73,6 +74,7 @@ class BaseImu(SensorBase):
     Implementation - Abstract methods to be implemented by backend-specific subclasses.
     """
 
+    @abstractmethod
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
@@ -82,5 +84,5 @@ class BaseImu(SensorBase):
         super()._initialize_impl()
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array):
         raise NotImplementedError

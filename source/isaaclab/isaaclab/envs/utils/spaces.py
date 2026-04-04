@@ -222,8 +222,14 @@ def replace_strings_with_env_cfg_spaces(env_cfg: object) -> object:
     """
     for attr in ["observation_space", "action_space", "state_space"]:
         if hasattr(env_cfg, attr):
-            setattr(env_cfg, attr, deserialize_space(getattr(env_cfg, attr)))
+            val = getattr(env_cfg, attr)
+            if isinstance(val, str):
+                setattr(env_cfg, attr, deserialize_space(val))
     for attr in ["observation_spaces", "action_spaces"]:
         if hasattr(env_cfg, attr):
-            setattr(env_cfg, attr, {k: deserialize_space(v) for k, v in getattr(env_cfg, attr).items()})
+            setattr(
+                env_cfg,
+                attr,
+                {k: deserialize_space(v) for k, v in getattr(env_cfg, attr).items() if isinstance(v, str)},
+            )
     return env_cfg

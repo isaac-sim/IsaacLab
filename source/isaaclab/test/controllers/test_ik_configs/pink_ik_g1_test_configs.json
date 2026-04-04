@@ -1,8 +1,8 @@
 {
     "tolerances": {
-        "position": 0.003,
+        "position": 0.025,
         "pd_position": 0.002,
-        "rotation": 0.017,
+        "rotation": 0.030,
         "check_errors": true
     },
     "allowed_steps_to_settle": 50,

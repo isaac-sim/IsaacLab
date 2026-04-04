@@ -4,11 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.assets.asset_base_cfg import AssetBaseCfg
 from isaaclab.utils import configclass
 
-from .surface_gripper import SurfaceGripper
+if TYPE_CHECKING:
+    from .surface_gripper import SurfaceGripper
 
 
 @configclass
@@ -30,4 +32,4 @@ class SurfaceGripperCfg(AssetBaseCfg):
     retry_interval: float | None = None
     """The amount of time the gripper will spend trying to grasp an object."""
 
-    class_type: type = SurfaceGripper
+    class_type: type["SurfaceGripper"] | str = "{DIR}.surface_gripper:SurfaceGripper"

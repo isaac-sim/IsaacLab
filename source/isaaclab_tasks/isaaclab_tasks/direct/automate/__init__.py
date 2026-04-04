@@ -16,7 +16,7 @@ gym.register(
     entry_point=f"{__name__}.assembly_env:AssemblyEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.assembly_env:AssemblyEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.assembly_env_cfg:AssemblyEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
     },
 )
@@ -27,7 +27,7 @@ gym.register(
     entry_point=f"{__name__}.disassembly_env:DisassemblyEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.disassembly_env:DisassemblyEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.disassembly_env_cfg:DisassemblyEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
     },
 )

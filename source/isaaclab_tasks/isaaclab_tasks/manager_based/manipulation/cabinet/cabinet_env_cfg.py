@@ -6,6 +6,9 @@
 
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -19,8 +22,11 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
 
@@ -32,6 +38,41 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
+
+
+@configclass
+class CabinetSimCfg(PresetCfg):
+    """Simulation configuration presets for the cabinet environment.
+
+    Wraps the full :class:`~isaaclab.sim.SimulationCfg` so that Newton can run at a
+    finer physics timestep (1/200 s) while PhysX keeps its default (1/60 s).
+    """
+
+    default: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        render_interval=1,
+        physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
+    )
+    physx: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        render_interval=1,
+        physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
+    )
+    newton: SimulationCfg = SimulationCfg(
+        dt=1 / 600,
+        render_interval=1,
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=90,
+                nconmax=100,
+                cone="pyramidal",
+                integrator="implicitfast",
+                impratio=1,
+            ),
+            num_substeps=1,
+            debug_mode=False,
+        ),
+    )
 
 
 ##
@@ -200,6 +241,29 @@ class EventCfg:
 
 
 @configclass
+class _CabinetNewtonEventCfg:
+    """Newton-compatible events: excludes material randomization (not implemented in Newton)."""
+
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+
+    reset_robot_joints = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "position_range": (-0.1, 0.1),
+            "velocity_range": (0.0, 0.0),
+        },
+    )
+
+
+@configclass
+class CabinetEventCfg(PresetCfg):
+    default: EventCfg = EventCfg()
+    physx: EventCfg = EventCfg()
+    newton: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
+
+
+@configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
 
@@ -253,6 +317,9 @@ class TerminationsCfg:
 class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 
+    # Sim settings — override base-class SimulationCfg with a preset-aware wrapper so that
+    # Newton can use dt=1/200 while PhysX keeps dt=1/60.
+    sim: CabinetSimCfg = CabinetSimCfg()
     # Scene settings
     scene: CabinetSceneCfg = CabinetSceneCfg(num_envs=4096, env_spacing=2.0)
     # Basic settings
@@ -261,7 +328,7 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    events: CabinetEventCfg = CabinetEventCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -270,9 +337,4 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 8.0
         self.viewer.eye = (-2.0, 2.0, 2.0)
         self.viewer.lookat = (0.8, 0.0, 0.5)
-        # simulation settings
-        self.sim.dt = 1 / 60  # 60Hz
-        self.sim.render_interval = self.decimation
-        self.sim.physx.bounce_threshold_velocity = 0.2
-        self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.friction_correlation_distance = 0.00625
+        # simulation settings are defined in CabinetSimCfg (dt/physics vary per backend)

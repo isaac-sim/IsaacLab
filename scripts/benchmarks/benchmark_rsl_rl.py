@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2025, The IsaacLab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Script to benchmark RL agent with RSL-RL."""
 
 """Launch Isaac Sim Simulator first."""
@@ -37,9 +32,28 @@ parser.add_argument(
 parser.add_argument(
     "--benchmark_backend",
     type=str,
-    default="OmniPerfKPIFile",
-    choices=["LocalLogMetrics", "JSONFileMetrics", "OsmoKPIFile", "OmniPerfKPIFile"],
-    help="Benchmarking backend options, defaults OmniPerfKPIFile",
+    default="omniperf",
+    choices=[
+        "json",
+        "osmo",
+        "omniperf",
+        "summary",
+        "LocalLogMetrics",
+        "JSONFileMetrics",
+        "OsmoKPIFile",
+        "OmniPerfKPIFile",
+    ],
+    help="Benchmarking backend options, defaults omniperf",
+)
+parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
+parser.add_argument(
+    "--reward_threshold", type=float, default=None, help="Reward threshold for convergence (overrides config)."
+)
+parser.add_argument(
+    "--check_convergence", action="store_true", help="Check reward convergence using thresholds from configs.yaml."
+)
+parser.add_argument(
+    "--convergence_config", type=str, default="full", help="Config mode for convergence thresholds (default: full)."
 )
 
 # append RSL-RL cli arguments
@@ -56,16 +70,9 @@ if args_cli.video:
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
-app_start_time_begin = time.perf_counter_ns()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-app_start_time_end = time.perf_counter_ns()
-
 imports_time_begin = time.perf_counter_ns()
 
+import importlib.metadata as metadata
 from datetime import datetime
 
 import gymnasium as gym
@@ -77,23 +84,21 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import get_checkpoint_path
-from isaaclab_tasks.utils.hydra import hydra_task_config
+from isaaclab_tasks.utils import get_checkpoint_path, launch_simulation, resolve_task_config
 
 imports_time_end = time.perf_counter_ns()
 
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.benchmark.services")
-from isaacsim.benchmark.services import BaseIsaacBenchmark
-
+from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
+    get_backend_type,
+    get_preset_string,
     log_app_start_time,
+    log_convergence,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
     log_rl_policy_rewards,
@@ -111,25 +116,34 @@ torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 
 # Create the benchmark
-benchmark = BaseIsaacBenchmark(
+backend_type = get_backend_type(args_cli.benchmark_backend)
+benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_rsl_rl_train",
+    backend_type=backend_type,
+    output_path=args_cli.output_path,
+    use_recorders=True,
+    frametime_recorders=backend_type in ("summary", "omniperf"),
+    output_prefix=f"benchmark_rsl_rl_train_{args_cli.task}",
     workflow_metadata={
         "metadata": [
             {"name": "task", "data": args_cli.task},
             {"name": "seed", "data": args_cli.seed},
             {"name": "num_envs", "data": args_cli.num_envs},
             {"name": "max_iterations", "data": args_cli.max_iterations},
+            {"name": "presets", "data": get_preset_string(hydra_args)},
         ]
     },
-    backend_type=args_cli.benchmark_backend,
 )
 
 
-@hydra_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlOnPolicyRunnerCfg):
+def main(
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
+    agent_cfg: RslRlOnPolicyRunnerCfg,
+    app_start_time_begin: int,
+    app_start_time_end: int,
+):
     """Train with RSL-RL agent."""
     # parse configuration
-    benchmark.set_phase("loading", start_recording_frametime=False, start_recording_runtime=True)
     # override configurations with non-hydra CLI arguments
     agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
@@ -152,14 +166,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     world_rank = 0
     world_size = 1
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
-        agent_cfg.device = f"cuda:{app_launcher.local_rank}"
+        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
+        agent_cfg.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
 
-        # set seed to have diversity in different threads
-        seed = agent_cfg.seed + app_launcher.local_rank
+        # use global rank for seed diversity across all nodes
+        world_rank = int(os.getenv("RANK", "0"))
+        seed = agent_cfg.seed + world_rank
         env_cfg.seed = seed
         agent_cfg.seed = seed
-        world_rank = app_launcher.global_rank
         world_size = int(os.getenv("WORLD_SIZE", 1))
 
     # specify directory for logging experiments
@@ -196,6 +210,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     task_startup_time_end = time.perf_counter_ns()
 
+    # handle deprecated configurations (e.g. legacy policy -> actor/critic migration)
+    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
+
     # create runner from rsl-rl
     runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
     # write git state to logs
@@ -215,13 +232,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
-    benchmark.set_phase("sim_runtime")
-
-    # run training
-    runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+    # run training with continuous benchmark monitoring
+    with BenchmarkMonitor(benchmark, interval=1.0):
+        runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
     if world_rank == 0:
-        benchmark.store_measurements()
+        # Final update after training completes
+        benchmark.update_manual_recorders()
 
         # parse tensorboard file stats
         log_data = parse_tf_logs(log_dir)
@@ -229,13 +246,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # prepare RL timing dict
         collection_fps = (
             1
-            / (np.array(log_data["Perf/collection time"]))
+            / (np.array(log_data["Perf/collection_time"]))
             * env.unwrapped.num_envs
             * agent_cfg.num_steps_per_env
             * world_size
         )
         rl_training_times = {
-            "Collection Time": (np.array(log_data["Perf/collection time"]) / 1000).tolist(),
+            "Collection Time": (np.array(log_data["Perf/collection_time"]) / 1000).tolist(),
             "Learning Time": (np.array(log_data["Perf/learning_time"]) / 1000).tolist(),
             "Collection FPS": collection_fps.tolist(),
             "Total FPS": log_data["Perf/total_fps"] * world_size,
@@ -252,14 +269,26 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         log_rl_policy_rewards(benchmark, log_data["Train/mean_reward"])
         log_rl_policy_episode_lengths(benchmark, log_data["Train/mean_episode_length"])
 
-        benchmark.stop()
+        log_convergence(
+            benchmark,
+            log_data["Train/mean_reward"],
+            args_cli.task,
+            workflow="rsl_rl",
+            should_check_convergence=args_cli.check_convergence,
+            reward_threshold=args_cli.reward_threshold,
+            convergence_config=args_cli.convergence_config,
+        )
+
+        benchmark._finalize_impl()
 
     # close the simulator
     env.close()
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    env_cfg, agent_cfg = resolve_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
+
+    app_start_time_begin = time.perf_counter_ns()
+    with launch_simulation(env_cfg, args_cli):
+        app_start_time_end = time.perf_counter_ns()
+        main(env_cfg, agent_cfg, app_start_time_begin, app_start_time_end)

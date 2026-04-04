@@ -6,17 +6,68 @@
 from __future__ import annotations
 
 import torch
-
-import isaacsim.core.utils.torch as torch_utils
-from isaacsim.core.utils.torch.rotations import compute_heading_and_up, compute_rot, quat_conjugate
+import warp as wp
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.utils.math import (
+    euler_xyz_from_quat,
+    normalize,
+    quat_apply,
+    quat_apply_inverse,
+    quat_conjugate,
+    quat_mul,
+    scale_transform,
+)
 
 
 def normalize_angle(x):
     return torch.atan2(torch.sin(x), torch.cos(x))
+
+
+@torch.jit.script
+def compute_heading_and_up(
+    torso_rotation: torch.Tensor,
+    inv_start_rot: torch.Tensor,
+    to_target: torch.Tensor,
+    vec0: torch.Tensor,
+    vec1: torch.Tensor,
+    up_idx: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Compute heading and up vectors for locomotion tasks."""
+    num_envs = torso_rotation.shape[0]
+    target_dirs = normalize(to_target)
+
+    torso_quat = quat_mul(torso_rotation, inv_start_rot)
+    up_vec = quat_apply(torso_quat, vec1).view(num_envs, 3)
+    heading_vec = quat_apply(torso_quat, vec0).view(num_envs, 3)
+    up_proj = up_vec[:, up_idx]
+    heading_proj = torch.bmm(heading_vec.view(num_envs, 1, 3), target_dirs.view(num_envs, 3, 1)).view(num_envs)
+
+    return torso_quat, up_proj, heading_proj, up_vec, heading_vec
+
+
+@torch.jit.script
+def compute_rot(
+    torso_quat: torch.Tensor,
+    velocity: torch.Tensor,
+    ang_velocity: torch.Tensor,
+    targets: torch.Tensor,
+    torso_positions: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Compute rotation-related quantities for locomotion tasks."""
+    vel_loc = quat_apply_inverse(torso_quat, velocity)
+    angvel_loc = quat_apply_inverse(torso_quat, ang_velocity)
+
+    roll, pitch, yaw = euler_xyz_from_quat(torso_quat)
+
+    walk_target_angle = torch.atan2(targets[:, 1] - torso_positions[:, 1], targets[:, 0] - torso_positions[:, 0])
+    angle_to_target = walk_target_angle - yaw
+
+    return vel_loc, angvel_loc, roll, pitch, yaw, angle_to_target
 
 
 class LocomotionEnv(DirectRLEnv):
@@ -26,7 +77,17 @@ class LocomotionEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.action_scale = self.cfg.action_scale
-        self.joint_gears = torch.tensor(self.cfg.joint_gears, dtype=torch.float32, device=self.sim.device)
+        # Resolve the joint gears based on the physics type, since they do not have the same joint ordering.
+        if isinstance(self.cfg.joint_gears, dict):
+            if isinstance(self.cfg.sim.physics, PhysxCfg):
+                joint_gears = self.cfg.joint_gears["physx"]
+            elif isinstance(self.cfg.sim.physics, NewtonCfg):
+                joint_gears = self.cfg.joint_gears["newton"]
+            else:
+                raise ValueError(f"Invalid physics type: {self.cfg.sim.physics}")
+        else:
+            joint_gears = self.cfg.joint_gears
+        self.joint_gears = torch.tensor(joint_gears, dtype=torch.float32, device=self.sim.device)
         self.motor_effort_ratio = torch.ones_like(self.joint_gears, device=self.sim.device)
         self._joint_dof_idx, _ = self.robot.find_joints(".*")
 
@@ -66,13 +127,19 @@ class LocomotionEnv(DirectRLEnv):
         self.actions = actions.clone()
 
     def _apply_action(self):
-        forces = self.action_scale * self.joint_gears * self.actions
-        self.robot.set_joint_effort_target(forces, joint_ids=self._joint_dof_idx)
+        forces = self.action_scale * self.joint_gears * torch.clamp(self.actions, -1.0, 1.0)
+        self.robot.set_joint_effort_target_index(target=forces, joint_ids=self._joint_dof_idx)
 
     def _compute_intermediate_values(self):
-        self.torso_position, self.torso_rotation = self.robot.data.root_pos_w, self.robot.data.root_quat_w
-        self.velocity, self.ang_velocity = self.robot.data.root_lin_vel_w, self.robot.data.root_ang_vel_w
-        self.dof_pos, self.dof_vel = self.robot.data.joint_pos, self.robot.data.joint_vel
+        self.torso_position, self.torso_rotation = (
+            wp.to_torch(self.robot.data.root_pos_w),
+            wp.to_torch(self.robot.data.root_quat_w),
+        )
+        self.velocity, self.ang_velocity = (
+            wp.to_torch(self.robot.data.root_lin_vel_w),
+            wp.to_torch(self.robot.data.root_ang_vel_w),
+        )
+        self.dof_pos, self.dof_vel = wp.to_torch(self.robot.data.joint_pos), wp.to_torch(self.robot.data.joint_vel)
 
         (
             self.up_proj,
@@ -95,8 +162,8 @@ class LocomotionEnv(DirectRLEnv):
             self.velocity,
             self.ang_velocity,
             self.dof_pos,
-            self.robot.data.soft_joint_pos_limits[0, :, 0],
-            self.robot.data.soft_joint_pos_limits[0, :, 1],
+            wp.to_torch(self.robot.data.soft_joint_pos_limits)[0, :, 0],
+            wp.to_torch(self.robot.data.soft_joint_pos_limits)[0, :, 1],
             self.inv_start_rot,
             self.basis_vec0,
             self.basis_vec1,
@@ -154,22 +221,24 @@ class LocomotionEnv(DirectRLEnv):
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
-            env_ids = self.robot._ALL_INDICES
+            env_ids = wp.to_torch(self.robot._ALL_INDICES)
         self.robot.reset(env_ids)
         super()._reset_idx(env_ids)
 
-        joint_pos = self.robot.data.default_joint_pos[env_ids]
-        joint_vel = self.robot.data.default_joint_vel[env_ids]
-        default_root_state = self.robot.data.default_root_state[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        joint_pos = wp.to_torch(self.robot.data.default_joint_pos)[env_ids].clone()
+        joint_vel = wp.to_torch(self.robot.data.default_joint_vel)[env_ids].clone()
+        default_root_pose = wp.to_torch(self.robot.data.default_root_pose)[env_ids].clone()
+        default_root_vel = wp.to_torch(self.robot.data.default_root_vel)[env_ids].clone()
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
-        self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self.robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
-        to_target = self.targets[env_ids] - default_root_state[:, :3]
+        to_target = self.targets[env_ids] - default_root_pose[:, :3]
         to_target[:, 2] = 0.0
-        self.potentials[env_ids] = -torch.norm(to_target, p=2, dim=-1) / self.cfg.sim.dt
+        self.potentials[env_ids] = -torch.linalg.norm(to_target, ord=2, dim=-1) / self.cfg.sim.dt
 
         self._compute_intermediate_values()
 
@@ -256,12 +325,12 @@ def compute_intermediate_values(
         torso_quat, velocity, ang_velocity, targets, torso_position
     )
 
-    dof_pos_scaled = torch_utils.maths.unscale(dof_pos, dof_lower_limits, dof_upper_limits)
+    dof_pos_scaled = scale_transform(dof_pos, dof_lower_limits, dof_upper_limits)
 
     to_target = targets - torso_position
     to_target[:, 2] = 0.0
     prev_potentials[:] = potentials
-    potentials = -torch.norm(to_target, p=2, dim=-1) / dt
+    potentials = -torch.linalg.norm(to_target, ord=2, dim=-1) / dt
 
     return (
         up_proj,

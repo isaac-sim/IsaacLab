@@ -33,11 +33,32 @@ class FactoryBase:
         cls._registry[name] = sub_class
         logger.info(f"Registered backend {name!r} for factory {cls.__name__}.")
 
+    @classmethod
+    def _get_backend(cls, *args, **kwargs) -> str:
+        """Return active backend name for this factory.
+
+        Falls back to ``"physx"`` for backward compatibility when no simulation
+        context is initialized yet.
+        """
+        # Import lazily to avoid import cycles at module load time.
+        from isaaclab.sim.simulation_context import SimulationContext
+
+        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
+        if "newton" in manager_name:
+            return "newton"
+        if "physx" in manager_name:
+            return "physx"
+        else:
+            raise ValueError(f"Unknown physics manager: {manager_name}")
+
+    @classmethod
+    def _get_module_name(cls, backend: str) -> str:
+        """Return module path that hosts backend implementation for a given backend key."""
+        return f"isaaclab_{backend}.{cls._module_subpath}"
+
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
-
-        # TODO: Make the backend configurable.
-        backend = "physx"
+        backend = cls._get_backend(*args, **kwargs)
 
         if cls == FactoryBase:
             raise TypeError("FactoryBase cannot be instantiated directly. Please subclass it.")
@@ -46,10 +67,11 @@ class FactoryBase:
         # This is done to only import the module once.
         if backend not in cls._registry:
             # Construct the module name from the backend and the determined subpath.
-            module_name = f"isaaclab_{backend}.{cls._module_subpath}"
+            module_name = cls._get_module_name(backend)
             try:
                 module = importlib.import_module(module_name)
-                module_class = getattr(module, cls.__name__)
+                class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)
+                module_class = getattr(module, class_name)
                 # Manually register the class
                 cls.register(backend, module_class)
 
@@ -67,7 +89,7 @@ class FactoryBase:
             available = list(cls.get_registry_keys())
             raise ValueError(
                 f"Unknown backend {backend!r} for {cls.__name__}. "
-                f"A module was found at '{module_name}', but it did not contain a class with the name {cls.__name__}.\n"
+                f"A module was found at '{module_name}', but it did not contain a class with the name {class_name!r}.\n"
                 f"Currently available backends: {available}."
             ) from None
         # Return an instance of the chosen class.

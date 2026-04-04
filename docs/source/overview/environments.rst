@@ -159,9 +159,13 @@ for the lift-cube environment:
     |                         |                              | enabled (i.e. Robot lower body balances in-place while upper body is        |
     |                         |                              | controlled via Inverse Kinematics).                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
-    | |kuka-allegro-lift|     | |kuka-allegro-lift-link|     | Pick up a primitive shape on the table and lift it to target position       |
+    | |kuka-allegro-lift|     | |kuka-allegro-lift-link|     | Pick up a primitive shape on the table and lift it to target position.      |
+    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        |
+    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
-    | |kuka-allegro-reorient| | |kuka-allegro-reorient-link| | Pick up a primitive shape on the table and orient it to target pose         |
+    | |kuka-allegro-reorient| | |kuka-allegro-reorient-link| | Pick up a primitive shape on the table and orient it to target pose.        |
+    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        |
+    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+
     | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |
     |                         |                              | a Galbot humanoid robot                                                     |
@@ -283,7 +287,7 @@ We provide environments for both disassembly and assembly.
 
 .. attention::
 
-  CUDA is recommended for running the AutoMate environments with 570 drivers. If running with Nvidia driver 570 on Linux with architecture x86_64, we follow the below steps to install CUDA 12.8. This allows for computing rewards in AutoMate environments with CUDA. If you have a different operation system or architecture, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_ for additional instruction.
+  CUDA is recommended for running the AutoMate environments. If running with Nvidia driver 570 on Linux with architecture x86_64, we follow the below steps to install CUDA 12.8. This allows for computing rewards in AutoMate environments with CUDA. If you have a different operation system or architecture, please refer to the `CUDA installation page <https://developer.nvidia.com/cuda-12-8-0-download-archive>`_ for additional instruction.
 
   .. code-block:: bash
 
@@ -296,7 +300,14 @@ We provide environments for both disassembly and assembly.
 
       conda install cudatoolkit
 
-  With 580 drivers and CUDA 13, we are currently unable to enable CUDA for computing the rewards. The code automatically fallbacks to CPU, resulting in slightly slower performance.
+  With 580 drivers on Linux with architecture x86_64, we install CUDA 13 and additionally install several packages. Please ensure that the pytorch version is compatible with the CUDA version.
+
+  .. code-block:: bash
+
+      wget https://developer.download.nvidia.com/compute/cuda/13.0.2/local_installers/cuda_13.0.2_580.95.05_linux.run
+      sudo sh cuda_13.0.2_580.95.05_linux.run --toolkit
+      pip install numba-cuda[cu13] coverage==7.6.1
+
 
 * |disassembly-link|: The plug starts inserted in the socket. A low-level controller lifts the plug out and moves it to a random position. This process is purely scripted and does not involve any learned policy. Therefore, it does not require policy training or evaluation. The resulting trajectories serve as demonstrations for the reverse process, i.e., learning to assemble. To run disassembly for a specific task: ``python source/isaaclab_tasks/isaaclab_tasks/direct/automate/run_disassembly_w_id.py --assembly_id=ASSEMBLY_ID --disassembly_dir=DISASSEMBLY_DIR``. All generated trajectories are saved to a local directory ``DISASSEMBLY_DIR``.
 * |assembly-link|: The goal is to insert the plug into the socket. You can use this environment to train a policy via reinforcement learning or evaluate a pre-trained checkpoint.
@@ -1016,10 +1027,29 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
     * - Isaac-Dexsuite-Kuka-Allegro-Lift-v0
+
+        Camera variants (requires ``--enable_cameras``):
+
+        - single-camera: append ``presets=single_camera,isaacsim_rtx_renderer``
+        - dual-camera: append ``presets=duo_camera,isaacsim_rtx_renderer``
+
+        The same ``presets=`` flags must be passed to both the training and
+        play scripts.  There is no separately registered
+        ``Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-v0`` environment;
+        all observation-mode variants share the base task name and are
+        selected via the preset system.
       - Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
     * - Isaac-Dexsuite-Kuka-Allegro-Reorient-v0
+
+        Camera variants (requires ``--enable_cameras``):
+
+        - single-camera: append ``presets=single_camera,isaacsim_rtx_renderer``
+        - dual-camera: append ``presets=duo_camera,isaacsim_rtx_renderer``
+
+        The same ``presets=`` flags must be passed to both the training and
+        play scripts.
       - Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)

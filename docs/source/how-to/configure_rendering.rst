@@ -1,7 +1,16 @@
-Configuring Rendering Settings
-==============================
+Configuring RTX Rendering Settings
+====================================
 
-Isaac Lab offers 3 preset rendering modes: performance, balanced, and quality.
+.. note::
+
+   This guide covers the **RTX renderer** settings, which are used when running Isaac Lab with
+   Isaac Sim. The RTX renderer is based on NVIDIA's Omniverse RTX rendering pipeline and is
+   available for all camera sensors in the PhysX backend.
+
+   For the **Newton renderer** (used with the Newton backend or in kit-less mode), see
+   :ref:`overview_renderers` for the pluggable renderer architecture and available backends.
+
+Isaac Lab's RTX renderer offers 3 preset rendering modes: performance, balanced, and quality.
 You can select a mode via a command line argument or from within a script, and customize settings as needed.
 Adjust and fine-tune rendering to achieve the ideal balance for your workflow.
 
@@ -123,7 +132,8 @@ There are 2 ways to provide settings that overwrite presets.
 
    Examples of RTX settings can be found from within the repo, in the render mode preset files located in ``apps/rendering_modes``.
 
-   In addition, the RTX documentation can be found here - https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
+   In addition, the full NVIDIA RTX renderer documentation can be found at
+   https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
 
    An example usage of ``carb_settings``.
 
@@ -149,3 +159,43 @@ Due to this, we recommend using per-tile or per-camera resolution of at least 10
 For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
 ``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
 quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.
+
+
+If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try
+adjusting the ``disocclusionScale`` parameter. This setting controls how aggressively the renderer handles
+areas that become newly visible between frames:
+
+.. code-block:: python
+
+   render_cfg = sim_utils.RenderCfg(
+      carb_settings={
+         "/rtx/aovConverter/disocclusionScale": 10000,
+      }
+   )
+
+.. note::
+
+   This parameter is not commonly exposed as it may have side effects in certain scenarios.
+   Only use it as a last resort if other quality settings do not resolve the visual artifacts.
+   The value can be adjusted to a very high value to reduce disocclusion artifacts.
+
+
+Rendering UsdVol 3D Gaussian Scenes in Multiple Environments
+------------------------------------------------------------
+
+When using UsdVol volumes with 3D Gaussian particles (e.g. exported from
+`3DGRUT <https://github.com/nv-tlabs/3dgrut?tab=readme-ov-file#exporting-usdz-for-use-in-omniverse-and-isaac-sim>`_)
+in **multiple environments**, you must set the following so the renderer uses the correct compositing path:
+
+.. code-block:: python
+
+   render_cfg = sim_utils.RenderCfg(
+      carb_settings={
+         "omni.rtx.nre.compositing.rendererHints": 3,
+      }
+   )
+
+.. warning::
+
+   With multiple environments, each environment holds its own copy of the scene, increasing device memory use,
+   and environments are rendered one after another, which can substantially slow down rendering.

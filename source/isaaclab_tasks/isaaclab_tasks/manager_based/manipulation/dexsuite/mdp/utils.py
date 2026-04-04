@@ -183,7 +183,7 @@ def _triangulate_faces(prim) -> np.ndarray:
     return np.asarray(faces, dtype=np.int64)
 
 
-def create_primitive_mesh(prim) -> trimesh.Trimesh:
+def create_primitive_mesh(prim):
     """Create a trimesh mesh from a USD primitive (Cube, Sphere, Cylinder, etc.)."""
     prim_type = prim.GetTypeName()
     if prim_type == "Cube":
@@ -243,7 +243,7 @@ def farthest_point_sampling(
     farthest = torch.randint(0, N, (1,), device=device)
     for j in range(n_samples):
         sampled_idx[j] = farthest
-        dist = torch.norm(points - points[farthest], dim=1)
+        dist = torch.linalg.norm(points - points[farthest], dim=1)
         distances = torch.minimum(distances, dist)
         farthest = torch.argmax(distances)
     return sampled_idx

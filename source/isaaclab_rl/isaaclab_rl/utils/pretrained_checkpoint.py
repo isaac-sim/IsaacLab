@@ -9,18 +9,11 @@ import glob
 import json
 import os
 
-import carb.settings
-
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NUCLEUS_ASSET_ROOT_DIR, retrieve_file_path
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
 
-PRETRAINED_CHECKPOINTS_ASSET_ROOT_DIR = carb.settings.get_settings().get(
-    "/persistent/isaaclab/asset_root/pretrained_checkpoints"
-)
-"""Path to the root directory on the Nucleus Server."""
-
-PRETRAINED_CHECKPOINT_PATH = str(PRETRAINED_CHECKPOINTS_ASSET_ROOT_DIR) + "/Isaac/IsaacLab/PretrainedCheckpoints"
+PRETRAINED_CHECKPOINT_PATH = NUCLEUS_ASSET_ROOT_DIR + "/IsaacLab/PretrainedCheckpoints"
 """URL for where we store all the pre-trained checkpoints"""
 
 WORKFLOWS = ["rl_games", "rsl_rl", "sb3", "skrl"]
@@ -50,8 +43,8 @@ WORKFLOW_EXPERIMENT_NAME_VARIABLE = {
 
 
 def has_pretrained_checkpoints_asset_root_dir() -> bool:
-    """Returns True if and only if /persistent/isaaclab/asset_root/pretrained_checkpoints exists"""
-    return PRETRAINED_CHECKPOINTS_ASSET_ROOT_DIR is not None
+    """Returns True if and only if the asset root directory is configured in the app kit file."""
+    return bool(NUCLEUS_ASSET_ROOT_DIR)
 
 
 def get_log_root_path(workflow: str, task_name: str) -> str:

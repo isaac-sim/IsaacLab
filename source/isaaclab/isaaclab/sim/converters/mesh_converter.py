@@ -232,7 +232,7 @@ class MeshConverter(AssetConverterBase):
         # Merge all meshes into one
         converter_context.merge_all_meshes = True
         # Sets world units to meters, this will also scale asset if it's centimeters model.
-        # This does not work right now :(, so we need to scale the mesh manually
+        # This does not work right now :( so we need to scale the mesh manually
         converter_context.use_meter_as_world_unit = True
         converter_context.baking_scales = True
         # Uses double precision for all transform ops.

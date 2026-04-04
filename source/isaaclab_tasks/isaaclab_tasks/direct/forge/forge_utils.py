@@ -5,7 +5,7 @@
 
 import torch
 
-import isaacsim.core.utils.torch as torch_utils
+from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_inv
 
 
 def get_random_prop_gains(default_values, noise_levels, num_envs, device):
@@ -22,14 +22,27 @@ def get_random_prop_gains(default_values, noise_levels, num_envs, device):
 
 
 def change_FT_frame(source_F, source_T, source_frame, target_frame):
-    """Convert force/torque reading from source to target frame."""
+    """Convert force/torque reading from source to target frame.
+
+    Args:
+        source_F: Force in source frame.
+        source_T: Torque in source frame.
+        source_frame: Tuple of (quat_xyzw, pos) for source frame.
+        target_frame: Tuple of (quat_xyzw, pos) for target frame.
+
+    Returns:
+        Tuple of (target_F, target_T) - force and torque in target frame.
+    """
     # Modern Robotics eq. 3.95
-    source_frame_inv = torch_utils.tf_inverse(source_frame[0], source_frame[1])
-    target_T_source_quat, target_T_source_pos = torch_utils.tf_combine(
-        source_frame_inv[0], source_frame_inv[1], target_frame[0], target_frame[1]
+    # Compute inverse of source frame
+    source_quat_inv = quat_inv(source_frame[0])
+    source_pos_inv = -quat_apply(source_quat_inv, source_frame[1])
+
+    # Combine: source_inv * target = target_T_source
+    target_T_source_pos, target_T_source_quat = combine_frame_transforms(
+        source_pos_inv, source_quat_inv, target_frame[1], target_frame[0]
     )
-    target_F = torch_utils.quat_apply(target_T_source_quat, source_F)
-    target_T = torch_utils.quat_apply(
-        target_T_source_quat, (source_T + torch.cross(target_T_source_pos, source_F, dim=-1))
-    )
+
+    target_F = quat_apply(target_T_source_quat, source_F)
+    target_T = quat_apply(target_T_source_quat, (source_T + torch.cross(target_T_source_pos, source_F, dim=-1)))
     return target_F, target_T

@@ -12,13 +12,13 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
-from isaaclab.assets import Articulation, RigidObject
 from isaaclab.managers import CommandTerm
-from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedEnv
 
     from . import pose_commands_cfg as dex_cmd_cfgs
@@ -65,7 +65,10 @@ class ObjectUniformPoseCommand(CommandTerm):
         # extract the robot and body index for which the command is generated
         self.robot: Articulation = env.scene[cfg.asset_name]
         self.object: RigidObject = env.scene[cfg.object_name]
-        self.success_vis_asset: RigidObject = env.scene[cfg.success_vis_asset_name]
+        if cfg.success_vis_asset_name in env.scene.keys():
+            self.success_vis_asset: RigidObject = env.scene[cfg.success_vis_asset_name]
+        else:
+            self.success_vis_asset = None
 
         # create buffers
         # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
@@ -75,6 +78,7 @@ class ObjectUniformPoseCommand(CommandTerm):
         # -- metrics
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
+        from isaaclab.markers import VisualizationMarkers
 
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
         self.success_visualizer.set_visibility(True)
@@ -104,25 +108,29 @@ class ObjectUniformPoseCommand(CommandTerm):
     def _update_metrics(self):
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
-            self.robot.data.root_pos_w,
-            self.robot.data.root_quat_w,
+            wp.to_torch(self.robot.data.root_pos_w),
+            wp.to_torch(self.robot.data.root_quat_w),
             self.pose_command_b[:, :3],
             self.pose_command_b[:, 3:],
         )
         # compute the error
+        object_root_pose_w = wp.to_torch(self.object.data.root_link_pose_w)
         pos_error, rot_error = compute_pose_error(
             self.pose_command_w[:, :3],
             self.pose_command_w[:, 3:],
-            self.object.data.root_state_w[:, :3],
-            self.object.data.root_state_w[:, 3:7],
+            object_root_pose_w[:, :3],
+            object_root_pose_w[:, 3:7],
         )
-        self.metrics["position_error"] = torch.norm(pos_error, dim=-1)
-        self.metrics["orientation_error"] = torch.norm(rot_error, dim=-1)
+        self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
+        self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
 
         success_id = self.metrics["position_error"] < 0.05
         if not self.cfg.position_only:
             success_id &= self.metrics["orientation_error"] < 0.5
-        self.success_visualizer.visualize(self.success_vis_asset.data.root_pos_w, marker_indices=success_id.int())
+        if self.success_vis_asset is not None:
+            self.success_visualizer.visualize(
+                wp.to_torch(self.success_vis_asset.data.root_pos_w), marker_indices=success_id.int()
+            )
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets
@@ -144,12 +152,11 @@ class ObjectUniformPoseCommand(CommandTerm):
         pass
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        # create markers if necessary for the first tome
         if debug_vis:
             if not hasattr(self, "goal_visualizer"):
-                # -- goal pose
+                from isaaclab.markers import VisualizationMarkers
+
                 self.goal_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
-                # -- current body pose
                 self.curr_visualizer = VisualizationMarkers(self.cfg.curr_pose_visualizer_cfg)
             # set their visibility to true
             self.goal_visualizer.set_visibility(True)
@@ -169,12 +176,15 @@ class ObjectUniformPoseCommand(CommandTerm):
             # -- goal pose
             self.goal_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
             # -- current object pose
-            self.curr_visualizer.visualize(self.object.data.root_pos_w, self.object.data.root_quat_w)
+            obj_pos = wp.to_torch(self.object.data.root_pos_w)
+            obj_quat = wp.to_torch(self.object.data.root_quat_w)
+            self.curr_visualizer.visualize(obj_pos, obj_quat)
         else:
-            distance = torch.norm(self.pose_command_w[:, :3] - self.object.data.root_pos_w[:, :3], dim=1)
+            obj_pos = wp.to_torch(self.object.data.root_pos_w)
+            distance = torch.linalg.norm(self.pose_command_w[:, :3] - obj_pos, dim=1)
             success_id = (distance < 0.05).int()
             # note: since marker indices for position is 1(far) and 2(near), we can simply shift the success_id by 1.
             # -- goal position
             self.goal_visualizer.visualize(self.pose_command_w[:, :3], marker_indices=success_id + 1)
             # -- current object position
-            self.curr_visualizer.visualize(self.object.data.root_pos_w, marker_indices=success_id + 1)
+            self.curr_visualizer.visualize(obj_pos, marker_indices=success_id + 1)

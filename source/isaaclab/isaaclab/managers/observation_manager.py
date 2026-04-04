@@ -580,15 +580,15 @@ class ObservationManager(ManagerBase):
                     for mod_cfg in term_cfg.modifiers:
                         # check if class modifier and initialize with observation size when adding
                         if isinstance(mod_cfg, modifiers.ModifierCfg):
-                            # to list of modifiers
+                            # to list of modifiers - instantiate class-based modifiers
                             if inspect.isclass(mod_cfg.func):
-                                if not issubclass(mod_cfg.func, modifiers.ModifierBase):
+                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                                # verify the instance is the correct type
+                                if not isinstance(mod_cfg.func, modifiers.ModifierBase):
                                     raise TypeError(
                                         f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
-                                        f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                                        f" is not an instance of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
                                     )
-                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
-
                                 # add to list of class modifiers
                                 self._group_obs_class_instances.append(mod_cfg.func)
                         else:
@@ -622,16 +622,15 @@ class ObservationManager(ManagerBase):
 
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
-                    noise_model_cls = term_cfg.noise.class_type
-                    if not issubclass(noise_model_cls, noise.NoiseModel):
-                        raise TypeError(
-                            f"Class type for observation term '{term_name}' NoiseModelCfg"
-                            f" is not a subclass of 'NoiseModel'. Received: '{type(noise_model_cls)}'."
-                        )
-                    # initialize func to be the noise model class instance
-                    term_cfg.noise.func = noise_model_cls(
+                    term_cfg.noise.func = term_cfg.noise.class_type(
                         term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device
                     )
+                    # verify the instance is the correct type
+                    if not isinstance(term_cfg.noise.func, noise.NoiseModel):
+                        raise TypeError(
+                            f"Noise model for observation term '{term_name}' is not an instance of 'NoiseModel'."
+                            f" Received: '{type(term_cfg.noise.func)}'."
+                        )
                     self._group_obs_class_instances.append(term_cfg.noise.func)
 
                 # create history buffers and calculate history term dimensions

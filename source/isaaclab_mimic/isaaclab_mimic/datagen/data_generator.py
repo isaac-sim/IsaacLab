@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.utils.math as PoseUtils
 
@@ -864,7 +865,7 @@ class DataGenerator:
 
                 # Update visualization if motion planner is available
                 if motion_planner and motion_planner.visualize_spheres:
-                    current_joints = self.env.scene["robot"].data.joint_pos[env_id]
+                    current_joints = wp.to_torch(self.env.scene["robot"].data.joint_pos)[env_id]
                     motion_planner._update_visualization_at_joint_positions(current_joints)
 
                 eef_waypoint_dict[eef_name] = waypoint

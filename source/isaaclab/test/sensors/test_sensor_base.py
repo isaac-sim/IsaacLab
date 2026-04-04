@@ -19,6 +19,7 @@ from dataclasses import dataclass
 
 import pytest
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import SensorBase, SensorBaseCfg
@@ -46,13 +47,18 @@ class DummySensor(SensorBase):
         # return the data (where `_data` is the data for the sensor)
         return self._data
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
         self._data.count[env_ids] += 1
 
-    def reset(self, env_ids: Sequence[int] | None = None):
-        super().reset(env_ids=env_ids)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        super().reset(env_ids=env_ids, env_mask=env_mask)
         # Resolve sensor ids
-        if env_ids is None:
+        if env_ids is None and env_mask is not None:
+            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        elif env_ids is None:
             env_ids = slice(None)
         self._data.count[env_ids] = 0
 
@@ -93,7 +99,7 @@ def create_dummy_sensor(request, device):
     # Simulation time-step
     dt = 0.01
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
+    sim_cfg = sim_utils.SimulationCfg(device=device, dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # create sensor
@@ -105,11 +111,8 @@ def create_dummy_sensor(request, device):
 
     yield sensor_cfg, sim, dt
 
-    # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
-    # clear the stage
-    sim.clear_all_callbacks()
+    # stop simulation and clean up
+    sim.stop()
     sim.clear_instance()
 
 

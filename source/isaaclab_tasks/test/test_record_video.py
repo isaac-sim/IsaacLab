@@ -19,7 +19,7 @@ import gymnasium as gym
 import pytest
 import torch
 
-import omni.usd
+import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -45,7 +45,7 @@ def test_record_video(task_name, setup_video_params):
     num_envs, device, step_trigger, video_length = setup_video_params
     videos_dir = os.path.join(os.path.dirname(__file__), "output", "videos", "train")
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # parse configuration
     env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)

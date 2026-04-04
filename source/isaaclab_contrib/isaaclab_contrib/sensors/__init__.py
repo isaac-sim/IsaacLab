@@ -22,4 +22,6 @@ The following table summarizes the interpretation of the prim paths for differen
 
 """
 
-from .tacsl_sensor import *
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

@@ -13,7 +13,9 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 from isaaclab_physx.assets.articulation import Articulation
+from isaaclab_physx.assets.kernels import split_state_to_root_pose_and_vel
 
 import isaaclab.utils.string as string_utils
 
@@ -370,7 +372,24 @@ class Multirotor(Articulation):
             + tuple(self.cfg.init_state.ang_vel)
         )
         default_root_state = torch.tensor(default_root_state, dtype=torch.float, device=self.device)
-        self._data.default_root_state = default_root_state.repeat(self.num_instances, 1)
+        # Repeat for all instances
+        default_root_state_repeated = default_root_state.repeat(self.num_instances, 1)
+        # Convert to warp array and split into pose and vel using kernel
+        default_root_state_wp = wp.from_torch(default_root_state_repeated, dtype=wp.float32)
+        # Create temporary output arrays
+        pose_output = wp.zeros(self.num_instances, dtype=wp.transformf, device=self.device)
+        vel_output = wp.zeros(self.num_instances, dtype=wp.spatial_vectorf, device=self.device)
+        # Split state into pose and vel
+        wp.launch(
+            split_state_to_root_pose_and_vel,
+            dim=self.num_instances,
+            inputs=[default_root_state_wp],
+            outputs=[pose_output, vel_output],
+            device=self.device,
+        )
+        # Set using public setters
+        self._data.default_root_pose = pose_output
+        self._data.default_root_vel = vel_output
 
         # Handle thruster-specific initial state
         if hasattr(self._data, "default_thruster_rps") and hasattr(self.cfg.init_state, "rps"):
@@ -508,9 +527,13 @@ class Multirotor(Articulation):
         # Combine individual thrusts into a wrench vector
         self._combine_thrusts()
 
+        # Convert torch tensors to Warp arrays for PhysX API
+        force_data_wp = wp.from_torch(self._internal_force_target_sim.view(-1, 3), dtype=wp.float32)
+        torque_data_wp = wp.from_torch(self._internal_torque_target_sim.view(-1, 3), dtype=wp.float32)
+
         self.root_view.apply_forces_and_torques_at_position(
-            force_data=self._internal_force_target_sim.view(-1, 3),  # Shape: (num_envs * num_bodies, 3)
-            torque_data=self._internal_torque_target_sim.view(-1, 3),  # Shape: (num_envs * num_bodies, 3)
+            force_data=force_data_wp,  # Shape: (num_envs * num_bodies, 3)
+            torque_data=torque_data_wp,  # Shape: (num_envs * num_bodies, 3)
             position_data=None,  # Apply at center of mass
             indices=self._ALL_INDICES,
             is_global=False,  # Forces are in local frame

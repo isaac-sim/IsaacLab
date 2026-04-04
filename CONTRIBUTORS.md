@@ -26,6 +26,8 @@ Guidelines for modifications:
 * Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian
+* Gavriel State
+* Greg Attra
 * Hunter Hansen
 * James Smith
 * James Tigue
@@ -34,15 +36,15 @@ Guidelines for modifications:
 * Mayank Mittal
 * Nikita Rudin
 * Octi (Zhengyu) Zhang
+* Ossama Ahmed
 * Pascal Roth
 * Sheikh Dawood
-* Ossama Ahmed
-* Greg Attra
 
 ## Contributors
 
 * Alessandro Assirelli
 * Alex Omar
+* Alexander Millane
 * Alice Zhou
 * Amr Mousa
 * Andrej Orsula
@@ -56,8 +58,9 @@ Guidelines for modifications:
 * Brayden Zhang
 * Brian Bingham
 * Brian McCann
-* Cameron Upright
+* Caelan Garrett
 * Calvin Yu
+* Cameron Upright
 * Cathy Y. Li
 * Cheng-Rong Lai
 * Chenyu Yang
@@ -82,14 +85,18 @@ Guidelines for modifications:
 * Hongwei Xiong
 * Hongyu Li
 * Hougant Chen
+* HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
 * Jeonghwan Kim
+* Jessica Martinez
+* Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang
+* Jichuan Hu
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
@@ -97,14 +104,14 @@ Guidelines for modifications:
 * Johnson Sun
 * Juana Du
 * Kaixi Bao
-* Kris Wilson
-* Krishna Lakhi
 * Kourosh Darvish
 * Kousheek Chakraborty
+* Kris Wilson
+* Krishna Lakhi
 * Lionel Gulich
+* Lorenz Wellhausen
 * Lotus Li
 * Louis Le Lay
-* Lorenz Wellhausen
 * Lukas Fröhlich
 * Manuel Schweiger
 * Masoud Moghani
@@ -115,6 +122,7 @@ Guidelines for modifications:
 * Michael Noseworthy
 * Miguel Alonso Jr
 * Mihir Kulkarni
+* Mikhail Yurasov
 * Mingxue Gu
 * Mingyu Lee
 * Muhong Guo
@@ -128,8 +136,10 @@ Guidelines for modifications:
 * Oyindamola Omotuyi
 * Özhan Özen
 * Patrick Yin
+* Paul Reeves
 * Peter Du
 * Philipp Reist
+* Piotr Barejko
 * Pulkit Goyal
 * Qian Wan
 * Qingyang Jiang
@@ -137,8 +147,10 @@ Guidelines for modifications:
 * Rafael Wiltz
 * Renaud Poncelet
 * René Zurbrügg
+* RinZ27
 * Ritvik Singh
 * Rosario Scalise
+* Ruben D'Sa
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
@@ -172,6 +184,7 @@ Guidelines for modifications:
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu
+* YuTeh Shen
 * Zehao Wang
 * Zijian Li
 * Ziqi Fan
@@ -182,7 +195,6 @@ Guidelines for modifications:
 * Ajay Mandlekar
 * Animesh Garg
 * Buck Babich
-* Gavriel State
 * Hammad Mazhar
 * Marco Hutter
 * Yan Chang

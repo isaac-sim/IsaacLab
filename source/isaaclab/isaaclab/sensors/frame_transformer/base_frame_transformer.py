@@ -9,6 +9,8 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import warp as wp
+
 import isaaclab.utils.string as string_utils
 
 from ..sensor_base import SensorBase
@@ -70,9 +72,8 @@ class BaseFrameTransformer(SensorBase):
     def num_bodies(self) -> int:
         """Returns the number of target bodies being tracked.
 
-        .. note::
-            This is an alias used for consistency with other sensors. Otherwise, we recommend using
-            :attr:`len(data.target_frame_names)` to access the number of target frames.
+        .. deprecated::
+            Use ``len(data.target_frame_names)`` instead. This property will be removed in a future release.
         """
         raise NotImplementedError
 
@@ -81,9 +82,8 @@ class BaseFrameTransformer(SensorBase):
     def body_names(self) -> list[str]:
         """Returns the names of the target bodies being tracked.
 
-        .. note::
-            This is an alias used for consistency with other sensors. Otherwise, we recommend using
-            :attr:`data.target_frame_names` to access the target frame names.
+        .. deprecated::
+            Use ``data.target_frame_names`` instead. This property will be removed in a future release.
         """
         raise NotImplementedError
 
@@ -107,6 +107,7 @@ class BaseFrameTransformer(SensorBase):
     Implementation - Abstract methods to be implemented by backend-specific subclasses.
     """
 
+    @abstractmethod
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
@@ -116,7 +117,7 @@ class BaseFrameTransformer(SensorBase):
         super()._initialize_impl()
 
     @abstractmethod
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array):
         raise NotImplementedError
 
     def _invalidate_initialize_callback(self, event):

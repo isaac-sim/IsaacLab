@@ -35,6 +35,8 @@ parser.add_argument(
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -47,8 +49,8 @@ simulation_app = app_launcher.app
 import random
 
 import torch
+import warp as wp
 
-import omni.usd
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
@@ -201,8 +203,7 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
 def randomize_shape_color(prim_path_expr: str):
     """Randomize the color of the geometry."""
 
-    # acquire stage
-    stage = omni.usd.get_context().get_stage()
+    stage = sim_utils.get_current_stage()
     # resolve prim paths for spawning and cloning
     prim_paths = sim_utils.find_matching_prim_paths(prim_path_expr)
     # manually clone prims if the source prim path is a regex expression
@@ -238,30 +239,31 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             count = 0
             # reset the scene entities
             # root state
-            root_state = scene["asset"].data.default_root_state.clone()
-            root_state[:, :3] += scene.env_origins
-            scene["asset"].write_root_pose_to_sim(root_state[:, :7])
-            scene["asset"].write_root_velocity_to_sim(root_state[:, 7:])
+            root_pose = wp.to_torch(scene["asset"].data.default_root_pose).clone()
+            root_pose[:, :3] += scene.env_origins
+            scene["asset"].write_root_pose_to_sim_index(root_pose=root_pose)
+            root_vel = wp.to_torch(scene["asset"].data.default_root_vel).clone()
+            scene["asset"].write_root_velocity_to_sim_index(root_velocity=root_vel)
 
             if isinstance(scene["asset"], Articulation):
                 # set joint positions with some noise
                 joint_pos, joint_vel = (
-                    scene["asset"].data.default_joint_pos.clone(),
-                    scene["asset"].data.default_joint_vel.clone(),
+                    wp.to_torch(scene["asset"].data.default_joint_pos).clone(),
+                    wp.to_torch(scene["asset"].data.default_joint_vel).clone(),
                 )
                 joint_pos += torch.rand_like(joint_pos) * 0.1
-                scene["asset"].write_joint_state_to_sim(joint_pos, joint_vel)
+                scene["asset"].write_joint_position_to_sim_index(position=joint_pos)
+                scene["asset"].write_joint_velocity_to_sim_index(velocity=joint_vel)
             # clear internal buffers
             scene.reset()
             print("[INFO]: Resetting Asset state...")
 
         if isinstance(scene["asset"], Articulation):
             # -- generate actions/commands
-            targets = scene["asset"].data.default_joint_pos + 5 * (
-                torch.rand_like(scene["asset"].data.default_joint_pos) - 0.5
-            )
+            default_joint_pos = wp.to_torch(scene["asset"].data.default_joint_pos)
+            targets = default_joint_pos + 5 * (torch.rand_like(default_joint_pos) - 0.5)
             # -- apply action to the asset
-            scene["asset"].set_joint_position_target(targets)
+            scene["asset"].set_joint_position_target_index(target=targets)
         # -- write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -282,7 +284,7 @@ def main():
     # Set main camera
     sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
     # design scene
-    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=False)
+    scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
     scene = InteractiveScene(scene_cfg)
 
     if args_cli.asset_type == "objects":

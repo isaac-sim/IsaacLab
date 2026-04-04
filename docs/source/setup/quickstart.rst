@@ -7,7 +7,7 @@ Quickstart Guide
 This guide is written for those who just can't wait to get their hands dirty and will touch on the most common concepts you will encounter as you build your own
 projects with Isaac Lab! This includes installation, running RL, finding environments, creating new projects, and more!
 
-The power of Isaac Lab comes from from a few key features that we will very briefly touch on in this guide.
+The power of Isaac Lab comes from a few key features that we will very briefly touch on in this guide.
 
 1) **Vectorization**: Reinforcement Learning requires attempting a task many times. Isaac Lab speeds this process along by vectorizing the
    environment, a process by which training can be run in parallel across many copies of the same environment, thus reducing the amount of time
@@ -24,23 +24,16 @@ To get started, we will first install Isaac Lab and launch a training script.
 Quick Installation Guide
 -------------------------
 
-There are many ways to :ref:`install <isaaclab-installation-root>` Isaac Lab, but for the purposes of this quickstart guide, we will follow the
-pip install route using virtual environments.
+There are many ways to :ref:`install <isaaclab-installation-root>` Isaac Lab. For a quick start
+**without Isaac Sim** (Newton backend only), see the :ref:`kitless-installation` section of the
+installation guide — just clone the repo and run ``./isaaclab.sh -i``.
 
-To begin, we first define our virtual environment.
+For the full pip-based installation (recommended for most users), we use **uv** as the preferred
+package manager. To begin, create a virtual environment:
 
 .. tab-set::
 
-   .. tab-item:: conda
-
-      .. code-block:: bash
-
-         # create a virtual environment named env_isaaclab with python3.11 and pip
-         conda create -n env_isaaclab python=3.11
-         # activate the virtual environment
-         conda activate env_isaaclab
-
-   .. tab-item:: uv (experimental)
+   .. tab-item:: uv (Recommended)
 
       .. tab-set::
          :sync-group: os
@@ -50,8 +43,8 @@ To begin, we first define our virtual environment.
 
             .. code-block:: bash
 
-               # create a virtual environment named env_isaaclab with python3.11 and pip
-               uv venv --python 3.11 --seed env_isaaclab
+               # create a virtual environment named env_isaaclab with python3.12
+               uv venv --python 3.12 --seed env_isaaclab
                # activate the virtual environment
                source env_isaaclab/bin/activate
 
@@ -60,17 +53,26 @@ To begin, we first define our virtual environment.
 
             .. code-block:: batch
 
-               # create a virtual environment named env_isaaclab with python3.11
-               uv venv --python 3.11 env_isaaclab
+               # create a virtual environment named env_isaaclab with python3.12
+               uv venv --python 3.12 --seed env_isaaclab
                # activate the virtual environment
                env_isaaclab\Scripts\activate
 
+   .. tab-item:: conda
 
-Next, install a CUDA-enabled PyTorch 2.7.0 build.
+      .. code-block:: bash
+
+         # create a virtual environment named env_isaaclab with python3.12
+         conda create -n env_isaaclab python=3.12
+         # activate the virtual environment
+         conda activate env_isaaclab
+
+
+Next, install a CUDA-enabled PyTorch build.
 
    .. code-block:: bash
 
-      pip install -U torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+      uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
 
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run
@@ -83,20 +85,20 @@ Before we can install Isaac Sim, we need to make sure pip is updated.  To update
 
         .. code-block:: bash
 
-            pip install --upgrade pip
+            uv pip install --upgrade pip
 
     .. tab-item:: :icon:`fa-brands fa-windows` Windows
         :sync: windows
 
         .. code-block:: batch
 
-            python -m pip install --upgrade pip
+            uv pip install --upgrade pip
 
 and now we can install the Isaac Sim packages.
 
-.. code-block:: none
+.. code-block:: bash
 
-    pip install "isaacsim[all,extscache]==5.1.0" --extra-index-url https://pypi.nvidia.com
+    uv pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
 Finally, we can install Isaac Lab.  To start, clone the repository using the following
 
@@ -153,7 +155,7 @@ To try now, click the button below. To learn more about how to use this project,
 Launch Training
 -------------------
 
-The various backends of Isaac Lab are accessed through their corresponding ``train.py`` and ``play.py`` scripts located in the ``isaaclab/scripts/reinforcement_learning`` directory.
+The various backends of Isaac Lab are accessed through their corresponding ``train.py`` and ``play.py`` scripts located in the ``scripts/reinforcement_learning`` directory.
 Invoking these scripts will require a **Task Name** and a corresponding **Entry Point** to the gymnasium API. For example
 
 .. code-block:: bash
@@ -164,12 +166,43 @@ This will train the mujoco ant to "run".  You can see the various launch option 
 both of which can be useful when trying to develop and debug a new environment. Options specified at this level automatically overwrite any configuration equivalent that may be defined in the code
 (so long as those definitions are part of a ``@configclass``, see below).
 
+Selecting the Physics Backend
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the ``presets=`` argument to select the physics backend at runtime:
+
+.. code-block:: bash
+
+   # Newton (Kit-less) with Newton visualizer
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=newton \
+     --visualizer newton
+
+   # PhysX (Kit) — requires Isaac Sim installed
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=physx
+
+   # Newton with a specific visualizer
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+     --task Isaac-Cartpole-Direct-v0 \
+     --num_envs 4096 \
+     presets=newton \
+     --visualizer viser
+
+Kit-less visualizer options are ``newton``, ``rerun``, and ``viser``.
+Multiple visualizers can be combined: ``--visualizer newton,rerun``.
+
+
 List Available Environments
 -----------------------------
 
 Above, ``Isaac-Ant-v0`` is the task name and ``skrl`` is the RL framework being used.  The ``Isaac-Ant-v0`` environment
 has been registered with the `Gymnasium API <https://gymnasium.farama.org/>`_, and you can see how the entry point is defined
-by calling the ``list_envs.py`` script, which can be found in ``isaaclab/scripts/environments/list_envs.py``. You should see entries like the following
+by calling the ``list_envs.py`` script, which can be found in ``scripts/environments/list_envs.py``. You should see entries like the following
 
 .. code-block:: bash
 
@@ -221,7 +254,7 @@ Once created, navigate to the installed project and run
 
 .. code-block:: bash
 
-    python -m pip install -e source/<given-project-name>
+    uv pip install -e source/<given-project-name>
 
 to complete the installation process and register the environment.  Within the directories created by the template
 generator, you will find at least one ``__init__.py`` file with something that looks like the following
@@ -297,75 +330,16 @@ to modify anything "configured" by the environment at launch time.
 Robots
 -------
 
-Robots are entirely defined as instances of configurations within Isaac Lab.  If you examine ``source/isaaclab_assets/isaaclab_assets/robots``, you will see a number of files, each of which
-contains configurations for the robot in question.  The purpose of these individual files is to better define scope for all the different robots, but there is nothing preventing
-you from :ref:`adding your own <tutorial-add-new-robot>` to your project or even to the ``isaaclab`` repository! For example, consider the following configuration for
-the Dofbot
-
-.. code-block:: python
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.actuators import ImplicitActuatorCfg
-    from isaaclab.assets.articulation import ArticulationCfg
-    from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-
-    DOFBOT_CONFIG = ArticulationCfg(
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Dofbot/dofbot.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-                max_depenetration_velocity=5.0,
-            ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-            ),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            joint_pos={
-                "joint1": 0.0,
-                "joint2": 0.0,
-                "joint3": 0.0,
-                "joint4": 0.0,
-            },
-            pos=(0.25, -0.25, 0.0),
-        ),
-        actuators={
-            "front_joints": ImplicitActuatorCfg(
-                joint_names_expr=["joint[1-2]"],
-                effort_limit_sim=100.0,
-                velocity_limit_sim=100.0,
-                stiffness=10000.0,
-                damping=100.0,
-            ),
-            "joint3_act": ImplicitActuatorCfg(
-                joint_names_expr=["joint3"],
-                effort_limit_sim=100.0,
-                velocity_limit_sim=100.0,
-                stiffness=10000.0,
-                damping=100.0,
-            ),
-            "joint4_act": ImplicitActuatorCfg(
-                joint_names_expr=["joint4"],
-                effort_limit_sim=100.0,
-                velocity_limit_sim=100.0,
-                stiffness=10000.0,
-                damping=100.0,
-            ),
-        },
-    )
-
-This completely defines the dofbot! You could copy this into a ``.py`` file and import it as a module and you would be able to use the dofbot in
-your own lab sims. One common feature you will see in any config defining things with state is the presence of an ``InitialStateCfg``.  Remember, the configurations
-are what informs vectorization, and it's the ``InitialStateCfg`` that describes the state of the joints of our robot when it gets created in each environment. The
-``ImplicitActuatorCfg`` defines the joints of the robot using the default actuation model determined by the joint time.  Not all joints need to be actuated, but you
-will get warnings if you don't.  If you aren't planning on using those undefined joints, you can generally ignore these.
+Robots are entirely defined as instances of configurations within Isaac Lab. For details on how robot
+configurations work, including a full example, see the :doc:`/source/how-to/robots` guide.
 
 Apps and Sims
 --------------
 
-Using the simulation means launching the Isaac Sim app to provide simulation context. If you are not running a task defined by the standard workflows, then you
-are responsible for creating the app, managing the context, and stepping the simulation forward through time.  This is the "third workflow": a **Standalone** app, which
-is what we call the scripts for the frameworks, demos, benchmarks, etc...
+Using the simulation with PhysX requires launching the Isaac Sim app to provide simulation context. When using Newton,
+launching the app is not required. If you are not running a task defined by the standard workflows, then you
+are responsible for creating the app, managing the context, and stepping the simulation forward through time.  This is
+the "third workflow": a **Standalone** app, which is what we call the scripts for the frameworks, demos, benchmarks, etc...
 
 The Standalone workflow gives you total control over *everything* in the app and simulation
 context. Developing standalone apps is discussed at length in the `Isaac Sim documentation <https://docs.isaacsim.omniverse.nvidia.com/latest/index.html>`_ but there
@@ -391,7 +365,7 @@ are a few points worth touching on that can be incredibly useful.
     simulation_app = app_launcher.app
 
 The ``AppLauncher`` is the entrypoint to any and all Isaac Sim applications, like Isaac Lab! *Many Isaac Lab and Isaac Sim modules
-cannot be imported until the app is launched!*.  This is done on the second to last line of the code above, when the ``AppLauncher`` is constructed.
+cannot be imported until the app is launched!*. This is done on the second to last line of the code above, when the ``AppLauncher`` is constructed.
 The ``app_launcher.app`` is our interface to the Kit App Framework; the broader interstitial code that binds the simulation to things the extension
 management system, or the GUI, etc...  In the standalone workflow, this interface, often called the ``simulation_app`` is predominantly used
 to check if the simulation is running, and cleanup after the simulation finishes.

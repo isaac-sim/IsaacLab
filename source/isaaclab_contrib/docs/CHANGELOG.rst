@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.3.0 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated multirotor asset and TacSL visuotactile sensor to wrap warp data
+  property accesses with ``wp.to_torch()``.
+
+
+0.2.1 (2026-02-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the multirotor asset to use the new base classes from the isaaclab_physx package.
+
+
 0.2.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~
 

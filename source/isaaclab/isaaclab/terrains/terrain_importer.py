@@ -355,17 +355,9 @@ class TerrainImporter:
 
     def _compute_env_origins_grid(self, num_envs: int, env_spacing: float) -> torch.Tensor:
         """Compute the origins of the environments in a grid based on configured spacing."""
-        # create tensor based on number of environments
-        env_origins = torch.zeros(num_envs, 3, device=self.device)
-        # create a grid of origins
-        num_rows = np.ceil(num_envs / int(np.sqrt(num_envs)))
-        num_cols = np.ceil(num_envs / num_rows)
-        ii, jj = torch.meshgrid(
-            torch.arange(num_rows, device=self.device), torch.arange(num_cols, device=self.device), indexing="ij"
-        )
-        env_origins[:, 0] = -(ii.flatten()[:num_envs] - (num_rows - 1) / 2) * env_spacing
-        env_origins[:, 1] = (jj.flatten()[:num_envs] - (num_cols - 1) / 2) * env_spacing
-        env_origins[:, 2] = 0.0
+        from isaaclab.cloner import grid_transforms
+
+        env_origins, _ = grid_transforms(num_envs, env_spacing, device=self.device)
         return env_origins
 
     """

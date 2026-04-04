@@ -5,16 +5,20 @@
 
 """Functions specific to the in-hand dexterous manipulation environments."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import RigidObject
-from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import RigidObject
+    from isaaclab.envs import ManagerBasedRLEnv
+
     from .commands import InHandReOrientationCommand
 
 
@@ -31,7 +35,7 @@ def goal_quat_diff(
 
     # obtain the orientations
     goal_quat_w = command_term.command[:, 3:7]
-    asset_quat_w = asset.data.root_quat_w
+    asset_quat_w = wp.to_torch(asset.data.root_quat_w)
 
     # compute quaternion difference
     quat = math_utils.quat_mul(asset_quat_w, math_utils.quat_conjugate(goal_quat_w))

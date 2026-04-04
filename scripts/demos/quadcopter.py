@@ -23,6 +23,8 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="This script demonstrates how to simulate a quadcopter.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -33,6 +35,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -90,10 +93,13 @@ def main():
             sim_time = 0.0
             count = 0
             # reset dof state
-            joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
-            robot.write_root_pose_to_sim(robot.data.default_root_state[:, :7])
-            robot.write_root_velocity_to_sim(robot.data.default_root_state[:, 7:])
+            joint_pos, joint_vel = wp.to_torch(robot.data.default_joint_pos), wp.to_torch(robot.data.default_joint_vel)
+            robot.write_joint_position_to_sim_index(position=joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
+            default_root_pose = wp.to_torch(robot.data.default_root_pose)
+            robot.write_root_pose_to_sim_index(root_pose=default_root_pose)
+            default_root_vel = wp.to_torch(robot.data.default_root_vel)
+            robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel)
             robot.reset()
             # reset command
             print(">>>>>>>> Reset!")

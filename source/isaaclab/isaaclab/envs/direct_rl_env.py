@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import builtins
 import inspect
 import logging
 import math
@@ -20,23 +19,23 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-import omni.kit.app
-import omni.physx
-from isaacsim.core.simulation_manager import SimulationManager
-
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import attach_stage_to_usd_context, use_stage
+from isaaclab.sim.utils.stage import use_stage
+from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
-from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab.utils.version import has_kit
 
 from .common import VecEnvObs, VecEnvStepReturn
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .ui import ViewportCameraController
 from .utils.spaces import sample_space, spec_to_gym_space
+
+if has_kit():
+    import omni.kit.app
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -88,6 +87,9 @@ class DirectRLEnv(gym.Env):
         """
         # check that the config is valid
         cfg.validate()
+        # Resolve any preset-wrapper fields to their default variant so that downstream
+        # scene/physics setup receives concrete cfg objects rather than multi-backend selectors.
+        resolve_cfg_presets(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -107,6 +109,20 @@ class DirectRLEnv(gym.Env):
         else:
             raise RuntimeError("Simulation context already exists. Cannot create a new one.")
 
+        # From this point on, if __init__ fails we must tear down the SimulationContext
+        # singleton so that callers (tests, training loops) can retry or proceed.
+        try:
+            self._init_sim(render_mode, **kwargs)
+        except Exception:
+            self.sim.clear_instance()
+            raise
+
+    def _init_sim(self, render_mode: str | None = None, **kwargs):
+        """Complete environment initialization after the SimulationContext is created.
+
+        Separated from :meth:`__init__` so that the caller can tear down the
+        :class:`SimulationContext` singleton if this method raises.
+        """
         # make sure torch is running on the correct device
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
@@ -130,17 +146,19 @@ class DirectRLEnv(gym.Env):
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
-            with use_stage(self.sim.get_initial_stage()):
+            with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
-                attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        if self.sim.render_mode >= self.sim.RenderMode.PARTIAL_RENDERING:
+        # Initialize when GUI is available OR when visualizers are active (headless rendering)
+        # Visualizers support camera updates via sim.set_camera_view() which forwards to all active visualizers
+        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
+        if self.sim.has_gui or has_visualizers:
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -158,18 +176,17 @@ class DirectRLEnv(gym.Env):
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        if builtins.ISAAC_LAUNCHED_FROM_TERMINAL is False:
-            print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
-            with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
-                # since the reset can trigger callbacks which use the stage,
-                # we need to set the stage context here
-                with use_stage(self.sim.get_initial_stage()):
-                    self.sim.reset()
-                # update scene to pre populate data buffers for assets and sensors.
-                # this is needed for the observation manager to get valid tensors for initialization.
-                # this shouldn't cause an issue since later on, users do a reset over all the environments
-                # so the lazy buffers would be reset.
-                self.scene.update(dt=self.physics_dt)
+        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+            # since the reset can trigger callbacks which use the stage,
+            # we need to set the stage context here
+            with use_stage(self.sim.stage):
+                self.sim.reset()
+            # update scene to pre populate data buffers for assets and sensors.
+            # this is needed for the observation manager to get valid tensors for initialization.
+            # this shouldn't cause an issue since later on, users do a reset over all the environments
+            # so the lazy buffers would be reset.
+            self.scene.update(dt=self.physics_dt)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -179,7 +196,7 @@ class DirectRLEnv(gym.Env):
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
-        if self.sim.has_gui() and self.cfg.ui_window_class_type is not None:
+        if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -223,7 +240,7 @@ class DirectRLEnv(gym.Env):
         # set the framerate of the gym video recorder wrapper so that the playback speed of the produced
         # video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
-
+        self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
         # show deprecation message for rerender_on_reset
         if self.cfg.rerender_on_reset:
             msg = (
@@ -243,7 +260,10 @@ class DirectRLEnv(gym.Env):
 
     def __del__(self):
         """Cleanup for the environment."""
-        self.close()
+        import sys
+
+        if not sys.is_finalizing():
+            self.close()
 
     """
     Properties.
@@ -311,7 +331,7 @@ class DirectRLEnv(gym.Env):
             self.seed(seed)
 
         # reset state of scene
-        indices = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+        indices = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
         self._reset_idx(indices)
 
         # update articulation kinematics
@@ -319,13 +339,15 @@ class DirectRLEnv(gym.Env):
         self.sim.forward()
 
         # if sensors are added to the scene, make sure we render to reflect changes in reset
-        if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+        if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
             for _ in range(self.cfg.num_rerenders_on_reset):
                 self.sim.render()
 
-        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
-            while SimulationManager.assets_loading():
-                self.sim.render()
+        if self.cfg.wait_for_textures and self.has_rtx_sensors:
+            # Wait for assets to finish loading (PhysX-specific)
+            if hasattr(self.sim.physics_manager, "assets_loading"):
+                while self.sim.physics_manager.assets_loading():
+                    self.sim.render()
 
         # return observations
         return self._get_observations(), self.extras
@@ -363,8 +385,8 @@ class DirectRLEnv(gym.Env):
         self._pre_physics_step(action)
 
         # check if we need to do rendering within the physics loop
-        # note: checked here once to avoid multiple checks within the loop
-        is_rendering = self.sim.has_gui() or self.sim.has_rtx_sensors()
+        # note: uses cached property to avoid settings lookup every step
+        is_rendering = self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -393,11 +415,11 @@ class DirectRLEnv(gym.Env):
         self.reward_buf = self._get_rewards()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.sim.has_rtx_sensors() and self.cfg.num_rerenders_on_reset > 0:
+            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 
@@ -460,19 +482,17 @@ class DirectRLEnv(gym.Env):
             NotImplementedError: If an unsupported rendering mode is specified.
         """
         # run a rendering step of the simulator
-        # if we have rtx sensors, we do not need to render again sin
-        if not self.sim.has_rtx_sensors() and not recompute:
+        # if we have rtx sensors, we do not need to render again since step already rendered
+        if not self.has_rtx_sensors and not recompute:
             self.sim.render()
         # decide the rendering mode
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
             # check that if any render could have happened
-            if self.sim.render_mode.value < self.sim.RenderMode.PARTIAL_RENDERING.value:
+            if not self.sim.has_gui and not self.sim.has_offscreen_render:
                 raise RuntimeError(
-                    f"Cannot render '{self.render_mode}' when the simulation render mode is"
-                    f" '{self.sim.render_mode.name}'. Please set the simulation render mode to:"
-                    f"'{self.sim.RenderMode.PARTIAL_RENDERING.name}' or '{self.sim.RenderMode.FULL_RENDERING.name}'."
+                    f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
                     " If running headless, make sure --enable_cameras is set."
                 )
             # create the annotator if it does not exist
@@ -504,6 +524,9 @@ class DirectRLEnv(gym.Env):
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            # Stop simulation first to allow physics to clean up properly
+            self.sim.stop()
+
             # close entities related to the environment
             # note: this is order-sensitive to avoid any dangling references
             if self.cfg.events:
@@ -512,15 +535,6 @@ class DirectRLEnv(gym.Env):
             if self.viewport_camera_controller is not None:
                 del self.viewport_camera_controller
 
-            # clear callbacks and instance
-            if get_isaac_sim_version().major >= 5:
-                if self.cfg.sim.create_stage_in_memory:
-                    # detach physx stage
-                    omni.physx.get_physx_simulation_interface().detach_stage()
-                    self.sim.stop()
-                    self.sim.clear()
-
-            self.sim.clear_all_callbacks()
             self.sim.clear_instance()
 
             # destroy the window

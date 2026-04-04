@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import gymnasium as gym
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -48,9 +49,9 @@ class AnymalCEnv(DirectRLEnv):
             ]
         }
         # Get specific body indices
-        self._base_id, _ = self._contact_sensor.find_bodies("base")
-        self._feet_ids, _ = self._contact_sensor.find_bodies(".*FOOT")
-        self._undesired_contact_body_ids, _ = self._contact_sensor.find_bodies(".*THIGH")
+        self._base_id, _ = self._contact_sensor.find_sensors("base")
+        self._feet_ids, _ = self._contact_sensor.find_sensors(".*FOOT")
+        self._undesired_contact_body_ids, _ = self._contact_sensor.find_sensors(".*THIGH")
 
     def _setup_scene(self):
         self._robot = Articulation(self.cfg.robot)
@@ -75,10 +76,12 @@ class AnymalCEnv(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()
-        self._processed_actions = self.cfg.action_scale * self._actions + self._robot.data.default_joint_pos
+        self._processed_actions = self.cfg.action_scale * self._actions + wp.to_torch(
+            self._robot.data.default_joint_pos
+        )
 
     def _apply_action(self):
-        self._robot.set_joint_position_target(self._processed_actions)
+        self._robot.set_joint_position_target_index(target=self._processed_actions)
 
     def _get_observations(self) -> dict:
         self._previous_actions = self._actions.clone()
@@ -91,12 +94,12 @@ class AnymalCEnv(DirectRLEnv):
             [
                 tensor
                 for tensor in (
-                    self._robot.data.root_lin_vel_b,
-                    self._robot.data.root_ang_vel_b,
-                    self._robot.data.projected_gravity_b,
+                    wp.to_torch(self._robot.data.root_lin_vel_b),
+                    wp.to_torch(self._robot.data.root_ang_vel_b),
+                    wp.to_torch(self._robot.data.projected_gravity_b),
                     self._commands,
-                    self._robot.data.joint_pos - self._robot.data.default_joint_pos,
-                    self._robot.data.joint_vel,
+                    wp.to_torch(self._robot.data.joint_pos) - wp.to_torch(self._robot.data.default_joint_pos),
+                    wp.to_torch(self._robot.data.joint_vel),
                     height_data,
                     self._actions,
                 )
@@ -109,35 +112,38 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         # linear velocity tracking
-        lin_vel_error = torch.sum(torch.square(self._commands[:, :2] - self._robot.data.root_lin_vel_b[:, :2]), dim=1)
+        lin_vel_error = torch.sum(
+            torch.square(self._commands[:, :2] - wp.to_torch(self._robot.data.root_lin_vel_b)[:, :2]), dim=1
+        )
         lin_vel_error_mapped = torch.exp(-lin_vel_error / 0.25)
         # yaw rate tracking
-        yaw_rate_error = torch.square(self._commands[:, 2] - self._robot.data.root_ang_vel_b[:, 2])
+        yaw_rate_error = torch.square(self._commands[:, 2] - wp.to_torch(self._robot.data.root_ang_vel_b)[:, 2])
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
         # z velocity tracking
-        z_vel_error = torch.square(self._robot.data.root_lin_vel_b[:, 2])
+        z_vel_error = torch.square(wp.to_torch(self._robot.data.root_lin_vel_b)[:, 2])
         # angular velocity x/y
-        ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b[:, :2]), dim=1)
+        ang_vel_error = torch.sum(torch.square(wp.to_torch(self._robot.data.root_ang_vel_b)[:, :2]), dim=1)
         # joint torques
-        joint_torques = torch.sum(torch.square(self._robot.data.applied_torque), dim=1)
+        joint_torques = torch.sum(torch.square(wp.to_torch(self._robot.data.applied_torque)), dim=1)
         # joint acceleration
-        joint_accel = torch.sum(torch.square(self._robot.data.joint_acc), dim=1)
+        joint_accel = torch.sum(torch.square(wp.to_torch(self._robot.data.joint_acc)), dim=1)
         # action rate
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
         # feet air time
-        first_contact = self._contact_sensor.compute_first_contact(self.step_dt)[:, self._feet_ids]
-        last_air_time = self._contact_sensor.data.last_air_time[:, self._feet_ids]
+        first_contact = wp.to_torch(self._contact_sensor.compute_first_contact(self.step_dt))[:, self._feet_ids]
+        last_air_time = wp.to_torch(self._contact_sensor.data.last_air_time)[:, self._feet_ids]
         air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
-            torch.norm(self._commands[:, :2], dim=1) > 0.1
+            torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1
         )
         # undesired contacts
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history
+        net_contact_forces = wp.to_torch(self._contact_sensor.data.net_forces_w_history)
         is_contact = (
-            torch.max(torch.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0] > 1.0
+            torch.max(torch.linalg.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0]
+            > 1.0
         )
         contacts = torch.sum(is_contact, dim=1)
         # flat orientation
-        flat_orientation = torch.sum(torch.square(self._robot.data.projected_gravity_b[:, :2]), dim=1)
+        flat_orientation = torch.sum(torch.square(wp.to_torch(self._robot.data.projected_gravity_b)[:, :2]), dim=1)
 
         rewards = {
             "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale * self.step_dt,
@@ -159,13 +165,15 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history
-        died = torch.any(torch.max(torch.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1)
+        net_contact_forces = wp.to_torch(self._contact_sensor.data.net_forces_w_history)
+        died = torch.any(
+            torch.max(torch.linalg.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1
+        )
         return died, time_out
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
-            env_ids = self._robot._ALL_INDICES
+            env_ids = wp.to_torch(self._robot._ALL_INDICES)
         self._robot.reset(env_ids)
         super()._reset_idx(env_ids)
         if len(env_ids) == self.num_envs:
@@ -176,13 +184,15 @@ class AnymalCEnv(DirectRLEnv):
         # Sample new commands
         self._commands[env_ids] = torch.zeros_like(self._commands[env_ids]).uniform_(-1.0, 1.0)
         # Reset robot state
-        joint_pos = self._robot.data.default_joint_pos[env_ids]
-        joint_vel = self._robot.data.default_joint_vel[env_ids]
-        default_root_state = self._robot.data.default_root_state[env_ids]
-        default_root_state[:, :3] += self._terrain.env_origins[env_ids]
-        self._robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self._robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self._robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
+        joint_vel = wp.to_torch(self._robot.data.default_joint_vel)[env_ids]
+        default_root_pose = wp.to_torch(self._robot.data.default_root_pose)[env_ids]
+        default_root_vel = wp.to_torch(self._robot.data.default_root_vel)[env_ids]
+        default_root_pose[:, :3] += self._terrain.env_origins[env_ids]
+        self._robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self._robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
         # Logging
         extras = dict()
         for key in self._episode_sums.keys():

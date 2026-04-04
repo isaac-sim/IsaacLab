@@ -65,7 +65,6 @@ class PinkKinematicsConfiguration(Configuration):
         self.full_data = self.robot_wrapper.data
         self.full_q = self.robot_wrapper.q0
 
-        # import pdb; pdb.set_trace()
         self._all_joint_names = self.full_model.names.tolist()[1:]
         # controlled_joint_indices: indices in all_joint_names for joints that are in controlled_joint_names,
         # preserving all_joint_names order

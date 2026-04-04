@@ -28,10 +28,11 @@
 
 import math
 
+import numba.cuda as cuda
 import numpy as np
 import torch
 import torch.cuda
-from numba import cuda, jit, prange
+from numba import jit, prange
 from torch.autograd import Function
 
 

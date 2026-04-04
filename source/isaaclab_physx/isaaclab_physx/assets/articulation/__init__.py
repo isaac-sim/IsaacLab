@@ -5,10 +5,6 @@
 
 """Sub-module for rigid articulated assets."""
 
-from .articulation import Articulation
-from .articulation_data import ArticulationData
+from isaaclab.utils.module import lazy_export
 
-__all__ = [
-    "Articulation",
-    "ArticulationData",
-]
+lazy_export()

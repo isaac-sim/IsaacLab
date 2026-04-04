@@ -1,0 +1,523 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import os
+import platform
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import IO, Any
+
+# Path to Isaac Lab installation.
+ISAACLAB_ROOT = Path(__file__).parents[4].resolve()
+
+# Default path to look for Isaac Sim is _isaac_sim symlink.
+DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
+
+# ANSI colors.
+_ANSI_COLOR_RESET = "\033[0m"
+_ANSI_COLOR_INFO = "\033[36m"  # cyan
+_ANSI_COLOR_WARNING = "\033[33m"  # yellow
+_ANSI_COLOR_ERROR = "\033[31m"  # red
+_ANSI_COLOR_DEBUG = "\033[1;32m"  # bold green
+
+
+def is_windows() -> bool:
+    """Check if the platform is Windows."""
+    return platform.system().lower() == "windows"
+
+
+def is_arm() -> bool:
+    """Check if the architecture is ARM (likely Mac)."""
+    machine = platform.machine().lower()
+    return "aarch64" in machine or "arm64" in machine
+
+
+def _colorize(text: str, color: str, stream: IO[str]) -> str:
+    """Colorize bit of text, if the stream supports colors or colors aren't disabled.
+
+    Args:
+        label: Text to colorize.
+        color: ANSI color code prefix.
+        stream: Output stream used to detectcolor support.
+
+    Returns:
+        Colorized label when supported; otherwise the original label.
+    """
+
+    if os.environ.get("NO_COLOR"):
+        return f"{text}"
+
+    if os.environ.get("TERM") == "dumb":
+        return f"{text}"
+
+    color_supported = hasattr(stream, "isatty") and stream.isatty()
+
+    if not color_supported:
+        return f"{text}"
+    else:
+        return f"{color}{text}{_ANSI_COLOR_RESET}"
+
+
+def print_info(message: str, stream: IO[str] = sys.stdout) -> None:
+    """Print informational message.
+
+    Args:
+        message: Message text to print.
+        stream: Output stream where the message is written.
+    """
+    label = _colorize("[INFO]", _ANSI_COLOR_INFO, stream)
+    print(f"{label} {message}", file=stream)
+
+
+def print_warning(message: str, stream: IO[str] = sys.stdout) -> None:
+    """Print warning message.
+
+    Args:
+        message: Message text to print.
+        stream: Output stream where the message is written.
+    """
+    label = _colorize("[WARNING]", _ANSI_COLOR_WARNING, stream)
+    print(f"{label} {message}", file=stream)
+
+
+def print_error(message: str, stream: IO[str] = sys.stderr) -> None:
+    """Print error message.
+
+    Args:
+        message: Message text to print.
+        stream: Output stream where the message is written.
+    """
+    label = _colorize("[ERROR]", _ANSI_COLOR_ERROR, stream)
+    print(f"{label} {message}", file=stream)
+
+
+def print_debug(message: str, stream: IO[str] = sys.stdout) -> None:
+    """Print debug message, when debugging is enabled.
+
+    Args:
+        message: Message text to print.
+        stream: Output stream where the message is written.
+    """
+    if os.environ.get("DEBUG") != "1":
+        return
+    label = _colorize("[DEBUG]", _ANSI_COLOR_DEBUG, stream)
+    print(f"{label} {message}", file=stream)
+
+
+def _print_debug_env(prefix: str, env: dict[str, str] | None) -> None:
+    """
+    Print the environment for debugging purpose.
+    Only prints the vars that are added, changed or removed vs the os.environ.
+
+    Args:
+        prefix: Prefix identifying the caller function in debug output.
+        env: Environment to compare against os.environ.
+    """
+
+    if env is None:
+        print_debug(f"{prefix}: ENV: <os.environ>")
+        return
+
+    current_env = os.environ
+    env_added = {key: value for key, value in env.items() if key not in current_env}
+    env_changed = {
+        key: {"from": current_env[key], "to": value}
+        for key, value in env.items()
+        if key in current_env and current_env[key] != value
+    }
+    env_removed = [key for key in current_env if key not in env]
+
+    if not env_added and not env_changed and not env_removed:
+        print_debug(f"{prefix}: ENV: <os.environ>")
+        return
+
+    if env_added:
+        print_debug(f"{prefix}: ENV added: {env_added}")
+    if env_changed:
+        print_debug(f"{prefix}: ENV changed: {env_changed}")
+    if env_removed:
+        print_debug(f"{prefix}: ENV removed: {env_removed}")
+
+
+_CMD_METACHARACTERS = frozenset("<>|&^")
+
+
+def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> str | list[str]:
+    """
+    Quote ``cmd.exe`` metacharacters when invoking ``.bat``/``.cmd`` files.
+
+    Returns a command string (not list) so ``subprocess.run`` bypasses
+    ``list2cmdline`` which doesn't escape cmd.exe metacharacters (<, >, |, &, ^).
+    """
+    # Only .bat/.cmd files are executed via cmd.exe.
+    exe = str(cmd[0]).lower()
+    if not (exe.endswith(".bat") or exe.endswith(".cmd")):
+        return list(cmd)
+
+    # Wrap args that contain metacharacters or whitespace in double quotes.
+    parts: list[str] = []
+    for arg in cmd:
+        s = str(arg)
+        if any(c in s for c in _CMD_METACHARACTERS) or " " in s or "\t" in s:
+            parts.append(f'"{s}"')
+        else:
+            parts.append(s)
+
+    # Return a string so subprocess skips list2cmdline.
+    return " ".join(parts)
+
+
+def run_command(
+    cmd: str | list[str] | tuple[str, ...],
+    cwd: str | Path | None = None,
+    env: dict[str, str] | None = None,
+    shell: bool = False,
+    check: bool = True,
+    stdout: int | IO[str] | None = None,
+    stderr: int | IO[str] | None = None,
+    **kwargs: Any,
+) -> subprocess.CompletedProcess[Any]:
+    """Run a command in a subprocess.
+
+    Args:
+        cmd: Command to execute.
+        cwd: Working directory for the subprocess.
+        env: Environment variables for the subprocess.
+        shell: Whether to run the command through the shell.
+        check: Whether to raise on non-zero exit code.
+        stdout: Standard output stream or redirection target.
+        stderr: Standard error stream or redirection target.
+        **kwargs: Additional keyword arguments forwarded to ``subprocess.run``.
+
+    Returns:
+        Result object returned by ``subprocess.run``.
+    """
+
+    if cwd is None:
+        cwd = ISAACLAB_ROOT
+
+    command_str = " ".join(str(part) for part in cmd) if isinstance(cmd, (list, tuple)) else str(cmd)
+
+    # Print some debug info.
+    print_debug(f'run_command(): CWD: "{cwd}"')
+    print_debug(f'run_command(): CMD: "{command_str}"')
+    _print_debug_env("run_command()", env)
+
+    # On Windows, escape cmd.exe metacharacters when invoking .bat/.cmd files.
+    if isinstance(cmd, (list, tuple)) and is_windows():
+        cmd = _escape_for_cmd_exe(cmd)
+
+    try:
+        return subprocess.run(
+            cmd,
+            cwd=cwd,
+            env=env,
+            shell=shell,
+            check=check,
+            stdout=stdout,
+            stderr=stderr,
+            **kwargs,
+        )
+    except subprocess.CalledProcessError as e:
+        print_error(f'Command failed with code {e.returncode}: "{command_str}"')
+        sys.exit(e.returncode)
+    except KeyboardInterrupt:
+        sys.exit(130)
+
+
+def get_pip_command(python_exe: str | None = None) -> list[str]:
+    """Return the base pip command tokens for the current environment.
+
+    When ``uv`` is available and a virtual environment is active, returns
+    ``["uv", "pip"]``.  Otherwise returns ``[python_exe, "-m", "pip"]``
+    so that the target interpreter's own pip is used (e.g. Isaac Sim's
+    bundled ``python.sh``).
+
+    Args:
+        python_exe: Python executable path.  Resolved via
+            :func:`extract_python_exe` when ``None``.
+    """
+    in_venv = bool(os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX") or (sys.prefix != sys.base_prefix))
+    if shutil.which("uv") and in_venv:
+        return ["uv", "pip"]
+
+    if python_exe is None:
+        python_exe = extract_python_exe()
+
+    return [python_exe, "-m", "pip"]
+
+
+def extract_python_exe() -> str:
+    """
+    Find the Python executable to use.
+    """
+
+    python_exe = None
+
+    # Try uv virtual environment python.
+    venv_prefix = os.environ.get("VIRTUAL_ENV")
+    if venv_prefix:
+        print_debug(f"extract_python_exe(): Found VIRTUAL_ENV: {venv_prefix}")
+        if is_windows():
+            python_exe = Path(venv_prefix) / "Scripts" / "python.exe"
+        else:
+            python_exe = Path(venv_prefix) / "bin" / "python"
+            if not python_exe.exists():
+                python_exe = Path(venv_prefix) / "bin" / "python3"
+    else:
+        print_debug("extract_python_exe(): No VIRTUAL_ENV found.")
+
+    # Try conda python.
+    if not python_exe or not Path(python_exe).exists():
+        if python_exe:
+            print_debug(
+                f'extract_python_exe(): Venv python "{python_exe}" does not exist, trying to find conda python...'
+            )
+
+        conda_prefix = os.environ.get("CONDA_PREFIX")
+        if conda_prefix:
+            print_debug(f"extract_python_exe(): Found CONDA_PREFIX: {conda_prefix}")
+            if is_windows():
+                python_exe = Path(conda_prefix) / "python.exe"
+            else:
+                python_exe = Path(conda_prefix) / "bin" / "python"
+                if not python_exe.exists():
+                    python_exe = Path(conda_prefix) / "bin" / "python3"
+        else:
+            print_debug("extract_python_exe(): No CONDA_PREFIX found.")
+
+    # Try the default Isaac Lab uv venv (env_isaaclab/) in the repo root.
+    if not python_exe or not Path(python_exe).exists():
+        default_venv = ISAACLAB_ROOT / "env_isaaclab"
+        if default_venv.is_dir():
+            if is_windows():
+                candidate = default_venv / "Scripts" / "python.exe"
+            else:
+                candidate = default_venv / "bin" / "python"
+            if candidate.exists():
+                print_debug(f"extract_python_exe(): Found default venv python: {candidate}")
+                python_exe = candidate
+
+    # Try kit python.
+    if not python_exe or not Path(python_exe).exists():
+        print_debug("extract_python_exe(): Checking for Kit python...")
+
+        isaacsim_path = extract_isaacsim_path(required=False)
+
+        if isaacsim_path is not None:
+            if is_windows():
+                python_exe = isaacsim_path / "python.bat"
+            else:
+                python_exe = isaacsim_path / "python.sh"
+
+    # Try system python3.12 specifically, then generic python/python3.
+    if not python_exe or not Path(python_exe).exists():
+        system_python_exe = shutil.which("python3.12") or shutil.which("python") or shutil.which("python3")
+        python_exe = Path(system_python_exe) if system_python_exe else None
+        print_debug(f"extract_python_exe(): System python candidate: {python_exe}")
+        if python_exe and python_exe.exists():
+            result = subprocess.run(
+                [str(python_exe), "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            version = result.stdout.strip()
+            if version != "3.12":
+                print_error(f"Falling back on system Python {version} ({python_exe}), but 3.12 is required.")
+                sys.exit(1)
+
+    # Nothing found, error out :)
+    if not python_exe or not Path(python_exe).exists():
+        print_error("Unable to find suitable Python executable")
+        sys.exit(1)
+
+    print_info(f'Using Python: "{python_exe}"')
+
+    return str(python_exe)
+
+
+def extract_isaacsim_path(*, required: bool = True) -> Path | None:
+    """Find the Isaac Sim installation path.
+
+    Args:
+        required: When ``True`` (default), exit the process if Isaac Sim
+            cannot be found.  When ``False``, return ``None`` instead.
+    """
+    # Use the sym-link path to Isaac Sim directory.
+    isaacsim_path = DEFAULT_ISAAC_SIM_PATH
+
+    # If above path is not available, try to find the path using python.
+    if not isaacsim_path.exists():
+        # Use the current interpreter to probe for isaacsim — avoids a recursive extract_python_exe call.
+        # Retrieve the path importing isaac sim and getting the environment path.
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", "import isaacsim"],
+                capture_output=True,
+                text=True,
+                check=False,
+                # avoid EULA prompt
+                stdin=subprocess.DEVNULL,
+            )
+            if result.returncode == 0:
+                # Helper to print env var.
+                cmd = [sys.executable, "-c", "import isaacsim; import os; print(os.environ['ISAAC_PATH'])"]
+                res = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    # avoid EULA prompt
+                    stdin=subprocess.DEVNULL,
+                )
+                if res.returncode == 0:
+                    output = res.stdout.strip()
+                    if output:
+                        isaacsim_path = Path(output)
+        except Exception:
+            pass
+
+    # Check if there is a path available.
+    if not isaacsim_path.exists():
+        if not required:
+            return None
+        # Throw an error if no path is found.
+        print_error(f"Unable to find the Isaac Sim directory: '{isaacsim_path}'")
+        print("\tThis could be due to the following reasons:")
+        print("\t1. Conda environment is not activated.")
+        print("\t2. Isaac Sim package is not installed.")
+        print(f"\t3. Isaac Sim directory is not available at the default path: {DEFAULT_ISAAC_SIM_PATH}")
+        # Exit.
+        sys.exit(1)
+
+    return isaacsim_path
+
+
+def extract_isaacsim_exe() -> list[str]:
+    """
+    Find the Isaac Sim executable.
+    """
+    # Obtain the isaac sim path.
+    isaacsim_path = extract_isaacsim_path()
+
+    # Isaac Sim executable to use.
+    if is_windows():
+        isaacsim_exe = isaacsim_path / "isaac-sim.bat"
+    else:
+        isaacsim_exe = isaacsim_path / "isaac-sim.sh"
+
+    # Check if there is a python path available.
+    if not isaacsim_exe.exists():
+        # Check for installation using Isaac Sim pip.
+        # Note: pip installed Isaac Sim can only come from a direct
+        # python environment, so we can directly use 'python' here.
+        python_exe = sys.executable
+        try:
+            result = run_command(
+                [python_exe, "-c", "import isaacsim"],
+                capture_output=True,
+                text=True,
+                check=False,
+                # avoid EULA prompt
+                stdin=subprocess.DEVNULL,
+            )
+            if result.returncode == 0:
+                # Isaac Sim - Python packages entry point.
+                return ["isaacsim", "isaacsim.exp.full"]
+        except Exception:
+            pass
+
+        print_error(f"No Isaac Sim executable found at path: {isaacsim_path}")
+        sys.exit(1)
+
+    return [str(isaacsim_exe)]
+
+
+def determine_python_version() -> str:
+    """Detect Isaac Sim version and return the matching Python version."""
+
+    isaacsim_version = None
+
+    # 1. Version file (only if Isaac Sim is available)
+    isaacsim_path = extract_isaacsim_path(required=False)
+    if isaacsim_path is not None:
+        version_file = isaacsim_path / "VERSION"
+        if version_file.exists():
+            with open(version_file) as f:
+                version = f.read().strip()
+                if version:
+                    isaacsim_version = version
+
+    # 2. Try importing package metadata
+    if isaacsim_version is None:
+        try:
+            from importlib.metadata import version
+
+            isaacsim_version = version("isaacsim")
+        except Exception:
+            pass
+
+    # No Isaac Sim found -- default to 3.12 (required by Isaac Sim 6.x).
+    if isaacsim_version is None:
+        python_version = "3.12"
+        print_warning(f"Unable to determine Isaac Sim version. Defaulting to python={python_version}.")
+        return python_version
+
+    # We found some Isaac Sim
+    if isaacsim_version.startswith("5."):
+        python_version = "3.11"
+    elif isaacsim_version.startswith("6."):
+        python_version = "3.12"
+    else:
+        # We don't recognize the IsaacSim version.
+        print_error(f"Unsupported Isaac Sim version: {isaacsim_version}")
+        raise RuntimeError(f"Unsupported Isaac Sim version: {isaacsim_version}")
+
+    print_info(f"Detected Isaac Sim {isaacsim_version} -> using python={python_version}")
+    return python_version
+
+
+def run_python_command(
+    script_or_module: str | Path,
+    args: list[str],
+    is_module: bool = False,
+    env: dict[str, str] | None = None,
+    check: bool = False,
+) -> subprocess.CompletedProcess[Any]:
+    """Run a python script or module using the resolved Python executable.
+
+    Args:
+        script_or_module: Script path or module name to execute.
+        args: Additional arguments.
+        is_module: Whether to execute script_or_module as a module (``python -m``).
+        env: Environment for the subprocess. Uses current environment if ``None``.
+        check: Whether to raise ``CalledProcessError`` on non-zero exit codes.
+
+    Returns:
+        [subprocess.CompletedProcess] Result returned by ``subprocess.run``.
+    """
+
+    cmd = [extract_python_exe()]
+
+    if is_module:
+        cmd.append("-m")
+
+    cmd.append(str(script_or_module))
+    cmd.extend(args)
+
+    command_str = " ".join(str(part) for part in cmd)
+
+    print_debug(f'run_python_command(): CWD: "{os.getcwd()}"')
+    print_debug(f'run_python_command(): CMD: "{command_str}"')
+
+    return run_command(
+        cmd,
+        cwd=os.getcwd(),
+        env=env,
+        check=check,
+    )

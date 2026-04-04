@@ -73,3 +73,9 @@ tests/
 # TacSL sensor
 **/tactile_record/*
 **/gelsight_r15_data/*
+
+# No benchmarks output
+/benchmarks/
+
+# Ruff cache
+**/.ruff_cache/

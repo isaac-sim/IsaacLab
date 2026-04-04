@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+1.2.3 (2026-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add nvidia-srl-usd-to-urdf dependency to isaaclab_mimic extension.
+
+
+1.2.2 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add h5py dependency to isaaclab_mimic extension.
+
+
+1.2.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo planner quaternion handling and Warp API compatibility for Isaac Lab 3.0.
+* Fixed Rerun visualization in cuRobo plan visualizer.
+* Added ``--visualizer kit`` to SkillGen documentation for all non-headless commands.
+
+
+1.2.0 (2026-02-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update data generator to support Isaac Lab 3.0.
+* Use unique quaternion for GR1 pick place env Mimic actions.
+* Discard failed Mimic demos by default for Franka stacking task.
+
+
 1.1.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~~
 

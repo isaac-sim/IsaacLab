@@ -5,7 +5,7 @@
 [package]
 title = "Isaac Lab Python OpenXR Headless"
 description = "An app for running Isaac Lab with OpenXR in headless mode"
-version = "2.3.2"
+version = "3.0.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd", "headless"]
@@ -14,8 +14,8 @@ keywords = ["experience", "app", "usd", "headless"]
 # Note: This path was adapted to be respective to the kit-exe file location
 app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
-app.name = "Isaac-Sim"
-app.version = "5.1.0"
+app.name = "IsaacLab"
+app.version = "3.0.0"
 
 ### FSD
 app.useFabricSceneDelegate = true
@@ -33,8 +33,16 @@ cameras_enabled = true
 [dependencies]
 "isaaclab.python.xr.openxr" = {}
 
+# NOTE: xr.profile.ar.enabled is intentionally NOT set here.
+# Setting it in the .kit file causes Kit's XR system to create the OpenXR
+# instance before the teleop bridge extension loads, so the BridgeComponent
+# misses its lifecycle callbacks (getRequiredExtensions, initialize).
+# Instead, TeleopSessionLifecycle._ensure_xr_ar_profile_enabled() sets it
+# via carb.settings after extensions have loaded.
+
 [settings]
-xr.profile.ar.enabled = true
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+app.extensions.excluded = ["omni.kit.pip_archive"]
 
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
@@ -47,6 +55,7 @@ folders = [
     "${exe-path}/exts",  # kit extensions
     "${exe-path}/extscore",  # kit core extensions
     "${exe-path}/../exts",  # isaac extensions
+    "${exe-path}/../extsInternal",  # isaac internal extensions
     "${exe-path}/../extsDeprecated",  # deprecated isaac extensions
     "${exe-path}/../extscache",  # isaac cache extensions
     "${exe-path}/../extsPhysics",  # isaac physics extensions
@@ -58,7 +67,11 @@ folders = [
     "${app}/../source", # needed to find extensions in Isaac Lab
 ]
 
+[settings.persistent]
+UJITSO.geometry = true
+UJITSO.enabled = true
+
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"

@@ -3,14 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from typing import TYPE_CHECKING
+
 from isaaclab.utils import configclass
 
 from .camera_cfg import CameraCfg
-from .tiled_camera import TiledCamera
+
+if TYPE_CHECKING:
+    from .tiled_camera import TiledCamera
 
 
 @configclass
 class TiledCameraCfg(CameraCfg):
     """Configuration for a tiled rendering-based camera sensor."""
 
-    class_type: type = TiledCamera
+    class_type: type["TiledCamera"] | str = "{DIR}.tiled_camera:TiledCamera"

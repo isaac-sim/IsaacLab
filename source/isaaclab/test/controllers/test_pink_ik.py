@@ -5,14 +5,6 @@
 
 """Launch Isaac Sim Simulator first."""
 
-# Import pinocchio in the main script to force the use of the dependencies
-# installed by IsaacLab and not the one installed by Isaac Sim
-# pinocchio is required by the Pink IK controller
-import sys
-
-if sys.platform != "win32":
-    import pinocchio  # noqa: F401
-
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -29,16 +21,14 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 
-import omni.usd
-
+import isaaclab.sim as sim_utils
 from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_from_matrix, quat_inv
 
 import isaaclab_tasks  # noqa: F401
-import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
@@ -72,7 +62,7 @@ def create_test_env(env_name, num_envs):
     """Create a test environment with the Pink IK controller."""
     device = "cuda:0"
 
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     try:
         env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
@@ -104,9 +94,10 @@ def env_and_cfg(request):
 
     env, env_cfg = create_test_env(env_name, num_envs=1)
 
-    # Get only the FrameTasks from variable_input_tasks
+    # Read instantiated task objects from the live action term/controller, not raw cfg wrappers.
+    action_term = env.action_manager.get_term(name="upper_body_ik")
     variable_input_tasks = [
-        task for task in env_cfg.actions.upper_body_ik.controller.variable_input_tasks if isinstance(task, FrameTask)
+        task for task in action_term._ik_controllers[0].cfg.variable_input_tasks if isinstance(task, FrameTask)
     ]
     assert len(variable_input_tasks) == 2, "Expected exactly two FrameTasks (left and right hand)."
     frames = [task.frame for task in variable_input_tasks]
@@ -297,7 +288,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
 def get_link_pose(env, link_name):
     """Get the position and orientation of a link."""
     link_index = env.scene["robot"].data.body_names.index(link_name)
-    link_states = env.scene._articulations["robot"]._data.body_link_state_w
+    link_states = wp.to_torch(env.scene._articulations["robot"].data.body_link_state_w)
     link_pose = link_states[:, link_index, :7]
     return link_pose[:, :3], link_pose[:, 3:7]
 
@@ -350,7 +341,7 @@ def compute_errors(
     isaaclab_controlled_joint_ids = action_term._isaaclab_controlled_joint_ids
 
     # Get current and target positions for controlled joints only
-    curr_joints = articulation.data.joint_pos[:, isaaclab_controlled_joint_ids].cpu().numpy()[0]
+    curr_joints = wp.to_torch(articulation.data.joint_pos)[:, isaaclab_controlled_joint_ids].cpu().numpy()[0]
     target_joints = action_term.processed_actions[:, : len(isaaclab_controlled_joint_ids)].cpu().numpy()[0]
 
     # Reorder joints for Pink IK (using controlled joint ordering)
@@ -397,7 +388,7 @@ def verify_errors(errors, test_setup, tolerances):
 
     for hand in ["left", "right"]:
         # Check PD controller errors
-        pd_error_norm = torch.norm(errors[f"{hand}_pd_error"], dim=1)
+        pd_error_norm = torch.linalg.norm(errors[f"{hand}_pd_error"], dim=1)
         torch.testing.assert_close(
             pd_error_norm,
             zero_tensor,
@@ -410,7 +401,7 @@ def verify_errors(errors, test_setup, tolerances):
         )
 
         # Check IK position errors
-        pos_error_norm = torch.norm(errors[f"{hand}_pos_error"], dim=1)
+        pos_error_norm = torch.linalg.norm(errors[f"{hand}_pos_error"], dim=1)
         torch.testing.assert_close(
             pos_error_norm,
             zero_tensor,

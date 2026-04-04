@@ -1,0 +1,144 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Central requirement resolution for scene-data consumers.
+
+This module is intentionally type-based (not config-import based) so requirement
+checks stay robust even when optional backend packages are not installed.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass(frozen=True)
+class SceneDataRequirement:
+    """Capabilities required from a scene data provider."""
+
+    requires_newton_model: bool = False
+    requires_usd_stage: bool = False
+
+
+@dataclass(frozen=True)
+class VisualizerPrebuiltArtifacts:
+    """Prebuilt model/state payload shared from scene setup to providers.
+
+    This gets produced during clone-time visualizer prebuild and then read by
+    scene data providers as a fast path (instead of rebuilding from USD).
+    """
+
+    model: Any
+    state: Any
+    rigid_body_paths: list[str]
+    articulation_paths: list[str]
+    num_envs: int
+
+
+_VISUALIZER_REQUIREMENTS: dict[str, SceneDataRequirement] = {
+    "kit": SceneDataRequirement(requires_usd_stage=True),
+    "newton": SceneDataRequirement(requires_newton_model=True),
+    "rerun": SceneDataRequirement(requires_newton_model=True),
+    "viser": SceneDataRequirement(requires_newton_model=True),
+}
+
+_RENDERER_REQUIREMENTS: dict[str, SceneDataRequirement] = {
+    "isaac_rtx": SceneDataRequirement(requires_usd_stage=True),
+    "newton_warp": SceneDataRequirement(requires_newton_model=True),
+    "ovrtx": SceneDataRequirement(requires_newton_model=True, requires_usd_stage=True),
+}
+
+
+def supported_visualizer_types() -> tuple[str, ...]:
+    """Return supported visualizer type names in sorted order.
+
+    Returns:
+        Sorted tuple of supported visualizer type names.
+    """
+    return tuple(sorted(_VISUALIZER_REQUIREMENTS))
+
+
+def supported_renderer_types() -> tuple[str, ...]:
+    """Return supported renderer type names in sorted order.
+
+    Returns:
+        Sorted tuple of supported renderer type names.
+    """
+    return tuple(sorted(_RENDERER_REQUIREMENTS))
+
+
+def requirement_for_visualizer_type(visualizer_type: str) -> SceneDataRequirement:
+    """Resolve scene-data requirements for one visualizer type.
+
+    Args:
+        visualizer_type: Visualizer type name.
+
+    Returns:
+        Requirement object for the given visualizer type.
+
+    Raises:
+        ValueError: If ``visualizer_type`` is unknown.
+    """
+    requirement = _VISUALIZER_REQUIREMENTS.get(visualizer_type)
+    if requirement is None:
+        supported = ", ".join(repr(v) for v in supported_visualizer_types())
+        raise ValueError(f"Unknown visualizer type {visualizer_type!r}. Supported types: {supported}.")
+    return requirement
+
+
+def requirement_for_renderer_type(renderer_type: str) -> SceneDataRequirement:
+    """Resolve scene-data requirements for one renderer type.
+
+    Args:
+        renderer_type: Renderer type name.
+
+    Returns:
+        Requirement object for the given renderer type.
+
+    Raises:
+        ValueError: If ``renderer_type`` is unknown.
+    """
+    requirement = _RENDERER_REQUIREMENTS.get(renderer_type)
+    if requirement is None:
+        supported = ", ".join(repr(v) for v in supported_renderer_types())
+        raise ValueError(f"Unknown renderer type {renderer_type!r}. Supported types: {supported}.")
+    return requirement
+
+
+def aggregate_requirements(requirements: Iterable[SceneDataRequirement]) -> SceneDataRequirement:
+    """Combine a sequence of requirements using logical OR.
+
+    Args:
+        requirements: Requirement objects to combine.
+
+    Returns:
+        Combined requirement object.
+    """
+    requires_newton_model = False
+    requires_usd_stage = False
+    for requirement in requirements:
+        requires_newton_model |= requirement.requires_newton_model
+        requires_usd_stage |= requirement.requires_usd_stage
+    return SceneDataRequirement(requires_newton_model=requires_newton_model, requires_usd_stage=requires_usd_stage)
+
+
+def resolve_scene_data_requirements(
+    visualizer_types: Iterable[str],
+    renderer_types: Iterable[str] = (),
+) -> SceneDataRequirement:
+    """Resolve combined scene-data requirements from visualizer and renderer types.
+
+    Args:
+        visualizer_types: Visualizer type names to resolve.
+        renderer_types: Renderer type names to resolve.
+
+    Returns:
+        Combined requirement object.
+    """
+    requirements = [requirement_for_visualizer_type(viz_type) for viz_type in visualizer_types]
+    requirements.extend(requirement_for_renderer_type(renderer_type) for renderer_type in renderer_types)
+    return aggregate_requirements(requirements)

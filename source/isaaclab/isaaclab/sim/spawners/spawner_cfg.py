@@ -7,11 +7,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
-from pxr import Usd
-
-from isaaclab.sim import schemas
 from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.sim import schemas
 
 
 @configclass
@@ -65,6 +68,9 @@ class SpawnerCfg:
     This parameter is only used when cloning prims. If False, then the asset will be inherited from
     the source prim, i.e. all USD changes to the source prim will be reflected in the cloned prims.
     """
+
+    spawn_path: str | None = None
+    """Path where the prototype is spawned. Defaults to None."""
 
 
 @configclass

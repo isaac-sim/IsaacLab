@@ -17,7 +17,7 @@ def position_command_error_tanh(env: ManagerBasedRLEnv, std: float, command_name
     """Reward position tracking with tanh kernel."""
     command = env.command_manager.get_command(command_name)
     des_pos_b = command[:, :3]
-    distance = torch.norm(des_pos_b, dim=1)
+    distance = torch.linalg.norm(des_pos_b, dim=1)
     return 1 - torch.tanh(distance / std)
 
 

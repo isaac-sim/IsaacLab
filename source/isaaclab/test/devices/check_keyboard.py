@@ -21,7 +21,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import ctypes
+import sys
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -51,9 +51,9 @@ def main():
 
     print("Press 'L' to print a message. Press 'ESC' to quit.")
 
-    # Check that boundedness of articulation is correct
-    if ctypes.c_long.from_address(id(teleop_interface)).value != 1:
-        raise RuntimeError("Teleoperation interface is not bounded to a single instance.")
+    # Check that the framework doesn't hold excessive strong references.
+    if sys.getrefcount(teleop_interface) >= 10:
+        raise RuntimeError("Possible reference leak for teleoperation interface.")
 
     # Reset interface internals
     teleop_interface.reset()

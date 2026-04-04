@@ -1,6 +1,336 @@
 Changelog
 ---------
 
+1.5.18 (2026-04-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Set semantic tags on the in-hand object in :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.ObjectCfg`
+  so the object receives the same semantic labels for the Newton and PhysX backends.
+
+
+1.5.17 (2026-03-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.utils.hydra.apply_overrides` raising a false
+  conflict error when two global presets resolve to the same value for a path
+  (e.g. ``newton`` aliased to ``cube``).
+
+
+1.5.16 (2026-03-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.utils.hydra.collect_presets` not discovering
+  presets inside nested dicts (e.g. ``EventTerm.params.terms.*.params``).
+
+
+1.5.15 (2026-03-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added semantic segmentation to preset data types for the Cartpole Camera environment.
+* Added semantic segmentation to preset data types for the Shadow Hand environment.
+* Added semantic_segmentation64 to preset data types for for the Dexsuite Kuka-Allegro environment.
+* Added ``Isaac-Deploy-Reach-Rizon4s-ROS`` environments.
+
+1.5.13 (2026-03-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added consistency validation to the camera outputs in ``test_rendering_correctness.py``.
+
+
+1.5.12 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Increased ``max_iterations`` from 200 to 300 for ``Isaac-Dexsuite-Kuka-Allegro-Lift-v0``
+  in the benchmarking configuration to allow sufficient training time for convergence.
+
+
+1.5.11 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified the Hydra preset system by removing the dict-style ``presets = {...}``
+  attribute in favor of :class:`~isaaclab_tasks.utils.hydra.PresetCfg` subclasses
+  and the new :func:`~isaaclab_tasks.utils.hydra.preset` factory for inline scalar
+  overrides.
+
+
+1.5.10 (2026-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``test_rendering_correctness.py`` to validate rendering correctness of the environments.
+
+
+1.5.9 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``FileNotFoundError`` for Dexsuite environments by removing stale
+  ``rl_games_cfg_entry_point`` from gym registrations. Benchmark config updated
+  to use RSL-RL.
+
+
+1.5.8 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``validate_config`` overrides to :class:`ShadowHandVisionEnvCfg` and
+  :class:`DexsuiteReorientEnvCfg` to catch invalid preset combinations early
+  (e.g. Warp renderer with unsupported data types, Newton physics with
+  multi-asset spawning).
+
+Changed
+^^^^^^^
+
+* Moved :class:`ShadowHandVisionEnvCfg` validation logic from the env constructor
+  into :meth:`~ShadowHandVisionEnvCfg.validate_config`, leveraging the new
+  ``configclass`` validation hook.
+
+
+1.5.7 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Marked ``physx-warp-rgb`` and ``physx-warp-depth`` Shadow Hand vision preset
+  render tests as expected failures. The standard Shadow Hand USD contains PhysX
+  tendon schemas that Newton's ``ModelBuilder`` cannot parse.
+
+
+1.5.6 (2026-03-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified Dexsuite gravity randomization to use the unified
+  :class:`~isaaclab.envs.mdp.randomize_physics_scene_gravity` term, removing the
+  backend-specific ``GravityRandomizationCfg`` preset.
+
+Added
+^^^^^
+
+* Added Dexsuite multi-hand dexterous manipulation environments with Kuka Allegro configurations for lift and
+  reorientation tasks.
+
+
+1.5.5 (2026-03-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified all task MDP ``__init__.py`` files to call ``lazy_export()`` without
+  arguments. Fallback packages are now inferred from ``__init__.pyi`` stubs.
+
+Added
+^^^^^
+
+* Added ``from isaaclab.envs.mdp import *`` wildcard re-exports to all task MDP
+  ``__init__.pyi`` stubs, fixing broken type hints for base MDP symbols.
+
+* Added ``test_lazy_export_stubs.py`` to enforce that ``lazy_export()`` is called
+  without arguments across the codebase.
+
+
+1.5.4 (2026-03-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :file:`test/test_environments_newton.py` — an end-to-end CI test that auto-discovers
+  all environments with a ``newton`` physics preset and runs 100 random-action steps against each.
+
+* Added :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset` helper that walks the full
+  configuration tree and applies a named preset (e.g. ``'newton'``) to every preset-wrapper
+  field, replacing the default-resolved value. This enables Newton preset overrides for all
+  scene fields (e.g. ``scene.contact_forces``) when running tests outside the Hydra pipeline.
+
+* Added Newton physics presets and compatibility fixes to locomotion, reach, Franka cabinet,
+  allegro-hand, and shadow-hand environments: replaced unsupported ``ls_iterations`` /
+  ``ls_parallel`` solver fields with Newton-compatible settings, and added a per-preset
+  :class:`~isaaclab_tasks.manager_based.manipulation.reach.reach_env_cfg.TableCfg` using box
+  geometry instead of a USD asset for Newton compatibility.
+
+* Added :class:`~isaaclab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg.CabinetSimCfg`
+  preset to the cabinet environment, replacing the physics-only preset with a full simulation
+  config preset so the Newton backend can run at a finer timestep (``dt=1/600``) while PhysX
+  keeps its default (``dt=1/60``).
+
+* Added backend-specific ``joint_gears`` to ant and humanoid direct environments. Newton and
+  PhysX joint orderings differ, so each backend now has its own gear ratio list resolved at
+  env init.
+
+
+1.5.3 (2026-03-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.noise.NoiseModelWithAdditiveBias` shape mismatch in Newton
+  environment tests. :func:`~isaaclab_tasks.utils.parse_cfg.apply_named_preset` previously
+  replaced ``scene`` with the preset's default ``num_envs`` (e.g. 8192), overwriting the
+  test-requested value (e.g. 2). The ``_bias`` tensor was then allocated with 8192 rows while
+  action data only had 2, causing a ``RuntimeError`` on addition. The fix re-applies the
+  caller's ``num_envs`` after preset application.
+
+* Fixed in-hand manipulation goal orientation: the quaternion imaginary-component clamping used
+  the wrong slice (``[1:4]`` instead of ``[0:3]``), causing incorrect goal distance computation
+  in the Newton preset.
+
+* Fixed Franka cabinet direct-env initialization orientation.
+
+Changed
+^^^^^^^
+
+* Renamed ``EventCfg`` to :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.NewtonEventCfg`
+  in the Shadow Hand env config. The new name makes explicit that this preset covers only
+  Newton-compatible randomizations (joint gains, joint position limits, object mass, gravity).
+  Material and fixed-tendon randomization remain exclusively in
+  :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`.
+
+1.5.2 (2026-03-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.utils.sim_launcher.compute_kit_requirements` to expose the Kit
+  decision logic for testing (e.g. preset resolution: ``presets=newton,ovrtx_renderer`` →
+  ``needs_kit=False``).
+
+* Added :file:`test_preset_kit_decision.py` — beginner-friendly unit tests that verify
+  preset resolution and Kit decision.
+
+
+1.5.1 (2026-03-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Resolved :class:`~isaaclab_tasks.utils.PresetCfg` fields (e.g. physics) to their default values
+  in :func:`~isaaclab_tasks.utils.parse_env_cfg` so environments created via ``gym.make()`` outside
+  the Hydra pipeline no longer fail with ``AttributeError: 'XxxPhysicsCfg' object has no attribute 'class_type'``.
+
+
+1.5.0 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_tasks.utils.PresetCfg` base class — a ``@configclass`` whose typed
+  fields represent named configuration variants (e.g. ``default``, ``physx``, ``newton``).
+  The active variant is selected at launch with ``presets=<name>`` via the Hydra CLI, enabling
+  a single environment config to support multiple physics backends.
+
+* Added Newton backend support (via ``PresetCfg``) to the following environments:
+
+  * **Direct RL**: Cartpole (camera), Ant, Humanoid
+  * **Manager-based classic**: Ant, Humanoid
+  * **Manager-based locomotion velocity**: A1, AnymalB, AnymalC, AnymalD, Cassie, G1,
+    Go1, Go2, H1, Spot (flat and rough configs)
+  * **Manager-based manipulation reach**: Franka and UR10 reach
+  * **Dexsuite**: Kuka Allegro Lift
+
+
+1.4.0 (2026-03-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``sim_launcher`` module with ``add_launcher_args`` and ``launch_simulation`` utilities
+  that auto-detect the physics backend (Newton vs Kit/PhysX) from the env config and launch the
+  appropriate simulation runtime. Training and play scripts no longer need to import ``AppLauncher``
+  directly.
+
+
+1.3.0 (2026-02-26)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all direct and manager-based task environments to use new ``_index`` write/set
+  APIs with keyword-only arguments.
+
+
+1.2.0 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Split environment configuration from implementation for the following direct RL task environments.
+  Each environment now has a dedicated ``*_env_cfg.py`` file containing only the configuration dataclass,
+  keeping ``__init__.py`` imports cfg-only and leaving the implementation file free of cfg dependencies:
+
+* Added strict ``TYPE_CHECKING`` guards across MDP modules (observations, rewards, terminations,
+  curriculums, events) so that heavy simulation-backend imports (``pxr``, ``omni``, ``carb``,
+  ``scipy``) are not triggered when task configs are loaded without a running simulator.
+
+
+1.1.2 (2026-02-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Set replicate physics to False for GR1T2 and G1 environments.
+
+
+1.1.1 (2026-02-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update stack and pick place environments to use warp data and fix quaternion ordering.
+
+
+1.1.0 (2026-02-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated all task environments to wrap warp data property accesses with ``wp.to_torch()``
+  for compatibility with the new warp backend. This includes direct RL environments
+  and all manager-based MDP functions (actions, observations, rewards, terminations,
+  commands, events, and curriculums).
+
+
 1.0.0 (2026-01-30)
 ~~~~~~~~~~~~~~~~~~
 
@@ -25,6 +355,39 @@ Changed
 ^^^^^^^
 
 * Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
+0.11.15 (2026-03-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-RedGreen-Franka-IK-Rel-v0``, ``Isaac-Stack-Cube-RedGreenBlue-Franka-IK-Rel-v0``,
+  ``Isaac-Stack-Cube-BlueGreen-Franka-IK-Rel-v0``, and ``Isaac-Stack-Cube-BlueGreenRed-Franka-IK-Rel-v0`` environments.
+
+
+0.11.14 (2026-02-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refactored automation scripts (``run_w_id.py`` and ``run_disassembly_w_id.py``) to use list-based command execution
+  via ``subprocess.run``. This avoids potential command injection risks by disabling shell execution and
+  properly handling environment variables.
+
+
+0.11.13 (2026-02-04)
+~~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed incorrect hardcoded joint index for ``drawer_top_joint`` in
+  :class:`~isaaclab_tasks.direct.franka_cabinet.FrankaCabinetEnv`. The drawer joint
+  index is now dynamically resolved using ``find_joints()`` at start, instead of assuming
+  index 3, which caused incorrect rewards and termination conditions.
 
 
 0.11.12 (2025-12-16)

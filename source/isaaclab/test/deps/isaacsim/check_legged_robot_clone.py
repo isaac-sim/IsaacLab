@@ -45,12 +45,13 @@ import os
 
 import torch
 
-import isaacsim.core.utils.nucleus as nucleus_utils
-import isaacsim.core.utils.prims as prim_utils
 from isaacsim.core.api.world import World
 from isaacsim.core.cloner import GridCloner
 from isaacsim.core.prims import Articulation
 from isaacsim.core.utils.viewports import set_camera_view
+
+import isaaclab.sim.utils.nucleus as nucleus_utils
+import isaaclab.sim.utils.prims as prim_utils
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -90,7 +91,7 @@ def main():
     world._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0)
+    cloner = GridCloner(spacing=2.0, stage=world.stage)
     cloner.define_base_env("/World/envs")
     # Everything under the namespace "/World/envs/env_0" will be cloned
     prim_utils.define_prim("/World/envs/env_0")

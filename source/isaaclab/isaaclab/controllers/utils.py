@@ -12,12 +12,6 @@ import logging
 import os
 import re
 
-from isaacsim.core.utils.extensions import enable_extension
-
-enable_extension("isaacsim.asset.exporter.urdf")
-
-from nvidia.srl.from_usd.to_urdf import UsdToUrdf
-
 # import logger
 logger = logging.getLogger(__name__)
 
@@ -32,6 +26,12 @@ def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool 
     Returns:
         A tuple containing the paths to the URDF file and the mesh directory.
     """
+    from isaacsim.core.utils.extensions import enable_extension
+
+    enable_extension("isaacsim.asset.exporter.urdf")
+
+    from nvidia.srl.from_usd.to_urdf import UsdToUrdf
+
     usd_to_urdf_kwargs = {
         "node_names_to_remove": None,
         "edge_names_to_remove": None,

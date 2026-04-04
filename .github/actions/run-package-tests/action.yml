@@ -1,0 +1,128 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Run Package Tests'
+description: >
+  Pulls the Docker image from ECR, runs pytest inside the container, uploads
+  results as an artifact, and fails fork PRs on test failures.
+  NOTE: The calling job must check out the code before using this action.
+
+inputs:
+  image-tag:
+    description: 'Docker image tag'
+    required: true
+  isaacsim-base-image:
+    description: 'IsaacSim base image'
+    required: true
+  isaacsim-version:
+    description: 'IsaacSim version'
+    required: true
+  dockerfile-path:
+    description: 'Path to Dockerfile'
+    default: 'docker/Dockerfile.base'
+    required: false
+  cache-tag:
+    description: 'ECR cache tag'
+    default: 'cache-base'
+    required: false
+  filter-pattern:
+    description: 'Pattern to filter test files (e.g., isaaclab_tasks)'
+    default: ''
+    required: false
+  shard-index:
+    description: 'Zero-based shard index'
+    default: ''
+    required: false
+  shard-count:
+    description: 'Total number of shards'
+    default: ''
+    required: false
+  curobo-only:
+    description: 'Run only cuRobo and SkillGen tests'
+    default: 'false'
+    required: false
+  quarantined-only:
+    description: 'Run only quarantined tests'
+    default: 'false'
+    required: false
+  include-files:
+    description: 'Comma-separated list of specific test files to include'
+    default: ''
+    required: false
+  pytest-options:
+    description: 'Additional pytest options'
+    default: ''
+    required: false
+  container-name:
+    description: 'Docker container name prefix (run-id is appended automatically)'
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Record pull start time
+      id: pull-start
+      shell: bash
+      run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+    - name: Pull image from ECR
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ inputs.image-tag }}
+        isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
+        isaacsim-version: ${{ inputs.isaacsim-version }}
+        dockerfile-path: ${{ inputs.dockerfile-path }}
+        cache-tag: ${{ inputs.cache-tag }}
+
+    - name: Report pull duration
+      if: always()
+      shell: bash
+      run: |
+        start_time="${{ steps.pull-start.outputs.time }}"
+        if [ -z "$start_time" ]; then
+          echo "🟠 Could not calculate pull duration (start time not recorded)" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        elapsed=$(( $(date +%s) - start_time ))
+        printf "🔵 Image pull took %dm %ds\n" $((elapsed/60)) $((elapsed%60))
+        echo "🔵 Docker Image Pulled in ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Run Tests
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: "tools"
+        result-file: "${{ github.job }}-report.xml"
+        container-name: "${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        image-tag: ${{ inputs.image-tag }}
+        pytest-options: ${{ inputs.pytest-options }}
+        filter-pattern: ${{ inputs.filter-pattern }}
+        shard-index: ${{ inputs.shard-index }}
+        shard-count: ${{ inputs.shard-count }}
+        curobo-only: ${{ inputs.curobo-only }}
+        quarantined-only: ${{ inputs.quarantined-only }}
+        include-files: ${{ inputs.include-files }}
+        volume-mount-source: ${{ github.workspace }}
+
+    - name: Check Test Results
+      if: always()
+      shell: bash
+      run: |
+        if [ -f "reports/${{ github.job }}-report.xml" ]; then
+          if grep -qE 'failures="[1-9][0-9]*"' reports/${{ github.job }}-report.xml || grep -qE 'errors="[1-9][0-9]*"' reports/${{ github.job }}-report.xml; then
+            echo "Tests failed for PR from fork. The test report is in the logs. Failing the job."
+            exit 1
+          fi
+        else
+          echo "No test results file found. This might indicate test execution failed."
+          exit 1
+        fi
+
+    - name: Kill container on cancellation
+      if: cancelled()
+      shell: bash
+      run: |
+        CONTAINER="${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        echo "🟠 Workflow cancelled, force-killing container ${CONTAINER}..."
+        docker kill "${CONTAINER}" 2>/dev/null || true
+        docker rm -f "${CONTAINER}" 2>/dev/null || true

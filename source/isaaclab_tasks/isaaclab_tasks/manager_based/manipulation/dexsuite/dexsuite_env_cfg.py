@@ -5,6 +5,8 @@
 
 from dataclasses import MISSING
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnvCfg, ViewerCfg
@@ -14,14 +16,69 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import CapsuleCfg, ConeCfg, CuboidCfg, RigidBodyMaterialCfg, SphereCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+
+from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
 from .adr_curriculum import CurriculumCfg
+
+TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
+    size=(0.8, 1.5, 0.04),
+    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+    collision_props=sim_utils.CollisionPropertiesCfg(),
+    # trick: we let visualizer's color to show the table with success coloring
+    visible=False,
+)
+
+
+@configclass
+class ObjectCfg(PresetCfg):
+    shapes = sim_utils.MultiAssetSpawnerCfg(
+        assets_cfg=[
+            CuboidCfg(size=(0.05, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.05, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.025, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.025, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.025, 0.025, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CuboidCfg(size=(0.01, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            SphereCfg(radius=0.05, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            SphereCfg(radius=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.04, height=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.04, height=0.01, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.04, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.025, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            CapsuleCfg(radius=0.01, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            ConeCfg(radius=0.05, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+            ConeCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
+        ],
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=0,
+            disable_gravity=False,
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+    )
+    cube = sim_utils.CuboidCfg(
+        size=(0.05, 0.1, 0.1),
+        physics_material=RigidBodyMaterialCfg(static_friction=0.5),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=0,
+            disable_gravity=False,
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+    )
+    newton = cube  # newton does not support multi-asset spawning yet
+    default = shapes
 
 
 @configclass
@@ -34,46 +91,14 @@ class SceneCfg(InteractiveSceneCfg):
     # object
     object: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                CuboidCfg(size=(0.05, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.05, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.025, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.025, 0.05, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.025, 0.025, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CuboidCfg(size=(0.01, 0.1, 0.1), physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                SphereCfg(radius=0.05, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                SphereCfg(radius=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.04, height=0.025, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.04, height=0.01, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.04, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.025, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                CapsuleCfg(radius=0.01, height=0.2, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                ConeCfg(radius=0.05, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-                ConeCfg(radius=0.025, height=0.1, physics_material=RigidBodyMaterialCfg(static_friction=0.5)),
-            ],
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=16,
-                solver_velocity_iteration_count=0,
-                disable_gravity=False,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
-        ),
+        spawn=ObjectCfg(),  # type: ignore
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35)),
     )
 
     # table
     table: RigidObjectCfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/table",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.8, 1.5, 0.04),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            # trick: we let visualizer's color to show the table with success coloring
-            visible=False,
-        ),
+        spawn=TABLE_SPAWN_CFG,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
@@ -113,6 +138,17 @@ class CommandsCfg:
             yaw=(0.0, 0.0),
         ),
         success_vis_asset_name="table",
+        success_visualizer_cfg=VisualizationMarkersCfg(
+            prim_path="/Visuals/SuccessMarkers",
+            markers={
+                "failure": TABLE_SPAWN_CFG.replace(
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)), visible=True
+                ),
+                "success": TABLE_SPAWN_CFG.replace(
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15)), visible=True
+                ),
+            },
+        ),
     )
 
 
@@ -182,15 +218,8 @@ class ObservationsCfg:
 
 
 @configclass
-class EventCfg:
-    """Configuration for randomization."""
-
-    # -- pre-startup
-    randomize_object_scale = EventTerm(
-        func=mdp.randomize_rigid_body_scale,
-        mode="prestartup",
-        params={"scale_range": (0.75, 1.5), "asset_cfg": SceneEntityCfg("object")},
-    )
+class StartupEventCfg:
+    """Startup-mode domain randomization (PhysX only — Newton does not support startup events)."""
 
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -247,13 +276,20 @@ class EventCfg:
         },
     )
 
-    reset_table = EventTerm(
-        func=mdp.reset_root_state_uniform,
+
+@configclass
+class EventCfg:
+    """Reset-mode events (shared by all physics backends)."""
+
+    # Gravity scheduling is a deliberate curriculum trick — starting with no
+    # gravity (easy) and gradually introducing full gravity (hard) makes learning
+    # smoother and removes the need for a separate "Lift" reward.
+    variable_gravity = EventTerm(
+        func=mdp.randomize_physics_scene_gravity,
         mode="reset",
         params={
-            "pose_range": {"x": [-0.05, 0.05], "y": [-0.05, 0.05], "z": [0.0, 0.0]},
-            "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-            "asset_cfg": SceneEntityCfg("table"),
+            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+            "operation": "abs",
         },
     )
 
@@ -300,20 +336,6 @@ class EventCfg:
             "asset_cfg": SceneEntityCfg("robot", joint_names="iiwa7_joint_7"),
             "position_range": [-3, 3],
             "velocity_range": [0.0, 0.0],
-        },
-    )
-
-    # Note (Octi): This is a deliberate trick in Remake to accelerate learning.
-    # By scheduling gravity as a curriculum — starting with no gravity (easy)
-    # and gradually introducing full gravity (hard) — the agent learns more smoothly.
-    # This removes the need for a special "Lift" reward (often required to push the
-    # agent to counter gravity), which has bonus effect of simplifying reward composition overall.
-    variable_gravity = EventTerm(
-        func=mdp.randomize_physics_scene_gravity,
-        mode="reset",
-        params={
-            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
-            "operation": "abs",
         },
     )
 
@@ -393,7 +415,7 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
 
     # Scene settings
     viewer: ViewerCfg = ViewerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45), origin_type="env")
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=False)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -401,8 +423,34 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    events: EventCfg = MISSING  # type: ignore
     curriculum: CurriculumCfg | None = CurriculumCfg()
+
+    def validate_config(self):
+        """Check for invalid preset combinations after resolution."""
+        is_newton = not isinstance(self.sim.physics, PhysxCfg)
+        is_multi_asset = isinstance(self.scene.object.spawn, sim_utils.MultiAssetSpawnerCfg)
+
+        if is_newton and is_multi_asset:
+            raise ValueError(
+                "Newton physics does not support multi-asset spawning."
+                " Use a single-geometry object preset (e.g. presets=cube) instead of 'shapes'."
+            )
+
+        warp_supported = {"rgb", "depth", "distance_to_image_plane"}
+        for cam_attr in ("base_camera", "wrist_camera"):
+            cam = getattr(self.scene, cam_attr, None)
+            if cam is None:
+                continue
+            renderer_type = getattr(cam.renderer_cfg, "renderer_type", None)
+            if renderer_type == "newton_warp":
+                unsupported = set(cam.data_types) - warp_supported
+                if unsupported:
+                    raise ValueError(
+                        f"Warp renderer only supports data types {sorted(warp_supported)}, "
+                        f"but '{cam_attr}' is configured with unsupported types: {sorted(unsupported)}. "
+                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb128."
+                    )
 
     def __post_init__(self):
         """Post initialization."""
@@ -410,28 +458,19 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
         self.decimation = 2  # 50 Hz
 
         # *single-goal setup
-        self.commands.object_pose.resampling_time_range = (10.0, 10.0)
+        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
         self.commands.object_pose.position_only = False
-        self.commands.object_pose.success_visualizer_cfg.markers["failure"] = self.scene.table.spawn.replace(
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15), roughness=0.25), visible=True
-        )
-        self.commands.object_pose.success_visualizer_cfg.markers["success"] = self.scene.table.spawn.replace(
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15), roughness=0.25), visible=True
-        )
-
-        self.episode_length_s = 4.0
-        self.is_finite_horizon = True
+        self.episode_length_s = 6.0
+        self.is_finite_horizon = False
 
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
-        self.sim.physx.bounce_threshold_velocity = 0.2
-        self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.gpu_max_rigid_patch_count = 4 * 5 * 2**15
-
-        if self.curriculum is not None:
-            self.curriculum.adr.params["pos_tol"] = self.rewards.success.params["pos_std"] / 2
-            self.curriculum.adr.params["rot_tol"] = self.rewards.success.params["rot_std"] / 2
+        self.sim.physics = PhysxCfg(
+            bounce_threshold_velocity=0.01,
+            gpu_max_rigid_patch_count=4 * 5 * 2**15,
+            gpu_found_lost_pairs_capacity=2**26,
+        )
 
 
 class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
@@ -443,7 +482,6 @@ class DexsuiteLiftEnvCfg(DexsuiteReorientEnvCfg):
         self.commands.object_pose.position_only = True
         if self.curriculum is not None:
             self.rewards.success.params["rot_std"] = None  # make success reward not consider orientation
-            self.curriculum.adr.params["rot_tol"] = None  # make adr not tracking orientation
 
 
 class DexsuiteReorientEnvCfg_PLAY(DexsuiteReorientEnvCfg):
@@ -451,7 +489,6 @@ class DexsuiteReorientEnvCfg_PLAY(DexsuiteReorientEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
         self.commands.object_pose.debug_vis = True
         self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
 
@@ -461,7 +498,6 @@ class DexsuiteLiftEnvCfg_PLAY(DexsuiteLiftEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
         self.commands.object_pose.debug_vis = True
         self.commands.object_pose.position_only = True
         self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]

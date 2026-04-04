@@ -34,8 +34,6 @@ def sim():
     # Cleanup
     sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
@@ -205,8 +203,8 @@ def test_spawn_cone_with_all_deformable_props(sim):
         height=2.0,
         mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
         deformable_props=sim_utils.DeformableBodyPropertiesCfg(),
-        visual_material=sim_utils.materials.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
-        physics_material=sim_utils.materials.DeformableBodyMaterialCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
+        physics_material=sim_utils.DeformableBodyMaterialCfg(),
     )
     prim = cfg.func("/World/Cone", cfg)
 
@@ -236,8 +234,8 @@ def test_spawn_cone_with_all_rigid_props(sim):
             rigid_body_enabled=True, solver_position_iteration_count=8, sleep_threshold=0.1
         ),
         collision_props=sim_utils.CollisionPropertiesCfg(),
-        visual_material=sim_utils.materials.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
-        physics_material=sim_utils.materials.RigidBodyMaterialCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
+        physics_material=sim_utils.RigidBodyMaterialCfg(),
     )
     prim = cfg.func("/World/Cone", cfg)
 

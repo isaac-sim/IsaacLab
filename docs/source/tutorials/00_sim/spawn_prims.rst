@@ -188,5 +188,5 @@ demonstrates the basic concepts of scene designing in Isaac Lab and how to use t
 we will now look at how to interact with the scene and the simulation.
 
 
-.. _`USD documentation`: https://graphics.pixar.com/usd/docs/index.html
+.. _`USD documentation`: https://openusd.org/docs/index.html
 .. _`different light prims`: https://youtu.be/c7qyI8pZvF4?feature=shared

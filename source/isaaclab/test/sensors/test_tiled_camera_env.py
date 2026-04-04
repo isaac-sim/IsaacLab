@@ -34,8 +34,7 @@ import sys
 import gymnasium as gym
 import pytest
 
-import omni.usd
-
+import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.sensors import save_images_to_file
 
@@ -109,7 +108,7 @@ def _launch_tests(tile_widths: range, tile_heights: range, num_envs: int):
     for width in tile_widths:
         for height in tile_heights:
             # create a new stage
-            omni.usd.get_context().new_stage()
+            sim_utils.create_new_stage()
             # parse configuration
             env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
             env_cfg.tiled_camera.width = width

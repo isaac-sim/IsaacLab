@@ -52,12 +52,14 @@ parser.add_argument(
 )
 
 AppLauncher.add_app_launcher_args(parser)
+parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, AssetBaseCfg, RigidObject, RigidObjectCfg
@@ -191,10 +193,11 @@ def run_simulator(
     ee_body_name = "panda_hand"
     ee_body_idx = robot.body_names.index(ee_body_name)
 
-    joint_pos = robot.data.default_joint_pos.clone()
+    joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
     joint_pos[0, :7] = torch.tensor([0.0, -0.569, 0.0, -2.81, 0.0, 3.037, 0.741], device=robot.device)
-    joint_vel = robot.data.default_joint_vel.clone()
-    robot.write_joint_state_to_sim(joint_pos, joint_vel)
+    joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
+    robot.write_joint_position_to_sim_index(position=joint_pos)
+    robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
 
     for _ in range(10):
         scene.write_data_to_sim()
@@ -202,7 +205,7 @@ def run_simulator(
         scene.update(sim_dt)
 
     # Initialize the position of franka
-    robot_initial_pos = robot.data.body_pos_w[0, ee_body_idx].cpu().numpy()
+    robot_initial_pos = wp.to_torch(robot.data.body_pos_w)[0, ee_body_idx].cpu().numpy()
     haply_initial_pos = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 
     ik_controller_cfg = DifferentialIKControllerCfg(
@@ -225,7 +228,7 @@ def run_simulator(
 
     # Initialize IK controller
     ik_controller = DifferentialIKController(cfg=ik_controller_cfg, num_envs=scene.num_envs, device=sim.device)
-    initial_ee_quat = robot.data.body_quat_w[:, ee_body_idx]
+    initial_ee_quat = wp.to_torch(robot.data.body_quat_w)[:, ee_body_idx]
     ik_controller.set_command(command=torch.zeros(scene.num_envs, 3, device=sim.device), ee_quat=initial_ee_quat)
 
     prev_button_a = False
@@ -234,7 +237,7 @@ def run_simulator(
     gripper_target = 0.04
 
     # Initialize the rotation of franka end-effector
-    ee_rotation_angle = robot.data.joint_pos[0, 6].item()
+    ee_rotation_angle = wp.to_torch(robot.data.joint_pos)[0, 6].item()
     rotation_step = np.pi / 3
 
     print("\n[INFO] Teleoperation ready!")
@@ -244,20 +247,23 @@ def run_simulator(
     while simulation_app.is_running():
         if count % 10000 == 0:
             count = 1
-            root_state = robot.data.default_root_state.clone()
-            root_state[:, :3] += scene.env_origins
-            robot.write_root_pose_to_sim(root_state[:, :7])
-            robot.write_root_velocity_to_sim(root_state[:, 7:])
+            root_pose = wp.to_torch(robot.data.default_root_pose).clone()
+            root_pose[:, :3] += scene.env_origins
+            robot.write_root_pose_to_sim_index(root_pose=root_pose)
+            root_vel = wp.to_torch(robot.data.default_root_vel).clone()
+            robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
 
-            joint_pos = robot.data.default_joint_pos.clone()
+            joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
             joint_pos[0, :7] = torch.tensor([0.0, -0.569, 0.0, -2.81, 0.0, 3.037, 0.741], device=robot.device)
-            joint_vel = robot.data.default_joint_vel.clone()
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
+            robot.write_joint_position_to_sim_index(position=joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
 
-            cube_state = cube.data.default_root_state.clone()
-            cube_state[:, :3] += scene.env_origins
-            cube.write_root_pose_to_sim(cube_state[:, :7])
-            cube.write_root_velocity_to_sim(cube_state[:, 7:])
+            cube_pose = wp.to_torch(cube.data.default_root_pose).clone()
+            cube_pose[:, :3] += scene.env_origins
+            cube.write_root_pose_to_sim_index(root_pose=cube_pose)
+            cube_vel = wp.to_torch(cube.data.default_root_vel).clone()
+            cube.write_root_velocity_to_sim_index(root_velocity=cube_vel)
 
             scene.reset()
             haply_device.reset()
@@ -298,23 +304,23 @@ def run_simulator(
 
         target_pos_tensor = torch.tensor(target_pos, dtype=torch.float32, device=sim.device).unsqueeze(0)
 
-        current_joint_pos = robot.data.joint_pos[:, arm_joint_indices]
-        ee_pos_w = robot.data.body_pos_w[:, ee_body_idx]
-        ee_quat_w = robot.data.body_quat_w[:, ee_body_idx]
+        current_joint_pos = wp.to_torch(robot.data.joint_pos)[:, arm_joint_indices]
+        ee_pos_w = wp.to_torch(robot.data.body_pos_w)[:, ee_body_idx]
+        ee_quat_w = wp.to_torch(robot.data.body_quat_w)[:, ee_body_idx]
 
         # get jacobian to IK controller
         jacobian = robot.root_view.get_jacobians()[:, ee_body_idx, :, arm_joint_indices]
         ik_controller.set_command(command=target_pos_tensor, ee_quat=ee_quat_w)
         joint_pos_des = ik_controller.compute(ee_pos_w, ee_quat_w, jacobian, current_joint_pos)
 
-        joint_pos_target = robot.data.joint_pos[0].clone()
+        joint_pos_target = wp.to_torch(robot.data.joint_pos)[0].clone()
 
         # Update joints: 6 from IK + 1 from button control (correct by design)
         joint_pos_target[arm_joint_indices] = joint_pos_des[0]  # panda_joint1-6 from IK
         joint_pos_target[6] = ee_rotation_angle  # panda_joint7 - end-effector rotation (button C)
         joint_pos_target[[-2, -1]] = gripper_target  # gripper
 
-        robot.set_joint_position_target(joint_pos_target.unsqueeze(0))
+        robot.set_joint_position_target_index(target=joint_pos_target.unsqueeze(0))
 
         for _ in range(5):
             scene.write_data_to_sim()

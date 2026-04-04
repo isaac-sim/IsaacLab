@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import torch
+import warp as wp
 
 
 class BaseImuData(ABC):
@@ -21,48 +21,74 @@ class BaseImuData(ABC):
 
     @property
     @abstractmethod
-    def pose_w(self) -> torch.Tensor:
-        """Pose of the sensor origin in world frame. Shape is (N, 7). Quaternion in xyzw order."""
+    def pose_w(self) -> wp.array | None:
+        """Pose of the sensor origin in world frame.
+
+        Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
+        The pose is provided in (x, y, z, qx, qy, qz, qw) format.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def pos_w(self) -> torch.Tensor:
-        """Position of the sensor origin in world frame. Shape is (N, 3)."""
+    def pos_w(self) -> wp.array:
+        """Position of the sensor origin in world frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def quat_w(self) -> torch.Tensor:
-        """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame. Shape is (N, 4)."""
+    def quat_w(self) -> wp.array:
+        """Orientation of the sensor origin in world frame.
+
+        Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
+        The orientation is provided in (x, y, z, w) format.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def projected_gravity_b(self) -> torch.Tensor:
-        """Gravity direction unit vector projected on the imu frame. Shape is (N, 3)."""
+    def projected_gravity_b(self) -> wp.array:
+        """Gravity direction unit vector projected on the IMU frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def lin_vel_b(self) -> torch.Tensor:
-        """IMU frame linear velocity relative to the world expressed in IMU frame. Shape is (N, 3)."""
+    def lin_vel_b(self) -> wp.array:
+        """IMU frame linear velocity relative to the world expressed in IMU frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def ang_vel_b(self) -> torch.Tensor:
-        """IMU frame angular velocity relative to the world expressed in IMU frame. Shape is (N, 3)."""
+    def ang_vel_b(self) -> wp.array:
+        """IMU frame angular velocity relative to the world expressed in IMU frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def lin_acc_b(self) -> torch.Tensor:
-        """IMU frame linear acceleration relative to the world expressed in IMU frame. Shape is (N, 3)."""
+    def lin_acc_b(self) -> wp.array:
+        """IMU frame linear acceleration relative to the world expressed in IMU frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def ang_acc_b(self) -> torch.Tensor:
-        """IMU frame angular acceleration relative to the world expressed in IMU frame. Shape is (N, 3)."""
+    def ang_acc_b(self) -> wp.array:
+        """IMU frame angular acceleration relative to the world expressed in IMU frame.
+
+        Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
+        """
         raise NotImplementedError

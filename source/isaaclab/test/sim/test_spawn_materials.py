@@ -31,14 +31,12 @@ def sim():
     sim_utils.update_stage()
     yield sim
     sim.stop()
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
 def test_spawn_preview_surface(sim):
     """Test spawning preview surface."""
-    cfg = sim_utils.materials.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0))
+    cfg = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0))
     prim = cfg.func("/Looks/PreviewSurface", cfg)
     # Check validity
     assert prim.IsValid()
@@ -50,7 +48,7 @@ def test_spawn_preview_surface(sim):
 
 def test_spawn_mdl_material(sim):
     """Test spawning mdl material."""
-    cfg = sim_utils.materials.MdlFileCfg(
+    cfg = sim_utils.MdlFileCfg(
         mdl_path=f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Anodized.mdl",
         project_uvw=True,
         albedo_brightness=0.5,
@@ -67,7 +65,7 @@ def test_spawn_mdl_material(sim):
 
 def test_spawn_glass_mdl_material(sim):
     """Test spawning a glass mdl material."""
-    cfg = sim_utils.materials.GlassMdlCfg(thin_walled=False, glass_ior=1.0, glass_color=(0.0, 1.0, 0.0))
+    cfg = sim_utils.GlassMdlCfg(thin_walled=False, glass_ior=1.0, glass_color=(0.0, 1.0, 0.0))
     prim = cfg.func("/Looks/GlassMaterial", cfg)
     # Check validity
     assert prim.IsValid()
@@ -81,7 +79,7 @@ def test_spawn_glass_mdl_material(sim):
 
 def test_spawn_rigid_body_material(sim):
     """Test spawning a rigid body material."""
-    cfg = sim_utils.materials.RigidBodyMaterialCfg(
+    cfg = sim_utils.RigidBodyMaterialCfg(
         dynamic_friction=1.5,
         restitution=1.5,
         static_friction=0.5,
@@ -102,7 +100,7 @@ def test_spawn_rigid_body_material(sim):
 
 def test_spawn_deformable_body_material(sim):
     """Test spawning a deformable body material."""
-    cfg = sim_utils.materials.DeformableBodyMaterialCfg(
+    cfg = sim_utils.DeformableBodyMaterialCfg(
         density=1.0,
         dynamic_friction=0.25,
         youngs_modulus=50000000.0,
@@ -127,9 +125,9 @@ def test_spawn_deformable_body_material(sim):
 
 def test_apply_rigid_body_material_on_visual_material(sim):
     """Test applying a rigid body material on a visual material."""
-    cfg = sim_utils.materials.GlassMdlCfg(thin_walled=False, glass_ior=1.0, glass_color=(0.0, 1.0, 0.0))
+    cfg = sim_utils.GlassMdlCfg(thin_walled=False, glass_ior=1.0, glass_color=(0.0, 1.0, 0.0))
     prim = cfg.func("/Looks/Material", cfg)
-    cfg = sim_utils.materials.RigidBodyMaterialCfg(
+    cfg = sim_utils.RigidBodyMaterialCfg(
         dynamic_friction=1.5,
         restitution=1.5,
         static_friction=0.5,

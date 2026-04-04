@@ -8,7 +8,6 @@ from dataclasses import MISSING
 from isaaclab.utils import configclass
 
 from ..sub_terrain_cfg import SubTerrainBaseCfg
-from . import hf_terrains
 
 
 @configclass
@@ -42,7 +41,7 @@ Different height field terrain configurations.
 class HfRandomUniformTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a random uniform height field terrain."""
 
-    function = hf_terrains.random_uniform_terrain
+    function: str = "{DIR}.hf_terrains:random_uniform_terrain"
 
     noise_range: tuple[float, float] = MISSING
     """The minimum and maximum height noise (i.e. along z) of the terrain (in m)."""
@@ -63,7 +62,7 @@ class HfRandomUniformTerrainCfg(HfTerrainBaseCfg):
 class HfPyramidSlopedTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a pyramid sloped height field terrain."""
 
-    function = hf_terrains.pyramid_sloped_terrain
+    function: str = "{DIR}.hf_terrains:pyramid_sloped_terrain"
 
     slope_range: tuple[float, float] = MISSING
     """The slope of the terrain (in radians)."""
@@ -95,7 +94,7 @@ class HfInvertedPyramidSlopedTerrainCfg(HfPyramidSlopedTerrainCfg):
 class HfPyramidStairsTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a pyramid stairs height field terrain."""
 
-    function = hf_terrains.pyramid_stairs_terrain
+    function: str = "{DIR}.hf_terrains:pyramid_stairs_terrain"
 
     step_height_range: tuple[float, float] = MISSING
     """The minimum and maximum height of the steps (in m)."""
@@ -130,7 +129,7 @@ class HfInvertedPyramidStairsTerrainCfg(HfPyramidStairsTerrainCfg):
 class HfDiscreteObstaclesTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a discrete obstacles height field terrain."""
 
-    function = hf_terrains.discrete_obstacles_terrain
+    function: str = "{DIR}.hf_terrains:discrete_obstacles_terrain"
 
     obstacle_height_mode: str = "choice"
     """The mode to use for the obstacle height. Defaults to "choice".
@@ -155,7 +154,7 @@ class HfDiscreteObstaclesTerrainCfg(HfTerrainBaseCfg):
 class HfWaveTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a wave height field terrain."""
 
-    function = hf_terrains.wave_terrain
+    function: str = "{DIR}.hf_terrains:wave_terrain"
 
     amplitude_range: tuple[float, float] = MISSING
     """The minimum and maximum amplitude of the wave (in m)."""
@@ -168,7 +167,7 @@ class HfWaveTerrainCfg(HfTerrainBaseCfg):
 class HfSteppingStonesTerrainCfg(HfTerrainBaseCfg):
     """Configuration for a stepping stones height field terrain."""
 
-    function = hf_terrains.stepping_stones_terrain
+    function: str = "{DIR}.hf_terrains:stepping_stones_terrain"
 
     stone_height_max: float = MISSING
     """The maximum height of the stones (in m)."""

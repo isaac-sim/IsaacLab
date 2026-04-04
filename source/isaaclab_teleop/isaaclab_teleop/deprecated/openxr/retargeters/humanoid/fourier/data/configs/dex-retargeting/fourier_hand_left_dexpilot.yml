@@ -1,0 +1,30 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+retargeting:
+  finger_tip_link_names:
+  - GR1T2_fourier_hand_6dof_L_thumb_distal_link
+  - GR1T2_fourier_hand_6dof_L_index_intermediate_link
+  - GR1T2_fourier_hand_6dof_L_middle_intermediate_link
+  - GR1T2_fourier_hand_6dof_L_ring_intermediate_link
+  - GR1T2_fourier_hand_6dof_L_pinky_intermediate_link
+  low_pass_alpha: 0.2
+  scaling_factor: 1.2
+  target_joint_names:
+  - L_index_proximal_joint
+  - L_middle_proximal_joint
+  - L_pinky_proximal_joint
+  - L_ring_proximal_joint
+  - L_index_intermediate_joint
+  - L_middle_intermediate_joint
+  - L_pinky_intermediate_joint
+  - L_ring_intermediate_joint
+  - L_thumb_proximal_yaw_joint
+  - L_thumb_proximal_pitch_joint
+  - L_thumb_distal_joint
+  - L_thumb_distal_joint
+  type: DexPilot
+  urdf_path: /tmp/GR1_T2_left_hand.urdf
+  wrist_link_name: l_hand_base_link

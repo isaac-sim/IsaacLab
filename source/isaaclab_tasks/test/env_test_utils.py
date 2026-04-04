@@ -5,26 +5,91 @@
 
 """Shared test utilities for Isaac Lab environments."""
 
+import importlib
 import inspect
 import os
+import sys
 
 import gymnasium as gym
 import pytest
 import torch
 
-import carb
-import omni.usd
-
+import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.utils.spaces import sample_space
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
+
+
+def _is_teleop_env(task_spec) -> bool:
+    """Check if a task's environment config has teleop dependencies.
+
+    Inspects the class hierarchy of the env config to check if any base
+    class module defines ``_TELEOP_AVAILABLE``, indicating the environment
+    uses isaacteleop / isaaclab_teleop.
+    """
+    env_cfg_entry_point = task_spec.kwargs.get("env_cfg_entry_point")
+    if not isinstance(env_cfg_entry_point, str) or ":" not in env_cfg_entry_point:
+        return False
+    try:
+        mod_name, attr_name = env_cfg_entry_point.split(":")
+        mod = importlib.import_module(mod_name)
+        cfg_cls = getattr(mod, attr_name, None)
+        if cfg_cls is None:
+            return False
+        for cls in cfg_cls.__mro__:
+            cls_module = sys.modules.get(cls.__module__)
+            if cls_module is not None and hasattr(cls_module, "_TELEOP_AVAILABLE"):
+                return True
+    except (ImportError, AttributeError):
+        pass
+    return False
+
+
+def _is_pickplace_stack_env(task_id: str) -> bool:
+    """Check if a task is a PickPlace or Stack environment based on its ID."""
+    return any(keyword in task_id for keyword in ("Place", "Stack", "NutPour", "ExhaustPipe"))
+
+
+def _has_physics_preset(raw_cfg, preset_name: str) -> bool:
+    """Check if a raw (unresolved) env config has a named physics preset.
+
+    Must be called with the result of :func:`load_cfg_from_registry`, not
+    :func:`parse_env_cfg`, because the latter resolves all PresetCfg wrappers
+    to their default before returning.
+
+    Args:
+        raw_cfg: Raw env config from :func:`load_cfg_from_registry`.
+        preset_name: Name of the preset to check for (e.g., 'newton').
+
+    Returns:
+        True if ``raw_cfg.sim.physics`` is a PresetCfg with the given preset field.
+    """
+    if isinstance(raw_cfg, dict):
+        return False
+    # If the top-level cfg is itself a PresetCfg wrapper, unwrap to its default.
+    env_cfg = raw_cfg
+    if (
+        hasattr(env_cfg, "__dataclass_fields__")
+        and hasattr(env_cfg, "default")
+        and not hasattr(type(env_cfg), "class_type")
+    ):
+        env_cfg = env_cfg.default
+    physics = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    return physics is not None and hasattr(physics, preset_name)
 
 
 def setup_environment(
     include_play: bool = False,
     factory_envs: bool | None = None,
     multi_agent: bool | None = None,
+    teleop_envs: bool | None = None,
+    cartpole_showcase_envs: bool | None = None,
+    pickplace_stack_envs: bool | None = None,
+    newton_envs: bool | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -39,6 +104,22 @@ def setup_environment(
             - True: include only multi-agent environments
             - False: include only single-agent environments
             - None: include all environments regardless of agent type
+        teleop_envs:
+            - True: include only teleop environments (those requiring isaacteleop)
+            - False: exclude teleop environments
+            - None: include all environments regardless of teleop dependency
+        cartpole_showcase_envs:
+            - True: include only Cartpole Showcase environments
+            - False: exclude Cartpole Showcase environments
+            - None: include all environments regardless of showcase type
+        pickplace_stack_envs:
+            - True: include only PickPlace/Stack environments
+            - False: exclude PickPlace/Stack environments
+            - None: include all environments regardless of pick-place/stack type
+        newton_envs:
+            - True: include only environments that have a newton physics preset
+            - False: exclude environments that have a newton physics preset
+            - None: include all environments regardless of newton preset availability
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -66,6 +147,29 @@ def setup_environment(
             continue
         # if None: no filter
 
+        # apply cartpole showcase filter
+        if (cartpole_showcase_envs is True and "Showcase" not in task_spec.id) or (
+            cartpole_showcase_envs is False and "Showcase" in task_spec.id
+        ):
+            continue
+        # if None: no filter
+
+        # apply pickplace/stack filter
+        if pickplace_stack_envs is not None:
+            is_pickplace_stack = _is_pickplace_stack_env(task_spec.id)
+            if (pickplace_stack_envs is True and not is_pickplace_stack) or (
+                pickplace_stack_envs is False and is_pickplace_stack
+            ):
+                continue
+        # if None: no filter
+
+        # apply teleop filter
+        if teleop_envs is not None:
+            is_teleop = _is_teleop_env(task_spec)
+            if (teleop_envs is True and not is_teleop) or (teleop_envs is False and is_teleop):
+                continue
+        # if None: no filter
+
         # apply multi agent filter
         if multi_agent is not None:
             # parse config
@@ -76,13 +180,23 @@ def setup_environment(
                 continue
         # if None: no filter
 
+        # apply newton preset filter
+        if newton_envs is not None:
+            # Use load_cfg_from_registry (not parse_env_cfg) so that the PresetCfg
+            # wrapper on sim.physics is not yet resolved to its default.
+            raw_cfg = load_cfg_from_registry(task_spec.id, "env_cfg_entry_point")
+            has_newton = _has_physics_preset(raw_cfg, "newton")
+            if (newton_envs is True and not has_newton) or (newton_envs is False and has_newton):
+                continue
+        # if None: no filter
+
         registered_tasks.append(task_spec.id)
 
     # sort environments alphabetically
     registered_tasks.sort()
 
-    # this flag is necessary to prevent a bug where the simulation gets stuck randomy when running many environments
-    carb.settings.get_settings().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running many environments
+    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
 
     print(">>> All registered environments:", registered_tasks)
 
@@ -97,6 +211,7 @@ def _run_environments(
     multi_agent=False,
     create_stage_in_memory=False,
     disable_clone_in_fabric=False,
+    physics_preset_name: str | None = None,
 ):
     """Run all environments and check environments return valid signals.
 
@@ -108,6 +223,8 @@ def _run_environments(
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
+        physics_preset_name: Name of the physics preset to apply (e.g., 'newton').
+            If None, uses the environment's default physics.
     """
 
     # skip test if stage in memory is not supported
@@ -123,7 +240,12 @@ def _run_environments(
         "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
         "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
+        "Isaac-PickPlace-G1-InspireFTP-Abs-v0",
     ]:
+        return
+
+    # these environments are using SingleArticulation class, which need to be updated
+    if "RmpFlow" in task_name or "Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor" in task_name:
         return
 
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
@@ -132,6 +254,11 @@ def _run_environments(
 
     # skip automate environments as they require cuda installation
     if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
+        return
+
+    # skip skillgen environments as they require cuRobo installation;
+    # tested separately via test_environments_skillgen.py
+    if "Skillgen" in task_name:
         return
 
     # Check if this is the teddy bear environment and if it's being called from the right test file
@@ -158,6 +285,7 @@ def _run_environments(
         multi_agent=multi_agent,
         create_stage_in_memory=create_stage_in_memory,
         disable_clone_in_fabric=disable_clone_in_fabric,
+        physics_preset_name=physics_preset_name,
     )
     print(f""">>> Closing environment: {task_name}""")
     print("-" * 80)
@@ -171,6 +299,7 @@ def _check_random_actions(
     multi_agent: bool = False,
     create_stage_in_memory: bool = False,
     disable_clone_in_fabric: bool = False,
+    physics_preset_name: str | None = None,
 ):
     """Run random actions and check environments return valid signals.
 
@@ -182,16 +311,31 @@ def _check_random_actions(
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
+        physics_preset_name: Name of the physics preset to apply (e.g., 'newton').
+            If None, uses the environment's default physics.
     """
     # create a new context stage, if stage in memory is not enabled
     if not create_stage_in_memory:
-        omni.usd.get_context().new_stage()
+        sim_utils.create_new_stage()
 
-    # reset the rtx sensors carb setting to False
-    carb.settings.get_settings().set_bool("/isaaclab/render/rtx_sensors", False)
+    # reset the rtx sensors setting to False
+    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+    env = None
     try:
         # parse config
         env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        # apply physics preset override before creating the environment
+        if physics_preset_name is not None:
+            # parse_env_cfg already resolved PresetCfg wrappers to their default,
+            # so we load the raw config to retrieve preset alternatives.
+            raw_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+            presets = {"env": collect_presets(raw_cfg), "agent": {}}
+            hydra_cfg = {"env": env_cfg.to_dict(), "agent": None}
+            apply_overrides(env_cfg, None, hydra_cfg, [physics_preset_name], [], [], presets)
+            # Re-apply num_envs since apply_overrides may have replaced
+            # the scene config with the preset's default num_envs.
+            if num_envs is not None:
+                env_cfg.scene.num_envs = num_envs
         # set config args
         env_cfg.sim.create_stage_in_memory = create_stage_in_memory
         if disable_clone_in_fabric:
@@ -202,66 +346,66 @@ def _check_random_actions(
             if not hasattr(env_cfg, "possible_agents"):
                 print(f"[INFO]: Skipping {task_name} as it is not a multi-agent task")
                 return
-            env = gym.make(task_name, cfg=env_cfg)
         else:
             if hasattr(env_cfg, "possible_agents"):
                 print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
                 return
-            env = gym.make(task_name, cfg=env_cfg)
 
-    except Exception as e:
-        # try to close environment on exception
-        if "env" in locals() and hasattr(env, "_is_closed"):
-            env.close()
-        else:
-            if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
-                e.obj.close()
-        pytest.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
+        # TODO: Some Newton preset + multi-asset spawning combinations fail config validation
+        # here with a ValueError. Consider filtering invalid combinations in setup_environment()
+        # rather than forgiving them at runtime. See PR #5097 commit fb2c74a3862 for a workaround
+        # that caught the error and called pytest.skip().
+        env = gym.make(task_name, cfg=env_cfg)
 
-    # disable control on stop
-    env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
+        # disable control on stop
+        env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
-    # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
-    if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
-        for i in range(env.unwrapped.single_action_space.shape[0]):
-            if env.unwrapped.single_action_space.low[i] == float("-inf"):
-                env.unwrapped.single_action_space.low[i] = -1.0
-            if env.unwrapped.single_action_space.high[i] == float("inf"):
-                env.unwrapped.single_action_space.low[i] = 1.0
+        # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
+        if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
+            for i in range(env.unwrapped.single_action_space.shape[0]):
+                if env.unwrapped.single_action_space.low[i] == float("-inf"):
+                    env.unwrapped.single_action_space.low[i] = -1.0
+                if env.unwrapped.single_action_space.high[i] == float("inf"):
+                    env.unwrapped.single_action_space.low[i] = 1.0
 
-    # reset environment
-    obs, _ = env.reset()
+        # reset environment
+        obs, _ = env.reset()
 
-    # check signal
-    assert _check_valid_tensor(obs)
+        # check signal
+        assert _check_valid_tensor(obs)
 
-    # simulate environment for num_steps
-    with torch.inference_mode():
-        for _ in range(num_steps):
-            # sample actions according to the defined space
-            if multi_agent:
-                actions = {
-                    agent: sample_space(
-                        env.unwrapped.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs
-                    )
-                    for agent in env.unwrapped.possible_agents
-                }
-            else:
-                actions = sample_space(
-                    env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
-                )
-            # apply actions
-            transition = env.step(actions)
-            # check signals
-            for data in transition[:-1]:  # exclude info
+        # simulate environment for num_steps
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                # sample actions according to the defined space
                 if multi_agent:
-                    for agent, agent_data in data.items():
-                        assert _check_valid_tensor(agent_data), f"Invalid data ('{agent}'): {agent_data}"
+                    actions = {
+                        agent: sample_space(
+                            env.unwrapped.action_spaces[agent], device=env.unwrapped.device, batch_size=num_envs
+                        )
+                        for agent in env.unwrapped.possible_agents
+                    }
                 else:
-                    assert _check_valid_tensor(data), f"Invalid data: {data}"
+                    actions = sample_space(
+                        env.unwrapped.single_action_space, device=env.unwrapped.device, batch_size=num_envs
+                    )
+                # apply actions
+                transition = env.step(actions)
+                # check signals
+                for data in transition[:-1]:  # exclude info
+                    if multi_agent:
+                        for agent, agent_data in data.items():
+                            assert _check_valid_tensor(agent_data), f"Invalid data ('{agent}'): {agent_data}"
+                    else:
+                        assert _check_valid_tensor(data), f"Invalid data: {data}"
 
-    # close environment
-    env.close()
+    finally:
+        # Always ensure cleanup happens, regardless of success or failure
+        if env is not None:
+            env.close()
+
+        # Clear the simulation context singleton (also closes the USD context stage)
+        SimulationContext.clear_instance()
 
 
 def _check_valid_tensor(data: torch.Tensor | dict) -> bool:

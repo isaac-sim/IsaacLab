@@ -20,6 +20,8 @@ import dataclasses
 import functools
 import inspect
 
+import warp as wp
+
 
 @configclass
 class GenericActionIODescriptor:
@@ -319,7 +321,7 @@ def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericObservatio
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
-    descriptor.joint_pos_offsets = asset.data.default_joint_pos[:, ids][0]
+    descriptor.joint_pos_offsets = wp.to_torch(asset.data.default_joint_pos)[:, ids][0]
 
 
 def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs):
@@ -336,7 +338,7 @@ def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericObservatio
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
-    descriptor.joint_vel_offsets = asset.data.default_joint_vel[:, ids][0]
+    descriptor.joint_vel_offsets = wp.to_torch(asset.data.default_joint_vel)[:, ids][0]
 
 
 def export_articulations_data(env: ManagerBasedEnv) -> dict[str, dict[str, list[float]]]:

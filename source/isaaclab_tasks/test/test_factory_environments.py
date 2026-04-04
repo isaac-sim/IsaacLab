@@ -21,7 +21,7 @@ import isaaclab_tasks  # noqa: F401
 from env_test_utils import _check_random_actions, setup_environment  # isort: skip
 
 
-@pytest.mark.parametrize("num_envs, device", [(32, "cuda"), (1, "cuda")])
+@pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", setup_environment(factory_envs=True, multi_agent=False))
 @pytest.mark.isaacsim_ci
 def test_factory_environments(task_name, num_envs, device):

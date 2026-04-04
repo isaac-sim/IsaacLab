@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
@@ -15,7 +16,8 @@ from isaaclab.sensors import SensorBaseCfg, TiledCameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from .visuotactile_sensor import VisuoTactileSensor
+if TYPE_CHECKING:
+    from .visuotactile_sensor import VisuoTactileSensor
 
 ##
 # GelSight Render Configuration
@@ -109,7 +111,7 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     It can capture tactile RGB/depth images and compute penalty-based contact forces.
     """
 
-    class_type: type = VisuoTactileSensor
+    class_type: type[VisuoTactileSensor] | str = "{DIR}.visuotactile_sensor:VisuoTactileSensor"
 
     # Sensor type and capabilities
     render_cfg: GelSightRenderCfg = MISSING

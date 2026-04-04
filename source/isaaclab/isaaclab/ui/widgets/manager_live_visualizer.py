@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING
 
 import numpy
 
-import omni.kit.app
-
 from isaaclab.managers import ManagerBase
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
@@ -196,6 +194,8 @@ class ManagerLiveVisualizer(UiVisualizerBase):
         if debug_vis:
             # if enabled create a subscriber for the post update event if it doesn't exist
             if not hasattr(self, "_debug_vis_handle") or self._debug_vis_handle is None:
+                import omni.kit.app
+
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)

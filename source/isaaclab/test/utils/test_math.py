@@ -632,7 +632,7 @@ def test_quat_to_and_from_angle_axis(device):
     )
     torch.testing.assert_close(rot_vec_scipy, rot_vec_value)
     axis = math_utils.normalize(rot_vec_value.clone())
-    angle = torch.norm(rot_vec_value.clone(), dim=-1)
+    angle = torch.linalg.norm(rot_vec_value.clone(), dim=-1)
     q_value = math_utils.quat_unique(math_utils.quat_from_angle_axis(angle, axis))
     torch.testing.assert_close(q_rand, q_value)
 
@@ -796,7 +796,7 @@ def test_compute_pose_error(device, rot_error_type):
     else:
         axis_angle = math_utils.quat_box_minus(q02, q01)
         axis = math_utils.normalize(axis_angle)
-        angle = torch.norm(axis_angle, dim=-1)
+        angle = torch.linalg.norm(axis_angle, dim=-1)
 
         torch.testing.assert_close(
             math_utils.quat_unique(math_utils.quat_from_angle_axis(angle, axis)),

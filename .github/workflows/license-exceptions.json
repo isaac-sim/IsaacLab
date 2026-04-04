@@ -24,6 +24,10 @@
     "license": null
   },
   {
+    "package": "isaaclab_teleop",
+    "license": null
+  },
+  {
     "package": "isaacsim",
     "license": null
   },
@@ -223,6 +227,11 @@
     "comment": "ZLIBL"
   },
   {
+    "package": "cmeel-tinyxml2",
+    "license": "Zlib",
+    "comment": "Zlib"
+  },
+  {
     "package": "cmeel-urdfdom",
     "license": "UNKNOWN",
     "comment": "BSD"
@@ -311,9 +320,9 @@
     "comment": "MIT"
   },
   {
-    "package": "typing_extensions",
-    "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB"
+    "package": "usd-core",
+    "license": "Other/Proprietary License",
+    "comment": "TOST / OSRB"
   },
   {
     "package": "urllib3",
@@ -444,5 +453,35 @@
     "package": "matplotlib-inline",
     "license": "UNKNOWN",
     "comment": "BSD-3"
+  },
+  {
+    "package": "pyglet",
+    "license": "UNKNOWN",
+    "comment": "BSD-3"
+  },
+  {
+    "package": "typing_extensions",
+    "license": "Python Software Foundation License",
+    "comment": "PSF-2.0 / OSRB"
+  },
+  {
+    "package": "standard-distutils",
+    "license": "Python Software Foundation License",
+    "comment": "PSFL / OSRB"
+  },
+  {
+    "package": "vhacdx",
+    "license": "UNKNOWN",
+    "comment": "BSD/MIT"
+  },
+  {
+    "package": "cuda-bindings",
+    "license": "LicenseRef-NVIDIA-SOFTWARE-LICENSE",
+    "comment": "NVIDIA"
+  },
+  {
+    "package": "omniverseclient",
+    "license": "NVIDIA Proprietary Software, https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/",
+    "comment": "NVIDIA"
   }
 ]

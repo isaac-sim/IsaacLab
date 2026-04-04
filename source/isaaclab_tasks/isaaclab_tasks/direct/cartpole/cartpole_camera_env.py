@@ -7,94 +7,47 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import TiledCamera, TiledCameraCfg, save_images_to_file
-from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.assets import Articulation
+from isaaclab.envs import DirectRLEnv
+from isaaclab.sensors import TiledCamera, save_images_to_file
 from isaaclab.utils.math import sample_uniform
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
-
-
-@configclass
-class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
-    # env
-    decimation = 2
-    episode_length_s = 5.0
-    action_scale = 100.0  # [N]
-
-    # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
-
-    # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    cart_dof_name = "slider_to_cart"
-    pole_dof_name = "cart_to_pole"
-
-    # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
-        data_types=["rgb"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        ),
-        width=100,
-        height=100,
+if TYPE_CHECKING:
+    from .cartpole_camera_env_cfg import (
+        CartpoleAlbedoCameraEnvCfg,
+        CartpoleDepthCameraEnvCfg,
+        CartpoleRGBCameraEnvCfg,
+        CartpoleSimpleShadingConstantCameraEnvCfg,
+        CartpoleSimpleShadingDiffuseCameraEnvCfg,
+        CartpoleSimpleShadingFullCameraEnvCfg,
     )
-    write_image_to_file = False
+    from .cartpole_camera_env_preset_cfg import CartpoleCameraEnvCfg
 
-    # spaces
-    action_space = 1
-    state_space = 0
-    observation_space = [tiled_camera.height, tiled_camera.width, 3]
-
-    # change viewer settings
-    viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
-
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
-
-    # reset
-    max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.125, 0.125]  # the range in which the pole angle is sampled from on reset [rad]
-
-    # reward scales
-    rew_scale_alive = 1.0
-    rew_scale_terminated = -2.0
-    rew_scale_pole_pos = -1.0
-    rew_scale_cart_vel = -0.01
-    rew_scale_pole_vel = -0.005
-
-
-@configclass
-class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
-    # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
-        data_types=["depth"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
-        ),
-        width=100,
-        height=100,
-    )
-
-    # spaces
-    observation_space = [tiled_camera.height, tiled_camera.width, 1]
+SIMPLE_SHADING_TYPES = {
+    "simple_shading_constant_diffuse",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+}
 
 
 class CartpoleCameraEnv(DirectRLEnv):
     """Cartpole Camera Environment."""
 
-    cfg: CartpoleRGBCameraEnvCfg | CartpoleDepthCameraEnvCfg
+    cfg: (
+        CartpoleRGBCameraEnvCfg
+        | CartpoleDepthCameraEnvCfg
+        | CartpoleAlbedoCameraEnvCfg
+        | CartpoleSimpleShadingConstantCameraEnvCfg
+        | CartpoleSimpleShadingDiffuseCameraEnvCfg
+        | CartpoleSimpleShadingFullCameraEnvCfg
+        | CartpoleCameraEnvCfg
+    )
 
     def __init__(
         self, cfg: CartpoleRGBCameraEnvCfg | CartpoleDepthCameraEnvCfg, render_mode: str | None = None, **kwargs
@@ -105,8 +58,8 @@ class CartpoleCameraEnv(DirectRLEnv):
         self._pole_dof_idx, _ = self._cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
 
-        self.joint_pos = self._cartpole.data.joint_pos
-        self.joint_vel = self._cartpole.data.joint_vel
+        self.joint_pos = wp.to_torch(self._cartpole.data.joint_pos)
+        self.joint_vel = wp.to_torch(self._cartpole.data.joint_vel)
 
         if len(self.cfg.tiled_camera.data_types) != 1:
             raise ValueError(
@@ -140,11 +93,21 @@ class CartpoleCameraEnv(DirectRLEnv):
         self.actions = self.action_scale * actions.clone()
 
     def _apply_action(self) -> None:
-        self._cartpole.set_joint_effort_target(self.actions, joint_ids=self._cart_dof_idx)
+        self._cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
-        data_type = "rgb" if "rgb" in self.cfg.tiled_camera.data_types else "depth"
+        data_type = self.cfg.tiled_camera.data_types[0]
         if "rgb" in self.cfg.tiled_camera.data_types:
+            camera_data = self._tiled_camera.data.output[data_type] / 255.0
+            # normalize the camera data for better training results
+            mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
+            camera_data -= mean_tensor
+        elif "albedo" in self.cfg.tiled_camera.data_types:
+            camera_data = self._tiled_camera.data.output[data_type][..., :3] / 255.0
+            # normalize the camera data for better training results
+            mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
+            camera_data -= mean_tensor
+        elif data_type in SIMPLE_SHADING_TYPES:
             camera_data = self._tiled_camera.data.output[data_type] / 255.0
             # normalize the camera data for better training results
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
@@ -152,10 +115,13 @@ class CartpoleCameraEnv(DirectRLEnv):
         elif "depth" in self.cfg.tiled_camera.data_types:
             camera_data = self._tiled_camera.data.output[data_type]
             camera_data[camera_data == float("inf")] = 0
+        elif "semantic_segmentation" in self.cfg.tiled_camera.data_types:
+            camera_data = self._tiled_camera.data.output[data_type]
+
         observations = {"policy": camera_data.clone()}
 
         if self.cfg.write_image_to_file:
-            save_images_to_file(observations["policy"], f"cartpole_{data_type}.png")
+            save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
 
         return observations
 
@@ -175,8 +141,8 @@ class CartpoleCameraEnv(DirectRLEnv):
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        self.joint_pos = self._cartpole.data.joint_pos
-        self.joint_vel = self._cartpole.data.joint_vel
+        self.joint_pos = wp.to_torch(self._cartpole.data.joint_pos)
+        self.joint_vel = wp.to_torch(self._cartpole.data.joint_vel)
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
@@ -188,24 +154,26 @@ class CartpoleCameraEnv(DirectRLEnv):
             env_ids = self._cartpole._ALL_INDICES
         super()._reset_idx(env_ids)
 
-        joint_pos = self._cartpole.data.default_joint_pos[env_ids]
+        joint_pos = wp.to_torch(self._cartpole.data.default_joint_pos)[env_ids]
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
             self.cfg.initial_pole_angle_range[0] * math.pi,
             self.cfg.initial_pole_angle_range[1] * math.pi,
             joint_pos[:, self._pole_dof_idx].shape,
             joint_pos.device,
         )
-        joint_vel = self._cartpole.data.default_joint_vel[env_ids]
+        joint_vel = wp.to_torch(self._cartpole.data.default_joint_vel)[env_ids]
 
-        default_root_state = self._cartpole.data.default_root_state[env_ids]
-        default_root_state[:, :3] += self.scene.env_origins[env_ids]
+        default_root_pose = wp.to_torch(self._cartpole.data.default_root_pose)[env_ids]
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
+        default_root_vel = wp.to_torch(self._cartpole.data.default_root_vel)[env_ids]
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel
 
-        self._cartpole.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
-        self._cartpole.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
-        self._cartpole.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
+        self._cartpole.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self._cartpole.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self._cartpole.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._cartpole.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
 
 @torch.jit.script

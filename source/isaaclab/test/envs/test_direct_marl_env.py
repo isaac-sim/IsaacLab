@@ -19,8 +19,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 
-import omni.usd
-
+import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
@@ -57,7 +56,7 @@ def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacin
 def test_initialization(device):
     """Test initialization of DirectMARLEnv."""
     # create a new stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
     try:
         # create environment
         env = DirectMARLEnv(cfg=get_empty_base_env_cfg(device=device))

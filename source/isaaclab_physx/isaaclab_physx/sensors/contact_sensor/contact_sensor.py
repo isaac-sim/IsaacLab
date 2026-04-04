@@ -12,17 +12,25 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
-import carb
 import omni.physics.tensors.impl.api as physx
-from isaacsim.core.simulation_manager import SimulationManager
-from pxr import PhysxSchema
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
 
+from isaaclab_physx.physics import PhysxManager as SimulationManager
+
 from .contact_sensor_data import ContactSensorData
+from .kernels import (
+    compute_first_transition_kernel,
+    reset_contact_sensor_kernel,
+    split_flat_pose_to_pos_quat,
+    unpack_contact_buffer_data,
+    update_net_forces_kernel,
+)
 
 if TYPE_CHECKING:
     from isaaclab.sensors.contact_sensor import ContactSensorCfg
@@ -76,13 +84,24 @@ class ContactSensor(BaseContactSensor):
         super().__init__(cfg)
 
         # Enable contact processing
-        carb_settings_iface = carb.settings.get_settings()
-        carb_settings_iface.set_bool("/physics/disableContactProcessing", False)
+        get_settings_manager().set_bool("/physics/disableContactProcessing", False)
 
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()
         # initialize self._body_physx_view for running in extension mode
         self._body_physx_view = None
+        # Warp env index array (set in _initialize_impl)
+        self._ALL_ENV_INDICES: wp.array | None = None
+        self._ALL_ENV_MASK: wp.array | None = None
+        self._reset_mask: wp.array | None = None
+
+        # check if max_contact_data_count_per_prim is set
+        if self.cfg.max_contact_data_count_per_prim is None:
+            self.cfg.max_contact_data_count_per_prim = 4
+
+        # check if force_threshold is set
+        if self.cfg.force_threshold is None:
+            self.cfg.force_threshold = 1.0
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -110,14 +129,14 @@ class ContactSensor(BaseContactSensor):
         return self._data
 
     @property
-    def num_bodies(self) -> int:
+    def num_sensors(self) -> int:
         """Number of bodies with contact sensors attached."""
-        return self._num_bodies
+        return self._num_sensors
 
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies with contact sensors attached."""
-        prim_paths = self.body_physx_view.prim_paths[: self.num_bodies]
+        prim_paths = self.body_physx_view.prim_paths[: self.num_sensors]
         return [path.split("/")[-1] for path in prim_paths]
 
     @property
@@ -142,31 +161,123 @@ class ContactSensor(BaseContactSensor):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+        # resolve env_ids to warp array
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timers and counters
-        super().reset(env_ids)
-        # resolve None
-        if env_ids is None:
-            env_ids = slice(None)
-        # reset accumulative data buffers
-        self._data.net_forces_w[env_ids] = 0.0
-        self._data.net_forces_w_history[env_ids] = 0.0
-        # reset force matrix
-        if len(self.cfg.filter_prim_paths_expr) != 0:
-            self._data.force_matrix_w[env_ids] = 0.0
-            self._data.force_matrix_w_history[env_ids] = 0.0
-        # reset the current air time
-        if self.cfg.track_air_time:
-            self._data.current_air_time[env_ids] = 0.0
-            self._data.last_air_time[env_ids] = 0.0
-            self._data.current_contact_time[env_ids] = 0.0
-            self._data.last_contact_time[env_ids] = 0.0
-        # reset contact positions
-        if self.cfg.track_contact_points:
-            self._data.contact_pos_w[env_ids, :] = torch.nan
-        # reset friction forces
-        if self.cfg.track_friction_forces:
-            self._data.friction_forces_w[env_ids, :] = 0.0
+        super().reset(None, env_mask)
+
+        wp.launch(
+            reset_contact_sensor_kernel,
+            dim=(self._num_envs, self._num_sensors),
+            inputs=[
+                self._history_length,
+                self._num_filter_shapes,
+                env_mask,
+                self._data._net_forces_w,
+                self._data._net_forces_w_history,
+                self._data._force_matrix_w,
+            ],
+            outputs=[
+                self._data._current_air_time,
+                self._data._last_air_time,
+                self._data._current_contact_time,
+                self._data._last_contact_time,
+                self._data._friction_forces_w,
+                self._data._contact_pos_w,
+            ],
+            device=self._device,
+        )
+
+    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
+        """Checks if bodies that have established contact within the last :attr:`dt` seconds.
+
+        This function checks if the bodies have established contact within the last :attr:`dt` seconds
+        by comparing the current contact time with the given time period. If the contact time is less
+        than the given time period, then the bodies are considered to be in contact.
+
+        .. note::
+            The function assumes that :attr:`dt` is a factor of the sensor update time-step. In other
+            words :math:`dt / dt_sensor = n`, where :math:`n` is a natural number. This is always true
+            if the sensor is updated by the physics or the environment stepping time-step and the sensor
+            is read by the environment stepping time-step.
+
+        .. caution::
+            The tensor returned by this function is only valid when called. If compute_first_air is called after
+            compute_first_contact, the tensor returned by this method will be have changed values. To avoid this,
+            either consume the results of this call immediately or clone the output of this tensor.
+
+        Args:
+            dt: The time period since the contact was established.
+            abs_tol: The absolute tolerance for the comparison.
+
+        Returns:
+            A boolean tensor indicating the bodies that have established contact within the last
+            :attr:`dt` seconds. Shape is (N, B), where N is the number of sensors and B is the
+            number of bodies in each sensor.
+
+        Raises:
+            RuntimeError: If the sensor is not configured to track contact time.
+        """
+        # check if the sensor is configured to track contact time
+        if not self.cfg.track_air_time:
+            raise RuntimeError(
+                "The contact sensor is not configured to track contact time."
+                "Please enable the 'track_air_time' in the sensor configuration."
+            )
+        wp.launch(
+            compute_first_transition_kernel,
+            dim=(self._num_envs, self._num_sensors),
+            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            outputs=[self._data._first_transition],
+            device=self._device,
+        )
+        return self._data._first_transition
+
+    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
+        """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
+
+        This function checks if the bodies have broken contact within the last :attr:`dt` seconds
+        by comparing the current air time with the given time period. If the air time is less
+        than the given time period, then the bodies are considered to not be in contact.
+
+        .. note::
+            It assumes that :attr:`dt` is a factor of the sensor update time-step. In other words,
+            :math:`dt / dt_sensor = n`, where :math:`n` is a natural number. This is always true if
+            the sensor is updated by the physics or the environment stepping time-step and the sensor
+            is read by the environment stepping time-step.
+
+        .. caution::
+            The tensor returned by this function is only valid when called. If compute_first_contact is called after
+            compute_first_air, the tensor returned by this method will be have changed values. To avoid this,
+            either consume the results of this call immediately or clone the output of this tensor.
+
+        Args:
+            dt: The time period since the contract is broken.
+            abs_tol: The absolute tolerance for the comparison.
+
+        Returns:
+            A boolean tensor indicating the bodies that have broken contact within the last :attr:`dt` seconds.
+            Shape is (N, B), where N is the number of sensors and B is the number of bodies in each sensor.
+
+        Raises:
+            RuntimeError: If the sensor is not configured to track contact time.
+        """
+        # check if the sensor is configured to track contact time
+        if not self.cfg.track_air_time:
+            raise RuntimeError(
+                "The contact sensor is not configured to track air time."
+                "Please enable the 'track_air_time' in the sensor configuration."
+            )
+
+        wp.launch(
+            compute_first_transition_kernel,
+            dim=(self._num_envs, self._num_sensors),
+            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            outputs=[self._data._first_transition],
+            device=self._device,
+        )
+        return self._data._first_transition
 
     """
     Implementation.
@@ -182,7 +293,7 @@ class ContactSensor(BaseContactSensor):
         body_names = list()
         for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
             # check if prim has contact reporter API
-            if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
+            if "PhysxContactReportAPI" in prim.GetAppliedSchemas():
                 prim_path = prim.GetPath().pathString
                 body_names.append(prim_path.rsplit("/", 1)[-1])
         # check that there is at least one body with contact reporter API
@@ -207,9 +318,9 @@ class ContactSensor(BaseContactSensor):
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
         # resolve the true count of bodies
-        self._num_bodies = self.body_physx_view.count // self._num_envs
+        self._num_sensors = self.body_physx_view.count // self._num_envs
         # check that contact reporter succeeded
-        if self._num_bodies != len(body_names):
+        if self._num_sensors != len(body_names):
             raise RuntimeError(
                 "Failed to initialize contact reporter for specified bodies."
                 f"\n\tInput prim path    : {self.cfg.prim_path}"
@@ -218,7 +329,7 @@ class ContactSensor(BaseContactSensor):
 
         # check if filter paths are valid
         if self.cfg.track_contact_points or self.cfg.track_friction_forces:
-            if len(self.cfg.filter_prim_paths_expr) == 0:
+            if not self.cfg.filter_prim_paths_expr:
                 raise ValueError(
                     "The 'filter_prim_paths_expr' is empty. Please specify a valid filter pattern to track"
                     f" {'contact points' if self.cfg.track_contact_points else 'friction forces'}."
@@ -230,12 +341,19 @@ class ContactSensor(BaseContactSensor):
                     f" {'contact points' if self.cfg.track_contact_points else 'friction forces'}."
                 )
 
+        self._create_buffers()
+
+    def _create_buffers(self) -> None:
+        # Store filter shapes count
+        self._num_filter_shapes = self.contact_view.filter_count if self.cfg.filter_prim_paths_expr else 0
+        # Store effective history length (always >= 1 for consistent buffer shapes)
+        self._history_length = max(self.cfg.history_length, 1)
+
         # prepare data buffers
-        num_filter_shapes = self.contact_view.filter_count if len(self.cfg.filter_prim_paths_expr) != 0 else 0
         self._data.create_buffers(
             num_envs=self._num_envs,
-            num_bodies=self._num_bodies,
-            num_filter_shapes=num_filter_shapes,
+            num_sensors=self._num_sensors,
+            num_filter_shapes=self._num_filter_shapes,
             history_length=self.cfg.history_length,
             track_pose=self.cfg.track_pose,
             track_air_time=self.cfg.track_air_time,
@@ -244,138 +362,102 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-    def _update_buffers_impl(self, env_ids: Sequence[int]):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
-        # default to all sensors
-        if len(env_ids) == self._num_envs:
-            env_ids = slice(None)
+        # Convert env_mask to warp array
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
 
-        # obtain the contact forces
-        # TODO: We are handling the indexing ourself because of the shape; (N, B) vs expected (N * B).
-        #   This isn't the most efficient way to do this, but it's the easiest to implement.
-        net_forces_w = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt)
-        self._data.net_forces_w[env_ids, :, :] = net_forces_w.view(-1, self._num_bodies, 3)[env_ids]
-        # update contact force history
-        if self.cfg.history_length > 0:
-            self._data.net_forces_w_history[env_ids] = self._data.net_forces_w_history[env_ids].roll(1, dims=1)
-            self._data.net_forces_w_history[env_ids, 0] = self._data.net_forces_w[env_ids]
+        # PhysX returns (N*B, 3) float32 -> (N*B,) vec3f
+        net_forces_flat = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt).view(wp.vec3f)
+        # PhysX returns (N*B, M, 3) float32 -> (N*B, M) vec3f
+        if self.cfg.filter_prim_paths_expr:
+            force_matrix_flat = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt).view(wp.vec3f)
+        else:
+            force_matrix_flat = None
+        #
+        wp.launch(
+            update_net_forces_kernel,
+            dim=(self._num_envs, self._num_sensors),
+            inputs=[
+                net_forces_flat,
+                force_matrix_flat,
+                env_mask,
+                self._num_sensors,
+                self._num_filter_shapes,
+                self._history_length,
+                self.cfg.force_threshold,
+                self._timestamp,
+                self._timestamp_last_update,
+            ],
+            outputs=[
+                self._data._net_forces_w,
+                self._data._net_forces_w_history,
+                self._data._force_matrix_w,
+                self._data._force_matrix_w_history,
+                self._data._current_air_time,
+                self._data._current_contact_time,
+                self._data._last_air_time,
+                self._data._last_contact_time,
+            ],
+            device=self._device,
+        )
 
-        # obtain the contact force matrix
-        if len(self.cfg.filter_prim_paths_expr) != 0:
-            # shape of the filtering matrix: (num_envs, num_bodies, num_filter_shapes, 3)
-            num_filters = self.contact_view.filter_count
-            # acquire and shape the force matrix
-            force_matrix_w = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt)
-            force_matrix_w = force_matrix_w.view(-1, self._num_bodies, num_filters, 3)
-            self._data.force_matrix_w[env_ids] = force_matrix_w[env_ids]
-            if self.cfg.history_length > 0:
-                self._data.force_matrix_w_history[env_ids] = self._data.force_matrix_w_history[env_ids].roll(1, dims=1)
-                self._data.force_matrix_w_history[env_ids, 0] = self._data.force_matrix_w[env_ids]
-
-        # obtain the pose of the sensor origin
+        # -- Pose --
         if self.cfg.track_pose:
-            pose = self.body_physx_view.get_transforms().view(-1, self._num_bodies, 7)[env_ids]
-            self._data.pos_w[env_ids], self._data.quat_w[env_ids] = pose.split([3, 4], dim=-1)
+            # PhysX returns (N*B, 7) float32 -> (N*B,) transformf
+            poses_flat = self.body_physx_view.get_transforms().view(wp.transformf)
+            wp.launch(
+                split_flat_pose_to_pos_quat,
+                dim=(self._num_envs, self._num_sensors),
+                inputs=[poses_flat, env_mask, self._num_sensors],
+                outputs=[self._data._pos_w, self._data._quat_w],
+                device=self.device,
+            )
 
-        # obtain contact points
+        # -- Contact points --
         if self.cfg.track_contact_points:
             _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = self.contact_view.get_contact_data(
                 dt=self._sim_physics_dt
             )
-            self._data.contact_pos_w[env_ids] = self._unpack_contact_buffer_data(
-                buffer_contact_points, buffer_count, buffer_start_indices
-            )[env_ids]
+            # buffer_contact_points: (total_contacts, 3) float32 -> (total_contacts,) vec3f
+            pts_vec3 = buffer_contact_points.view(wp.vec3f)
+            wp.launch(
+                unpack_contact_buffer_data,
+                dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
+                inputs=[
+                    pts_vec3,
+                    buffer_count,
+                    buffer_start_indices,
+                    env_mask,
+                    self._num_sensors,
+                    True,
+                    float("nan"),
+                ],
+                outputs=[self._data._contact_pos_w],
+                device=self.device,
+            )
 
-        # obtain friction forces
+        # -- Friction forces --
         if self.cfg.track_friction_forces:
             friction_forces, _, buffer_count, buffer_start_indices = self.contact_view.get_friction_data(
                 dt=self._sim_physics_dt
             )
-            self._data.friction_forces_w[env_ids] = self._unpack_contact_buffer_data(
-                friction_forces, buffer_count, buffer_start_indices, avg=False, default=0.0
-            )[env_ids]
-
-        # obtain the air time
-        if self.cfg.track_air_time:
-            # -- time elapsed since last update
-            # since this function is called every frame, we can use the difference to get the elapsed time
-            elapsed_time = self._timestamp[env_ids] - self._timestamp_last_update[env_ids]
-            # -- check contact state of bodies
-            is_contact = torch.norm(self._data.net_forces_w[env_ids, :, :], dim=-1) > self.cfg.force_threshold
-            is_first_contact = (self._data.current_air_time[env_ids] > 0) * is_contact
-            is_first_detached = (self._data.current_contact_time[env_ids] > 0) * ~is_contact
-            # -- update the last contact time if body has just become in contact
-            self._data.last_air_time[env_ids] = torch.where(
-                is_first_contact,
-                self._data.current_air_time[env_ids] + elapsed_time.unsqueeze(-1),
-                self._data.last_air_time[env_ids],
+            friction_vec3 = friction_forces.view(wp.vec3f)
+            wp.launch(
+                unpack_contact_buffer_data,
+                dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
+                inputs=[
+                    friction_vec3,
+                    buffer_count,
+                    buffer_start_indices,
+                    env_mask,
+                    self._num_sensors,
+                    False,
+                    0.0,
+                ],
+                outputs=[self._data._friction_forces_w],
+                device=self.device,
             )
-            # -- increment time for bodies that are not in contact
-            self._data.current_air_time[env_ids] = torch.where(
-                ~is_contact, self._data.current_air_time[env_ids] + elapsed_time.unsqueeze(-1), 0.0
-            )
-            # -- update the last contact time if body has just detached
-            self._data.last_contact_time[env_ids] = torch.where(
-                is_first_detached,
-                self._data.current_contact_time[env_ids] + elapsed_time.unsqueeze(-1),
-                self._data.last_contact_time[env_ids],
-            )
-            # -- increment time for bodies that are in contact
-            self._data.current_contact_time[env_ids] = torch.where(
-                is_contact, self._data.current_contact_time[env_ids] + elapsed_time.unsqueeze(-1), 0.0
-            )
-
-    def _unpack_contact_buffer_data(
-        self,
-        contact_data: torch.Tensor,
-        buffer_count: torch.Tensor,
-        buffer_start_indices: torch.Tensor,
-        avg: bool = True,
-        default: float = float("nan"),
-    ) -> torch.Tensor:
-        """
-        Unpacks and aggregates contact data for each (env, body, filter) group.
-
-        This function vectorizes the following nested loop:
-
-        for i in range(self._num_bodies * self._num_envs):
-            for j in range(self.contact_view.filter_count):
-                start_index_ij = buffer_start_indices[i, j]
-                count_ij = buffer_count[i, j]
-                self._contact_position_aggregate_buffer[i, j, :] = torch.mean(
-                    contact_data[start_index_ij : (start_index_ij + count_ij), :], dim=0
-                )
-
-        For more details, see the `RigidContactView.get_contact_data() documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/107.3/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.RigidContactView.get_contact_data>`_.
-
-        Args:
-            contact_data: Flat tensor of contact data, shape (N_envs * N_bodies, 3).
-            buffer_count: Number of contact points per (env, body, filter), shape (N_envs * N_bodies, N_filters).
-            buffer_start_indices: Start indices for each (env, body, filter), shape (N_envs * N_bodies, N_filters).
-            avg: If True, average the contact data for each group; if False, sum the data. Defaults to True.
-            default: Default value to use for groups with zero contacts. Defaults to NaN.
-
-        Returns:
-            Aggregated contact data, shape (N_envs, N_bodies, N_filters, 3).
-        """
-        counts, starts = buffer_count.view(-1), buffer_start_indices.view(-1)
-        n_rows, total = counts.numel(), int(counts.sum())
-        agg = torch.full((n_rows, 3), default, device=self._device, dtype=contact_data.dtype)
-        if total > 0:
-            row_ids = torch.repeat_interleave(torch.arange(n_rows, device=self._device), counts)
-
-            block_starts = counts.cumsum(0) - counts
-            deltas = torch.arange(row_ids.numel(), device=counts.device) - block_starts.repeat_interleave(counts)
-            flat_idx = starts[row_ids] + deltas
-
-            pts = contact_data.index_select(0, flat_idx)
-            agg = agg.zero_().index_add_(0, row_ids, pts)
-            agg = agg / counts.clamp_min(1).unsqueeze(-1) if avg else agg
-            agg[counts == 0] = default
-
-        return agg.view(self._num_envs * self.num_bodies, -1, 3).view(
-            self._num_envs, self._num_bodies, self.contact_view.filter_count, 3
-        )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
@@ -395,18 +477,20 @@ class ContactSensor(BaseContactSensor):
         # note: this invalidity happens because of isaac sim view callbacks
         if self.body_physx_view is None:
             return
-        # marker indices
-        # 0: contact, 1: no contact
-        net_contact_force_w = torch.norm(self._data.net_forces_w, dim=-1)
+        # Convert warp data to torch at the boundary for visualization
+        net_forces_torch = wp.to_torch(self._data._net_forces_w)  # (N, B, 3)
+        net_contact_force_w = torch.linalg.norm(net_forces_torch, dim=-1)
+        # marker indices: 0 = contact, 1 = no contact
         marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
         # check if prim is visualized
         if self.cfg.track_pose:
-            frame_origins: torch.Tensor = self._data.pos_w
+            frame_origins = wp.to_torch(self._data._pos_w)  # (N, B, 3)
         else:
-            pose = self.body_physx_view.get_transforms()
-            frame_origins = pose.view(-1, self._num_bodies, 7)[:, :, :3]
+            pose = self.body_physx_view.get_transforms()  # (N*B, 7) float32
+            pose_torch = wp.to_torch(pose)
+            frame_origins = pose_torch.view(-1, self._num_sensors, 7)[:, :, :3]
         # visualize
-        self.contact_visualizer.visualize(frame_origins.view(-1, 3), marker_indices=marker_indices.view(-1))
+        self.contact_visualizer.visualize(frame_origins.reshape(-1, 3), marker_indices=marker_indices.reshape(-1))
 
     """
     Internal simulation callbacks.

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
@@ -10,8 +12,6 @@ from typing import Literal
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg
 from isaaclab.utils import configclass
-
-from . import shapes
 
 
 @configclass
@@ -52,7 +52,7 @@ class SphereCfg(ShapeCfg):
     See :meth:`spawn_sphere` for more information.
     """
 
-    func: Callable = shapes.spawn_sphere
+    func: Callable | str = "{DIR}.shapes:spawn_sphere"
 
     radius: float = MISSING
     """Radius of the sphere (in m)."""
@@ -65,7 +65,7 @@ class CuboidCfg(ShapeCfg):
     See :meth:`spawn_cuboid` for more information.
     """
 
-    func: Callable = shapes.spawn_cuboid
+    func: Callable | str = "{DIR}.shapes:spawn_cuboid"
 
     size: tuple[float, float, float] = MISSING
     """Size of the cuboid."""
@@ -78,7 +78,7 @@ class CylinderCfg(ShapeCfg):
     See :meth:`spawn_cylinder` for more information.
     """
 
-    func: Callable = shapes.spawn_cylinder
+    func: Callable | str = "{DIR}.shapes:spawn_cylinder"
 
     radius: float = MISSING
     """Radius of the cylinder (in m)."""
@@ -95,7 +95,7 @@ class CapsuleCfg(ShapeCfg):
     See :meth:`spawn_capsule` for more information.
     """
 
-    func: Callable = shapes.spawn_capsule
+    func: Callable | str = "{DIR}.shapes:spawn_capsule"
 
     radius: float = MISSING
     """Radius of the capsule (in m)."""
@@ -112,7 +112,7 @@ class ConeCfg(ShapeCfg):
     See :meth:`spawn_cone` for more information.
     """
 
-    func: Callable = shapes.spawn_cone
+    func: Callable | str = "{DIR}.shapes:spawn_cone"
 
     radius: float = MISSING
     """Radius of the cone (in m)."""

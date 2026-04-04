@@ -5,15 +5,11 @@
 
 """Script to replay demonstrations with Isaac Lab environments."""
 
-"""Launch Isaac Sim Simulator first."""
-
-
 import argparse
 import os
 
 from isaaclab.app import AppLauncher
 
-# Launch Isaac Lab
 parser = argparse.ArgumentParser(description="Locomanipulation SDG")
 parser.add_argument("--task", type=str, help="The Isaac Lab locomanipulation SDG task to load for data generation.")
 parser.add_argument("--dataset", type=str, help="The static manipulation dataset recorded via teleoperation.")
@@ -30,14 +26,17 @@ parser.add_argument(
     "--navigate_step",
     type=int,
     help=(
-        "The step index in the input recording where the robot is ready to navigate.  Aka, where it has finished"
-        " lifting the object"
+        "The step index in the input recording where the robot is ready to navigate. Aka, where it has finished"
+        " lifting the object."
     ),
 )
-parser.add_argument("--demo", type=str, default=None, help="The demo in the input dataset to use.")
+parser.add_argument("--demo", type=str, default=None, help="The demo in the input dataset to use, e.g. 'demo_0'")
 parser.add_argument("--num_runs", type=int, default=1, help="The number of trajectories to generate.")
 parser.add_argument(
-    "--draw_visualization", type=bool, default=False, help="Draw the occupancy map and path planning visualization."
+    "--draw_visualization",
+    action="store_true",
+    default=False,
+    help="Draw the occupancy map and path planning visualization.",
 )
 parser.add_argument(
     "--angular_gain",
@@ -88,44 +87,78 @@ parser.add_argument(
 )
 parser.add_argument(
     "--randomize_placement",
-    type=bool,
-    default=True,
+    action="store_true",
+    default=False,
     help="Whether or not to randomize the placement of fixtures in the scene upon environment initialization.",
 )
 parser.add_argument(
-    "--enable_pinocchio",
+    "--background_usd_path",
+    type=str,
+    default=None,
+    help="Path to the USD file for the background asset",
+)
+parser.add_argument(
+    "--background_occupancy_yaml_file",
+    type=str,
+    default=None,
+    help="Path to the occupancy map YAML file for the background asset",
+)
+parser.add_argument(
+    "--high_res_video",
     action="store_true",
     default=False,
-    help="Enable Pinocchio.",
+    help="Whether to use high resolution video for the robot's POV camera.",
 )
+parser.add_argument(
+    "--seed",
+    type=int,
+    default=None,
+    help="Random seed for reproducibility.",
+)
+parser.add_argument(
+    "--sensor_camera_view",
+    action="store_true",
+    default=False,
+    help="Set the Sim GUI viewport to the robot_pov_cam sensor view at the start of each episode.",
+)
+
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
-
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version
-    # installed by IsaacLab and not the one installed by Isaac Sim.
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
-    import pinocchio  # noqa: F401
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 import enum
 import random
+from dataclasses import dataclass
 
 import gymnasium as gym
+import numpy as np
 import torch
+import warp as wp
 
 import omni.kit
+import omni.kit.viewport.utility
+import omni.usd
 
+from isaaclab.managers import DatasetExportMode
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from isaaclab.utils.math import convert_quat
+from isaaclab.utils.seed import configure_seed
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
-from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGOutputData
+from isaaclab_mimic.locomanipulation_sdg.data_classes import (
+    LocomanipulationSDGOutputData,
+)
+
+if args_cli.seed is not None:
+    configure_seed(args_cli.seed)
+
 from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
 from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
     OccupancyMap,
+    OccupancyMapDataValue,
     merge_occupancy_maps,
     occupancy_map_add_to_stage,
 )
@@ -171,7 +204,7 @@ class LocomanipulationSDGControlConfig:
     linear_max: float = 1.0
     """Maximum allowed linear velocity (m/s)"""
 
-    distance_threshold: float = 0.1
+    distance_threshold: float = 0.2
     """Distance threshold for state transitions (m)"""
 
     following_offset: float = 0.6
@@ -180,12 +213,28 @@ class LocomanipulationSDGControlConfig:
     angle_threshold: float = 0.2
     """Angular threshold for orientation control (rad)"""
 
-    approach_distance: float = 1.0
+    approach_distance: float = 0.5
     """Buffer distance from final goal (m)"""
 
 
+@dataclass
+class NavigationScene:
+    """Navigation scene data class."""
+
+    """The occupancy map of the navigation scene."""
+    occupancy_map: OccupancyMap
+    """The base path helper of the navigation scene."""
+    base_path_helper: ParameterizedPath
+    """The base goal of the navigation scene."""
+    base_goal: RelativePose
+    """The approach goal of the navigation scene."""
+    base_goal_approach: RelativePose
+
+
 def compute_navigation_velocity(
-    current_pose: torch.Tensor, target_xy: torch.Tensor, config: LocomanipulationSDGControlConfig
+    current_pose: torch.Tensor,
+    target_xy: torch.Tensor,
+    config: LocomanipulationSDGControlConfig,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Compute linear and angular velocities for navigation control.
 
@@ -205,8 +254,8 @@ def compute_navigation_velocity(
     delta_distance = torch.sqrt(torch.sum(delta_xy**2))
 
     target_yaw = torch.arctan2(delta_xy[1], delta_xy[0])
-    delta_yaw = target_yaw - current_yaw
     # Normalize angle to [-π, π]
+    delta_yaw = target_yaw - current_yaw
     delta_yaw = (delta_yaw + torch.pi) % (2 * torch.pi) - torch.pi
 
     # Compute control commands
@@ -224,7 +273,7 @@ def load_and_transform_recording_data(
     recording_step: int,
     reference_pose: torch.Tensor,
     target_pose: torch.Tensor,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor | None, torch.Tensor | None]:
     """Load recording data and transform hand targets to current reference frame.
 
     Args:
@@ -247,12 +296,130 @@ def load_and_transform_recording_data(
     return left_hand_pose, right_hand_pose
 
 
+def sync_simulation_state(env: LocomanipulationSDGEnv):
+    """Push USD pose updates into physics, advance the sim, and sync back
+
+    Args:
+        env: The locomanipulation SDG environment
+    """
+    env.scene.write_data_to_sim()
+    env.sim.step(render=False)
+    env.scene.update(dt=env.physics_dt)
+
+
+def _set_sensor_camera_view():
+    """Set the Sim GUI viewport to display the robot_pov_cam sensor view."""
+    viewport = omni.kit.viewport.utility.get_active_viewport()
+    if viewport is not None:
+        cam_prim_path = "/World/envs/env_0/Robot/torso_link/d435_link/camera"
+        viewport.set_active_camera(cam_prim_path)
+
+
+def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data: EpisodeData) -> torch.Tensor:
+    """Project the recorded robot pose and joint state into the current environment.
+
+    Args:
+        env: The locomanipulation SDG environment
+        input_episode_data: Input episode data
+
+    Returns:
+        The new robot pose
+    """
+    initial_state = env.load_input_data(input_episode_data, 0)
+    recording_initial_state = input_episode_data.get_initial_state()
+
+    object = env.scene["object"]
+    current_object_pose = torch.cat(
+        [
+            torch.as_tensor(object.data.root_pos_w[0:1], device=env.device, dtype=torch.float32),
+            torch.as_tensor(object.data.root_quat_w[0:1], device=env.device, dtype=torch.float32),
+        ],
+        dim=-1,
+    )  # (1, 7)
+
+    new_robot_pose = transform_mul(
+        current_object_pose,
+        transform_mul(
+            transform_inv(initial_state.object_pose.to(env.device)),
+            initial_state.base_pose.to(env.device),
+        ),
+    )
+
+    env.scene["robot"].write_root_pose_to_sim_index(root_pose=new_robot_pose, env_ids=[0])
+    env.scene["robot"].write_root_velocity_to_sim_index(
+        root_velocity=torch.zeros((1, 6), device=env.device), env_ids=[0]
+    )
+    # Update default root pose and velocity for correct state on reset
+    default_pose = wp.to_torch(env.scene["robot"].data.default_root_pose).clone()
+    default_pose[0] = new_robot_pose[0]
+    env.scene["robot"].data.default_root_pose.assign(
+        wp.from_torch(default_pose.to(env.device).contiguous()).view(wp.transformf)
+    )
+    default_vel = wp.to_torch(env.scene["robot"].data.default_root_vel).clone()
+    default_vel[0] = torch.zeros(6, device=env.device)
+    env.scene["robot"].data.default_root_vel.assign(wp.from_torch(default_vel.to(env.device).contiguous()))
+
+    robot_state = recording_initial_state["articulation"]["robot"]
+    joint_position = robot_state["joint_position"][0].to(env.device)
+    joint_velocity = robot_state["joint_velocity"][0].to(env.device)
+
+    # Update default joint positions and velocities for correct state on reset
+    default_joint_pos = wp.to_torch(env.scene["robot"].data.default_joint_pos).clone()
+    default_joint_pos[0] = joint_position
+    env.scene["robot"].data.default_joint_pos.assign(wp.from_torch(default_joint_pos.to(env.device).contiguous()))
+    default_joint_vel = wp.to_torch(env.scene["robot"].data.default_joint_vel).clone()
+    default_joint_vel[0] = joint_velocity
+    env.scene["robot"].data.default_joint_vel.assign(wp.from_torch(default_joint_vel.to(env.device).contiguous()))
+    env.scene["robot"].write_joint_position_to_sim_index(position=joint_position[None, :], env_ids=[0])
+    env.scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_velocity[None, :], env_ids=[0])
+
+    return new_robot_pose
+
+
+def project_object_state_into_env(env: LocomanipulationSDGEnv, input_episode_data: EpisodeData) -> torch.Tensor:
+    """Project the recorded object pose into the current environment.
+
+    Args:
+        env: The locomanipulation SDG environment
+        input_episode_data: Input episode data
+
+    Returns:
+        The new object pose
+    """
+    initial_state = env.load_input_data(input_episode_data, 0)
+
+    new_object_pose = transform_mul(
+        env.get_start_fixture().get_pose(),
+        transform_mul(
+            transform_inv(initial_state.fixture_pose.to(env.device)),
+            initial_state.object_pose.to(env.device),
+        ),
+    )
+
+    env.scene["object"].write_root_pose_to_sim_index(root_pose=new_object_pose, env_ids=[0])
+    env.scene["object"].write_root_velocity_to_sim_index(
+        root_velocity=torch.zeros((1, 6), device=env.device), env_ids=[0]
+    )
+    # Update default root pose and velocity for correct state on reset
+    default_pose = wp.to_torch(env.scene["object"].data.default_root_pose).clone()
+    default_pose[0] = new_object_pose[0]
+    env.scene["object"].data.default_root_pose.assign(
+        wp.from_torch(default_pose.to(env.device).contiguous()).view(wp.transformf)
+    )
+    default_vel = wp.to_torch(env.scene["object"].data.default_root_vel).clone()
+    default_vel[0] = torch.zeros(6, device=env.device)
+    env.scene["object"].data.default_root_vel.assign(wp.from_torch(default_vel.to(env.device).contiguous()))
+
+    return new_object_pose
+
+
 def setup_navigation_scene(
     env: LocomanipulationSDGEnv,
     input_episode_data: EpisodeData,
     approach_distance: float,
     randomize_placement: bool = True,
-) -> tuple[OccupancyMap, ParameterizedPath, RelativePose, RelativePose]:
+    draw_visualization: bool = False,
+) -> NavigationScene | None:
     """Set up the navigation scene with occupancy map and path planning.
 
     Args:
@@ -260,42 +427,101 @@ def setup_navigation_scene(
         input_episode_data: Input episode data
         approach_distance: Buffer distance from final goal
         randomize_placement: Whether to randomize fixture placement
+        draw_visualization: Whether to add occupancy map and path to the USD stage
 
     Returns:
-        Tuple of (occupancy_map, path_helper, base_goal, base_goal_approach)
+        NavigationScene or None if the navigation scene setup failed.
     """
-    # Create base occupancy map
-    occupancy_map = merge_occupancy_maps(
-        [
-            OccupancyMap.make_empty(start=(-7, -7), end=(7, 7), resolution=0.05),
-            env.get_start_fixture().get_occupancy_map(),
-        ]
-    )
 
-    # Randomize fixture placement if enabled
-    if randomize_placement:
+    background_fixture = env.get_background_fixture()
+    if background_fixture is not None:
+        occupancy_map = background_fixture.get_occupancy_map()
+        fixtures = [env.get_start_fixture(), env.get_end_fixture()] + env.get_obstacle_fixtures()
+        if not randomize_placement:
+            raise ValueError("randomize_placement needs to be True when background_usd_path is provided")
+    else:
+        occupancy_map = merge_occupancy_maps(
+            [
+                OccupancyMap.make_empty(start=(-7, -7), end=(7, 7), resolution=0.05),
+                env.get_start_fixture().get_occupancy_map(),
+            ]
+        )
+
         fixtures = [env.get_end_fixture()] + env.get_obstacle_fixtures()
-        for fixture in fixtures:
-            place_randomly(fixture, occupancy_map.buffered_meters(1.0))
-            occupancy_map = merge_occupancy_maps([occupancy_map, fixture.get_occupancy_map()])
 
-    # Compute goal poses from initial state
+    for fixture in fixtures:
+        if randomize_placement:
+            if not place_randomly(fixture, occupancy_map.buffered_meters(0.7), num_iter=5000):
+                print(f"Failed to randomize fixture placement for {fixture.entity_name}", flush=True)
+                return None
+
+            sync_simulation_state(env)
+        occupancy_map = merge_occupancy_maps([occupancy_map, fixture.get_occupancy_map()])
+
     initial_state = env.load_input_data(input_episode_data, 0)
+
     base_goal = RelativePose(
-        relative_pose=transform_mul(transform_inv(initial_state.fixture_pose), initial_state.base_pose),
+        relative_pose=transform_mul(
+            transform_inv(initial_state.fixture_pose.to(env.device)),
+            initial_state.base_pose.to(env.device),
+        ),
         parent=env.get_end_fixture(),
     )
     base_goal_approach = RelativePose(
-        relative_pose=torch.tensor([-approach_distance, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]), parent=base_goal
+        relative_pose=torch.tensor([-approach_distance, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], device=env.device),
+        parent=base_goal,
     )
 
-    # Plan navigation path
-    base_path = plan_path(
-        start=env.get_base(), end=base_goal_approach, occupancy_map=occupancy_map.buffered_meters(0.15)
-    )
+    sync_simulation_state(env)
+    project_object_state_into_env(env, input_episode_data)
+    sync_simulation_state(env)
+    project_robot_state_into_env(env, input_episode_data)
+    # Flush physics writes so scene data buffers reflect the projected poses before path planning.
+    # Without this, env.get_base() would return the stale pre-projection position.
+    sync_simulation_state(env)
+    env.sim.render()
+    env.obs_buf = env.observation_manager.compute(update_history=True)
+
+    nav_map = occupancy_map.buffered_meters(0.15)
+    nav_fs = nav_map.freespace_mask()
+    start_pos = env.get_base().get_pose()[0, :2].detach().cpu().numpy()
+    start_px = nav_map.world_to_pixel_numpy(start_pos[None])[0].astype(int)
+    sx, sy = int(start_px[0]), int(start_px[1])
+
+    # Clear the buffer zone around the robot's start pixel if it falls inside it.
+    # The robot stands adjacent to the start table so its position sits within the 0.15m buffer.
+    if 0 <= sy < nav_fs.shape[0] and 0 <= sx < nav_fs.shape[1] and not nav_fs[sy, sx]:
+        clear_r = int(0.15 / nav_map.resolution)
+        yy, xx = np.ogrid[: nav_map.data.shape[0], : nav_map.data.shape[1]]
+        nav_map.data[(xx - sx) ** 2 + (yy - sy) ** 2 <= clear_r**2] = OccupancyMapDataValue.FREESPACE
+
+    base_path = plan_path(start=env.get_base(), end=base_goal_approach, occupancy_map=nav_map)
+
+    if base_path is None:
+        return None
+
     base_path_helper = ParameterizedPath(base_path)
+    if len(base_path_helper.points) <= 2:
+        print(f"Base path does not have enough points: {len(base_path_helper.points)} points", flush=True)
+        return None
 
-    return occupancy_map, base_path_helper, base_goal, base_goal_approach
+    sync_simulation_state(env)
+
+    if draw_visualization:
+        occupancy_map_add_to_stage(
+            occupancy_map,
+            stage=omni.usd.get_context().get_stage(),
+            path="/OccupancyMap",
+            z_offset=0.01,
+            draw_path=base_path_helper.points,
+        )
+
+    return NavigationScene(
+        occupancy_map=occupancy_map,
+        base_path_helper=base_path_helper,
+        base_goal=base_goal,
+        base_goal_approach=base_goal_approach,
+    )
 
 
 def handle_grasp_state(
@@ -322,7 +548,7 @@ def handle_grasp_state(
     # Set control targets - robot stays stationary during grasping
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.GRASP_OBJECT)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
+    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0], device=env.device)
 
     # Transform hand poses relative to object
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -370,7 +596,7 @@ def handle_lift_state(
     # Set control targets - robot stays stationary during lifting
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.LIFT_OBJECT)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0])
+    output_data.base_velocity_target = torch.tensor([0.0, 0.0, 0.0], device=env.device)
 
     # Transform hand poses relative to base
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -429,7 +655,7 @@ def handle_navigate_state(
     # Set control targets
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.NAVIGATE)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
+    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity], device=env.device)
 
     # Transform hand poses relative to base
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -483,7 +709,7 @@ def handle_approach_state(
     # Set control targets
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.APPROACH)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
+    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity], device=env.device)
 
     # Transform hand poses relative to base
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -544,7 +770,7 @@ def handle_drop_off_state(
     # Set control targets
     output_data.data_generation_state = int(LocomanipulationSDGDataGenerationState.DROP_OFF_OBJECT)
     output_data.recording_step = recording_step
-    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity])
+    output_data.base_velocity_target = torch.tensor([linear_velocity, 0.0, angular_velocity], device=env.device)
 
     # Transform hand poses relative to end fixture
     output_data.left_hand_pose_target = transform_relative_pose(
@@ -572,7 +798,7 @@ def populate_output_data(
     base_goal: RelativePose,
     base_goal_approach: RelativePose,
     base_path: torch.Tensor,
-) -> None:
+):
     """Populate remaining output data fields.
 
     Args:
@@ -609,12 +835,13 @@ def replay(
     angular_gain: float = 2.0,
     linear_gain: float = 1.0,
     linear_max: float = 1.0,
-    distance_threshold: float = 0.1,
+    distance_threshold: float = 0.2,
     following_offset: float = 0.6,
     angle_threshold: float = 0.2,
-    approach_distance: float = 1.0,
+    approach_distance: float = 0.5,
     randomize_placement: bool = True,
-) -> None:
+    sensor_camera_view: bool = False,
+) -> bool:
     """Replay a locomanipulation SDG episode with state machine control.
 
     This function implements a state machine for locomanipulation SDG, where the robot:
@@ -638,10 +865,20 @@ def replay(
         angle_threshold: Angular threshold for orientation control (rad)
         approach_distance: Buffer distance from final goal (m)
         randomize_placement: Whether to randomize obstacle placement
+        sensor_camera_view: Whether to set the Sim GUI viewport to the robot_pov_cam sensor view
+
+    Returns:
+        True if the episode ended with success termination, False otherwise.
     """
 
+    # Reset recorder manager to clear any leftover episode data from previous runs
+    # This prevents duplicate exports when reset_to calls record_pre_reset
+    env.recorder_manager.reset(env_ids=[0])
+
     # Initialize environment to starting state
-    env.reset_to(state=input_episode_data.get_initial_state(), env_ids=torch.tensor([0]), is_relative=True)
+    env.reset_to(
+        state=input_episode_data.get_initial_state(), env_ids=torch.tensor([0], device=env.device), is_relative=True
+    )
 
     # Create navigation control configuration
     config = LocomanipulationSDGControlConfig(
@@ -654,29 +891,27 @@ def replay(
         approach_distance=approach_distance,
     )
 
-    # Set up navigation scene and path planning
-    occupancy_map, base_path_helper, base_goal, base_goal_approach = setup_navigation_scene(
-        env, input_episode_data, approach_distance, randomize_placement
+    nav_scene = setup_navigation_scene(
+        env, input_episode_data, approach_distance, randomize_placement, draw_visualization
     )
+    if nav_scene is None:
+        print("Failed to setup navigation scene", flush=True)
+        return False
 
-    # Visualize occupancy map and path if requested
-    if draw_visualization:
-        occupancy_map_add_to_stage(
-            occupancy_map,
-            stage=omni.usd.get_context().get_stage(),
-            path="/OccupancyMap",
-            z_offset=0.01,
-            draw_path=base_path_helper.points,
-        )
+    if sensor_camera_view:
+        _set_sensor_camera_view()
 
     # Initialize state machine
     output_data = LocomanipulationSDGOutputData()
     current_state = LocomanipulationSDGDataGenerationState.GRASP_OBJECT
+    previous_state = None
     recording_step = 0
 
     # Main simulation loop with state machine
     while simulation_app.is_running() and not simulation_app.is_exiting():
-        print(f"Current state: {current_state.name}, Recording step: {recording_step}")
+        if current_state != previous_state:
+            print(f"State changed: {current_state.name}, Recording step: {recording_step}", flush=True)
+            previous_state = current_state
 
         # Execute state-specific logic using helper functions
         if current_state == LocomanipulationSDGDataGenerationState.GRASP_OBJECT:
@@ -691,24 +926,32 @@ def replay(
 
         elif current_state == LocomanipulationSDGDataGenerationState.NAVIGATE:
             current_state = handle_navigate_state(
-                env, input_episode_data, recording_step, base_path_helper, base_goal_approach, config, output_data
+                env,
+                input_episode_data,
+                recording_step,
+                nav_scene.base_path_helper,
+                nav_scene.base_goal_approach,
+                config,
+                output_data,
             )
 
         elif current_state == LocomanipulationSDGDataGenerationState.APPROACH:
             current_state = handle_approach_state(
-                env, input_episode_data, recording_step, base_goal, config, output_data
+                env, input_episode_data, recording_step, nav_scene.base_goal, config, output_data
             )
 
         elif current_state == LocomanipulationSDGDataGenerationState.DROP_OFF_OBJECT:
             recording_step, next_state = handle_drop_off_state(
-                env, input_episode_data, recording_step, base_goal, config, output_data
+                env, input_episode_data, recording_step, nav_scene.base_goal, config, output_data
             )
             if next_state is None:  # End of episode data
                 break
             current_state = next_state
 
         # Populate additional output data fields
-        populate_output_data(env, output_data, base_goal, base_goal_approach, base_path_helper.points)
+        populate_output_data(
+            env, output_data, nav_scene.base_goal, nav_scene.base_goal_approach, nav_scene.base_path_helper.points
+        )
 
         # Attach output data to environment for recording
         env._locomanipulation_sdg_output_data = output_data
@@ -721,8 +964,25 @@ def replay(
             left_hand_pose_target=output_data.left_hand_pose_target,
             right_hand_pose_target=output_data.right_hand_pose_target,
         )
+        _, _, reset_terminated, reset_time_outs, _ = env.step(action)
 
-        env.step(action)
+        if reset_terminated[0] or reset_time_outs[0]:
+            print(f"Environment terminated at state {current_state.name}, step {recording_step}", flush=True)
+            success_terminated = False
+
+            # Check if termination was due to success
+            if hasattr(env, "termination_manager") and "success" in env.termination_manager.active_terms:
+                success_terminated = bool(env.termination_manager.get_term("success")[0].item())
+
+            if success_terminated:
+                print(f"Success termination at state {current_state.name}, step {recording_step}", flush=True)
+            else:
+                print(f"Non-success termination at state {current_state.name}, step {recording_step}", flush=True)
+
+            return success_terminated
+
+    print("Replay completed!", flush=True)
+    return False
 
 
 if __name__ == "__main__":
@@ -737,14 +997,26 @@ if __name__ == "__main__":
         env_cfg.sim.device = "cpu"
         env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
         env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
+        env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
+        env_cfg.recorders.export_in_record_pre_reset = True
+
+        if args_cli.background_usd_path is not None and args_cli.background_occupancy_yaml_file is not None:
+            env_cfg.background_usd_path = args_cli.background_usd_path
+            env_cfg.background_occupancy_yaml_file = args_cli.background_occupancy_yaml_file
+
+        env_cfg.high_res_video = args_cli.high_res_video
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
         # Load input data
         input_dataset_file_handler = HDF5DatasetFileHandler()
         input_dataset_file_handler.open(args_cli.dataset)
+        is_legacy_quat_format = input_dataset_file_handler.is_legacy_quaternion_format()
 
-        for i in range(args_cli.num_runs):
+        run_id = 0
+        success_runs = 0
+
+        while success_runs < args_cli.num_runs:
             if args_cli.demo is None:
                 demo = random.choice(list(input_dataset_file_handler.get_episode_names()))
             else:
@@ -752,7 +1024,17 @@ if __name__ == "__main__":
 
             input_episode_data = input_dataset_file_handler.load_episode(demo, args_cli.device)
 
-            replay(
+            assert input_episode_data is not None
+            assert "actions" in input_episode_data.data
+
+            # See G1LocomanipulationSDGEnv.build_action_vector() for the action layout;
+            # left_quat=[3:7], right_quat=[10:14].
+            if is_legacy_quat_format:
+                actions = input_episode_data.data["actions"]
+                actions[:, 3:7] = convert_quat(actions[:, 3:7], to="xyzw")  # left hand quat
+                actions[:, 10:14] = convert_quat(actions[:, 10:14], to="xyzw")  # right hand quat
+
+            success = replay(
                 env=env,
                 input_episode_data=input_episode_data,
                 lift_step=args_cli.lift_step,
@@ -766,9 +1048,20 @@ if __name__ == "__main__":
                 angle_threshold=args_cli.angle_threshold,
                 approach_distance=args_cli.approach_distance,
                 randomize_placement=args_cli.randomize_placement,
+                sensor_camera_view=args_cli.sensor_camera_view,
             )
 
-        env.reset()  # FIXME: hack to handle missing final recording
+            run_id += 1
+
+            if success:
+                success_runs += 1
+                print("successful episodes count", env.recorder_manager.exported_successful_episode_count, flush=True)
+            else:
+                print(f"Run {run_id} failed (demo={demo}), retrying...", flush=True)
+
+        env.recorder_manager.close()
+        if env.viewport_camera_controller is not None:
+            env.viewport_camera_controller.update_view_to_world()
         env.close()
 
         simulation_app.close()

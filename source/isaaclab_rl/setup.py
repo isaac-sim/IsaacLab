@@ -19,9 +19,9 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
     # generic
-    "numpy<2",
-    "torch>=2.7",
-    "torchvision>=0.14.1",  # ensure compatibility with torch 1.13.1
+    "numpy",
+    "torch>=2.10",
+    "torchvision>=0.25.0",  # ensure compatibility with torch 2.10.0
     "protobuf>=4.25.8,!=5.26.0",
     # configuration management
     "hydra-core",
@@ -31,9 +31,8 @@ INSTALL_REQUIRES = [
     "tensorboard",
     # video recording
     "moviepy",
-    # make sure this is consistent with isaac sim version
-    "pillow==11.3.0",
     "packaging<24",
+    "tqdm==4.67.1",  # previous version was causing sys errors
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
@@ -43,10 +42,12 @@ EXTRAS_REQUIRE = {
     "sb3": ["stable-baselines3>=2.6", "tqdm", "rich"],  # tqdm/rich for progress bar
     "skrl": ["skrl>=1.4.3"],
     "rl-games": [
+        "aiohttp==3.13.3",
         "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
         "gym",
+        "standard-distutils",
     ],  # rl-games still needs gym :(
-    "rsl-rl": ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"],  # linux aarch 64 requires manual onnxscript installation
+    "rsl-rl": ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"],  # linux aarch 64 requires manual onnxscript installation
 }
 # Add the names with hyphens as aliases for convenience
 EXTRAS_REQUIRE["rl_games"] = EXTRAS_REQUIRE["rl-games"]
@@ -67,6 +68,7 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
+    package_data={"": ["*.pyi"]},
     python_requires=">=3.10",
     install_requires=INSTALL_REQUIRES,
     dependency_links=PYTORCH_INDEX_URL,
@@ -74,11 +76,11 @@ setup(
     packages=["isaaclab_rl"],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 4.5.0",
+        "Programming Language :: Python :: 3.12",
         "Isaac Sim :: 5.0.0",
         "Isaac Sim :: 5.1.0",
+        "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,
 )

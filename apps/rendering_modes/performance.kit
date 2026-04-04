@@ -1,17 +1,29 @@
-rtx.translucency.enabled = false
+### THESE ARE RT1 SETTINGS ONLY ###
+# rtx.translucency.enabled = false
+# rtx.reflections.enabled = false
+# rtx.reflections.denoiser.enabled = false
+# rtx.directLighting.sampledLighting.denoisingTechnique = 0
+# rtx.directLighting.sampledLighting.enabled = false
+# rtx.indirectDiffuse.enabled = false
+# rtx.indirectDiffuse.denoiser.enabled = false
+##############################################
 
-rtx.reflections.enabled = false
-rtx.reflections.denoiser.enabled = false
-
-rtx.directLighting.sampledLighting.denoisingTechnique = 0
-rtx.directLighting.sampledLighting.enabled = false
+### THESE ARE RT2 SETTINGS TO MATCH ABOVE PERFORMANCE SETTINGS ###
+# these are needed if indirectDiffuse = false (this means GI false) - maxBounces needs to be 2
+rtx.rtpt.cached.enabled = false
+rtx.rtpt.lightcache.cached.enabled = false
+rtx.rtpt.translucency.virtualMotion.enabled = false
+rtx.rtpt.maxBounces = 2
+rtx.rtpt.splitGlass = false
+rtx.rtpt.splitClearcoat = false
+rtx.rtpt.splitRoughReflection = true
+# this gives slightly brighter image
+rtx.rtpt.useAmbientOcclusionForAmbientLight = false
+##############################################
 
 rtx.sceneDb.ambientLightIntensity = 1.0
 
 rtx.shadows.enabled = true
-
-rtx.indirectDiffuse.enabled = false
-rtx.indirectDiffuse.denoiser.enabled = false
 
 rtx.domeLight.upperLowerStrategy = 3
 
@@ -23,6 +35,7 @@ rtx.raytracing.cached.enabled = false
 
 # DLSS frame gen does not yet support tiled camera well
 rtx-transient.dlssg.enabled = false
+
 rtx-transient.dldenoiser.enabled = false
 
 # Set the DLSS model

@@ -11,6 +11,7 @@ on:
       - main
       - develop
       - release/**
+      - feature/isaacsim-6-0
 
 # Concurrency control to prevent parallel runs
 concurrency:
@@ -22,8 +23,9 @@ permissions:
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSIONS_STRING: ${{ vars.ISAACSIM_BASE_VERSIONS_STRING || '5.1.0' }}
+  # On merge to main defaults will point to "nvcr.io/nvidia/isaac-sim:6.0.0"
+  ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim' # ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
+  ISAACSIM_BASE_VERSIONS_STRING: 'latest-release-6-0' # ${{ vars.ISAACSIM_BASE_VERSIONS_STRING || '6.0.0' }}
   ISAACLAB_IMAGE_NAME: ${{ vars.ISAACLAB_IMAGE_NAME || 'isaac-lab-base' }}
 
 jobs:
@@ -39,9 +41,9 @@ jobs:
 
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
-        fetch-depth: 0
+        fetch-depth: 1
         lfs: true
 
     - name: Set up QEMU
@@ -109,6 +111,8 @@ jobs:
           # Combine repo short name and branch name for the tag
           COMBINED_TAG="${REPO_SHORT_NAME}-${SAFE_BRANCH_NAME}-${IMAGE_BASE_VERSION}"
           BUILD_TAG="${COMBINED_TAG}-b${{ github.run_number }}"
+          COMMIT_TAG="${COMBINED_TAG}-${{ github.sha }}"
+          SHORT_COMMIT_TAG="${COMBINED_TAG}-${GITHUB_SHA::7}"
 
           # Determine if multiarch is supported by inspecting the base image manifest
           echo "Checking if base image supports multiarch..."
@@ -149,12 +153,14 @@ jobs:
           echo "Base image: $BASE_IMAGE_FULL"
           echo "Target platforms: $BUILD_PLATFORMS"
 
-          # Build Docker image once with both tags for multiple architectures
+          # Build Docker image once with all tags for multiple architectures
           docker buildx build \
             --platform $BUILD_PLATFORMS \
             --progress=plain \
             -t ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG \
             -t ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG \
+            -t ${{ env.ISAACLAB_IMAGE_NAME }}:$COMMIT_TAG \
+            -t ${{ env.ISAACLAB_IMAGE_NAME }}:$SHORT_COMMIT_TAG \
             --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ env.ISAACSIM_BASE_IMAGE }} \
             --build-arg ISAACSIM_VERSION_ARG=$IMAGE_BASE_VERSION \
             --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
@@ -167,4 +173,6 @@ jobs:
 
           echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMBINED_TAG (platforms: $BUILD_PLATFORMS)"
           echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$BUILD_TAG (platforms: $BUILD_PLATFORMS)"
+          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$COMMIT_TAG (platforms: $BUILD_PLATFORMS)"
+          echo "✅ Successfully built and pushed: ${{ env.ISAACLAB_IMAGE_NAME }}:$SHORT_COMMIT_TAG (platforms: $BUILD_PLATFORMS)"
         done

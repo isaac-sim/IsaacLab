@@ -156,7 +156,7 @@ class BinaryJointPositionAction(BinaryJointAction):
     """The configuration of the action term."""
 
     def apply_actions(self):
-        self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=self._processed_actions, joint_ids=self._joint_ids)
 
 
 class BinaryJointVelocityAction(BinaryJointAction):
@@ -166,7 +166,7 @@ class BinaryJointVelocityAction(BinaryJointAction):
     """The configuration of the action term."""
 
     def apply_actions(self):
-        self._asset.set_joint_velocity_target(self._processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_velocity_target_index(target=self._processed_actions, joint_ids=self._joint_ids)
 
 
 class AbsBinaryJointPositionAction(BinaryJointAction):
@@ -210,4 +210,4 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
             )
 
     def apply_actions(self):
-        self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=self._processed_actions, joint_ids=self._joint_ids)

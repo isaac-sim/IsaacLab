@@ -125,7 +125,7 @@ method.
 .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # update the kinematic target for cubes at index 0 and 3
-   :end-at: cube_object.write_nodal_kinematic_target_to_sim(nodal_kinematic_target)
+   :end-at: cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
 
 Similar to the rigid object and articulation, we perform the :meth:`assets.DeformableObject.write_data_to_sim` method
 before stepping the simulation. For deformable objects, this method does not apply any external forces to the object.
@@ -149,7 +149,7 @@ the average position of all the nodes in the mesh.
 .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # update buffers
-   :end-at: print(f"Root position (in world): {cube_object.data.root_pos_w[:, :3]}")
+   :end-at: print(f"Root position (in world): {wp.to_torch(cube_object.data.root_pos_w)[:, :3]}")
 
 
 The Code Execution

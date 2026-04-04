@@ -45,7 +45,7 @@ repos:
     rev: v1.5.5
     hooks:
       - id: insert-license
-        files: \.(py|ya?ml)$
+        files: \.(pyi?|ya?ml)$
         args:
           # - --remove-header    # Remove existing license headers. Useful when updating license.
           - --license-filepath

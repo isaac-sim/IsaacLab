@@ -40,19 +40,11 @@ parser.add_argument(
 parser.add_argument(
     "--norm_factor_max", type=float, default=None, help="Optional: maximum value of the normalization factor."
 )
-parser.add_argument("--enable_pinocchio", default=False, action="store_true", help="Enable Pinocchio.")
-
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version
-    # installed by IsaacLab and not the one installed by Isaac Sim.
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
-    import pinocchio  # noqa: F401
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -68,10 +60,6 @@ import numpy as np
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 import torch
-
-if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -171,14 +159,15 @@ def main():
     # Acquire device
     device = TorchUtils.get_torch_device(try_to_use_cuda=True)
 
-    # Run policy
-    results = []
-    for trial in range(args_cli.num_rollouts):
-        print(f"[INFO] Starting trial {trial}")
-        policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device)
-        terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
-        results.append(terminated)
-        print(f"[INFO] Trial {trial}: {terminated}\n")
+    with torch.inference_mode():
+        # Run policy
+        results = []
+        for trial in range(args_cli.num_rollouts):
+            print(f"[INFO] Starting trial {trial}")
+            policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device)
+            terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
+            results.append(terminated)
+            print(f"[INFO] Trial {trial}: {terminated}\n")
 
     print(f"\nSuccessful trials: {results.count(True)}, out of {len(results)} trials")
     print(f"Success rate: {results.count(True) / len(results)}")

@@ -51,7 +51,6 @@ def main():
     parser.add_argument("--assembly_id", type=str, default="00731", help="New assembly ID to set.")
     parser.add_argument("--num_envs", type=int, default=128, help="Number of parallel environment.")
     parser.add_argument("--seed", type=int, default=-1, help="Random seed.")
-    parser.add_argument("--headless", action="store_true", help="Run in headless mode.")
     args = parser.parse_args()
 
     os.makedirs(args.disassembly_dir, exist_ok=True)
@@ -63,20 +62,22 @@ def main():
     )
 
     if sys.platform.startswith("win"):
-        bash_command = "isaaclab.bat -p"
-    elif sys.platform.startswith("linux"):
-        bash_command = "./isaaclab.sh -p"
+        command = ["isaaclab.bat"]
+    else:
+        command = ["./isaaclab.sh"]
 
-    bash_command += " scripts/reinforcement_learning/rl_games/train.py --task=Isaac-AutoMate-Disassembly-Direct-v0"
+    command.extend(
+        [
+            "-p",
+            "scripts/reinforcement_learning/rl_games/train.py",
+            "--task=Isaac-AutoMate-Disassembly-Direct-v0",
+            f"--num_envs={args.num_envs}",
+            f"--seed={args.seed}",
+        ]
+    )
 
-    bash_command += f" --num_envs={str(args.num_envs)}"
-    bash_command += f" --seed={str(args.seed)}"
-
-    if args.headless:
-        bash_command += " --headless"
-
-    # Run the bash command
-    subprocess.run(bash_command, shell=True, check=True)
+    # Run the command
+    subprocess.run(command, check=True)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 from typing import Literal
 
@@ -22,10 +24,10 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
         class PDGainsCfg:
             """Configuration for the PD gains of the drive."""
 
-            stiffness: dict[str, float] | float = MISSING
-            """The stiffness of the joint drive in Nm/rad or N/rad.
+            stiffness: dict[str, float] | float | None = None
+            """The stiffness of the joint drive in Nm/rad or N/rad. Defaults to None.
 
-            If None, the stiffness is set to the value parsed from the URDF file.
+            If None, the stiffness values produced by the URDF importer are preserved.
             If :attr:`~UrdfConverterCfg.JointDriveCfg.target_type` is set to ``"velocity"``, this value determines
             the drive strength in joint velocity space.
             """
@@ -52,6 +54,12 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
             * :math:`r = 1.0` is a critically damped system,
             * :math:`r < 1.0` is underdamped,
             * :math:`r > 1.0` is overdamped.
+
+            .. deprecated::
+                This gains mode is no longer supported by the URDF importer 3.0.
+                The ``compute_natural_stiffness`` function has been removed. If used, a
+                :exc:`DeprecationWarning` is emitted and joint drive gains are left at the values
+                produced by the URDF importer. Use :class:`PDGainsCfg` instead.
             """
 
             natural_frequency: dict[str, float] | float = MISSING
@@ -102,10 +110,20 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     """
 
     merge_fixed_joints: bool = True
-    """Consolidate links that are connected by fixed joints. Defaults to True."""
+    """Consolidate links that are connected by fixed joints. Defaults to True.
+
+    When enabled, a URDF XML pre-processing step removes all fixed joints and merges each
+    child link's visual, collision, and inertial elements into the parent link before USD
+    conversion. Downstream joints are re-parented with composed transforms. Chains of
+    consecutive fixed joints are handled automatically.
+    """
 
     convert_mimic_joints_to_normal_joints: bool = False
-    """Convert mimic joints to normal joints. Defaults to False."""
+    """Convert mimic joints to normal joints. Defaults to False.
+
+    .. deprecated::
+        This option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.
+    """
 
     joint_drive: JointDriveCfg | None = JointDriveCfg()
     """The joint drive settings. Defaults to :class:`JointDriveCfg`.
@@ -116,17 +134,24 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     collision_from_visuals = False
     """Whether to create collision geometry from visual geometry. Defaults to False."""
 
-    collider_type: Literal["convex_hull", "convex_decomposition"] = "convex_hull"
+    collision_type: Literal["Convex Hull", "Convex Decomposition"] = "Convex Hull"
     """The collision shape simplification. Defaults to "convex_hull".
 
     Supported values are:
 
-    * ``"convex_hull"``: The collision shape is simplified to a convex hull.
-    * ``"convex_decomposition"``: The collision shape is decomposed into smaller convex shapes for a closer fit.
+    * ``"Convex Hull"``: The collision shape is simplified to a convex hull.
+    * ``"Convex Decomposition"``: The collision shape is decomposed into smaller convex shapes for a closer fit.
     """
 
     self_collision: bool = False
     """Activate self-collisions between links of the articulation. Defaults to False."""
 
     replace_cylinders_with_capsules: bool = False
-    """Replace cylinder shapes with capsule shapes. Defaults to False."""
+    """Replace cylinder shapes with capsule shapes. Defaults to False.
+
+    .. deprecated::
+        This option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.
+    """
+
+    merge_mesh: bool = False
+    """Merge meshes where possible to optimize the model. Defaults to False."""

@@ -16,18 +16,20 @@ def test_livestream_launch_with_env_vars(mocker):
     # Mock the environment variables
     mocker.patch.dict(os.environ, {"LIVESTREAM": "1", "HEADLESS": "1"})
     # everything defaults to None
-    app = AppLauncher().app
+    app_launcher = AppLauncher()
+    app = app_launcher.app
 
-    # import settings
-    import carb
+    from isaaclab.app.settings_manager import get_settings_manager
 
-    # acquire settings interface
-    carb_settings_iface = carb.settings.get_settings()
-    # check settings
-    # -- no-gui mode
-    assert carb_settings_iface.get("/app/window/enabled") is False
-    # -- livestream
-    assert carb_settings_iface.get("/app/livestream/enabled") is True
+    settings = get_settings_manager()
+    assert settings.get("/app/window/enabled") is False
+    # Do not assert /app/livestream/enabled here:
+    # this key is owned by Kit extensions and is not guaranteed to be populated
+    # in all app startup paths/environments. AppLauncher behavior is driven by
+    # its resolved launch state and livestream args.
+    assert app_launcher._livestream == 1
+    assert app_launcher._headless is True
+    assert "omni.kit.livestream.app" in app_launcher._livestream_args
 
     # close the app on exit
     app.close()

@@ -24,7 +24,6 @@ import torch
 from flaky import flaky
 
 import omni.replicator.core as rep
-from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -60,10 +59,8 @@ def setup_camera():
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
+    sim.stop()
     # clear the stage
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
@@ -86,7 +83,7 @@ def test_multi_tiled_camera_init(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -97,12 +94,6 @@ def test_multi_tiled_camera_init(setup_camera):
         # Check if camera prim is set correctly and that it is a camera prim
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
@@ -156,6 +147,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
@@ -182,7 +174,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -194,12 +186,6 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
         assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
@@ -223,6 +209,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 3)
                 elif data_type in [
                     "rgba",
+                    "albedo",
                     "semantic_segmentation",
                     "instance_segmentation_fast",
                     "instance_id_segmentation_fast",
@@ -245,6 +232,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         info = camera.data.info
         assert output["rgb"].dtype == torch.uint8
         assert output["rgba"].dtype == torch.uint8
+        assert output["albedo"].dtype == torch.uint8
         assert output["depth"].dtype == torch.float
         assert output["distance_to_camera"].dtype == torch.float
         assert output["distance_to_image_plane"].dtype == torch.float
@@ -283,7 +271,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -294,12 +282,6 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         # Check if camera prim is set correctly and that it is a camera prim
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
@@ -335,6 +317,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
 
 @pytest.mark.isaacsim_ci
+@flaky(max_runs=3, min_passes=1)
 def test_frame_offset_multi_tiled_camera(setup_camera):
     """Test frame offset issue with multiple tiled cameras"""
     camera_cfg, sim, dt = setup_camera
@@ -424,12 +407,6 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
     # Play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     # Simulate physics
     for _ in range(10):
         # Initialize data arrays
@@ -503,6 +480,8 @@ def _populate_scene():
         color = Gf.Vec3f(random.random(), random.random(), random.random())
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
-        # add rigid properties
-        SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-        SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+        # add rigid body and collision properties using Isaac Lab schemas
+        prim_path = f"/World/Objects/Obj_{i:02d}"
+        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
+        sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
+        sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())

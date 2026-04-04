@@ -1,5 +1,6 @@
 # for building the docs
-sphinx-book-theme==1.0.1
+sphinx>=7.0
+sphinx-book-theme>=1.1
 myst-parser
 sphinxcontrib-bibtex==2.5.0
 autodocsumm
@@ -14,5 +15,6 @@ sphinx-multiversion==0.2.4
 numpy
 matplotlib
 warp-lang
+lazy_loader>=0.4
 # learning
 gymnasium

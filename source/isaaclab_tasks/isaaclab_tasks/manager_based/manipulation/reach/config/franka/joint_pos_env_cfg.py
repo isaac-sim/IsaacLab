@@ -44,6 +44,11 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         self.commands.ee_pose.ranges.pitch = (math.pi, math.pi)
 
 
+##
+# Play configuration
+##
+
+
 @configclass
 class FrankaReachEnvCfg_PLAY(FrankaReachEnvCfg):
     def __post_init__(self):

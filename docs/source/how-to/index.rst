@@ -24,6 +24,7 @@ how to import a new asset into Isaac Lab.
 
     import_new_asset
     write_articulation_cfg
+    robots
 
 Creating a Fixed Asset
 ----------------------
@@ -46,6 +47,17 @@ useful when you want to create diverse environments with different objects.
     :maxdepth: 1
 
     multi_asset_spawning
+
+Cloning Environments
+--------------------
+
+This guide explains how Isaac Lab's template-based cloning system works, including
+cloning strategies, heterogeneous environments, and collision filtering.
+
+.. toctree::
+    :maxdepth: 1
+
+    cloning
 
 Saving Camera Output
 --------------------
@@ -137,11 +149,11 @@ additional resources that help you use Omniverse features in Isaac Lab.
     master_omniverse
 
 
-Setting up CloudXR Teleoperation
---------------------------------
+Setting up Isaac Teleop with CloudXR
+------------------------------------
 
-This guide explains how to use CloudXR and Apple Vision Pro for immersive streaming and
-teleoperation in Isaac Lab.
+This guide explains how to install Isaac Teleop, start the CloudXR runtime, and connect XR
+devices for immersive teleoperation in Isaac Lab.
 
 .. toctree::
     :maxdepth: 1

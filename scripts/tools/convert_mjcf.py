@@ -16,15 +16,16 @@ https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset
 
 
 positional arguments:
-  input               The path to the input URDF file.
+  input               The path to the input MJCF file.
   output              The path to store the USD file.
 
 optional arguments:
   -h, --help                Show this help message and exit
-  --fix-base                Fix the base to where it is imported. (default: False)
-  --import-sites            Import sites by parse <site> tag. (default: True)
-  --make-instanceable       Make the asset instanceable for efficient cloning. (default: False)
-
+  --merge-mesh              Merge meshes where possible to optimize the model. (default: False)
+  --collision-from-visuals  Generate collision geometry from visual geometries. (default: False)
+  --collision-type          Type of collision geometry to use. (default: "default")
+  --self-collision          Activate self-collisions between links. (default: False)
+  --import-physics-scene    Import the physics scene from the MJCF file. (default: False)
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -37,17 +38,36 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
 parser.add_argument("input", type=str, help="The path to the input MJCF file.")
 parser.add_argument("output", type=str, help="The path to store the USD file.")
-parser.add_argument("--fix-base", action="store_true", default=False, help="Fix the base to where it is imported.")
 parser.add_argument(
-    "--import-sites", action="store_true", default=False, help="Import sites by parsing the <site> tag."
-)
-parser.add_argument(
-    "--make-instanceable",
+    "--merge-mesh",
     action="store_true",
     default=False,
-    help="Make the asset instanceable for efficient cloning.",
+    help="Merge meshes where possible to optimize the model.",
 )
-
+parser.add_argument(
+    "--collision-from-visuals",
+    action="store_true",
+    default=False,
+    help="Generate collision geometry from visual geometries.",
+)
+parser.add_argument(
+    "--collision-type",
+    type=str,
+    default="default",
+    help='Type of collision geometry to use (e.g. "default", "Convex Hull", "Convex Decomposition").',
+)
+parser.add_argument(
+    "--self-collision",
+    action="store_true",
+    default=False,
+    help="Activate self-collisions between links of the articulation.",
+)
+parser.add_argument(
+    "--import-physics-scene",
+    action="store_true",
+    default=False,
+    help="Import the physics scene (worldbody, defaults) from the MJCF file. Use --no-import-physics-scene to disable.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -63,9 +83,7 @@ import contextlib
 import os
 
 import carb
-import omni.kit.app
 
-import isaaclab.sim as sim_utils
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 from isaaclab.utils.assets import check_file_path
 from isaaclab.utils.dict import print_dict
@@ -87,11 +105,12 @@ def main():
     mjcf_converter_cfg = MjcfConverterCfg(
         asset_path=mjcf_path,
         usd_dir=os.path.dirname(dest_path),
-        usd_file_name=os.path.basename(dest_path),
-        fix_base=args_cli.fix_base,
-        import_sites=args_cli.import_sites,
         force_usd_conversion=True,
-        make_instanceable=args_cli.make_instanceable,
+        merge_mesh=args_cli.merge_mesh,
+        collision_from_visuals=args_cli.collision_from_visuals,
+        collision_type=args_cli.collision_type,
+        self_collision=args_cli.self_collision,
+        import_physics_scene=args_cli.import_physics_scene,
     )
 
     # Print info
@@ -121,8 +140,10 @@ def main():
 
     # Simulate scene (if not headless)
     if local_gui or livestream_gui:
-        # Open the stage with USD
-        sim_utils.open_stage(mjcf_converter.usd_path)
+        # Open the stage with USD and attach it to the Kit viewport context
+        import omni.usd
+
+        omni.usd.get_context().open_stage(mjcf_converter.usd_path)
         # Reinitialize the simulation
         app = omni.kit.app.get_app_interface()
         # Run simulation

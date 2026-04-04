@@ -17,22 +17,10 @@ EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extensio
 
 # Minimum dependencies required prior to installation
 INSTALL_REQUIRES = [
-    # generic
-    "numpy<2",
-    "torch>=2.7",
-    "prettytable==3.3.0",
-    "toml",
-    "warp-lang",
-    # testing
-    "pytest",
-    "pytest-mock",
-    "junitparser",
-    "flatdict==4.0.1",
-    "flaky",
-    "packaging",
+    # INTENTIONALLY disabled to avoid circular dependency with isaaclab_physx, which also depends on isaaclab_newton.
+    # This will be re-enabled once we move to UV and pyproject.toml-based packaging.
+    # f"isaaclab_newton @ file://{os.path.join(os.path.dirname(EXTENSION_PATH), 'isaaclab_newton')}",
 ]
-
-PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu128"]
 
 # Installation operation
 setup(
@@ -45,17 +33,38 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
-    python_requires=">=3.10",
+    package_data={"": ["*.pyi"]},
+    python_requires=">=3.11",
     install_requires=INSTALL_REQUIRES,
-    dependency_links=PYTORCH_INDEX_URL,
-    packages=["isaaclab_physx"],
+    packages=[
+        "isaaclab_physx",
+        "isaaclab_physx.assets",
+        "isaaclab_physx.assets.articulation",
+        "isaaclab_physx.assets.deformable_object",
+        "isaaclab_physx.assets.rigid_object",
+        "isaaclab_physx.assets.rigid_object_collection",
+        "isaaclab_physx.assets.surface_gripper",
+        "isaaclab_physx.cloner",
+        "isaaclab_physx.physics",
+        "isaaclab_physx.renderers",
+        "isaaclab_physx.scene_data_providers",
+        "isaaclab_physx.sensors",
+        "isaaclab_physx.sensors.contact_sensor",
+        "isaaclab_physx.sensors.frame_transformer",
+        "isaaclab_physx.sensors.imu",
+        "isaaclab_physx.test",
+        "isaaclab_physx.test.benchmark",
+        "isaaclab_physx.test.mock_interfaces",
+        "isaaclab_physx.test.mock_interfaces.utils",
+        "isaaclab_physx.test.mock_interfaces.views",
+    ],
     classifiers=[
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
-        "Isaac Sim :: 4.5.0",
+        "Programming Language :: Python :: 3.12",
         "Isaac Sim :: 5.0.0",
         "Isaac Sim :: 5.1.0",
+        "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,
 )

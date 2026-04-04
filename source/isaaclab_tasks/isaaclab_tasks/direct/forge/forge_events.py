@@ -4,9 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import torch
 
-from isaaclab.envs import DirectRLEnv
+if TYPE_CHECKING:
+    from isaaclab.envs import DirectRLEnv
 
 
 def randomize_dead_zone(env: DirectRLEnv, env_ids: torch.Tensor | None):

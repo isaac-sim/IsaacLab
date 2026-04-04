@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.utils import configclass
@@ -59,6 +61,9 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
         # Removing these observations as they are not needed for OSC and we want keep the observation space small
         self.observations.policy.joint_pos = None
         self.observations.policy.joint_vel = None
+
+        # OSC control is not supported with Newton physics; use PhysX only.
+        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
 
 @configclass

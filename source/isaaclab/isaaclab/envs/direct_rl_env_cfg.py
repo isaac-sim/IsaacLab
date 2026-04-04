@@ -3,16 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from __future__ import annotations
 
-from isaaclab.devices.openxr import XrCfg
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from isaaclab.devices.openxr import XrCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import NoiseModelCfg
 
 from .common import SpaceType, ViewerCfg
-from .ui import BaseEnvWindow
 
 
 @configclass
@@ -30,7 +33,7 @@ class DirectRLEnvCfg:
     """Physics simulation configuration. Default is SimulationCfg()."""
 
     # ui settings
-    ui_window_class_type: type | None = BaseEnvWindow
+    ui_window_class_type: type | str | None = "isaaclab.envs.ui.base_env_window:BaseEnvWindow"
     """The class type of the UI window. Default is None.
 
     If None, then no UI window is created.

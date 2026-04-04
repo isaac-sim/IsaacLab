@@ -11,8 +11,14 @@
             "program": "${file}",
             "console": "integratedTerminal"
         },
+        // Attach to listening debugpy
+        // Usage (VSCode but should be similar for other IDEs):
+        // 1. Set your breakpoints
+        // 2. Run your code under debugpy like so:
+        //    ./isaaclab.sh -p -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
+        // 3. Select this "Python: Debugger Attach" configuration and press green play button or F5
         {
-            "name": "Python: Attach (windows-x86_64/linux-x86_64)",
+            "name": "Python: Debugger Attach",
             "type": "python",
             "request": "attach",
             "port": 3000,

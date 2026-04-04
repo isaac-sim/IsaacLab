@@ -7,17 +7,19 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import torch
-
-import carb
+import warp as wp
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import Articulation
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
 
     from .events import randomize_gear_type
@@ -51,7 +53,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in reset_when_gear_dropped configuration. "
-                "It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
+                "It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
 
         self.end_effector_body_name = cfg.params["end_effector_body_name"]
@@ -116,7 +118,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         # Find end effector index once
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         if len(eef_indices) == 0:
-            carb.log_warn(
+            logger.warning(
                 f"{self.end_effector_body_name} not found in robot body names. Cannot check gear drop condition."
             )
             self.eef_idx = None
@@ -160,16 +162,16 @@ class reset_when_gear_dropped(ManagerTermBase):
         self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Get end effector position
-        eef_pos_world = self.robot_asset.data.body_link_pos_w[:, self.eef_idx]
+        eef_pos_world = wp.to_torch(self.robot_asset.data.body_link_pos_w)[:, self.eef_idx]
 
         # Update gear positions and quaternions in buffers
-        self.all_gear_pos_buffer[:, 0, :] = self.gear_assets["gear_small"].data.root_link_pos_w
-        self.all_gear_pos_buffer[:, 1, :] = self.gear_assets["gear_medium"].data.root_link_pos_w
-        self.all_gear_pos_buffer[:, 2, :] = self.gear_assets["gear_large"].data.root_link_pos_w
+        self.all_gear_pos_buffer[:, 0, :] = wp.to_torch(self.gear_assets["gear_small"].data.root_link_pos_w)
+        self.all_gear_pos_buffer[:, 1, :] = wp.to_torch(self.gear_assets["gear_medium"].data.root_link_pos_w)
+        self.all_gear_pos_buffer[:, 2, :] = wp.to_torch(self.gear_assets["gear_large"].data.root_link_pos_w)
 
-        self.all_gear_quat_buffer[:, 0, :] = self.gear_assets["gear_small"].data.root_link_quat_w
-        self.all_gear_quat_buffer[:, 1, :] = self.gear_assets["gear_medium"].data.root_link_quat_w
-        self.all_gear_quat_buffer[:, 2, :] = self.gear_assets["gear_large"].data.root_link_quat_w
+        self.all_gear_quat_buffer[:, 0, :] = wp.to_torch(self.gear_assets["gear_small"].data.root_link_quat_w)
+        self.all_gear_quat_buffer[:, 1, :] = wp.to_torch(self.gear_assets["gear_medium"].data.root_link_quat_w)
+        self.all_gear_quat_buffer[:, 2, :] = wp.to_torch(self.gear_assets["gear_large"].data.root_link_quat_w)
 
         # Select gear data using advanced indexing
         gear_pos_world = self.all_gear_pos_buffer[self.env_indices, self.gear_type_indices]
@@ -185,7 +187,7 @@ class reset_when_gear_dropped(ManagerTermBase):
         gear_grasp_pos_world = gear_pos_world + math_utils.quat_apply(gear_quat_world, self.gear_grasp_offsets_buffer)
 
         # Compute distances
-        distances = torch.norm(gear_grasp_pos_world - eef_pos_world, dim=-1)
+        distances = torch.linalg.norm(gear_grasp_pos_world - eef_pos_world, dim=-1)
 
         # Check distance threshold
         self.reset_flags[:] = distances > distance_threshold
@@ -221,7 +223,7 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
         if "grasp_rot_offset" not in cfg.params:
             raise ValueError(
                 "'grasp_rot_offset' parameter is required in reset_when_gear_orientation_exceeds_threshold"
-                " configuration. It should be a quaternion [w, x, y, z]. Example: [0.0, 0.707, 0.707, 0.0]"
+                " configuration. It should be a quaternion [x, y, z, w]. Example: [0.707, 0.707, 0.0, 0.0]"
             )
 
         self.end_effector_body_name = cfg.params["end_effector_body_name"]
@@ -249,7 +251,7 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
         # Find end effector index once
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         if len(eef_indices) == 0:
-            carb.log_warn(
+            logger.warning(
                 f"{self.end_effector_body_name} not found in robot body names. Cannot check gear orientation condition."
             )
             self.eef_idx = None
@@ -301,12 +303,12 @@ class reset_when_gear_orientation_exceeds_threshold(ManagerTermBase):
         yaw_threshold_rad = torch.deg2rad(torch.tensor(yaw_threshold_deg, device=env.device))
 
         # Get end effector orientation
-        eef_quat_world = self.robot_asset.data.body_link_quat_w[:, self.eef_idx]
+        eef_quat_world = wp.to_torch(self.robot_asset.data.body_link_quat_w)[:, self.eef_idx]
 
         # Update gear quaternions in buffer
-        self.all_gear_quat_buffer[:, 0, :] = self.gear_assets["gear_small"].data.root_link_quat_w
-        self.all_gear_quat_buffer[:, 1, :] = self.gear_assets["gear_medium"].data.root_link_quat_w
-        self.all_gear_quat_buffer[:, 2, :] = self.gear_assets["gear_large"].data.root_link_quat_w
+        self.all_gear_quat_buffer[:, 0, :] = wp.to_torch(self.gear_assets["gear_small"].data.root_link_quat_w)
+        self.all_gear_quat_buffer[:, 1, :] = wp.to_torch(self.gear_assets["gear_medium"].data.root_link_quat_w)
+        self.all_gear_quat_buffer[:, 2, :] = wp.to_torch(self.gear_assets["gear_large"].data.root_link_quat_w)
 
         # Select gear data using advanced indexing
         gear_quat_world = self.all_gear_quat_buffer[self.env_indices, self.gear_type_indices]

@@ -20,6 +20,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg

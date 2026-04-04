@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite the technical report of Isaac Lab."
 title: Isaac Lab
-version: 2.3.2
+version: 3.0.0
 repository-code: https://github.com/isaac-sim/IsaacLab
 type: software
 authors:

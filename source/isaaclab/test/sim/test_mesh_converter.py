@@ -19,7 +19,6 @@ import tempfile
 
 import pytest
 
-import omni
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -71,8 +70,6 @@ def sim():
     # stop simulation
     sim.stop()
     # cleanup stage and context
-    sim.clear()
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
@@ -92,7 +89,7 @@ def check_mesh_conversion(mesh_converter: MeshConverter):
     # Check prim can be properly spawned
     assert stage.GetPrimAtPath(prim_path).IsValid()
 
-    stage = omni.usd.get_context().get_stage()
+    stage = sim_utils.get_current_stage()
     # Check axis is z-up
     axis = UsdGeom.GetStageUpAxis(stage)
     assert axis == "Z"

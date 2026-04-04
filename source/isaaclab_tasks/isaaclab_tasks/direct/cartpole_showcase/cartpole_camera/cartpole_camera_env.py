@@ -8,7 +8,8 @@ from __future__ import annotations
 import gymnasium as gym
 import torch
 
-from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv, CartpoleRGBCameraEnvCfg
+from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
+from isaaclab_tasks.direct.cartpole.cartpole_camera_env_cfg import CartpoleRGBCameraEnvCfg
 
 
 class CartpoleCameraShowcaseEnv(CartpoleCameraEnv):
@@ -39,7 +40,7 @@ class CartpoleCameraShowcaseEnv(CartpoleCameraEnv):
             raise NotImplementedError(f"Action space {type(self.single_action_space)} not implemented")
 
         # set target
-        self._cartpole.set_joint_effort_target(target, joint_ids=self._cart_dof_idx)
+        self._cartpole.set_joint_effort_target_index(target=target, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
         # get camera data

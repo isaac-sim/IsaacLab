@@ -3,44 +3,43 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+from __future__ import annotations
 
+import os
+
+import numpy as np
 import torch
 
-from isaacsim.core.prims import SingleArticulation
-
 # enable motion generation extensions
-from isaacsim.core.utils.extensions import enable_extension
+from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
 
 enable_extension("isaacsim.robot_motion.lula")
 enable_extension("isaacsim.robot_motion.motion_generation")
 
-from isaacsim.robot_motion.motion_generation import ArticulationMotionPolicy
 from isaacsim.robot_motion.motion_generation.lula.motion_policies import RmpFlow, RmpFlowSmoothed
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils import configclass
 from isaaclab.utils.assets import retrieve_file_path
 
+from .rmp_flow_cfg import RmpFlowControllerCfg  # noqa: F401
 
-@configclass
-class RmpFlowControllerCfg:
-    """Configuration for RMP-Flow controller (provided through LULA library)."""
+_RMPFLOW_EXT_PREFIX = "rmpflow_ext:"
+_RMPFLOW_EXT_NAME = "isaacsim.robot_motion.motion_generation"
 
-    name: str = "rmp_flow"
-    """Name of the controller. Supported: "rmp_flow", "rmp_flow_smoothed". Defaults to "rmp_flow"."""
-    config_file: str = MISSING
-    """Path to the configuration file for the controller."""
-    urdf_file: str = MISSING
-    """Path to the URDF model of the robot."""
-    collision_file: str = MISSING
-    """Path to collision model description of the robot."""
-    frame_name: str = MISSING
-    """Name of the robot frame for task space (must be present in the URDF)."""
-    evaluations_per_frame: float = MISSING
-    """Number of substeps during Euler integration inside LULA world model."""
-    ignore_robot_state_updates: bool = False
-    """If true, then state of the world model inside controller is rolled out. Defaults to False."""
+
+def _resolve_rmpflow_path(path: str) -> str:
+    """Resolve a sentinel ``rmpflow_ext:`` path to an absolute filesystem path.
+
+    Paths stored in :class:`~isaaclab.controllers.rmp_flow_cfg.RmpFlowControllerCfg`
+    that begin with ``"rmpflow_ext:"`` are relative to the
+    ``isaacsim.robot_motion.motion_generation`` extension directory.  This avoids
+    importing ``isaacsim`` in the cfg file (which is loaded without Kit).
+    """
+    if path.startswith(_RMPFLOW_EXT_PREFIX):
+        rel = path[len(_RMPFLOW_EXT_PREFIX) :]
+        ext_dir = get_extension_path_from_name(_RMPFLOW_EXT_NAME)
+        return os.path.join(ext_dir, rel)
+    return path
 
 
 class RmpFlowController:
@@ -53,10 +52,8 @@ class RmpFlowController:
             cfg: The configuration for the controller.
             device: The device to use for computation.
         """
-        # store input
         self.cfg = cfg
         self._device = device
-        # display info
         print(f"[INFO]: Loading RMPFlow controller URDF from: {self.cfg.urdf_file}")
 
     """
@@ -72,37 +69,37 @@ class RmpFlowController:
     Operations.
     """
 
-    def initialize(self, prim_paths_expr: str):
+    def initialize(self, num_robots: int, joint_names: list[str]):
         """Initialize the controller.
 
         Args:
-            prim_paths_expr: The expression to find the articulation prim paths.
+            num_robots: Number of robot instances (environments).
+            joint_names: Ordered list of all joint names from the articulation.
         """
-        # obtain the simulation time
         physics_dt = sim_utils.SimulationContext.instance().get_physics_dt()
-        # find all prims
-        self._prim_paths = sim_utils.find_matching_prim_paths(prim_paths_expr)
-        self.num_robots = len(self._prim_paths)
-        # resolve controller
+        self.num_robots = num_robots
+        self._physics_dt = physics_dt
+
         if self.cfg.name == "rmp_flow":
             controller_cls = RmpFlow
         elif self.cfg.name == "rmp_flow_smoothed":
             controller_cls = RmpFlowSmoothed
         else:
             raise ValueError(f"Unsupported controller in Lula library: {self.cfg.name}")
-        # create all franka robots references and their controllers
-        self.articulation_policies = list()
-        for prim_path in self._prim_paths:
-            # add robot reference
-            robot = SingleArticulation(prim_path)
-            robot.initialize()
-            # download files if they are not local
 
-            local_urdf_file = retrieve_file_path(self.cfg.urdf_file, force_download=True)
-            local_collision_file = retrieve_file_path(self.cfg.collision_file, force_download=True)
-            local_config_file = retrieve_file_path(self.cfg.config_file, force_download=True)
+        name_to_idx = {name: i for i, name in enumerate(joint_names)}
 
-            # add controller
+        self._rmpflow_policies: list[RmpFlow | RmpFlowSmoothed] = []
+        self._active_indices: list[np.ndarray] = []
+        self._watched_indices: list[np.ndarray] = []
+
+        for _ in range(num_robots):
+            local_urdf_file = retrieve_file_path(_resolve_rmpflow_path(self.cfg.urdf_file), force_download=True)
+            local_collision_file = retrieve_file_path(
+                _resolve_rmpflow_path(self.cfg.collision_file), force_download=True
+            )
+            local_config_file = retrieve_file_path(_resolve_rmpflow_path(self.cfg.config_file), force_download=True)
+
             rmpflow = controller_cls(
                 robot_description_path=local_collision_file,
                 urdf_path=local_urdf_file,
@@ -111,53 +108,59 @@ class RmpFlowController:
                 maximum_substep_size=physics_dt / self.cfg.evaluations_per_frame,
                 ignore_robot_state_updates=self.cfg.ignore_robot_state_updates,
             )
-            # wrap rmpflow to connect to the Franka robot articulation
-            articulation_policy = ArticulationMotionPolicy(robot, rmpflow, physics_dt)
-            self.articulation_policies.append(articulation_policy)
-        # get number of active joints
-        self.active_dof_names = self.articulation_policies[0].get_motion_policy().get_active_joints()
+
+            active_indices = np.array([name_to_idx[n] for n in rmpflow.get_active_joints()], dtype=np.intp)
+            watched_indices = np.array([name_to_idx[n] for n in rmpflow.get_watched_joints()], dtype=np.intp)
+
+            self._rmpflow_policies.append(rmpflow)
+            self._active_indices.append(active_indices)
+            self._watched_indices.append(watched_indices)
+
+        self.active_dof_names = self._rmpflow_policies[0].get_active_joints()
         self.num_dof = len(self.active_dof_names)
-        # create buffers
-        # -- for storing command
+
         self._command = torch.zeros(self.num_robots, self.num_actions, device=self._device)
-        # -- for policy output
         self.dof_pos_target = torch.zeros((self.num_robots, self.num_dof), device=self._device)
         self.dof_vel_target = torch.zeros((self.num_robots, self.num_dof), device=self._device)
 
-    def reset_idx(self, robot_ids: torch.Tensor = None):
+    def reset_idx(self, robot_ids: torch.Tensor | None = None):
         """Reset the internals."""
-        # if no robot ids are provided, then reset all robots
         if robot_ids is None:
             robot_ids = torch.arange(self.num_robots, device=self._device)
-        # reset policies for specified robots
         for index in robot_ids:
-            self.articulation_policies[index].motion_policy.reset()
+            self._rmpflow_policies[index].reset()
 
     def set_command(self, command: torch.Tensor):
         """Set target end-effector pose command."""
-        # store command
         self._command[:] = command
 
-    def compute(self) -> tuple[torch.Tensor, torch.Tensor]:
+    def compute(
+        self, joint_positions: torch.Tensor, joint_velocities: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Performs inference with the controller.
+
+        Args:
+            joint_positions: Current joint positions, shape ``[num_robots, num_joints]``.
+            joint_velocities: Current joint velocities, shape ``[num_robots, num_joints]``.
 
         Returns:
             The target joint positions and velocity commands.
         """
-        # convert command to numpy
         command = self._command.cpu().numpy()
-        # compute control actions
-        for i, policy in enumerate(self.articulation_policies):
-            # enable type-hinting
-            policy: ArticulationMotionPolicy
-            # set rmpflow target to be the current position of the target cube.
-            policy.get_motion_policy().set_end_effector_target(
-                target_position=command[i, 0:3], target_orientation=command[i, 3:7]
+        all_pos = joint_positions.cpu().numpy()
+        all_vel = joint_velocities.cpu().numpy()
+
+        for i, rmpflow in enumerate(self._rmpflow_policies):
+            rmpflow.set_end_effector_target(target_position=command[i, 0:3], target_orientation=command[i, 3:7])
+            active_pos = all_pos[i][self._active_indices[i]]
+            active_vel = all_vel[i][self._active_indices[i]]
+            watched_pos = all_pos[i][self._watched_indices[i]]
+            watched_vel = all_vel[i][self._watched_indices[i]]
+
+            pos_targets, vel_targets = rmpflow.compute_joint_targets(
+                active_pos, active_vel, watched_pos, watched_vel, self._physics_dt
             )
-            # apply action on the robot
-            action = policy.get_next_articulation_action()
-            # copy actions into buffer
-            self.dof_pos_target[i, :] = torch.from_numpy(action.joint_positions[:]).to(self.dof_pos_target)
-            self.dof_vel_target[i, :] = torch.from_numpy(action.joint_velocities[:]).to(self.dof_vel_target)
+            self.dof_pos_target[i, :] = torch.from_numpy(pos_targets[:]).to(self.dof_pos_target)
+            self.dof_vel_target[i, :] = torch.from_numpy(vel_targets[:]).to(self.dof_vel_target)
 
         return self.dof_pos_target, self.dof_vel_target

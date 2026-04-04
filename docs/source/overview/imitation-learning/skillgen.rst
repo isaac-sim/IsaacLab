@@ -135,7 +135,7 @@ The dataset contains:
 Download and Setup
 ^^^^^^^^^^^^^^^^^^
 
-1. Download the pre-annotated dataset by clicking `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/annotated_dataset_skillgen.hdf5>`__.
+1. Download the pre-annotated dataset by clicking `here <https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/annotated_dataset_skillgen.hdf5>`__.
 
 2. Prepare the datasets directory and move the downloaded file:
 
@@ -173,7 +173,8 @@ Download and Setup
       --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
       --teleop_device spacemouse \
       --dataset_file ./datasets/dataset_skillgen.hdf5 \
-      --num_demos 10
+      --num_demos 10 \
+      --visualizer kit
 
    **Annotate demonstrations for SkillGen** (writes both term and start boundaries):
 
@@ -184,7 +185,8 @@ Download and Setup
       --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
       --input_file ./datasets/dataset_skillgen.hdf5 \
       --output_file ./datasets/annotated_dataset_skillgen.hdf5 \
-      --annotate_subtask_start_signals
+      --annotate_subtask_start_signals \
+      --visualizer kit
 
 Understanding Dataset Annotation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -283,7 +285,7 @@ Start with a small dataset to verify everything works:
    --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
    --output_file ./datasets/generated_dataset_small_skillgen_cube_stack.hdf5 \
    --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
-   --use_skillgen
+   --use_skillgen --visualizer kit
 
 Full-Scale Generation
 ^^^^^^^^^^^^^^^^^^^^^
@@ -337,7 +339,7 @@ Test the adaptive stacking setup:
    --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
    --output_file ./datasets/generated_dataset_small_skillgen_bin_cube_stack.hdf5 \
    --task Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0 \
-   --use_skillgen
+   --use_skillgen --visualizer kit
 
 Full-Scale Generation
 ^^^^^^^^^^^^^^^^^^^^^
@@ -419,7 +421,8 @@ Test your trained policies:
    --device cpu \
    --task Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0 \
    --num_rollouts 50 \
-   --checkpoint /path/to/model_checkpoint.pth
+   --checkpoint /path/to/model_checkpoint.pth \
+   --visualizer kit
 
 .. code:: bash
 
@@ -428,7 +431,8 @@ Test your trained policies:
    --device cpu \
    --task Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0 \
    --num_rollouts 50 \
-   --checkpoint /path/to/model_checkpoint.pth
+   --checkpoint /path/to/model_checkpoint.pth \
+   --visualizer kit
 
 .. note::
 

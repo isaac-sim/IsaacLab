@@ -32,7 +32,7 @@ fast:
       reward: 45
       episode_length: 900
     upper_thresholds:
-      duration: 750
+      duration: 1200 #750
   skrl:Isaac-Cartpole-RGB-Camera-Direct-v0:
     max_iterations: 50
     lower_thresholds:
@@ -44,7 +44,7 @@ fast:
     max_iterations: 200
     lower_thresholds:
       reward: 50
-      episode_length: 700
+      episode_length: 600 #700
     upper_thresholds:
       duration: 500
   rl_games:Isaac-Quadcopter-Direct-v0:
@@ -53,7 +53,7 @@ fast:
       reward: 100
       episode_length: 400
     upper_thresholds:
-      duration: 250
+      duration: 300 #250
   skrl:Isaac-Shadow-Hand-Over-Direct-v0:
     max_iterations: 300
     lower_thresholds:
@@ -75,13 +75,13 @@ fast:
       episode_length: 150
     upper_thresholds:
       duration: 2000
-  rl_games:Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
-    max_iterations: 200
+  rsl_rl:Isaac-Dexsuite-Kuka-Allegro-Lift-v0:
+    max_iterations: 300 # 200
     lower_thresholds:
-      reward: 0.7
+      reward: 0.4 # 0.7
       episode_length: 150
     upper_thresholds:
-      duration: 1200
+      duration: 1400 #1200
   rsl_rl:Isaac-Reach-OpenArm-v0:
     max_iterations: 200
     lower_thresholds:

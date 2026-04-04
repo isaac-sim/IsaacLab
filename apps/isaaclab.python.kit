@@ -3,9 +3,9 @@
 ##
 
 [package]
-title = "Isaac Lab Python"
+title = "Isaac Lab"
 description = "An app for running Isaac Lab"
-version = "2.3.2"
+version = "3.0.0"
 
 # That makes it browsable in UI with "experience" filter
 keywords = ["experience", "app", "usd"]
@@ -13,11 +13,10 @@ keywords = ["experience", "app", "usd"]
 [dependencies]
 # Isaac Sim extensions
 "isaacsim.app.about" = {}
-"isaacsim.asset.browser" = {}
+"isaacsim.examples.browser" = {}
 "isaacsim.core.api" = {}
 "isaacsim.core.cloner" = {}
 "isaacsim.core.nodes" = {}
-"isaacsim.core.simulation_manager" = {}
 "isaacsim.core.throttling" = {}
 "isaacsim.core.utils" = {}
 "isaacsim.core.version" = {}
@@ -38,7 +37,7 @@ keywords = ["experience", "app", "usd"]
 
 # Isaac Sim Extra
 "isaacsim.asset.importer.mjcf" = {}
-"isaacsim.asset.importer.urdf" = {version = "2.4.31", exact = true}
+"isaacsim.asset.importer.urdf" = {}
 "omni.physx.bundle" = {}
 "omni.physx.tensors" = {}
 "omni.replicator.core" = {}
@@ -102,6 +101,7 @@ keywords = ["experience", "app", "usd"]
 # Load Isaac Lab extensions last
 "isaaclab" = {order = 1000}
 "isaaclab_physx" = {order = 1000}
+"isaaclab_newton" = {order = 1000}
 "isaaclab_assets" = {order = 1000}
 "isaaclab_tasks" = {order = 1000}
 "isaaclab_mimic" = {order = 1000}
@@ -127,6 +127,8 @@ rtx.hydra.mdlMaterialWarmup = true # start loading the MDL shaders needed before
 omni.replicator.asyncRendering = false # Async rendering must be disabled for SDG
 exts."omni.kit.test".includeTests = ["*isaac*"] # Add isaac tests to test runner
 foundation.verifyOsVersion.enabled = false
+log.level = "Warn" # Suppress third-party debug/info noise
+log.outputStreamLevel = "Warn"
 
 # disable the metrics assembler change listener, we don't want to do any runtime changes
 metricsAssembler.changeListenerEnabled = false
@@ -161,8 +163,8 @@ indent_all_ticks = false
 show_menu_titles = true
 
 [settings.app]
-name = "Isaac-Sim"
-version = "5.1.0"
+name = "IsaacLab"
+version = "3.0.0"
 versionFile = "${exe-path}/VERSION"
 content.emptyStageOnStart = true
 fastShutdown = true
@@ -183,7 +185,7 @@ asyncRenderingLowLatency = false
 
 [settings.app.window]
 iconPath = "${isaacsim.simulation_app}/data/omni.isaac.sim.png"
-title = "Isaac Sim"
+title = "Isaac Lab"
 
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
@@ -235,6 +237,8 @@ renderer.startupMessageDisplayed = true # hides the IOMMU popup window
 resourcemonitor.timeBetweenQueries = 100 # improves performance
 simulation.defaultMetersPerUnit = 1.0 # Meters default
 omni.replicator.captureOnPlay = true
+UJITSO.geometry = true
+UJITSO.enabled = true
 
 [settings]
 ### async rendering settings
@@ -249,18 +253,17 @@ rtx.hydra.readTransformsFromFabricInRenderDelegate = true
 # disable replicator orchestrator for better runtime perf
 exts."omni.replicator.core".Orchestrator.enabled = false
 
+# NuRec
+omni.rtx.nre.compositing.rendererHints = 3
+
+# explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
+app.extensions.excluded = ["omni.kit.pip_archive"]
+
 [settings.app.livestream]
 outDirectory = "${data}"
 
 # Extensions
 ###############################
-[settings.exts."omni.kit.registry.nucleus"]
-registries = [
-    { name = "kit/default", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/107/shared" },
-    { name = "kit/sdk", url = "https://ovextensionsprod.blob.core.windows.net/exts/kit/prod/sdk/${kit_version_short}/${kit_git_hash}" },
-    { name = "kit/community", url = "https://dw290v42wisod.cloudfront.net/exts/kit/community" },
-]
-
 [settings.app.extensions]
 skipPublishVerification = false
 registryEnabled = true
@@ -303,6 +306,6 @@ fabricUseGPUInterop = true
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1"
+persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"

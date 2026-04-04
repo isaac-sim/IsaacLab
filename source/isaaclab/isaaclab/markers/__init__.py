@@ -21,5 +21,6 @@ Currently, the sub-package provides the following classes:
 
 """
 
-from .config import *  # noqa: F401, F403
-from .visualization_markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.utils.module import lazy_export
+
+lazy_export()
