@@ -398,7 +398,6 @@ class FabricBackend:
     def _get_world_ro_array(self) -> wp.indexedfabricarray:
         # import usdrt
         # return self._select_indexed(self._WORLD_MATRIX_ATTR, usdrt.Usd.Access.Read)
-
         if self._trans_sel_ro.PrepareForReuse():
             self._fabric_indices = self._compute_fabric_indices(self._trans_sel_ro)
             self._world_ifa_ro = self._build_array(self._trans_sel_ro, self._WORLD_MATRIX_ATTR)
@@ -408,11 +407,11 @@ class FabricBackend:
     def _get_local_ro_array(self) -> wp.indexedfabricarray:
         # import usdrt
         # return self._select_indexed(self._LOCAL_MATRIX_ATTR, usdrt.Usd.Access.Read)
-        if self._local_sel_rw.PrepareForReuse():
-            self._fabric_indices = self._compute_fabric_indices(self._local_sel_rw)
+        if self._trans_sel_ro.PrepareForReuse():
+            self._fabric_indices = self._compute_fabric_indices(self._trans_sel_ro)
             self._world_ifa_ro = self._build_array(self._trans_sel_ro, self._WORLD_MATRIX_ATTR)
             self._local_ifa_ro = self._build_array(self._trans_sel_ro, self._LOCAL_MATRIX_ATTR)
-        return self._local_ifa_rw
+        return self._local_ifa_ro
 
     def _get_world_rw_array(self) -> wp.indexedfabricarray:
         # import usdrt
