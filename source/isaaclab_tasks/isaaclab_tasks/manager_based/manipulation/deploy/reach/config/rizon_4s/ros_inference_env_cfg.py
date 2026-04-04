@@ -49,6 +49,5 @@ class Rizon4sReachROSInferenceEnvCfg(Rizon4sReachEnvCfg):
 
         # Extract initial joint positions from robot configuration
         self.initial_joint_pos = [
-            self.scene.robot.init_state.joint_pos[joint_name]
-            for joint_name in self.arm_joint_names
+            self.scene.robot.init_state.joint_pos[joint_name] for joint_name in self.arm_joint_names
         ]
