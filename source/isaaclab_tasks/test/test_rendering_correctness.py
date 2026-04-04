@@ -6,7 +6,7 @@
 """Tests for rendering correctness.
 
 Each test builds an environment with a given (physics_backend, renderer, data_type),
-steps once, then checks if camera outputs are not blank (at least one non-zero
+resets, then checks if camera outputs are not blank (at least one non-zero
 pixel) and consistent with golden images. Env-specific fixtures use parametrized
 combinations; a separate test covers a list of registered task IDs that use
 camera-based observations.
@@ -577,15 +577,12 @@ def _validate_camera_outputs(
 
         _COMPARISON_SCORES.append(entry)
 
-        if not succeeded:
-            timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            result_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}-{timestamp}.png")
-            result_image.save(result_path)
-            pytest.fail(
-                f"[{test_name}] Inconsistency detected for camera output '{data_type}': {error_message}. "
-                f"Saved result image to {result_path} for further investigation. "
-                f"If result image is correct, please replace the golden image at {golden_path} with the result image."
-            )
+        assert succeeded, (
+            f"[{test_name}] Camera output does not match the golden image "
+            f"(physics={physics_backend}, renderer={renderer}, data_type={data_type}).\n"
+            f"Mismatch details: {error_message}\n"
+            f"Images were written to {_COMPARISON_IMAGES_DIR}."
+        )
 
 
 def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
@@ -625,7 +622,7 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
 
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def shadow_hand_env(request):
-    """Build Shadow Hand vision env for (physics_backend, renderer, data_type); step once, yield, close."""
+    """Build Shadow Hand vision env for (physics_backend, renderer, data_type); reset, yield, close."""
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
@@ -673,7 +670,7 @@ def test_shadow_hand(shadow_hand_env):
 
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def cartpole_env(request):
-    """Build Cartpole camera env for (physics_backend, renderer, data_type); step once, yield, close."""
+    """Build Cartpole camera env for (physics_backend, renderer, data_type); reset, yield, close."""
     from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
     from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
@@ -717,7 +714,7 @@ def test_cartpole(cartpole_env):
 
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def dexsuite_kuka_allegro_lift_env(request):
-    """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; step once, yield, close."""
+    """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; reset, yield, close."""
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
