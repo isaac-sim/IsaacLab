@@ -392,7 +392,7 @@ def apply_overrides(
         full_path = f"{sec}.{path}" if path else sec
         resolved[full_path] = (sec, path, name)
 
-    # Apply global presets (error on conflict)
+    # Apply global presets (error on real conflict — same path, different value)
     applied_by: dict[str, str] = {}
     for name in global_presets:
         for sec in ("env", "agent"):
@@ -400,11 +400,16 @@ def apply_overrides(
                 if name in path_presets:
                     full_path = f"{sec}.{path}" if path else sec
                     if full_path in applied_by:
-                        raise ValueError(
-                            f"Conflicting global presets: '{applied_by[full_path]}' and '{name}' "
-                            f"both define preset for '{full_path}'"
-                        )
-                    applied_by[full_path] = name
+                        prev_name = applied_by[full_path]
+                        prev_val = path_presets[prev_name]
+                        cur_val = path_presets[name]
+                        if prev_val is not cur_val and prev_val != cur_val:
+                            raise ValueError(
+                                f"Conflicting global presets: '{prev_name}' and '{name}' "
+                                f"both define preset for '{full_path}'"
+                            )
+                    else:
+                        applied_by[full_path] = name
                     if full_path not in resolved:
                         resolved[full_path] = (sec, path, name)
 

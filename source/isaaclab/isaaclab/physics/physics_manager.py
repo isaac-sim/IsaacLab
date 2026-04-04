@@ -266,6 +266,17 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
+    def pre_render(cls) -> None:
+        """Sync deferred physics state to the rendering backend.
+
+        Called by :meth:`~isaaclab.sim.SimulationContext.render` before cameras
+        and visualizers read scene data. The default implementation is a no-op.
+        Backends that defer transform writes (e.g. Newton's dirty-flag pattern)
+        should override this to flush pending updates.
+        """
+        pass
+
+    @classmethod
     def close(cls) -> None:
         """Clean up physics resources.
 

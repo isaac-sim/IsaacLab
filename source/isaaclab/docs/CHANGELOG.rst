@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.5.25 (2026-03-31)
+4.5.25 (2026-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -13,6 +13,8 @@ Added
 * Added :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.gravity_compensation` to
   :class:`~isaaclab.sim.schemas.JointDrivePropertiesCfg` for setting joint-level gravity
   compensation (written as ``mjc:actuatorgravcomp`` on USD joint prims).
+* Added app launcher initialization marker to app launcher for auto hanging detection.
+
 
 4.5.24 (2026-03-25)
 ~~~~~~~~~~~~~~~~~~~

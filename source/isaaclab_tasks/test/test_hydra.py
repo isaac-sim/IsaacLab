@@ -983,6 +983,40 @@ def test_apply_overrides_conflicting_globals_raises():
         apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["opt_a", "opt_b"], [], [], presets)
 
 
+def test_apply_overrides_aliased_globals_no_conflict():
+    """Two global presets resolving to equal values do not raise.
+
+    Mirrors the dexsuite ObjectCfg pattern where ``newton = cube`` creates
+    separate but equal dataclass instances after @configclass processing.
+    """
+
+    @configclass
+    class SharedCfg:
+        value: int = 42
+
+    cube_val = SharedCfg()
+    newton_val = SharedCfg()
+
+    @configclass
+    class AliasedPresetCfg(PresetCfg):
+        default: str = "d"
+        cube: SharedCfg = cube_val
+        newton: SharedCfg = newton_val
+
+    @configclass
+    class AliasedEnvCfg:
+        mode: AliasedPresetCfg = AliasedPresetCfg()
+
+    env_cfg = AliasedEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    assert presets["env"]["mode"]["cube"] is not presets["env"]["mode"]["newton"]
+    assert presets["env"]["mode"]["cube"] == presets["env"]["mode"]["newton"]
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["cube", "newton"], [], [], presets)
+    assert env_cfg.mode == SharedCfg()
+
+
 # =============================================================================
 # Tests: parse_overrides edge cases
 # =============================================================================
