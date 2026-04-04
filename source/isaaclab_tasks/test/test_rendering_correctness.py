@@ -374,8 +374,10 @@ def _generate_html_report() -> None:
         "<th>ACTUAL</th>"
         "<th>GOLDEN</th>"
         "</tr></thead>\n"
-        "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n</body>\n</html>\n"
+        "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n"
         f"<p>Generated:&nbsp;{datetime.now().astimezone().isoformat(timespec='seconds')}.</p>\n"
+        "</body>\n"
+        "</html>\n"
     )
 
     with open(report_path, "w", encoding="utf-8") as f:
