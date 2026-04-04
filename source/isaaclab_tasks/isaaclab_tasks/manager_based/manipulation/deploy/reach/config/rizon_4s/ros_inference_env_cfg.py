@@ -45,14 +45,6 @@ class Rizon4sReachROSInferenceEnvCfg(Rizon4sReachEnvCfg):
             self.joint_action_scale,
             self.joint_action_scale,
             self.joint_action_scale,
-        self.action_scale_joint_space = [
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
-            self.joint_action_scale,
         ]
 
         # Extract initial joint positions from robot configuration
