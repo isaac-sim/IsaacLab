@@ -175,9 +175,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     extras_log_sums: dict[str, list[float]] = defaultdict(list)
 
     # -- evaluation loop ----------------------------------------------------------------
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  Evaluating for {total_episodes_target} episodes  |  {num_envs} parallel envs")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     obs = env.get_observations()
     start_time = time.time()
@@ -265,20 +265,20 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     step_dt = unwrapped.step_dt
     max_ep_len = unwrapped.max_episode_length
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  EVALUATION RESULTS  ({n} episodes, {elapsed_total:.1f}s)")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print(f"  Checkpoint : {resume_path}")
     print(f"  Num envs   : {num_envs}")
     print(f"  Step dt    : {step_dt:.4f}s   |  Max episode steps: {max_ep_len}")
 
-    print(f"\n  --- Episode Returns ---")
+    print("\n  --- Episode Returns ---")
     print(f"    Mean   : {returns_t.mean().item():.4f}")
     print(f"    Std    : {returns_t.std().item():.4f}")
     print(f"    Min    : {returns_t.min().item():.4f}")
     print(f"    Max    : {returns_t.max().item():.4f}")
 
-    print(f"\n  --- Episode Length (steps) ---")
+    print("\n  --- Episode Length (steps) ---")
     print(f"    Mean   : {lengths_t.mean().item():.1f}")
     print(f"    Std    : {lengths_t.std().item():.1f}")
     print(f"    Min    : {lengths_t.min().item():.0f}")
@@ -288,21 +288,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"\n  --- Success Rate (term: '{success_term}') ---")
         print(f"    Success: {success_count}/{n}  ({100.0 * success_count / n:.1f}%)")
 
-    print(f"\n  --- Termination Breakdown ---")
+    print("\n  --- Termination Breakdown ---")
     print(f"    Timeouts       : {timeout_count}/{n}  ({100.0 * timeout_count / n:.1f}%)")
     for t_name in term_names:
         cnt = termination_counts.get(t_name, 0)
         print(f"    {t_name:30s}: {cnt}/{n}  ({100.0 * cnt / n:.1f}%)")
 
     if reward_term_names:
-        print(f"\n  --- Mean Episodic Reward Terms ---")
+        print("\n  --- Mean Episodic Reward Terms ---")
         for name in reward_term_names:
             vals = reward_term_sums[name]
             mean_val = sum(vals) / len(vals) if vals else 0.0
             print(f"    {name:40s}: {mean_val:.6f}")
 
     if extras_log_sums:
-        print(f"\n  --- Mean Extras/Log Metrics (per-step averages) ---")
+        print("\n  --- Mean Extras/Log Metrics (per-step averages) ---")
         for key in sorted(extras_log_sums.keys()):
             # skip Episode_Reward/Episode_Termination keys (already covered above)
             if key.startswith("Episode_Reward/") or key.startswith("Episode_Termination/"):
@@ -311,7 +311,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             mean_val = sum(vals) / len(vals) if vals else 0.0
             print(f"    {key:50s}: {mean_val:.6f}")
 
-    print(f"\n{'='*70}\n")
+    print(f"\n{'=' * 70}\n")
 
     env.close()
 
