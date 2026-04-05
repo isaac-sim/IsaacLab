@@ -64,7 +64,6 @@ class MySceneCfg(InteractiveSceneCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.01, rest_offset=0.01),
         visual_material=sim_utils.MdlFileCfg(
             mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
             project_uvw=True,
@@ -285,6 +284,10 @@ class TerminationsCfg:
     base_contact = DoneTerm(
         func=mdp.illegal_contact,
         params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="base"), "threshold": 1.0},
+    )
+    body_lin_vel = DoneTerm(
+        func=mdp.body_lin_vel_out_of_limit,
+        params={"max_velocity": 20.0, "asset_cfg": SceneEntityCfg("robot", body_names=".*")},
     )
 
 

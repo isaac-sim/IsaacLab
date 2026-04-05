@@ -17,7 +17,7 @@ from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     StartupEventsCfg,
 )
-from isaaclab_tasks.utils import PresetCfg, preset
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
@@ -35,13 +35,12 @@ class RoughPhysicsCfg(PresetCfg):
     # mesh terrain geometry.
     newton = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=200,
-            nconmax=100,
+            njmax=400,
+            nconmax=200,
             cone="pyramidal",
             impratio=1.0,
             integrator="implicitfast",
             use_mujoco_contacts=False,
-            ccd_iterations=100,
         ),
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_250_000),
         num_substeps=1,
@@ -62,8 +61,7 @@ class AnymalDNewtonEventsCfg(EventsCfg):
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "contact_offset_distribution_params": (0.01, 0.01),
-            "rest_offset_distribution_params": (0.01, 0.01),
+            "contact_offset_distribution_params": (0.02, 0.02)
         },
     )
 
@@ -84,7 +82,6 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # switch robot to anymal-d
         self.scene.robot = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton=0.05, physx=0.0)
 
 @configclass
 class AnymalDRoughEnvCfg_PLAY(AnymalDRoughEnvCfg):
