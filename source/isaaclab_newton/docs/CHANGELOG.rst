@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.13 (2026-04-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed NaN after env reset caused by stale ``body_q`` in the collision
+  pipeline. Added :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk`
+  so articulation write methods trigger ``eval_fk`` before the next
+  ``collide()``.
+
 
 0.5.12 (2026-04-03)
 ~~~~~~~~~~~~~~~~~~~

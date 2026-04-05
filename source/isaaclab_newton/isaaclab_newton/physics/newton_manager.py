@@ -522,8 +522,8 @@ class NewtonManager(PhysicsManager):
         """Mark forward kinematics as needing recomputation.
 
         Called by articulation write methods that modify ``joint_q`` or root
-        transforms.  The flag is checked in :meth:`_simulate_physics_only`
-        before collision detection to ensure ``body_q`` is up-to-date.
+        transforms.  The flag is checked in :meth:`step` before collision
+        detection to ensure ``body_q`` is up-to-date.
         """
         cls._fk_dirty = True
 
