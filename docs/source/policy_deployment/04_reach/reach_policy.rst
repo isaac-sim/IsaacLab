@@ -670,4 +670,3 @@ Further Resources
 - `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
 - Gear Assembly Sim-to-Real Tutorial: :ref:`walkthrough_sim_to_real`
 - RL Training Tutorial: :ref:`tutorial-run-rl-training`
-
