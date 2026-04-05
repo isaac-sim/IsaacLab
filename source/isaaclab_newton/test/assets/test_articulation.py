@@ -2441,7 +2441,6 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
 
         sim.reset()
 
-        state = SimulationManager.get_state_0()
         model = SimulationManager.get_model()
         jc_starts = model.joint_coord_world_start.numpy()
         body_starts = model.body_world_start.numpy()
