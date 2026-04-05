@@ -2484,8 +2484,7 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
         jq_root = captured["jq_root"]
         diff = (jq_root - bq_root).abs().max().item()
         assert diff < 0.01, (
-            f"body_q was stale when collide() ran: diff={diff:.4f}m, "
-            f"jq={jq_root.tolist()}, bq={bq_root.tolist()}"
+            f"body_q was stale when collide() ran: diff={diff:.4f}m, jq={jq_root.tolist()}, bq={bq_root.tolist()}"
         )
 
 
