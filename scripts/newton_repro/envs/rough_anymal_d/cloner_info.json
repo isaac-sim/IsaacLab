@@ -1,0 +1,16 @@
+{
+  "sources": [
+    "/World/envs/env_0"
+  ],
+  "destinations": [
+    "/World/envs/env_{}"
+  ],
+  "ignore_paths": [
+    "/World/envs",
+    "/World/envs/env_0"
+  ],
+  "up_axis": "Z",
+  "simplify_meshes": true,
+  "num_envs": 256,
+  "env_spacing": 2.5
+}
