@@ -15,7 +15,7 @@ from isaaclab.utils import configclass
 from .newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
-    from .newton_manager import NewtonManager
+    from isaaclab_newton.physics import NewtonManager
 
 
 @configclass
@@ -117,7 +117,15 @@ class MJWarpSolverCfg(NewtonSolverCfg):
         you must also set ``collision_cfg`` to a :class:`NewtonCollisionPipelineCfg` instance.
         Mismatched settings will cause simulation errors (e.g., NaN values).
     """
+    
+    tolerance: float = 1e-6
+    """Solver convergence tolerance for the constraint residual.
 
+    The solver iterates until the residual drops below this threshold or
+    ``iterations`` is reached.  Lower values give more precise constraint
+    satisfaction at the cost of more iterations.  MuJoCo default is ``1e-8``;
+    Newton default is ``1e-6``.
+    """
 
 @configclass
 class XPBDSolverCfg(NewtonSolverCfg):
@@ -207,6 +215,33 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
 
 
 @configclass
+class NanReplayCfg:
+    """Configuration for the NaN replay debug buffer.
+
+    When attached to :class:`NewtonCfg`, a rolling buffer of GPU state snapshots
+    is kept.  If a NaN is detected after a physics step the buffer is exported to
+    disk (with optional USD scene export) and simulation is halted.
+    """
+
+    buffer_size: int = 200
+    """Number of state snapshots to keep in the rolling buffer.
+
+    Capped at 2000 to bound GPU memory use.
+    """
+
+    export_path: str = "./nan_debug/"
+    """Directory for exported ``.npz`` and ``.usd`` files."""
+
+    max_exports: int = 5
+    """Maximum number of NaN export events before halting simulation.
+
+    Each export event covers a distinct set of newly-NaN env_ids.  After this
+    many exports the debug buffer stops recording and the physics step raises
+    ``RuntimeError``.
+    """
+
+
+@configclass
 class NewtonCfg(PhysicsCfg):
     """Configuration for Newton physics manager.
 
@@ -226,6 +261,14 @@ class NewtonCfg(PhysicsCfg):
     """Whether to use CUDA graphing when simulating.
 
     If set to False, the simulation performance will be severely degraded.
+    """
+
+    nan_replay: NanReplayCfg | None = None
+    """NaN replay debug buffer configuration.
+
+    Set to a :class:`NanReplayCfg` instance to enable the rolling state buffer
+    and automatic NaN detection / export.  ``None`` (default) disables the
+    feature entirely — no memory is allocated and no per-step overhead is added.
     """
 
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()

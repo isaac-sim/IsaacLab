@@ -6,6 +6,7 @@
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_newton.physics import NanReplayCfg
 
 from isaaclab.utils import configclass
 
@@ -18,3 +19,9 @@ class MultiBackendRendererCfg(PresetCfg):
     newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
     ovrtx_renderer: OVRTXRendererCfg = OVRTXRendererCfg()
     isaacsim_rtx_renderer = default
+
+
+@configclass
+class NewtonNanDebugCfg(PresetCfg):
+    default = None
+    debug_nan = NanReplayCfg()

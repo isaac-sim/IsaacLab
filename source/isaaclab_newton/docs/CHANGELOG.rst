@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+
+0.5.12 (2026-04-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Consolidated all NaN debugging logic into :class:`~isaaclab_newton.physics.DebugStateBuffer`.
+  Solver divergence logging and NaN transition logging previously lived as ad-hoc
+  class methods on ``NewtonManager`` and are now self-contained in the buffer.
+  The buffer also exports a full MuJoCo Warp data snapshot (``mjw_snapshot.npz``)
+  on NaN for exact single-step reproduction via ``repro_solver_nan.py --snapshot``.
+
+
 0.5.11 (2026-03-24)
 ~~~~~~~~~~~~~~~~~~~
 

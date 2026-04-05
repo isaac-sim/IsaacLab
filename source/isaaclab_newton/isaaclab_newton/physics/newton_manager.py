@@ -36,6 +36,8 @@ from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.timer import Timer
 
+from .debug_state_buffer import DebugStateBuffer
+
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -115,6 +117,9 @@ class NewtonManager(PhysicsManager):
 
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
+
+    # Debug state buffer for NaN replay (None = disabled)
+    _debug_state_buffer: DebugStateBuffer | None = None
 
     # Views list for assets to register their views
     _views: list = []
@@ -302,6 +307,10 @@ class NewtonManager(PhysicsManager):
             else:
                 logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
 
+        # Snapshot state before stepping for NaN debug (captures post-reset state)
+        if cls._debug_state_buffer is not None:
+            cls._debug_state_buffer.snapshot_pre_step(cls._state_0)
+
         # Ensure body_q is up-to-date before collision detection.
         # After env resets, joint_q is written but body_q (used by
         # broadphase/narrowphase) is stale until FK runs.
@@ -326,6 +335,43 @@ class NewtonManager(PhysicsManager):
                 logger.warning(f"Solver didn't converge! max_iter={convergence_data['max']}")
         PhysicsManager._sim_time += cls._solver_dt * cls._num_substeps
 
+        if cls._debug_state_buffer is not None:
+            with wp.ScopedDevice(PhysicsManager._device):
+                diagnostics = cls._collect_diagnostics()
+                solver_data = None
+                if isinstance(cls._solver, SolverMuJoCo):
+                    mjw_opt = cls._solver.mjw_model.opt
+                    mjw_data = cls._solver.mjw_data
+                    collision_cfg = cls._collision_cfg
+                    solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+                    solver_cfg_dict = solver_cfg.to_dict() if solver_cfg is not None and hasattr(solver_cfg, "to_dict") else {}
+                    solver_data = {
+                        "mjw_data": mjw_data,
+                        "max_iterations": mjw_opt.iterations,
+                        "nv": int(cls._solver.mjw_model.nv),
+                        "opt": {
+                            "iterations": mjw_opt.iterations,
+                            "tolerance": solver_cfg_dict.get("tolerance", getattr(mjw_opt, "tolerance", None)),
+                            "integrator": solver_cfg_dict.get("integrator", getattr(mjw_opt, "integrator", None)),
+                            "cone": solver_cfg_dict.get("cone", getattr(mjw_opt, "cone", None)),
+                            "impratio": solver_cfg_dict.get("impratio", getattr(mjw_opt, "impratio", None)),
+                            "njmax": solver_cfg_dict.get("njmax", 400),
+                            "nconmax": solver_cfg_dict.get("nconmax", 200),
+                            "use_mujoco_contacts": solver_cfg_dict.get("use_mujoco_contacts", not cls._needs_collision_pipeline),
+                            "max_triangle_pairs": getattr(collision_cfg, "max_triangle_pairs", None) if collision_cfg else None,
+                            "dt": cls._solver_dt,
+                            "num_substeps": cls._num_substeps,
+                        },
+                    }
+                cls._debug_state_buffer.step(cls._state_0, PhysicsManager._sim_time, diagnostics, solver_data)
+            if cls._debug_state_buffer.nan_halt:
+                nr = getattr(PhysicsManager._cfg, "nan_replay", None)
+                export_dir = nr.export_path if nr is not None else "."
+                raise RuntimeError(
+                    f"NaN detected in physics state. Debug replay exported to {export_dir}. "
+                    "Halting simulation."
+                )
+
     @classmethod
     def close(cls) -> None:
         """Clean up Newton physics resources."""
@@ -343,6 +389,21 @@ class NewtonManager(PhysicsManager):
             List of registered views (e.g., NewtonArticulationView instances).
         """
         return cls._views
+
+    @classmethod
+    def set_debug_episode_length_buf(cls, buf: torch.Tensor) -> None:
+        """Attach per-env episode length to the debug state buffer.
+
+        When the buffer exports a NaN event it will include ``episode_step``
+        for each affected environment so the user can tell whether the NaN
+        happened right after reset or mid-episode.
+
+        Args:
+            buf: Episode length tensor, shape ``(num_envs,)``, dtype long.
+                Typically ``env.episode_length_buf``.
+        """
+        if cls._debug_state_buffer is not None:
+            cls._debug_state_buffer.episode_length_buf = buf
 
     @classmethod
     def is_fabric_enabled(cls) -> bool:
@@ -378,6 +439,73 @@ class NewtonManager(PhysicsManager):
         cls._up_axis = "Z"
         cls._model_changes = set()
         cls._views = []
+        if cls._debug_state_buffer is not None:
+            cls._debug_state_buffer.clear()
+        cls._debug_state_buffer = None
+
+    @staticmethod
+    def _make_scene_exporter():
+        """Build a callable that exports NaN'd env prim subtrees AND global collision geometry to USD.
+
+        Copies all relevant prims into a single target layer in one pass to avoid
+        multiple ``export_prim_to_file`` calls clobbering each other.
+
+        Returns None if USD utilities are unavailable (headless / no-USD environments).
+        """
+        try:
+            from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
+
+            from isaaclab.sim.utils.prims import resolve_paths  # noqa: PLC0415
+        except ImportError:
+            return None
+
+        def _exporter(usd_path: str, env_ids: list[int]) -> None:
+            stage = get_current_stage()
+            if stage is None:
+                return
+
+            source_layer = stage.GetRootLayer()
+            target_layer = Sdf.Layer.CreateNew(usd_path)
+            target_stage = Usd.Stage.Open(target_layer)
+            UsdGeom.SetStageUpAxis(target_stage, UsdGeom.GetStageUpAxis(stage))
+            UsdGeom.SetStageMetersPerUnit(target_stage, UsdGeom.GetStageMetersPerUnit(stage))
+
+            prim_paths_to_copy = []
+
+            if not env_ids:
+                prim_paths_to_copy.append("/World/envs/env_0")
+            else:
+                for eid in env_ids:
+                    prim_paths_to_copy.append(f"/World/envs/env_{eid}")
+
+            world_prim = stage.GetPrimAtPath("/World")
+            if world_prim and world_prim.IsValid():
+                for child in world_prim.GetChildren():
+                    child_path = child.GetPath().pathString
+                    if child_path == "/World/envs":
+                        continue
+                    if _prim_has_collision(child):
+                        prim_paths_to_copy.append(child_path)
+
+            for prim_path in prim_paths_to_copy:
+                Sdf.CreatePrimInLayer(target_layer, prim_path)
+                Sdf.CopySpec(source_layer, Sdf.Path(prim_path), target_layer, Sdf.Path(prim_path))
+
+            if prim_paths_to_copy:
+                target_layer.defaultPrim = Sdf.Path(prim_paths_to_copy[0]).name
+
+            resolve_paths(source_layer.identifier, target_layer.identifier)
+            target_layer.Save()
+
+        def _prim_has_collision(prim) -> bool:
+            from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+            for p in Usd.PrimRange(prim):
+                if p.HasAPI(UsdPhysics.CollisionAPI) or p.HasAPI(UsdPhysics.MeshCollisionAPI):
+                    return True
+            return False
+
+        return _exporter
 
     @classmethod
     def set_builder(cls, builder: ModelBuilder) -> None:
@@ -394,8 +522,8 @@ class NewtonManager(PhysicsManager):
         """Mark forward kinematics as needing recomputation.
 
         Called by articulation write methods that modify ``joint_q`` or root
-        transforms.  The flag is checked in :meth:`step` before collision
-        detection to ensure ``body_q`` is up-to-date.
+        transforms.  The flag is checked in :meth:`_simulate_physics_only`
+        before collision detection to ensure ``body_q`` is up-to-date.
         """
         cls._fk_dirty = True
 
@@ -425,10 +553,46 @@ class NewtonManager(PhysicsManager):
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
+        # #region agent log
+        import os as _os
+        _export_dir = _os.environ.get("NEWTON_SAVE_CLONER_STAGE", _os.environ.get("NEWTON_SAVE_MODEL", ""))
+        if _export_dir:
+            _os.makedirs(_export_dir, exist_ok=True)
+            import numpy as _np
+            _m = cls._model
+            _data = {}
+            for _attr in dir(_m):
+                if _attr.startswith("_"):
+                    continue
+                _v = getattr(_m, _attr, None)
+                if _v is None:
+                    continue
+                if hasattr(_v, "numpy"):
+                    try:
+                        _data[_attr] = _v.numpy()
+                    except Exception:
+                        pass
+                elif isinstance(_v, (int, float)):
+                    _data[_attr] = _np.array([_v])
+            _np.savez_compressed(_os.path.join(_export_dir, "model.npz"), **_data)
+            logger.info(f"Saved model ({len(_data)} arrays) to {_export_dir}/model.npz")
+        # #endregion
+
         cls._state_0 = cls._model.state()
         cls._state_1 = cls._model.state()
         cls._control = cls._model.control()
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
+
+        nan_replay_cfg = getattr(PhysicsManager._cfg, "nan_replay", None)
+        if nan_replay_cfg is not None:
+            cls._debug_state_buffer = DebugStateBuffer(
+                cls._model,
+                nan_replay_cfg.buffer_size,
+                export_path=nan_replay_cfg.export_path,
+                max_exports=nan_replay_cfg.max_exports,
+                scene_exporter=cls._make_scene_exporter(),
+            )
+            logger.info("Debug state buffer enabled: %d snapshots", cls._debug_state_buffer.size)
 
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -492,7 +656,31 @@ class NewtonManager(PhysicsManager):
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             ignore_paths = [path for _, path in env_paths]
+            # #region agent log
+            import json as _json, time as _time
+            _log_path = "/home/zhengyuz/Projects/IsaacLab/.cursor/debug-dd2fc5.log"
+            _entry = {"sessionId": "dd2fc5", "hypothesisId": "H_terrain_load",
+                      "location": "newton_manager.py:instantiate_builder_from_stage",
+                      "timestamp": int(_time.time() * 1000),
+                      "message": "pre add_usd terrain",
+                      "data": {"num_envs": len(env_paths), "ignore_paths_count": len(ignore_paths),
+                               "stage_root_layer": str(stage.GetRootLayer().identifier),
+                               "builder_shape_count_before": builder.shape_count}}
+            with open(_log_path, "a") as _f:
+                _f.write(_json.dumps(_entry) + "\n")
+            # #endregion
             builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            # #region agent log
+            _entry2 = {"sessionId": "dd2fc5", "hypothesisId": "H_terrain_load",
+                       "location": "newton_manager.py:instantiate_builder_from_stage",
+                       "timestamp": int(_time.time() * 1000),
+                       "message": "post add_usd terrain",
+                       "data": {"builder_shape_count_after": builder.shape_count,
+                                "builder_body_count": builder.body_count,
+                                "shape_labels": builder.shape_label[:10] if builder.shape_label else []}}
+            with open(_log_path, "a") as _f:
+                _f.write(_json.dumps(_entry2) + "\n")
+            # #endregion
 
             # Build a prototype from the first env (all envs assumed identical)
             _, proto_path = env_paths[0]
@@ -521,6 +709,22 @@ class NewtonManager(PhysicsManager):
                 builder.end_world()
 
             cls._num_envs = len(env_paths)
+
+        # #region agent log
+        import json as _json, time as _time
+        _log_path = "/home/zhengyuz/Projects/IsaacLab/.cursor/debug-dd2fc5.log"
+        _entry = {"sessionId": "dd2fc5", "hypothesisId": "H_terrain_load",
+                  "location": "newton_manager.py:instantiate_builder_from_stage",
+                  "timestamp": int(_time.time() * 1000),
+                  "message": "final builder state",
+                  "data": {"builder_shape_count": builder.shape_count,
+                           "builder_body_count": builder.body_count,
+                           "builder_joint_count": builder.joint_count,
+                           "shape_labels": builder.shape_label[:20] if builder.shape_label else [],
+                           "shape_geo_types": [int(builder.shape_geo_type[i]) for i in range(min(5, builder.shape_count))] if hasattr(builder, 'shape_geo_type') else []}}
+        with open(_log_path, "a") as _f:
+            _f.write(_json.dumps(_entry) + "\n")
+        # #endregion
 
         cls.set_builder(builder)
 
@@ -839,6 +1043,54 @@ class NewtonManager(PhysicsManager):
             "min": np.min(niter),
             "std": np.std(niter),
         }
+
+    @classmethod
+    def _collect_diagnostics(cls) -> dict | None:
+        """Gather per-step solver diagnostics for the debug state buffer.
+
+        Returns None if the solver doesn't expose MuJoCo data (non-MJWarp solvers).
+        All values stay on GPU; the debug buffer copies to CPU only on NaN export.
+        """
+        if not isinstance(cls._solver, SolverMuJoCo):
+            return None
+
+        import torch  # noqa: PLC0415
+
+        mjd = cls._solver.mjw_data
+        diag: dict = {}
+
+        # Scalar per world -- cheap
+        diag["solver_niter"] = mjd.solver_niter
+
+        # Per-dof arrays -- wp.to_torch is zero-copy, clone happens in buffer
+        diag["qfrc_applied"] = mjd.qfrc_applied
+        diag["qfrc_constraint"] = mjd.qfrc_constraint
+        diag["qfrc_actuator"] = mjd.qfrc_actuator
+        diag["qacc"] = mjd.qacc
+
+        # Mass matrix diagonal min -- qM is (num_worlds, nv_pad, nv_pad)
+        # nv_pad may be larger than nv (actual DOFs), with zero padding.
+        # Only check the first nv diagonal elements.
+        nv = int(cls._solver.mjw_model.nv)
+        qM = wp.to_torch(mjd.qM)
+        if qM.dim() == 3:
+            diag_vals = torch.diagonal(qM, dim1=-2, dim2=-1)[:, :nv]
+            diag["qM_diag_min"] = diag_vals.min(dim=-1).values
+        elif qM.dim() == 2:
+            diag["qM_diag_min"] = torch.diag(qM)[:nv].min().unsqueeze(0)
+
+        # Contact penetration -- vectorized scatter_reduce, no Python loop
+        contact = getattr(mjd, "contact", None)
+        if contact is not None:
+            dist = wp.to_torch(contact.dist)
+            if dist.numel() > 0:
+                worldid = wp.to_torch(contact.worldid).long()
+                nw = getattr(cls._model, "world_count", 0) or 1
+                diag["contact_dist_min"] = torch.zeros(nw, device=dist.device).scatter_reduce(
+                    0, worldid, dist, reduce="amin", include_self=True
+                )
+
+        return diag
 
     # State accessors (used extensively by articulation/rigid object data)
     @classmethod

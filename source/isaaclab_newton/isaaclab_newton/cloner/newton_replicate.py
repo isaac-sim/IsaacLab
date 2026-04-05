@@ -155,6 +155,30 @@ def newton_physics_replicate(
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
+    import os as _os
+    _export_dir = _os.environ.get("NEWTON_SAVE_CLONER_STAGE", "")
+    if _export_dir:
+        import json as _json
+        _os.makedirs(_export_dir, exist_ok=True)
+
+        _out = _os.path.join(_export_dir, "cloner_stage.usd")
+        stage.Flatten().Export(_out)
+        print(f"[cloner] Saved flattened stage to {_out}")
+
+        _pos = positions if positions is not None else torch.zeros((mapping.size(1), 3))
+        _info = {
+            "sources": sources,
+            "destinations": destinations,
+            "ignore_paths": ["/World/envs"] + sources,
+            "up_axis": up_axis,
+            "simplify_meshes": simplify_meshes,
+            "num_envs": int(mapping.size(1)),
+            "positions": _pos.cpu().tolist(),
+        }
+        with open(_os.path.join(_export_dir, "cloner_info.json"), "w") as _f:
+            _json.dump(_info, _f, indent=2)
+        print(f"[cloner] Saved cloner_info.json")
+
     builder, stage_info = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,

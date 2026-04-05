@@ -94,6 +94,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
+
+        # If the physics manager supports NaN debug tracking, attach episode
+        # length so NaN exports report how far into the episode each env was.
+        pm = self.sim.physics_manager
+        if hasattr(pm, "set_debug_episode_length_buf"):
+            pm.set_debug_episode_length_buf(self.episode_length_buf)
+
         print("[INFO]: Completed setting up the environment...")
 
     """
