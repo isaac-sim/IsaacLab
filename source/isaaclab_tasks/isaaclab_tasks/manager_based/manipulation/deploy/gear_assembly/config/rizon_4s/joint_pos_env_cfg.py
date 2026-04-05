@@ -8,7 +8,7 @@ import math
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import IdealPDActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -329,10 +329,10 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         )
 
         # Grav gripper actuator configuration for gear manipulation
-        self.scene.robot.actuators["gripper_drive"] = IdealPDActuatorCfg(
+        self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
-            effort_limit=2.0,
-            velocity_limit=1.0,
+            effort_limit_sim=2.0,
+            velocity_limit_sim=1.0,
             stiffness=2e3,
             damping=1e1,
             friction=0.0,
@@ -340,10 +340,10 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         )
 
         # Passive/mimic joints in the gripper - set to zero stiffness/damping
-        self.scene.robot.actuators["gripper_passive"] = IdealPDActuatorCfg(
+        self.scene.robot.actuators["gripper_passive"] = ImplicitActuatorCfg(
             joint_names_expr=[".*_knuckle_joint"],
-            effort_limit=1.0,
-            velocity_limit=1.0,
+            effort_limit_sim=1.0,
+            velocity_limit_sim=1.0,
             stiffness=0.0,
             damping=0.0,
             friction=0.0,
