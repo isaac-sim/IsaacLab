@@ -1,3 +1,5 @@
+.. _sim2real:
+
 Training & Deploying HOVER Policy
 =================================
 
