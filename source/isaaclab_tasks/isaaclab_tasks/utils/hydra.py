@@ -43,6 +43,7 @@ def _require_hydra():
     if not _HYDRA_AVAILABLE:
         raise ImportError("Hydra not installed. Run: pip install hydra-core")
 
+
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
 
