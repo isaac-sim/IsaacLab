@@ -3125,7 +3125,7 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
-    def set_fixed_tendon_ctrl(
+    def write_fixed_tendon_ctrl_to_sim(
         self,
         *,
         ctrl: float | torch.Tensor | wp.array | None = None,
@@ -3135,11 +3135,8 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         """Resolve tendon indices and set the Mujoco CTRL buffer. 
         
-        .. note::
-            This method only sets the ctrl buffer. Call write_actuator_ctrl_to_sim to update the sim buffer.
-            
         Args:
-            ctrl: Value(s) to update. If array, shape is 
+            ctrl: Value(s) to update. If array, shape is (num_tendons,)
         """
 
 
@@ -3152,8 +3149,6 @@ class Articulation(BaseArticulation):
     ) -> None:
         env_ids = self._resolve_env_ids(env_ids) # 1- num_envs
         ctrl_ids = self._resolve_ctrl_ids(ctrl_ids) # 1- num_act
-        # self.assert_shape_and_dtype(ctrl, (env_ids.shape[0]*ctrl_ids.shape[0],), wp.float64, "ctrl")
-
 
         wp.launch(
             shared_kernels.write_2d_data_to_flat_buffer_with_indices,
@@ -3509,7 +3504,7 @@ class Articulation(BaseArticulation):
         model = SimulationManager.get_model()
         mujoco_attrs = getattr(model, "mujoco", None)
         if mujoco_attrs is None or not hasattr(mujoco_attrs, "actuator_trntype"):
-            raise Exception("Mujoco has no actuator trntype")
+           return
 
         trntype_arr = mujoco_attrs.actuator_trntype.numpy()
         trnid_arr = mujoco_attrs.actuator_trnid.numpy()

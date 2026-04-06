@@ -1337,7 +1337,9 @@ class ArticulationData(BaseArticulationData):
             self.actuator_count = len(mujoco_attrs.actuator_trntype)
             mujoco_act_attr = getattr(SimulationManager.get_control(), "mujoco", None)
             self._sim_bind_actuator_ctrl = getattr(mujoco_act_attr, "ctrl", None)
-
+        else:
+            self.actuator_count = 0
+            self._sim_bind_actuator_ctrl = None
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
@@ -1370,14 +1372,6 @@ class ArticulationData(BaseArticulationData):
         # -- mujoco ctrl api
         if self.actuator_count > 0:
             self._default_actuator_ctrl = wp.zeros((self.actuator_count,), wp.float32, device=self.device)
-            self._actuator_ctrl = wp.zeros((self.actuator_count,), wp.float32, device=self.device)
-
-        if self._num_fixed_tendons > 0:
-            self._tendon_stiffness = wp.clone(self._sim_bind_tendon_stiffness)
-            self._tendon_damping = wp.clone(self._sim_bind_tendon_damping)
-        else:
-            self._tendon_stiffness = None
-            self._tendon_damping = None
 
         # -- joint commands (sent to the actuator from the user)
         self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)

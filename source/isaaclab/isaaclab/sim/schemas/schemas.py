@@ -770,9 +770,7 @@ def modify_fixed_tendon_properties(
                 continue
             # set into PhysX API by attribute prefix schema_name: (e.g. PhysxTendonAxisRootAPI:default:stiffness)
             for attr_name, value in cfg.items():
-                safe_set_attribute
-                \
-                _on_usd_prim(
+                safe_set_attribute_on_usd_prim(
                     tendon_prim,
                     f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
                     value,
