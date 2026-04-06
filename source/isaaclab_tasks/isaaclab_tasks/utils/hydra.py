@@ -319,7 +319,12 @@ def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, li
         key = tuple(sorted(paths))
         fingerprint_to_names.setdefault(key, []).append(name)
 
-    lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}", "", "Available presets (grouped by affected paths):", ""]
+    lines = [
+        f"Unknown preset(s): {', '.join(sorted(unknown))}",
+        "",
+        "Available presets (grouped by affected paths):",
+        "",
+    ]
     for paths_tuple in sorted(fingerprint_to_names, key=lambda k: fingerprint_to_names[k][0]):
         names = sorted(fingerprint_to_names[paths_tuple])
         if len(names) <= 30:
