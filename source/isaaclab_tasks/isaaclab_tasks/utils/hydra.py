@@ -38,8 +38,6 @@ except ImportError:
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
 
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-
 
 @configclass
 class PresetCfg:
@@ -152,6 +150,10 @@ def collect_presets(cfg, path: str = "") -> dict:
         for alt in fields.values():
             if hasattr(alt, "__dataclass_fields__"):
                 result.update(collect_presets(alt, preset_path))
+            elif isinstance(alt, dict):
+                for v in alt.values():
+                    if hasattr(v, "__dataclass_fields__"):
+                        result.update(collect_presets(v, preset_path))
 
     if isinstance(cfg, PresetCfg):
         _record(cfg, path)
@@ -159,6 +161,74 @@ def collect_presets(cfg, path: str = "") -> dict:
 
     _walk_cfg(cfg, path, lambda _p, _k, obj, cp: _record(obj, cp))
     return result
+
+
+# ============================================================================
+# Preset resolution
+# ============================================================================
+
+
+def _pick_alternative(preset_obj: PresetCfg, selected: set[str]):
+    """Choose the best alternative from a PresetCfg.
+
+    Priority: first match in ``selected``, then ``default`` (preferring
+    class-level over instance-level).  Returns the chosen value, or the
+    preset object itself if nothing matches.
+    """
+    fields = _preset_fields(preset_obj)
+    for name in selected:
+        if name in fields:
+            return fields[name]
+    if "default" in fields:
+        return fields["default"]
+    return preset_obj
+
+
+def resolve_presets(cfg, selected: set[str] = frozenset()):
+    """Replace every :class:`PresetCfg` in the tree with the best alternative.
+
+    For each ``PresetCfg`` found during a depth-first walk:
+
+    1. Pick the first name from *selected* that exists as a field on the
+       preset, otherwise fall back to ``default``.
+    2. Replace the preset in its parent (dict key or dataclass attr).
+    3. Continue walking the replacement (which may contain more presets).
+
+    Args:
+        cfg: A configclass, dict, or PresetCfg to resolve in-place.
+        selected: Set of preset names chosen by the user (e.g. from CLI
+            ``presets=peg_insert_4mm,eval``).
+
+    Returns:
+        The resolved ``cfg`` (possibly a different object if the root itself
+        was a PresetCfg).
+    """
+    if isinstance(cfg, PresetCfg):
+        replacement = _pick_alternative(cfg, selected)
+        if replacement is cfg:
+            return cfg
+        return resolve_presets(replacement, selected)
+
+    def _resolve(parent, key, preset_obj, _path):
+        val = _pick_alternative(preset_obj, selected)
+        if val is preset_obj:
+            return
+        while isinstance(val, PresetCfg):
+            val = _pick_alternative(val, selected)
+        if isinstance(parent, dict):
+            parent[key] = val
+        else:
+            setattr(parent, key, val)
+        if hasattr(val, "__dataclass_fields__") or isinstance(val, dict):
+            _walk_cfg(val, _path, _resolve)
+
+    _walk_cfg(cfg, "", _resolve)
+    return cfg
+
+
+# ============================================================================
+# CLI / Hydra integration
+# ============================================================================
 
 
 def _run_hydra(task, env_cfg, agent_cfg, presets, callback):
@@ -189,7 +259,7 @@ def _run_hydra(task, env_cfg, agent_cfg, presets, callback):
 def resolve_task_config(task_name: str, agent_cfg_entry_point: str):
     """Resolve env and agent configs with Hydra overrides, presets, and scalars fully applied.
 
-    Safe to call before Kit is launched — callable config values are stored as
+    Safe to call before Kit is launched -- callable config values are stored as
     :class:`~isaaclab.utils.string.ResolvableString` and resolved lazily on
     first use, so no implementation modules are imported eagerly.
 
@@ -230,32 +300,6 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     return decorator
 
 
-def resolve_preset_defaults(cfg):
-    """Replace PresetCfg fields with their ``default`` value, recursively.
-
-    Must be called before ``to_dict()`` so the Hydra dict contains only the
-    resolved config rather than the raw PresetCfg with all alternatives.
-    Returns the (possibly replaced) cfg if the root itself is a PresetCfg.
-    """
-    if isinstance(cfg, PresetCfg):
-        default = getattr(cfg, "default", None)
-        return resolve_preset_defaults(default) if default is not None else cfg
-
-    def _on_preset(parent, key, preset_obj, _path):
-        default = getattr(preset_obj, "default", None)
-        if default is None:
-            return
-        if isinstance(parent, dict):
-            parent[key] = default
-        else:
-            setattr(parent, key, default)
-        if hasattr(default, "__dataclass_fields__"):
-            resolve_preset_defaults(default)
-
-    _walk_cfg(cfg, "", _on_preset)
-    return cfg
-
-
 def register_task(task_name: str, agent_entry: str) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
@@ -266,22 +310,36 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         (env_cfg, agent_cfg, presets) where presets =
         {"env": {"path": {"name": cfg}}, "agent": {...}}
     """
+    from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     agent_cfg = None
     if agent_entry:
         agent_cfg = load_cfg_from_registry(task_name, agent_entry)
 
-    # Collect presets recursively from the config tree
+    # Collect presets before resolution (needed for path-based overrides)
     presets = {
         "env": collect_presets(env_cfg),
         "agent": collect_presets(agent_cfg) if agent_cfg else {},
     }
 
-    # Resolve PresetCfg defaults before serialization so to_dict() doesn't
-    # include all preset alternatives in the hydra dict.
-    env_cfg = resolve_preset_defaults(env_cfg)
+    # Extract global preset names from CLI, then resolve in one pass
+    selected: set[str] = set()
+    for arg in sys.argv[1:]:
+        if "=" in arg:
+            key, val = arg.split("=", 1)
+            if key.lstrip("-") == "presets":
+                selected.update(v.strip() for v in val.split(",") if v.strip())
+    env_cfg = resolve_presets(env_cfg, selected)
     if agent_cfg is not None:
-        agent_cfg = resolve_preset_defaults(agent_cfg)
+        agent_cfg = resolve_presets(agent_cfg, selected)
+
+    # Also resolve presets inside collected alternatives so that apply_overrides
+    # never re-introduces unresolved PresetCfg objects when applying a selection.
+    for section_presets in presets.values():
+        for path_presets in section_presets.values():
+            for name, alt in path_presets.items():
+                resolve_presets(alt, selected)
 
     # Convert to dict for Hydra (handle gym spaces and slices)
     env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)
@@ -311,8 +369,6 @@ def parse_overrides(args: list[str], presets: dict) -> tuple:
         - preset_scalar: [(full_path, value), ...] - scalars in preset paths
         - global_scalar: [arg, ...] - pass to Hydra
     """
-    # Build lookup of preset group paths (e.g., "env.actions").
-    # Root-level PresetCfg has path="" -> bare "env" or "agent" key.
     preset_paths = {f"{s}.{p}" if p else s for s, v in presets.items() for p in v}
     global_presets, preset_sel, preset_scalar, global_scalar = [], [], [], []
 
@@ -346,13 +402,14 @@ def apply_overrides(
 ):
     """Apply preset selections and scalar overrides with REPLACE semantics.
 
-    Phase 1: Determine the selected preset name for every path (explicit
-    selections, then global broadcasts, then ``default`` fallback).
-    Phase 2: Apply in depth order, pruning children whose parent is None.
-    Phase 3: Apply scalar overrides on top.
+    Global presets are already applied by :func:`resolve_presets` in
+    :func:`register_task`. This function handles:
+
+    1. Path-based selections (``env.backend=newton``)
+    2. Scalar overrides within preset paths (``env.backend.dt=0.001``)
 
     Returns:
-        (env_cfg, agent_cfg) — possibly replaced if root-level PresetCfg was resolved.
+        (env_cfg, agent_cfg) -- possibly replaced if root-level PresetCfg was resolved.
 
     Raises:
         ValueError: If multiple global presets conflict on the same path.
@@ -381,7 +438,7 @@ def apply_overrides(
             _setattr(cfgs[sec], path, node)
             _setattr(hydra_cfg, f"{sec}.{path}", node_dict)
 
-    # --- Phase 1: Determine selected preset name for every path ---------------
+    # --- Phase 1: path-based selections + global broadcast for reachable paths
     resolved: dict[str, tuple[str, str, str]] = {}
     for sec, path, name in preset_sel:
         if path not in presets.get(sec, {}):
@@ -392,7 +449,6 @@ def apply_overrides(
         full_path = f"{sec}.{path}" if path else sec
         resolved[full_path] = (sec, path, name)
 
-    # Apply global presets (error on real conflict — same path, different value)
     applied_by: dict[str, str] = {}
     for name in global_presets:
         for sec in ("env", "agent"):
@@ -413,20 +469,19 @@ def apply_overrides(
                     if full_path not in resolved:
                         resolved[full_path] = (sec, path, name)
 
-    # Fill remaining paths with "default" (if available)
     for sec in ("env", "agent"):
         for path, path_presets in presets.get(sec, {}).items():
             full_path = f"{sec}.{path}" if path else sec
             if full_path not in resolved and "default" in path_presets:
                 resolved[full_path] = (sec, path, "default")
 
-    # --- Phase 2: Apply in depth order, pruning unreachable children ----------
+    # --- Phase 2: apply in depth order, pruning unreachable children
     for full_path in sorted(resolved, key=lambda fp: fp.count(".")):
         sec, path, name = resolved[full_path]
         if cfgs[sec] is not None and _path_reachable(sec, path):
             _apply_node(sec, path, presets[sec][path][name])
 
-    # 3. Apply scalar overrides within preset paths
+    # --- Phase 3: scalar overrides within preset paths
     for full_path, val_str in preset_scalar:
         if full_path.startswith("env."):
             sec, path = "env", full_path[4:]
@@ -465,7 +520,6 @@ def _parse_val(s: str):
     try:
         return float(s) if "." in s else int(s)
     except ValueError:
-        # Strip quotes if present
         if s[0] in "\"'" and s[-1] in "\"'":
             return s[1:-1]
         return s
