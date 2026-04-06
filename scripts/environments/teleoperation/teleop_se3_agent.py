@@ -39,6 +39,21 @@ parser.add_argument(
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
+parser.add_argument(
+    "--cloudxr_env",
+    type=str,
+    default="cloudxrjs",
+    help=(
+        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico, default) or 'avp' (Apple Vision Pro)."
+        " Set to 'none' to disable CloudXR auto-launch entirely."
+    ),
+)
+parser.add_argument(
+    "--auto_launch_cloudxr",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="Auto-launch the CloudXR runtime when --cloudxr_env is set. Use --no-auto_launch_cloudxr to disable.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -71,8 +86,25 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
 from isaaclab_tasks.utils import parse_env_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
+
+_CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
+
+
+def _resolve_cloudxr_env(value: str | None) -> str | None:
+    """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
+
+    Accepts ``"cloudxrjs"`` (Quest/Pico), ``"avp"`` (Apple Vision Pro),
+    ``"none"`` / ``None`` (disable), or an arbitrary file path.
+    """
+    if value is None or value.strip() == "" or value.lower() == "none":
+        return None
+    if not _CLOUDXR_ENV_SHORTHANDS:
+        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV
+
+        _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
+        _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
+    return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
 def main() -> None:
@@ -192,6 +224,8 @@ def main() -> None:
                 env_cfg.isaac_teleop,
                 sim_device=args_cli.device,
                 callbacks=teleoperation_callbacks,
+                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
+                auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
             )
 
         elif hasattr(env_cfg, "teleop_devices") and args_cli.teleop_device in env_cfg.teleop_devices.devices:
