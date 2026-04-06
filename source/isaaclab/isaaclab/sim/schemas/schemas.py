@@ -757,8 +757,8 @@ def modify_fixed_tendon_properties(
     # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has fixed tendon applied on it
-    applied_schemas = tendon_prim.GetAppliedSchemas()
-    prim_type = tendon_prim.GetTypeName()
+    applied_schemas = tendon_prim.GetAppliedSchemas() # physx assigns schema to existing prim
+    prim_type = tendon_prim.GetTypeName() # mujoco defines a new prim per tendon
     if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas) and prim_type != "MjcTendon":
         return False
 

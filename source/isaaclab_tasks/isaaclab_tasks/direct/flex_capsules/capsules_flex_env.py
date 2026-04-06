@@ -47,7 +47,7 @@ class CapsulesFlexEnv(DirectRLEnv):
         self.actions = actions.clone()
 
     def _apply_action(self) -> None:
-        self.robot.write_actuator_ctrl_to_sim(ctrl=[-1.0, -1.0])
+        self.robot.write_actuator_ctrl_to_sim_index(ctrl=wp.array([-1.0, -1.0], dtype=wp.float32))
 
     def _get_observations(self) -> dict:
         obs = torch.cat(
@@ -93,7 +93,7 @@ class CapsulesFlexEnv(DirectRLEnv):
         default_root_state = wp.to_torch(self.robot.data.default_root_state)[env_ids]
         default_root_state[:, :3] += self.scene.env_origins[env_ids]
 
-        self.robot.write_actuator_ctrl_to_sim(ctrl=wp.to_torch(self.robot.data._default_actuator_ctrl)[env_ids])
+        self.robot.write_actuator_ctrl_to_sim_index(ctrl=wp.to_torch(self.robot.data._default_actuator_ctrl))
 
         # self.robot.write_root_pose_to_sim_index(default_root_state[:, :7], env_ids)
         # self.robot.write_root_velocity_to_sim_index(default_root_state[:, 7:], env_ids)

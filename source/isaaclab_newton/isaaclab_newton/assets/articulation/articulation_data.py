@@ -1376,8 +1376,8 @@ class ArticulationData(BaseArticulationData):
             self._tendon_stiffness = wp.clone(self._sim_bind_tendon_stiffness)
             self._tendon_damping = wp.clone(self._sim_bind_tendon_damping)
         else:
-            self._tendon_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
-            self._tendon_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._tendon_stiffness = None
+            self._tendon_damping = None
 
         # -- joint commands (sent to the actuator from the user)
         self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
@@ -1411,7 +1411,6 @@ class ArticulationData(BaseArticulationData):
         self._soft_joint_pos_limits = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
         )
-
 
         # Initialize history for finite differencing
         if self._num_joints > 0:
