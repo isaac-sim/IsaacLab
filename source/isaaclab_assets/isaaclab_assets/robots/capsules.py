@@ -37,6 +37,7 @@ CAPSULES_CFG = ArticulationCfg(
             sleep_threshold=0.005,
             stabilization_threshold=0.0005,
         ),
+fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(stiffness=30.0, damping=0.1),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 2.0),
