@@ -335,8 +335,10 @@ class Camera(SensorBase):
             elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
-        # set the pose
-        self._view.set_world_poses(positions, orientations, env_ids)
+        # convert torch tensors to warp arrays for the view
+        pos_wp = wp.from_torch(positions.contiguous()) if positions is not None else None
+        ori_wp = wp.from_torch(orientations.contiguous()) if orientations is not None else None
+        self._view.set_world_poses(pos_wp, ori_wp, env_ids)
 
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
@@ -359,7 +361,7 @@ class Camera(SensorBase):
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view
         orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
-        self._view.set_world_poses(eyes, orientations, env_ids)
+        self._view.set_world_poses(wp.from_torch(eyes.contiguous()), wp.from_torch(orientations.contiguous()), env_ids)
 
     """
     Operations
@@ -612,11 +614,11 @@ class Camera(SensorBase):
         if len(self._sensor_prims) == 0:
             raise RuntimeError("Camera prim is None. Please call 'sim.play()' first.")
 
-        # get the poses from the view
-        poses, quat = self._view.get_world_poses(env_ids)
-        self._data.pos_w[env_ids] = poses
+        # get the poses from the view (returns wp.array, convert to torch)
+        pos_wp, quat_wp = self._view.get_world_poses(env_ids)
+        self._data.pos_w[env_ids] = wp.to_torch(pos_wp)
         self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
-            quat, origin="opengl", target="world"
+            wp.to_torch(quat_wp), origin="opengl", target="world"
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:

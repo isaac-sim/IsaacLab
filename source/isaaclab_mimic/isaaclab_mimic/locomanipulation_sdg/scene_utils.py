@@ -113,7 +113,9 @@ class SceneAsset(HasPose):
     def get_pose(self):
         """Get the 3D pose of the entity."""
         xform_prim = self._get_xform_view()
-        position, orientation = xform_prim.get_world_poses()
+        pos_wp, ori_wp = xform_prim.get_world_poses()
+        position = wp.to_torch(pos_wp)
+        orientation = wp.to_torch(ori_wp)
         pose = torch.cat([position, orientation], dim=-1)
         return pose
 
@@ -122,7 +124,7 @@ class SceneAsset(HasPose):
         xform_prim = self._get_xform_view()
         position = pose[..., :3]
         orientation = pose[..., 3:]
-        xform_prim.set_world_poses(position, orientation, None)
+        xform_prim.set_world_poses(wp.from_torch(position.contiguous()), wp.from_torch(orientation.contiguous()), None)
 
 
 class RelativePose(HasPose):

@@ -18,7 +18,7 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.views import XformPrimView
+from isaaclab.sim.views import BaseXformPrimView, XformPrimView
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
@@ -334,7 +334,7 @@ class RayCaster(SensorBase):
 
     def _obtain_trackable_prim_view(
         self, target_prim_path: str
-    ) -> tuple[XformPrimView | any, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> tuple[BaseXformPrimView | any, tuple[torch.Tensor, torch.Tensor]]:
         """Obtain a prim view that can be used to track the pose of the parget prim.
 
         The target prim path is a regex expression that matches one or more mesh prims. While we can track its

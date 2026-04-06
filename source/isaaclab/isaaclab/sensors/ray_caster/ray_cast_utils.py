@@ -12,11 +12,11 @@ import warp as wp
 
 import omni.physics.tensors.impl.api as physx
 
-from isaaclab.sim.views import XformPrimView
+from isaaclab.sim.views import BaseXformPrimView
 
 
 def obtain_world_pose_from_view(
-    physx_view: XformPrimView | physx.ArticulationView | physx.RigidBodyView,
+    physx_view: BaseXformPrimView | physx.ArticulationView | physx.RigidBodyView,
     env_ids: torch.Tensor,
     clone: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -34,8 +34,10 @@ def obtain_world_pose_from_view(
     Raises:
         NotImplementedError: If the prim view is not of the supported type.
     """
-    if isinstance(physx_view, XformPrimView):
-        pos_w, quat_w = physx_view.get_world_poses(env_ids)
+    if isinstance(physx_view, BaseXformPrimView):
+        pos_wp, quat_wp = physx_view.get_world_poses(env_ids)
+        pos_w = wp.to_torch(pos_wp)
+        quat_w = wp.to_torch(quat_wp)
     elif isinstance(physx_view, physx.ArticulationView):
         pos_w, quat_w = wp.to_torch(physx_view.get_root_transforms())[env_ids].split([3, 4], dim=-1)
     elif isinstance(physx_view, physx.RigidBodyView):
