@@ -126,3 +126,19 @@ runs:
         echo "🟠 Workflow cancelled, force-killing container ${CONTAINER}..."
         docker kill "${CONTAINER}" 2>/dev/null || true
         docker rm -f "${CONTAINER}" 2>/dev/null || true
+
+    - name: Cleanup old Docker images
+      if: always()
+      shell: bash
+      run: |
+        echo "⚪ Disk usage before cleanup"
+        df -h /var/lib/docker
+        docker system df
+        echo ""
+        echo "🔵 Removing Docker images older than 3 days..."
+        docker image prune -a -f --filter "until=72h"
+        echo "🟢 Docker image cleanup complete."
+        echo ""
+        echo "⚪ Disk usage after cleanup"
+        df -h /var/lib/docker
+        docker system df
