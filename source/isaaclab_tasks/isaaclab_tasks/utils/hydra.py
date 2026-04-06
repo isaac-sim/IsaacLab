@@ -32,8 +32,16 @@ try:
     import hydra
     from hydra.core.config_store import ConfigStore
     from omegaconf import OmegaConf
+
+    _HYDRA_AVAILABLE = True
 except ImportError:
-    raise ImportError("Hydra not installed. Run: pip install hydra-core")
+    _HYDRA_AVAILABLE = False
+
+
+def _require_hydra():
+    """Raise a clear error if hydra-core is not installed."""
+    if not _HYDRA_AVAILABLE:
+        raise ImportError("Hydra not installed. Run: pip install hydra-core")
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
@@ -234,6 +242,7 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
 
 def _run_hydra(task, env_cfg, agent_cfg, presets, callback):
     """Shared Hydra entry point for :func:`resolve_task_config` and :func:`hydra_task_config`."""
+    _require_hydra()
     global_presets, preset_sel, preset_scalar, global_scalar = parse_overrides(sys.argv[1:], presets)
     original_argv, sys.argv = sys.argv, [sys.argv[0]] + global_scalar
 
@@ -399,6 +408,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
 
     # Register plain config (no groups) - Hydra only handles global scalars
+    _require_hydra()
     ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict))
     return env_cfg, agent_cfg, presets
 
