@@ -67,15 +67,27 @@ from typing import Literal
 
 import torch
 
-from isaacsim.core.prims import XFormPrim as IsaacSimXformPrimView
-from isaacsim.core.utils.extensions import enable_extension
+try:
+    from isaacsim.core.prims import XFormPrim as IsaacSimXformPrimView
+    from isaacsim.core.utils.extensions import enable_extension
 
-# compare against latest Isaac Sim implementation
-enable_extension("isaacsim.core.experimental.prims")
-from isaacsim.core.experimental.prims import XformPrim as IsaacSimExperimentalXformPrimView
+    enable_extension("isaacsim.core.experimental.prims")
+    from isaacsim.core.experimental.prims import XformPrim as IsaacSimExperimentalXformPrimView
+
+    _HAS_ISAACSIM = True
+except (ImportError, ModuleNotFoundError):
+    _HAS_ISAACSIM = False
+
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.sim.views import XformPrimView as IsaacLabNewtonXformPrimView
+from isaaclab_physx.sim.views import XformPrimView as IsaacLabFabricXformPrimView
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObjectCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.views import XformPrimView as IsaacLabXformPrimView
+from isaaclab.utils import configclass
 
 
 @torch.no_grad()
@@ -133,8 +145,10 @@ def benchmark_xform_prim_view(  # noqa: C901
 
     # Create view
     start_time = time.perf_counter()
-    if api == "isaaclab-usd" or api == "isaaclab-fabric":
+    if api == "isaaclab-usd":
         xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
+    elif api == "isaaclab-fabric":
+        xform_view = IsaacLabFabricXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
     elif api == "isaacsim-usd":
         xform_view = IsaacSimXformPrimView(pattern, reset_xform_properties=False, usd=True)
     elif api == "isaacsim-fabric":
@@ -275,6 +289,109 @@ def benchmark_xform_prim_view(  # noqa: C901
 
     # close simulation
     sim.clear_instance()
+
+    return timing_results, computed_results
+
+
+@configclass
+class _NewtonBenchSceneCfg(InteractiveSceneCfg):
+    cube: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    )
+
+
+@torch.no_grad()
+def benchmark_newton_xform_prim_view(
+    num_iterations: int,
+) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
+    """Benchmark Newton XformPrimView (GPU sites / body_q)."""
+    timing_results = {}
+    computed_results = {}
+
+    print("  Setting up Newton scene")
+    newton_sim_cfg = SimulationCfg(device=args_cli.device, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+
+    with build_simulation_context(device=args_cli.device, sim_cfg=newton_sim_cfg, add_ground_plane=True) as sim:
+        sim._app_control_on_stop_handle = None
+        InteractiveScene(_NewtonBenchSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
+        sim.reset()
+
+        start_time = time.perf_counter()
+        xform_view = IsaacLabNewtonXformPrimView("/World/envs/env_.*/Object", device=args_cli.device)
+        timing_results["init"] = time.perf_counter() - start_time
+
+        num_prims = xform_view.count
+        print(f"  Newton XformView managing {num_prims} prims")
+
+        # warmup
+        for _ in range(5):
+            xform_view.get_world_poses()
+
+        # get_world_poses
+        torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            positions, orientations = xform_view.get_world_poses()
+        torch.cuda.synchronize()
+        timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
+
+        computed_results["initial_world_positions"] = positions.clone()
+        computed_results["initial_world_orientations"] = orientations.clone()
+
+        # set_world_poses
+        new_positions = positions.clone()
+        new_positions[:, 2] += 0.1
+        torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            xform_view.set_world_poses(new_positions, orientations)
+        torch.cuda.synchronize()
+        timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
+
+        positions_after, orientations_after = xform_view.get_world_poses()
+        computed_results["world_positions_after_set"] = positions_after.clone()
+        computed_results["world_orientations_after_set"] = orientations_after.clone()
+
+        # get_local_poses (delegates to world for Newton)
+        torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            translations, orientations_local = xform_view.get_local_poses()
+        torch.cuda.synchronize()
+        timing_results["get_local_poses"] = (time.perf_counter() - start_time) / num_iterations
+
+        computed_results["initial_local_translations"] = translations.clone()
+        computed_results["initial_local_orientations"] = orientations_local.clone()
+
+        # set_local_poses
+        new_translations = translations.clone()
+        new_translations[:, 2] += 0.1
+        torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            xform_view.set_local_poses(new_translations, orientations_local)
+        torch.cuda.synchronize()
+        timing_results["set_local_poses"] = (time.perf_counter() - start_time) / num_iterations
+
+        translations_after, orientations_local_after = xform_view.get_local_poses()
+        computed_results["local_translations_after_set"] = translations_after.clone()
+        computed_results["local_orientations_after_set"] = orientations_local_after.clone()
+
+        # interleaved set -> get
+        torch.cuda.synchronize()
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            xform_view.set_world_poses(new_positions, orientations)
+            positions, orientations = xform_view.get_world_poses()
+        torch.cuda.synchronize()
+        timing_results["interleaved_world_set_get"] = (time.perf_counter() - start_time) / num_iterations
 
     return timing_results, computed_results
 
@@ -566,10 +683,14 @@ def main():
     apis_to_test = [
         ("isaaclab-usd", "Isaac Lab XformPrimView (USD)"),
         ("isaaclab-fabric", "Isaac Lab XformPrimView (Fabric)"),
-        ("isaacsim-usd", "Isaac Sim XformPrimView (USD)"),
-        ("isaacsim-fabric", "Isaac Sim XformPrimView (Fabric)"),
-        ("isaacsim-exp", "Isaac Sim Experimental XformPrim"),
     ]
+    # Uncomment to include Isaac Sim APIs in the comparison (requires isaacsim package):
+    # if _HAS_ISAACSIM:
+    #     apis_to_test += [
+    #         ("isaacsim-usd", "Isaac Sim XformPrimView (USD)"),
+    #         ("isaacsim-fabric", "Isaac Sim XformPrimView (Fabric)"),
+    #         ("isaacsim-exp", "Isaac Sim Experimental XformPrim"),
+    #     ]
 
     # Benchmark each API
     for api_key, api_name in apis_to_test:
@@ -579,7 +700,6 @@ def main():
             profiler = cProfile.Profile()
             profiler.enable()
 
-        # Cast api_key to Literal type for type checker
         timing, computed = benchmark_xform_prim_view(
             api=api_key,  # type: ignore[arg-type]
             num_iterations=args_cli.num_iterations,
@@ -597,6 +717,17 @@ def main():
 
         print("  Done!")
         print()
+
+    # Benchmark Newton (separate setup path)
+    if "cuda" in args_cli.device:
+        print("Benchmarking Isaac Lab XformPrimView (Newton)...")
+        timing, computed = benchmark_newton_xform_prim_view(num_iterations=args_cli.num_iterations)
+        all_timing_results["isaaclab-newton"] = timing
+        all_computed_results["isaaclab-newton"] = computed
+        print("  Done!")
+        print()
+    else:
+        print("Note: Skipping Newton benchmark (requires CUDA).\n")
 
     # Print timing results
     print_results(all_timing_results, args_cli.num_envs, args_cli.num_iterations)

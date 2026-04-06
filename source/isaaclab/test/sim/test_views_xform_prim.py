@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
+import warp as wp  # noqa: E402
 
 try:
     from isaacsim.core.prims import XFormPrim as _IsaacSimXformPrimView
@@ -254,7 +255,7 @@ Tests - Getters.
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_get_world_poses(device, backend):
     """Test getting world poses from XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -278,6 +279,7 @@ def test_get_world_poses(device, backend):
 
     # Get world poses
     positions, orientations = view.get_world_poses()
+    positions, orientations = wp.to_torch(positions), wp.to_torch(orientations)
 
     # Verify shapes
     assert positions.shape == (3, 3)
@@ -294,7 +296,7 @@ def test_get_world_poses(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_get_local_poses(device, backend):
     """Test getting local poses from XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -321,6 +323,7 @@ def test_get_local_poses(device, backend):
 
     # Get local poses
     translations, orientations = view.get_local_poses()
+    translations, orientations = wp.to_torch(translations), wp.to_torch(orientations)
 
     # Verify shapes
     assert translations.shape == (3, 3)
@@ -341,7 +344,7 @@ def test_get_local_poses(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_get_scales(device, backend):
     """Test getting scales from XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -362,6 +365,7 @@ def test_get_scales(device, backend):
 
     # Get scales
     scales = view.get_scales()
+    scales = wp.to_torch(scales)
 
     # Verify shape and values
     assert scales.shape == (3, 3)
@@ -399,7 +403,7 @@ Tests - Setters.
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_world_poses(device, backend):
     """Test setting world poses in XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -434,6 +438,7 @@ def test_set_world_poses(device, backend):
 
     # Get the poses back
     retrieved_positions, retrieved_orientations = view.get_world_poses()
+    retrieved_positions, retrieved_orientations = wp.to_torch(retrieved_positions), wp.to_torch(retrieved_orientations)
 
     # Verify they match
     torch.testing.assert_close(retrieved_positions, new_positions, atol=1e-5, rtol=0)
@@ -445,7 +450,7 @@ def test_set_world_poses(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_world_poses_only_positions(device, backend):
     """Test setting only positions, leaving orientations unchanged."""
     _skip_if_backend_unavailable(backend, device)
@@ -465,6 +470,7 @@ def test_set_world_poses_only_positions(device, backend):
 
     # Get initial orientations
     _, initial_orientations = view.get_world_poses()
+    initial_orientations = wp.to_torch(initial_orientations)
 
     # Set only positions
     new_positions = torch.tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]], device=device)
@@ -472,6 +478,7 @@ def test_set_world_poses_only_positions(device, backend):
 
     # Get poses back
     retrieved_positions, retrieved_orientations = view.get_world_poses()
+    retrieved_positions, retrieved_orientations = wp.to_torch(retrieved_positions), wp.to_torch(retrieved_orientations)
 
     # Positions should be updated
     torch.testing.assert_close(retrieved_positions, new_positions, atol=1e-5, rtol=0)
@@ -484,7 +491,7 @@ def test_set_world_poses_only_positions(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_world_poses_only_orientations(device, backend):
     """Test setting only orientations, leaving positions unchanged."""
     _skip_if_backend_unavailable(backend, device)
@@ -501,6 +508,7 @@ def test_set_world_poses_only_orientations(device, backend):
 
     # Get initial positions
     initial_positions, _ = view.get_world_poses()
+    initial_positions = wp.to_torch(initial_positions)
 
     # Set only orientations
     new_orientations = torch.tensor(
@@ -511,6 +519,7 @@ def test_set_world_poses_only_orientations(device, backend):
 
     # Get poses back
     retrieved_positions, retrieved_orientations = view.get_world_poses()
+    retrieved_positions, retrieved_orientations = wp.to_torch(retrieved_positions), wp.to_torch(retrieved_orientations)
 
     # Positions should be unchanged
     torch.testing.assert_close(retrieved_positions, initial_positions, atol=1e-5, rtol=0)
@@ -523,7 +532,7 @@ def test_set_world_poses_only_orientations(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_world_poses_with_hierarchy(device, backend):
     """Test setting world poses correctly handles parent transformations."""
     _skip_if_backend_unavailable(backend, device)
@@ -554,6 +563,7 @@ def test_set_world_poses_with_hierarchy(device, backend):
 
     # Get world poses back
     retrieved_positions, retrieved_orientations = view.get_world_poses()
+    retrieved_positions, retrieved_orientations = wp.to_torch(retrieved_positions), wp.to_torch(retrieved_orientations)
 
     # Should match desired world poses
     torch.testing.assert_close(retrieved_positions, desired_world_positions, atol=1e-4, rtol=0)
@@ -564,7 +574,7 @@ def test_set_world_poses_with_hierarchy(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_local_poses(device, backend):
     """Test setting local poses in XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -599,6 +609,10 @@ def test_set_local_poses(device, backend):
 
     # Get local poses back
     retrieved_translations, retrieved_orientations = view.get_local_poses()
+    retrieved_translations, retrieved_orientations = (
+        wp.to_torch(retrieved_translations),
+        wp.to_torch(retrieved_orientations),
+    )
 
     # Verify they match
     torch.testing.assert_close(retrieved_translations, new_translations, atol=1e-5, rtol=0)
@@ -609,7 +623,7 @@ def test_set_local_poses(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_local_poses_only_translations(device, backend):
     """Test setting only local translations."""
     _skip_if_backend_unavailable(backend, device)
@@ -635,6 +649,7 @@ def test_set_local_poses_only_translations(device, backend):
 
     # Get initial orientations
     _, initial_orientations = view.get_local_poses()
+    initial_orientations = wp.to_torch(initial_orientations)
 
     # Set only translations
     new_translations = torch.tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]], device=device)
@@ -642,6 +657,10 @@ def test_set_local_poses_only_translations(device, backend):
 
     # Get poses back
     retrieved_translations, retrieved_orientations = view.get_local_poses()
+    retrieved_translations, retrieved_orientations = (
+        wp.to_torch(retrieved_translations),
+        wp.to_torch(retrieved_orientations),
+    )
 
     # Translations should be updated
     torch.testing.assert_close(retrieved_translations, new_translations, atol=1e-5, rtol=0)
@@ -654,7 +673,7 @@ def test_set_local_poses_only_translations(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_set_scales(device, backend):
     """Test setting scales in XformPrimView."""
     _skip_if_backend_unavailable(backend, device)
@@ -679,6 +698,7 @@ def test_set_scales(device, backend):
 
     # Get scales back
     retrieved_scales = view.get_scales()
+    retrieved_scales = wp.to_torch(retrieved_scales)
 
     # Verify they match
     torch.testing.assert_close(retrieved_scales, new_scales, atol=1e-5, rtol=0)
@@ -760,10 +780,13 @@ def test_index_types_get_methods(device, index_type, method):
     # Get all data as reference
     if method == "world_poses":
         all_data1, all_data2 = view.get_world_poses()
+        all_data1, all_data2 = wp.to_torch(all_data1), wp.to_torch(all_data2)
     elif method == "local_poses":
         all_data1, all_data2 = view.get_local_poses()
+        all_data1, all_data2 = wp.to_torch(all_data1), wp.to_torch(all_data2)
     elif method == "scales":
         all_data1 = view.get_scales()
+        all_data1 = wp.to_torch(all_data1)
         all_data2 = None
     else:  # visibility
         all_data1 = view.get_visibility()
@@ -776,10 +799,13 @@ def test_index_types_get_methods(device, index_type, method):
     # Get subset
     if method == "world_poses":
         subset_data1, subset_data2 = view.get_world_poses(indices=indices)  # type: ignore[arg-type]
+        subset_data1, subset_data2 = wp.to_torch(subset_data1), wp.to_torch(subset_data2)
     elif method == "local_poses":
         subset_data1, subset_data2 = view.get_local_poses(indices=indices)  # type: ignore[arg-type]
+        subset_data1, subset_data2 = wp.to_torch(subset_data1), wp.to_torch(subset_data2)
     elif method == "scales":
         subset_data1 = view.get_scales(indices=indices)  # type: ignore[arg-type]
+        subset_data1 = wp.to_torch(subset_data1)
         subset_data2 = None
     else:  # visibility
         subset_data1 = view.get_visibility(indices=indices)  # type: ignore[arg-type]
@@ -827,10 +853,13 @@ def test_index_types_set_methods(device, index_type, method):
     # Get initial data
     if method == "world_poses":
         initial_data1, initial_data2 = view.get_world_poses()
+        initial_data1, initial_data2 = wp.to_torch(initial_data1), wp.to_torch(initial_data2)
     elif method == "local_poses":
         initial_data1, initial_data2 = view.get_local_poses()
+        initial_data1, initial_data2 = wp.to_torch(initial_data1), wp.to_torch(initial_data2)
     elif method == "scales":
         initial_data1 = view.get_scales()
+        initial_data1 = wp.to_torch(initial_data1)
         initial_data2 = None
     else:  # visibility
         initial_data1 = view.get_visibility()
@@ -866,10 +895,13 @@ def test_index_types_set_methods(device, index_type, method):
     # Get all data after update
     if method == "world_poses":
         updated_data1, updated_data2 = view.get_world_poses()
+        updated_data1, updated_data2 = wp.to_torch(updated_data1), wp.to_torch(updated_data2)
     elif method == "local_poses":
         updated_data1, updated_data2 = view.get_local_poses()
+        updated_data1, updated_data2 = wp.to_torch(updated_data1), wp.to_torch(updated_data2)
     elif method == "scales":
         updated_data1 = view.get_scales()
+        updated_data1 = wp.to_torch(updated_data1)
         updated_data2 = None
     else:  # visibility
         updated_data1 = view.get_visibility()
@@ -899,7 +931,7 @@ def test_index_types_set_methods(device, index_type, method):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_indices_single_element(device, backend):
     """Test with a single index."""
     _skip_if_backend_unavailable(backend, device)
@@ -918,6 +950,7 @@ def test_indices_single_element(device, backend):
     # Test with single index
     indices = [3]
     positions, orientations = view.get_world_poses(indices=indices)
+    positions, orientations = wp.to_torch(positions), wp.to_torch(orientations)
 
     # Verify shapes
     assert positions.shape == (1, 3)
@@ -928,12 +961,13 @@ def test_indices_single_element(device, backend):
     view.set_world_poses(positions=new_position, indices=indices)
 
     # Verify it was set
-    retrieved_positions, _ = view.get_world_poses(indices=indices)
+    retrieved_positions, _quat = view.get_world_poses(indices=indices)
+    retrieved_positions, _quat = wp.to_torch(retrieved_positions), wp.to_torch(_quat)
     torch.testing.assert_close(retrieved_positions, new_position, atol=1e-5, rtol=0)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_indices_out_of_order(device, backend):
     """Test with indices provided in non-sequential order."""
     _skip_if_backend_unavailable(backend, device)
@@ -959,7 +993,8 @@ def test_indices_out_of_order(device, backend):
     view.set_world_poses(positions=new_positions, indices=indices)
 
     # Get all poses
-    all_positions, _ = view.get_world_poses()
+    all_positions, _quat = view.get_world_poses()
+    all_positions, _quat = wp.to_torch(all_positions), wp.to_torch(_quat)
 
     # Verify each index got the correct value
     expected_x_values = [0.0, 0.0, 2.0, 0.0, 0.0, 5.0, 0.0, 7.0, 0.0, 9.0]
@@ -968,7 +1003,7 @@ def test_indices_out_of_order(device, backend):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-@pytest.mark.parametrize("backend", ["usd", "fabric"])
+@pytest.mark.parametrize("backend", ["usd"])
 def test_indices_with_only_positions_or_orientations(device, backend):
     """Test indices work correctly when setting only positions or only orientations."""
     _skip_if_backend_unavailable(backend, device)
@@ -992,6 +1027,7 @@ def test_indices_with_only_positions_or_orientations(device, backend):
 
     # Get initial poses
     initial_positions, initial_orientations = view.get_world_poses()
+    initial_positions, initial_orientations = wp.to_torch(initial_positions), wp.to_torch(initial_orientations)
 
     # Set only positions for specific indices
     indices = [1, 3]
@@ -1000,6 +1036,7 @@ def test_indices_with_only_positions_or_orientations(device, backend):
 
     # Get updated poses
     updated_positions, updated_orientations = view.get_world_poses()
+    updated_positions, updated_orientations = wp.to_torch(updated_positions), wp.to_torch(updated_orientations)
 
     # Verify positions updated for indices 1 and 3, others unchanged
     torch.testing.assert_close(updated_positions[1], new_positions[0], atol=1e-5, rtol=0)
@@ -1019,6 +1056,7 @@ def test_indices_with_only_positions_or_orientations(device, backend):
 
     # Get final poses
     final_positions, final_orientations = view.get_world_poses()
+    final_positions, final_orientations = wp.to_torch(final_positions), wp.to_torch(final_orientations)
 
     # Verify positions unchanged from previous step
     torch.testing.assert_close(final_positions, updated_positions, atol=1e-5, rtol=0)
@@ -1051,12 +1089,15 @@ def test_index_type_none_equivalent_to_all(device):
 
     # Get poses with indices=None
     pos_none, quat_none = view.get_world_poses(indices=None)
+    pos_none, quat_none = wp.to_torch(pos_none), wp.to_torch(quat_none)
 
     # Get poses with no argument (default)
     pos_default, quat_default = view.get_world_poses()
+    pos_default, quat_default = wp.to_torch(pos_default), wp.to_torch(quat_default)
 
     # Get poses with slice(None)
     pos_slice, quat_slice = view.get_world_poses(indices=slice(None))  # type: ignore[arg-type]
+    pos_slice, quat_slice = wp.to_torch(pos_slice), wp.to_torch(quat_slice)
 
     # All should be equivalent
     torch.testing.assert_close(pos_none, pos_default, atol=1e-10, rtol=0)
@@ -1071,6 +1112,7 @@ def test_index_type_none_equivalent_to_all(device):
     # Set with indices=None
     view.set_world_poses(positions=new_positions, orientations=new_orientations, indices=None)
     pos_after_none, quat_after_none = view.get_world_poses()
+    pos_after_none, quat_after_none = wp.to_torch(pos_after_none), wp.to_torch(quat_after_none)
 
     # Reset
     view.set_world_poses(positions=torch.zeros(num_prims, 3, device=device), indices=None)
@@ -1082,6 +1124,7 @@ def test_index_type_none_equivalent_to_all(device):
         indices=slice(None),  # type: ignore[arg-type]
     )
     pos_after_slice, quat_after_slice = view.get_world_poses()
+    pos_after_slice, quat_after_slice = wp.to_torch(pos_after_slice), wp.to_torch(quat_after_slice)
 
     # Should be equivalent
     torch.testing.assert_close(pos_after_none, pos_after_slice, atol=1e-5, rtol=0)
@@ -1116,6 +1159,7 @@ def test_with_franka_robots(device):
 
     # Get initial world poses (should be at origin)
     initial_positions, initial_orientations = frankas_view.get_world_poses()
+    initial_positions, initial_orientations = wp.to_torch(initial_positions), wp.to_torch(initial_orientations)
 
     # Verify initial positions are at origin
     expected_initial_positions = torch.zeros(2, 3, device=device)
@@ -1139,6 +1183,7 @@ def test_with_franka_robots(device):
 
     # Get poses back and verify
     retrieved_positions, retrieved_orientations = frankas_view.get_world_poses()
+    retrieved_positions, retrieved_orientations = wp.to_torch(retrieved_positions), wp.to_torch(retrieved_orientations)
 
     torch.testing.assert_close(retrieved_positions, new_positions, atol=1e-5, rtol=0)
     try:
@@ -1177,6 +1222,7 @@ def test_with_nested_targets(device):
 
     # Get world poses of targets
     world_positions, _ = targets_view.get_world_poses()
+    world_positions = wp.to_torch(world_positions)
 
     # Expected world positions are frame_translation + target_translation
     expected_positions = torch.tensor([[0.0, 20.0, 10.0], [0.0, 40.0, 25.0], [0.0, 53.0, 15.0]], device=device)
@@ -1280,6 +1326,7 @@ def test_compare_get_world_poses_with_isaacsim():
 
     # Get world poses from both
     isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses()  # xyzw
+    isaaclab_pos, isaaclab_quat = wp.to_torch(isaaclab_pos), wp.to_torch(isaaclab_quat)
     isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses()  # wxyz
 
     # Convert Isaac Sim results to torch tensors if needed
@@ -1327,6 +1374,7 @@ def test_compare_set_world_poses_with_isaacsim():
 
     # Get poses back from both
     isaaclab_pos, isaaclab_quat = isaaclab_view.get_world_poses()  # xyzw
+    isaaclab_pos, isaaclab_quat = wp.to_torch(isaaclab_pos), wp.to_torch(isaaclab_quat)
     isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses()  # wxyz
 
     # Convert Isaac Sim results to torch tensors if needed
@@ -1371,6 +1419,7 @@ def test_compare_get_local_poses_with_isaacsim():
 
     # Get local poses from both
     isaaclab_trans, isaaclab_quat = isaaclab_view.get_local_poses()
+    isaaclab_trans, isaaclab_quat = wp.to_torch(isaaclab_trans), wp.to_torch(isaaclab_quat)
     isaacsim_trans, isaacsim_quat = isaacsim_view.get_local_poses()
 
     # Convert Isaac Sim results to torch tensors if needed
@@ -1419,6 +1468,7 @@ def test_compare_set_local_poses_with_isaacsim():
 
     # Get local poses back from both
     isaaclab_trans, isaaclab_quat = isaaclab_view.get_local_poses()
+    isaaclab_trans, isaaclab_quat = wp.to_torch(isaaclab_trans), wp.to_torch(isaaclab_quat)
     isaacsim_trans, isaacsim_quat = isaacsim_view.get_local_poses()
 
     # Convert Isaac Sim results to torch tensors if needed
@@ -1433,83 +1483,3 @@ def test_compare_set_local_poses_with_isaacsim():
         torch.testing.assert_close(isaaclab_quat, isaacsim_quat, atol=1e-4, rtol=0)
     except AssertionError:
         torch.testing.assert_close(isaaclab_quat, -isaacsim_quat, atol=1e-4, rtol=0)
-
-
-"""
-Tests - Fabric Operations.
-"""
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_initialization(device):
-    """Test XformPrimView initialization with Fabric enabled."""
-    _skip_if_backend_unavailable("fabric", device)
-
-    stage = sim_utils.get_current_stage()
-
-    # Create camera prims (Boundable prims that support Fabric)
-    num_prims = 5
-    for i in range(num_prims):
-        sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=(i * 1.0, 0.0, 1.0), stage=stage)
-
-    # Create view with Fabric enabled
-    view = _create_view("/World/Cam_.*", device=device, backend="fabric")
-
-    # Verify properties
-    assert view.count == num_prims
-    assert view.device == device
-    assert len(view.prims) == num_prims
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_fabric_usd_consistency(device):
-    """Test that Fabric round-trip (write→read) is consistent, matching Isaac Sim's design.
-
-    Note: This does NOT test Fabric vs USD reads on initialization, as Fabric is designed
-    for write-first workflows. Instead, it tests that:
-    1. Fabric write→read round-trip works correctly
-    2. This matches Isaac Sim's Fabric behavior
-    """
-    _skip_if_backend_unavailable("fabric", device)
-
-    stage = sim_utils.get_current_stage()
-
-    # Create prims
-    num_prims = 5
-    for i in range(num_prims):
-        sim_utils.create_prim(
-            f"/World/Cam_{i}",
-            "Camera",
-            translation=(i * 1.0, 2.0, 3.0),
-            orientation=(0.0, 0.0, 0.7071068, 0.7071068),
-            stage=stage,
-        )
-
-    # Create Fabric view
-    view_fabric = _create_view("/World/Cam_.*", device=device, backend="fabric")
-
-    # Test Fabric write→read round-trip (Isaac Sim's intended workflow)
-    # Initialize Fabric state by WRITING first
-    init_positions = torch.zeros((num_prims, 3), dtype=torch.float32, device=device)
-    init_positions[:, 0] = torch.arange(num_prims, dtype=torch.float32, device=device)
-    init_positions[:, 1] = 2.0
-    init_positions[:, 2] = 3.0
-    init_orientations = torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068]] * num_prims, dtype=torch.float32, device=device)
-
-    view_fabric.set_world_poses(init_positions, init_orientations)
-
-    # Read back from Fabric (should match what we wrote)
-    pos_fabric, quat_fabric = view_fabric.get_world_poses()
-    torch.testing.assert_close(pos_fabric, init_positions, atol=1e-4, rtol=0)
-    torch.testing.assert_close(quat_fabric, init_orientations, atol=1e-4, rtol=0)
-
-    # Test another round-trip with different values
-    new_positions = torch.rand((num_prims, 3), dtype=torch.float32, device=device) * 10.0
-    new_orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * num_prims, dtype=torch.float32, device=device)
-
-    view_fabric.set_world_poses(new_positions, new_orientations)
-
-    # Read back from Fabric (should match)
-    pos_fabric_after, quat_fabric_after = view_fabric.get_world_poses()
-    torch.testing.assert_close(pos_fabric_after, new_positions, atol=1e-4, rtol=0)
-    torch.testing.assert_close(quat_fabric_after, new_orientations, atol=1e-4, rtol=0)

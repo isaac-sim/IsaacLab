@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.14 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.views.XformPrimView` providing the Newton
+  backend implementation for xform prim views.
+
+
 0.5.13 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -51,10 +61,6 @@ Fixed
   pipeline. Added :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk`
   so articulation write methods trigger ``eval_fk`` before the next
   ``collide()``.
-
-
-0.5.9 (2026-03-16)
-~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

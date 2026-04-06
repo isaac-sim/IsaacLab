@@ -171,6 +171,20 @@ Added
 Added
 ^^^^^
 
+
+* Added :class:`~isaaclab.sim.views.BaseXformPrimView` abstract base class that defines
+  the common interface for backend-specific ``XformPrimView`` implementations.
+* Added :class:`~isaaclab.sim.views.XformPrimViewFactory` to instantiate the correct
+  backend-specific ``XformPrimView`` based on the active simulation backend.
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab.sim.views.XformPrimView` to delegate backend-specific
+  logic to :class:`~isaaclab_physx.sim.views.XformPrimView` and
+  :class:`~isaaclab_newton.sim.views.XformPrimView`. The public API is unchanged;
+  use :class:`~isaaclab.sim.views.XformPrimViewFactory` for backend-aware instantiation.
+
 * Added release version to
   :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.
 

@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.17 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.views.XformPrimView` providing the PhysX/Fabric
+  backend implementation for xform prim views.
+
+
 0.5.16 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 

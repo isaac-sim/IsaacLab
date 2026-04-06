@@ -4,11 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "BaseXformPrimView",
     "XformPrimView",
-    "XformPrimViewFactory",
 ]
 
-from .base_xform_prim_view import BaseXformPrimView
 from .xform_prim_view import XformPrimView
-from .xform_prim_view_factory import XformPrimViewFactory
