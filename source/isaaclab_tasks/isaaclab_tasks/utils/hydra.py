@@ -381,11 +381,11 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
             for path, fields in sec_presets.items():
                 full = f"{sec}.{path}" if path else sec
                 for name in fields:
-                    if name != "default":
-                        name_to_paths.setdefault(name, []).append(full)
+                    name_to_paths.setdefault(name, []).append(full)
         unknown = selected - set(name_to_paths)
         if unknown:
-            raise ValueError(_format_unknown_presets_error(unknown, name_to_paths))
+            display = {n: p for n, p in name_to_paths.items() if n != "default"}
+            raise ValueError(_format_unknown_presets_error(unknown, display))
 
     env_cfg = resolve_presets(env_cfg, selected)
     if agent_cfg is not None:
