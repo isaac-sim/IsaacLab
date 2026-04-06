@@ -7,14 +7,23 @@ import importlib.metadata
 import os
 import subprocess
 
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib  # Python < 3.11
+
 from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import DictMetadata, StringMetadata
+
+# Path to the repository root (relative to this file: recorders/ -> benchmark/ -> test/ -> isaaclab/ -> isaaclab/ -> source/ -> repo)
+_REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 6))
 
 
 class VersionInfoRecorder(MeasurementDataRecorder):
     def __init__(self):
         self._version_info = {}
         self._dev_info = {}
+        self._get_release_version()
         self._get_version_info()
         self._get_git_info()
 
@@ -48,6 +57,39 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         """Store a version entry only if version is non-empty."""
         if version:
             self._version_info[key] = version
+
+    def _get_release_version(self) -> None:
+        """Read the top-level VERSION file and each sub-package's extension.toml version.
+
+        The VERSION file at the repository root contains the Isaac Lab release version
+        (e.g. ``3.0.0``). Each sub-package under ``source/`` has its own version in
+        ``config/extension.toml``.
+        """
+        # Read root VERSION file
+        version_file = os.path.join(_REPO_ROOT, "VERSION")
+        if os.path.isfile(version_file):
+            try:
+                with open(version_file) as f:
+                    version = f.read().strip()
+                if version:
+                    self._record("isaaclab_release", version)
+            except Exception:
+                pass
+
+        # Read extension.toml versions from each source sub-package
+        source_dir = os.path.join(_REPO_ROOT, "source")
+        if os.path.isdir(source_dir):
+            for entry in sorted(os.listdir(source_dir)):
+                toml_path = os.path.join(source_dir, entry, "config", "extension.toml")
+                if os.path.isfile(toml_path):
+                    try:
+                        with open(toml_path, "rb") as f:
+                            data = tomllib.load(f)
+                        version = data.get("package", {}).get("version")
+                        if version:
+                            self._record(f"{entry}_ext", version)
+                    except Exception:
+                        pass
 
     def _get_version_info(self) -> None:
         # isaaclab
