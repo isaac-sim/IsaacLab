@@ -1164,3 +1164,53 @@ def test_resolve_presets_idempotent():
     assert isinstance(second.backend, PhysxCfg)
     assert isinstance(second.observations, NoiselessObservationsCfg)
     assert second.backend.dt == first.backend.dt
+
+
+def test_unknown_global_preset_name_detected():
+    """A selected preset name that doesn't match any PresetCfg field is detected.
+
+    This catches typos like presets=peg_insrt_4mm (missing 'e'). The validation
+    in register_task raises ValueError before resolution begins.
+    """
+    cfg = PresetCfgEnvCfg()
+    presets = {"env": collect_presets(cfg), "agent": {}}
+    all_known = {name for alts in presets.values() for fields in alts.values() for name in fields if name != "default"}
+
+    assert "newton" in all_known
+    assert "typo_preset" not in all_known
+
+
+def test_resolve_presets_errors_on_no_default():
+    """A PresetCfg with no 'default' field and no matching selected name
+    must raise ValueError, not silently linger or infinite loop."""
+
+    @configclass
+    class NoDefaultPreset(PresetCfg):
+        option_a: int = 1
+
+    @configclass
+    class EnvCfg:
+        mode: NoDefaultPreset = NoDefaultPreset()
+
+    with pytest.raises(ValueError, match="no 'default' field"):
+        resolve_presets(EnvCfg())
+
+
+def test_resolve_presets_errors_on_chained_no_default():
+    """A PresetCfg whose default is another PresetCfg with no 'default'
+    must raise ValueError on the inner preset."""
+
+    @configclass
+    class InnerNoDefault(PresetCfg):
+        option_a: int = 1
+
+    @configclass
+    class OuterPreset(PresetCfg):
+        default: InnerNoDefault = InnerNoDefault()
+
+    @configclass
+    class EnvCfg:
+        mode: OuterPreset = OuterPreset()
+
+    with pytest.raises(ValueError, match="no 'default' field"):
+        resolve_presets(EnvCfg())

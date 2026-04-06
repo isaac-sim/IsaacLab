@@ -168,12 +168,14 @@ def collect_presets(cfg, path: str = "") -> dict:
 # ============================================================================
 
 
-def _pick_alternative(preset_obj: PresetCfg, selected: set[str]):
+def _pick_alternative(preset_obj: PresetCfg, selected: set[str], path: str = ""):
     """Choose the best alternative from a PresetCfg.
 
     Priority: first match in ``selected``, then ``default`` (preferring
-    class-level over instance-level).  Returns the chosen value, or the
-    preset object itself if nothing matches.
+    class-level over instance-level).
+
+    Raises:
+        ValueError: If no matching name and no ``default`` field exists.
     """
     fields = _preset_fields(preset_obj)
     for name in selected:
@@ -181,7 +183,10 @@ def _pick_alternative(preset_obj: PresetCfg, selected: set[str]):
             return fields[name]
     if "default" in fields:
         return fields["default"]
-    return preset_obj
+    raise ValueError(
+        f"PresetCfg {type(preset_obj).__name__} at '{path}' has no 'default' field "
+        f"and none of the selected presets {selected} match its fields {set(fields.keys())}."
+    )
 
 
 def resolve_presets(cfg, selected: set[str] = frozenset()):
@@ -204,17 +209,13 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
         was a PresetCfg).
     """
     if isinstance(cfg, PresetCfg):
-        replacement = _pick_alternative(cfg, selected)
-        if replacement is cfg:
-            return cfg
+        replacement = _pick_alternative(cfg, selected, path="<root>")
         return resolve_presets(replacement, selected)
 
     def _resolve(parent, key, preset_obj, _path):
-        val = _pick_alternative(preset_obj, selected)
-        if val is preset_obj:
-            return
+        val = _pick_alternative(preset_obj, selected, path=_path)
         while isinstance(val, PresetCfg):
-            val = _pick_alternative(val, selected)
+            val = _pick_alternative(val, selected, path=_path)
         if isinstance(parent, dict):
             parent[key] = val
         else:
@@ -300,6 +301,17 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     return decorator
 
 
+def _extract_preset_names(args: list[str]) -> set[str]:
+    """Extract global preset names from a list of CLI args."""
+    selected: set[str] = set()
+    for arg in args:
+        if "=" in arg:
+            key, val = arg.split("=", 1)
+            if key.lstrip("-") == "presets":
+                selected.update(v.strip() for v in val.split(",") if v.strip())
+    return selected
+
+
 def register_task(task_name: str, agent_entry: str) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
@@ -323,13 +335,26 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         "agent": collect_presets(agent_cfg) if agent_cfg else {},
     }
 
-    # Extract global preset names from CLI, then resolve in one pass
-    selected: set[str] = set()
-    for arg in sys.argv[1:]:
-        if "=" in arg:
-            key, val = arg.split("=", 1)
-            if key.lstrip("-") == "presets":
-                selected.update(v.strip() for v in val.split(",") if v.strip())
+    selected = _extract_preset_names(sys.argv[1:])
+
+    if selected:
+        name_to_paths: dict[str, list[str]] = {}
+        for sec, sec_presets in presets.items():
+            for path, fields in sec_presets.items():
+                full = f"{sec}.{path}" if path else sec
+                for name in fields:
+                    if name != "default":
+                        name_to_paths.setdefault(name, []).append(full)
+        unknown = selected - set(name_to_paths)
+        if unknown:
+            lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}", "", "Available presets:"]
+            for name in sorted(name_to_paths):
+                paths = name_to_paths[name]
+                lines.append(f"  {name}")
+                for p in paths:
+                    lines.append(f"    -> {p}")
+            raise ValueError("\n".join(lines))
+
     env_cfg = resolve_presets(env_cfg, selected)
     if agent_cfg is not None:
         agent_cfg = resolve_presets(agent_cfg, selected)
