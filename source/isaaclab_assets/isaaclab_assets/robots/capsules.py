@@ -4,7 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Configuration for the dexterous hand from Shadow Robot.
+"""Configuration for a tendon-actuated capsule robot.
 
+The following configurations are available:
+
+* :obj:`CAPSULES_CFG`: Capsule robot with fixed tendon actuators.
+
+"""
 The following configurations are available:
 
 * :obj:`SHADOW_HAND_CFG`: Shadow Hand with implicit actuator model.
