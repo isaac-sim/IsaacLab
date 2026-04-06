@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+4.5.32 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.events.randomize_actuator_gains` producing zero
+  stiffness and damping for explicit actuators. The default gains were read from
+  ``asset.data.joint_stiffness``, which is zeroed out at the sim level for explicit
+  actuator models. The defaults are now patched with the actual actuator PD gains.
+
+
 4.5.31 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 

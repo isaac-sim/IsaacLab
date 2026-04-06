@@ -1135,6 +1135,14 @@ class randomize_actuator_gains(ManagerTermBase):
         self.default_joint_stiffness = wp.to_torch(self.asset.data.joint_stiffness).clone()
         self.default_joint_damping = wp.to_torch(self.asset.data.joint_damping).clone()
 
+        # For explicit actuators the sim-level stiffness/damping is zeroed out, so patch
+        # the defaults with the actual actuator PD gains.
+        for actuator in self.asset.actuators.values():
+            if not isinstance(actuator, ImplicitActuator):
+                joint_ids = actuator.joint_indices
+                self.default_joint_stiffness[:, joint_ids] = actuator.stiffness
+                self.default_joint_damping[:, joint_ids] = actuator.damping
+
         # check for valid operation
         if cfg.params["operation"] == "scale":
             if "stiffness_distribution_params" in cfg.params:
