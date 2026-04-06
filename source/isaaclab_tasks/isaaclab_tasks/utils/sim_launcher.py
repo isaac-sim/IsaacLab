@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg
+from isaaclab.utils.assets import apply_menagerie_physics_variant_from_launcher_args
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
 
@@ -169,6 +170,8 @@ def launch_simulation(
         with launch_simulation(env_cfg, args_cli):
             main()
     """
+    apply_menagerie_physics_variant_from_launcher_args(launcher_args)
+
     needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
     visualizer_intent = _compute_visualizer_intent(env_cfg)
     _set_visualizer_intent_on_launcher_args(launcher_args, visualizer_intent)

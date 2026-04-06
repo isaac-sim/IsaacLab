@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Per-task optional key ``num_envs``: if set, test_environments_training.train_job passes ``--num_envs`` to train.py;
+# if omitted, each script uses its default.
 
 # mode for very simple functional testing without checking thresholds
 fast_test:

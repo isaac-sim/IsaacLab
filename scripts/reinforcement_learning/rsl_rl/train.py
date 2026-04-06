@@ -30,6 +30,7 @@ from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_de
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation
 from isaaclab_tasks.utils.hydra import hydra_task_config
+from isaaclab_tasks.utils.training_asset_log import log_training_asset_paths
 
 # local imports
 import cli_args  # isort: skip
@@ -165,6 +166,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # set the log directory for the environment (works for all environment types)
         env_cfg.log_dir = log_dir
 
+        log_training_asset_paths(args_cli.task, env_cfg, "training start (before environment creation)")
+
         # create isaac environment
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
@@ -218,10 +221,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         try:
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            # close the simulator
-            env.close()
         except KeyboardInterrupt:
             pass
+        finally:
+            log_training_asset_paths(args_cli.task, env_cfg, "training end (after training loop)")
+            env.close()
 
 
 if __name__ == "__main__":

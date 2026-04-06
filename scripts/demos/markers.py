@@ -38,7 +38,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, MUJOCO_MENAGERIE_DIR
 from isaaclab.utils.math import quat_from_angle_axis
 
 

@@ -30,6 +30,7 @@ from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, 
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils.training_asset_log import log_training_asset_paths
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,8 @@ def main():
         # set the log directory for the environment
         env_cfg.log_dir = os.path.join(log_root_path, log_dir)
 
+        log_training_asset_paths(args_cli.task, env_cfg, "training start (before environment creation)")
+
         # create isaac environment
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
@@ -230,10 +233,11 @@ def main():
             else:
                 runner.run({"train": True, "play": False, "sigma": train_sigma})
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            # close the simulator
-            env.close()
         except KeyboardInterrupt:
             pass
+        finally:
+            log_training_asset_paths(args_cli.task, env_cfg, "training end (after training loop)")
+            env.close()
 
 
 if __name__ == "__main__":

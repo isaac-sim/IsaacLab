@@ -37,7 +37,7 @@ def setup_environment():
     return registered_task_specs
 
 
-def train_job(workflow, task, env_config, num_gpus):
+def train_job(workflow, task, env_config, num_gpus, *, sim_backend: str = "physx"):
     """Train a single job for a given workflow, task, and configuration, and return the duration."""
     cmd = [
         sys.executable,
@@ -48,10 +48,21 @@ def train_job(workflow, task, env_config, num_gpus):
         "--headless",
     ]
 
+    # MuJoCo Menagerie USD ``Physics`` variant + physics stack (Hydra global presets)
+    if sim_backend == "newton":
+        cmd.extend(["--menagerie-physics-variant", "mujoco"])
+    else:
+        cmd.extend(["--menagerie-physics-variant", "physx"])
+
     # Add max iterations if specified
     max_iterations = env_config.get("max_iterations")
     if max_iterations is not None:
         cmd.extend(["--max_iterations", str(max_iterations)])
+
+    # Optional per-job parallel env count (omit flag to use each train.py / task default)
+    num_envs = env_config.get("num_envs")
+    if num_envs is not None:
+        cmd.extend(["--num_envs", str(int(num_envs))])
 
     if num_gpus > 1:
         cmd.append(f"--nnprod_per_node={num_gpus}")
@@ -61,6 +72,9 @@ def train_job(workflow, task, env_config, num_gpus):
     workflow_experiment_name_variable = WORKFLOW_EXPERIMENT_NAME_VARIABLE.get(workflow)
     if workflow_experiment_name_variable:
         cmd.append(f"{workflow_experiment_name_variable}={task}")
+
+    if sim_backend == "newton":
+        cmd.append("presets=newton")
 
     print("Running : " + " ".join(cmd))
 
@@ -77,7 +91,7 @@ def train_job(workflow, task, env_config, num_gpus):
 
 
 @pytest.mark.parametrize("task_spec", setup_environment())
-def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, kpi_store):
+def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, sim_backend, kpi_store):
     """Train environments provided in the config file, save KPIs, and evaluate against thresholds"""
     # Skip if workflow not supported for this task
     if workflow + "_cfg_entry_point" not in task_spec.kwargs:
@@ -100,7 +114,7 @@ def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, kp
     print(f">>> Training: {job_name}")
 
     # Train and capture duration
-    duration = train_job(workflow, task, env_config, num_gpus)
+    duration = train_job(workflow, task, env_config, num_gpus, sim_backend=sim_backend)
 
     print(f">>> Evaluating trained: {job_name}")
     # Check if training logs were output and all thresholds passed

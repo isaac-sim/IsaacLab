@@ -151,9 +151,7 @@ def test_find_global_fixed_joint_prim():
     """Test find_global_fixed_joint_prim() function."""
     # create scene
     sim_utils.create_prim("/World")
-    sim_utils.create_prim(
-        "/World/ANYmal", usd_path=f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda"
-    )
+    sim_utils.create_prim("/World/ANYmal", usd_path=f"{MUJOCO_MENAGERIE_DIR}/anybotics_anymal_c/anymal_c/anymal_c.usda")
     sim_utils.create_prim("/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
     if "4.5" in ISAAC_NUCLEUS_DIR:
         franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"

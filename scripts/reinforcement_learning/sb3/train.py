@@ -31,6 +31,7 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils.training_asset_log import log_training_asset_paths
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,8 @@ def main():
         # set the log directory for the environment
         env_cfg.log_dir = log_dir
 
+        log_training_asset_paths(args_cli.task, env_cfg, "training start (before environment creation)")
+
         # create isaac environment
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
@@ -193,26 +196,27 @@ def main():
         callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
 
         # train the agent
-        with contextlib.suppress(KeyboardInterrupt):
-            agent.learn(
-                total_timesteps=n_timesteps,
-                callback=callbacks,
-                progress_bar=True,
-                log_interval=None,
-            )
-        # save the final model
-        agent.save(os.path.join(log_dir, "model"))
-        print("Saving to:")
-        print(os.path.join(log_dir, "model.zip"))
+        try:
+            with contextlib.suppress(KeyboardInterrupt):
+                agent.learn(
+                    total_timesteps=n_timesteps,
+                    callback=callbacks,
+                    progress_bar=True,
+                    log_interval=None,
+                )
+            # save the final model
+            agent.save(os.path.join(log_dir, "model"))
+            print("Saving to:")
+            print(os.path.join(log_dir, "model.zip"))
 
-        if isinstance(env, VecNormalize):
-            print("Saving normalization")
-            env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
+            if isinstance(env, VecNormalize):
+                print("Saving normalization")
+                env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
 
-        print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-
-        # close the simulator
-        env.close()
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+        finally:
+            log_training_asset_paths(args_cli.task, env_cfg, "training end (after training loop)")
+            env.close()
 
 
 if __name__ == "__main__":

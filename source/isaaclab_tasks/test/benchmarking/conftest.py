@@ -50,6 +50,18 @@ def pytest_addoption(parser):
         default="",
         help="Optional tag to add to the KPI payload for filtering on the Grafana dashboard.",
     )
+    parser.addoption(
+        "--sim-backend",
+        action="store",
+        default="physx",
+        choices=("physx", "newton"),
+        help=(
+            "Training subprocess physics + MuJoCo Menagerie USD ``Physics`` variant. "
+            "'physx': ``--menagerie-physics-variant physx`` (default env presets). "
+            "'newton': ``--menagerie-physics-variant mujoco`` and ``presets=newton`` for Hydra. "
+            "Tasks without Newton presets ignore the preset broadcast; Menagerie paths still get the mujoco variant."
+        ),
+    )
 
 
 @pytest.fixture
@@ -80,6 +92,11 @@ def save_kpi_payload(request):
 @pytest.fixture
 def tag(request):
     return request.config.getoption("--tag")
+
+
+@pytest.fixture
+def sim_backend(request):
+    return request.config.getoption("--sim-backend")
 
 
 # Fixture for storing KPI data in a global variable
