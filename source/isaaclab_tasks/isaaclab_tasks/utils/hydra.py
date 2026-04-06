@@ -312,6 +312,30 @@ def _extract_preset_names(args: list[str]) -> set[str]:
     return selected
 
 
+def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, list[str]], max_paths: int = 5) -> str:
+    """Build a readable error message grouping presets by identical path fingerprints."""
+    fingerprint_to_names: dict[tuple[str, ...], list[str]] = {}
+    for name, paths in name_to_paths.items():
+        key = tuple(sorted(paths))
+        fingerprint_to_names.setdefault(key, []).append(name)
+
+    lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}", "", "Available presets (grouped by affected paths):", ""]
+    for paths_tuple in sorted(fingerprint_to_names, key=lambda k: fingerprint_to_names[k][0]):
+        names = sorted(fingerprint_to_names[paths_tuple])
+        if len(names) <= 30:
+            lines.append(f"  {', '.join(names)}")
+        else:
+            lines.append(f"  {', '.join(names[:25])}, ... ({len(names)} total)")
+        shown = list(paths_tuple[:max_paths])
+        for p in shown:
+            lines.append(f"    -> {p}")
+        remaining = len(paths_tuple) - len(shown)
+        if remaining > 0:
+            lines.append(f"    ... ({remaining} more)")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def register_task(task_name: str, agent_entry: str) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
@@ -347,13 +371,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
                         name_to_paths.setdefault(name, []).append(full)
         unknown = selected - set(name_to_paths)
         if unknown:
-            lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}", "", "Available presets:"]
-            for name in sorted(name_to_paths):
-                paths = name_to_paths[name]
-                lines.append(f"  {name}")
-                for p in paths:
-                    lines.append(f"    -> {p}")
-            raise ValueError("\n".join(lines))
+            raise ValueError(_format_unknown_presets_error(unknown, name_to_paths))
 
     env_cfg = resolve_presets(env_cfg, selected)
     if agent_cfg is not None:
