@@ -796,9 +796,23 @@ jobs:
             test-curobo, test-skillgen, test-environments-training]
     if: always()
     steps:
+    - name: Report disk usage before cleanup
+      run: |
+        echo "⚪ Disk usage before cleanup"
+        df -h /var/lib/docker
+        echo ""
+        echo "⚪ Docker disk usage"
+        docker system df
     - name: Remove Docker images older than 3 days
       run: |
         set -euo pipefail
         echo "Removing Docker images older than 3 days..."
         docker image prune -a -f --filter "until=72h"
         echo "Docker image cleanup complete."
+    - name: Report disk usage after cleanup
+      run: |
+        echo "⚪ Disk usage after cleanup"
+        df -h /var/lib/docker
+        echo ""
+        echo "⚪ Docker disk usage"
+        docker system df
