@@ -187,12 +187,26 @@ runs:
               /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
+          # Install a signal trap so that SIGINT/SIGTERM from the runner's
+          # cancellation sequence immediately kills the detached container
+          # instead of waiting for the 7.5 s + 2.5 s escalation timeout.
+          trap 'echo "🟠 Signal received, killing container ${container_name}..."; docker kill "${container_name}" 2>/dev/null || true; exit 130' INT TERM
+
           # Stream container logs to CI output (this is the killable foreground process).
           docker logs -f $container_name &
           local logs_pid=$!
 
           # Wait for the container to exit and capture its exit code.
-          DOCKER_EXIT=$(docker wait $container_name) || DOCKER_EXIT=1
+          # Using `docker wait &` + `wait $!` (bash builtin) instead of a
+          # blocking `docker wait` so that bash can process the INT/TERM trap
+          # while the container is still running.
+          docker wait $container_name &
+          local wait_pid=$!
+          wait $wait_pid
+          DOCKER_EXIT=$?
+
+          # Disable the trap now that the container has exited normally.
+          trap - INT TERM
 
           # Stop following logs.
           kill $logs_pid 2>/dev/null || true
