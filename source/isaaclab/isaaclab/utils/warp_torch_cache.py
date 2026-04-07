@@ -54,25 +54,32 @@ def warp_to_torch(owner_or_array: object, field_name: str | None = None) -> torc
         PyTorch tensor sharing memory with the underlying Warp buffer.
     """
     if field_name is None:
-        return wp.to_torch(owner_or_array)
+        return wp.to_torch(owner_or_array)  # type: ignore[arg-type]
 
     owner = owner_or_array
-    warp_array = getattr(owner, field_name)
 
     if not _CACHING_ENABLED:
-        return wp.to_torch(warp_array)
+        return wp.to_torch(getattr(owner, field_name))
 
-    cache = getattr(owner, "_warp_torch_cache", None)
-    if cache is None:
-        cache = {}
-        object.__setattr__(owner, "_warp_torch_cache", cache)
+    try:
+        cache = getattr(owner, "_warp_torch_cache", None)
+        if cache is None:
+            cache = {}
+            object.__setattr__(owner, "_warp_torch_cache", cache)
+    except (AttributeError, TypeError):
+        return wp.to_torch(getattr(owner, field_name))
 
     sim_ts = getattr(owner, "_sim_timestamp", None)
 
     if sim_ts is not None:
         entry = cache.get(field_name)
-        if entry is None or entry[0] != sim_ts:
-            cache[field_name] = (sim_ts, wp.to_torch(warp_array))
+        if entry is not None and entry[0] == sim_ts:
+            return entry[1]
+
+    warp_array = getattr(owner, field_name)
+
+    if sim_ts is not None:
+        cache[field_name] = (sim_ts, wp.to_torch(warp_array))
         return cache[field_name][1]
 
     ptr = int(warp_array.ptr)

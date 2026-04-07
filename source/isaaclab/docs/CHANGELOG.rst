@@ -178,7 +178,6 @@ Added
   objects, keyed by ``_sim_timestamp`` or buffer pointer.  Caching can be disabled
   via :attr:`~isaaclab.sim.SimulationCfg.enable_warp_torch_cache` to fall back to
   plain ``wp.to_torch()``.
-
 Changed
 ^^^^^^^
 
