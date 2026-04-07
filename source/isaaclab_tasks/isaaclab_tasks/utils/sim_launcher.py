@@ -201,10 +201,15 @@ def launch_simulation(
                 "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
             )
             raise SystemExit(1)
-        from isaaclab.app import AppLauncher
 
-        app_launcher = AppLauncher(launcher_args)
-        close_fn = app_launcher.app.close
+        # If the simulation app is not launched, we launch it.
+        from isaaclab.utils import has_kit
+
+        if not has_kit():
+            from isaaclab.app import AppLauncher
+
+            app_launcher = AppLauncher(launcher_args)
+            close_fn = app_launcher.app.close
     elif visualizer_types:
         # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
         # selection in SettingsManager (works in standalone mode via plain dict) so that

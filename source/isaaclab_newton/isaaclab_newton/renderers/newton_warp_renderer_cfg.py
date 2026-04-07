@@ -15,3 +15,21 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     renderer_type: str = "newton_warp"
     """Type identifier for Newton Warp renderer."""
+
+    enable_textures: bool = True
+    """Enable texture-mapped rendering for meshes."""
+
+    enable_shadows: bool = False
+    """Enable shadow rays for directional lights."""
+
+    enable_ambient_lighting: bool = True
+    """Enable ambient lighting for the scene."""
+
+    enable_backface_culling: bool = True
+    """Cull back-facing triangles."""
+
+    max_distance: float = 1000.0
+    """Maximum ray distance [m]."""
+
+    create_default_light: bool = True
+    """Create a default directional light source in the scene."""

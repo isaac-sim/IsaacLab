@@ -700,3 +700,416 @@ def test_dict_preset_with_factory():
     assert presets["robot.actuators.legs.armature"]["default"] == 0.0
     assert presets["robot.actuators.legs.armature"]["newton"] == 0.01
     assert presets["robot.actuators.legs.armature"]["physx"] == 0.0
+
+
+# =============================================================================
+# Tests: PresetCfg inside deeply nested dicts (e.g., event term params)
+# =============================================================================
+
+
+@configclass
+class OffsetCfg(PresetCfg):
+    """Mimics task-specific offset presets (e.g., AssembledOffsetCfg)."""
+
+    task_a: tuple = (0.0, 0.0, 0.01)
+    task_b: tuple = (0.02, 0.0, 0.005)
+    default: tuple = task_a
+
+
+@configclass
+class FractionCfg(PresetCfg):
+    task_a: tuple = (0.05, 0.5)
+    task_b: tuple = (0.3, 1.0)
+    default: tuple = task_a
+
+
+@configclass
+class InnerTermCfg:
+    """Mimics an EventTermCfg with params containing presets."""
+
+    func: str = "reset_fn"
+    params: dict = None
+
+    def __post_init__(self):
+        if self.params is None:
+            self.params = {
+                "offset": OffsetCfg(),
+                "fraction": FractionCfg(),
+            }
+
+
+@configclass
+class OuterTermCfg:
+    """Mimics a chained reset term with nested terms dict."""
+
+    func: str = "chain_fn"
+    params: dict = None
+
+    def __post_init__(self):
+        if self.params is None:
+            self.params = {
+                "terms": {
+                    "step_one": InnerTermCfg(),
+                }
+            }
+
+
+@configclass
+class DeepDictEnvCfg:
+    decimation: int = 4
+    events: OuterTermCfg = OuterTermCfg()
+
+
+def test_collect_presets_deep_nested_dicts():
+    """collect_presets discovers PresetCfg inside dict→dict→configclass→dict chains."""
+    cfg = DeepDictEnvCfg()
+    presets = collect_presets(cfg)
+    offset_path = "events.params.terms.step_one.params.offset"
+    fraction_path = "events.params.terms.step_one.params.fraction"
+    assert offset_path in presets, f"Expected '{offset_path}' in {list(presets.keys())}"
+    assert fraction_path in presets, f"Expected '{fraction_path}' in {list(presets.keys())}"
+    assert presets[offset_path]["task_a"] == (0.0, 0.0, 0.01)
+    assert presets[offset_path]["task_b"] == (0.02, 0.0, 0.005)
+    assert presets[fraction_path]["task_a"] == (0.05, 0.5)
+    assert presets[fraction_path]["task_b"] == (0.3, 1.0)
+
+
+def test_resolve_preset_defaults_deep_nested_dicts():
+    """resolve_preset_defaults resolves presets inside deeply nested dicts."""
+    cfg = DeepDictEnvCfg()
+    resolved = resolve_preset_defaults(cfg)
+    inner = resolved.events.params["terms"]["step_one"]
+    assert inner.params["offset"] == (0.0, 0.0, 0.01)
+    assert inner.params["fraction"] == (0.05, 0.5)
+    assert not isinstance(inner.params["offset"], PresetCfg)
+    assert not isinstance(inner.params["fraction"], PresetCfg)
+
+
+def test_deep_nested_dict_auto_default():
+    """Deeply nested dict presets auto-apply default when no CLI override."""
+    env_cfg = DeepDictEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    env_cfg = resolve_preset_defaults(env_cfg)
+    agent_cfg = resolve_preset_defaults(agent_cfg)
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [], [], presets)
+    inner = env_cfg.events.params["terms"]["step_one"]
+    assert inner.params["offset"] == (0.0, 0.0, 0.01)
+    assert inner.params["fraction"] == (0.05, 0.5)
+
+
+def test_deep_nested_dict_global_preset():
+    """Global preset=task_b replaces deeply nested dict presets."""
+    env_cfg = DeepDictEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    env_cfg = resolve_preset_defaults(env_cfg)
+    agent_cfg = resolve_preset_defaults(agent_cfg)
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["task_b"], [], [], presets)
+    inner = env_cfg.events.params["terms"]["step_one"]
+    assert inner.params["offset"] == (0.02, 0.0, 0.005), f"offset should be task_b value, got {inner.params['offset']}"
+    assert inner.params["fraction"] == (0.3, 1.0), f"fraction should be task_b value, got {inner.params['fraction']}"
+
+
+def test_deep_nested_dict_path_selection():
+    """Path selection replaces a specific deeply nested dict preset."""
+    env_cfg = DeepDictEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    env_cfg = resolve_preset_defaults(env_cfg)
+    agent_cfg = resolve_preset_defaults(agent_cfg)
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    sel = [("env", "events.params.terms.step_one.params.offset", "task_b")]
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], sel, [], presets)
+    inner = env_cfg.events.params["terms"]["step_one"]
+    assert inner.params["offset"] == (0.02, 0.0, 0.005)
+    assert inner.params["fraction"] == (0.05, 0.5)  # untouched
+
+
+def test_deep_nested_dict_mixed_global_and_path():
+    """Global preset applies to nested dicts, path selection overrides one."""
+    env_cfg = DeepDictEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    env_cfg = resolve_preset_defaults(env_cfg)
+    agent_cfg = resolve_preset_defaults(agent_cfg)
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    sel = [("env", "events.params.terms.step_one.params.fraction", "task_a")]
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["task_b"], sel, [], presets)
+    inner = env_cfg.events.params["terms"]["step_one"]
+    assert inner.params["offset"] == (0.02, 0.0, 0.005)  # from global task_b
+    assert inner.params["fraction"] == (0.05, 0.5)  # path override keeps task_a
+
+
+# =============================================================================
+# Tests: preset() factory function
+# =============================================================================
+
+
+def test_preset_factory_creates_presetcfg():
+    """preset() returns a PresetCfg subclass instance with correct fields."""
+    p = preset(default=0.0, high=1.0, low=-1.0)
+    assert isinstance(p, PresetCfg)
+    assert p.default == 0.0
+    assert p.high == 1.0
+    assert p.low == -1.0
+
+
+def test_preset_factory_collectable():
+    """preset()-created instances are discovered by collect_presets."""
+
+    @configclass
+    class FactoryEnvCfg:
+        damping: object = None
+
+        def __post_init__(self):
+            if self.damping is None:
+                self.damping = preset(default=5.0, high=20.0)
+
+    cfg = FactoryEnvCfg()
+    presets = collect_presets(cfg)
+    assert "damping" in presets
+    assert presets["damping"]["default"] == 5.0
+    assert presets["damping"]["high"] == 20.0
+
+
+def test_preset_factory_requires_default():
+    """preset() raises ValueError when 'default' is not provided."""
+    with pytest.raises(ValueError, match="default"):
+        preset(high=1.0, low=-1.0)
+
+
+def test_preset_factory_string_values():
+    """preset() works with string values."""
+    p = preset(default="cpu", gpu="cuda:0")
+    assert isinstance(p, PresetCfg)
+    assert p.default == "cpu"
+    assert p.gpu == "cuda:0"
+
+
+# =============================================================================
+# Tests: _collect_fields class-vs-instance priority
+# =============================================================================
+
+
+def test_collect_fields_prefers_class_attr_over_instance():
+    """Class-level attr mutations take priority over instance attrs in collection.
+
+    This mirrors the pattern where robot-specific modules (e.g., joint_pos_env_cfg.py)
+    mutate PresetCfg class attributes after instances are already created.
+    """
+
+    @configclass
+    class MutablePresetCfg(PresetCfg):
+        default: str = "original_default"
+        alt: str = "alternative"
+
+    instance = MutablePresetCfg()
+    assert instance.default == "original_default"
+
+    MutablePresetCfg.default = "robot_specific_default"
+
+    presets = collect_presets(instance)
+    assert "" in presets
+    assert presets[""]["default"] == "robot_specific_default"
+
+    MutablePresetCfg.default = "original_default"
+
+
+def test_collect_fields_includes_dynamic_class_attrs():
+    """Fields added to PresetCfg class at runtime are discovered."""
+
+    @configclass
+    class ExtensiblePresetCfg(PresetCfg):
+        default: str = "base"
+        alt_a: str = "a"
+
+    ExtensiblePresetCfg.alt_b = "b"
+
+    instance = ExtensiblePresetCfg()
+    presets = collect_presets(instance)
+    assert "" in presets
+    assert "alt_b" in presets[""]
+    assert presets[""]["alt_b"] == "b"
+
+    delattr(ExtensiblePresetCfg, "alt_b")
+
+
+# =============================================================================
+# Tests: apply_overrides error handling
+# =============================================================================
+
+
+def test_apply_overrides_unknown_preset_group_raises():
+    """apply_overrides raises ValueError for unknown preset group paths."""
+    env_cfg = PresetCfgEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    with pytest.raises(ValueError, match="Unknown preset group"):
+        apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "nonexistent", "val")], [], presets)
+
+
+def test_apply_overrides_unknown_preset_name_raises():
+    """apply_overrides raises ValueError for unknown preset name."""
+    env_cfg = PresetCfgEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    with pytest.raises(ValueError, match="Unknown preset 'nonexistent'"):
+        apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "nonexistent")], [], presets)
+
+
+def test_apply_overrides_conflicting_globals_raises():
+    """Two global presets matching the same path cause ValueError."""
+
+    @configclass
+    class TwoAltsPresetCfg(PresetCfg):
+        default: str = "d"
+        opt_a: str = "a"
+        opt_b: str = "b"
+
+    @configclass
+    class ConflictEnvCfg:
+        mode: TwoAltsPresetCfg = TwoAltsPresetCfg()
+
+    env_cfg = ConflictEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    with pytest.raises(ValueError, match="Conflicting global presets"):
+        apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["opt_a", "opt_b"], [], [], presets)
+
+
+def test_apply_overrides_aliased_globals_no_conflict():
+    """Two global presets resolving to equal values do not raise.
+
+    Mirrors the dexsuite ObjectCfg pattern where ``newton = cube`` creates
+    separate but equal dataclass instances after @configclass processing.
+    """
+
+    @configclass
+    class SharedCfg:
+        value: int = 42
+
+    cube_val = SharedCfg()
+    newton_val = SharedCfg()
+
+    @configclass
+    class AliasedPresetCfg(PresetCfg):
+        default: str = "d"
+        cube: SharedCfg = cube_val
+        newton: SharedCfg = newton_val
+
+    @configclass
+    class AliasedEnvCfg:
+        mode: AliasedPresetCfg = AliasedPresetCfg()
+
+    env_cfg = AliasedEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    assert presets["env"]["mode"]["cube"] is not presets["env"]["mode"]["newton"]
+    assert presets["env"]["mode"]["cube"] == presets["env"]["mode"]["newton"]
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["cube", "newton"], [], [], presets)
+    assert env_cfg.mode == SharedCfg()
+
+
+# =============================================================================
+# Tests: parse_overrides edge cases
+# =============================================================================
+
+
+def test_parse_overrides_multiple_global_presets():
+    """Multiple comma-separated global presets are split correctly."""
+    presets = {"env": {"backend": {"default": None, "newton": None}}, "agent": {}}
+    global_p, _, _, _ = parse_overrides(["presets=fast,newton,debug"], presets)
+    assert global_p == ["fast", "newton", "debug"]
+
+
+def test_parse_overrides_no_equals_treated_as_global_scalar():
+    """Arguments without '=' are passed through as global scalars."""
+    presets = {"env": {}, "agent": {}}
+    _, _, _, global_scalar = parse_overrides(["--flag", "positional"], presets)
+    assert "--flag" in global_scalar
+    assert "positional" in global_scalar
+
+
+def test_parse_overrides_preset_scalar_detection():
+    """Scalar within a preset path is detected as preset_scalar."""
+    presets = {"env": {"backend": {"default": None}}, "agent": {}}
+    _, _, preset_scalar, _ = parse_overrides(["env.backend.dt=0.001", "env.backend.substeps=4"], presets)
+    assert ("env.backend.dt", "0.001") in preset_scalar
+    assert ("env.backend.substeps", "4") in preset_scalar
+
+
+def test_parse_overrides_root_level_env_preset():
+    """Root-level PresetCfg (path='') makes env=<name> a valid preset selection."""
+    presets = {"env": {"": {"default": None, "fast": None}}, "agent": {}}
+    _, sel, _, _ = parse_overrides(["env=fast"], presets)
+    assert sel == [("env", "", "fast")]
+
+
+# =============================================================================
+# Tests: _parse_val
+# =============================================================================
+
+
+def test_parse_val_types():
+    """_parse_val converts strings to correct Python types."""
+    from isaaclab_tasks.utils.hydra import _parse_val
+
+    assert _parse_val("true") is True
+    assert _parse_val("True") is True
+    assert _parse_val("false") is False
+    assert _parse_val("none") is None
+    assert _parse_val("null") is None
+    assert _parse_val("42") == 42
+    assert isinstance(_parse_val("42"), int)
+    assert _parse_val("3.14") == 3.14
+    assert isinstance(_parse_val("3.14"), float)
+    assert _parse_val("hello") == "hello"
+    assert _parse_val('"quoted"') == "quoted"
+    assert _parse_val("'single'") == "single"
+
+
+# =============================================================================
+# Tests: scalar override within preset path
+# =============================================================================
+
+
+def test_scalar_override_within_preset_path(class_presets):
+    """Scalar overrides within preset paths are applied on top of the preset."""
+    env_cfg, agent_cfg, presets = class_presets
+    env_cfg = resolve_preset_defaults(env_cfg)
+    agent_cfg = resolve_preset_defaults(agent_cfg)
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(
+        env_cfg,
+        agent_cfg,
+        hydra_cfg,
+        [],
+        [("env", "backend", "newton")],
+        [("env.backend.dt", "0.001")],
+        presets,
+    )
+    assert isinstance(env_cfg.backend, NewtonCfg)
+    assert env_cfg.backend.dt == 0.001  # overridden from 0.002
+    assert env_cfg.backend.substeps == 4  # untouched
+
+
+# =============================================================================
+# Tests: resolve_preset_defaults idempotency
+# =============================================================================
+
+
+def test_resolve_preset_defaults_idempotent():
+    """Calling resolve_preset_defaults twice yields the same result."""
+    cfg = PresetCfgEnvCfg()
+    first = resolve_preset_defaults(cfg)
+    second = resolve_preset_defaults(first)
+    assert isinstance(second.backend, PhysxCfg)
+    assert isinstance(second.observations, NoiselessObservationsCfg)
+    assert second.backend.dt == first.backend.dt

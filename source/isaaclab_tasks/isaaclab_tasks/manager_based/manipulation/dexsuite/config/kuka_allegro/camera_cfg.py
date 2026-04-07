@@ -85,6 +85,9 @@ class BaseTiledCameraCfg(PresetCfg):
     simple_shading_full_mdl64 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
     simple_shading_full_mdl128 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
     simple_shading_full_mdl256 = BASE_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
+    semantic_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=64, height=64)
+    semantic_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=128, height=128)
+    semantic_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=256, height=256)
     default = rgb64
 
 
@@ -122,6 +125,9 @@ class WristTiledCameraCfg(PresetCfg):
     simple_shading_full_mdl64 = WRIST_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=64, height=64)
     simple_shading_full_mdl128 = WRIST_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=128, height=128)
     simple_shading_full_mdl256 = WRIST_CAMERA_CFG.replace(data_types=["simple_shading_full_mdl"], width=256, height=256)
+    semantic_segmentation64 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=64, height=64)
+    semantic_segmentation128 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=128, height=128)
+    semantic_segmentation256 = WRIST_CAMERA_CFG.replace(data_types=["semantic_segmentation"], width=256, height=256)
     default = rgb64
 
 
