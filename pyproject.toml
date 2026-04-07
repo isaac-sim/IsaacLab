@@ -12,7 +12,7 @@ name = "isaac-lab"
 version = "2.3.2"
 description = "Isaac Lab: a unified framework for robot learning"
 license = "BSD-3-Clause"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "isaaclab",
     "isaaclab-assets",
@@ -22,6 +22,7 @@ dependencies = [
 
 [tool.uv]
 extra-index-url = ["https://pypi.nvidia.com", "https://download.pytorch.org/whl/cu128"]
+index-strategy = "unsafe-best-match"
 
 [tool.uv.workspace]
 members = [

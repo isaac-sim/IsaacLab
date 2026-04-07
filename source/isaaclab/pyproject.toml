@@ -7,9 +7,9 @@ name = "isaaclab"
 version = "0.54.2"
 description = "Isaac Lab framework for robot learning"
 license = "BSD-3-Clause"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-    "isaacsim[all,extscache]>=5.1.0",
+    "isaacsim[all,extscache]==5.1.0",
     "numpy<2",
     "torch>=2.7",
     "onnx>=1.18.0",
@@ -23,7 +23,6 @@ dependencies = [
     "einops",
     "warp-lang",
     "pillow==11.3.0",
-    "starlette==0.49.1",
     "pytest",
     "pytest-mock",
     "junitparser",
