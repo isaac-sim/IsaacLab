@@ -119,8 +119,8 @@ class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg()
 
     # env
-    observation_space = 164 + 27  # state observation + vision CNN embedding
-    state_space = 187 + 27  # asymmetric states + vision CNN embedding
+    observation_space = 161 + 27  # full state observation (24-DoF hand) + vision CNN embedding
+    state_space = 191 + 27  # asymmetric states + vision CNN embedding
 
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""

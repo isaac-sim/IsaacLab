@@ -8,7 +8,6 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -23,7 +22,7 @@ from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
+from isaaclab_assets.robots.shadow_hand import MENAGERIE_SHADOW_FINGERS_ACTUATOR_BASE, SHADOW_HAND_CFG
 
 
 @configclass
@@ -159,36 +158,7 @@ class ShadowHandRobotCfg(PresetCfg):
             joint_pos={".*": 0.0},
         ),
         actuators={
-            "fingers": ImplicitActuatorCfg(
-                joint_names_expr=["robot0_WR.*", "robot0_(FF|MF|RF|LF|TH)J(3|2|1)", "robot0_(LF|TH)J4", "robot0_THJ0"],
-                effort_limit_sim={
-                    "robot0_WRJ1": 4.785,
-                    "robot0_WRJ0": 2.175,
-                    "robot0_(FF|MF|RF|LF)J1": 0.7245,
-                    "robot0_FFJ(3|2)": 0.9,
-                    "robot0_MFJ(3|2)": 0.9,
-                    "robot0_RFJ(3|2)": 0.9,
-                    "robot0_LFJ(4|3|2)": 0.9,
-                    "robot0_THJ4": 2.3722,
-                    "robot0_THJ3": 1.45,
-                    "robot0_THJ(2|1)": 0.99,
-                    "robot0_THJ0": 0.81,
-                },
-                stiffness={
-                    "robot0_WRJ.*": 5.0,
-                    "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 1.0,
-                    "robot0_(LF|TH)J4": 1.0,
-                    "robot0_THJ0": 1.0,
-                },
-                damping={
-                    "robot0_WRJ.*": 0.5,
-                    "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 0.1,
-                    "robot0_(LF|TH)J4": 0.1,
-                    "robot0_THJ0": 0.1,
-                },
-                friction=1e-2,
-                armature=2e-3,
-            ),
+            "fingers": MENAGERIE_SHADOW_FINGERS_ACTUATOR_BASE.replace(friction=1e-2, armature=2e-3),
         },
         soft_joint_pos_limit_factor=1.0,
     )
@@ -280,8 +250,8 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 2
     episode_length_s = 10.0
-    action_space = 20
-    observation_space = 157  # (full)
+    action_space = 24
+    observation_space = 161  # (full; 24-DoF Menagerie hand)
     state_space = 0
     asymmetric_obs = False
     obs_type = "full"
@@ -295,34 +265,39 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     )
     # robot
     robot_cfg: ShadowHandRobotCfg = ShadowHandRobotCfg()
+    # Kinematic order aligned with MuJoCo Menagerie ``shadow_hand/right_hand.xml`` (``rh_`` joints).
     actuated_joint_names = [
-        "robot0_WRJ1",
-        "robot0_WRJ0",
-        "robot0_FFJ3",
-        "robot0_FFJ2",
-        "robot0_FFJ1",
-        "robot0_MFJ3",
-        "robot0_MFJ2",
-        "robot0_MFJ1",
-        "robot0_RFJ3",
-        "robot0_RFJ2",
-        "robot0_RFJ1",
-        "robot0_LFJ4",
-        "robot0_LFJ3",
-        "robot0_LFJ2",
-        "robot0_LFJ1",
-        "robot0_THJ4",
-        "robot0_THJ3",
-        "robot0_THJ2",
-        "robot0_THJ1",
-        "robot0_THJ0",
+        "rh_WRJ1",
+        "rh_WRJ2",
+        "rh_FFJ4",
+        "rh_FFJ3",
+        "rh_FFJ2",
+        "rh_FFJ1",
+        "rh_MFJ4",
+        "rh_MFJ3",
+        "rh_MFJ2",
+        "rh_MFJ1",
+        "rh_RFJ4",
+        "rh_RFJ3",
+        "rh_RFJ2",
+        "rh_RFJ1",
+        "rh_LFJ5",
+        "rh_LFJ4",
+        "rh_LFJ3",
+        "rh_LFJ2",
+        "rh_LFJ1",
+        "rh_THJ5",
+        "rh_THJ4",
+        "rh_THJ3",
+        "rh_THJ2",
+        "rh_THJ1",
     ]
     fingertip_body_names = [
-        "robot0_ffdistal",
-        "robot0_mfdistal",
-        "robot0_rfdistal",
-        "robot0_lfdistal",
-        "robot0_thdistal",
+        "rh_ffdistal",
+        "rh_mfdistal",
+        "rh_rfdistal",
+        "rh_lfdistal",
+        "rh_thdistal",
     ]
 
     # in-hand object
@@ -365,9 +340,9 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     # env
     decimation = 3
     episode_length_s = 8.0
-    action_space = 20
-    observation_space = 42
-    state_space = 187
+    action_space = 24
+    observation_space = 46
+    state_space = 191
     asymmetric_obs = True
     obs_type = "openai"
     # simulation

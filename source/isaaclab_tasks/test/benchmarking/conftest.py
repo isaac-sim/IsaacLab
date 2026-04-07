@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import argparse
 import json
 import os
 from datetime import datetime
@@ -16,6 +17,16 @@ import env_benchmark_test_utils as utils  # isort: skip
 GLOBAL_KPI_STORE = {}
 # Global variable for storing the start timestamp
 START_TIMESTAMP = None
+
+
+def _parse_sim_backend(value: str) -> str:
+    """Normalize ``--sim-backend`` (accepts e.g. physx, physX, PHYSX)."""
+    v = (value or "").strip().lower()
+    if v not in ("physx", "newton"):
+        raise argparse.ArgumentTypeError(
+            f"Invalid --sim-backend {value!r}: expected 'physx' or 'newton' (case-insensitive)."
+        )
+    return v
 
 
 def pytest_addoption(parser):
@@ -53,10 +64,10 @@ def pytest_addoption(parser):
     parser.addoption(
         "--sim-backend",
         action="store",
-        default="physx",
-        choices=("physx", "newton"),
+        default=_parse_sim_backend("physx"),
+        type=_parse_sim_backend,
         help=(
-            "Training subprocess physics + MuJoCo Menagerie USD ``Physics`` variant. "
+            "Training subprocess physics + MuJoCo Menagerie USD ``Physics`` variant (case-insensitive). "
             "'physx': ``--menagerie-physics-variant physx`` (default env presets). "
             "'newton': ``--menagerie-physics-variant mujoco`` and ``presets=newton`` for Hydra. "
             "Tasks without Newton presets ignore the preset broadcast; Menagerie paths still get the mujoco variant."

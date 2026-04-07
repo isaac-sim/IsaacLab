@@ -39,6 +39,8 @@ class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # switch robot to anymal-b
         self.scene.robot = ANYMAL_B_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # MuJoCo Menagerie ANYmal: distal leg links are named *SHANK, not *FOOT (matches contact sensor bodies).
+        self.rewards.feet_air_time.params["sensor_cfg"].body_names = ".*SHANK"
 
 
 @configclass

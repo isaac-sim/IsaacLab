@@ -52,7 +52,11 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
         rot=(0.283045, 0.683330, -0.621782, 0.257551),
-        joint_pos={"^(?!thumb_joint_0).*": 0.0, "thumb_joint_0": 0.28},
+        # MuJoCo Menagerie MJCF names joints ``ffj*`` / ``thj0``; legacy Isaac Allegro used ``*_joint_*``.
+        joint_pos={
+            "^(?!thumb_joint_0$)(?!thj0$).*": 0.0,
+            "thumb_joint_0|thj0": 0.28,
+        },
     ),
     actuators={
         "fingers": ImplicitActuatorCfg(

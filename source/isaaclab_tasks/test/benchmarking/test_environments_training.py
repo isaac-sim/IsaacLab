@@ -3,24 +3,57 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+"""Training benchmark tests (subprocess train.py per job; no Kit in the pytest parent process)."""
 
-from isaaclab.app import AppLauncher
-
-# Launch omniverse app
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
-
+import contextlib
 import os
 import subprocess
 import sys
+import threading
 import time
 
 import env_benchmark_test_utils as utils
 import gymnasium as gym
 import pytest
 
+import isaaclab_tasks  # noqa: F401 — register Isaac-* tasks in gym registry
+
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
+
 from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
+
+
+def _run_subprocess_tee(cmd, *, cwd):
+    """Run ``cmd`` forwarding stdout/stderr live while retaining full output for diagnostics."""
+    proc = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
+    out_chunks: list[str] = []
+    err_chunks: list[str] = []
+
+    def _pump(stream, chunks, write_to):
+        try:
+            for line in iter(stream.readline, ""):
+                chunks.append(line)
+                write_to.write(line)
+                write_to.flush()
+        finally:
+            stream.close()
+
+    t_out = threading.Thread(target=_pump, args=(proc.stdout, out_chunks, sys.stdout), daemon=True)
+    t_err = threading.Thread(target=_pump, args=(proc.stderr, err_chunks, sys.stderr), daemon=True)
+    t_out.start()
+    t_err.start()
+    ret = proc.wait()
+    t_out.join()
+    t_err.join()
+    return subprocess.CompletedProcess(cmd, ret, "".join(out_chunks), "".join(err_chunks))
 
 
 def setup_environment():
@@ -38,7 +71,7 @@ def setup_environment():
 
 
 def train_job(workflow, task, env_config, num_gpus, *, sim_backend: str = "physx"):
-    """Train a single job for a given workflow, task, and configuration, and return the duration."""
+    """Train a single job; return a dict with duration, returncode, stdout, and stderr."""
     cmd = [
         sys.executable,
         WORKFLOW_TRAINER[workflow],
@@ -78,16 +111,31 @@ def train_job(workflow, task, env_config, num_gpus, *, sim_backend: str = "physx
 
     print("Running : " + " ".join(cmd))
 
+    repo_root = utils._get_repo_path()
     start_time = time.time()
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    # Stream child output live (``capture_output`` would hide logs until the run finishes).
+    quiet = os.environ.get("ISAACLAB_BENCHMARK_TRAIN_QUIET", "").strip().lower() in ("1", "true", "yes")
+    if quiet:
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=repo_root)
+    else:
+        result = _run_subprocess_tee(cmd, cwd=repo_root)
     duration = time.time() - start_time
 
+    out = result.stdout or ""
+    err = result.stderr or ""
     if result.returncode != 0:
         print(f"Training failed with exit code {result.returncode}")
-        print(f"STDERR: {result.stderr}")
-        # Still return duration so evaluate_job can report failure via logs
+        if err.strip():
+            print(f"STDERR (tail): {err[-6000:]}")
+        if out.strip():
+            print(f"STDOUT (tail): {out[-4000:]}")
 
-    return duration
+    return {
+        "duration": duration,
+        "returncode": result.returncode,
+        "stdout": out,
+        "stderr": err,
+    }
 
 
 @pytest.mark.parametrize("task_spec", setup_environment())
@@ -113,12 +161,11 @@ def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, si
     job_name = f"{workflow}:{task}"
     print(f">>> Training: {job_name}")
 
-    # Train and capture duration
-    duration = train_job(workflow, task, env_config, num_gpus, sim_backend=sim_backend)
+    train_result = train_job(workflow, task, env_config, num_gpus, sim_backend=sim_backend)
 
     print(f">>> Evaluating trained: {job_name}")
     # Check if training logs were output and all thresholds passed
-    kpi_payload = utils.evaluate_job(workflow, task, env_config, duration)
+    kpi_payload = utils.evaluate_job(workflow, task, env_config, train_result)
 
     success_flag = kpi_payload["success"]
     print(f">>> Trained {job_name} success flag: {success_flag}.")

@@ -63,28 +63,28 @@ class AllegroHandWarpEnvCfg(DirectRLEnvCfg):
     robot_cfg: ArticulationCfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
 
     actuated_joint_names = [
-        "index_joint_0",
-        "middle_joint_0",
-        "ring_joint_0",
-        "thumb_joint_0",
-        "index_joint_1",
-        "index_joint_2",
-        "index_joint_3",
-        "middle_joint_1",
-        "middle_joint_2",
-        "middle_joint_3",
-        "ring_joint_1",
-        "ring_joint_2",
-        "ring_joint_3",
-        "thumb_joint_1",
-        "thumb_joint_2",
-        "thumb_joint_3",
+        "ffj0",
+        "mfj0",
+        "rfj0",
+        "thj0",
+        "ffj1",
+        "mfj1",
+        "rfj1",
+        "thj1",
+        "ffj2",
+        "mfj2",
+        "rfj2",
+        "thj2",
+        "ffj3",
+        "mfj3",
+        "rfj3",
+        "thj3",
     ]
     fingertip_body_names = [
-        "index_link_3",
-        "middle_link_3",
-        "ring_link_3",
-        "thumb_link_3",
+        "ff_tip",
+        "mf_tip",
+        "rf_tip",
+        "th_tip",
     ]
 
     # in-hand object

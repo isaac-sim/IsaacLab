@@ -168,7 +168,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
                     self.right_fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
                     # fingertip linear and angular velocities (5 * 6)
                     self.right_fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
-                    # applied actions (20)
+                    # applied actions (24)
                     self.actions["right_hand"],
                     # ---- object ----
                     # positions (3)
@@ -202,7 +202,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
                     self.left_fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
                     # fingertip linear and angular velocities (5 * 6)
                     self.left_fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
-                    # applied actions (20)
+                    # applied actions (24)
                     self.actions["left_hand"],
                     # ---- object ----
                     # positions (3)
@@ -240,7 +240,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
                 self.right_fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
                 # fingertip linear and angular velocities (5 * 6)
                 self.right_fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
-                # applied actions (20)
+                # applied actions (24)
                 self.actions["right_hand"],
                 # ---- left hand ----
                 # DOF positions (24)
@@ -253,7 +253,7 @@ class ShadowHandOverEnv(DirectMARLEnv):
                 self.left_fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
                 # fingertip linear and angular velocities (5 * 6)
                 self.left_fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
-                # applied actions (20)
+                # applied actions (24)
                 self.actions["left_hand"],
                 # ---- object ----
                 # positions (3)

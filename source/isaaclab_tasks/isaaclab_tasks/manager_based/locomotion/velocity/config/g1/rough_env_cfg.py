@@ -40,6 +40,7 @@ class G1Rewards(RewardsCfg):
         weight=0.25,
         params={
             "command_name": "base_velocity",
+            # Same as H1: rigid bodies use ``*_ankle_roll_link`` (joints stay ``*_ankle_roll_joint``).
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
             "threshold": 0.4,
         },
@@ -75,8 +76,7 @@ class G1Rewards(RewardsCfg):
                     ".*_shoulder_pitch_joint",
                     ".*_shoulder_roll_joint",
                     ".*_shoulder_yaw_joint",
-                    ".*_elbow_pitch_joint",
-                    ".*_elbow_roll_joint",
+                    ".*_elbow_joint",
                 ],
             )
         },
@@ -87,14 +87,11 @@ class G1Rewards(RewardsCfg):
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
+                # Menagerie G1: wrist chains instead of numbered finger joints.
                 joint_names=[
-                    ".*_five_joint",
-                    ".*_three_joint",
-                    ".*_six_joint",
-                    ".*_four_joint",
-                    ".*_zero_joint",
-                    ".*_one_joint",
-                    ".*_two_joint",
+                    ".*_wrist_roll_joint",
+                    ".*_wrist_pitch_joint",
+                    ".*_wrist_yaw_joint",
                 ],
             )
         },
@@ -102,7 +99,12 @@ class G1Rewards(RewardsCfg):
     joint_deviation_torso = RewTerm(
         func=mdp.joint_deviation_l1,
         weight=-0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names="torso_joint")},
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=["waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint"],
+            )
+        },
     )
 
 
@@ -112,7 +114,7 @@ class G1NewtonEventsCfg(EventsCfg):
         super().__post_init__()
         self.push_robot = None
         self.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.base_external_force_torque.params["asset_cfg"].body_names = ["torso_link"]
+        self.base_external_force_torque.params["asset_cfg"].body_names = ["pelvis"]
         self.reset_base.params = {
             "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
             "velocity_range": {
@@ -151,7 +153,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # Scene
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
+        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 
         # Rewards
         self.rewards.lin_vel_z_l2.weight = 0.0
@@ -173,7 +175,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
 
         # terminations
-        self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
+        self.terminations.base_contact.params["sensor_cfg"].body_names = "pelvis"
 
 
 @configclass
