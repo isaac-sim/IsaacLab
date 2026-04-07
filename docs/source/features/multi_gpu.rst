@@ -133,13 +133,13 @@ during or shortly after communicator initialization.
 
 If this occurs, try disabling the NCCL shared-memory transport before launching training:
 
-.. code-block:: bash
+.. code-block:: shell
 
     export NCCL_SHM_DISABLE=1
 
 If the issue persists, additional NCCL fallbacks that may help are:
 
-.. code-block:: bash
+.. code-block:: shell
 
     export NCCL_IB_DISABLE=1
     export NCCL_ALGO=Ring
