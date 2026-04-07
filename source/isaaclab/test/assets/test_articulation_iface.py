@@ -601,6 +601,44 @@ class TestArticulationFinders:
         assert indices == [0]
         assert names == [first_joint]
 
+    @_backends
+    @_default_dims
+    @_default_devices
+    def test_find_joints_repeated_calls_are_independent(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
+    ):
+        art, _ = articulation_iface
+        idx1, names1 = art.find_joints(".*")
+        idx2, names2 = art.find_joints(".*")
+        assert idx1 == idx2
+        assert names1 == names2
+        assert idx1 is not idx2
+        assert names1 is not names2
+
+        idx1.append(999)
+        idx3, _ = art.find_joints(".*")
+        assert 999 not in idx3
+        assert len(idx3) == num_joints
+
+    @_backends
+    @_default_dims
+    @_default_devices
+    def test_find_bodies_repeated_calls_are_independent(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
+    ):
+        art, _ = articulation_iface
+        idx1, names1 = art.find_bodies(".*")
+        idx2, names2 = art.find_bodies(".*")
+        assert idx1 == idx2
+        assert names1 == names2
+        assert idx1 is not idx2
+        assert names1 is not names2
+
+        idx1.append(999)
+        idx3, _ = art.find_bodies(".*")
+        assert 999 not in idx3
+        assert len(idx3) == num_bodies
+
 
 # ---------------------------------------------------------------------------
 # Tests: ArticulationData root state properties
