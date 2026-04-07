@@ -17,6 +17,8 @@ from pxr import UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import Renderer
+from isaaclab.rendering_mode.rendering_mode_utils import apply_mode_profile_to_renderer_cfg
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.views import XformPrimView
 
 from ..sensor_base import SensorBase
@@ -162,6 +164,17 @@ class TiledCamera(Camera):
 
         # Initialize parent class
         SensorBase._initialize_impl(self)
+
+        sim = SimulationContext.instance()
+        if sim is not None:
+            mode_cfgs = getattr(sim.cfg, "rendering_mode_cfgs", None) or {}
+            apply_mode_profile_to_renderer_cfg(
+                sim.get_setting,
+                sim.set_setting,
+                self.cfg.renderer_cfg,
+                mode_cfgs,
+                logger,
+            )
 
         self.renderer = Renderer(self.cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self.renderer).__name__)

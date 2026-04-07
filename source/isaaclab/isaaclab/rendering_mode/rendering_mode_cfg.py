@@ -79,4 +79,22 @@ class RenderingModeCfg:
     newton_light_color: tuple[float, float, float] | None = (1.0, 1.0, 1.0)
     """Overrides Newton visualizer light color."""
 
+    newton_warp_enable_textures: bool | None = None
+    """When set, overrides the Newton Warp tiled camera renderer ``enable_textures`` field."""
+
+    newton_warp_enable_shadows: bool | None = None
+    """When set, overrides the Newton Warp tiled camera renderer ``enable_shadows`` field."""
+
+    newton_warp_enable_ambient_lighting: bool | None = None
+    """When set, overrides the Newton Warp tiled camera renderer ``enable_ambient_lighting`` field."""
+
+    newton_warp_enable_backface_culling: bool | None = None
+    """When set, overrides the Newton Warp tiled camera renderer ``enable_backface_culling`` field."""
+
+    newton_warp_max_distance: float | None = None
+    """When set, overrides the Newton Warp tiled camera renderer ``max_distance`` field."""
+
+    newton_warp_create_default_light: bool | None = None
+    """When set, overrides the Newton Warp tiled camera renderer ``create_default_light`` field."""
+
     # TODO: Consider supporting additional raw backend settings dictionaries.

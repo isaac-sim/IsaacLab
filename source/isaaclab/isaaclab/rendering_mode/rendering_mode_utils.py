@@ -52,6 +52,52 @@ def apply_kit_rendering_mode_cfg(set_setting: Any, mode_cfg: RenderingModeCfg) -
             pass
 
 
+def resolve_rendering_mode_name_for_renderer_cfg(get_setting: Any, renderer_cfg: Any) -> str | None:
+    """Resolve effective rendering mode profile name for a camera/renderer cfg."""
+    cli_mode_explicit = bool(get_setting("/isaaclab/rendering/rendering_mode/explicit"))
+    cli_mode = get_setting("/isaaclab/rendering/rendering_mode")
+    if cli_mode_explicit:
+        return cli_mode if cli_mode else None
+    mode_name = getattr(renderer_cfg, "rendering_mode", None)
+    return mode_name if mode_name else None
+
+
+def apply_newton_warp_mode_cfg_to_renderer_cfg(renderer_cfg: Any, mode_cfg: RenderingModeCfg) -> None:
+    """Apply Newton Warp tiled-camera fields from a rendering mode profile onto renderer cfg."""
+    override_fields = {
+        "newton_warp_enable_textures": "enable_textures",
+        "newton_warp_enable_shadows": "enable_shadows",
+        "newton_warp_enable_ambient_lighting": "enable_ambient_lighting",
+        "newton_warp_enable_backface_culling": "enable_backface_culling",
+        "newton_warp_max_distance": "max_distance",
+        "newton_warp_create_default_light": "create_default_light",
+    }
+    for mode_field, ren_field in override_fields.items():
+        value = getattr(mode_cfg, mode_field, None)
+        if value is not None and hasattr(renderer_cfg, ren_field):
+            setattr(renderer_cfg, ren_field, value)
+
+
+def apply_mode_profile_to_renderer_cfg(
+    get_setting: Any,
+    set_setting: Any,
+    renderer_cfg: Any,
+    mode_cfgs: dict[str, RenderingModeCfg],
+    logger: Any,
+) -> None:
+    """Resolve and apply a rendering mode profile to a :class:`~isaaclab.renderers.RendererCfg` (in place)."""
+    mode_name = resolve_rendering_mode_name_for_renderer_cfg(get_setting, renderer_cfg)
+    mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
+    if mode_cfg is None:
+        return
+
+    rtype = getattr(renderer_cfg, "renderer_type", None)
+    if rtype in ("default", "isaac_rtx", "rtx"):
+        apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
+    elif rtype == "newton_warp":
+        apply_newton_warp_mode_cfg_to_renderer_cfg(renderer_cfg, mode_cfg)
+
+
 def apply_newton_mode_cfg_to_visualizer_cfg(visualizer_cfg: Any, mode_cfg: RenderingModeCfg) -> None:
     """Apply Newton rendering mode values to a visualizer cfg object."""
     override_fields = {

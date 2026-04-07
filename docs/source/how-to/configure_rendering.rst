@@ -36,16 +36,25 @@ Rendering mode can be selected in two ways:
       )
 
 2. Use the ``--rendering_mode`` CLI argument, which takes precedence over
-   ``visualizer_cfg.rendering_mode``.
+   ``visualizer_cfg.rendering_mode`` and over ``camera_cfg.renderer_cfg.rendering_mode``.
 
    .. code-block:: bash
 
       ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
 
+3. For tiled or classic camera sensors, set ``rendering_mode`` on
+   :attr:`~sensors.camera.camera_cfg.CameraCfg.renderer_cfg` to select the same named profile.
+   Kit-style renderers (``isaac_rtx``, ``rtx``, or ``default``) receive the profile's ``kit_*`` preset and
+   overrides via global RTX settings. The Newton Warp renderer (``newton_warp``) receives optional
+   ``newton_warp_*`` fields from the profile, which map to
+   ``isaaclab_newton.renderers.NewtonWarpRendererCfg``.
+
 Notes:
 
 * If ``rendering_mode=None`` for a visualizer, Isaac Lab does not apply rendering overrides
   for that visualizer, and backend/native defaults (for Kit, USD-authored settings) are used.
+* If ``rendering_mode=None`` on ``renderer_cfg`` and the CLI did not set an explicit mode, no profile
+  is applied for that camera's renderer.
 * ``--rendering_mode`` is the supported CLI entry point.
 
 Example renders from the ``set_rendering_mode.py`` script.

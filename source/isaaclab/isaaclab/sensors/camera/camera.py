@@ -20,6 +20,8 @@ from pxr import Sdf, UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.rendering_mode.rendering_mode_utils import apply_mode_profile_to_renderer_cfg
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils import has_kit, to_camel_case
 from isaaclab.utils.array import convert_to_torch
@@ -441,6 +443,17 @@ class Camera(SensorBase):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
+            )
+
+        sim = SimulationContext.instance()
+        if sim is not None:
+            mode_cfgs = getattr(sim.cfg, "rendering_mode_cfgs", None) or {}
+            apply_mode_profile_to_renderer_cfg(
+                sim.get_setting,
+                sim.set_setting,
+                self.cfg.renderer_cfg,
+                mode_cfgs,
+                logger,
             )
 
         import omni.replicator.core as rep
