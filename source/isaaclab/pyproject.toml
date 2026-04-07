@@ -26,7 +26,7 @@ dependencies = [
     "pytest",
     "pytest-mock",
     "junitparser",
-    "flatdict==4.0.1",
+    "flatdict",
     "flaky",
     "packaging",
     'pin-pink==3.1.0 ; platform_system == "Linux" and platform_machine in "x86_64,AMD64,aarch64,arm64"',

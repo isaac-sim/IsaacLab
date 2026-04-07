@@ -20,9 +20,15 @@ dependencies = [
     "isaaclab-rl",
 ]
 
+[tool.setuptools]
+packages = []
+
 [tool.uv]
 extra-index-url = ["https://pypi.nvidia.com", "https://download.pytorch.org/whl/cu128"]
 index-strategy = "unsafe-best-match"
+
+[tool.uv.extra-build-dependencies]
+flatdict = ["setuptools"]
 
 [tool.uv.workspace]
 members = [
