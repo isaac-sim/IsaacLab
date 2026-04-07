@@ -389,6 +389,10 @@ class ObservationManager(ManagerBase):
         # read attributes for each term
         obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
 
+        # pre-resolve lazy-loaded types so isinstance checks skip __getattr__ per iteration
+        _NoiseCfg = noise.NoiseCfg
+        _NoiseModelCfg = noise.NoiseModelCfg
+
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
             # compute term's value
@@ -397,9 +401,9 @@ class ObservationManager(ManagerBase):
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
                     obs = modifier.func(obs, **modifier.params)
-            if isinstance(term_cfg.noise, noise.NoiseCfg):
+            if isinstance(term_cfg.noise, _NoiseCfg):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
-            elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
+            elif isinstance(term_cfg.noise, _NoiseModelCfg) and term_cfg.noise.func is not None:
                 obs = term_cfg.noise.func(obs)
             if term_cfg.clip:
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])

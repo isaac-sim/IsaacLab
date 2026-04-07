@@ -8,9 +8,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
+from isaaclab.utils.warp_torch_cache import warp_to_torch
 
 if TYPE_CHECKING:
     from isaaclab.assets import ArticulationData
@@ -23,7 +23,7 @@ def rel_ee_object_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
     object_data: ArticulationData = env.scene["object"].data
 
-    return wp.to_torch(object_data.root_pos_w) - wp.to_torch(ee_tf_data.target_pos_w)[..., 0, :]
+    return warp_to_torch(object_data, "root_pos_w") - warp_to_torch(ee_tf_data, "target_pos_w")[..., 0, :]
 
 
 def rel_ee_drawer_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
@@ -31,13 +31,15 @@ def rel_ee_drawer_distance(env: ManagerBasedRLEnv) -> torch.Tensor:
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
     cabinet_tf_data: FrameTransformerData = env.scene["cabinet_frame"].data
 
-    return wp.to_torch(cabinet_tf_data.target_pos_w)[..., 0, :] - wp.to_torch(ee_tf_data.target_pos_w)[..., 0, :]
+    return (
+        warp_to_torch(cabinet_tf_data, "target_pos_w")[..., 0, :] - warp_to_torch(ee_tf_data, "target_pos_w")[..., 0, :]
+    )
 
 
 def fingertips_pos(env: ManagerBasedRLEnv) -> torch.Tensor:
     """The position of the fingertips relative to the environment origins."""
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
-    fingertips_pos = wp.to_torch(ee_tf_data.target_pos_w)[..., 1:, :] - env.scene.env_origins.unsqueeze(1)
+    fingertips_pos = warp_to_torch(ee_tf_data, "target_pos_w")[..., 1:, :] - env.scene.env_origins.unsqueeze(1)
 
     return fingertips_pos.view(env.num_envs, -1)
 
@@ -45,7 +47,7 @@ def fingertips_pos(env: ManagerBasedRLEnv) -> torch.Tensor:
 def ee_pos(env: ManagerBasedRLEnv) -> torch.Tensor:
     """The position of the end-effector relative to the environment origins."""
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
-    ee_pos = wp.to_torch(ee_tf_data.target_pos_w)[..., 0, :] - env.scene.env_origins
+    ee_pos = warp_to_torch(ee_tf_data, "target_pos_w")[..., 0, :] - env.scene.env_origins
 
     return ee_pos
 
@@ -56,6 +58,6 @@ def ee_quat(env: ManagerBasedRLEnv, make_quat_unique: bool = True) -> torch.Tens
     If :attr:`make_quat_unique` is True, the quaternion is made unique by ensuring the real part is positive.
     """
     ee_tf_data: FrameTransformerData = env.scene["ee_frame"].data
-    ee_quat = wp.to_torch(ee_tf_data.target_quat_w)[..., 0, :]
+    ee_quat = warp_to_torch(ee_tf_data, "target_quat_w")[..., 0, :]
     # make first element of quaternion positive
     return math_utils.quat_unique(ee_quat) if make_quat_unique else ee_quat

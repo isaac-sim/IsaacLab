@@ -260,5 +260,14 @@ class SimulationCfg:
     If None, the logs will be saved to the temp directory.
     """
 
+    enable_warp_torch_cache: bool = True
+    """Cache :func:`warp.to_torch` views within each simulation step. Default is True.
+
+    When enabled, :func:`~isaaclab.utils.warp_torch_cache.warp_to_torch` deduplicates
+    ``wp.to_torch()`` calls so at most one conversion is performed per field per step.
+    Set to ``False`` to fall back to plain ``wp.to_torch()`` on every call (useful for
+    debugging or benchmarking the cache overhead).
+    """
+
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
     """The visualizer configuration(s). Default is an empty list."""

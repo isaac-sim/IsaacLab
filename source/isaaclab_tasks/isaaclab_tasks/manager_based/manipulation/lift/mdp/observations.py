@@ -8,10 +8,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import subtract_frame_transforms
+from isaaclab.utils.warp_torch_cache import warp_to_torch
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
@@ -26,8 +26,8 @@ def object_position_in_robot_root_frame(
     """The position of the object in the robot's root frame."""
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
-    object_pos_w = wp.to_torch(object.data.root_pos_w)[:, :3]
+    object_pos_w = warp_to_torch(object.data, "root_pos_w")[:, :3]
     object_pos_b, _ = subtract_frame_transforms(
-        wp.to_torch(robot.data.root_pos_w), wp.to_torch(robot.data.root_quat_w), object_pos_w
+        warp_to_torch(robot.data, "root_pos_w"), warp_to_torch(robot.data, "root_quat_w"), object_pos_w
     )
     return object_pos_b

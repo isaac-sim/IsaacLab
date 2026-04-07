@@ -8,10 +8,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
+from isaaclab.utils.warp_torch_cache import warp_to_torch
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -37,7 +37,8 @@ def object_pos_b(
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
     return quat_apply_inverse(
-        wp.to_torch(robot.data.root_quat_w), wp.to_torch(object.data.root_pos_w) - wp.to_torch(robot.data.root_pos_w)
+        warp_to_torch(robot.data, "root_quat_w"),
+        warp_to_torch(object.data, "root_pos_w") - warp_to_torch(robot.data, "root_pos_w"),
     )
 
 
@@ -58,7 +59,7 @@ def object_quat_b(
     """
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
-    return quat_mul(quat_inv(wp.to_torch(robot.data.root_quat_w)), wp.to_torch(object.data.root_quat_w))
+    return quat_mul(quat_inv(warp_to_torch(robot.data, "root_quat_w")), warp_to_torch(object.data, "root_quat_w"))
 
 
 def body_state_b(
@@ -82,17 +83,17 @@ def body_state_b(
     body_asset: Articulation = env.scene[body_asset_cfg.name]
     base_asset: Articulation = env.scene[base_asset_cfg.name]
     # get world pose of bodies
-    body_pos_w = wp.to_torch(body_asset.data.body_pos_w)[:, body_asset_cfg.body_ids].view(-1, 3)
-    body_quat_w = wp.to_torch(body_asset.data.body_quat_w)[:, body_asset_cfg.body_ids].view(-1, 4)
-    body_lin_vel_w = wp.to_torch(body_asset.data.body_lin_vel_w)[:, body_asset_cfg.body_ids].view(-1, 3)
-    body_ang_vel_w = wp.to_torch(body_asset.data.body_ang_vel_w)[:, body_asset_cfg.body_ids].view(-1, 3)
+    body_pos_w = warp_to_torch(body_asset.data, "body_pos_w")[:, body_asset_cfg.body_ids].view(-1, 3)
+    body_quat_w = warp_to_torch(body_asset.data, "body_quat_w")[:, body_asset_cfg.body_ids].view(-1, 4)
+    body_lin_vel_w = warp_to_torch(body_asset.data, "body_lin_vel_w")[:, body_asset_cfg.body_ids].view(-1, 3)
+    body_ang_vel_w = warp_to_torch(body_asset.data, "body_ang_vel_w")[:, body_asset_cfg.body_ids].view(-1, 3)
     num_bodies = int(body_pos_w.shape[0] / env.num_envs)
     # get world pose of base frame
     root_pos_w = (
-        wp.to_torch(base_asset.data.root_link_pos_w).unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
+        warp_to_torch(base_asset.data, "root_link_pos_w").unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
     )
     root_quat_w = (
-        wp.to_torch(base_asset.data.root_link_quat_w).unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
+        warp_to_torch(base_asset.data, "root_link_quat_w").unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
     )
     # transform from world body pose to local body pose
     body_pos_b, body_quat_b = subtract_frame_transforms(root_pos_w, root_quat_w, body_pos_w, body_quat_w)
@@ -170,11 +171,11 @@ class object_point_cloud_b(ManagerTermBase):
         Returns:
             Tensor of shape ``(num_envs, num_points, 3)`` or flattened if requested.
         """
-        ref_pos_w = wp.to_torch(self.ref_asset.data.root_pos_w).unsqueeze(1).repeat(1, num_points, 1)
-        ref_quat_w = wp.to_torch(self.ref_asset.data.root_quat_w).unsqueeze(1).repeat(1, num_points, 1)
+        ref_pos_w = warp_to_torch(self.ref_asset.data, "root_pos_w").unsqueeze(1).repeat(1, num_points, 1)
+        ref_quat_w = warp_to_torch(self.ref_asset.data, "root_quat_w").unsqueeze(1).repeat(1, num_points, 1)
 
-        object_pos_w = wp.to_torch(self.object.data.root_pos_w).unsqueeze(1).repeat(1, num_points, 1)
-        object_quat_w = wp.to_torch(self.object.data.root_quat_w).unsqueeze(1).repeat(1, num_points, 1)
+        object_pos_w = warp_to_torch(self.object.data, "root_pos_w").unsqueeze(1).repeat(1, num_points, 1)
+        object_quat_w = warp_to_torch(self.object.data, "root_quat_w").unsqueeze(1).repeat(1, num_points, 1)
         # apply rotation + translation
         self.points_w = quat_apply(object_quat_w, self.points_local) + object_pos_w
         if visualize:
@@ -200,11 +201,12 @@ def fingers_contact_force_b(
         ``[fx, fy, fz]`` per sensor.
     """
     force_w = [
-        wp.to_torch(env.scene.sensors[name].data.force_matrix_w).view(env.num_envs, 3) for name in contact_sensor_names
+        warp_to_torch(env.scene.sensors[name].data, "force_matrix_w").view(env.num_envs, 3)
+        for name in contact_sensor_names
     ]
     force_w = torch.stack(force_w, dim=1)
     robot: Articulation = env.scene[asset_cfg.name]
-    root_link_quat_w = wp.to_torch(robot.data.root_link_quat_w)
+    root_link_quat_w = warp_to_torch(robot.data, "root_link_quat_w")
     forces_b = quat_apply_inverse(root_link_quat_w.unsqueeze(1).repeat(1, force_w.shape[1], 1), force_w)
     return forces_b.view(env.num_envs, -1)
 

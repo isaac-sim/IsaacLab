@@ -176,6 +176,11 @@ class SimulationContext:
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
 
+        # Apply warp-to-torch cache setting
+        from isaaclab.utils.warp_torch_cache import set_caching_enabled
+
+        set_caching_enabled(self.cfg.enable_warp_torch_cache)
+
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))

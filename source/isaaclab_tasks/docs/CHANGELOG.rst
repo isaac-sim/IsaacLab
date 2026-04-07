@@ -32,6 +32,10 @@ Changed
 ^^^^^^^
 
 * Change Franka visuomotor and GR1T2 nut pouring environments to use TiledCamera.
+* Changed task-specific observation and termination terms across humanoid, drone,
+  locomanipulation, cabinet, deploy, dexsuite, inhand, lift, pick-place, place, and
+  stack environments to use :func:`~isaaclab.utils.warp_torch_cache.warp_to_torch`
+  instead of calling :func:`warp.to_torch` on every evaluation.
 
 
 1.5.19 (2026-04-06)

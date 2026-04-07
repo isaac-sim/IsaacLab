@@ -173,6 +173,18 @@ Added
 
 * Added release version to
   :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.
+* Added :func:`~isaaclab.utils.warp_torch_cache.warp_to_torch` utility for cached
+  :func:`warp.to_torch` views on asset data, sensor data, and frame-transformer
+  objects, keyed by ``_sim_timestamp`` or buffer pointer.  Caching can be disabled
+  via :attr:`~isaaclab.sim.SimulationCfg.enable_warp_torch_cache` to fall back to
+  plain ``wp.to_torch()``.
+
+Changed
+^^^^^^^
+
+* Changed all built-in observation, reward, and termination terms in
+  :mod:`isaaclab.envs.mdp` to use :func:`~isaaclab.utils.warp_torch_cache.warp_to_torch`
+  instead of calling :func:`warp.to_torch` on every evaluation.
 
 
 4.5.26 (2026-04-08)

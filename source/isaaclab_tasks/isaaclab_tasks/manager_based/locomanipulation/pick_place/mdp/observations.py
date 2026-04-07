@@ -8,12 +8,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp_torch_cache import warp_to_torch
 
 
 def upper_body_last_action(
@@ -22,7 +22,7 @@ def upper_body_last_action(
 ) -> torch.Tensor:
     """Extract the last action of the upper body."""
     asset = env.scene[asset_cfg.name]
-    joint_pos_target = wp.to_torch(asset.data.joint_pos_target)
+    joint_pos_target = warp_to_torch(asset.data, "joint_pos_target")
 
     # Use joint_names from asset_cfg to find indices
     joint_names = asset_cfg.joint_names if hasattr(asset_cfg, "joint_names") else None
