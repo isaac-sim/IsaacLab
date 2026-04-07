@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.5.20 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached results of :meth:`~isaaclab_newton.assets.Articulation.find_joints` and
+  :meth:`~isaaclab_newton.assets.Articulation.find_bodies` to avoid repeated
+  regex resolution via :func:`~isaaclab.utils.string.resolve_matching_names`
+  on every call. The cache is per-instance and lives for the lifetime of the
+  articulation.
+
+
 0.5.19 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

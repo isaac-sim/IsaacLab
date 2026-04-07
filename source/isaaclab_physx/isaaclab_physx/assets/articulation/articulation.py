@@ -111,6 +111,8 @@ class Articulation(BaseArticulation):
         Args:
             cfg: A configuration instance.
         """
+        self._find_bodies_cache: dict[tuple, tuple[list[int], list[str]]] = {}
+        self._find_joints_cache: dict[tuple, tuple[list[int], list[str]]] = {}
         super().__init__(cfg)
 
     """
@@ -285,7 +287,12 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return resolve_matching_names(name_keys, self.body_names, preserve_order)
+        cache_key = ((name_keys,) if isinstance(name_keys, str) else tuple(name_keys), preserve_order)
+        result = self._find_bodies_cache.get(cache_key)
+        if result is None:
+            result = resolve_matching_names(name_keys, self.body_names, preserve_order)
+            self._find_bodies_cache[cache_key] = result
+        return list(result[0]), list(result[1])
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
@@ -304,10 +311,16 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the joint indices and names.
         """
-        if joint_subset is None:
-            joint_subset = self.joint_names
-        # find joints
-        return resolve_matching_names(name_keys, joint_subset, preserve_order)
+        _keys = (name_keys,) if isinstance(name_keys, str) else tuple(name_keys)
+        _subset = tuple(joint_subset) if joint_subset is not None else None
+        cache_key = (_keys, _subset, preserve_order)
+        result = self._find_joints_cache.get(cache_key)
+        if result is None:
+            if joint_subset is None:
+                joint_subset = self.joint_names
+            result = resolve_matching_names(name_keys, joint_subset, preserve_order)
+            self._find_joints_cache[cache_key] = result
+        return list(result[0]), list(result[1])
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
