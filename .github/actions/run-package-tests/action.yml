@@ -134,26 +134,23 @@ runs:
         # Don't let cleanup errors fail a passing test job
         set +e
 
-        echo "⚪ Disk usage before cleanup"
+        echo "⚪ Disk usage before cleanup:"
         df -h /var/lib/docker
-        docker system df
 
         ISAACSIM_IMAGE="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
 
         # Pin the base IsaacSim image so prune -a doesn't remove it
         ISAACSIM_IMAGE_PIN_CONTAINER="isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
-        echo "🔵 Pinning IsaacSim base image: ${ISAACSIM_IMAGE}"
+        echo "🔵 Pinning IsaacSim base image: ${ISAACSIM_IMAGE} to temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}"
         docker create --name "${ISAACSIM_IMAGE_PIN_CONTAINER}" "${ISAACSIM_IMAGE}" true 2>/dev/null || true
 
         echo "🔵 Removing Docker images older than 3 days..."
         docker image prune -a -f --filter "until=72h"
 
-        echo "🔵 Removing pin container..."
+        echo "🔵 Removing temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}..."
         docker rm "${ISAACSIM_IMAGE_PIN_CONTAINER}" 2>/dev/null || true
 
         echo "🟢 Docker image cleanup complete."
 
-        echo ""
-        echo "⚪ Disk usage after cleanup"
+        echo "⚪ Disk usage after cleanup:"
         df -h /var/lib/docker
-        docker system df
