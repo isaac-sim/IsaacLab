@@ -41,7 +41,7 @@ class Rizon4sReachROSInferenceEnvCfg(Rizon4sReachEnvCfg):
         self.scene.robot.init_state.rot = (0.5, 0.5, 0.5, 0.5)
 
         # end-effector is along z-direction for Rizon 4s
-        # target_pos_centre and target_rot_centre are approzimately the end effector pose when
+        # target_pos_centre and target_rot_centre are approximately the end effector pose when
         # the robot is in the self.scene.robot.init_state.joint_pos pose
         self.target_pos_centre = (0.0, 0.3, 0.9)
         self.target_pos_range = (0.4, 0.4, 0.35)
