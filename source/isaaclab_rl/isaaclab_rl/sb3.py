@@ -135,13 +135,21 @@ class Sb3VecEnvWrapper(VecEnv):
 
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, fast_variant: bool = True):
+    def __init__(
+        self,
+        env: ManagerBasedRLEnv | DirectRLEnv,
+        fast_variant: bool = True,
+        action_low: float | None = None,
+        action_high: float | None = None,
+    ):
         """Initialize the wrapper.
 
         Args:
             env: The environment to wrap around.
             fast_variant: Use fast variant for processing info
                 (Only episodic reward, lengths and truncation info are included)
+            action_low: Lower bound for clamping unbounded action spaces. Defaults to -100.
+            action_high: Upper bound for clamping unbounded action spaces. Defaults to 100.
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
         """
@@ -154,6 +162,8 @@ class Sb3VecEnvWrapper(VecEnv):
         # initialize the wrapper
         self.env = env
         self.fast_variant = fast_variant
+        self._action_low = action_low if action_low is not None else -100.0
+        self._action_high = action_high if action_high is not None else 100.0
         # collect common information
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
@@ -340,16 +350,18 @@ class Sb3VecEnvWrapper(VecEnv):
 
         # obtain gym spaces
         # note: stable-baselines3 does not like when we have unbounded action space so
-        #   we clamp to [-1, 1]. Using large bounds (e.g. [-100, 100]) breaks off-policy
-        #   algorithms like SAC, which rescale actions to fill the full [low, high] range.
+        #   we set it to some value here. The default [-100, 100] works for on-policy algorithms
+        #   like PPO. For off-policy algorithms like SAC, use action_low/action_high to set
+        #   tighter bounds (e.g. [-1, 1]) since SAC rescales actions to fill the full range.
         action_space = self.unwrapped.single_action_space
         if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
             warnings.warn(
-                "The environment has an unbounded action space. Clamping to [-1, 1] for SB3 compatibility. "
-                "For best results, define bounded action spaces in your environment config.",
+                f"The environment has an unbounded action space. Clamping to [{self._action_low}, {self._action_high}]"
+                " for SB3 compatibility. For best results, define bounded action spaces in your environment config"
+                " or set action_low/action_high in the agent yaml.",
                 stacklevel=3,
             )
-            action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=action_space.shape)
+            action_space = gym.spaces.Box(low=self._action_low, high=self._action_high, shape=action_space.shape)
 
         # initialize vec-env
         VecEnv.__init__(self, self.num_envs, observation_space, action_space)

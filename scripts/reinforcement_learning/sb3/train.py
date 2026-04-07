@@ -180,8 +180,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     start_time = time.time()
 
+    # extract action bounds from agent config (useful for off-policy algorithms like SAC)
+    action_low = agent_cfg.pop("action_low", None)
+    action_high = agent_cfg.pop("action_high", None)
+
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+    env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info, action_low=action_low, action_high=action_high)
 
     norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
     norm_args = {}

@@ -151,8 +151,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print("[INFO] Recording videos during training.")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
+    # extract action bounds from agent config (useful for off-policy algorithms like SAC)
+    action_low = agent_cfg.pop("action_low", None)
+    action_high = agent_cfg.pop("action_high", None)
+
     # wrap around environment for stable baselines
-    env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+    env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info, action_low=action_low, action_high=action_high)
 
     vec_norm_path = checkpoint_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl")
     vec_norm_path = Path(vec_norm_path)
