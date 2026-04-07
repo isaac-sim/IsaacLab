@@ -665,7 +665,8 @@ If the deployed policy produces jerky or unstable motion:
 Further Resources
 -----------------
 
+- `IndustReal: Transferring Contact-Rich Assembly Tasks from Simulation to Reality <https://arxiv.org/abs/2305.17110>`_
+- `FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty <https://arxiv.org/abs/2408.04587>`_
 - `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
 - Gear Assembly Sim-to-Real Tutorial: :ref:`walkthrough_sim_to_real`
-- Sim-to-Real Policy Transfer for Whole Body Controllers: :ref:`sim2real`
 - RL Training Tutorial: :ref:`tutorial-run-rl-training`
