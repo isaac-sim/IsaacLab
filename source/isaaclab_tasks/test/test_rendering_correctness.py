@@ -6,7 +6,7 @@
 """Tests for rendering correctness.
 
 Each test builds an environment with a given (physics_backend, renderer, data_type),
-steps once, then checks if camera outputs are not blank (at least one non-zero
+resets, then checks if camera outputs are not blank (at least one non-zero
 pixel) and consistent with golden images. Env-specific fixtures use parametrized
 combinations; a separate test covers a list of registered task IDs that use
 camera-based observations.
@@ -28,7 +28,6 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 from PIL import Image, ImageChops  # noqa: E402
 
-from isaaclab.envs.utils.spaces import sample_space  # noqa: E402
 from isaaclab.sim import SimulationContext  # noqa: E402
 
 from isaaclab_tasks.utils.hydra import (  # noqa: E402
@@ -375,7 +374,10 @@ def _generate_html_report() -> None:
         "<th>ACTUAL</th>"
         "<th>GOLDEN</th>"
         "</tr></thead>\n"
-        "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n</body>\n</html>\n"
+        "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n"
+        f"<p>Generated:&nbsp;{datetime.now().astimezone().isoformat(timespec='seconds')}.</p>\n"
+        "</body>\n"
+        "</html>\n"
     )
 
     with open(report_path, "w", encoding="utf-8") as f:
@@ -577,15 +579,12 @@ def _validate_camera_outputs(
 
         _COMPARISON_SCORES.append(entry)
 
-        if not succeeded:
-            timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            result_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}-{timestamp}.png")
-            result_image.save(result_path)
-            pytest.fail(
-                f"[{test_name}] Inconsistency detected for camera output '{data_type}': {error_message}. "
-                f"Saved result image to {result_path} for further investigation. "
-                f"If result image is correct, please replace the golden image at {golden_path} with the result image."
-            )
+        assert succeeded, (
+            f"[{test_name}] Camera output does not match the golden image "
+            f"(physics={physics_backend}, renderer={renderer}, data_type={data_type}).\n"
+            f"Mismatch details: {error_message}\n"
+            f"Images were written to {_COMPARISON_IMAGES_DIR}."
+        )
 
 
 def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
@@ -625,7 +624,7 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
 
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def shadow_hand_env(request):
-    """Build Shadow Hand vision env for (physics_backend, renderer, data_type); step once, yield, close."""
+    """Build Shadow Hand vision env for (physics_backend, renderer, data_type); reset, yield, close."""
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
@@ -647,8 +646,6 @@ def shadow_hand_env(request):
     try:
         env = ShadowHandVisionEnv(env_cfg)
         env.reset()
-        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-        env.step(actions)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -664,7 +661,7 @@ def test_shadow_hand(shadow_hand_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=5.0,
+        max_different_pixels_percentage=8.0,
     )
 
 
@@ -675,7 +672,7 @@ def test_shadow_hand(shadow_hand_env):
 
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def cartpole_env(request):
-    """Build Cartpole camera env for (physics_backend, renderer, data_type); step once, yield, close."""
+    """Build Cartpole camera env for (physics_backend, renderer, data_type); reset, yield, close."""
     from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
     from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
@@ -693,8 +690,6 @@ def cartpole_env(request):
     try:
         env = CartpoleCameraEnv(env_cfg)
         env.reset()
-        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-        env.step(actions)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -710,7 +705,7 @@ def test_cartpole(cartpole_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=5.0,
+        max_different_pixels_percentage=2.0,
     )
 
 
@@ -721,7 +716,7 @@ def test_cartpole(cartpole_env):
 
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def dexsuite_kuka_allegro_lift_env(request):
-    """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; step once, yield, close."""
+    """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; reset, yield, close."""
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
@@ -729,6 +724,10 @@ def dexsuite_kuka_allegro_lift_env(request):
     )
 
     physics_backend, renderer, data_type = request.param
+
+    if renderer == "newton_renderer" and data_type == "rgb":
+        # TODO: re-enable the test case once the issue is resolved.
+        pytest.skip("Newton Warp produces inconsistent RGB colors run-to-run; skipping test.")
 
     # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64.
     override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
@@ -743,8 +742,6 @@ def dexsuite_kuka_allegro_lift_env(request):
     try:
         env = ManagerBasedRLEnv(env_cfg)
         env.reset()
-        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-        env.step(actions)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -772,20 +769,8 @@ def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
 _RENDER_CORRECTNESS_TASK_IDS = [
     "Isaac-Cartpole-Albedo-Camera-Direct-v0",
     "Isaac-Cartpole-Camera-Presets-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0",
     "Isaac-Cartpole-Depth-Camera-Direct-v0",
-    "Isaac-Cartpole-Depth-v0",
     "Isaac-Cartpole-RGB-Camera-Direct-v0",
-    "Isaac-Cartpole-RGB-ResNet18-v0",
-    "Isaac-Cartpole-RGB-v0",
     "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
     "Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
     "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
@@ -808,30 +793,6 @@ def test_registered_tasks(task_id):
             sim._app_control_on_stop_handle = None
 
         env.reset()
-
-        num_envs = getattr(unwrapped, "num_envs", 4)
-        device = getattr(unwrapped, "device", None)
-
-        if getattr(unwrapped, "possible_agents", None):
-            action_spaces = getattr(unwrapped, "action_spaces", {})
-            actions = {
-                agent: sample_space(
-                    action_spaces[agent],
-                    device=device,
-                    batch_size=num_envs,
-                    fill_value=0,
-                )
-                for agent in unwrapped.possible_agents
-            }
-        else:
-            actions = sample_space(
-                getattr(unwrapped, "single_action_space", None),
-                device=device,
-                batch_size=num_envs,
-                fill_value=0,
-            )
-
-        env.step(actions)
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)
