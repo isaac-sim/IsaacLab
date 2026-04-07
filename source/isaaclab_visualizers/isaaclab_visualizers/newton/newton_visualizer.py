@@ -193,6 +193,9 @@ class NewtonViewerGL(ViewerGL):
                     show_collision = self.show_collision
                     changed, self.show_collision = imgui.checkbox("Show Collision", show_collision)
 
+                    show_visual = self.show_visual
+                    changed, self.show_visual = imgui.checkbox("Show Visual Geometries", show_visual)
+
                     show_springs = self.show_springs
                     changed, self.show_springs = imgui.checkbox("Show Springs", show_springs)
 
@@ -323,6 +326,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.show_joints = self.cfg.show_joints
             self._viewer.show_contacts = self.cfg.show_contacts
             self._viewer.show_collision = self.cfg.show_collision
+            self._viewer.show_visual = self.cfg.show_visual
             self._viewer.show_springs = self.cfg.show_springs
             self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
             self._viewer.show_com = self.cfg.show_com
