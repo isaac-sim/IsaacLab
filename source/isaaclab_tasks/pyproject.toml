@@ -1,3 +1,27 @@
 [build-system]
-requires = ["setuptools", "wheel", "toml"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab-tasks"
+version = "0.11.12"
+description = "Environment suite for Isaac Lab"
+license = "BSD-3-Clause"
+requires-python = ">=3.10"
+dependencies = [
+    "isaaclab",
+    "isaaclab-assets",
+    "numpy<2",
+    "torch>=2.7",
+    "torchvision>=0.14.1",
+    "protobuf>=4.25.8,!=5.26.0",
+    "tensorboard",
+    "numba",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab_tasks*"]
