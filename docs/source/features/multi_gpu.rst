@@ -125,7 +125,7 @@ To train with multiple GPUs, use the following command, where ``--nproc_per_node
                     python -m skrl.utils.distributed.jax --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/skrl/train.py --task=Isaac-Cartpole-v0 --headless --distributed --ml_framework jax
 
 Troubleshooting NCCL Errors
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 On some Linux multi-GPU systems, distributed training may fail with
 ``CUDA error: an illegal memory access was encountered`` reported by ``ProcessGroupNCCL``
