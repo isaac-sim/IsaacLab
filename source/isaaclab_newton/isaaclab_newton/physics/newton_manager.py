@@ -93,6 +93,7 @@ class NewtonManager(PhysicsManager):
     _collision_pipeline = None
     _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
     _report_contacts: bool = False
+    _fk_dirty: bool = False
 
     # CUDA graphing
     _graph = None
@@ -158,6 +159,7 @@ class NewtonManager(PhysicsManager):
     def forward(cls) -> None:
         """Update articulation kinematics without stepping physics."""
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
+        cls._fk_dirty = False
 
     @classmethod
     def pre_render(cls) -> None:
@@ -298,6 +300,13 @@ class NewtonManager(PhysicsManager):
             else:
                 logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
 
+        # Ensure body_q is up-to-date before collision detection.
+        # After env resets, joint_q is written but body_q (used by
+        # broadphase/narrowphase) is stale until FK runs.
+        if cls._fk_dirty and cls._needs_collision_pipeline:
+            eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
+        cls._fk_dirty = False
+
         # Step simulation (graphed or not; _graph is None when capture is disabled or failed)
         if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device:  # type: ignore[union-attr]
             wp.capture_launch(cls._graph)
@@ -358,6 +367,7 @@ class NewtonManager(PhysicsManager):
         cls._collision_pipeline = None
         cls._newton_contact_sensors = {}
         cls._report_contacts = False
+        cls._fk_dirty = False
         cls._graph = None
         cls._graph_capture_pending = False
         cls._newton_stage_path = None
@@ -376,6 +386,16 @@ class NewtonManager(PhysicsManager):
     def add_model_change(cls, change: SolverNotifyFlags) -> None:
         """Register a model change to notify the solver."""
         cls._model_changes.add(change)
+
+    @classmethod
+    def invalidate_fk(cls) -> None:
+        """Mark forward kinematics as needing recomputation.
+
+        Called by articulation write methods that modify ``joint_q`` or root
+        transforms.  The flag is checked in :meth:`step` before collision
+        detection to ensure ``body_q`` is up-to-date.
+        """
+        cls._fk_dirty = True
 
     @classmethod
     def start_simulation(cls) -> None:
