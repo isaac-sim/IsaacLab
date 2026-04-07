@@ -3,6 +3,47 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+[build-system]
+requires = ["setuptools<82.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaac-lab"
+version = "2.3.2"
+description = "Isaac Lab: a unified framework for robot learning"
+license = "BSD-3-Clause"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "isaaclab",
+    "isaaclab-assets",
+    "isaaclab-tasks",
+    "isaaclab-rl",
+]
+
+[tool.setuptools]
+packages = []
+
+[tool.uv]
+extra-index-url = ["https://pypi.nvidia.com", "https://download.pytorch.org/whl/cu128"]
+index-strategy = "unsafe-best-match"
+
+[tool.uv.extra-build-dependencies]
+flatdict = ["setuptools"]
+
+[tool.uv.workspace]
+members = [
+    "source/isaaclab",
+    "source/isaaclab_assets",
+    "source/isaaclab_tasks",
+    "source/isaaclab_rl",
+]
+
+[tool.uv.sources]
+isaaclab = { workspace = true }
+isaaclab-assets = { workspace = true }
+isaaclab-tasks = { workspace = true }
+isaaclab-rl = { workspace = true }
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"

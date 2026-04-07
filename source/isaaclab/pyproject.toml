@@ -1,3 +1,42 @@
 [build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
+requires = ["setuptools<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab"
+version = "0.54.3"
+description = "Isaac Lab framework for robot learning"
+license = "BSD-3-Clause"
+requires-python = ">=3.11"
+dependencies = [
+    "isaacsim[all,extscache]==5.1.0",
+    "numpy<2",
+    "torch>=2.7",
+    "onnx>=1.18.0",
+    "prettytable==3.3.0",
+    "toml",
+    "hidapi==0.14.0.post2",
+    "gymnasium==1.2.1",
+    "trimesh",
+    "pyglet<2",
+    "transformers==4.57.6",
+    "einops",
+    "warp-lang",
+    "pillow==11.3.0",
+    "pytest",
+    "pytest-mock",
+    "junitparser",
+    "flatdict",
+    "flaky",
+    "packaging",
+    'pin-pink==3.1.0 ; platform_system == "Linux" and platform_machine in "x86_64,AMD64,aarch64,arm64"',
+    'daqp==0.7.2 ; platform_system == "Linux" and platform_machine in "x86_64,AMD64,aarch64,arm64"',
+    'dex-retargeting==0.4.6 ; platform_system == "Linux" and platform_machine in "x86_64,AMD64"',
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab*"]

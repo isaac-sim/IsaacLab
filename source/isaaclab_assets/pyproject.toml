@@ -1,3 +1,20 @@
 [build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
+requires = ["setuptools<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab-assets"
+version = "0.2.4"
+description = "Asset configurations for Isaac Lab"
+license = "BSD-3-Clause"
+requires-python = ">=3.10"
+dependencies = [
+    "isaaclab",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab_assets*"]
