@@ -128,11 +128,10 @@ Troubleshooting NCCL Errors
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 On some Linux multi-GPU systems, distributed training may fail with
-``CUDA error: an illegal memory access was encountered`` reported by
-``ProcessGroupNCCL`` during or shortly after communicator initialization.
+``CUDA error: an illegal memory access was encountered`` reported by ``ProcessGroupNCCL``
+during or shortly after communicator initialization.
 
-If this occurs, try disabling the NCCL shared-memory transport before
-launching training:
+If this occurs, try disabling the NCCL shared-memory transport before launching training:
 
 .. code-block:: bash
 
@@ -149,9 +148,9 @@ Then relaunch the distributed training command as usual.
 
 .. note::
 
-    These variables are NCCL-level workarounds intended for affected systems.
-    They are not required on all machines, and may change communication
-    behavior or performance depending on the hardware topology.
+    These variables are NCCL-level workarounds intended for affected systems. They are not
+    required on all machines, and may change communication behavior or performance depending
+    on the hardware topology.
 
 Multi-Node Training
 -------------------
