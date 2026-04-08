@@ -42,4 +42,4 @@ where = ["."]
 include = ["isaaclab*"]
 
 [tool.setuptools.package-data]
-isaaclab = ["apps/*.kit"]
+isaaclab = ["apps/*.kit", "apps/**/*.kit", "apps/**/*.toml"]
