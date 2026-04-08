@@ -40,3 +40,6 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["isaaclab*"]
+
+[tool.setuptools.package-data]
+isaaclab = ["apps/*.kit"]
