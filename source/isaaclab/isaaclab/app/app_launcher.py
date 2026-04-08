@@ -712,7 +712,10 @@ class AppLauncher:
 
         # If nothing is provided resolve the experience file based on the headless flag
         kit_app_exp_path = os.environ["EXP_PATH"]
+        # Try repo layout first (editable install), then bundled apps (pip/uv install)
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+        if not os.path.isdir(isaaclab_app_exp_path):
+            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
         # if launcher_args.get("use_isaacsim_45", False):
         if self.is_isaac_sim_version_4_5():
