@@ -151,7 +151,7 @@ def randomize_rigid_body_scale(
                 op_order_spec.default = Vt.TokenArray(["xformOp:translate", "xformOp:orient", "xformOp:scale"])
 
 
-def set_gravity_compensation(
+def set_newton_gravity_compensation(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
     asset_cfg: SceneEntityCfg,
