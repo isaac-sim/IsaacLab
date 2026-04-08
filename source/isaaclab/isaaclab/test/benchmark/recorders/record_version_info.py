@@ -7,8 +7,6 @@ import importlib.metadata
 import os
 import subprocess
 
-import tomllib
-
 from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import DictMetadata, StringMetadata
 
@@ -53,16 +51,6 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         """Store a version entry only if version is non-empty."""
         if version:
             self._version_info[key] = version
-
-    def _get_ext_version(self, pkg_name: str) -> str | None:
-        """Read the version from a sub-package's ``config/extension.toml``."""
-        toml_path = os.path.join(_REPO_ROOT, "source", pkg_name, "config", "extension.toml")
-        try:
-            with open(toml_path, "rb") as f:
-                data = tomllib.load(f)
-            return data.get("package", {}).get("version")
-        except Exception:
-            return None
 
     def _get_version_info(self) -> None:
         # isaaclab
@@ -116,16 +104,6 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         try:
             with open(version_file) as f:
                 self._record("isaaclab_release", f.read().strip())
-        except Exception:
-            pass
-
-        # Extension.toml versions from source sub-packages
-        source_dir = os.path.join(_REPO_ROOT, "source")
-        try:
-            for entry in sorted(os.listdir(source_dir)):
-                version = self._get_ext_version(entry)
-                if version:
-                    self._record(f"{entry}_ext", version)
         except Exception:
             pass
 
