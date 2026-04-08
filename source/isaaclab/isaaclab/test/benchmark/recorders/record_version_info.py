@@ -12,7 +12,7 @@ import tomllib
 from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import DictMetadata, StringMetadata
 
-# Path to the repository root (6 levels up from this file).
+# Path to the repository root.
 _REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 6))
 
 
@@ -121,11 +121,13 @@ class VersionInfoRecorder(MeasurementDataRecorder):
 
         # Extension.toml versions from source sub-packages
         source_dir = os.path.join(_REPO_ROOT, "source")
-        if os.path.isdir(source_dir):
+        try:
             for entry in sorted(os.listdir(source_dir)):
                 version = self._get_ext_version(entry)
                 if version:
                     self._record(f"{entry}_ext", version)
+        except Exception:
+            pass
 
     def _get_git_info(self) -> None:
         """Get git repository information."""
