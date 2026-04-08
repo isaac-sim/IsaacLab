@@ -50,7 +50,7 @@ INSTALL_REQUIRES = [
     "junitparser",
     "coverage==7.6.1",
     "debugpy>=1.8.20",
-    "flatdict==4.0.0",
+    "flatdict>=4.1.0",
     "flaky",
     "packaging",
     "psutil",
