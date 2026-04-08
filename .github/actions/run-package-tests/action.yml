@@ -126,3 +126,31 @@ runs:
         echo "🟠 Workflow cancelled, force-killing container ${CONTAINER}..."
         docker kill "${CONTAINER}" 2>/dev/null || true
         docker rm -f "${CONTAINER}" 2>/dev/null || true
+
+    - name: Cleanup old Docker images
+      if: always()
+      shell: bash
+      run: |
+        # Don't let cleanup errors fail a passing test job
+        set +e
+
+        echo "⚪ Disk usage before cleanup:"
+        df -h /var/lib/docker
+
+        ISAACSIM_IMAGE="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
+
+        # Pin the base IsaacSim image so prune -a doesn't remove it
+        ISAACSIM_IMAGE_PIN_CONTAINER="isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        echo "🔵 Pinning IsaacSim base image: ${ISAACSIM_IMAGE} to temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}"
+        docker create --name "${ISAACSIM_IMAGE_PIN_CONTAINER}" "${ISAACSIM_IMAGE}" true 2>/dev/null || true
+
+        echo "🔵 Removing Docker images older than 3 days..."
+        docker image prune -a -f --filter "until=72h"
+
+        echo "🔵 Removing temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}..."
+        docker rm "${ISAACSIM_IMAGE_PIN_CONTAINER}" 2>/dev/null || true
+
+        echo "🟢 Docker image cleanup complete."
+
+        echo "⚪ Disk usage after cleanup:"
+        df -h /var/lib/docker
