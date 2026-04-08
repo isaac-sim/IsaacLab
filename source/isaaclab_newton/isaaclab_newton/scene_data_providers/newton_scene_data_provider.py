@@ -24,7 +24,7 @@ _ENV_ID_RE = re.compile(r"/World/envs/env_(\d+)")
 class NewtonSceneDataProvider(BaseSceneDataProvider):
     """Scene data provider for Newton physics backend.
 
-    Provides access to Newton model, state, and USD stage for visualizers and renderers.
+    Provides access to Newton model, state, and USD stage for renderers and visualizers.
     Unlike PhysxSceneDataProvider which must build its own Newton model from USD and sync
     PhysX transforms into it, this provider delegates directly to NewtonManager since the
     Newton backend already owns the authoritative model and state.

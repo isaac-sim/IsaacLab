@@ -97,7 +97,7 @@ class SimulationCfg:
         "balanced": RenderingModeCfg(rendering_mode_preset="balanced"),
         "quality": RenderingModeCfg(rendering_mode_preset="quality"),
     }
-    """Named rendering mode profiles available to visualizers/renderers."""
+    """Named rendering mode profiles available to renderers and visualizers."""
 
     create_stage_in_memory: bool = False
     """If stage is first created in memory. Default is False.

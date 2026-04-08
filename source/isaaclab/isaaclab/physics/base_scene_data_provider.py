@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scene data provider interface for visualizers and renderers."""
+"""Scene data provider interface for renderers and visualizers."""
 
 from __future__ import annotations
 

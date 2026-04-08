@@ -19,10 +19,6 @@ from typing import Any
 # Key for storing singleton in sys.modules to survive module reloads (e.g., from Hydra)
 _SINGLETON_KEY = "__isaaclab_settings_manager_singleton__"
 
-# CLI rendering mode profile (``performance`` / ``balanced`` / ``quality``). Generic carb ``get()`` can
-# return a subtree dict for this path; ``get_string()`` reads the leaf value set by ``set_string``.
-_ISAACLAB_RENDERING_MODE_PATH = "/isaaclab/rendering/rendering_mode"
-
 
 class SettingsManager:
     """A settings manager that provides a carb.settings-like interface without requiring Omniverse.
@@ -129,17 +125,6 @@ class SettingsManager:
             The value at the path, or default if not found
         """
         if self._use_carb and self._carb_settings is not None:
-            # Prefer typed string read for CLI rendering mode: generic ``get()`` may return a subtree dict.
-            if path == _ISAACLAB_RENDERING_MODE_PATH:
-                try:
-                    if hasattr(self._carb_settings, "get_string"):
-                        s = self._carb_settings.get_string(path)
-                        if s is not None:
-                            out = str(s).strip()
-                            if out:
-                                return out
-                except Exception:
-                    pass
             value = self._carb_settings.get(path)
             return value if value is not None else default
         else:

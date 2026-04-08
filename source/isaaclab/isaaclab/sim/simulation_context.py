@@ -195,7 +195,7 @@ class SimulationContext:
 
     def _apply_mode_profile_to_visualizer_cfg(self, visualizer_cfg: Any) -> None:
         """Apply resolved rendering-mode profile to a visualizer config."""
-        mode_cfgs = getattr(self.cfg, "rendering_mode_cfgs", None) or {}
+        mode_cfgs = self.cfg.rendering_mode_cfgs
         apply_mode_profile_to_visualizer_cfg(
             self.get_setting,
             self.set_setting,
@@ -204,9 +204,9 @@ class SimulationContext:
             logger,
         )
 
-    def _apply_runtime_mode_profile_to_visualizer(self, viz: BaseVisualizer, force: bool = False) -> None:
-        """Apply rendering-mode profile updates to an active visualizer instance."""
-        mode_cfgs = getattr(self.cfg, "rendering_mode_cfgs", None) or {}
+    def _apply_runtime_mode_profile_to_visualizer(self, viz: BaseVisualizer) -> None:
+        """Apply rendering-mode profile updates to an active Kit visualizer instance."""
+        mode_cfgs = self.cfg.rendering_mode_cfgs
         apply_runtime_mode_profile_to_visualizer(
             self.get_setting,
             self.set_setting,
@@ -214,7 +214,6 @@ class SimulationContext:
             self._visualizer_mode_keys,
             mode_cfgs,
             logger,
-            force=force,
         )
 
     def _init_usd_physics_scene(self) -> None:
@@ -501,7 +500,6 @@ class SimulationContext:
                 self._apply_mode_profile_to_visualizer_cfg(cfg)
                 visualizer = cfg.create_visualizer()
                 visualizer.initialize(self._scene_data_provider)
-                self._apply_runtime_mode_profile_to_visualizer(visualizer, force=True)
                 self._visualizers.append(visualizer)
             except Exception as exc:
                 if cli_explicit:
@@ -528,7 +526,7 @@ class SimulationContext:
         return self._scene_data_provider
 
     def get_scene_data_requirements(self) -> SceneDataRequirement:
-        """Return scene-data requirements resolved from visualizers/renderers."""
+        """Return scene-data requirements resolved from renderers/visualizers."""
         return self._scene_data_requirements
 
     def update_scene_data_requirements(self, requirements: SceneDataRequirement) -> None:

@@ -63,10 +63,11 @@ class VisualizerCfg:
     """
 
     rendering_mode: str | None = None
-    """Name of the rendering mode profile for this visualizer.
+    """Name of the rendering mode profile (Kit / RTX only).
 
-    Selects an entry from :class:`isaaclab.sim.SimulationCfg.rendering_mode_cfgs`.
-    If None, no rendering mode overrides are applied and backend/native defaults are used.
+    Used when :attr:`visualizer_type` is ``kit``; selects an entry from
+    :class:`isaaclab.sim.SimulationCfg.rendering_mode_cfgs`. Ignored for other visualizers.
+    If None, no RTX profile overrides are applied for Kit and native defaults are used.
     """
 
     def get_visualizer_type(self) -> str | None:

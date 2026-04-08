@@ -167,7 +167,7 @@ class TiledCamera(Camera):
 
         sim = SimulationContext.instance()
         if sim is not None:
-            mode_cfgs = getattr(sim.cfg, "rendering_mode_cfgs", None) or {}
+            mode_cfgs = sim.cfg.rendering_mode_cfgs
             apply_mode_profile_to_renderer_cfg(
                 sim.get_setting,
                 sim.set_setting,

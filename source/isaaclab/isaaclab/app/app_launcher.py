@@ -29,6 +29,7 @@ with contextlib.suppress(ModuleNotFoundError):
     from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
+from isaaclab.rendering_mode.rendering_mode_utils import apply_kit_rendering_preset
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -447,7 +448,7 @@ class AppLauncher:
             choices={"performance", "balanced", "quality"},
             help=(
                 "Selects a named profile from SimulationCfg.rendering_mode_cfgs (default: performance, "
-                "balanced, quality). Overrides per-visualizer and per-camera rendering_mode when set. "
+                "balanced, quality). Overrides per-camera and per-visualizer rendering_mode when set. "
                 "Customize profiles with isaaclab.rendering_mode.RenderingModeCfg."
             ),
         )
@@ -1128,6 +1129,21 @@ class AppLauncher:
         settings = get_settings_manager()
         settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
         settings.set_bool("/isaaclab/rendering/rendering_mode/explicit", bool(rendering_mode_explicit))
+
+        # Apply built-in Kit presets at launch so RTX matches the CLI before SimulationContext runs.
+        if (
+            rendering_mode_explicit
+            and rendering_mode in {"performance", "balanced", "quality"}
+            and settings.is_omniverse_mode
+        ):
+            try:
+                apply_kit_rendering_preset(settings.set, rendering_mode)
+            except Exception as e:
+                logger.warning(
+                    "Could not apply Kit rendering preset %r to carb settings at launch: %s",
+                    rendering_mode,
+                    e,
+                )
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in settings."""

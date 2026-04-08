@@ -39,12 +39,23 @@ def _collect_str_leaves(obj: Any, out: list[str], depth: int = 0) -> None:
 
 
 def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
-    """Best-effort string profile name from carb get()/subtree dicts."""
+    """Best-effort profile name from carb ``get()`` (often a ``dict`` subtree for ``/isaaclab/rendering/rendering_mode``)."""
     if raw is None:
         return None
     if isinstance(raw, str):
         out = raw.strip()
         return out if out else None
+    if isinstance(raw, dict):
+        for key in ("value", "default", "profile", "name", "rendering_mode"):
+            v = raw.get(key)
+            if isinstance(v, str):
+                s = v.strip()
+                if s:
+                    return s
+            if isinstance(v, dict):
+                nested = _coerce_carb_rendering_mode_value(v)
+                if nested:
+                    return nested
     strings: list[str] = []
     _collect_str_leaves(raw, strings)
     if not strings:
@@ -58,19 +69,11 @@ def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
 def _read_cli_rendering_mode_profile_name(get_setting: Any) -> str | None:
     """Read CLI rendering mode profile name (``performance`` / ``balanced`` / ``quality``).
 
-    :class:`~isaaclab.app.settings_manager.SettingsManager` and :class:`~isaaclab.sim.simulation_context.SettingsHelper` resolve
-    ``/isaaclab/rendering/rendering_mode`` via ``get_string`` when using carb so readers see the string
-    set by ``set_string``. Generic ``carb.settings.get()`` may still return a subtree ``dict``; we coerce
-    that below and try alternate leaf paths.
+    ``AppLauncher`` stores the profile with ``set_string``; ``carb.settings.get()`` on the same path may
+    return a subtree ``dict``. Prefer ``get_string`` on the leaf path first, then :func:`_coerce_carb_rendering_mode_value`.
     """
     global _cli_rendering_mode_resolution_warned
 
-    raw = get_setting("/isaaclab/rendering/rendering_mode")
-    coerced = _coerce_carb_rendering_mode_value(raw)
-    if coerced:
-        return coerced
-
-    # Typed carb reads (leaf path and common alternates some Kit builds use).
     try:
         import carb
 
@@ -91,6 +94,11 @@ def _read_cli_rendering_mode_profile_name(get_setting: Any) -> str | None:
                     continue
     except Exception:
         pass
+
+    raw = get_setting("/isaaclab/rendering/rendering_mode")
+    coerced = _coerce_carb_rendering_mode_value(raw)
+    if coerced:
+        return coerced
 
     if raw is not None and not isinstance(raw, str):
         if not _cli_rendering_mode_resolution_warned:
@@ -166,22 +174,6 @@ def resolve_rendering_mode_name_for_renderer_cfg(get_setting: Any, renderer_cfg:
     return _normalize_rendering_mode_profile_name(getattr(renderer_cfg, "rendering_mode", None))
 
 
-def apply_newton_warp_mode_cfg_to_renderer_cfg(renderer_cfg: Any, mode_cfg: RenderingModeCfg) -> None:
-    """Apply Newton Warp tiled-camera fields from a rendering mode profile onto renderer cfg."""
-    override_fields = {
-        "newton_warp_enable_textures": "enable_textures",
-        "newton_warp_enable_shadows": "enable_shadows",
-        "newton_warp_enable_ambient_lighting": "enable_ambient_lighting",
-        "newton_warp_enable_backface_culling": "enable_backface_culling",
-        "newton_warp_max_distance": "max_distance",
-        "newton_warp_create_default_light": "create_default_light",
-    }
-    for mode_field, ren_field in override_fields.items():
-        value = getattr(mode_cfg, mode_field, None)
-        if value is not None and hasattr(renderer_cfg, ren_field):
-            setattr(renderer_cfg, ren_field, value)
-
-
 def apply_mode_profile_to_renderer_cfg(
     get_setting: Any,
     set_setting: Any,
@@ -189,52 +181,15 @@ def apply_mode_profile_to_renderer_cfg(
     mode_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
 ) -> None:
-    """Resolve and apply a rendering mode profile to a :class:`~isaaclab.renderers.RendererCfg` (in place)."""
+    """Resolve and apply a rendering mode profile to a Kit/RTX :class:`~isaaclab.renderers.RendererCfg` (in place)."""
+    rtype = getattr(renderer_cfg, "renderer_type", None)
+    if rtype not in ("default", "isaac_rtx", "rtx"):
+        return
     mode_name = resolve_rendering_mode_name_for_renderer_cfg(get_setting, renderer_cfg)
     mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
     if mode_cfg is None:
         return
-
-    rtype = getattr(renderer_cfg, "renderer_type", None)
-    if rtype in ("default", "isaac_rtx", "rtx"):
-        apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
-    elif rtype == "newton_warp":
-        apply_newton_warp_mode_cfg_to_renderer_cfg(renderer_cfg, mode_cfg)
-
-
-def apply_newton_mode_cfg_to_visualizer_cfg(visualizer_cfg: Any, mode_cfg: RenderingModeCfg) -> None:
-    """Apply Newton rendering mode values to a visualizer cfg object."""
-    override_fields = {
-        "newton_enable_shadows": "enable_shadows",
-        "newton_enable_sky": "enable_sky",
-        "newton_enable_wireframe": "enable_wireframe",
-        "newton_sky_upper_color": "sky_upper_color",
-        "newton_sky_lower_color": "sky_lower_color",
-        "newton_light_color": "light_color",
-    }
-    for mode_field, viz_field in override_fields.items():
-        value = getattr(mode_cfg, mode_field, None)
-        if value is not None and hasattr(visualizer_cfg, viz_field):
-            setattr(visualizer_cfg, viz_field, value)
-
-
-def apply_newton_mode_cfg_to_viewer(viewer: Any, mode_cfg: RenderingModeCfg) -> None:
-    """Apply Newton rendering mode values to a live Newton viewer renderer, if available."""
-    if viewer is None or not hasattr(viewer, "renderer"):
-        return
-
-    if mode_cfg.newton_enable_shadows is not None:
-        viewer.renderer.draw_shadows = mode_cfg.newton_enable_shadows
-    if mode_cfg.newton_enable_sky is not None:
-        viewer.renderer.draw_sky = mode_cfg.newton_enable_sky
-    if mode_cfg.newton_enable_wireframe is not None:
-        viewer.renderer.draw_wireframe = mode_cfg.newton_enable_wireframe
-    if mode_cfg.newton_sky_upper_color is not None:
-        viewer.renderer.sky_upper = mode_cfg.newton_sky_upper_color
-    if mode_cfg.newton_sky_lower_color is not None:
-        viewer.renderer.sky_lower = mode_cfg.newton_sky_lower_color
-    if mode_cfg.newton_light_color is not None:
-        viewer.renderer._light_color = mode_cfg.newton_light_color
+    apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
 
 
 def resolve_rendering_mode_name_for_visualizer_cfg(get_setting: Any, visualizer_cfg: Any) -> str | None:
@@ -274,17 +229,14 @@ def apply_mode_profile_to_visualizer_cfg(
     mode_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
 ) -> None:
-    """Resolve and apply rendering mode profile to a visualizer config."""
+    """Resolve and apply rendering mode profile to a Kit visualizer config (RTX / carb settings)."""
+    if getattr(visualizer_cfg, "visualizer_type", None) != "kit":
+        return
     mode_name = resolve_rendering_mode_name_for_visualizer_cfg(get_setting, visualizer_cfg)
     mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
     if mode_cfg is None:
         return
-
-    visualizer_type = getattr(visualizer_cfg, "visualizer_type", None)
-    if visualizer_type == "kit":
-        apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
-    elif visualizer_type == "newton":
-        apply_newton_mode_cfg_to_visualizer_cfg(visualizer_cfg, mode_cfg)
+    apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
 
 
 def apply_runtime_mode_profile_to_visualizer(
@@ -294,12 +246,13 @@ def apply_runtime_mode_profile_to_visualizer(
     visualizer_mode_keys: dict[int, str | None],
     mode_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
-    force: bool = False,
 ) -> None:
-    """Resolve and apply runtime rendering mode profile to an active visualizer."""
+    """Resolve and apply runtime rendering mode profile to an active Kit visualizer."""
+    if getattr(viz.cfg, "visualizer_type", None) != "kit":
+        return
     mode_name = resolve_rendering_mode_name_for_visualizer_cfg(get_setting, viz.cfg)
     viz_id = id(viz)
-    if not force and visualizer_mode_keys.get(viz_id) == mode_name:
+    if visualizer_mode_keys.get(viz_id) == mode_name:
         return
 
     mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
@@ -307,11 +260,5 @@ def apply_runtime_mode_profile_to_visualizer(
         visualizer_mode_keys[viz_id] = mode_name
         return
 
-    viz_type = getattr(viz.cfg, "visualizer_type", None)
-    if viz_type == "kit":
-        apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
-    elif viz_type == "newton":
-        apply_newton_mode_cfg_to_visualizer_cfg(viz.cfg, mode_cfg)
-        apply_newton_mode_cfg_to_viewer(getattr(viz, "_viewer", None), mode_cfg)
-
+    apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
     visualizer_mode_keys[viz_id] = mode_name

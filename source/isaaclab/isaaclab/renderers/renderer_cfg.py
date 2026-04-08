@@ -16,4 +16,7 @@ class RendererCfg:
     """Type identifier for selecting a renderer backend implementation."""
 
     rendering_mode: str | None = None
-    """Name of the rendering mode profile to use with this renderer."""
+    """Name of the Kit/RTX rendering mode profile (``default``, ``isaac_rtx``, ``rtx`` only).
+
+    Ignored for other renderer types; configure those via their dedicated cfg classes.
+    """

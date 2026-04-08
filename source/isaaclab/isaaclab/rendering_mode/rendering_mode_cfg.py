@@ -12,11 +12,9 @@ from isaaclab.utils import configclass
 
 @configclass
 class RenderingModeCfg:
-    """Shared rendering mode profile for visualizers and renderers.
+    """Shared rendering mode profile for renderers and visualizers.
 
-    This profile keeps backend-specific fields in one place using explicit prefixes:
-    - 'kit_*' for Omniverse/RTX quality controls
-    - 'newton_*' for Newton visual quality controls
+    This profile keeps Omniverse/RTX controls in one place using ``kit_*`` fields.
     """
 
     rendering_mode_preset: Literal["performance", "balanced", "quality"] | None = None
@@ -60,41 +58,5 @@ class RenderingModeCfg:
 
     kit_dome_light_upper_lower_strategy: Literal[0, 3, 4] | None = None
     """Maps to '/rtx/domeLight/upperLowerStrategy'."""
-
-    newton_enable_shadows: bool | None = True
-    """Overrides Newton visualizer shadow rendering."""
-
-    newton_enable_sky: bool | None = True
-    """Overrides Newton visualizer sky rendering."""
-
-    newton_enable_wireframe: bool | None = False
-    """Overrides Newton visualizer wireframe rendering."""
-
-    newton_sky_upper_color: tuple[float, float, float] | None = (0.2, 0.4, 0.6)
-    """Overrides Newton visualizer upper sky color."""
-
-    newton_sky_lower_color: tuple[float, float, float] | None = (0.5, 0.6, 0.7)
-    """Overrides Newton visualizer lower sky color."""
-
-    newton_light_color: tuple[float, float, float] | None = (1.0, 1.0, 1.0)
-    """Overrides Newton visualizer light color."""
-
-    newton_warp_enable_textures: bool | None = None
-    """When set, overrides the Newton Warp tiled camera renderer ``enable_textures`` field."""
-
-    newton_warp_enable_shadows: bool | None = None
-    """When set, overrides the Newton Warp tiled camera renderer ``enable_shadows`` field."""
-
-    newton_warp_enable_ambient_lighting: bool | None = None
-    """When set, overrides the Newton Warp tiled camera renderer ``enable_ambient_lighting`` field."""
-
-    newton_warp_enable_backface_culling: bool | None = None
-    """When set, overrides the Newton Warp tiled camera renderer ``enable_backface_culling`` field."""
-
-    newton_warp_max_distance: float | None = None
-    """When set, overrides the Newton Warp tiled camera renderer ``max_distance`` field."""
-
-    newton_warp_create_default_light: bool | None = None
-    """When set, overrides the Newton Warp tiled camera renderer ``create_default_light`` field."""
 
     # TODO: Consider supporting additional raw backend settings dictionaries.

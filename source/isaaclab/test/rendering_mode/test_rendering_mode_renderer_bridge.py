@@ -11,7 +11,6 @@ from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.rendering_mode.rendering_mode_cfg import RenderingModeCfg
 from isaaclab.rendering_mode.rendering_mode_utils import (
     apply_mode_profile_to_renderer_cfg,
-    apply_newton_warp_mode_cfg_to_renderer_cfg,
     resolve_rendering_mode_cfg,
     resolve_rendering_mode_name_for_renderer_cfg,
 )
@@ -47,6 +46,13 @@ def test_resolve_renderer_mode_cli_explicit_coerces_nested_carb_dict():
     assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "balanced"
 
 
+def test_resolve_renderer_mode_cli_explicit_coerces_carb_dict_value_key():
+    """Carb may expose the profile under a ``value`` (or similar) leaf."""
+    r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="balanced")
+    settings = _FakeSettings(explicit=True, mode={"value": "performance"})
+    assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "performance"
+
+
 def test_cli_explicit_unreadable_carb_dict_without_profile_string_returns_none():
     """When generic get() yields a dict with no embedded profile strings, resolution fails."""
     r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="performance")
@@ -64,21 +70,6 @@ def test_resolve_rendering_mode_cfg_rejects_non_str_mode_name():
     """Profile lookup keys must be str (guards against bad carb.get() types)."""
     log = __import__("logging").getLogger(__name__)
     assert resolve_rendering_mode_cfg({}, {"q": RenderingModeCfg()}, log) is None
-
-
-def test_apply_newton_warp_overrides_mutate_cfg():
-    mode_cfg = RenderingModeCfg(
-        newton_warp_enable_shadows=True,
-        newton_warp_max_distance=42.0,
-    )
-    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
-
-    ren = NewtonWarpRendererCfg()
-    assert ren.enable_shadows is False
-    assert ren.max_distance == 1000.0
-    apply_newton_warp_mode_cfg_to_renderer_cfg(ren, mode_cfg)
-    assert ren.enable_shadows is True
-    assert ren.max_distance == 42.0
 
 
 def test_apply_mode_profile_kit_branch_calls_set_setting():

@@ -33,7 +33,7 @@ _KIT_PRESETS: dict[str, dict[str, Any]] = {
         "/rtx/raytracing/cached/enabled": False,
         "/rtx-transient/dlssg/enabled": False,
         "/rtx-transient/dldenoiser/enabled": False,
-        "/rtx/post/dlss/execMode": 0,
+        "/rtx/post/dlss/execMode": 1,
         "/rtx/pathtracing/maxSamplesPerLaunch": 1_000_000,
         "/rtx/viewTile/limit": 1_000_000,
     },

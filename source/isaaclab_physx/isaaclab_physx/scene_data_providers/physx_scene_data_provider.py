@@ -967,7 +967,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
 
     def get_metadata(self) -> dict[str, Any]:
-        """Return provider metadata for visualizers and renderers.
+        """Return provider metadata for renderers and visualizers.
 
         Returns:
             Metadata dictionary with backend and environment count.
