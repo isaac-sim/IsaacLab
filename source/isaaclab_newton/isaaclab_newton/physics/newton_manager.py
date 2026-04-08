@@ -482,6 +482,10 @@ class NewtonManager(PhysicsManager):
 
         builder = ModelBuilder(up_axis=up_axis)
 
+        # Register MuJoCo custom attributes (gravcomp, jnt_actgravcomp, etc.)
+        # before add_usd() so the builder knows to parse mjc: prefixed attributes.
+        SolverMuJoCo.register_custom_attributes(builder)
+
         schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
         if not env_paths:

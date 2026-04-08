@@ -12,6 +12,15 @@ Added
   propagate through Newton to MJCF XML. Tests run without Isaac Sim
   using pure USD + Newton + MuJoCo.
 
+Fixed
+^^^^^
+
+* Fixed MuJoCo custom attributes (``mjc:gravcomp``, ``mjc:actuatorgravcomp``)
+  not being parsed from USD in
+  :meth:`~isaaclab_newton.physics.NewtonManager.instantiate_builder_from_stage`.
+  ``SolverMuJoCo.register_custom_attributes()`` is now called before
+  ``builder.add_usd()`` so the builder knows to read ``mjc:`` prefixed attributes.
+
 
 0.5.10 (2026-04-05)
 ~~~~~~~~~~~~~~~~~~~
