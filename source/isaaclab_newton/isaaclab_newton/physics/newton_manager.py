@@ -392,7 +392,7 @@ class NewtonManager(PhysicsManager):
         if mesh is None:
             return
         if mesh.sdf is not None:
-            mesh.clear_sdf()
+            return  # SDF already built (shared by reference from prototype)
         resolution = sdf_cfg.max_resolution
         if res_overrides is not None:
             for pat, res in res_overrides:
@@ -431,18 +431,9 @@ class NewtonManager(PhysicsManager):
             if builder.shape_flags[si] & ShapeFlags.COLLIDE_SHAPES and builder.shape_body[si] in matched_bodies:
                 bodies_with_collision.add(builder.shape_body[si])
 
-        shape_cfg_kwargs = dict(
-            density=0.0,
-            has_shape_collision=True,
-            has_particle_collision=True,
-            is_visible=False,
-        )
-        if sdf_cfg.margin is not None:
-            shape_cfg_kwargs["margin"] = sdf_cfg.margin
-        if hydro_cfg is not None:
-            shape_cfg_kwargs["is_hydroelastic"] = True
-            shape_cfg_kwargs["kh"] = hydro_cfg.k_hydro
-        sdf_shape_cfg = ModelBuilder.ShapeConfig(**shape_cfg_kwargs)
+        hydro_patterns = None
+        if hydro_cfg is not None and hydro_cfg.shape_patterns is not None:
+            hydro_patterns = [re.compile(p) for p in hydro_cfg.shape_patterns]
 
         num_added = 0
         num_hydro = 0
@@ -461,16 +452,35 @@ class NewtonManager(PhysicsManager):
             cls._build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, builder.shape_label[visual_si])
 
             body_lbl = builder.body_label[body_idx]
+            shape_label = f"{body_lbl}/sdf_collision"
+
+            # Check if this shape should get hydroelastic (respecting hydro shape_patterns)
+            apply_hydro = hydro_cfg is not None and (
+                hydro_patterns is None or any(p.search(shape_label) for p in hydro_patterns)
+            )
+
+            shape_cfg_kwargs = dict(
+                density=0.0,
+                has_shape_collision=True,
+                has_particle_collision=True,
+                is_visible=False,
+            )
+            if sdf_cfg.margin is not None:
+                shape_cfg_kwargs["margin"] = sdf_cfg.margin
+            if apply_hydro:
+                shape_cfg_kwargs["is_hydroelastic"] = True
+                shape_cfg_kwargs["kh"] = hydro_cfg.k_hydro
+
             builder.add_shape_mesh(
                 body=body_idx,
                 xform=builder.shape_transform[visual_si],
                 mesh=mesh,
                 scale=builder.shape_scale[visual_si],
-                cfg=sdf_shape_cfg,
-                label=f"{body_lbl}/sdf_collision",
+                cfg=ModelBuilder.ShapeConfig(**shape_cfg_kwargs),
+                label=shape_label,
             )
             num_added += 1
-            if hydro_cfg is not None:
+            if apply_hydro:
                 num_hydro += 1
 
         return num_added, num_hydro
@@ -703,13 +713,48 @@ class NewtonManager(PhysicsManager):
             builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
 
             # Build a prototype from the first env (all envs assumed identical)
+            # Use skip_mesh_approximation + load_visual_shapes to preserve
+            # triangle meshes needed for SDF (same as newton_replicate path).
             _, proto_path = env_paths[0]
             proto = ModelBuilder(up_axis=up_axis)
             proto.add_usd(
                 stage,
                 root_path=proto_path,
+                load_visual_shapes=True,
+                skip_mesh_approximation=True,
                 schema_resolvers=schema_resolvers,
             )
+
+            # Approximate non-SDF meshes with convex hulls (preserves SDF meshes)
+            cfg = PhysicsManager._cfg
+            sdf_cfg = getattr(cfg, "sdf_cfg", None) if cfg is not None else None
+            body_pats = [re.compile(x) for x in sdf_cfg.body_patterns] if sdf_cfg and sdf_cfg.body_patterns else None
+            shape_pats = [re.compile(x) for x in sdf_cfg.shape_patterns] if sdf_cfg and sdf_cfg.shape_patterns else None
+            has_sdf_patterns = body_pats is not None or shape_pats is not None
+
+            if has_sdf_patterns:
+                from newton import GeoType
+
+                sdf_bodies: set[int] = set()
+                if body_pats is not None:
+                    for bi in range(len(proto.body_label)):
+                        if any(pat.search(proto.body_label[bi]) for pat in body_pats):
+                            sdf_bodies.add(bi)
+                approx_indices = []
+                for i in range(len(proto.shape_type)):
+                    if proto.shape_type[i] != GeoType.MESH:
+                        continue
+                    if proto.shape_body[i] in sdf_bodies:
+                        continue
+                    if shape_pats is not None:
+                        lbl = proto.shape_label[i] if i < len(proto.shape_label) else ""
+                        if any(pat.search(lbl) for pat in shape_pats):
+                            continue
+                    approx_indices.append(i)
+                if approx_indices:
+                    proto.approximate_meshes("convex_hull", shape_indices=approx_indices, keep_visual_shapes=True)
+            else:
+                proto.approximate_meshes("convex_hull", keep_visual_shapes=True)
 
             # Add each env as a separate Newton world
             xform_cache = UsdGeom.XformCache()

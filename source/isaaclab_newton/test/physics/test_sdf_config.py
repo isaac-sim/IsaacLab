@@ -42,8 +42,8 @@ class TestBuildSdfOnMesh:
 
         mesh.build_sdf.assert_called_once_with(narrow_band_range=(-0.1, 0.1), max_resolution=128)
 
-    def test_clears_existing_sdf_before_rebuild(self):
-        """Existing SDF on mesh is cleared before building a new one."""
+    def test_skips_rebuild_when_sdf_already_exists(self):
+        """Existing SDF on mesh is preserved (shared by reference from prototype)."""
         from isaaclab_newton.physics.newton_manager import NewtonManager
 
         mesh = MagicMock()
@@ -52,8 +52,8 @@ class TestBuildSdfOnMesh:
 
         NewtonManager._build_sdf_on_mesh(mesh, sdf_cfg, None, "test_label")
 
-        mesh.clear_sdf.assert_called_once()
-        mesh.build_sdf.assert_called_once()
+        mesh.clear_sdf.assert_not_called()
+        mesh.build_sdf.assert_not_called()
 
     def test_target_voxel_size_takes_precedence(self):
         """When target_voxel_size is set, it is passed alongside max_resolution."""
