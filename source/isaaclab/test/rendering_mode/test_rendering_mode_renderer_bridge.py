@@ -83,5 +83,7 @@ def test_apply_mode_profile_kit_branch_calls_set_setting():
 
     r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="performance")
     mode_cfgs = {"performance": RenderingModeCfg(rendering_mode_preset="performance")}
-    apply_mode_profile_to_renderer_cfg(get_setting, set_setting, r_cfg, mode_cfgs, logger=__import__("logging").getLogger(__name__))
+    apply_mode_profile_to_renderer_cfg(
+        get_setting, set_setting, r_cfg, mode_cfgs, logger=__import__("logging").getLogger(__name__)
+    )
     assert any(k == "/rtx/shadows/enabled" for k, _ in recorded)

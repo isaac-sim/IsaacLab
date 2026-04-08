@@ -39,7 +39,10 @@ def _collect_str_leaves(obj: Any, out: list[str], depth: int = 0) -> None:
 
 
 def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
-    """Best-effort profile name from carb ``get()`` (often a ``dict`` subtree for ``/isaaclab/rendering/rendering_mode``)."""
+    """Best-effort profile name from carb ``get()`` (often a ``dict`` subtree).
+
+    Path is typically ``/isaaclab/rendering/rendering_mode``.
+    """
     if raw is None:
         return None
     if isinstance(raw, str):
@@ -69,8 +72,9 @@ def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
 def _read_cli_rendering_mode_profile_name(get_setting: Any) -> str | None:
     """Read CLI rendering mode profile name (``performance`` / ``balanced`` / ``quality``).
 
-    ``AppLauncher`` stores the profile with ``set_string``; ``carb.settings.get()`` on the same path may
-    return a subtree ``dict``. Prefer ``get_string`` on the leaf path first, then :func:`_coerce_carb_rendering_mode_value`.
+    ``AppLauncher`` stores the profile with ``set_string``; ``carb.settings.get()`` on the same path
+    may return a subtree ``dict``. Prefer ``get_string`` on the leaf path first, then
+    :func:`_coerce_carb_rendering_mode_value`.
     """
     global _cli_rendering_mode_resolution_warned
 

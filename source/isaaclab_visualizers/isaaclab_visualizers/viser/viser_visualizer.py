@@ -34,10 +34,8 @@ def _prioritize_site_packages_over_kit_prebundle() -> None:
         u = site.getusersitepackages()
         if u:
             paths.append(u)
-    try:
+    with contextlib.suppress(Exception):
         paths.extend(site.getsitepackages())
-    except Exception:
-        pass
 
     seen: set[str] = set()
     ordered: list[str] = []
