@@ -1,0 +1,25 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+app_launch:
+  - "isaaclab.utils.configclass:_wrap_resolvable_strings"
+  - "isaaclab.utils.configclass:_custom_post_init"
+  - "isaaclab.utils.configclass:_field_module_dir"
+
+env_creation:
+  - "isaaclab.cloner.*:usd_replicate"
+  - "isaaclab.cloner.*:filter_collisions"
+  - "isaaclab_physx.cloner.*:attach_end_fn"
+  - "isaaclab.scene.*:_init_scene"
+  - "isaaclab.envs.mdp.observations:*"
+  - "isaaclab.utils.assets:_find_usd_dependencies"
+
+first_step:
+  - "isaaclab.envs.mdp.rewards:*"
+  - "isaaclab.envs.mdp.terminations:*"
+  - "isaaclab.envs.mdp.observations:*"
+  - "isaaclab.actuators.*:compute"
+  - "warp.*:launch"
+  - "warp.*:to_torch"
