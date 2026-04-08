@@ -131,6 +131,7 @@ def create_physx_articulation(
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
+    articulation._init_finder_caches()
 
     # We can't call the initialize method here, because we don't have a good mock for the actuators yet.
     # We need to set the _data attribute manually.
@@ -327,6 +328,7 @@ def create_newton_articulation(
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_data", data)
+    articulation._init_finder_caches()
 
     # Tendon names (Newton doesn't support tendons)
     object.__setattr__(articulation, "_fixed_tendon_names", [])

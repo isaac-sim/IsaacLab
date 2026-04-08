@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Sequence
+from functools import cache
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -113,9 +114,24 @@ class Articulation(BaseArticulation):
         Args:
             cfg: A configuration instance.
         """
-        self._find_bodies_cache: dict[tuple, tuple[list[int], list[str]]] = {}
-        self._find_joints_cache: dict[tuple, tuple[list[int], list[str]]] = {}
+        self._init_finder_caches()
         super().__init__(cfg)
+
+    def _init_finder_caches(self):
+        """Create per-instance cached closures for :meth:`find_bodies` and :meth:`find_joints`."""
+
+        @cache
+        def _find_bodies_cached(keys: tuple[str, ...], preserve_order: bool) -> tuple[list[int], list[str]]:
+            return resolve_matching_names(keys, self.body_names, preserve_order)
+
+        @cache
+        def _find_joints_cached(
+            keys: tuple[str, ...], joint_names: tuple[str, ...], preserve_order: bool
+        ) -> tuple[list[int], list[str]]:
+            return resolve_matching_names(keys, list(joint_names), preserve_order)
+
+        self._find_bodies_cached = _find_bodies_cached
+        self._find_joints_cached = _find_joints_cached
 
     """
     Properties
@@ -311,11 +327,8 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        cache_key = ((name_keys,) if isinstance(name_keys, str) else tuple(name_keys), preserve_order)
-        result = self._find_bodies_cache.get(cache_key)
-        if result is None:
-            result = resolve_matching_names(name_keys, self.body_names, preserve_order)
-            self._find_bodies_cache[cache_key] = result
+        _keys = (name_keys,) if isinstance(name_keys, str) else tuple(name_keys)
+        result = self._find_bodies_cached(_keys, preserve_order)
         return list(result[0]), list(result[1])
 
     def find_joints(
@@ -336,14 +349,8 @@ class Articulation(BaseArticulation):
             A tuple of lists containing the joint indices and names.
         """
         _keys = (name_keys,) if isinstance(name_keys, str) else tuple(name_keys)
-        _subset = tuple(joint_subset) if joint_subset is not None else None
-        cache_key = (_keys, _subset, preserve_order)
-        result = self._find_joints_cache.get(cache_key)
-        if result is None:
-            if joint_subset is None:
-                joint_subset = self.joint_names
-            result = resolve_matching_names(name_keys, joint_subset, preserve_order)
-            self._find_joints_cache[cache_key] = result
+        _subset = tuple(joint_subset) if joint_subset is not None else tuple(self.joint_names)
+        result = self._find_joints_cached(_keys, _subset, preserve_order)
         return list(result[0]), list(result[1])
 
     def find_fixed_tendons(
