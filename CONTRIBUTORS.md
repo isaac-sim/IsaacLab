@@ -68,6 +68,7 @@ Guidelines for modifications:
 * CY (Chien-Ying) Chen
 * David Leon
 * David Yang
+* Dhyan Thakkar
 * Dhananjay Shendre
 * Dongxuan Fan
 * Dorsa Rohani
