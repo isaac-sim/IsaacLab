@@ -756,8 +756,6 @@ def bind_visual_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
-    if not has_kit():
-        return None
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -774,19 +772,34 @@ def bind_visual_material(
         binding_strength = "strongerThanDescendants"
     else:
         binding_strength = "weakerThanDescendants"
-    # obtain material binding API
-    # note: we prefer using the command here as it is more robust than the USD API
-    import omni.kit.commands
 
-    success, _ = omni.kit.commands.execute(
-        "BindMaterialCommand",
-        prim_path=prim_path,
-        material_path=material_path,
-        strength=binding_strength,
-        stage=stage,
+    if has_kit():
+        # obtain material binding API
+        # note: we prefer using the command here as it is more robust than the USD API
+        import omni.kit.commands
+
+        success, _ = omni.kit.commands.execute(
+            "BindMaterialCommand",
+            prim_path=prim_path,
+            material_path=material_path,
+            strength=binding_strength,
+            stage=stage,
+        )
+        # return success
+        return success
+
+    prim = stage.GetPrimAtPath(prim_path)
+    if prim.HasAPI(UsdShade.MaterialBindingAPI):
+        material_binding_api = UsdShade.MaterialBindingAPI(prim)
+    else:
+        material_binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
+
+    material = UsdShade.Material(stage.GetPrimAtPath(material_path))
+    usd_binding_strength = (
+        UsdShade.Tokens.strongerThanDescendants if stronger_than_descendants else UsdShade.Tokens.weakerThanDescendants
     )
-    # return success
-    return success
+    material_binding_api.Bind(material, bindingStrength=usd_binding_strength)  # type: ignore
+    return True
 
 
 @apply_nested

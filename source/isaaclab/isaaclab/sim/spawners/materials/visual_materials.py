@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from pxr import Usd, UsdShade
+from pxr import Sdf, Usd, UsdShade
 
 from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
@@ -50,11 +50,6 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # check if Kit is available (required for shader creation commands)
-    if not has_kit():
-        logger.warning("Skipping preview surface material at '%s' — Kit is not available.", prim_path)
-        return None
-
     # get stage handle
     stage = get_current_stage()
 
@@ -66,14 +61,28 @@ def spawn_preview_surface(prim_path: str, cfg: visual_materials_cfg.PreviewSurfa
         # handle scene creation on a custom stage.
         material_prim = UsdShade.Material.Define(stage, prim_path)
         if material_prim:
-            from omni.usd.commands import CreateShaderPrimFromSdrCommand
+            if has_kit():
+                from omni.usd.commands import CreateShaderPrimFromSdrCommand
 
-            shader_prim = CreateShaderPrimFromSdrCommand(
-                parent_path=prim_path,
-                identifier="UsdPreviewSurface",
-                stage_or_context=stage,
-                prim_name="Shader",
-            ).do()
+                shader_prim = CreateShaderPrimFromSdrCommand(
+                    parent_path=prim_path,
+                    identifier="UsdPreviewSurface",
+                    stage_or_context=stage,
+                    prim_name="Shader",
+                ).do()
+            else:
+                shader_prim = UsdShade.Shader.Define(stage, f"{prim_path}/Shader")
+                shader_prim.CreateIdAttr("UsdPreviewSurface")
+                shader_prim.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f)
+                shader_prim.CreateInput("emissiveColor", Sdf.ValueTypeNames.Color3f)
+                shader_prim.CreateInput("roughness", Sdf.ValueTypeNames.Float)
+                shader_prim.CreateInput("metallic", Sdf.ValueTypeNames.Float)
+                shader_prim.CreateInput("opacity", Sdf.ValueTypeNames.Float)
+                shader_prim.CreateInput("opacityThreshold", Sdf.ValueTypeNames.Float)
+                shader_prim.CreateInput("ior", Sdf.ValueTypeNames.Float)
+                shader_prim.CreateOutput("surface", Sdf.ValueTypeNames.Token)
+                shader_prim.CreateOutput("displacement", Sdf.ValueTypeNames.Token)
+
             # bind the shader graph to the material
             if shader_prim:
                 surface_out = shader_prim.GetOutput("surface")

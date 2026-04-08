@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
+from pxr import UsdShade
 
 import omni.kit.app
 
@@ -60,6 +61,28 @@ def test_spawn_usd_fails(sim):
 
     with pytest.raises(FileNotFoundError):
         cfg.func("/World/Franka", cfg)
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_usd_applies_visual_material(sim):
+    """Test loading prim from USD file with a PreviewSurface override applied."""
+    cfg = sim_utils.UsdFileCfg(
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.2, 0.3), roughness=0.4),
+    )
+
+    prim = cfg.func("/World/Franka", cfg)
+
+    assert prim.IsValid()
+    material = UsdShade.Material.Get(sim.stage, "/World/Franka/material")
+    assert material.GetPrim().IsValid()
+
+    shader = sim.stage.GetPrimAtPath("/World/Franka/material/Shader")
+    assert shader.IsValid()
+    assert shader.GetAttribute("inputs:diffuseColor").Get() == (0.1, 0.2, 0.3)
+
+    root_binding = UsdShade.MaterialBindingAPI(prim).GetDirectBinding()
+    assert root_binding.GetMaterialPath() == material.GetPath()
 
 
 @pytest.mark.isaacsim_ci
