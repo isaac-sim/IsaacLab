@@ -42,6 +42,16 @@ SIMPLE_SHADING_MODES = {
 SIMPLE_SHADING_MODE_SETTING = "/rtx/sdg/simpleShading/mode"
 
 
+def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
+    """Build the instance-mapping semantics predicate from :attr:`isaaclab.sensors.camera.CameraCfg.semantic_filter`.
+
+    Replicator's semantic/instance segmentation annotators consume this via the synthetic-data pipeline.
+    """
+    if isinstance(semantic_filter, list):
+        return ":*; ".join(semantic_filter) + ":*"
+    return semantic_filter
+
+
 @dataclass
 class IsaacRtxRenderData:
     """Render data for Isaac RTX renderer."""
@@ -71,6 +81,7 @@ class IsaacRtxRenderer(BaseRenderer):
         """Create render product and annotators for the tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         import omni.replicator.core as rep
+        from omni.syntheticdata import SyntheticData
         from pxr import UsdGeom
 
         settings = get_settings_manager()
@@ -107,6 +118,11 @@ class IsaacRtxRenderer(BaseRenderer):
             cameras=cam_prim_paths, tile_resolution=(sensor.cfg.width, sensor.cfg.height)
         )
         render_product_paths = [rp.path]
+
+        # Synthetic-data instance mapping filter for segmentation; before annotator attach.
+        SyntheticData.Get().set_instance_mapping_semantic_filter(
+            _camera_semantic_filter_predicate(sensor.cfg.semantic_filter)
+        )
 
         # Register simple shading if needed
         if any(data_type in SIMPLE_SHADING_MODES for data_type in sensor.cfg.data_types):
