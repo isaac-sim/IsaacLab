@@ -3,14 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+"""Tests to verify frame transformer sensor functionality using Newton physics."""
 
-from isaaclab.app import AppLauncher
+import sys
+from pathlib import Path
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import math
 

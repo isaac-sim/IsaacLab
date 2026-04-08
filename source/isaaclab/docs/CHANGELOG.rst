@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+4.5.26 (2026-04-07)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.warp.math_ops.transform_to_vec_quat` utility for
+  zero-copy splitting of ``wp.transformf`` arrays into ``vec3f`` and ``quatf`` views.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.scene.InteractiveScene` to format ``sensor_shape_prim_expr``
+  and ``filter_shape_prim_expr`` config attributes with the environment regex namespace.
+
+
 4.5.25 (2026-04-01)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -36,18 +52,6 @@ Fixed
 
 4.5.23 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
-
-* Added :func:`~isaaclab.utils.warp.math_ops.transform_to_vec_quat` utility for
-  zero-copy splitting of ``wp.transformf`` arrays into ``vec3f`` and ``quatf`` views.
-
-Changed
-^^^^^^^
-
-* Changed :class:`~isaaclab.scene.InteractiveScene` to format ``sensor_shape_prim_expr``
-  and ``filter_shape_prim_expr`` config attributes with the environment regex namespace.
 
 Fixed
 ^^^^^

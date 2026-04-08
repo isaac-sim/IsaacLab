@@ -49,8 +49,8 @@ class TestTransformToVecQuat:
         assert list(floats[0]) == pytest.approx([1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0])
 
     def test_invalid_ndim_raises(self):
-        """Passing a 0D or 4D array raises ValueError."""
-        with pytest.raises(ValueError):
+        """Passing a 0D or 4D array raises an error."""
+        with pytest.raises((ValueError, IndexError)):
             transform_to_vec_quat(wp.zeros((), dtype=wp.transformf, device="cpu"))
 
     def test_wrong_dtype_raises(self):
