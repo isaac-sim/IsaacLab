@@ -42,7 +42,7 @@ INSTALL_REQUIRES = [
     "pytest",
     "pytest-mock",
     "junitparser",
-    "flatdict==4.0.0",
+    "flatdict>=4.1.0",
     "flaky",
     "packaging",
 ]
