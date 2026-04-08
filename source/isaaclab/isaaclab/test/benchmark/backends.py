@@ -276,6 +276,33 @@ class SummaryMetrics(MetricsBackendInterface):
                 self._print_box_line(f"{label}: {value}")
             self._print_box_separator()
 
+        # Render any phases not handled above (e.g. profiling phases from benchmark_startup)
+        known_phases = {
+            "benchmark_info",
+            "runtime",
+            "startup",
+            "train",
+            "frametime",
+            "hardware_info",
+            "version_info",
+        }
+        for phase_name, phase in phases.items():
+            if phase_name in known_phases or not phase.measurements:
+                continue
+            self._print_box_line(f"Phase: {phase_name}")
+            for measurement in phase.measurements:
+                label = measurement.name
+                if isinstance(measurement, StatisticalMeasurement):
+                    unit_str = f" {measurement.unit.strip()}" if (measurement.unit and measurement.unit.strip()) else ""
+                    value = f"{self._format_scalar(measurement.mean)}{unit_str}"
+                elif isinstance(measurement, SingleMeasurement):
+                    unit_str = f" {measurement.unit.strip()}" if (measurement.unit and measurement.unit.strip()) else ""
+                    value = f"{self._format_scalar(measurement.value)}{unit_str}"
+                else:
+                    continue
+                self._print_box_line(f"{label}: {value}")
+            self._print_box_separator()
+
         if hardware_meta:
             self._print_box_line("System:")
             self._print_box_kv("cpu_name", hardware_meta.get("cpu_name"))

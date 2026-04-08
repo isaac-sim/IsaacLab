@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import cProfile
 import glob
 import os
 import statistics
@@ -235,3 +236,115 @@ def log_convergence(
     benchmark.add_measurement(
         "train", SingleMeasurement(name="Convergence Passed", value=int(result["passed"]), unit="bool")
     )
+
+
+def parse_cprofile_stats(
+    profile: cProfile.Profile,
+    isaaclab_prefixes: list[str],
+    top_n: int = 30,
+    whitelist: list[str] | None = None,
+) -> list[tuple[str, float, float]]:
+    """Parse cProfile stats, filtering to IsaacLab + first-level external calls.
+
+    Walks the pstats data and keeps functions that are either (a) inside an
+    IsaacLab source directory, or (b) directly called by an IsaacLab function.
+    Results are sorted by own-time (tottime) descending.
+
+    When *whitelist* is provided, only functions whose labels match at least one
+    ``fnmatch`` pattern are returned. Patterns that match no profiled function
+    emit a ``(pattern, 0.0, 0.0)`` placeholder so dashboards always receive
+    consistent keys. The *top_n* parameter is ignored in whitelist mode.
+
+    Args:
+        profile: A completed cProfile.Profile instance (after .disable()).
+        isaaclab_prefixes: Absolute file path prefixes identifying IsaacLab source
+            (e.g. ["/home/user/IsaacLab/source/isaaclab", ...]).
+        top_n: Maximum number of functions to return. Ignored when
+            *whitelist* is provided.
+        whitelist: Optional list of ``fnmatch`` patterns to select specific
+            functions (e.g. ``["isaaclab.cloner.*:usd_replicate"]``).
+
+    Returns:
+        List of (function_label, tottime_ms, cumtime_ms) tuples sorted by
+        tottime descending.
+    """
+    import fnmatch
+    import io
+    import pstats
+
+    stats = pstats.Stats(profile, stream=io.StringIO())
+
+    def _is_isaaclab(filename: str) -> bool:
+        return any(filename.startswith(prefix) for prefix in isaaclab_prefixes)
+
+    def _make_label(filename: str, funcname: str) -> str:
+        # For builtins/C-extensions the filename is something like "~" or "<frozen ...>"
+        if not filename or filename.startswith("<") or filename == "~":
+            return funcname
+        # Convert absolute path to dotted module-style label
+        for prefix in isaaclab_prefixes:
+            if filename.startswith(prefix):
+                rel = os.path.relpath(filename, prefix)
+                # Strip .py, replace os.sep with dot
+                rel = rel.replace(os.sep, ".").removesuffix(".py")
+                return f"{rel}:{funcname}"
+        # External function — try to find the top-level package name
+        # e.g. ".../site-packages/torch/nn/modules/linear.py" -> "torch.nn.modules.linear"
+        parts = filename.replace(os.sep, "/").removesuffix(".py").split("/")
+        # Find "site-packages" anchor or fall back to last 3 components
+        try:
+            sp_idx = parts.index("site-packages")
+            short = ".".join(parts[sp_idx + 1 :])
+        except ValueError:
+            short = ".".join(parts[-3:]) if len(parts) >= 3 else ".".join(parts)
+        return f"{short}:{funcname}"
+
+    # NOTE: stats.stats is an internal CPython dict, not part of the public pstats API.
+    # The public get_stats_profile() (Python 3.9+) doesn't expose caller info, which
+    # we need for the first-level external call filter. If a future Python release
+    # breaks this, switch to get_stats_profile() and drop the caller-based filtering.
+    # stats.stats: dict[(filename, lineno, funcname)] -> (pcalls, ncalls, tottime, cumtime, callers)
+    # callers: dict[(filename, lineno, funcname)] -> (pcalls, ncalls, tottime, cumtime)
+    results = []
+    for func_key, (_, _, tottime, cumtime, callers) in stats.stats.items():
+        filename, _, funcname = func_key
+        if _is_isaaclab(filename):
+            label = _make_label(filename, funcname)
+            results.append((label, tottime * 1000.0, cumtime * 1000.0))
+        else:
+            # Check if any direct caller is an IsaacLab function
+            for caller_key in callers:
+                caller_filename = caller_key[0]
+                if _is_isaaclab(caller_filename):
+                    label = _make_label(filename, funcname)
+                    results.append((label, tottime * 1000.0, cumtime * 1000.0))
+                    break
+
+    # Sort by tottime (own-time) descending
+    results.sort(key=lambda x: x[1], reverse=True)
+
+    if whitelist is None:
+        return results[:top_n]
+
+    # Whitelist mode: filter by fnmatch patterns, emit placeholders for unmatched patterns
+    matched: dict[str, tuple[str, float, float]] = {}
+    matched_patterns: set[str] = set()
+    for label, tottime, cumtime in results:
+        for pattern in whitelist:
+            if fnmatch.fnmatch(label, pattern):
+                if label not in matched:
+                    matched[label] = (label, tottime, cumtime)
+                matched_patterns.add(pattern)
+
+    # Add 0.0 placeholders for patterns that matched nothing
+    for pattern in whitelist:
+        if pattern not in matched_patterns:
+            print(
+                f"[WARNING] Whitelist pattern '{pattern}' matched no profiled functions. "
+                "Check for typos or verify the function ran during this phase."
+            )
+            matched[pattern] = (pattern, 0.0, 0.0)
+
+    filtered = list(matched.values())
+    filtered.sort(key=lambda x: x[1], reverse=True)
+    return filtered
