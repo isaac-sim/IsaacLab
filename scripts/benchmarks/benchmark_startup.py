@@ -81,6 +81,7 @@ imports_time_begin = time.perf_counter_ns()
 imports_profile.enable()
 
 import gymnasium as gym  # noqa: E402
+import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg  # noqa: E402
@@ -203,36 +204,30 @@ def main(
     # Override config with CLI args
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-    env_cfg.seed = args_cli.seed
+    env_cfg.seed = args_cli.seed if args_cli.seed is not None else env_cfg.seed
 
     # -- Env creation (gym.make + env.reset) profiled ---------------------------
 
+    env = None
     env_creation_profile = cProfile.Profile()
     env_creation_time_begin = time.perf_counter_ns()
     env_creation_profile.enable()
     try:
         env = gym.make(args_cli.task, cfg=env_cfg)
-    except BaseException:
+        env.reset()
+    finally:
         env_creation_profile.disable()
-        raise
 
     try:
-        try:
-            env.reset()
-        finally:
-            env_creation_profile.disable()
-
         if torch.cuda.is_available() and torch.cuda.is_initialized():
             torch.cuda.synchronize()
         env_creation_time_end = time.perf_counter_ns()
         # -- First step profiled ------------------------------------------------
 
-        # Sample random actions
-        actions = (
-            torch.rand(env.unwrapped.num_envs, env.unwrapped.single_action_space.shape[0], device=env.unwrapped.device)
-            * 2.0
-            - 1.0
-        )
+        # Sample random actions from the action space directly to support
+        # Box, Discrete, MultiDiscrete, and Dict spaces.
+        np_actions = np.stack([env.unwrapped.single_action_space.sample() for _ in range(env.unwrapped.num_envs)])
+        actions = torch.as_tensor(np_actions, dtype=torch.float32, device=env.unwrapped.device)
 
         first_step_profile = cProfile.Profile()
         first_step_time_begin = time.perf_counter_ns()
@@ -335,7 +330,8 @@ def main(
         benchmark.update_manual_recorders()
         benchmark._finalize_impl()
     finally:
-        env.close()
+        if env is not None:
+            env.close()
 
 
 if __name__ == "__main__":
