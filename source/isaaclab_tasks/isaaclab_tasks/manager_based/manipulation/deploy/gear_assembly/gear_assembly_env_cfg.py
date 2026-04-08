@@ -265,7 +265,7 @@ class RewardsCfg:
 
     end_effector_base_keypoint_tracking = RewTerm(
         func=mdp.keypoint_ee_gear_error,
-        weight=-0.0,
+        weight=-0.5,
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
             "keypoint_scale": 0.15,
@@ -277,7 +277,7 @@ class RewardsCfg:
 
     end_effector_base_keypoint_tracking_exp = RewTerm(
         func=mdp.keypoint_ee_gear_error_exp,
-        weight=0.0,
+        weight=0.5,
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
             "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001)],
@@ -290,7 +290,7 @@ class RewardsCfg:
     )
 
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06)
-    action = RewTerm(func=mdp.action_l2, weight=-5.0e-06)
+    # action = RewTerm(func=mdp.action_l2, weight=-5.0e-06)
 
 
 @configclass
