@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added release version and extension.toml versions to
+* Added release version to
   :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.
 
 
