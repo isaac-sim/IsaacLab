@@ -175,9 +175,12 @@ Added
   :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.
 * Added :func:`~isaaclab.utils.warp_torch_cache.warp_to_torch` utility for cached
   :func:`warp.to_torch` views on asset data, sensor data, and frame-transformer
-  objects, keyed by ``_sim_timestamp`` or buffer pointer.  Caching can be disabled
-  via :attr:`~isaaclab.sim.SimulationCfg.enable_warp_torch_cache` to fall back to
-  plain ``wp.to_torch()``.
+  objects, keyed by the Warp array's memory pointer.  Because ``wp.to_torch``
+  returns a zero-copy view, in-place updates are automatically reflected without
+  cache invalidation; a new conversion only occurs when the buffer is reallocated.
+  Caching can be disabled via
+  :attr:`~isaaclab.sim.SimulationCfg.enable_warp_torch_cache`.
+
 Changed
 ^^^^^^^
 

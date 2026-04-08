@@ -261,10 +261,13 @@ class SimulationCfg:
     """
 
     enable_warp_torch_cache: bool = True
-    """Cache :func:`warp.to_torch` views within each simulation step. Default is True.
+    """Cache :func:`warp.to_torch` views using buffer-pointer identity. Default is True.
 
-    When enabled, :func:`~isaaclab.utils.warp_torch_cache.warp_to_torch` deduplicates
-    ``wp.to_torch()`` calls so at most one conversion is performed per field per step.
+    When enabled, :func:`~isaaclab.utils.warp_torch_cache.warp_to_torch` caches
+    ``wp.to_torch()`` results keyed by the Warp array's memory pointer.  Because
+    ``wp.to_torch`` returns a zero-copy view, in-place updates to the Warp buffer
+    are automatically reflected in the cached tensor without invalidation.  A new
+    conversion is only performed when the underlying buffer is reallocated.
     Set to ``False`` to fall back to plain ``wp.to_torch()`` on every call (useful for
     debugging or benchmarking the cache overhead).
     """
