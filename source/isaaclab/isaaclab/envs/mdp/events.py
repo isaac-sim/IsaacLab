@@ -151,6 +151,105 @@ def randomize_rigid_body_scale(
                 op_order_spec.default = Vt.TokenArray(["xformOp:translate", "xformOp:orient", "xformOp:scale"])
 
 
+def set_gravity_compensation(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    asset_cfg: SceneEntityCfg,
+    body_gravity_compensation_scale: float | dict[str, float] | None = None,
+    joint_gravity_compensation: list[str] | None = None,
+):
+    """Write MuJoCo gravity-compensation USD attributes on an asset's prims.
+
+    This event writes ``mjc:gravcomp`` on rigid-body prims and
+    ``mjc:actuatorgravcomp`` on joint prims so that Newton's MuJoCo solver
+    applies gravity compensation when the simulation starts.
+
+    .. note::
+        This is a Newton/MuJoCo-only feature. The attributes are silently
+        ignored by other physics backends (e.g. PhysX).
+
+    .. attention::
+        Since this function writes USD attributes that are consumed when the
+        physics model is built, the event **must** run in ``"prestartup"`` mode
+        (before ``sim.reset()``).
+
+    Args:
+        env: The environment instance.
+        env_ids: The environment indices. If None, all environments are used.
+        asset_cfg: The asset configuration specifying which asset to modify.
+        body_gravity_compensation_scale: Gravity compensation scale for rigid
+            bodies.  A single float applies to **all** bodies. A dict maps
+            body regex patterns to per-body scales
+            (e.g. ``{".*link[0-3]": 1.0, ".*link4": 0.5}``).
+            ``0.0`` means no compensation, ``1.0`` means full compensation.
+        joint_gravity_compensation: List of joint name regex patterns whose
+            matching joints will have ``mjc:actuatorgravcomp`` set to ``True``.
+            If ``None``, no joint-level attribute is written.
+    """
+    if env.sim.is_playing():
+        raise RuntimeError(
+            "set_gravity_compensation writes USD attributes that are consumed at model-build time."
+            " It must run before the simulation starts (use 'prestartup' event mode)."
+        )
+
+    if body_gravity_compensation_scale is None and joint_gravity_compensation is None:
+        return
+
+    asset: Articulation | RigidObject = env.scene[asset_cfg.name]
+    prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
+
+    # resolve environment ids
+    if env_ids is None:
+        env_ids = torch.arange(env.scene.num_envs, device="cpu")
+    else:
+        env_ids = env_ids.cpu()
+
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+    stage = env.sim.stage
+
+    _JOINT_TYPES = frozenset(
+        {"PhysicsRevoluteJoint", "PhysicsPrismaticJoint", "PhysicsSphericalJoint", "PhysicsD6Joint"}
+    )
+
+    for env_id in env_ids:
+        root_prim = stage.GetPrimAtPath(prim_paths[env_id])
+        if not root_prim.IsValid():
+            continue
+
+        # --- body-level: mjc:gravcomp ---
+        if body_gravity_compensation_scale is not None:
+            # collect all rigid-body prims under this asset
+            body_prims = [p for p in Usd.PrimRange(root_prim) if UsdPhysics.RigidBodyAPI(p)]
+
+            if isinstance(body_gravity_compensation_scale, dict):
+                # per-body pattern matching
+                for body_prim in body_prims:
+                    body_name = body_prim.GetName()
+                    for pattern, scale in body_gravity_compensation_scale.items():
+                        if re.fullmatch(pattern, body_name):
+                            sim_utils.safe_set_attribute_on_usd_prim(body_prim, "mjc:gravcomp", scale, camel_case=False)
+                            break
+            else:
+                # uniform scale for all bodies
+                for body_prim in body_prims:
+                    sim_utils.safe_set_attribute_on_usd_prim(
+                        body_prim, "mjc:gravcomp", body_gravity_compensation_scale, camel_case=False
+                    )
+
+        # --- joint-level: mjc:actuatorgravcomp ---
+        if joint_gravity_compensation is not None:
+            joint_prims = [p for p in Usd.PrimRange(root_prim) if p.GetTypeName() in _JOINT_TYPES]
+            for joint_prim in joint_prims:
+                joint_name = joint_prim.GetName()
+                for pattern in joint_gravity_compensation:
+                    if re.fullmatch(pattern, joint_name):
+                        sim_utils.safe_set_attribute_on_usd_prim(
+                            joint_prim, "mjc:actuatorgravcomp", True, camel_case=False
+                        )
+                        break
+
+
 class randomize_rigid_body_material(ManagerTermBase):
     """Randomize the physics materials on all geometries of the asset.
 

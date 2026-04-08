@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.11 (2026-04-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added gravity compensation end-to-end tests verifying
+  ``mjc:gravcomp`` and ``mjc:actuatorgravcomp`` USD attributes
+  propagate through Newton to MJCF XML. Tests run without Isaac Sim
+  using pure USD + Newton + MuJoCo.
+
+
 0.5.10 (2026-04-05)
 ~~~~~~~~~~~~~~~~~~~
 

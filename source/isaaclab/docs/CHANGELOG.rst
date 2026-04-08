@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+4.5.26 (2026-04-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.envs.mdp.events.set_gravity_compensation` MDP event for
+  setting body-level (``mjc:gravcomp``) and joint-level (``mjc:actuatorgravcomp``)
+  gravity compensation USD attributes at environment prestartup. This is a
+  Newton/MuJoCo-only feature.
+
+
 4.5.25 (2026-04-01)
 ~~~~~~~~~~~~~~~~~~~
 

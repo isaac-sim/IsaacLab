@@ -58,6 +58,7 @@ __all__ = [
     "randomize_rigid_body_mass",
     "randomize_rigid_body_material",
     "randomize_rigid_body_scale",
+    "set_gravity_compensation",
     "randomize_visual_color",
     "randomize_visual_texture_material",
     "reset_joints_by_offset",
