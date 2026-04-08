@@ -7,7 +7,7 @@ name = "isaaclab-rl"
 version = "0.5.0"
 description = "Reinforcement learning wrappers for Isaac Lab"
 license = "BSD-3-Clause"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "isaaclab",
     "isaaclab-assets",
@@ -32,6 +32,7 @@ rl-games = [
     "gym",
 ]
 rsl-rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
+# NOTE: Update this list when adding/changing any extra above.
 all = [
     "stable-baselines3>=2.6", "tqdm", "rich",
     "skrl>=1.4.3",

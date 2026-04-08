@@ -7,7 +7,7 @@ name = "isaaclab"
 version = "0.54.3"
 description = "Isaac Lab framework for robot learning"
 license = "BSD-3-Clause"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "isaacsim[all,extscache]==5.1.0",
     "numpy<2",
@@ -26,7 +26,7 @@ dependencies = [
     "pytest",
     "pytest-mock",
     "junitparser",
-    "flatdict",
+    "flatdict==4.0.0",
     "flaky",
     "packaging",
     'pin-pink==3.1.0 ; platform_system == "Linux" and platform_machine in "x86_64,AMD64,aarch64,arm64"',

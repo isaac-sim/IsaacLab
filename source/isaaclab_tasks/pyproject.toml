@@ -7,7 +7,7 @@ name = "isaaclab-tasks"
 version = "0.11.14"
 description = "Environment suite for Isaac Lab"
 license = "BSD-3-Clause"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "isaaclab",
     "isaaclab-assets",

@@ -7,7 +7,7 @@ name = "isaaclab-assets"
 version = "0.2.4"
 description = "Asset configurations for Isaac Lab"
 license = "BSD-3-Clause"
-requires-python = ">=3.10"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "isaaclab",
 ]
