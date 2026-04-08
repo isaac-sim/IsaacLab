@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Backward-compatible shim. All metadata is in pyproject.toml."""
+
 from setuptools import setup
 
 setup()
