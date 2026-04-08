@@ -7,15 +7,12 @@ import importlib.metadata
 import os
 import subprocess
 
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib  # Python < 3.11
+import tomllib
 
 from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import DictMetadata, StringMetadata
 
-# Path to the repository root (relative to this file: recorders/ -> benchmark/ -> test/ -> isaaclab/ -> isaaclab/ -> source/ -> repo)
+# Path to the repository root (6 levels up from this file).
 _REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 6))
 
 
@@ -23,7 +20,6 @@ class VersionInfoRecorder(MeasurementDataRecorder):
     def __init__(self):
         self._version_info = {}
         self._dev_info = {}
-        self._get_release_version()
         self._get_version_info()
         self._get_git_info()
 
@@ -58,38 +54,15 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         if version:
             self._version_info[key] = version
 
-    def _get_release_version(self) -> None:
-        """Read the top-level VERSION file and each sub-package's extension.toml version.
-
-        The VERSION file at the repository root contains the Isaac Lab release version
-        (e.g. ``3.0.0``). Each sub-package under ``source/`` has its own version in
-        ``config/extension.toml``.
-        """
-        # Read root VERSION file
-        version_file = os.path.join(_REPO_ROOT, "VERSION")
-        if os.path.isfile(version_file):
-            try:
-                with open(version_file) as f:
-                    version = f.read().strip()
-                if version:
-                    self._record("isaaclab_release", version)
-            except Exception:
-                pass
-
-        # Read extension.toml versions from each source sub-package
-        source_dir = os.path.join(_REPO_ROOT, "source")
-        if os.path.isdir(source_dir):
-            for entry in sorted(os.listdir(source_dir)):
-                toml_path = os.path.join(source_dir, entry, "config", "extension.toml")
-                if os.path.isfile(toml_path):
-                    try:
-                        with open(toml_path, "rb") as f:
-                            data = tomllib.load(f)
-                        version = data.get("package", {}).get("version")
-                        if version:
-                            self._record(f"{entry}_ext", version)
-                    except Exception:
-                        pass
+    def _get_ext_version(self, pkg_name: str) -> str | None:
+        """Read the version from a sub-package's ``config/extension.toml``."""
+        toml_path = os.path.join(_REPO_ROOT, "source", pkg_name, "config", "extension.toml")
+        try:
+            with open(toml_path, "rb") as f:
+                data = tomllib.load(f)
+            return data.get("package", {}).get("version")
+        except Exception:
+            return None
 
     def _get_version_info(self) -> None:
         # isaaclab
@@ -137,6 +110,22 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         self._record("gymnasium", self._get_pkg_version("gymnasium"))
         self._record("cuda_bindings", self._get_pkg_version("cuda-bindings"))
         self._record("usd_core", self._get_pkg_version("usd-core"))
+
+        # Release version from root VERSION file
+        version_file = os.path.join(_REPO_ROOT, "VERSION")
+        try:
+            with open(version_file) as f:
+                self._record("isaaclab_release", f.read().strip())
+        except Exception:
+            pass
+
+        # Extension.toml versions from source sub-packages
+        source_dir = os.path.join(_REPO_ROOT, "source")
+        if os.path.isdir(source_dir):
+            for entry in sorted(os.listdir(source_dir)):
+                version = self._get_ext_version(entry)
+                if version:
+                    self._record(f"{entry}_ext", version)
 
     def _get_git_info(self) -> None:
         """Get git repository information."""
