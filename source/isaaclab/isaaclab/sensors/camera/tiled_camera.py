@@ -17,6 +17,7 @@ from __future__ import annotations
 import warnings
 
 from .camera import Camera
+from .tiled_camera_cfg import TiledCameraCfg
 
 
 class TiledCamera(Camera):
@@ -26,7 +27,7 @@ class TiledCamera(Camera):
         Use :class:`Camera` directly — it now uses the same Renderer abstraction.
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg: TiledCameraCfg):
         warnings.warn(
             "TiledCamera is deprecated and will be removed in a future release. "
             "Use Camera directly — it now uses the same Renderer abstraction.",
