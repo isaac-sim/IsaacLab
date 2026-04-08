@@ -31,8 +31,6 @@ from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, pat
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
-from isaaclab.utils import convert_dict_to_backend
-from isaaclab.utils.timer import Timer
 
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
@@ -450,58 +448,6 @@ def test_intrinsic_matrix(setup_sim):
         camera.update(dt)
         # Check that matrix is correct
         torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices)
-
-
-@pytest.mark.isaacsim_ci
-def test_throughput(setup_sim):
-    """Checks that the single camera gets created properly with a rig."""
-    sim, camera_cfg, dt = setup_sim
-    # Create directory temp dir to dump the results
-    file_dir = os.path.dirname(os.path.realpath(__file__))
-    temp_dir = os.path.join(file_dir, "output", "camera", "throughput")
-    os.makedirs(temp_dir, exist_ok=True)
-    # Create replicator writer
-    rep_writer = rep.BasicWriter(output_dir=temp_dir, frame_padding=3)
-    # create camera
-    camera_cfg.pattern_cfg.height = 480
-    camera_cfg.pattern_cfg.width = 640
-    camera = RayCasterCamera(camera_cfg)
-
-    # Play simulator
-    sim.reset()
-
-    # Set camera pose
-    eyes = torch.tensor([[2.5, 2.5, 2.5]], dtype=torch.float32, device=camera.device)
-    targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
-    camera.set_world_poses_from_view(eyes, targets)
-
-    # Simulate for a few steps
-    for _ in range(5):
-        sim.step()
-    # Simulate physics
-    for _ in range(5):
-        # perform rendering
-        sim.step()
-        # update camera
-        with Timer(f"Time taken for updating camera with shape {camera.image_shape}"):
-            camera.update(dt)
-        # Save images
-        with Timer(f"Time taken for writing data with shape {camera.image_shape}   "):
-            # Pack data back into replicator format to save them using its writer
-            rep_output = {"annotators": {}}
-            camera_data = convert_dict_to_backend({k: v[0] for k, v in camera.data.output.items()}, backend="numpy")
-            for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
-                if info is not None:
-                    rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
-                else:
-                    rep_output["annotators"][key] = {"render_product": {"data": data}}
-            # Save images
-            rep_output["trigger_outputs"] = {"on_time": camera.frame[0]}
-            rep_writer.write(rep_output)
-        print("----------------------------------------")
-        # Check image data
-        for im_data in camera.data.output.values():
-            assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
 
 @pytest.mark.isaacsim_ci

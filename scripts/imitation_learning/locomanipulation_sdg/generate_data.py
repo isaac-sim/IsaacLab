@@ -1060,6 +1060,8 @@ if __name__ == "__main__":
                 print(f"Run {run_id} failed (demo={demo}), retrying...", flush=True)
 
         env.recorder_manager.close()
+        if env.viewport_camera_controller is not None:
+            env.viewport_camera_controller.update_view_to_world()
         env.close()
 
         simulation_app.close()

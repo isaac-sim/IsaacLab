@@ -56,6 +56,12 @@ detailed tutorials and step-by-step guides. Follow these links to learn more abo
 - [Tutorials](https://isaac-sim.github.io/IsaacLab/main/source/tutorials/index.html)
 - [Available environments](https://isaac-sim.github.io/IsaacLab/main/source/overview/environments.html)
 
+## Performance Dashboard
+
+We continuously benchmark Isaac Lab across different physics backends, renderers, and data types.
+The **[Isaac Lab Performance Dashboard](https://nvidia.github.io/omniperf/)** provides interactive
+charts showing preset comparison results, performance history, and environment scaling data from
+our internal CI/CD benchmarks.
 
 ## Isaac Sim Version Dependency
 
@@ -72,6 +78,10 @@ dependency versions for Isaac Sim.
 | `v2.1.X`                      | Isaac Sim 4.5             |
 | `v2.0.X`                      | Isaac Sim 4.5             |
 
+## Limitations
+
+The `develop` branch of Isaac Lab 3.0-Beta is currently available on Ubuntu. Windows
+support and Isaac Lab pip wheels will be available soon.
 
 ## Contributing to Isaac Lab
 

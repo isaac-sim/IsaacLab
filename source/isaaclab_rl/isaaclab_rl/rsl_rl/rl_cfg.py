@@ -23,7 +23,7 @@ class RslRlMLPModelCfg:
     """Configuration for the MLP model."""
 
     class_name: str = "MLPModel"
-    """The model class name. Default is MLPModel."""
+    """The model class name. Defaults to MLPModel."""
 
     hidden_dims: list[int] = MISSING
     """The hidden dimensions of the MLP network."""
@@ -32,10 +32,10 @@ class RslRlMLPModelCfg:
     """The activation function for the MLP network."""
 
     obs_normalization: bool = False
-    """Whether to normalize the observation for the model. Default is False."""
+    """Whether to normalize the observation for the model. Defaults to False."""
 
     distribution_cfg: DistributionCfg | None = None
-    """The configuration for the output distribution. Default is None, in which case no distribution is used."""
+    """The configuration for the output distribution. Defaults to None, in which case no distribution is used."""
 
     @configclass
     class DistributionCfg:
@@ -79,14 +79,14 @@ class RslRlMLPModelCfg:
     """
 
     noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the model. Default is scalar.
+    """The type of noise standard deviation for the model. Defaults to scalar.
 
     For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
     `std_type` field of the distribution configuration to specify the type of noise standard deviation.
     """
 
     state_dependent_std: bool = False
-    """Whether to use state-dependent standard deviation for the policy. Default is False.
+    """Whether to use state-dependent standard deviation for the policy. Defaults to False.
 
     For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use
     the `HeteroscedasticGaussianDistributionCfg` if state-dependent standard deviation is desired.
@@ -98,7 +98,7 @@ class RslRlRNNModelCfg(RslRlMLPModelCfg):
     """Configuration for RNN model."""
 
     class_name: str = "RNNModel"
-    """The model class name. Default is RNNModel."""
+    """The model class name. Defaults to RNNModel."""
 
     rnn_type: str = MISSING
     """The type of RNN to use. Either "lstm" or "gru"."""
@@ -115,7 +115,7 @@ class RslRlCNNModelCfg(RslRlMLPModelCfg):
     """Configuration for CNN model."""
 
     class_name: str = "CNNModel"
-    """The model class name. Default is CNNModel."""
+    """The model class name. Defaults to CNNModel."""
 
     @configclass
     class CNNCfg:
@@ -126,28 +126,28 @@ class RslRlCNNModelCfg(RslRlMLPModelCfg):
         """The kernel size for the CNN."""
 
         stride: int | tuple[int] | list[int] = 1
-        """The stride for the CNN."""
+        """The stride for the CNN. Defaults to 1."""
 
         dilation: int | tuple[int] | list[int] = 1
-        """The dilation for the CNN."""
+        """The dilation for the CNN. Defaults to 1."""
 
         padding: Literal["none", "zeros", "reflect", "replicate", "circular"] = "none"
-        """The padding for the CNN."""
+        """The padding for the CNN. Defaults to none."""
 
         norm: Literal["none", "batch", "layer"] | tuple[str] | list[str] = "none"
-        """The normalization for the CNN."""
+        """The normalization for the CNN. Defaults to none."""
 
         activation: str = MISSING
         """The activation function for the CNN."""
 
         max_pool: bool | tuple[bool] | list[bool] = False
-        """Whether to use max pooling for the CNN."""
+        """Whether to use max pooling for the CNN. Defaults to False."""
 
         global_pool: Literal["none", "max", "avg"] = "none"
-        """The global pooling for the CNN."""
+        """The global pooling for the CNN. Defaults to none."""
 
         flatten: bool = True
-        """Whether to flatten the output of the CNN."""
+        """Whether to flatten the output of the CNN. Defaults to True."""
 
     cnn_cfg: CNNCfg = MISSING
     """The configuration for the CNN(s)."""
@@ -163,7 +163,7 @@ class RslRlPpoAlgorithmCfg:
     """Configuration for the PPO algorithm."""
 
     class_name: str = "PPO"
-    """The algorithm class name. Default is PPO."""
+    """The algorithm class name. Defaults to PPO."""
 
     num_learning_epochs: int = MISSING
     """The number of learning epochs per update."""
@@ -193,7 +193,7 @@ class RslRlPpoAlgorithmCfg:
     """The maximum gradient norm."""
 
     optimizer: Literal["adam", "adamw", "sgd", "rmsprop"] = "adam"
-    """The optimizer to use."""
+    """The optimizer to use. Defaults to adam."""
 
     value_loss_coef: float = MISSING
     """The coefficient for the value loss."""
@@ -205,7 +205,7 @@ class RslRlPpoAlgorithmCfg:
     """The clipping parameter for the policy."""
 
     normalize_advantage_per_mini_batch: bool = False
-    """Whether to normalize the advantage per mini-batch. Default is False.
+    """Whether to normalize the advantage per mini-batch. Defaults to False.
 
     If True, the advantage is normalized over the mini-batches only.
     Otherwise, the advantage is normalized over the entire collected trajectories.
@@ -215,10 +215,10 @@ class RslRlPpoAlgorithmCfg:
     """Whether to share the CNN networks between actor and critic, in case CNNModels are used. Defaults to False."""
 
     rnd_cfg: RslRlRndCfg | None = None
-    """The RND configuration. Default is None, in which case RND is not used."""
+    """The RND configuration. Defaults to None, in which case RND is not used."""
 
     symmetry_cfg: RslRlSymmetryCfg | None = None
-    """The symmetry configuration. Default is None, in which case symmetry is not used."""
+    """The symmetry configuration. Defaults to None, in which case symmetry is not used."""
 
 
 #########################
@@ -231,10 +231,10 @@ class RslRlBaseRunnerCfg:
     """Base configuration of the runner."""
 
     seed: int = 42
-    """The seed for the experiment. Default is 42."""
+    """The seed for the experiment. Defaults to 42."""
 
     device: str = "cuda:0"
-    """The device for the rl-agent. Default is cuda:0."""
+    """The device for the rl-agent. Defaults to cuda:0."""
 
     num_steps_per_env: int = MISSING
     """The number of steps per environment per update."""
@@ -288,7 +288,7 @@ class RslRlBaseRunnerCfg:
     """The experiment name."""
 
     run_name: str = ""
-    """The run name. Default is empty string.
+    """The run name. Defaults to empty string.
 
     The name of the run directory is typically the time-stamp at execution. If the run name is not empty,
     then it is appended to the run directory's name, i.e. the logging directory's name will become
@@ -296,28 +296,28 @@ class RslRlBaseRunnerCfg:
     """
 
     logger: Literal["tensorboard", "neptune", "wandb"] = "tensorboard"
-    """The logger to use. Default is tensorboard."""
+    """The logger to use. Defaults to tensorboard."""
 
     neptune_project: str = "isaaclab"
-    """The neptune project name. Default is "isaaclab"."""
+    """The neptune project name. Defaults to "isaaclab"."""
 
     wandb_project: str = "isaaclab"
-    """The wandb project name. Default is "isaaclab"."""
+    """The wandb project name. Defaults to "isaaclab"."""
 
     resume: bool = False
-    """Whether to resume a previous training. Default is False.
+    """Whether to resume a previous training. Defaults to False.
 
     This flag will be ignored for distillation.
     """
 
     load_run: str = ".*"
-    """The run directory to load. Default is ".*" (all).
+    """The run directory to load. Defaults to ".*" (all).
 
     If regex expression, the latest (alphabetical order) matching run will be loaded.
     """
 
     load_checkpoint: str = "model_.*.pt"
-    """The checkpoint file to load. Default is ``"model_.*.pt"`` (all).
+    """The checkpoint file to load. Defaults to ``"model_.*.pt"`` (all).
 
     If regex expression, the latest (alphabetical order) matching file will be loaded.
     """
@@ -328,7 +328,7 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     """Configuration of the runner for on-policy algorithms."""
 
     class_name: str = "OnPolicyRunner"
-    """The runner class name. Default is OnPolicyRunner."""
+    """The runner class name. Defaults to OnPolicyRunner."""
 
     actor: RslRlMLPModelCfg = MISSING
     """The actor configuration."""
@@ -360,16 +360,16 @@ class RslRlPpoActorCriticCfg:
     """
 
     class_name: str = "ActorCritic"
-    """The policy class name. Default is ActorCritic."""
+    """The policy class name. Defaults to ActorCritic."""
 
     init_noise_std: float = MISSING
     """The initial noise standard deviation for the policy."""
 
     noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the policy. Default is scalar."""
+    """The type of noise standard deviation for the policy. Defaults to scalar."""
 
     state_dependent_std: bool = False
-    """Whether to use state-dependent standard deviation for the policy. Default is False."""
+    """Whether to use state-dependent standard deviation for the policy. Defaults to False."""
 
     actor_obs_normalization: bool = MISSING
     """Whether to normalize the observation for the actor network."""
@@ -395,7 +395,7 @@ class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
     """
 
     class_name: str = "ActorCriticRecurrent"
-    """The policy class name. Default is ActorCriticRecurrent."""
+    """The policy class name. Defaults to ActorCriticRecurrent."""
 
     rnn_type: str = MISSING
     """The type of RNN to use. Either "lstm" or "gru"."""

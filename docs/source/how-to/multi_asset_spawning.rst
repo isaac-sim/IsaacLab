@@ -110,6 +110,8 @@ to understand the entire simulation scene. This helps speed up the simulation sc
 
 However, in the case of spawning different assets in different environments, this assumption does not hold
 anymore. Hence the flag :attr:`scene.InteractiveScene.replicate_physics` must be disabled.
+For a full guide on the template-based cloning system including strategies and collision filtering,
+see :doc:`cloning`.
 
 .. literalinclude:: ../../../scripts/demos/multi_asset.py
    :language: python

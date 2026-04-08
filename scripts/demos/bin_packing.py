@@ -32,6 +32,8 @@ parser = argparse.ArgumentParser(description="Demo usage of RigidObjectCollectio
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 

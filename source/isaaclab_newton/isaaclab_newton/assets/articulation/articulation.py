@@ -495,6 +495,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        SimulationManager.invalidate_fk()
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -550,6 +551,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        SimulationManager.invalidate_fk()
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -614,6 +616,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        SimulationManager.invalidate_fk()
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -674,6 +677,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        SimulationManager.invalidate_fk()
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -1012,6 +1016,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk()
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -1066,6 +1071,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk()
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -3189,15 +3195,6 @@ class Articulation(BaseArticulation):
         # Register view with Newton manager so sensors (e.g. FrameTransformer) can find it.
         SimulationManager.get_physics_sim_view().append(self._root_view)
 
-        # log information about the articulation
-        logger.info(f"Articulation initialized at: {self.cfg.prim_path} with root '{root_prim_path_expr}'.")
-        logger.info(f"Is fixed root: {self.is_fixed_base}")
-        logger.info(f"Number of bodies: {self.num_bodies}")
-        logger.info(f"Body names: {self.body_names}")
-        logger.info(f"Number of joints: {self.num_joints}")
-        logger.info(f"Joint names: {self.joint_names}")
-        logger.info(f"Number of fixed tendons: {self.num_fixed_tendons}")
-
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)
 
@@ -3366,12 +3363,6 @@ class Articulation(BaseArticulation):
                 friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
                 effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
                 velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
-            )
-            # log information on actuator groups
-            model_type = "implicit" if actuator.is_implicit_model else "explicit"
-            logger.info(
-                f"Actuator collection: {actuator_name} with model '{actuator_cfg.class_type.__name__}'"
-                f" (type: {model_type}) and joint names: {joint_names} [{joint_ids}]."
             )
             # store actuator group
             self.actuators[actuator_name] = actuator

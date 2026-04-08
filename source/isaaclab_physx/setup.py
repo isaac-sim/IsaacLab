@@ -16,7 +16,11 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 # Minimum dependencies required prior to installation
-INSTALL_REQUIRES = []
+INSTALL_REQUIRES = [
+    # INTENTIONALLY disabled to avoid circular dependency with isaaclab_physx, which also depends on isaaclab_newton.
+    # This will be re-enabled once we move to UV and pyproject.toml-based packaging.
+    # f"isaaclab_newton @ file://{os.path.join(os.path.dirname(EXTENSION_PATH), 'isaaclab_newton')}",
+]
 
 # Installation operation
 setup(
@@ -32,7 +36,28 @@ setup(
     package_data={"": ["*.pyi"]},
     python_requires=">=3.11",
     install_requires=INSTALL_REQUIRES,
-    packages=["isaaclab_physx"],
+    packages=[
+        "isaaclab_physx",
+        "isaaclab_physx.assets",
+        "isaaclab_physx.assets.articulation",
+        "isaaclab_physx.assets.deformable_object",
+        "isaaclab_physx.assets.rigid_object",
+        "isaaclab_physx.assets.rigid_object_collection",
+        "isaaclab_physx.assets.surface_gripper",
+        "isaaclab_physx.cloner",
+        "isaaclab_physx.physics",
+        "isaaclab_physx.renderers",
+        "isaaclab_physx.scene_data_providers",
+        "isaaclab_physx.sensors",
+        "isaaclab_physx.sensors.contact_sensor",
+        "isaaclab_physx.sensors.frame_transformer",
+        "isaaclab_physx.sensors.imu",
+        "isaaclab_physx.test",
+        "isaaclab_physx.test.benchmark",
+        "isaaclab_physx.test.mock_interfaces",
+        "isaaclab_physx.test.mock_interfaces.utils",
+        "isaaclab_physx.test.mock_interfaces.views",
+    ],
     classifiers=[
         "Natural Language :: English",
         "Programming Language :: Python :: 3.11",

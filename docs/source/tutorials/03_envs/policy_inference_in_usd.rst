@@ -50,7 +50,7 @@ where you started the simulation.
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Velocity-Rough-H1-v0 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt
+  ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py --task Isaac-Velocity-Rough-H1-v0 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz kit
 
 
 After running the play script, the policy will be exported to jit and onnx files under the experiment logs directory.
@@ -63,7 +63,7 @@ We can then load the warehouse asset and run inference on the H1 robot using the
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt
+  ./isaaclab.sh -p scripts/tutorials/03_envs/policy_inference_in_usd.py --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/exported/policy.pt --viz kit
 
 
 .. figure:: ../../_static/tutorials/tutorial_policy_inference_in_usd.jpg

@@ -750,10 +750,14 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_incoming_joint_wrench_b(self) -> wp.array:
-        """Joint reaction wrench applied from body parent to child body in parent body frame.
+        """Joint reaction wrench applied to each body through its incoming joint, expressed in that body's frame.
 
         Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
         world of an articulation.
+
+        .. note::
+            PhysX expresses this wrench in the frame of ``body1`` as defined in the USD joint, which corresponds to
+            the child body's own frame when the USD convention is ``body0`` = parent, ``body1`` = child.
 
         For more information on joint wrenches, please check the `PhysX documentation`_ and the underlying
         `PhysX Tensor API`_.

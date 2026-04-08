@@ -96,16 +96,16 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
         if self._default_body_pose is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout
-            return wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
+            self._default_body_pose = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
         return self._default_body_pose
 
     @property
     def default_body_vel(self) -> wp.array:
         """Default body velocities. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._default_body_vel is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
-                wp.spatial_vectorf
-            )
+            self._default_body_vel = wp.zeros(
+                (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
+            ).view(wp.spatial_vectorf)
         return self._default_body_vel
 
     @property
@@ -130,9 +130,9 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
     def body_link_vel_w(self) -> wp.array:
         """Body link velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_link_vel_w is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
-                wp.spatial_vectorf
-            )
+            self._body_link_vel_w = wp.zeros(
+                (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
+            ).view(wp.spatial_vectorf)
         return self._body_link_vel_w
 
     @property
@@ -173,14 +173,14 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
     def body_com_pose_w(self) -> wp.array:
         """Body CoM poses in world frame. dtype=wp.transformf, shape: (N, num_bodies)."""
         if self._body_com_pose_w is None:
-            return wp.clone(self.body_link_pose_w, self.device)
+            self._body_com_pose_w = wp.clone(self.body_link_pose_w, self.device)
         return self._body_com_pose_w
 
     @property
     def body_com_vel_w(self) -> wp.array:
         """Body CoM velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_vel_w is None:
-            return wp.clone(self.body_link_vel_w, self.device)
+            self._body_com_vel_w = wp.clone(self.body_link_vel_w, self.device)
         return self._body_com_vel_w
 
     @property
@@ -194,9 +194,9 @@ class MockRigidObjectCollectionData(BaseRigidObjectCollectionData):
     def body_com_acc_w(self) -> wp.array:
         """Body CoM accelerations in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_acc_w is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
-                wp.spatial_vectorf
-            )
+            self._body_com_acc_w = wp.zeros(
+                (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
+            ).view(wp.spatial_vectorf)
         return self._body_com_acc_w
 
     @property

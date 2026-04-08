@@ -188,7 +188,7 @@ To run the base environment made in this tutorial, you can use the following com
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
+   ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32 --viz kit
 
 This should open a stage with a ground plane, light source, and cartpoles. The simulation should be
 playing with random actions on the cartpole. Additionally, it opens a UI window on the bottom
@@ -211,10 +211,10 @@ directory. For completeness, they can be run using the following commands:
 .. code-block:: bash
 
    # Floating cube environment with custom action term for PD control
-   ./isaaclab.sh -p scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32
+   ./isaaclab.sh -p scripts/tutorials/03_envs/create_cube_base_env.py --num_envs 32 --viz kit
 
    # Quadrupedal locomotion environment with a policy that interacts with the environment
-   ./isaaclab.sh -p scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32
+   ./isaaclab.sh -p scripts/tutorials/03_envs/create_quadruped_base_env.py --num_envs 32 --viz kit
 
 In the following tutorial, we will look at the :class:`envs.ManagerBasedRLEnv` class and how to use it
 to create a Markovian Decision Process (MDP).
