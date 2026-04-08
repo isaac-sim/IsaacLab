@@ -65,6 +65,13 @@ def main():
     # Play the simulator
     sim.reset()
 
+    # Extra RTX carb overrides (dot keys -> ``/rtx/...`` paths). Applied after reset so they are not
+    # replaced by rendering-mode profile application during ``initialize_visualizers()``.
+    carb_settings = {"rtx.reflections.enabled": True}
+    for key, value in carb_settings.items():
+        path = key if key.startswith("/") else "/" + key.replace(".", "/")
+        sim.set_setting(path, value)
+
     # Now we are ready!
     print("[INFO]: Setup complete...")
 

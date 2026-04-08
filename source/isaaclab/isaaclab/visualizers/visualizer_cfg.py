@@ -59,7 +59,7 @@ class VisualizerCfg:
     """If env_filter_mode='env_ids', only these env indices are shown.
 
     This improves performance, particularly for large-scale training, by reducing scene updates sent to visualizers.
-    Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
+    Note, the Kit visualizer only applies a cosmetic visibility toggle (no performance gain).
     """
 
     rendering_mode: str | None = None

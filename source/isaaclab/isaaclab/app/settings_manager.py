@@ -19,8 +19,9 @@ from typing import Any
 # Key for storing singleton in sys.modules to survive module reloads (e.g., from Hydra)
 _SINGLETON_KEY = "__isaaclab_settings_manager_singleton__"
 
-# Mirrors :obj:`/isaaclab/rendering/rendering_mode` as a plain string; carb ``get()`` may return a subtree dict.
-ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH = "/isaaclab/rendering/rendering_mode_profile"
+# CLI rendering mode profile (``performance`` / ``balanced`` / ``quality``). Generic carb ``get()`` can
+# return a subtree dict for this path; ``get_string()`` reads the leaf value set by ``set_string``.
+_ISAACLAB_RENDERING_MODE_PATH = "/isaaclab/rendering/rendering_mode"
 
 
 class SettingsManager:
@@ -61,8 +62,6 @@ class SettingsManager:
         self._standalone_settings: dict[str, Any] = {}
         self._carb_settings = None
         self._use_carb = False
-        # Python-side overrides read first in :meth:`get` (e.g. CLI string mirror when carb returns dicts).
-        self._isaaclab_overrides: dict[str, Any] = {}
         self._needs_init = False
 
     @classmethod
@@ -119,10 +118,6 @@ class SettingsManager:
             # Standalone mode - use dictionary
             self._standalone_settings[path] = value
 
-    def set_isaaclab_override(self, path: str, value: Any) -> None:
-        """Store a value that :meth:`get` resolves before carb/standalone (for paths carb returns as dicts)."""
-        self._isaaclab_overrides[path] = value
-
     def get(self, path: str, default: Any = None) -> Any:
         """Get a setting value at the given path.
 
@@ -133,10 +128,18 @@ class SettingsManager:
         Returns:
             The value at the path, or default if not found
         """
-        if path in self._isaaclab_overrides:
-            return self._isaaclab_overrides[path]
         if self._use_carb and self._carb_settings is not None:
-            # Delegate to carb.settings
+            # Prefer typed string read for CLI rendering mode: generic ``get()`` may return a subtree dict.
+            if path == _ISAACLAB_RENDERING_MODE_PATH:
+                try:
+                    if hasattr(self._carb_settings, "get_string"):
+                        s = self._carb_settings.get_string(path)
+                        if s is not None:
+                            out = str(s).strip()
+                            if out:
+                                return out
+                except Exception:
+                    pass
             value = self._carb_settings.get(path)
             return value if value is not None else default
         else:

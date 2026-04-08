@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from isaaclab.app.settings_manager import ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.rendering_mode.rendering_mode_cfg import RenderingModeCfg
 from isaaclab.rendering_mode.rendering_mode_utils import (
@@ -19,13 +18,11 @@ from isaaclab.rendering_mode.rendering_mode_utils import (
 
 
 class _FakeSettings:
-    def __init__(self, explicit: bool, mode, mirror: str | None = None):
+    def __init__(self, explicit: bool, mode):
         self._data: dict[str, object] = {
             "/isaaclab/rendering/rendering_mode/explicit": explicit,
             "/isaaclab/rendering/rendering_mode": mode,
         }
-        if mirror is not None:
-            self._data[ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH] = mirror
 
     def get(self, key: str):
         return self._data.get(key)
@@ -50,11 +47,11 @@ def test_resolve_renderer_mode_cli_explicit_coerces_nested_carb_dict():
     assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "balanced"
 
 
-def test_cli_profile_mirror_overrides_unreadable_carb_dict():
-    """AppLauncher mirrors the profile string; it wins when carb get() has no string leaves."""
+def test_cli_explicit_unreadable_carb_dict_without_profile_string_returns_none():
+    """When generic get() yields a dict with no embedded profile strings, resolution fails."""
     r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="performance")
-    settings = _FakeSettings(explicit=True, mode={"flags": True, "count": 2}, mirror="quality")
-    assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "quality"
+    settings = _FakeSettings(explicit=True, mode={"flags": True, "count": 2})
+    assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) is None
 
 
 def test_resolve_renderer_mode_uses_cfg_when_cli_not_explicit():

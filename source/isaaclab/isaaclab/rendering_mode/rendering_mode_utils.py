@@ -10,14 +10,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from isaaclab.app.settings_manager import ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH
-
 from .rendering_mode_cfg import RenderingModeCfg
 from .rendering_mode_presets import get_kit_rendering_preset
 
 _logger = logging.getLogger(__name__)
 
-# Log at most once if carb + heuristics cannot resolve CLI mode (mirror path should prevent this).
+# Log at most once if carb + heuristics cannot resolve CLI mode.
 _cli_rendering_mode_resolution_warned = False
 
 _KNOWN_RENDERING_MODE_PRESETS = frozenset({"performance", "balanced", "quality"})
@@ -58,17 +56,14 @@ def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
 
 
 def _read_cli_rendering_mode_profile_name(get_setting: Any) -> str | None:
-    """Read CLI rendering mode profile name.
+    """Read CLI rendering mode profile name (``performance`` / ``balanced`` / ``quality``).
 
-    :data:`ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH` is set by :class:`~isaaclab.app.AppLauncher` with the
-    same string passed to carb ``set_string``, because :meth:`carb.settings.ISettings.get` may return a
-    subtree ``dict`` for ``/isaaclab/rendering/rendering_mode`` instead of the profile string.
+    :class:`~isaaclab.app.settings_manager.SettingsManager` and :class:`~isaaclab.sim.simulation_context.SettingsHelper` resolve
+    ``/isaaclab/rendering/rendering_mode`` via ``get_string`` when using carb so readers see the string
+    set by ``set_string``. Generic ``carb.settings.get()`` may still return a subtree ``dict``; we coerce
+    that below and try alternate leaf paths.
     """
     global _cli_rendering_mode_resolution_warned
-
-    mirror = get_setting(ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH)
-    if isinstance(mirror, str) and mirror.strip():
-        return mirror.strip()
 
     raw = get_setting("/isaaclab/rendering/rendering_mode")
     coerced = _coerce_carb_rendering_mode_value(raw)
@@ -102,10 +97,8 @@ def _read_cli_rendering_mode_profile_name(get_setting: Any) -> str | None:
             _cli_rendering_mode_resolution_warned = True
             _logger.warning(
                 "Could not read /isaaclab/rendering/rendering_mode as a profile name (got %s). "
-                "CLI rendering mode override may be ignored. "
-                "Expected mirror at %s (set by AppLauncher).",
+                "CLI rendering mode override may be ignored.",
                 type(raw).__name__,
-                ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH,
             )
     return None
 

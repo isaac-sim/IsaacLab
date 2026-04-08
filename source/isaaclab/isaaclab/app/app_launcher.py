@@ -28,11 +28,7 @@ with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
     from isaacsim import SimulationApp
 
-from isaaclab.app.settings_manager import (
-    ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH,
-    get_settings_manager,
-    initialize_carb_settings,
-)
+from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1132,8 +1128,6 @@ class AppLauncher:
         settings = get_settings_manager()
         settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
         settings.set_bool("/isaaclab/rendering/rendering_mode/explicit", bool(rendering_mode_explicit))
-        # carb.settings.get() may return a subtree dict for the path above; mirror the CLI string for readers.
-        settings.set_isaaclab_override(ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH, rendering_mode or "")
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in settings."""
