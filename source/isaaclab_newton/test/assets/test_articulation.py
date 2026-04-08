@@ -2406,5 +2406,86 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     assert torch.allclose(joint_friction_coeff_sim_2, friction_2)
 
 
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+def test_body_q_consistent_after_root_write(num_articulations, device, articulation_type):
+    """Test that body_q is fresh when collide() runs after a root pose write.
+
+    Regression test for a NaN bug where collide() used stale body_q after env
+    reset because eval_fk was not called between write_root_pose and collide.
+
+    Uses ``use_mujoco_contacts=False`` so the Newton collision pipeline is
+    active, then patches ``_simulate_physics_only`` to capture body_q at
+    the moment collide() is called and asserts it matches joint_q.
+    """
+    from unittest.mock import patch
+
+    sim_cfg = SimulationCfg(
+        dt=1 / 200,
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=70,
+                nconmax=70,
+                integrator="implicitfast",
+                use_mujoco_contacts=False,
+            ),
+            num_substeps=1,
+            use_cuda_graph=False,
+        ),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg, device=device) as sim:
+        sim._app_control_on_stop_handle = None
+        articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+        articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
+
+        sim.reset()
+
+        model = SimulationManager.get_model()
+        jc_starts = model.joint_coord_world_start.numpy()
+        body_starts = model.body_world_start.numpy()
+
+        for _ in range(5):
+            sim.step()
+            articulation.update(sim.cfg.dt)
+
+        # Teleport env 0 by 10m (simulating a reset)
+        new_pose = wp.to_torch(articulation.data.default_root_pose).clone()
+        new_pose[0, 0] += 10.0
+        new_pose[0, 1] += 5.0
+        articulation.write_root_pose_to_sim_index(
+            root_pose=new_pose[0:1],
+            env_ids=torch.tensor([0], device=device, dtype=torch.int32),
+        )
+
+        # Patch _simulate_physics_only to capture body_q before collide runs
+        captured = {}
+        original_simulate = SimulationManager._simulate_physics_only.__func__
+
+        @classmethod  # type: ignore[misc]
+        def _patched_simulate(cls):
+            if cls._needs_collision_pipeline:
+                bq = wp.to_torch(cls._state_0.body_q)
+                jq = wp.to_torch(cls._state_0.joint_q)
+                b0 = int(body_starts[0])
+                jc0 = int(jc_starts[0])
+                captured["bq_root"] = bq[b0, :3].clone()
+                captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
+            original_simulate(cls)
+
+        with patch.object(SimulationManager, "_simulate_physics_only", _patched_simulate):
+            sim.step()
+        articulation.update(sim.cfg.dt)
+
+        assert captured, "collision pipeline did not run — _needs_collision_pipeline is False"
+
+        bq_root = captured["bq_root"]
+        jq_root = captured["jq_root"]
+        diff = (jq_root - bq_root).abs().max().item()
+        assert diff < 0.01, (
+            f"body_q was stale when collide() ran: diff={diff:.4f}m, jq={jq_root.tolist()}, bq={bq_root.tolist()}"
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])
