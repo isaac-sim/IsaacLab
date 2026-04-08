@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.5.11 (2026-04-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed zero-mass moving bodies in :class:`~isaaclab_newton.physics.NewtonManager`.
+  Some USD assets (e.g. Franka ``panda_leftfinger`` / ``panda_rightfinger``,
+  OpenArm hand link) have zero authored mass because they rely on Isaac Sim's
+  PhysX "auto-compute mass from collider" feature, which Newton's USD importer
+  does not replicate. Newton's ``bound_mass`` validator only floors *positive*
+  masses, so these bodies would either fail the MuJoCo solver's positivity
+  check at finalize, or get a near-zero epsilon mass that made them physically
+  meaningless (e.g. a microgram-mass gripper finger could not transmit force
+  to a 200 g cube). Mass and inertia are now computed from the body's
+  collision shapes via :func:`newton._src.geometry.inertia.compute_inertia_shape`
+  with a default density of 1000 kg/m^3, falling back to a small default for
+  bodies without any usable shape.
+
+
 0.5.10 (2026-04-05)
 ~~~~~~~~~~~~~~~~~~~
 

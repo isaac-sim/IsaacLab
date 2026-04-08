@@ -417,6 +417,13 @@ class NewtonManager(PhysicsManager):
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
+        # The MuJoCo solver requires moving bodies (those with non-fixed joints) to have
+        # positive mass. Some USD assets (e.g. Franka panda finger, OpenArm hand link)
+        # have zero mass authored because they rely on Isaac Sim's "auto-compute mass
+        # from collider" PhysX feature, which Newton's USD importer does not replicate.
+        # Newton's bound_mass validator only floors *positive* masses, so we explicitly
+        # compute mass for those bodies here, before finalize.
+        cls._fix_zero_mass_moving_bodies()
         # Set smaller contact margin for manipulation examples (default 10cm is too large)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
             cls._model = cls._builder.finalize(device=device)
@@ -521,6 +528,109 @@ class NewtonManager(PhysicsManager):
             cls._num_envs = len(env_paths)
 
         cls.set_builder(builder)
+
+    @classmethod
+    def _fix_zero_mass_moving_bodies(cls) -> None:
+        """Compute physical mass for moving bodies with zero/negative mass authored.
+
+        Some USD assets (e.g. Franka panda finger, OpenArm hand link) have
+        invalid mass on intermediate bodies because the asset relies on
+        Isaac Sim's "auto-compute mass from collider" PhysX feature, which
+        Newton's USD importer does not replicate.
+
+        Newton's :attr:`~newton.ModelBuilder.bound_mass` validator only floors
+        *positive* masses below the bound -- zero/negative is treated as a
+        "static body". The MuJoCo solver requires positive mass for any body
+        with a non-fixed joint, so the asset would otherwise fail at finalize
+        with an ``mjMINVAL`` check. Even when the solver does not reject it,
+        a near-zero mass on a moving body is physically meaningless: a
+        microgram-mass gripper finger cannot transmit force to a 200 g cube
+        and the manipulator simply passes through it.
+
+        We compute a reasonable mass from the body's collision shapes using
+        :func:`newton._src.geometry.inertia.compute_inertia_shape` with a
+        default density of 1000 kg/m^3 (water / light plastic). For a Franka
+        ``panda_leftfinger`` this yields ~22 g, close to the real spec
+        (~15 g). Bodies without any usable collision shape fall back to a
+        small default mass and inertia.
+        """
+        from newton import JointType
+        from newton._src.geometry.inertia import compute_inertia_shape
+
+        builder = cls._builder
+        if builder is None or len(builder.body_mass) == 0:
+            return
+
+        # Identify bodies that are the child of a non-fixed joint (moving bodies).
+        moving_bodies: set[int] = set()
+        for j in range(len(builder.joint_type)):
+            if builder.joint_type[j] == JointType.FIXED:
+                continue
+            child = builder.joint_child[j]
+            if child >= 0:
+                moving_bodies.add(child)
+
+        # Default density for shape-based mass computation [kg/m^3].
+        default_density = 1000.0
+        # Fallback mass [kg] and inertia scalar [kg*m^2] for bodies without any usable shape.
+        fallback_mass = 0.01
+        fallback_inertia_scalar = 1e-5
+
+        num_fixed = 0
+        for b in moving_bodies:
+            if builder.body_mass[b] > 0.0:
+                continue
+
+            # Try to compute mass from the body's collision shapes.
+            total_mass = 0.0
+            total_inertia = wp.mat33(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            shape_indices = builder.body_shapes.get(b, [])
+            for s in shape_indices:
+                shape_type = builder.shape_type[s]
+                shape_scale = builder.shape_scale[s]
+                shape_src = builder.shape_source[s] if hasattr(builder, "shape_source") else None
+                try:
+                    shape_mass, _com, shape_inertia = compute_inertia_shape(
+                        type=shape_type,
+                        scale=shape_scale,
+                        src=shape_src,
+                        density=default_density,
+                    )
+                except Exception:
+                    continue
+                if shape_mass > 0.0:
+                    total_mass += shape_mass
+                    for i in range(3):
+                        for k in range(3):
+                            total_inertia[i, k] = total_inertia[i, k] + shape_inertia[i, k]
+
+            if total_mass <= 0.0:
+                # No valid shape -- use fallback values.
+                total_mass = fallback_mass
+                total_inertia = wp.mat33(
+                    fallback_inertia_scalar,
+                    0.0,
+                    0.0,
+                    0.0,
+                    fallback_inertia_scalar,
+                    0.0,
+                    0.0,
+                    0.0,
+                    fallback_inertia_scalar,
+                )
+
+            builder.body_mass[b] = total_mass
+            builder.body_inv_mass[b] = 1.0 / total_mass
+            builder.body_inertia[b] = total_inertia
+            builder.body_inv_inertia[b] = wp.inverse(total_inertia)
+            num_fixed += 1
+
+        if num_fixed > 0:
+            logger.warning(
+                f"Computed mass from collision shapes (density={default_density} kg/m^3) "
+                f"for {num_fixed} zero-mass moving body(ies). Newton's USD importer does "
+                f"not auto-compute mass from colliders the way Isaac Sim PhysX does."
+            )
 
     @classmethod
     def _initialize_contacts(cls) -> None:

@@ -116,6 +116,7 @@ Guidelines for modifications:
 * Manuel Schweiger
 * Masoud Moghani
 * Mateo Guaman Castro
+* Matěj Kripner
 * Maurice Rahme
 * Michael Gussert
 * Michael Lin
