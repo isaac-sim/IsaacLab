@@ -26,7 +26,10 @@ from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.terminations as gear_assembly_terminations
-from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
+from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import (
+    ResetSampledConstantNoiseModelCfg,
+    ResetSampledQuaternionNoiseModelCfg,
+)
 
 # Get the directory where this configuration file is located
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -194,7 +197,14 @@ class ObservationsCfg:
                 noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")
             ),
         )
-        gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
+        gear_shaft_quat = ObsTerm(
+            func=mdp.gear_shaft_quat_w,
+            noise=ResetSampledQuaternionNoiseModelCfg(
+                roll_range=(-0.0349, 0.0349),
+                pitch_range=(-0.0349, 0.0349),
+                yaw_range=(-0.0349, 0.0349),
+            ),
+        )
 
         def __post_init__(self):
             self.enable_corruption = True

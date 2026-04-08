@@ -87,7 +87,7 @@ FLEXIV_RIZON4S_GRAV_GRIPPER_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Flexiv/Rizon4s/rizon4s_with_grav.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
+            disable_gravity=False,
             max_depenetration_velocity=5.0,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
