@@ -57,6 +57,20 @@ Notes:
   is applied for that camera's renderer.
 * ``--rendering_mode`` is the supported CLI entry point.
 
+.. note::
+
+   The built-in profiles ``performance``, ``balanced``, and ``quality`` set :attr:`rendering_mode_preset
+   <isaaclab.rendering_mode.RenderingModeCfg.rendering_mode_preset>`, which applies **Kit / RTX** carb
+   settings. Those preset differences therefore show up for the Kit viewport and for Kit-style camera
+   renderers (``default``, ``isaac_rtx``, ``rtx``).
+
+   Other targets read only their own fields on :class:`~isaaclab.rendering_mode.RenderingModeCfg` — for
+   example the Newton visualizer uses ``newton_*``, and the Newton Warp tiled camera uses
+   ``newton_warp_*``. Switching only the profile **name** may not change appearance for those paths
+   unless you define separate entries in :attr:`~sim.SimulationCfg.rendering_mode_cfgs` with different
+   values for those fields. Additional preset-driven behavior for other visualizers and renderers may
+   be added in future releases.
+
 Example renders from the ``set_rendering_mode.py`` script.
 To help assess rendering, the example scene includes reflections, translucency,
 direct and ambient lighting, and several material types.
@@ -134,6 +148,10 @@ There are two ways to provide settings that overwrite presets:
       | kit_enable_shadows                 | Bool. Enables shadows at performance cost.                              |
       +------------------------------------+-------------------------------------------------------------------------+
       | kit_enable_ambient_occlusion       | Bool. Enables ambient occlusion at performance cost.                    |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_dome_light_upper_lower_strategy | Literal[0, 3, 4]. Maps to ``/rtx/domeLight/upperLowerStrategy`` (dome   |
+      |                                    | light upper/lower hemisphere handling; see Omniverse RTX docs for     |
+      |                                    | semantics of each value).                                             |
       +------------------------------------+-------------------------------------------------------------------------+
 
 

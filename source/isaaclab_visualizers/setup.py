@@ -28,6 +28,8 @@ EXTRAS_REQUIRE = {
     "viser": [
         "newton @ git+https://github.com/newton-physics/newton.git@2684d75bfa4bb8b058a93b81c458a74b7701c997",
         "viser>=1.0.16",
+        # Viser requires a current websockets API; Isaac Sim's pip_prebundle may ship an older copy.
+        "websockets>=13.0",
     ],
 }
 

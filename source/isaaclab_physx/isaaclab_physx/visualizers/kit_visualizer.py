@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.visualizers.kit_visualizer import *  # noqa: F401, F403
+from isaaclab_visualizers.kit.kit_visualizer import *  # noqa: F401, F403

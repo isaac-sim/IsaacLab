@@ -11,9 +11,65 @@ import contextlib
 import io
 import logging
 import os
+import sys
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+
+def _prioritize_site_packages_over_kit_prebundle() -> None:
+    """Put conda/venv site-packages before Isaac Sim ``pip_prebundle`` on ``sys.path``.
+
+    Kit ships an older ``websockets`` in ``omni.kit.pip_archive``; ``viser`` needs a modern API
+    (e.g. ``SERVER`` in ``websockets.http11``). Without this, imports can mix prebundle and PyPI
+    submodules and raise ``ImportError`` at runtime.
+    """
+    try:
+        import site
+    except Exception:
+        return
+
+    paths: list[str] = []
+    if hasattr(site, "getusersitepackages"):
+        u = site.getusersitepackages()
+        if u:
+            paths.append(u)
+    try:
+        paths.extend(site.getsitepackages())
+    except Exception:
+        pass
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for p in paths:
+        if p and p not in seen and p in sys.path:
+            seen.add(p)
+            ordered.append(p)
+
+    for p in ordered:
+        try:
+            sys.path.remove(p)
+        except ValueError:
+            continue
+    for p in reversed(ordered):
+        sys.path.insert(0, p)
+
+
+def _drop_websockets_if_from_prebundle() -> None:
+    """If ``websockets`` was already loaded from Kit prebundle, drop it so it reloads from site-packages."""
+    mod = sys.modules.get("websockets")
+    if mod is None:
+        return
+    f = getattr(mod, "__file__", "") or ""
+    if "pip_prebundle" not in f:
+        return
+    for k in list(sys.modules):
+        if k == "websockets" or k.startswith("websockets."):
+            del sys.modules[k]
+
+
+_prioritize_site_packages_over_kit_prebundle()
+_drop_websockets_if_from_prebundle()
 
 from newton.viewer import ViewerViser
 

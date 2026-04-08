@@ -45,3 +45,21 @@ class NewtonVisualizerCfg(VisualizerCfg):
 
     show_com: bool = False
     """Show center of mass visualization."""
+
+    enable_shadows: bool = True
+    """Enable shadow rendering in the Newton GL viewer."""
+
+    enable_sky: bool = True
+    """Enable sky gradient rendering."""
+
+    enable_wireframe: bool = False
+    """Enable wireframe overlay."""
+
+    sky_upper_color: tuple[float, float, float] = (0.2, 0.4, 0.6)
+    """Upper sky gradient color (RGB)."""
+
+    sky_lower_color: tuple[float, float, float] = (0.5, 0.6, 0.7)
+    """Lower sky gradient color (RGB)."""
+
+    light_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    """Directional light color (RGB)."""

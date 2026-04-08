@@ -19,6 +19,9 @@ from typing import Any
 # Key for storing singleton in sys.modules to survive module reloads (e.g., from Hydra)
 _SINGLETON_KEY = "__isaaclab_settings_manager_singleton__"
 
+# Mirrors :obj:`/isaaclab/rendering/rendering_mode` as a plain string; carb ``get()`` may return a subtree dict.
+ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH = "/isaaclab/rendering/rendering_mode_profile"
+
 
 class SettingsManager:
     """A settings manager that provides a carb.settings-like interface without requiring Omniverse.
@@ -58,6 +61,8 @@ class SettingsManager:
         self._standalone_settings: dict[str, Any] = {}
         self._carb_settings = None
         self._use_carb = False
+        # Python-side overrides read first in :meth:`get` (e.g. CLI string mirror when carb returns dicts).
+        self._isaaclab_overrides: dict[str, Any] = {}
         self._needs_init = False
 
     @classmethod
@@ -114,6 +119,10 @@ class SettingsManager:
             # Standalone mode - use dictionary
             self._standalone_settings[path] = value
 
+    def set_isaaclab_override(self, path: str, value: Any) -> None:
+        """Store a value that :meth:`get` resolves before carb/standalone (for paths carb returns as dicts)."""
+        self._isaaclab_overrides[path] = value
+
     def get(self, path: str, default: Any = None) -> Any:
         """Get a setting value at the given path.
 
@@ -124,6 +133,8 @@ class SettingsManager:
         Returns:
             The value at the path, or default if not found
         """
+        if path in self._isaaclab_overrides:
+            return self._isaaclab_overrides[path]
         if self._use_carb and self._carb_settings is not None:
             # Delegate to carb.settings
             value = self._carb_settings.get(path)

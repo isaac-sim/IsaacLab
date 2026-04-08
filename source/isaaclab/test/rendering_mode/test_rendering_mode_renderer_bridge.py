@@ -7,24 +7,28 @@
 
 from __future__ import annotations
 
+from isaaclab.app.settings_manager import ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.rendering_mode.rendering_mode_cfg import RenderingModeCfg
 from isaaclab.rendering_mode.rendering_mode_utils import (
     apply_mode_profile_to_renderer_cfg,
     apply_newton_warp_mode_cfg_to_renderer_cfg,
+    resolve_rendering_mode_cfg,
     resolve_rendering_mode_name_for_renderer_cfg,
 )
 
 
 class _FakeSettings:
-    def __init__(self, explicit: bool, mode: str):
-        self._data = {
+    def __init__(self, explicit: bool, mode, mirror: str | None = None):
+        self._data: dict[str, object] = {
             "/isaaclab/rendering/rendering_mode/explicit": explicit,
             "/isaaclab/rendering/rendering_mode": mode,
         }
+        if mirror is not None:
+            self._data[ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH] = mirror
 
     def get(self, key: str):
-        return self._data[key]
+        return self._data.get(key)
 
 
 def test_resolve_renderer_mode_cli_explicit_overrides_cfg():
@@ -33,10 +37,36 @@ def test_resolve_renderer_mode_cli_explicit_overrides_cfg():
     assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "performance"
 
 
+def test_resolve_renderer_mode_cli_explicit_coerces_carb_dict():
+    """Some Kit builds return a subtree dict from carb get(); profile name may be embedded."""
+    r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="performance")
+    settings = _FakeSettings(explicit=True, mode={"leaf": "quality"})
+    assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "quality"
+
+
+def test_resolve_renderer_mode_cli_explicit_coerces_nested_carb_dict():
+    r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="performance")
+    settings = _FakeSettings(explicit=True, mode={"outer": {"inner": "balanced"}})
+    assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "balanced"
+
+
+def test_cli_profile_mirror_overrides_unreadable_carb_dict():
+    """AppLauncher mirrors the profile string; it wins when carb get() has no string leaves."""
+    r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="performance")
+    settings = _FakeSettings(explicit=True, mode={"flags": True, "count": 2}, mirror="quality")
+    assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "quality"
+
+
 def test_resolve_renderer_mode_uses_cfg_when_cli_not_explicit():
     r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="balanced")
     settings = _FakeSettings(explicit=False, mode="")
     assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "balanced"
+
+
+def test_resolve_rendering_mode_cfg_rejects_non_str_mode_name():
+    """Profile lookup keys must be str (guards against bad carb.get() types)."""
+    log = __import__("logging").getLogger(__name__)
+    assert resolve_rendering_mode_cfg({}, {"q": RenderingModeCfg()}, log) is None
 
 
 def test_apply_newton_warp_overrides_mutate_cfg():

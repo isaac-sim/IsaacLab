@@ -7,10 +7,121 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+from isaaclab.app.settings_manager import ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH
 
 from .rendering_mode_cfg import RenderingModeCfg
 from .rendering_mode_presets import get_kit_rendering_preset
+
+_logger = logging.getLogger(__name__)
+
+# Log at most once if carb + heuristics cannot resolve CLI mode (mirror path should prevent this).
+_cli_rendering_mode_resolution_warned = False
+
+_KNOWN_RENDERING_MODE_PRESETS = frozenset({"performance", "balanced", "quality"})
+
+
+def _collect_str_leaves(obj: Any, out: list[str], depth: int = 0) -> None:
+    """Collect non-empty strings from nested dict/list structures (carb subtrees)."""
+    if depth > 12:
+        return
+    if isinstance(obj, str):
+        s = obj.strip()
+        if s:
+            out.append(s)
+        return
+    if isinstance(obj, dict):
+        for v in obj.values():
+            _collect_str_leaves(v, out, depth + 1)
+    elif isinstance(obj, (list, tuple, set)):
+        for v in obj:
+            _collect_str_leaves(v, out, depth + 1)
+
+
+def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
+    """Best-effort string profile name from carb get()/subtree dicts."""
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        out = raw.strip()
+        return out if out else None
+    strings: list[str] = []
+    _collect_str_leaves(raw, strings)
+    if not strings:
+        return None
+    for s in strings:
+        if s in _KNOWN_RENDERING_MODE_PRESETS:
+            return s
+    return strings[0]
+
+
+def _read_cli_rendering_mode_profile_name(get_setting: Any) -> str | None:
+    """Read CLI rendering mode profile name.
+
+    :data:`ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH` is set by :class:`~isaaclab.app.AppLauncher` with the
+    same string passed to carb ``set_string``, because :meth:`carb.settings.ISettings.get` may return a
+    subtree ``dict`` for ``/isaaclab/rendering/rendering_mode`` instead of the profile string.
+    """
+    global _cli_rendering_mode_resolution_warned
+
+    mirror = get_setting(ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH)
+    if isinstance(mirror, str) and mirror.strip():
+        return mirror.strip()
+
+    raw = get_setting("/isaaclab/rendering/rendering_mode")
+    coerced = _coerce_carb_rendering_mode_value(raw)
+    if coerced:
+        return coerced
+
+    # Typed carb reads (leaf path and common alternates some Kit builds use).
+    try:
+        import carb
+
+        gs = carb.settings.get_settings()
+        if gs is not None and hasattr(gs, "get_string"):
+            for path in (
+                "/isaaclab/rendering/rendering_mode",
+                "/isaaclab/rendering/rendering_mode/value",
+                "/isaaclab/rendering/rendering_mode/default",
+            ):
+                try:
+                    s = gs.get_string(path)
+                    if s is not None:
+                        out = str(s).strip()
+                        if out:
+                            return out
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    if raw is not None and not isinstance(raw, str):
+        if not _cli_rendering_mode_resolution_warned:
+            _cli_rendering_mode_resolution_warned = True
+            _logger.warning(
+                "Could not read /isaaclab/rendering/rendering_mode as a profile name (got %s). "
+                "CLI rendering mode override may be ignored. "
+                "Expected mirror at %s (set by AppLauncher).",
+                type(raw).__name__,
+                ISAACLAB_RENDERING_MODE_PROFILE_MIRROR_PATH,
+            )
+    return None
+
+
+def _normalize_rendering_mode_profile_name(name: Any) -> str | None:
+    """Return a non-empty string profile name, or None if invalid."""
+    if name is None:
+        return None
+    if isinstance(name, str):
+        out = name.strip()
+        return out if out else None
+    _logger.warning(
+        "rendering_mode must be a non-empty str, got %s; ignoring.",
+        type(name).__name__,
+    )
+    return None
 
 
 def apply_kit_rendering_preset(set_setting: Any, preset_name: str) -> None:
@@ -24,6 +135,16 @@ def apply_kit_rendering_mode_cfg(set_setting: Any, mode_cfg: RenderingModeCfg) -
     """Apply kit-specific rendering mode fields."""
     if mode_cfg.rendering_mode_preset:
         apply_kit_rendering_preset(set_setting, mode_cfg.rendering_mode_preset)
+
+    # Replicator's set_render_rtx_realtime() can reset other RTX carb flags. Run it before applying
+    # explicit kit_* carb paths so user overrides remain authoritative.
+    if mode_cfg.kit_antialiasing_mode is not None:
+        try:
+            import omni.replicator.core as rep
+
+            rep.settings.set_render_rtx_realtime(antialiasing=mode_cfg.kit_antialiasing_mode)
+        except Exception:
+            pass
 
     field_to_carb = {
         "kit_enable_translucency": "/rtx/translucency/enabled",
@@ -43,23 +164,13 @@ def apply_kit_rendering_mode_cfg(set_setting: Any, mode_cfg: RenderingModeCfg) -
         if value is not None:
             set_setting(carb_key, value)
 
-    if mode_cfg.kit_antialiasing_mode is not None:
-        try:
-            import omni.replicator.core as rep
-
-            rep.settings.set_render_rtx_realtime(antialiasing=mode_cfg.kit_antialiasing_mode)
-        except Exception:
-            pass
-
 
 def resolve_rendering_mode_name_for_renderer_cfg(get_setting: Any, renderer_cfg: Any) -> str | None:
     """Resolve effective rendering mode profile name for a camera/renderer cfg."""
     cli_mode_explicit = bool(get_setting("/isaaclab/rendering/rendering_mode/explicit"))
-    cli_mode = get_setting("/isaaclab/rendering/rendering_mode")
     if cli_mode_explicit:
-        return cli_mode if cli_mode else None
-    mode_name = getattr(renderer_cfg, "rendering_mode", None)
-    return mode_name if mode_name else None
+        return _read_cli_rendering_mode_profile_name(get_setting)
+    return _normalize_rendering_mode_profile_name(getattr(renderer_cfg, "rendering_mode", None))
 
 
 def apply_newton_warp_mode_cfg_to_renderer_cfg(renderer_cfg: Any, mode_cfg: RenderingModeCfg) -> None:
@@ -136,11 +247,9 @@ def apply_newton_mode_cfg_to_viewer(viewer: Any, mode_cfg: RenderingModeCfg) -> 
 def resolve_rendering_mode_name_for_visualizer_cfg(get_setting: Any, visualizer_cfg: Any) -> str | None:
     """Resolve effective rendering mode profile name for a visualizer cfg."""
     cli_mode_explicit = bool(get_setting("/isaaclab/rendering/rendering_mode/explicit"))
-    cli_mode = get_setting("/isaaclab/rendering/rendering_mode")
     if cli_mode_explicit:
-        return cli_mode if cli_mode else None
-    mode_name = getattr(visualizer_cfg, "rendering_mode", None)
-    return mode_name if mode_name else None
+        return _read_cli_rendering_mode_profile_name(get_setting)
+    return _normalize_rendering_mode_profile_name(getattr(visualizer_cfg, "rendering_mode", None))
 
 
 def resolve_rendering_mode_cfg(
@@ -148,6 +257,12 @@ def resolve_rendering_mode_cfg(
 ) -> RenderingModeCfg | None:
     """Fetch rendering mode cfg by name and log if missing."""
     if not mode_name:
+        return None
+    if not isinstance(mode_name, str):
+        logger.warning(
+            "[SimulationContext] Rendering mode name must be str, got %s; skipping profile lookup.",
+            type(mode_name).__name__,
+        )
         return None
     mode_cfg = mode_cfgs.get(mode_name)
     if mode_cfg is None:

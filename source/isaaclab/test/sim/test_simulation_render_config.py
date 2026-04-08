@@ -47,7 +47,8 @@ def test_rendering_mode_presets():
 
         settings = get_settings_manager()
         for key, val in preset_dict.items():
-            setting_name = "/" + key.replace(".", "/")
+            # Preset keys are already absolute carb paths (e.g. "/rtx/..."); avoid a double leading slash.
+            setting_name = key if key.startswith("/") else "/" + key.replace(".", "/")
             expected = dlss_override if setting_name == "/rtx/post/dlss/execMode" else val
             assert settings.get(setting_name) == expected, (
                 f"Mismatch for '{setting_name}' in mode '{mode_name}': "
