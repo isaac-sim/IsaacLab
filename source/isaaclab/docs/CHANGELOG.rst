@@ -11,11 +11,13 @@ Changed
   into a single implementation. :class:`Camera` now delegates all rendering to the
   :class:`~isaaclab.renderers.Renderer` abstraction (same approach :class:`TiledCamera` used).
   The public API is unchanged for :class:`Camera` users.
-* **Breaking (TiledCamera users):** :attr:`~isaaclab.sensors.camera.CameraData.info` now correctly
-  returns ``list[dict[str, Any]]`` (per-camera, then per-data-type) as documented in
-  :class:`~isaaclab.sensors.camera.CameraData`. :class:`TiledCamera` previously returned a flat
-  ``dict``, which violated the documented contract. Migration: replace
-  ``camera.data.info[data_type]`` with ``camera.data.info[cam_idx][data_type]``.
+* **Breaking:** :attr:`~isaaclab.sensors.camera.CameraData.info` is now a flat
+  ``dict[str, Any]`` keyed by data type (e.g. ``camera.data.info["semantic_segmentation"]``).
+  The metadata is shared across all cameras and identical to what the underlying renderer returns.
+
+  - **Camera users (old):** replace ``camera.data.info[cam_idx][data_type]`` with
+    ``camera.data.info[data_type]``.
+  - **TiledCamera users (old):** access pattern ``camera.data.info[data_type]`` is unchanged.
 
 Deprecated
 ^^^^^^^^^^

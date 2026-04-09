@@ -567,7 +567,7 @@ class Camera(SensorBase):
                 ).contiguous()
 
         self._data.output = data_dict
-        self._data.info = [{name: None for name in self.cfg.data_types} for _ in range(self._view.count)]
+        self._data.info = {name: None for name in self.cfg.data_types}
         self._renderer.set_outputs(self._render_data, self._data.output)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):

@@ -109,7 +109,7 @@ def test_camera_init(setup_sim_camera):
     assert camera.data.quat_w_opengl.shape == (1, 4)
     assert camera.data.intrinsic_matrices.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
-    assert camera.data.info == [{camera_cfg.data_types[0]: None}]
+    assert camera.data.info == {camera_cfg.data_types[0]: None}
 
     # Simulate physics
     for _ in range(10):
@@ -939,9 +939,9 @@ def test_camera_all_annotators(setup_camera_device, device):
     assert output["semantic_segmentation"].dtype == torch.uint8
     assert output["instance_segmentation_fast"].dtype == torch.uint8
     assert output["instance_id_segmentation_fast"].dtype == torch.uint8
-    assert isinstance(info[0]["semantic_segmentation"], dict)
-    assert isinstance(info[0]["instance_segmentation_fast"], dict)
-    assert isinstance(info[0]["instance_id_segmentation_fast"], dict)
+    assert isinstance(info["semantic_segmentation"], dict)
+    assert isinstance(info["instance_segmentation_fast"], dict)
+    assert isinstance(info["instance_id_segmentation_fast"], dict)
 
     del camera
 
@@ -972,7 +972,7 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
     for seg_type in camera_cfg.data_types:
         assert camera.data.output[seg_type].shape == (num_cameras, camera_cfg.height, camera_cfg.width, 1)
         assert camera.data.output[seg_type].dtype == torch.int32
-        assert isinstance(camera.data.info[0][seg_type], dict)
+        assert isinstance(camera.data.info[seg_type], dict)
 
     del camera
 

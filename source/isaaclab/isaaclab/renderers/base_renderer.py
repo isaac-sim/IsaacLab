@@ -97,7 +97,8 @@ class BaseRenderer(ABC):
         """Read a named output from the renderer into the camera data container.
 
         Implementations should populate ``camera_data.output[output_name]`` with
-        rendered data and, when available, other metadata (ex. ``camera_data.info``).
+        rendered data and, when available, ``camera_data.info[output_name]`` with
+        annotator metadata (e.g. ``idToLabels`` for segmentation types).
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.

@@ -332,8 +332,7 @@ class IsaacRtxRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
         info = render_data.renderer_info.get(output_name)
         if info is not None:
-            for cam_info in camera_data.info:
-                cam_info[output_name] = info
+            camera_data.info[output_name] = info
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators from render product.
