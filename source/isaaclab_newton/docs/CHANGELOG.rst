@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+0.5.16 (2026-04-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.KaminoSolverCfg` to support Newton's Kamino
+  solver backend, a Proximal-ADMM based solver for constrained rigid multi-body dynamics.
+
+Fixed
+^^^^^
+
+* Fixed environment resets for the Kamino solver. Articulation state write methods now
+  set a ``_kamino_needs_fk`` flag via :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk`,
+  consumed in :meth:`~isaaclab_newton.physics.NewtonManager.step` before physics stepping.
+  This calls ``SolverKamino.reset()`` with the FK solver to compute consistent body poses
+  and reinitialise internal solver state (``joint_q_prev``, constraint multipliers, warm-start
+  containers) that would otherwise become stale after resets.
+
+* Fixed CUDA error 700 (illegal memory access) when calling ``SolverKamino.reset()`` after
+  CUDA graph capture. Kamino allocates internal state arrays (``joint_q_prev``,
+  ``body_f_total``, FK solver buffers) during graph capture via ``wp.clone``/``wp.zeros``.
+  These memory-pool addresses became stale before the first graph replay. Added a warm-up
+  ``wp.capture_launch`` for Kamino immediately after graph capture to pin the allocations.
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_newton.physics.KaminoSolverCfg.use_fk_solver` default from
+  ``False`` to ``True``. Required for proper environment resets with the Kamino solver.
+
+
 0.5.15 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -123,38 +155,6 @@ Changed
   :class:`~isaaclab_newton.assets.Articulation` initialization that logged body
   names, joint names, and instance counts. Articulation joint parameter tables and
   actuator group summaries are retained.
-
-
-0.5.7 (2026-03-11)
-~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
-
-* Added :class:`~isaaclab_newton.physics.KaminoSolverCfg` to support Newton's Kamino
-  solver backend, a Proximal-ADMM based solver for constrained rigid multi-body dynamics.
-
-Fixed
-^^^^^
-
-* Fixed environment resets for the Kamino solver. Articulation state write methods now
-  set a ``_kamino_needs_fk`` flag via :meth:`~isaaclab_newton.physics.NewtonManager.notify_state_written`,
-  consumed in :meth:`~isaaclab_newton.physics.NewtonManager.step` before physics stepping.
-  This calls ``SolverKamino.reset()`` with the FK solver to compute consistent body poses
-  and reinitialise internal solver state (``joint_q_prev``, constraint multipliers, warm-start
-  containers) that would otherwise become stale after resets.
-
-* Fixed CUDA error 700 (illegal memory access) when calling ``SolverKamino.reset()`` after
-  CUDA graph capture. Kamino allocates internal state arrays (``joint_q_prev``,
-  ``body_f_total``, FK solver buffers) during graph capture via ``wp.clone``/``wp.zeros``.
-  These memory-pool addresses became stale before the first graph replay. Added a warm-up
-  ``wp.capture_launch`` for Kamino immediately after graph capture to pin the allocations.
-
-Changed
-^^^^^^^
-
-* Changed :attr:`~isaaclab_newton.physics.KaminoSolverCfg.use_fk_solver` default from
-  ``False`` to ``True``. Required for proper environment resets with the Kamino solver.
 
 
 0.5.6 (2026-03-10)

@@ -68,26 +68,6 @@ def _set_fabric_transforms(
     fabric_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
 
 
-@wp.kernel(enable_backward=False)
-def _extract_strided_float_array(
-    src: wp.array(dtype=wp.float32),
-    dst: wp.array(dtype=wp.float32),
-    src_stride: int,
-    dst_stride: int,
-    src_offset: int,
-):
-    """Copy float data from src to dst with per-world stride and offset.
-
-    For each world ``w`` and element ``j`` (2D thread index ``(w, j)``):
-    ``dst[w * dst_stride + j] = src[w * src_stride + src_offset + j]``
-
-    Used to extract Kamino-format joint arrays from Newton state by stripping
-    free-joint (floating base) coordinates.
-    """
-    w, j = wp.tid()
-    dst[w * dst_stride + j] = src[w * src_stride + src_offset + j]
-
-
 class NewtonManager(PhysicsManager):
     """Newton physics manager for Isaac Lab.
 
@@ -131,17 +111,6 @@ class NewtonManager(PhysicsManager):
 
     # Kamino solver: pending FK flag (set by write methods, consumed by step/forward)
     _kamino_needs_fk: bool = False
-
-    # Kamino solver reset state (precomputed for forward() → solver.reset())
-    _kamino_has_free_joint: bool = False
-    _kamino_free_q_count: int = 0
-    _kamino_free_dof_count: int = 0
-    _kamino_newton_q_per_world: int = 0
-    _kamino_newton_dof_per_world: int = 0
-    _kamino_q_per_world: int = 0
-    _kamino_dof_per_world: int = 0
-    _kamino_joint_q = None  # Preallocated Kamino-format joint coords (only for floating-base)
-    _kamino_joint_u = None  # Preallocated Kamino-format joint velocities (only for floating-base)
 
     # CUDA graphing
     _graph = None
@@ -382,6 +351,9 @@ class NewtonManager(PhysicsManager):
             cls._graph_capture_pending = False
             cls._graph = cls._capture_relaxed_graph(device)
             if cls._graph is not None:
+                # Kamino warm-up: pin memory-pool allocations (same as standard capture path).
+                if isinstance(cls._solver, SolverKamino):
+                    wp.capture_launch(cls._graph)
                 logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
             else:
                 logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
@@ -471,15 +443,6 @@ class NewtonManager(PhysicsManager):
         cls._views = []
         # Kamino state
         cls._kamino_needs_fk = False
-        cls._kamino_has_free_joint = False
-        cls._kamino_free_q_count = 0
-        cls._kamino_free_dof_count = 0
-        cls._kamino_newton_q_per_world = 0
-        cls._kamino_newton_dof_per_world = 0
-        cls._kamino_q_per_world = 0
-        cls._kamino_dof_per_world = 0
-        cls._kamino_joint_q = None
-        cls._kamino_joint_u = None
 
     @classmethod
     def set_builder(cls, builder: ModelBuilder) -> None:
@@ -957,13 +920,10 @@ class NewtonManager(PhysicsManager):
                         use_acceleration=cfg_dict.get("padmm_use_acceleration", True),
                         use_graph_conditionals=cfg_dict.get("padmm_use_graph_conditionals", True),
                         warmstart_mode=cfg_dict.get("padmm_warmstart_mode", "containers"),
-                        contact_warmstart_method=cfg_dict.get(
-                            "padmm_contact_warmstart_method", "key_and_position"
-                        ),
+                        contact_warmstart_method=cfg_dict.get("padmm_contact_warmstart_method", "key_and_position"),
                     ),
                 )
                 cls._solver = SolverKamino(cls._model, kamino_config)
-                cls._setup_kamino_reset_state()
             else:
                 raise ValueError(f"Invalid solver type: {cls._solver_type}")
 
@@ -1035,63 +995,6 @@ class NewtonManager(PhysicsManager):
                     logger.info("Newton CUDA graph capture deferred until first step() (RTX active)")
             else:
                 cls._graph = None
-
-    @classmethod
-    def _setup_kamino_reset_state(cls) -> None:
-        """Precompute sizes and buffers for Kamino solver reset in ``forward()``.
-
-        Detects whether the model has a floating base (free joint) and precomputes
-        the per-world offsets needed to extract Kamino-format joint arrays from
-        Newton's state. For floating-base models, preallocates intermediate
-        arrays that strip the free-joint coordinates.
-        """
-        num_worlds = cls._num_envs or 1
-        device = PhysicsManager._device
-
-        # Get total joint coordinate and dof counts from the state arrays
-        newton_q_total = cls._state_0.joint_q.shape[0]
-        newton_dof_total = cls._state_0.joint_qd.shape[0]
-        newton_q_pw = newton_q_total // num_worlds
-        newton_dof_pw = newton_dof_total // num_worlds
-
-        # Detect free joint (floating base) by checking the first joint's coordinate count
-        joint_q_start = cls._model.joint_q_start.numpy()
-        joints_per_world = cls._model.joint_count // num_worlds
-        has_free = False
-        free_q = 0
-        free_dof = 0
-        if joints_per_world > 0:
-            first_joint_q_count = int(joint_q_start[1] - joint_q_start[0])
-            if first_joint_q_count == 7:  # Free joint: 3 pos + 4 quat
-                has_free = True
-                free_q = 7
-                free_dof = 6  # 3 linear + 3 angular
-
-        kamino_q_pw = newton_q_pw - free_q
-        kamino_dof_pw = newton_dof_pw - free_dof
-
-        cls._kamino_has_free_joint = has_free
-        cls._kamino_free_q_count = free_q
-        cls._kamino_free_dof_count = free_dof
-        cls._kamino_newton_q_per_world = newton_q_pw
-        cls._kamino_newton_dof_per_world = newton_dof_pw
-        cls._kamino_q_per_world = kamino_q_pw
-        cls._kamino_dof_per_world = kamino_dof_pw
-
-        if has_free:
-            kamino_q_total = kamino_q_pw * num_worlds
-            kamino_dof_total = kamino_dof_pw * num_worlds
-            cls._kamino_joint_q = wp.zeros(kamino_q_total, dtype=wp.float32, device=device)
-            cls._kamino_joint_u = wp.zeros(kamino_dof_total, dtype=wp.float32, device=device)
-            logger.info(
-                "Kamino reset: floating-base detected (free_q=%d, free_dof=%d), newton_q_pw=%d, kamino_q_pw=%d",
-                free_q,
-                free_dof,
-                newton_q_pw,
-                kamino_q_pw,
-            )
-        else:
-            logger.info("Kamino reset: fixed-base, newton_q_pw=%d", newton_q_pw)
 
     @classmethod
     def _capture_relaxed_graph(cls, device: str):
