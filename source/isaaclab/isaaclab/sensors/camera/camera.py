@@ -156,9 +156,9 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Create empty variables for storing output data
         self._data = CameraData()
-        # Renderer and render data — initialized in _initialize_impl
-        self.renderer: BaseRenderer | None = None
-        self.render_data = None
+        # Renderer and render data — assigned in _initialize_impl.
+        self._renderer: BaseRenderer | None = None
+        self._render_data = None
 
         if not has_kit():
             return
@@ -181,8 +181,8 @@ class Camera(SensorBase):
         # unsubscribe callbacks
         super().__del__()
         # cleanup render resources (renderer may be None if never initialized)
-        if hasattr(self, "renderer") and self.renderer is not None:
-            self.renderer.cleanup(getattr(self, "render_data", None))
+        if self._renderer is not None:
+            self._renderer.cleanup(self._render_data)
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -409,12 +409,12 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
 
-        self.renderer = Renderer(self.cfg.renderer_cfg)
-        logger.info("Using renderer: %s", type(self.renderer).__name__)
+        self._renderer = Renderer(self.cfg.renderer_cfg)
+        logger.info("Using renderer: %s", type(self._renderer).__name__)
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
-        self.renderer.prepare_stage(self.stage, self._num_envs)
+        self._renderer.prepare_stage(self.stage, self._num_envs)
 
         # Create a view for the sensor with Fabric enabled for fast pose queries.
         # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
@@ -444,7 +444,7 @@ class Camera(SensorBase):
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
         # View needs to exist before creating render data
-        self.render_data = self.renderer.create_render_data(self)
+        self._render_data = self._renderer.create_render_data(self)
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
@@ -459,13 +459,13 @@ class Camera(SensorBase):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
-        self.renderer.update_transforms()
-        self.renderer.render(self.render_data)
+        self._renderer.update_transforms()
+        self._renderer.render(self._render_data)
 
         for output_name in self._data.output:
             if output_name == "rgb":
                 continue
-            self.renderer.read_output(self.render_data, output_name, self._data)
+            self._renderer.read_output(self._render_data, output_name, self._data)
 
     """
     Private Helpers
@@ -568,7 +568,7 @@ class Camera(SensorBase):
 
         self._data.output = data_dict
         self._data.info = [{name: None for name in self.cfg.data_types} for _ in range(self._view.count)]
-        self.renderer.set_outputs(self.render_data, self._data.output)
+        self._renderer.set_outputs(self._render_data, self._data.output)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
         """Compute camera's matrix of intrinsic parameters.
@@ -622,9 +622,9 @@ class Camera(SensorBase):
             quat, origin="opengl", target="world"
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
-        if self.render_data is not None:
-            self.renderer.update_camera(
-                self.render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
+        if self._render_data is not None:
+            self._renderer.update_camera(
+                self._render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
             )
 
     """
