@@ -153,32 +153,12 @@ def apply_mode_profile_to_visualizer_cfg(
     visualizer_cfg: Any,
     mode_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
-    *,
-    cache: dict[int, str | None] | None = None,
-    cache_key: int | None = None,
 ) -> None:
-    """Resolve and apply rendering mode profile for a Kit visualizer (RTX / carb settings).
-
-    Pass ``cache`` and ``cache_key`` (typically ``id(viz)``) when updating an active visualizer each
-    frame so we skip redundant carb work when the effective profile name is unchanged—including
-    when the name is missing from ``mode_cfgs`` (avoids repeated warnings).
-    """
-    if (cache is None) != (cache_key is None):
-        raise ValueError("apply_mode_profile_to_visualizer_cfg: pass both `cache` and `cache_key`, or neither.")
+    """Resolve and apply rendering mode profile for a Kit visualizer (RTX / carb settings)."""
     if getattr(visualizer_cfg, "visualizer_type", None) != "kit":
         return
     mode_name = resolve_effective_rendering_mode_name(get_setting, visualizer_cfg)
-
-    if cache is not None and cache_key is not None:
-        if cache.get(cache_key) == mode_name:
-            return
-
     mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
     if mode_cfg is None:
-        if cache is not None and cache_key is not None:
-            cache[cache_key] = mode_name
         return
-
     apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
-    if cache is not None and cache_key is not None:
-        cache[cache_key] = mode_name

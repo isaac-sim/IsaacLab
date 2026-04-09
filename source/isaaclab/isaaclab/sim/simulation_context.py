@@ -167,7 +167,6 @@ class SimulationContext:
         # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
-        self._visualizer_mode_keys: dict[int, str | None] = {}
         self._scene_data_requirements = SceneDataRequirement()
         self._visualizer_prebuilt_artifact: VisualizerPrebuiltArtifacts | None = None
         self._visualizer_step_counter = 0
@@ -199,19 +198,6 @@ class SimulationContext:
             visualizer_cfg,
             mode_cfgs,
             logger,
-        )
-
-    def _apply_runtime_mode_profile_to_visualizer(self, viz: BaseVisualizer) -> None:
-        """Apply rendering-mode profile updates to an active Kit visualizer instance."""
-        mode_cfgs = self.cfg.rendering_mode_cfgs
-        apply_mode_profile_to_visualizer_cfg(
-            self.get_setting,
-            self.set_setting,
-            viz.cfg,
-            mode_cfgs,
-            logger,
-            cache=self._visualizer_mode_keys,
-            cache_key=id(viz),
         )
 
     def _init_usd_physics_scene(self) -> None:
@@ -622,7 +608,6 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
-                self._apply_runtime_mode_profile_to_visualizer(viz)
                 if viz.is_closed or not viz.is_running():
                     if viz.is_closed:
                         logger.info("Visualizer closed: %s", type(viz).__name__)
@@ -641,7 +626,6 @@ class SimulationContext:
 
         for viz in visualizers_to_remove:
             try:
-                self._visualizer_mode_keys.pop(id(viz), None)
                 viz.close()
                 self._visualizers.remove(viz)
                 logger.info("Removed visualizer: %s", type(viz).__name__)
@@ -716,7 +700,6 @@ class SimulationContext:
 
             # Close all visualizers
             for viz in cls._instance._visualizers:
-                cls._instance._visualizer_mode_keys.pop(id(viz), None)
                 viz.close()
             cls._instance._visualizers.clear()
             if cls._instance._scene_data_provider is not None:
