@@ -223,7 +223,7 @@ class NewtonManager(PhysicsManager):
         Runs Newton's generic forward kinematics (``eval_fk``) to compute body poses
         from joint coordinates. For :class:`SolverKamino`, the full solver reset
         (which reinitialises internal state) is deferred to :meth:`step` via the
-        ``_kamino_needs_fk`` flag — see :meth:`notify_state_written`.
+        ``_kamino_needs_fk`` flag — see :meth:`invalidate_fk`.
         """
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
         cls._fk_dirty = False

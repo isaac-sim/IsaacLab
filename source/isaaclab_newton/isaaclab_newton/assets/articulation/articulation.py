@@ -504,7 +504,6 @@ class Articulation(BaseArticulation):
             self.data._body_link_state_w.timestamp = -1.0
         if self.data._body_com_state_w is not None:
             self.data._body_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -561,7 +560,6 @@ class Articulation(BaseArticulation):
             self.data._body_link_state_w.timestamp = -1.0
         if self.data._body_com_state_w is not None:
             self.data._body_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -627,7 +625,6 @@ class Articulation(BaseArticulation):
             self.data._body_link_state_w.timestamp = -1.0
         if self.data._body_com_state_w is not None:
             self.data._body_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -689,7 +686,6 @@ class Articulation(BaseArticulation):
             self.data._body_link_state_w.timestamp = -1.0
         if self.data._body_com_state_w is not None:
             self.data._body_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_root_velocity_to_sim_index(
         self,
@@ -792,7 +788,6 @@ class Articulation(BaseArticulation):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -841,7 +836,6 @@ class Articulation(BaseArticulation):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -899,7 +893,6 @@ class Articulation(BaseArticulation):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -954,7 +947,6 @@ class Articulation(BaseArticulation):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_joint_state_to_sim_mask(
         self,
@@ -1039,7 +1031,6 @@ class Articulation(BaseArticulation):
             self.data._body_link_state_w.timestamp = -1.0
         if self.data._body_com_state_w is not None:
             self.data._body_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1095,7 +1086,6 @@ class Articulation(BaseArticulation):
             self.data._body_link_state_w.timestamp = -1.0
         if self.data._body_com_state_w is not None:
             self.data._body_com_state_w.timestamp = -1.0
-        SimulationManager.notify_state_written()
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -1138,7 +1128,6 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        SimulationManager.notify_state_written()
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -1179,7 +1168,6 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        SimulationManager.notify_state_written()
 
     """
     Operations - Simulation Parameters Writers.
