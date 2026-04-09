@@ -451,7 +451,7 @@ class AppLauncher:
             choices={"performance", "balanced", "quality"},
             help=(
                 "When passed, selects RenderingModeCfg presets for overwriting rendering settings of all Renderers"
-                "and Visualizers."
+                "When passed, selects RenderingModeCfg presets for overwriting rendering settings of all Renderers "
             ),
         )
         arg_group.add_argument(
