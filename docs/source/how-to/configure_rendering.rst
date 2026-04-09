@@ -177,25 +177,31 @@ specific settings of presets via ``kit_*`` fields (option 1) or by defining and 
 Current Limitations
 -------------------
 
-For performance reasons, we default to using DLSS for denoising, which generally runs faster.
-This may result in renders of lower quality, especially at lower resolutions.
+For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
+This may result in renders of lower quality, which may be especially evident at lower resolutions.
 Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
-For renders at lower resolutions, we advise setting
-``kit_antialiasing_mode="DLAA"`` in
-:class:`~isaaclab.rendering_mode.RenderingModeCfg`, and potentially enabling
-``kit_enable_dl_denoiser=True``. Both settings can improve quality at a cost
-of performance.
+For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
+``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
+quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.
 
 
-If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can set
-:attr:`~isaaclab.rendering_mode.RenderingModeCfg.kit_disocclusion_scale` on your profile. It maps to carb
-``/rtx/aovConverter/disocclusionScale`` and controls how aggressively the renderer handles areas that become
-newly visible between frames.
+If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try
+adjusting the ``disocclusionScale`` parameter. This setting controls how aggressively the renderer handles
+areas that become newly visible between frames:
+
+.. code-block:: python
+
+   render_cfg = sim_utils.RenderCfg(
+      carb_settings={
+         "/rtx/aovConverter/disocclusionScale": 10000,
+      }
+   )
 
 .. note::
 
-   This knob can have side effects in some scenarios. Prefer tuning other quality settings first; only raise
-   ``kit_disocclusion_scale`` (often to a very high value) if artifacts persist.
+   This parameter is not commonly exposed as it may have side effects in certain scenarios.
+   Only use it as a last resort if other quality settings do not resolve the visual artifacts.
+   The value can be adjusted to a very high value to reduce disocclusion artifacts.
 
 
 Rendering UsdVol 3D Gaussian Scenes in Multiple Environments
@@ -203,28 +209,15 @@ Rendering UsdVol 3D Gaussian Scenes in Multiple Environments
 
 When using UsdVol volumes with 3D Gaussian particles (e.g. exported from
 `3DGRUT <https://github.com/nv-tlabs/3dgrut?tab=readme-ov-file#exporting-usdz-for-use-in-omniverse-and-isaac-sim>`_)
-in **multiple environments**, you must set ``kit_nre_compositing_renderer_hints=3`` (carb
-``/omni/rtx/nre/compositing/rendererHints``) so the renderer uses the correct compositing path—the same value
-Isaac Lab sets in its rendering experience files.
+in **multiple environments**, you must set the following so the renderer uses the correct compositing path:
 
 .. code-block:: python
 
-   from isaaclab.rendering_mode import RenderingModeCfg
-   from isaaclab_physx.visualizers import KitVisualizerCfg
-
-   sim_cfg = sim_utils.SimulationCfg(
-       rendering_mode_cfgs={
-           "gaussian_multi_env": RenderingModeCfg(
-               kit_nre_compositing_renderer_hints=3,
-           ),
-       },
-       visualizer_cfgs=[KitVisualizerCfg(rendering_mode="gaussian_multi_env")],
+   render_cfg = sim_utils.RenderCfg(
+      carb_settings={
+         "omni.rtx.nre.compositing.rendererHints": 3,
+      }
    )
-
-   # RTX cameras: use the same profile name on ``renderer_cfg.rendering_mode``.
-
-If tiled rendering shows ghosting or disocclusion artifacts with this content, you can add
-:attr:`~isaaclab.rendering_mode.RenderingModeCfg.kit_disocclusion_scale` on the same profile (e.g. ``10000.0``).
 
 .. warning::
 

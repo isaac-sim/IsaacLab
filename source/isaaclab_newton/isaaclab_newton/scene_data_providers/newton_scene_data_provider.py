@@ -43,7 +43,7 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         self._num_envs: int | None = None
         self._warned_once: set[str] = set()
 
-        # Determine if usd stage sync is required for selected visualizers and renderers
+        # Determine if usd stage sync is required for selected renderers and visualizers
         requirements = self._simulation_context.get_scene_data_requirements()
         self._needs_usd_sync = bool(requirements.requires_usd_stage)
 
