@@ -59,6 +59,7 @@ from .ovrtx_usd import (
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
+    from isaaclab.sensors.camera.camera_data import CameraData
 
 
 class OVRTXRenderData:
@@ -387,21 +388,17 @@ class OVRTXRenderer(BaseRenderer):
                 wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.copy(wp_transforms_view, camera_transforms)
 
-    def get_output_info(self, render_data: OVRTXRenderData) -> dict[str, Any] | None:
-        """No metadata for OVRTX.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.get_output_info`."""
-        return None
-
-    def write_output(
+    def read_output(
         self,
         render_data: OVRTXRenderData,
         output_name: str,
-        output_data: torch.Tensor,
+        camera_data: CameraData,
     ) -> None:
-        """Copy from render_data warp buffer to output tensor."""
+        """Copy from render_data warp buffer to camera data output tensor."""
         if output_name not in render_data.warp_buffers:
             return
         src = render_data.warp_buffers[output_name]
+        output_data = camera_data.output[output_name]
         if src.ptr != output_data.data_ptr():
             wp.copy(dest=wp.from_torch(output_data), src=src)
 

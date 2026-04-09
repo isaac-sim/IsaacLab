@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
+    from isaaclab.sensors.camera.camera_data import CameraData
 
     from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
@@ -326,15 +327,13 @@ class IsaacRtxRenderer(BaseRenderer):
                     0.0 if cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 )
 
-    def get_output_info(self, render_data: IsaacRtxRenderData) -> dict[str, Any] | None:
-        """Return segmentation label mappings collected during render().
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.get_output_info`."""
-        return render_data.renderer_info
-
-    def write_output(self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor):
-        """No-op for Isaac RTX - all outputs written in render().
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""
-        pass
+    def read_output(self, render_data: IsaacRtxRenderData, output_name: str, camera_data: CameraData) -> None:
+        """Populate per-output metadata collected during render(). Pixel data already written in render().
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
+        info = render_data.renderer_info.get(output_name)
+        if info is not None:
+            for cam_info in camera_data.info:
+                cam_info[output_name] = info
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators from render product.

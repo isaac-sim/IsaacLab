@@ -445,7 +445,6 @@ class Camera(SensorBase):
 
         # View needs to exist before creating render data
         self.render_data = self.renderer.create_render_data(self)
-        self._renderer_info_populated = False
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
@@ -463,18 +462,10 @@ class Camera(SensorBase):
         self.renderer.update_transforms()
         self.renderer.render(self.render_data)
 
-        for output_name, output_data in self._data.output.items():
+        for output_name in self._data.output:
             if output_name == "rgb":
                 continue
-            self.renderer.write_output(self.render_data, output_name, output_data)
-
-        if not self._renderer_info_populated:
-            renderer_info = self.renderer.get_output_info(self.render_data)
-            if renderer_info:
-                for data_type, metadata in renderer_info.items():
-                    for cam_idx in range(self._view.count):
-                        self._data.info[cam_idx][data_type] = metadata
-                self._renderer_info_populated = True
+            self.renderer.read_output(self.render_data, output_name, self._data)
 
     """
     Private Helpers
