@@ -11,6 +11,10 @@ ALIGNMENT_WORLD = wp.constant(0)
 ALIGNMENT_YAW = wp.constant(1)
 ALIGNMENT_BASE = wp.constant(2)
 
+# Upper-bound ray-cast distance [m] used by camera classes. The actual depth-clipping is applied
+# as a post-process step per data type, so the kernel is always given a large budget.
+CAMERA_RAYCAST_MAX_DIST: float = 1e6
+
 
 @wp.func
 def quat_yaw_only(
@@ -308,20 +312,23 @@ def compute_distance_to_image_plane_masked_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def apply_depth_clipping_max_masked_kernel(
+def apply_depth_clipping_masked_kernel(
     # input
     env_mask: wp.array(dtype=wp.bool),
     max_dist: wp.float32,
+    fill_val: wp.float32,
     # output
     depth: wp.array2d(dtype=wp.float32),
 ):
-    """Clip depth values to max_dist (replacing values above max_dist and NaN with max_dist).
+    """Clip depth values in-place, replacing values above max_dist or NaN with fill_val.
 
     Launch with dim=(num_envs, num_rays).
 
     Args:
         env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
-        max_dist: Maximum depth value [m]. Values above this are set to max_dist.
+        max_dist: Maximum depth threshold [m].
+        fill_val: Replacement value [m] written for depths exceeding max_dist or NaN.
+            Pass ``max_dist`` for "max" clipping or ``0.0`` for "zero" clipping.
         depth: Depth buffer to clip in-place. Shape is (num_envs, num_rays).
     """
     env, ray = wp.tid()
@@ -329,29 +336,4 @@ def apply_depth_clipping_max_masked_kernel(
         return
     val = depth[env, ray]
     if val > max_dist or wp.isnan(val):
-        depth[env, ray] = max_dist
-
-
-@wp.kernel(enable_backward=False)
-def apply_depth_clipping_zero_masked_kernel(
-    # input
-    env_mask: wp.array(dtype=wp.bool),
-    max_dist: wp.float32,
-    # output
-    depth: wp.array2d(dtype=wp.float32),
-):
-    """Clip depth values to zero for values exceeding max_dist or NaN.
-
-    Launch with dim=(num_envs, num_rays).
-
-    Args:
-        env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
-        max_dist: Maximum depth threshold [m]. Values above this are set to zero.
-        depth: Depth buffer to clip in-place. Shape is (num_envs, num_rays).
-    """
-    env, ray = wp.tid()
-    if not env_mask[env]:
-        return
-    val = depth[env, ray]
-    if val > max_dist or wp.isnan(val):
-        depth[env, ray] = wp.float32(0.0)
+        depth[env, ray] = fill_val

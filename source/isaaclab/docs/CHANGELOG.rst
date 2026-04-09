@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+4.5.32 (2026-04-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Unified ``apply_depth_clipping_max_masked_kernel`` and ``apply_depth_clipping_zero_masked_kernel``
+  into a single :func:`~isaaclab.sensors.ray_caster.kernels.apply_depth_clipping_masked_kernel` with
+  a ``fill_val`` parameter, eliminating kernel duplication.
+* Moved ``CAMERA_RAYCAST_MAX_DIST`` to :mod:`~isaaclab.sensors.ray_caster.kernels` so both
+  :class:`~isaaclab.sensors.RayCasterCamera` and :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`
+  share the same upper-bound ray-cast distance, fixing a behavioral divergence where
+  ``MultiMeshRayCasterCamera`` previously used ``cfg.max_distance`` as the kernel limit.
+* Replaced per-step ``wp.from_torch`` re-wrapping of offset buffers in
+  :class:`~isaaclab.sensors.RayCasterCamera` with warp-primary buffers and zero-copy torch views,
+  removing hidden per-step allocations.
+* Extracted ``_update_mesh_transforms()`` from :class:`~isaaclab.sensors.MultiMeshRayCaster` and
+  called it from :class:`~isaaclab.sensors.MultiMeshRayCasterCamera` instead of duplicating the loop.
+* Added ``_apply_depth_clipping()`` helper to :class:`~isaaclab.sensors.RayCasterCamera` and unified
+  both camera classes to use the same warp-kernel clipping path for all depth data types.
+* Cached the all-True ``env_mask`` in :func:`~isaaclab.utils.warp.ops.raycast_dynamic_meshes`
+  by ``(n_envs, device)`` to avoid a per-call boolean tensor allocation.
+
+
 4.5.31 (2026-04-09)
 ~~~~~~~~~~~~~~~~~~~
 
