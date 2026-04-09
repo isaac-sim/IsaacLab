@@ -1,5 +1,5 @@
 # for building the docs
-sphinx>=7.0,<9
+sphinx>=7.0,<8  # sphinx-multiversion 0.2.4 incompatible with Sphinx 8.x
 sphinx-book-theme>=1.1
 myst-parser
 sphinxcontrib-bibtex==2.5.0
