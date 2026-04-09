@@ -12,8 +12,7 @@ via ``from isaaclab.test.sim.xform_contract_tests import *`` and provide a
 
 The factory signature is::
 
-    def view_factory() -> Callable[[int, str], ViewBundle]:
-        ...
+    def view_factory() -> Callable[[int, str], ViewBundle]: ...
 
 Where ``ViewBundle`` is a :class:`NamedTuple`::
 
@@ -37,7 +36,8 @@ Tolerance policy:
 
 from __future__ import annotations
 
-from typing import Callable, NamedTuple
+from collections.abc import Callable
+from typing import NamedTuple
 
 import pytest
 import torch
@@ -121,8 +121,7 @@ def test_local_differs_from_world(device, view_factory):
 
         diff = (world_pos - local_pos).abs().max().item()
         assert diff > 0.5, (
-            f"Expected |world - local| > 0.5, got {diff:.4f}. "
-            f"world={world_pos.tolist()}, local={local_pos.tolist()}"
+            f"Expected |world - local| > 0.5, got {diff:.4f}. world={world_pos.tolist()}, local={local_pos.tolist()}"
         )
     finally:
         bundle.teardown()
@@ -314,9 +313,7 @@ def test_set_world_partial_orientation_only(device, view_factory):
     bundle = view_factory(num_envs=2, device=device)
     try:
         orig_pos, _ = bundle.view.get_world_poses()
-        new_quat = _wp_vec4f(
-            [[0.0, 0.0, 0.7071068, 0.7071068], [0.7071068, 0.0, 0.0, 0.7071068]], device=device
-        )
+        new_quat = _wp_vec4f([[0.0, 0.0, 0.7071068, 0.7071068], [0.7071068, 0.0, 0.0, 0.7071068]], device=device)
         bundle.view.set_world_poses(orientations=new_quat)
 
         ret_pos, ret_quat = bundle.view.get_world_poses()

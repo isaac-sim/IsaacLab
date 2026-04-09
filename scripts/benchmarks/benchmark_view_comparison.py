@@ -274,8 +274,6 @@ def _run_pose_benchmarks(
     orientations_t: torch.Tensor,
 ):
     """Shared benchmark loop for get/set world poses on any XformPrimView."""
-    device = args_cli.device
-
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         view.get_world_poses()
@@ -375,7 +373,11 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
     print(header)
     print("-" * 120)
 
-    operations = [("Initialization", "init"), ("Get World Poses", "get_world_poses"), ("Set World Poses", "set_world_poses")]
+    operations = [
+        ("Initialization", "init"),
+        ("Get World Poses", "get_world_poses"),
+        ("Set World Poses", "set_world_poses"),
+    ]
 
     for op_name, op_key in operations:
         row = f"{op_name:<25}"

@@ -21,15 +21,13 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
-import warp as wp  # noqa: E402
+from isaaclab_physx.sim.views import FabricXformPrimView as XformPrimView  # noqa: E402
+from xform_contract_tests import *  # noqa: F401, F403, E402
+from xform_contract_tests import CHILD_OFFSET, ViewBundle  # noqa: E402
 
 from pxr import Gf, UsdGeom  # noqa: E402
 
-from isaaclab_physx.sim.views import FabricXformPrimView as XformPrimView  # noqa: E402
-
 import isaaclab.sim as sim_utils  # noqa: E402
-from xform_contract_tests import *  # noqa: F401, F403, E402
-from xform_contract_tests import CHILD_OFFSET, ViewBundle  # noqa: E402
 
 PARENT_POS = (0.0, 0.0, 1.0)
 
@@ -92,12 +90,8 @@ def view_factory():
 
         stage = sim_utils.get_current_stage()
         for i in range(num_envs):
-            sim_utils.create_prim(
-                f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage
-            )
-            sim_utils.create_prim(
-                f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage
-            )
+            sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage)
+            sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage)
 
         sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
         view = XformPrimView("/World/Parent_.*/Child", device=device)

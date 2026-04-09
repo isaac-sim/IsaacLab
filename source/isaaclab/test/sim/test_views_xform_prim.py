@@ -25,12 +25,12 @@ try:
 except (ModuleNotFoundError, ImportError):
     _IsaacSimXformPrimView = None
 
+from xform_contract_tests import *  # noqa: F401, F403, E402
+from xform_contract_tests import CHILD_OFFSET, ViewBundle  # noqa: E402
+
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim.views import UsdXformPrimView as XformPrimView  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
-
-from xform_contract_tests import *  # noqa: F401, F403, E402
-from xform_contract_tests import CHILD_OFFSET, ViewBundle  # noqa: E402
 
 PARENT_POS = (0.0, 0.0, 1.0)
 
@@ -64,7 +64,7 @@ def _get_parent_positions(num_envs, device="cpu"):
 
 def _set_parent_positions(positions, num_envs):
     """Write parent Xform positions to USD."""
-    from pxr import Sdf, Vt  # noqa: PLC0415
+    from pxr import Sdf  # noqa: PLC0415
 
     stage = sim_utils.get_current_stage()
     with Sdf.ChangeBlock():
@@ -81,12 +81,8 @@ def view_factory():
     def factory(num_envs: int, device: str) -> ViewBundle:
         stage = sim_utils.get_current_stage()
         for i in range(num_envs):
-            sim_utils.create_prim(
-                f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage
-            )
-            sim_utils.create_prim(
-                f"/World/Parent_{i}/Child", "Xform", translation=CHILD_OFFSET, stage=stage
-            )
+            sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage)
+            sim_utils.create_prim(f"/World/Parent_{i}/Child", "Xform", translation=CHILD_OFFSET, stage=stage)
 
         view = XformPrimView("/World/Parent_.*/Child", device=device)
         return ViewBundle(
@@ -227,12 +223,8 @@ def test_nested_hierarchy_world_poses(device):
     frames_view = XformPrimView("/World/Frame_.*", device=device)
     targets_view = XformPrimView("/World/Frame_.*/Target", device=device)
 
-    frames_view.set_local_poses(
-        translations=torch.tensor(frame_positions, device=device)
-    )
-    targets_view.set_local_poses(
-        translations=torch.tensor(target_positions, device=device)
-    )
+    frames_view.set_local_poses(translations=torch.tensor(frame_positions, device=device))
+    targets_view.set_local_poses(translations=torch.tensor(target_positions, device=device))
 
     world_pos = wp.to_torch(targets_view.get_world_poses()[0])
     expected = torch.tensor(
@@ -295,9 +287,7 @@ def test_with_franka_robots(device):
     torch.testing.assert_close(positions, torch.zeros(2, 3, device=device), atol=1e-5, rtol=0)
 
     new_pos = torch.tensor([[10.0, 10.0, 0.0], [-40.0, -40.0, 0.0]], device=device)
-    new_quat = torch.tensor(
-        [[0.0, 0.0, 0.7071068, 0.7071068], [0.0, 0.0, -0.7071068, 0.7071068]], device=device
-    )
+    new_quat = torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068], [0.0, 0.0, -0.7071068, 0.7071068]], device=device)
     view.set_world_poses(positions=new_pos, orientations=new_quat)
 
     ret_pos = wp.to_torch(view.get_world_poses()[0])

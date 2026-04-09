@@ -22,6 +22,8 @@ import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteXformPrimView as XformPrimView
+from xform_contract_tests import *  # noqa: F401, F403 — import all contract tests
+from xform_contract_tests import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
 
 from pxr import Gf
 
@@ -29,8 +31,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from xform_contract_tests import *  # noqa: F401, F403 — import all contract tests
-from xform_contract_tests import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
 from isaaclab.utils import configclass
 
 NEWTON_SIM_CFG = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
