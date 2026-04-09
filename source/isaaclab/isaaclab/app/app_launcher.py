@@ -31,7 +31,7 @@ with contextlib.suppress(ModuleNotFoundError):
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.rendering_mode.rendering_mode_utils import (
     CLI_RENDERING_MODE_PROFILE_PATH,
-    apply_kit_rendering_preset,
+    apply_rendering_mode_preset,
 )
 
 # import logger
@@ -1139,7 +1139,7 @@ class AppLauncher:
             and settings.is_omniverse_mode
         ):
             try:
-                apply_kit_rendering_preset(settings.set, rendering_mode)
+                apply_rendering_mode_preset(settings.set, rendering_mode)
             except Exception as e:
                 logger.warning(
                     "Could not apply Kit rendering preset %r to carb settings at launch: %s",

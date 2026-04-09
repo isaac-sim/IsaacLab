@@ -81,7 +81,7 @@ def test_rendering_mode_presets_apply_via_visualizer():
     from isaaclab_physx.visualizers import KitVisualizerCfg
 
     from isaaclab.app.settings_manager import get_settings_manager
-    from isaaclab.rendering_mode import get_kit_rendering_preset
+    from isaaclab.rendering_mode import get_rendering_mode_preset
     from isaaclab.sim.simulation_cfg import SimulationCfg
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -89,7 +89,7 @@ def test_rendering_mode_presets_apply_via_visualizer():
 
     for mode_name in ["performance", "balanced", "quality"]:
         SimulationContext.clear_instance()
-        preset_dict = get_kit_rendering_preset(mode_name)
+        preset_dict = get_rendering_mode_preset(mode_name)
         profile_name = f"profile_{mode_name}"
 
         cfg = SimulationCfg(

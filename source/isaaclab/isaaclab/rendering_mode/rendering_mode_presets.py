@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Built-in rendering mode presets for RTX/Kit rendering.
+"""Built-in RTX rendering mode presets (performance, balanced, quality).
 
-Presets are sourced from the latest Isaac Lab app rendering profiles (apps/rendering_modes).
+Carb path values align with Isaac Lab application rendering profiles under ``apps/rendering_modes/``.
 """
 
 from __future__ import annotations
@@ -13,8 +13,8 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-# Latest preset values sourced from apps/rendering_modes/*.kit.
-_KIT_PRESETS: dict[str, dict[str, Any]] = {
+# Carb settings for each built-in preset; kept in sync with apps/rendering_modes application profiles.
+_BUILTIN_RENDERING_MODE_PRESETS: dict[str, dict[str, Any]] = {
     "performance": {
         "/rtx/rtpt/cached/enabled": False,
         "/rtx/rtpt/lightcache/cached/enabled": False,
@@ -80,8 +80,8 @@ _KIT_PRESETS: dict[str, dict[str, Any]] = {
 }
 
 
-def get_kit_rendering_preset(preset_name: str) -> dict[str, Any]:
-    """Return a deep copy of the requested rendering preset."""
+def get_rendering_mode_preset(preset_name: str) -> dict[str, Any]:
+    """Return a deep copy of the requested built-in rendering mode preset."""
     if preset_name not in {"performance", "balanced", "quality"}:
         raise ValueError(f"Unknown preset '{preset_name}'.")
-    return deepcopy(_KIT_PRESETS[preset_name])
+    return deepcopy(_BUILTIN_RENDERING_MODE_PRESETS[preset_name])

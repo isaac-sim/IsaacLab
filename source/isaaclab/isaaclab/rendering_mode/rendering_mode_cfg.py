@@ -12,7 +12,8 @@ from isaaclab.utils import configclass
 
 @configclass
 class RenderingModeCfg:
-    """RTX/carb settings for `Omniverse RTX`_ (Kit viewport + Kit RTX camera renderers: ``default`` / ``isaac_rtx`` / ``rtx``).
+    """RTX/carb settings for `Omniverse RTX`_ (viewport + RTX camera renderers:
+    ``default`` / ``isaac_rtx`` / ``rtx``).
 
     Put named profiles in :attr:`~isaaclab.sim.SimulationCfg.rendering_mode_cfgs`, then set the same name on
     ``KitVisualizerCfg.rendering_mode`` or ``CameraCfg.renderer_cfg.rendering_mode`` (non-Kit renderers ignore it).
@@ -149,7 +150,8 @@ class RenderingModeCfg:
     """NRE compositing renderer hints (Isaac Lab rendering experiences use ``3``).
 
     Required for correct compositing when using UsdVol 3D Gaussian content across multiple environments.
-    Carb path: ``/omni/rtx/nre/compositing/rendererHints`` (see also ``omni.rtx.nre.compositing.rendererHints`` in app ``.kit`` files).
+    Carb path: ``/omni/rtx/nre/compositing/rendererHints`` (see also
+    ``omni.rtx.nre.compositing.rendererHints`` in application ``.kit`` files).
     """
 
     # TODO: Optional passthrough dict for arbitrary carb keys (cf. legacy RenderCfg.carb_settings).

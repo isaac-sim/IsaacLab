@@ -12,7 +12,7 @@ import logging
 from typing import Any
 
 from .rendering_mode_cfg import RenderingModeCfg
-from .rendering_mode_presets import get_kit_rendering_preset
+from .rendering_mode_presets import get_rendering_mode_preset
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ _cli_rendering_mode_resolution_warned = False
 # CLI profile name string; AppLauncher uses this leaf path (``set_string``).
 CLI_RENDERING_MODE_PROFILE_PATH = "/isaaclab/rendering/rendering_mode/profile"
 
-_KIT_FIELD_TO_CARB: dict[str, str] = {
+_RENDERING_MODE_FIELD_TO_CARB: dict[str, str] = {
     "kit_enable_translucency": "/rtx/translucency/enabled",
     "kit_enable_reflections": "/rtx/reflections/enabled",
     "kit_enable_global_illumination": "/rtx/indirectDiffuse/enabled",
@@ -81,27 +81,27 @@ def resolve_effective_rendering_mode_name(get_setting: Any, cfg: Any) -> str | N
     return getattr(cfg, "rendering_mode", None)
 
 
-def apply_kit_rendering_preset(set_setting: Any, preset_name: str) -> None:
-    """Apply a named kit preset via provided setting setter."""
-    preset = get_kit_rendering_preset(preset_name)
+def apply_rendering_mode_preset(set_setting: Any, preset_name: str) -> None:
+    """Apply a named built-in preset (performance / balanced / quality) via the provided setter."""
+    preset = get_rendering_mode_preset(preset_name)
     for key, value in preset.items():
         set_setting(key, value)
 
 
-def apply_kit_rendering_mode_cfg(set_setting: Any, mode_cfg: RenderingModeCfg) -> None:
-    """Apply kit-specific rendering mode fields."""
+def apply_rendering_mode_cfg(set_setting: Any, mode_cfg: RenderingModeCfg) -> None:
+    """Apply :class:`RenderingModeCfg` fields to carb (preset baseline + per-field overrides)."""
     if mode_cfg.rendering_mode_preset:
-        apply_kit_rendering_preset(set_setting, mode_cfg.rendering_mode_preset)
+        apply_rendering_mode_preset(set_setting, mode_cfg.rendering_mode_preset)
 
     # Replicator's set_render_rtx_realtime() can reset other RTX carb flags. Run it before applying
-    # explicit kit_* carb paths so user overrides remain authoritative.
+    # explicit per-field carb overrides so user settings remain authoritative.
     if mode_cfg.kit_antialiasing_mode is not None:
         with contextlib.suppress(Exception):
             import omni.replicator.core as rep
 
             rep.settings.set_render_rtx_realtime(antialiasing=mode_cfg.kit_antialiasing_mode)
 
-    for field_name, carb_key in _KIT_FIELD_TO_CARB.items():
+    for field_name, carb_key in _RENDERING_MODE_FIELD_TO_CARB.items():
         value = getattr(mode_cfg, field_name, None)
         if value is not None:
             set_setting(carb_key, value)
@@ -114,7 +114,7 @@ def apply_mode_profile_to_renderer_cfg(
     mode_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
 ) -> None:
-    """Resolve and apply a rendering mode profile to a Kit/RTX :class:`~isaaclab.renderers.RendererCfg` (in place)."""
+    """Resolve and apply a rendering mode profile to an RTX :class:`~isaaclab.renderers.RendererCfg` (in place)."""
     rtype = getattr(renderer_cfg, "renderer_type", None)
     if rtype not in ("default", "isaac_rtx", "rtx"):
         return
@@ -122,7 +122,7 @@ def apply_mode_profile_to_renderer_cfg(
     mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
     if mode_cfg is None:
         return
-    apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
+    apply_rendering_mode_cfg(set_setting, mode_cfg)
 
 
 def resolve_rendering_mode_cfg(
@@ -154,11 +154,11 @@ def apply_mode_profile_to_visualizer_cfg(
     mode_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
 ) -> None:
-    """Resolve and apply rendering mode profile for a Kit visualizer (RTX / carb settings)."""
+    """Resolve and apply rendering mode profile for a viewport visualizer (RTX / carb settings)."""
     if getattr(visualizer_cfg, "visualizer_type", None) != "kit":
         return
     mode_name = resolve_effective_rendering_mode_name(get_setting, visualizer_cfg)
     mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
     if mode_cfg is None:
         return
-    apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
+    apply_rendering_mode_cfg(set_setting, mode_cfg)
