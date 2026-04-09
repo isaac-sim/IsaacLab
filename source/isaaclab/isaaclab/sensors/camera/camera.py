@@ -19,7 +19,7 @@ from pxr import Sdf, UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import Renderer
+from isaaclab.renderers import BaseRenderer, Renderer
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils import has_kit, to_camel_case
 from isaaclab.utils.math import (
@@ -157,7 +157,7 @@ class Camera(SensorBase):
         # Create empty variables for storing output data
         self._data = CameraData()
         # Renderer and render data — initialized in _initialize_impl
-        self.renderer: Renderer | None = None
+        self.renderer: BaseRenderer | None = None
         self.render_data = None
 
         if not has_kit():
@@ -417,8 +417,7 @@ class Camera(SensorBase):
         self.renderer.prepare_stage(self.stage, self._num_envs)
 
         # Create a view for the sensor with Fabric enabled for fast pose queries.
-        # TODO: remove sync_usd_on_fabric_write=True once the GPU (cuda:0) Fabric sync bug in
-        # renderer.update_transforms() is fixed. Without it, poses are stale on the GPU path.
+        # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
         self._view = XformPrimView(
             self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True
         )
@@ -446,6 +445,7 @@ class Camera(SensorBase):
 
         # View needs to exist before creating render data
         self.render_data = self.renderer.create_render_data(self)
+        self._renderer_info_populated = False
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
@@ -468,12 +468,13 @@ class Camera(SensorBase):
                 continue
             self.renderer.write_output(self.render_data, output_name, output_data)
 
-        # Broadcast renderer info (e.g. segmentation label mappings) to all per-camera entries
-        renderer_info = getattr(self.render_data, "renderer_info", None)
-        if renderer_info:
-            for data_type, metadata in renderer_info.items():
-                for cam_idx in range(self._view.count):
-                    self._data.info[cam_idx][data_type] = metadata
+        if not self._renderer_info_populated:
+            renderer_info = self.renderer.get_output_info(self.render_data)
+            if renderer_info:
+                for data_type, metadata in renderer_info.items():
+                    for cam_idx in range(self._view.count):
+                        self._data.info[cam_idx][data_type] = metadata
+                self._renderer_info_populated = True
 
     """
     Private Helpers

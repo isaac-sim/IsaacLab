@@ -223,6 +223,11 @@ class NewtonWarpRenderer(BaseRenderer):
             shape_index_image=render_data.outputs.instance_segmentation_image,
         )
 
+    def get_output_info(self, render_data: RenderData) -> dict[str, Any] | None:
+        """No metadata for Newton Warp.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.get_output_info`."""
+        return None
+
     def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
         """Copy a specific output to the given buffer.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""

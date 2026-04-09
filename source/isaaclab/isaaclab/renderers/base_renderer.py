@@ -104,6 +104,26 @@ class BaseRenderer(ABC):
         pass
 
     @abstractmethod
+    def get_output_info(self, render_data: Any) -> dict[str, Any] | None:
+        """Return static metadata collected during rendering.
+
+        Renderers that produce metadata (e.g. semantic segmentation label
+        mappings) return a dictionary mapping output names to their metadata.
+        The returned dictionary is written once into :attr:`CameraData.info`
+        after the first render and is not queried again.
+
+        Renderers that do not produce metadata should return ``None``.
+
+        Args:
+            render_data: The render data object from :meth:`create_render_data`.
+
+        Returns:
+            A dictionary mapping output names to their metadata, or ``None``
+            if the renderer does not produce metadata.
+        """
+        pass
+
+    @abstractmethod
     def cleanup(self, render_data: Any) -> None:
         """Release renderer resources associated with the given render data.
 

@@ -387,6 +387,11 @@ class OVRTXRenderer(BaseRenderer):
                 wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.copy(wp_transforms_view, camera_transforms)
 
+    def get_output_info(self, render_data: OVRTXRenderData) -> dict[str, Any] | None:
+        """No metadata for OVRTX.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.get_output_info`."""
+        return None
+
     def write_output(
         self,
         render_data: OVRTXRenderData,

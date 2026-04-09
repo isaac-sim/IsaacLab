@@ -49,6 +49,9 @@ def _make_mock_renderer_class(name: str):
         def write_output(self, render_data, output_name, output_data):
             pass
 
+        def get_output_info(self, render_data):
+            return None
+
         def cleanup(self, render_data):
             pass
 

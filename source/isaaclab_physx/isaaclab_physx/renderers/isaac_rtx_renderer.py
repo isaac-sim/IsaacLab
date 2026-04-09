@@ -11,7 +11,7 @@ import json
 import logging
 import math
 import weakref
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -60,7 +60,7 @@ class IsaacRtxRenderData:
     render_product_paths: list[str]
     output_data: dict[str, torch.Tensor] | None = None
     sensor: SensorBase | None = None
-    renderer_info: dict[str, Any] | None = None
+    renderer_info: dict[str, Any] = field(default_factory=dict)
 
 
 class IsaacRtxRenderer(BaseRenderer):
@@ -252,9 +252,6 @@ class IsaacRtxRenderer(BaseRenderer):
 
         num_tiles_x = tiling_grid_shape()[0]
 
-        if render_data.renderer_info is None:
-            render_data.renderer_info = {}
-
         # Extract the flattened image buffer
         for data_type, annotator in render_data.annotators.items():
             # check whether returned data is a dict (used for segmentation)
@@ -328,6 +325,11 @@ class IsaacRtxRenderer(BaseRenderer):
                 output_data[data_type][torch.isinf(output_data[data_type])] = (
                     0.0 if cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 )
+
+    def get_output_info(self, render_data: IsaacRtxRenderData) -> dict[str, Any] | None:
+        """Return segmentation label mappings collected during render().
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.get_output_info`."""
+        return render_data.renderer_info
 
     def write_output(self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor):
         """No-op for Isaac RTX - all outputs written in render().
