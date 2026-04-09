@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+4.5.27 (2026-04-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added release version to
+  :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.
+
+
 4.5.26 (2026-04-08)
 ~~~~~~~~~~~~~~~~~~~
 
