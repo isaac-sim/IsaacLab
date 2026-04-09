@@ -1,6 +1,52 @@
 Changelog
 ---------
 
+4.5.30 (2026-04-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Converted :class:`~isaaclab.sensors.RayCasterCamera` to use Warp kernels for ray-casting.
+  The ``_update_buffers_impl`` method now launches :func:`~isaaclab.sensors.ray_caster.kernels.update_ray_caster_kernel`
+  for world-frame pose and ray transforms and new kernels
+  :func:`~isaaclab.sensors.ray_caster.kernels.raycast_camera_mesh_masked_kernel`,
+  :func:`~isaaclab.sensors.ray_caster.kernels.compute_distance_to_image_plane_masked_kernel`,
+  :func:`~isaaclab.sensors.ray_caster.kernels.apply_depth_clipping_max_masked_kernel`, and
+  :func:`~isaaclab.sensors.ray_caster.kernels.apply_depth_clipping_zero_masked_kernel`
+  instead of the Python-level ``raycast_mesh`` wrapper and torch post-processing. Intermediate
+  warp buffers (``_ray_distance``, ``_ray_normal_w``, ``_distance_to_image_plane_wp``) replace
+  the per-step torch allocations, and world-frame ray buffers are warp-owned with zero-copy
+  torch views, matching the pattern established in :class:`~isaaclab.sensors.RayCaster`.
+
+
+4.5.29 (2026-04-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Converted :class:`~isaaclab.sensors.MultiMeshRayCasterCamera` to use Warp kernels for
+  ray-casting. The ``_update_buffers_impl`` method now launches
+  :func:`~isaaclab.utils.warp.kernels.raycast_dynamic_meshes_kernel` directly instead of
+  going through the Python-level ``raycast_dynamic_meshes`` wrapper. World-frame ray buffers
+  (``_ray_starts_w``, ``_ray_directions_w``) are now allocated as Warp arrays with zero-copy
+  torch views, matching the pattern established in :class:`~isaaclab.sensors.MultiMeshRayCaster`.
+
+
+4.5.28 (2026-04-09)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed internal mesh transform buffers ``_mesh_positions_w`` and ``_mesh_orientations_w`` in
+  :class:`~isaaclab.sensors.MultiMeshRayCaster` from torch tensors to warp arrays (``wp.vec3`` and
+  ``wp.quat`` respectively). Zero-copy torch views (``_mesh_positions_w_torch``,
+  ``_mesh_orientations_w_torch``) are retained for writes from physics view results.
+  The ``wp.from_torch`` wrapping on every update step is eliminated.
+
+
 4.5.27 (2026-04-08)
 ~~~~~~~~~~~~~~~~~~~
 

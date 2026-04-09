@@ -13,9 +13,8 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
-
 import omni.physics.tensors.impl.api as physx
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -312,7 +311,7 @@ class RayCaster(SensorBase):
         wp.launch(
             fill_vec3_inf_kernel,
             dim=(self._num_envs, self.num_rays),
-            inputs=[env_mask, self._data._ray_hits_w, float("inf")],
+            inputs=[env_mask, float("inf"), self._data._ray_hits_w],
             device=self._device,
         )
 
@@ -325,8 +324,8 @@ class RayCaster(SensorBase):
                 env_mask,
                 self._ray_starts_w,
                 self._ray_directions_w,
-                self._data._ray_hits_w,
                 float(self.cfg.max_distance),
+                self._data._ray_hits_w,
             ],
             device=self._device,
         )
@@ -358,7 +357,6 @@ class RayCaster(SensorBase):
         # if no points to visualize, skip
         if viz_points.shape[0] == 0:
             return
-
 
         self.ray_visualizer.visualize(viz_points)
 

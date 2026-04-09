@@ -20,8 +20,10 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils.math import matrix_from_quat, quat_mul
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
-from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
+from isaaclab.utils.warp import convert_to_warp_mesh
+from isaaclab.utils.warp import kernels as warp_kernels
 
+from .kernels import fill_float2d_masked_kernel, fill_vec3_inf_kernel
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
 from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
@@ -271,8 +273,13 @@ class MultiMeshRayCaster(RayCaster):
             )
 
         total_n_meshes_per_env = sum(self._num_meshes_per_env.values())
-        self._mesh_positions_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 3, device=self.device)
-        self._mesh_orientations_w = torch.zeros(self._num_envs, total_n_meshes_per_env, 4, device=self.device)
+        self._mesh_positions_w = wp.zeros((self._num_envs, total_n_meshes_per_env), dtype=wp.vec3, device=self.device)
+        self._mesh_orientations_w = wp.zeros(
+            (self._num_envs, total_n_meshes_per_env), dtype=wp.quat, device=self.device
+        )
+        # Zero-copy torch views for writing from physics view results (torch tensors)
+        self._mesh_positions_w_torch = wp.to_torch(self._mesh_positions_w)
+        self._mesh_orientations_w_torch = wp.to_torch(self._mesh_orientations_w)
 
         mesh_idx = 0
         for target_cfg in self._raycast_targets_cfg:
@@ -286,8 +293,8 @@ class MultiMeshRayCaster(RayCaster):
             pos_w = torch.tensor(pos_w, device=self.device, dtype=torch.float32).view(-1, n_meshes, 3)
             ori_w = torch.tensor(ori_w, device=self.device, dtype=torch.float32).view(-1, n_meshes, 4)
 
-            self._mesh_positions_w[:, mesh_idx : mesh_idx + n_meshes] = pos_w
-            self._mesh_orientations_w[:, mesh_idx : mesh_idx + n_meshes] = ori_w
+            self._mesh_positions_w_torch[:, mesh_idx : mesh_idx + n_meshes] = pos_w
+            self._mesh_orientations_w_torch[:, mesh_idx : mesh_idx + n_meshes] = ori_w
             mesh_idx += n_meshes
 
         multi_mesh_ids_flattened = []
@@ -306,20 +313,21 @@ class MultiMeshRayCaster(RayCaster):
 
     def _initialize_rays_impl(self):
         super()._initialize_rays_impl()
+        # Persistent buffer for tracking closest-hit distance across meshes (for atomic_min)
+        self._ray_distance_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.float32, device=self._device)
         if self.cfg.update_mesh_ids:
-            self._data.ray_mesh_ids = torch.zeros(
-                self._num_envs, self.num_rays, 1, device=self.device, dtype=torch.int16
-            )
+            self._ray_mesh_id_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.int16, device=self._device)
+            # Zero-copy torch view with the trailing dim expected by consumers of ray_mesh_ids
+            self._data.ray_mesh_ids = wp.to_torch(self._ray_mesh_id_w).unsqueeze(-1)
+        else:
+            # Dummy 1×1 buffer so the kernel launch always has a valid array to bind
+            self._ray_mesh_id_w = wp.empty((1, 1), dtype=wp.int16, device=self._device)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data."""
-        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-        if len(env_ids) == 0:
-            return
-
         self._update_ray_infos(env_mask)
 
-        # Update the mesh positions and rotations
+        # Update mesh positions/orientations for targets that track dynamic transforms
         mesh_idx = 0
         for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
@@ -341,23 +349,53 @@ class MultiMeshRayCaster(RayCaster):
                 pos_w = pos_w.view(self._num_envs, count, 3)
                 ori_w = ori_w.view(self._num_envs, count, 4)
 
-            self._mesh_positions_w[:, mesh_idx : mesh_idx + count] = pos_w
-            self._mesh_orientations_w[:, mesh_idx : mesh_idx + count] = ori_w
+            self._mesh_positions_w_torch[:, mesh_idx : mesh_idx + count] = pos_w
+            self._mesh_orientations_w_torch[:, mesh_idx : mesh_idx + count] = ori_w
             mesh_idx += count
 
-        # Use torch views of warp arrays for the torch-based raycast_dynamic_meshes
-        self._data._ray_hits_w_torch[env_ids], _, _, _, mesh_ids = raycast_dynamic_meshes(
-            self._ray_starts_w_torch[env_ids],
-            self._ray_directions_w_torch[env_ids],
-            mesh_ids_wp=self._mesh_ids_wp,
-            max_dist=self.cfg.max_distance,
-            mesh_positions_w=self._mesh_positions_w[env_ids],
-            mesh_orientations_w=self._mesh_orientations_w[env_ids],
-            return_mesh_id=self.cfg.update_mesh_ids,
+        n_meshes = self._mesh_ids_wp.shape[1]
+
+        # Fill output and distance buffers with inf for masked environments
+        wp.launch(
+            fill_vec3_inf_kernel,
+            dim=(self._num_envs, self.num_rays),
+            inputs=[env_mask, float("inf"), self._data._ray_hits_w],
+            device=self._device,
+        )
+        wp.launch(
+            fill_float2d_masked_kernel,
+            dim=(self._num_envs, self.num_rays),
+            inputs=[env_mask, float("inf"), self._ray_distance_w],
+            device=self._device,
         )
 
-        if self.cfg.update_mesh_ids:
-            self._data.ray_mesh_ids[env_ids] = mesh_ids
+        # Dummy arrays for unused outputs (normal, face_id)
+        _dummy_normal = wp.empty((1, 1), dtype=wp.vec3, device=self._device)
+        _dummy_face_id = wp.empty((1, 1), dtype=wp.int32, device=self._device)
+
+        # Ray-cast against all meshes; closest hit wins via atomic_min on ray_distance
+        wp.launch(
+            warp_kernels.raycast_dynamic_meshes_kernel,
+            dim=(n_meshes, self._num_envs, self.num_rays),
+            inputs=[
+                env_mask,
+                self._mesh_ids_wp,
+                self._ray_starts_w,
+                self._ray_directions_w,
+                self._data._ray_hits_w,
+                self._ray_distance_w,
+                _dummy_normal,
+                _dummy_face_id,
+                self._ray_mesh_id_w,
+                self._mesh_positions_w,
+                self._mesh_orientations_w,
+                float(self.cfg.max_distance),
+                int(False),
+                int(False),
+                int(self.cfg.update_mesh_ids),
+            ],
+            device=self._device,
+        )
 
     def __del__(self):
         super().__del__()

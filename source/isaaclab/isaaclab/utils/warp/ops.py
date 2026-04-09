@@ -335,11 +335,15 @@ def raycast_dynamic_meshes(
             mesh_orientations_w = mesh_orientations_w.to(dtype=torch.float32, device=torch_device).contiguous()
             mesh_quat_wp_w = wp.from_torch(mesh_orientations_w, dtype=wp.quat)
 
+        # all environments active when called through this public API
+        all_env_mask = wp.from_torch(torch.ones(n_envs, dtype=torch.bool, device=torch_device))
+
         # launch the warp kernel
         wp.launch(
             kernel=kernels.raycast_dynamic_meshes_kernel,
             dim=[n_meshes, n_envs, n_rays_per_env],
             inputs=[
+                all_env_mask,
                 mesh_ids_wp,
                 ray_starts_wp,
                 ray_directions_wp,
