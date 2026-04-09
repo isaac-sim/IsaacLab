@@ -110,12 +110,12 @@ def main():
 
         # multi-gpu training config
         if args_cli.distributed:
-            local_rank = int(os.getenv("LOCAL_RANK", "0"))
             agent_cfg["params"]["seed"] += int(os.getenv("RANK", "0"))
-            agent_cfg["params"]["config"]["device"] = f"cuda:{local_rank}"
-            agent_cfg["params"]["config"]["device_name"] = f"cuda:{local_rank}"
+            # env_cfg.sim.device is resolved by launch_simulation() which
+            # accounts for CUDA_VISIBLE_DEVICES restrictions.
+            agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
+            agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
             agent_cfg["params"]["config"]["multi_gpu"] = True
-            env_cfg.sim.device = f"cuda:{local_rank}"
 
         # set the environment seed (after multi-gpu config for updated rank from agent seed)
         env_cfg.seed = agent_cfg["params"]["seed"]

@@ -127,9 +127,9 @@ def main():
 
         # multi-gpu training config
         if args_cli.distributed:
-            local_rank = int(os.getenv("LOCAL_RANK", "0"))
             global_rank = int(os.getenv("RANK", "0"))
-            env_cfg.sim.device = f"cuda:{local_rank}"
+            # env_cfg.sim.device is resolved by launch_simulation() which
+            # accounts for CUDA_VISIBLE_DEVICES restrictions.
         # max iterations for training
         if args_cli.max_iterations:
             agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]
