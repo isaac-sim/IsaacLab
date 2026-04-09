@@ -26,6 +26,8 @@ Guidelines for modifications:
 * Clemens Schwarke
 * David Hoeller
 * Farbod Farshidian
+* Gavriel State
+* Greg Attra
 * Hunter Hansen
 * James Smith
 * James Tigue
@@ -34,11 +36,9 @@ Guidelines for modifications:
 * Mayank Mittal
 * Nikita Rudin
 * Octi (Zhengyu) Zhang
+* Ossama Ahmed
 * Pascal Roth
 * Sheikh Dawood
-* Ossama Ahmed
-* Greg Attra
-* Gavriel State
 
 ## Contributors
 
@@ -58,6 +58,7 @@ Guidelines for modifications:
 * Brayden Zhang
 * Brian Bingham
 * Brian McCann
+* Caelan Garrett
 * Calvin Yu
 * Cameron Upright
 * Cathy Y. Li
@@ -68,6 +69,7 @@ Guidelines for modifications:
 * David Leon
 * David Yang
 * Dhananjay Shendre
+* Dhyan Thakkar
 * Dongxuan Fan
 * Dorsa Rohani
 * Emily Sturman
@@ -84,15 +86,18 @@ Guidelines for modifications:
 * Hongwei Xiong
 * Hongyu Li
 * Hougant Chen
+* HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola
 * Jack Zeng
 * Jan Kerner
 * Jean Tampon
 * Jeonghwan Kim
+* Jessica Martinez
 * Ji Yuan Feng
 * Jia Lin Yuan
 * Jiakai Zhang
+* Jichuan Hu
 * Jinghuan Shang
 * Jingzhou Liu
 * Jinqi Wei
@@ -180,6 +185,7 @@ Guidelines for modifications:
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu
+* YuTeh Shen
 * Zehao Wang
 * Zijian Li
 * Ziqi Fan

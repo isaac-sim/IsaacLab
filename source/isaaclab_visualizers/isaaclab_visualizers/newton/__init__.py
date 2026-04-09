@@ -3,9 +3,27 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton OpenGL visualizer backend."""
+"""Newton OpenGL visualizer backend.
 
-from .newton_visualizer import NewtonVisualizer
+This package keeps imports lazy so configuration-only imports do not pull in
+the heavy viewer/runtime stack before Isaac Sim has finished bootstrapping.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
+if TYPE_CHECKING:
+    from .newton_visualizer import NewtonVisualizer
+
 __all__ = ["NewtonVisualizer", "NewtonVisualizerCfg"]
+
+
+def __getattr__(name: str):
+    if name == "NewtonVisualizer":
+        from .newton_visualizer import NewtonVisualizer
+
+        return NewtonVisualizer
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -11,6 +11,7 @@ a more user-friendly way.
 """
 
 import argparse
+import contextlib
 import logging
 import os
 import random
@@ -35,6 +36,8 @@ from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_t
 logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
 
 SKRL_VERSION = "1.4.3"
 
@@ -125,6 +128,7 @@ def main():
         # multi-gpu training config
         if args_cli.distributed:
             local_rank = int(os.getenv("LOCAL_RANK", "0"))
+            global_rank = int(os.getenv("RANK", "0"))
             env_cfg.sim.device = f"cuda:{local_rank}"
         # max iterations for training
         if args_cli.max_iterations:
@@ -140,6 +144,9 @@ def main():
 
         # set the agent and environment seed from command line
         agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+        # use global rank for seed diversity across all nodes
+        if args_cli.distributed:
+            agent_cfg["seed"] = agent_cfg["seed"] + global_rank
         env_cfg.seed = agent_cfg["seed"]
 
         # specify directory for logging experiments

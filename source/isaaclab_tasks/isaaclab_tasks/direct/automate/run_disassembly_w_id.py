@@ -51,7 +51,6 @@ def main():
     parser.add_argument("--assembly_id", type=str, default="00731", help="New assembly ID to set.")
     parser.add_argument("--num_envs", type=int, default=128, help="Number of parallel environment.")
     parser.add_argument("--seed", type=int, default=-1, help="Random seed.")
-    parser.add_argument("--headless", action="store_true", help="Run in headless mode.")
     args = parser.parse_args()
 
     os.makedirs(args.disassembly_dir, exist_ok=True)
@@ -76,9 +75,6 @@ def main():
             f"--seed={args.seed}",
         ]
     )
-
-    if args.headless:
-        command.append("--headless")
 
     # Run the command
     subprocess.run(command, check=True)

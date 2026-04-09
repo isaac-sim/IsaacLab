@@ -77,6 +77,7 @@ class ObjectCfg(PresetCfg):
         collision_props=sim_utils.CollisionPropertiesCfg(),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     )
+    newton = cube  # newton does not support multi-asset spawning yet
     default = shapes
 
 
@@ -469,8 +470,6 @@ class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
             bounce_threshold_velocity=0.01,
             gpu_max_rigid_patch_count=4 * 5 * 2**15,
             gpu_found_lost_pairs_capacity=2**26,
-            gpu_found_lost_aggregate_pairs_capacity=2**29,
-            gpu_total_aggregate_pairs_capacity=2**25,
         )
 
 

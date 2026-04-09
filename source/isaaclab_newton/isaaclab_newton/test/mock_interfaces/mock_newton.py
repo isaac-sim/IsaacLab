@@ -153,8 +153,8 @@ class MockNewtonContactSensor:
         """
         self.device = device
         self.shape: tuple[int, int] = (num_sensing_objs, num_counterparts)
-        self.sensing_objs: list[tuple[int, int]] = [(i, 1) for i in range(num_sensing_objs)]
-        self.counterparts: list[tuple[int, int]] = [(i, 1) for i in range(num_counterparts)]
+        self.sensing_objs: list[list[tuple[int, int]]] = [[(i, 1) for i in range(num_sensing_objs)]]
+        self.counterparts: list[list[tuple[int, int]]] = [[(i, 1) for i in range(num_counterparts)]]
         self.reading_indices: list[list[int]] = [list(range(num_counterparts)) for _ in range(num_sensing_objs)]
 
         # Net force array (n_sensing_objs, n_counterparts) of vec3

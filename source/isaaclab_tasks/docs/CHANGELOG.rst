@@ -1,7 +1,99 @@
 Changelog
 ---------
 
-1.5.8 (2026-03-10)
+1.5.19 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Aligned :class:`~isaaclab_tasks.manager_based.manipulation.deploy.reach.config.rizon_4s.ros_inference_env_cfg.Rizon4sReachROSInferenceEnvCfg`
+  with the Flexiv Rizon 4s mount and workspace at NVIDIA Hubble Lab.
+
+
+1.5.18 (2026-04-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Set semantic tags on the in-hand object in :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.ObjectCfg`
+  so the object receives the same semantic labels for the Newton and PhysX backends.
+
+
+1.5.17 (2026-03-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.utils.hydra.apply_overrides` raising a false
+  conflict error when two global presets resolve to the same value for a path
+  (e.g. ``newton`` aliased to ``cube``).
+
+
+1.5.16 (2026-03-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.utils.hydra.collect_presets` not discovering
+  presets inside nested dicts (e.g. ``EventTerm.params.terms.*.params``).
+
+
+1.5.15 (2026-03-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added semantic segmentation to preset data types for the Cartpole Camera environment.
+* Added semantic segmentation to preset data types for the Shadow Hand environment.
+* Added semantic_segmentation64 to preset data types for for the Dexsuite Kuka-Allegro environment.
+* Added ``Isaac-Deploy-Reach-Rizon4s-ROS`` environments.
+
+1.5.13 (2026-03-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added consistency validation to the camera outputs in ``test_rendering_correctness.py``.
+
+
+1.5.12 (2026-03-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Increased ``max_iterations`` from 200 to 300 for ``Isaac-Dexsuite-Kuka-Allegro-Lift-v0``
+  in the benchmarking configuration to allow sufficient training time for convergence.
+
+
+1.5.11 (2026-03-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Simplified the Hydra preset system by removing the dict-style ``presets = {...}``
+  attribute in favor of :class:`~isaaclab_tasks.utils.hydra.PresetCfg` subclasses
+  and the new :func:`~isaaclab_tasks.utils.hydra.preset` factory for inline scalar
+  overrides.
+
+
+1.5.10 (2026-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``test_rendering_correctness.py`` to validate rendering correctness of the environments.
+
+
+1.5.9 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -12,7 +104,7 @@ Fixed
   to use RSL-RL.
 
 
-1.5.7 (2026-03-10)
+1.5.8 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
 Added
@@ -31,7 +123,7 @@ Changed
   ``configclass`` validation hook.
 
 
-1.5.6 (2026-03-10)
+1.5.7 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -41,7 +133,8 @@ Fixed
   render tests as expected failures. The standard Shadow Hand USD contains PhysX
   tendon schemas that Newton's ``ModelBuilder`` cannot parse.
 
-1.5.5 (2026-03-10)
+
+1.5.6 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -58,7 +151,7 @@ Added
   reorientation tasks.
 
 
-1.5.4 (2026-03-07)
+1.5.5 (2026-03-07)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -135,7 +228,6 @@ Changed
   Material and fixed-tendon randomization remain exclusively in
   :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`.
 
-
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~
 
@@ -149,6 +241,7 @@ Added
 * Added :file:`test_preset_kit_decision.py` — beginner-friendly unit tests that verify
   preset resolution and Kit decision.
 
+
 1.5.1 (2026-03-03)
 ~~~~~~~~~~~~~~~~~~
 
@@ -158,6 +251,7 @@ Fixed
 * Resolved :class:`~isaaclab_tasks.utils.PresetCfg` fields (e.g. physics) to their default values
   in :func:`~isaaclab_tasks.utils.parse_env_cfg` so environments created via ``gym.make()`` outside
   the Hydra pipeline no longer fail with ``AttributeError: 'XxxPhysicsCfg' object has no attribute 'class_type'``.
+
 
 1.5.0 (2026-03-02)
 ~~~~~~~~~~~~~~~~~~
@@ -271,6 +365,16 @@ Changed
 ^^^^^^^
 
 * Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
+
+0.11.15 (2026-03-07)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-RedGreen-Franka-IK-Rel-v0``, ``Isaac-Stack-Cube-RedGreenBlue-Franka-IK-Rel-v0``,
+  ``Isaac-Stack-Cube-BlueGreen-Franka-IK-Rel-v0``, and ``Isaac-Stack-Cube-BlueGreenRed-Franka-IK-Rel-v0`` environments.
 
 
 0.11.14 (2026-02-27)

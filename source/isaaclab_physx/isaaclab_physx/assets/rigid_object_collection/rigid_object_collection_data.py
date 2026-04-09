@@ -632,16 +632,17 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # The view returns data ordered as (body0_env0, body0_env1, ..., body1_env0, body1_env1, ...)
         # i.e. shape (num_bodies, num_instances) when reshaped.
         # We need (num_instances, num_bodies) so we create a strided view with transposed strides.
+        # Use data.device for the strided view (PhysX returns masses/coms/inertias on CPU),
+        # then clone to self.device (handles both contiguity and device transfer).
         element_size = wp.types.type_size_in_bytes(data.dtype)
         strided_view = wp.array(
             ptr=data.ptr,
             shape=(self.num_instances, self.num_bodies),
             dtype=data.dtype,
             strides=(element_size, self.num_instances * element_size),
-            device=self.device,
+            device=data.device,
         )
-        # Clone to make contiguous
-        return wp.clone(strided_view)
+        return wp.clone(strided_view, self.device)
 
     def _reshape_view_to_data_3d(self, data: wp.array, data_dim: int) -> wp.array:
         """Reshapes and arranges 2D view data to (num_instances, num_bodies, data_dim).
@@ -655,6 +656,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         # The view returns data ordered as (body0_env0, body0_env1, ..., body1_env0, body1_env1, ...)
         # We need (num_instances, num_bodies, data_dim), so stride through the flat float32 data.
+        # Use data.device for the strided view (PhysX returns masses/coms/inertias on CPU),
+        # then clone to self.device (handles both contiguity and device transfer).
         element_size = wp.types.type_size_in_bytes(wp.float32)
         row_size = element_size * data_dim
         strided_view = wp.array(
@@ -662,9 +665,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             shape=(self.num_instances, self.num_bodies, data_dim),
             dtype=wp.float32,
             strides=(row_size, self.num_instances * row_size, element_size),
-            device=self.device,
+            device=data.device,
         )
-        return wp.clone(strided_view)
+        return wp.clone(strided_view, self.device)
 
     def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
         """Generates a position array from a transform array."""

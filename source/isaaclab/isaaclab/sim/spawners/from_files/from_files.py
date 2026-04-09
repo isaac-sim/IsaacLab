@@ -5,7 +5,10 @@
 
 from __future__ import annotations
 
+import fcntl
 import logging
+import os
+import tempfile
 from typing import TYPE_CHECKING
 
 from pxr import Gf, Sdf, Usd, UsdGeom
@@ -299,31 +302,38 @@ def _spawn_from_usd_file(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-    # check file path exists (supports local paths, S3, HTTP/HTTPS URLs)
-    # check_file_path returns: 0 (not found), 1 (local), 2 (remote)
+    # In distributed training, serialize asset download and USD stage composition
+    # across ranks to prevent file I/O races. Concurrent mmap reads/writes on
+    # the same cached USD files cause segfaults in Sdf_CrateFile::_MmapStream::Read.
+    _world_size = int(os.environ.get("LOCAL_WORLD_SIZE", "1"))
+
     file_status = check_file_path(usd_path)
     if file_status == 0:
         raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
 
-    # Download remote files (S3, HTTP, HTTPS) to local cache
-    if file_status == 2:
-        usd_path = retrieve_file_path(usd_path, force_download=False)
-
-    # Obtain current stage
-    stage = get_current_stage()
-    # spawn asset if it doesn't exist.
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        # add prim as reference to stage
-        create_prim(
-            prim_path,
-            usd_path=usd_path,
-            translation=translation,
-            orientation=orientation,
-            scale=cfg.scale,
-            stage=stage,
-        )
-    else:
-        logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
+    if _world_size > 1:
+        lock_path = os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock")
+        lock_fd = open(lock_path, "w")  # noqa: SIM115
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    try:
+        if file_status == 2:
+            usd_path = retrieve_file_path(usd_path, force_download=False)
+        stage = get_current_stage()
+        if not stage.GetPrimAtPath(prim_path).IsValid():
+            create_prim(
+                prim_path,
+                usd_path=usd_path,
+                translation=translation,
+                orientation=orientation,
+                scale=cfg.scale,
+                stage=stage,
+            )
+        else:
+            logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
+    finally:
+        if _world_size > 1:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
 
     # modify variants
     if hasattr(cfg, "variants") and cfg.variants is not None:

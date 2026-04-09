@@ -103,6 +103,11 @@ class ShadowHandVisionTiledCameraCfg(PresetCfg):
             presets=depth,ovrtx_renderer    # depth rendering with OVRTX renderer
     """
 
+    semantic_segmentation: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
+        data_types=["semantic_segmentation"]
+    )
+    """Semantic segmentation (3 CNN input channels)."""
+
 
 @configclass
 class ShadowHandVisionEnvCfg(ShadowHandEnvCfg):

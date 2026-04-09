@@ -181,6 +181,9 @@ parameters, please check the the documentation at `MJCF importer`_.
   ``--collision-type``.
 * :attr:`~sim.converters.MjcfConverterCfg.self_collision` * - Whether to activate self-collisions
   between links of the articulation. The command-line flag is ``--self-collision``.
+* :attr:`~sim.converters.MjcfConverterCfg.import_physics_scene` * - Import physics scene properties
+  (gravity, time step, etc.) from the MJCF file. Defaults to ``False``. The command-line flag is
+  ``--import-physics-scene``.
 
 
 Example Usage

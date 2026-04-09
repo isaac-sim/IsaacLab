@@ -354,6 +354,12 @@ class RayCaster(SensorBase):
         ray_hits_torch = wp.to_torch(self._data._ray_hits_w)
         viz_points = ray_hits_torch.reshape(-1, 3)
         viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
+
+        # if no points to visualize, skip
+        if viz_points.shape[0] == 0:
+            return
+
+
         self.ray_visualizer.visualize(viz_points)
 
     """

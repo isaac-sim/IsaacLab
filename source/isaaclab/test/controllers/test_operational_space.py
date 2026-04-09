@@ -19,12 +19,26 @@ from flaky import flaky
 
 from isaacsim.core.cloner import GridCloner
 
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
+from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
+
+##
+# Pre-defined configs
+##
+from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass as lab_configclass
 from isaaclab.utils.math import (
     apply_delta_pose,
     combine_frame_transforms,
@@ -35,10 +49,7 @@ from isaaclab.utils.math import (
     subtract_frame_transforms,
 )
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets import FRANKA_PANDA_CFG  # isort:skip
+from isaaclab_assets import FRANKA_PANDA_CFG, G1_29DOF_CFG  # isort:skip
 
 
 @pytest.fixture
@@ -1256,6 +1267,146 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
         contact_forces,
         frame,
     )
+
+
+##
+# Floating-base regression test configs (PR #5107)
+##
+
+_G1_ARM_JOINT_NAMES = [
+    "left_shoulder_pitch_joint",
+    "left_shoulder_roll_joint",
+    "left_shoulder_yaw_joint",
+    "left_elbow_joint",
+]
+
+
+@lab_configclass
+class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
+    """Minimal scene with a floating-base G1 humanoid."""
+
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
+    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.robot.spawn.articulation_props.fix_root_link = False
+        self.robot.spawn.rigid_props.disable_gravity = True
+
+
+@lab_configclass
+class _FloatingBaseOscActionsCfg:
+    arm_action: OperationalSpaceControllerActionCfg = OperationalSpaceControllerActionCfg(
+        asset_name="robot",
+        joint_names=_G1_ARM_JOINT_NAMES,
+        body_name="left_elbow_link",
+        controller_cfg=OperationalSpaceControllerCfg(
+            target_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=True,
+            gravity_compensation=False,
+            motion_stiffness_task=500.0,
+            motion_damping_ratio_task=1.0,
+        ),
+    )
+
+
+@lab_configclass
+class _FloatingBaseOscObsCfg:
+    @lab_configclass
+    class _PolicyCfg(ObsGroup):
+        joint_pos = ObsTerm(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("robot")})
+
+    policy: _PolicyCfg = _PolicyCfg()
+
+
+@lab_configclass
+class _FloatingBaseOscEnvCfg(ManagerBasedEnvCfg):
+    scene: _FloatingBaseOscSceneCfg = _FloatingBaseOscSceneCfg(num_envs=4, env_spacing=4.0)
+    actions: _FloatingBaseOscActionsCfg = _FloatingBaseOscActionsCfg()
+    observations: _FloatingBaseOscObsCfg = _FloatingBaseOscObsCfg()
+    decimation: int = 1
+    sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(dt=0.01)
+
+
+@pytest.mark.isaacsim_ci
+def test_floating_base_osc_action_term_indexing():
+    """Regression test for #4999 / PR #5107: verify OperationalSpaceControllerAction uses correct
+    indices for mass matrix and gravity on floating-base robots.
+
+    For floating-base robots, PhysX prepends 6 virtual DOFs to the generalized mass matrix and
+    gravity vectors. The action term's ``_compute_dynamic_quantities()`` must use
+    ``_jacobi_joint_idx`` (with +6 offset) instead of ``_joint_ids``. This test instantiates the
+    real action term via a ManagerBasedEnv, triggers ``_compute_dynamic_quantities()``, and verifies
+    the extracted mass matrix and gravity match a manual extraction using the correct PhysX indices.
+
+    If someone reverts ``_jacobi_joint_idx`` back to ``_joint_ids`` in ``_compute_dynamic_quantities``,
+    this test will fail.
+    """
+    env_cfg = _FloatingBaseOscEnvCfg()
+    env_cfg.sim.device = "cuda:0"
+    env = ManagerBasedEnv(cfg=env_cfg)
+    num_envs = env.num_envs
+
+    try:
+        robot: Articulation = env.scene["robot"]
+
+        # --- 1. Verify the robot is floating-base ---
+        assert not robot.is_fixed_base, "G1_29DOF_CFG must be floating-base for this test"
+
+        # --- 2. Get the action term ---
+        action_term = env.action_manager._terms["arm_action"]
+        num_arm_joints = action_term._num_DoF
+
+        # --- 3. Step the env to populate physics buffers ---
+        zero_actions = torch.zeros(num_envs, action_term.action_dim, device=env.device)
+        action_term.process_actions(zero_actions)
+        action_term.apply_actions()
+
+        # --- 4. The action term's _mass_matrix and _gravity are now populated ---
+        term_mass = action_term._mass_matrix.clone()
+        term_gravity = action_term._gravity.clone()
+
+        # --- 5. Manually extract using the CORRECT indices (what the fix does) ---
+        jacobi_joint_idx = action_term._jacobi_joint_idx
+        full_mass_matrix = wp.to_torch(robot.root_view.get_generalized_mass_matrices())
+        full_gravity = wp.to_torch(robot.root_view.get_gravity_compensation_forces())
+
+        manual_mass = full_mass_matrix[:, jacobi_joint_idx, :][:, :, jacobi_joint_idx]
+        manual_gravity = full_gravity[:, jacobi_joint_idx]
+
+        # --- 6. KEY ASSERTION: action term output must match manual extraction with correct indices ---
+        torch.testing.assert_close(term_mass, manual_mass, atol=1e-5, rtol=0)
+        torch.testing.assert_close(term_gravity, manual_gravity, atol=1e-5, rtol=0)
+
+        # --- 7. Verify the full PhysX tensor has +6 virtual DOFs ---
+        expected_physx_dofs = robot.num_joints + 6
+        assert full_mass_matrix.shape[1] == expected_physx_dofs, (
+            f"Mass matrix should have {expected_physx_dofs} DOFs, got {full_mass_matrix.shape[1]}"
+        )
+
+        # --- 8. Verify correct indices differ from raw joint_ids (the old bug) ---
+        # Reconstruct the original joint_ids before any slice(None) optimization
+        original_joint_ids, _ = robot.find_joints(_G1_ARM_JOINT_NAMES)
+        buggy_mass = full_mass_matrix[:, original_joint_ids, :][:, :, original_joint_ids]
+        assert not torch.allclose(term_mass, buggy_mass, atol=1e-6), (
+            "Action term mass matrix should NOT match extraction with raw joint_ids (no +6 offset)"
+        )
+
+        # --- 9. Verify physically reasonable values ---
+        diag = torch.diagonal(term_mass, dim1=-2, dim2=-1)
+        assert (diag > 0).all(), f"Mass matrix diagonal must be positive, got min={diag.min().item():.6f}"
+        assert diag.max().item() < 100.0, (
+            f"Mass matrix diagonal too large ({diag.max().item():.1f}), possibly contaminated by base DOFs"
+        )
+        assert torch.allclose(term_mass, term_mass.transpose(-2, -1), atol=1e-5), "Mass matrix should be symmetric"
+
+        # --- 10. Verify shapes ---
+        assert term_mass.shape == (num_envs, num_arm_joints, num_arm_joints)
+        assert term_gravity.shape == (num_envs, num_arm_joints)
+
+    finally:
+        env.close()
 
 
 def _run_op_space_controller(

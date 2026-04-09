@@ -369,10 +369,11 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
 
 
 def close_stage() -> bool:
-    """Closes the current USD stage by clearing the stage cache.
+    """Closes the current USD stage.
 
-    If Kit is running, this also closes the stage attached to the Kit USD context
-    (``omni.usd.get_context().close_stage()``).
+    If Kit is running, this first closes the stage via the Kit USD context
+    (``omni.usd.get_context().close_stage()``), then clears the stage cache.
+    Without Kit, only the stage cache is cleared.
 
     .. note::
 
@@ -388,14 +389,17 @@ def close_stage() -> bool:
         >>> sim_utils.close_stage()
         True
     """
-    stage_cache = UsdUtils.StageCache.Get()
-    stage_cache.Clear()
-    _context.stage = None
-
+    # Close Kit's USD context first (while the stage is still in the cache),
+    # then clear the cache. Reversing this order causes Kit to fail with
+    # "Removal of UsdStage from cache failed" and can hang during teardown.
     if has_kit():
         import omni.usd
 
         omni.usd.get_context().close_stage()
+
+    stage_cache = UsdUtils.StageCache.Get()
+    stage_cache.Clear()
+    _context.stage = None
 
     return True
 
