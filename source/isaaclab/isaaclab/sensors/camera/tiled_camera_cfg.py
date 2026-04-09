@@ -20,14 +20,16 @@ class TiledCameraCfg(CameraCfg):
 
     .. deprecated:: 4.5.26
         :class:`TiledCameraCfg` is deprecated. Use :class:`CameraCfg` directly —
-        :class:`~isaaclab.sensors.camera.Camera` now uses the same renderer abstraction.
+        :class:`~isaaclab.sensors.camera.Camera` now includes TiledCamera's vectorized
+        rendering optimizations via the same renderer abstraction.
     """
 
     class_type: type["TiledCamera"] | str = "{DIR}.tiled_camera:TiledCamera"
 
     def __post_init__(self):
         warnings.warn(
-            "TiledCameraCfg is deprecated. Use CameraCfg directly.",
+            "TiledCameraCfg is deprecated. Use CameraCfg directly — "
+            "Camera now includes TiledCamera's vectorized rendering optimizations.",
             DeprecationWarning,
             stacklevel=2,
         )
