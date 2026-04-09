@@ -13,7 +13,13 @@ import warp as wp
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.warp import kernels as warp_kernels
 
-from .kernels import fill_float2d_masked_kernel, fill_vec3_inf_kernel
+from .kernels import (
+    apply_depth_clipping_max_masked_kernel,
+    apply_depth_clipping_zero_masked_kernel,
+    compute_distance_to_image_plane_masked_kernel,
+    fill_float2d_masked_kernel,
+    fill_vec3_inf_kernel,
+)
 from .multi_mesh_ray_caster import MultiMeshRayCaster
 from .multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
 from .ray_cast_utils import obtain_world_pose_from_view
@@ -115,6 +121,16 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         # Camera pose buffers (torch, part of CameraData)
         self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
         self._data.quat_w_world = torch.zeros(self._view.count, 4, device=self._device)
+        # Warp-backed camera orientation buffer for warp kernel calls;
+        # updated from self._data.quat_w_world in _update_ray_infos.
+        self._quat_w_wp = wp.zeros(self._view.count, dtype=wp.quatf, device=self._device)
+        self._quat_w_wp_torch = wp.to_torch(self._quat_w_wp)
+
+        # Warp buffer for distance_to_image_plane output (if requested)
+        if "distance_to_image_plane" in self.cfg.data_types:
+            self._distance_to_image_plane_wp = wp.zeros(
+                (self._view.count, self.num_rays), dtype=wp.float32, device=self._device
+            )
 
         # World-frame ray buffers: allocate as warp arrays first, then create zero-copy torch views.
         # Keeping warp arrays as primary storage avoids lifetime issues when passing to kernels.
@@ -159,9 +175,10 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
-        # Store camera pose in CameraData (torch tensors)
+        # Store camera pose in CameraData (torch tensors) and warp-backed orientation buffer
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
+        self._quat_w_wp_torch[env_ids] = quat_w
 
         # Rotate local ray starts and directions into world frame using full camera orientation
         quat_w_repeated = quat_w.repeat(1, self.num_rays).reshape(-1, 4)
@@ -264,31 +281,41 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         )
 
         if "distance_to_image_plane" in self.cfg.data_types:
-            ray_depth = wp.to_torch(self._ray_distance_cam_w)
-            # Project hit distance along the camera z-axis (into image plane)
-            distance_to_image_plane = (
-                math_utils.quat_apply(
-                    math_utils.quat_inv(self._data.quat_w_world[env_ids]).repeat(1, self.num_rays).reshape(-1, 4),
-                    (ray_depth[env_ids, :, None] * self._ray_directions_w_torch[env_ids]).reshape(-1, 3),
-                ).reshape(len(env_ids), self.num_rays, 3)
-            )[:, :, 0]
-            if self.cfg.depth_clipping_behavior == "max":
-                distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
-                distance_to_image_plane[torch.isnan(distance_to_image_plane)] = self.cfg.max_distance
-            elif self.cfg.depth_clipping_behavior == "zero":
-                distance_to_image_plane[distance_to_image_plane > self.cfg.max_distance] = 0.0
-                distance_to_image_plane[torch.isnan(distance_to_image_plane)] = 0.0
-            self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(
-                -1, *self.image_shape, 1
+            wp.launch(
+                compute_distance_to_image_plane_masked_kernel,
+                dim=(self._num_envs, self.num_rays),
+                inputs=[env_mask, self._quat_w_wp, self._ray_distance_cam_w, self._ray_directions_w],
+                outputs=[self._distance_to_image_plane_wp],
+                device=self._device,
             )
+            if self.cfg.depth_clipping_behavior == "max":
+                wp.launch(
+                    apply_depth_clipping_max_masked_kernel,
+                    dim=(self._num_envs, self.num_rays),
+                    inputs=[env_mask, float(self.cfg.max_distance), self._distance_to_image_plane_wp],
+                    device=self._device,
+                )
+            elif self.cfg.depth_clipping_behavior == "zero":
+                wp.launch(
+                    apply_depth_clipping_zero_masked_kernel,
+                    dim=(self._num_envs, self.num_rays),
+                    inputs=[env_mask, float(self.cfg.max_distance), self._distance_to_image_plane_wp],
+                    device=self._device,
+                )
+            d2ip_torch = wp.to_torch(self._distance_to_image_plane_wp)
+            self._data.output["distance_to_image_plane"][env_ids] = d2ip_torch[env_ids].view(-1, *self.image_shape, 1)
 
         if "distance_to_camera" in self.cfg.data_types:
+            # Apply depth clipping on a separate warp buffer to avoid mutating _ray_distance_cam_w
+            # (which is still needed unclipped if distance_to_image_plane was also requested).
             ray_depth = wp.to_torch(self._ray_distance_cam_w)
-            ray_depth_env = ray_depth[env_ids]
+            ray_depth_env = ray_depth[env_ids].clone()
             if self.cfg.depth_clipping_behavior == "max":
                 ray_depth_env = torch.clip(ray_depth_env, max=self.cfg.max_distance)
+                ray_depth_env[torch.isnan(ray_depth_env)] = self.cfg.max_distance
             elif self.cfg.depth_clipping_behavior == "zero":
                 ray_depth_env[ray_depth_env > self.cfg.max_distance] = 0.0
+                ray_depth_env[torch.isnan(ray_depth_env)] = 0.0
             self._data.output["distance_to_camera"][env_ids] = ray_depth_env.view(-1, *self.image_shape, 1)
 
         if return_normal:

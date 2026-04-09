@@ -59,13 +59,13 @@ def update_ray_caster_kernel(
         offset_quat: Per-env quaternion offset from view to sensor. Shape is (num_envs,).
         drift: Per-env position drift [m]. Shape is (num_envs,).
         ray_cast_drift: Per-env ray cast drift [m]. Shape is (num_envs,).
-        ray_starts_local: Per-env local ray start positions. Shape is (num_envs, num_rays).
-        ray_directions_local: Per-env local ray directions. Shape is (num_envs, num_rays).
+        ray_starts_local: Per-env local ray start positions [m]. Shape is (num_envs, num_rays).
+        ray_directions_local: Per-env local ray directions (unit vectors). Shape is (num_envs, num_rays).
         alignment_mode: 0=world, 1=yaw, 2=base.
-        pos_w: Output sensor position in world frame. Shape is (num_envs,).
+        pos_w: Output sensor position in world frame [m]. Shape is (num_envs,).
         quat_w: Output sensor orientation in world frame. Shape is (num_envs,).
-        ray_starts_w: Output world-frame ray starts. Shape is (num_envs, num_rays).
-        ray_directions_w: Output world-frame ray directions. Shape is (num_envs, num_rays).
+        ray_starts_w: Output world-frame ray starts [m]. Shape is (num_envs, num_rays).
+        ray_directions_w: Output world-frame ray directions (unit vectors). Shape is (num_envs, num_rays).
     """
     env_id, ray_id = wp.tid()
     if not env_mask[env_id]:
@@ -120,8 +120,8 @@ def fill_vec3_inf_kernel(
 
     Args:
         env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
-        data: Array to fill. Shape is (num_envs, num_rays).
         inf_val: Value to fill with (typically inf).
+        data: Array to fill. Shape is (num_envs, num_rays).
     """
     env, ray = wp.tid()
     if not env_mask[env]:
@@ -147,11 +147,11 @@ def raycast_mesh_masked_kernel(
     Args:
         mesh: The warp mesh id to ray-cast against.
         env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
-        ray_starts: World-frame ray start positions. Shape is (num_envs, num_rays).
-        ray_directions: World-frame ray directions. Shape is (num_envs, num_rays).
+        ray_starts: World-frame ray start positions [m]. Shape is (num_envs, num_rays).
+        ray_directions: World-frame unit ray directions. Shape is (num_envs, num_rays).
+        max_dist: Maximum ray-cast distance [m].
         ray_hits: Output ray hit positions [m]. Shape is (num_envs, num_rays).
             Pre-filled with inf for missed hits.
-        max_dist: Maximum ray-cast distance [m].
     """
     env, ray = wp.tid()
     if not env_mask[env]:
