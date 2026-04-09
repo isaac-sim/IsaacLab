@@ -524,7 +524,7 @@ class SimulationContext:
         return self._scene_data_provider
 
     def get_scene_data_requirements(self) -> SceneDataRequirement:
-        """Return scene-data requirements resolved from renderers/visualizers."""
+        """Return scene-data requirements resolved from visualizers/renderers."""
         return self._scene_data_requirements
 
     def update_scene_data_requirements(self, requirements: SceneDataRequirement) -> None:

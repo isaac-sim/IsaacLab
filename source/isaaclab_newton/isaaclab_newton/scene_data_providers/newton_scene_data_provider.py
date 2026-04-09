@@ -24,7 +24,7 @@ _ENV_ID_RE = re.compile(r"/World/envs/env_(\d+)")
 class NewtonSceneDataProvider(BaseSceneDataProvider):
     """Scene data provider for Newton physics backend.
 
-    Provides access to Newton model, state, and USD stage for renderers and visualizers.
+    Provides access to Newton model, state, and USD stage for visualizers and renderers.
     Unlike PhysxSceneDataProvider which must build its own Newton model from USD and sync
     PhysX transforms into it, this provider delegates directly to NewtonManager since the
     Newton backend already owns the authoritative model and state.
@@ -43,7 +43,7 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         self._num_envs: int | None = None
         self._warned_once: set[str] = set()
 
-        # Determine if usd stage sync is required for selected renderers and visualizers
+        # Determine if usd stage sync is required for selected visualizers and renderers
         requirements = self._simulation_context.get_scene_data_requirements()
         self._needs_usd_sync = bool(requirements.requires_usd_stage)
 

@@ -113,7 +113,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # Single source of truth: discovered from stage and cached once available.
         self._num_envs: int | None = None
 
-        # Determine if newton model sync is required for selected renderers and visualizers
+        # Determine if newton model sync is required for selected visualizers and renderers
         requirements = self._simulation_context.get_scene_data_requirements()
         self._needs_newton_sync = bool(requirements.requires_newton_model)
 
@@ -916,7 +916,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
 
     def get_metadata(self) -> dict[str, Any]:
-        """Return provider metadata for renderers and visualizers.
+        """Return provider metadata for visualizers and renderers.
 
         Returns:
             Metadata dictionary with backend and environment count.
