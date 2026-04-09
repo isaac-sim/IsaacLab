@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+4.6.11 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added per-instance resolve-matching-names caches to
+  :class:`~isaaclab.assets.AssetBase` via
+  :meth:`~isaaclab.assets.AssetBase._init_resolve_matching_names_caches`. All
+  assets now inherit ``_resolve_matching_names_cached`` and
+  ``_resolve_matching_names_values_cached`` closures whose lifetimes are tied
+  to the owning instance, avoiding repeated regex resolution across
+  ``find_*`` calls. The closures and their cache dicts are freed automatically
+  when the instance is garbage-collected.
+
+
 4.6.10 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

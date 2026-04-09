@@ -88,6 +88,7 @@ def create_physx_rigid_object(
 
     object.__setattr__(rigid_object, "_root_view", mock_view)
     object.__setattr__(rigid_object, "_device", device)
+    rigid_object._init_resolve_matching_names_caches()
 
     # Create RigidObjectData instance (SimulationManager already mocked at module level)
     data = PhysXRigidObjectData(mock_view, device)
@@ -166,6 +167,7 @@ def create_newton_rigid_object(
     object.__setattr__(rigid_object, "_root_view", mock_view)
     object.__setattr__(rigid_object, "_device", device)
     object.__setattr__(rigid_object, "_data", data)
+    rigid_object._init_resolve_matching_names_caches()
 
     # Mock wrench composers
     mock_inst_wrench = MockWrenchComposer(rigid_object)

@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Sequence
-from functools import cache
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -24,7 +23,6 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
-from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -112,24 +110,7 @@ class Articulation(BaseArticulation):
         Args:
             cfg: A configuration instance.
         """
-        self._init_finder_caches()
         super().__init__(cfg)
-
-    def _init_finder_caches(self):
-        """Create per-instance cached closures for :meth:`find_bodies` and :meth:`find_joints`."""
-
-        @cache
-        def _find_bodies_cached(keys: tuple[str, ...], preserve_order: bool) -> tuple[list[int], list[str]]:
-            return resolve_matching_names(keys, self.body_names, preserve_order)
-
-        @cache
-        def _find_joints_cached(
-            keys: tuple[str, ...], joint_names: tuple[str, ...], preserve_order: bool
-        ) -> tuple[list[int], list[str]]:
-            return resolve_matching_names(keys, list(joint_names), preserve_order)
-
-        self._find_bodies_cached = _find_bodies_cached
-        self._find_joints_cached = _find_joints_cached
 
     """
     Properties
@@ -303,9 +284,7 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        _keys = (name_keys,) if isinstance(name_keys, str) else tuple(name_keys)
-        result = self._find_bodies_cached(_keys, preserve_order)
-        return list(result[0]), list(result[1])
+        return self._resolve_matching_names_cached(name_keys, self.body_names, preserve_order)
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
@@ -324,10 +303,8 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the joint indices and names.
         """
-        _keys = (name_keys,) if isinstance(name_keys, str) else tuple(name_keys)
-        _subset = tuple(joint_subset) if joint_subset is not None else tuple(self.joint_names)
-        result = self._find_joints_cached(_keys, _subset, preserve_order)
-        return list(result[0]), list(result[1])
+        names = joint_subset if joint_subset is not None else self.joint_names
+        return self._resolve_matching_names_cached(name_keys, names, preserve_order)
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -350,8 +327,7 @@ class Articulation(BaseArticulation):
         if tendon_subsets is None:
             # tendons follow the joint names they are attached to
             tendon_subsets = self.fixed_tendon_names
-        # find tendons
-        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        return self._resolve_matching_names_cached(name_keys, tendon_subsets, preserve_order)
 
     def find_spatial_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -372,8 +348,7 @@ class Articulation(BaseArticulation):
         """
         if tendon_subsets is None:
             tendon_subsets = self.spatial_tendon_names
-        # find tendons
-        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
+        return self._resolve_matching_names_cached(name_keys, tendon_subsets, preserve_order)
 
     """
     Operations - State Writers.
@@ -3701,8 +3676,12 @@ class Articulation(BaseArticulation):
         self.data.default_root_vel = wp.array(default_root_vel, dtype=wp.spatial_vectorf, device=self.device)
 
         # -- joint state
-        pos_idx_list, _, pos_val_list = resolve_matching_names_values(self.cfg.init_state.joint_pos, self.joint_names)
-        vel_idx_list, _, vel_val_list = resolve_matching_names_values(self.cfg.init_state.joint_vel, self.joint_names)
+        pos_idx_list, _, pos_val_list = self._resolve_matching_names_values_cached(
+            self.cfg.init_state.joint_pos, self.joint_names
+        )
+        vel_idx_list, _, vel_val_list = self._resolve_matching_names_values_cached(
+            self.cfg.init_state.joint_vel, self.joint_names
+        )
         wp.launch(
             articulation_kernels.update_default_joint_values,
             dim=(self.num_instances, len(pos_idx_list)),
