@@ -48,15 +48,23 @@ def main():
     rendering_mode = "performance"
 
     # RTX tuning uses :class:`RenderingModeCfg` profiles on ``SimulationCfg.rendering_mode_cfgs``
-    # (not raw carb paths). Here we extend the ``performance`` preset with reflections for this scene.
+    # (not raw carb paths). Each built-in name starts from its preset, then applies optional ``kit_*`` overrides.
     sim_cfg = sim_utils.SimulationCfg(
         rendering_mode_cfgs={
             "performance": RenderingModeCfg(
                 rendering_mode_preset="performance",
                 kit_enable_reflections=True,
             ),
-            "balanced": RenderingModeCfg(rendering_mode_preset="balanced"),
-            "quality": RenderingModeCfg(rendering_mode_preset="quality"),
+            "balanced": RenderingModeCfg(
+                rendering_mode_preset="balanced",
+                kit_enable_reflections=True,
+                kit_dlss_mode=1,
+            ),
+            "quality": RenderingModeCfg(
+                rendering_mode_preset="quality",
+                kit_antialiasing_mode="DLAA",
+                kit_disocclusion_scale=10_000.0,
+            ),
         },
         visualizer_cfgs=[
             KitVisualizerCfg(rendering_mode=rendering_mode),

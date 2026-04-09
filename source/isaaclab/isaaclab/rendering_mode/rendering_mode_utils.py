@@ -19,9 +19,7 @@ _logger = logging.getLogger(__name__)
 # Log at most once if carb cannot read the CLI profile leaf.
 _cli_rendering_mode_resolution_warned = False
 
-# Leaf path for the CLI rendering-mode profile name (``performance`` / ``balanced`` / ``quality``, or empty).
-# AppLauncher writes here with ``set_string`` only—never the parent ``.../rendering_mode`` path—so
-# ``get_string`` / ``get_setting`` return a string instead of a dict subtree.
+# CLI profile name string; AppLauncher uses this leaf path (``set_string``).
 CLI_RENDERING_MODE_PROFILE_PATH = "/isaaclab/rendering/rendering_mode/profile"
 
 _KIT_FIELD_TO_CARB: dict[str, str] = {
@@ -36,6 +34,8 @@ _KIT_FIELD_TO_CARB: dict[str, str] = {
     "kit_enable_shadows": "/rtx/shadows/enabled",
     "kit_enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
     "kit_dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+    "kit_disocclusion_scale": "/rtx/aovConverter/disocclusionScale",
+    "kit_nre_compositing_renderer_hints": "/omni/rtx/nre/compositing/rendererHints",
 }
 
 

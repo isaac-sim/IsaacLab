@@ -12,26 +12,21 @@ from isaaclab.utils import configclass
 
 @configclass
 class RenderingModeCfg:
-    """Omniverse RTX rendering controls for Kit profiles (viewport and Kit-style camera renderers).
+    """RTX/carb settings for `Omniverse RTX`_ (Kit viewport + Kit RTX camera renderers: ``default`` / ``isaac_rtx`` / ``rtx``).
 
-    These parameters configure the `Omniverse RTX Renderer`_. When you attach a profile to
-    :attr:`~isaaclab.sim.SimulationCfg.rendering_mode_cfgs` and reference it from a renderer or
-    :class:`~isaaclab_physx.visualizers.kit_visualizer_cfg.KitVisualizerCfg`, Isaac Lab applies the
-    corresponding ``kit_*`` fields (and optional :attr:`rendering_mode_preset`) via carb settings.
+    Put named profiles in :attr:`~isaaclab.sim.SimulationCfg.rendering_mode_cfgs`, then set the same name on
+    ``KitVisualizerCfg.rendering_mode`` or ``CameraCfg.renderer_cfg.rendering_mode`` (non-Kit renderers ignore it).
 
-    Default Kit/RTX behavior for Isaac Lab still comes from the experience files:
+    **Order:** optional :attr:`rendering_mode_preset` (``performance`` / ``balanced`` / ``quality``) loads the
+    matching baseline from :mod:`isaaclab.rendering_mode.rendering_mode_presets`—the same three choices as CLI
+    ``--rendering_mode``. Each non-``None`` ``kit_*`` field then overrides specific carb paths on top of that
+    baseline.
 
-    * ``apps/isaaclab.python.rendering.kit`` — simulation with the GUI enabled.
-    * ``apps/isaaclab.python.headless.rendering.kit`` — headless simulation.
+    Baselines before this config are defined by the app experience (e.g. ``apps/isaaclab.python.rendering.kit``,
+    ``apps/isaaclab.python.headless.rendering.kit``). Newton / non-Kit viewer options belong on ``NewtonVisualizerCfg``,
+    not here.
 
-    Newton and other non-Kit visualizer settings belong on ``NewtonVisualizerCfg`` (or the matching cfg), not here.
-    Each non-``None`` ``kit_*`` field or :attr:`rendering_mode_preset` overrides Kit RTX defaults for that profile only.
-    The built-in names ``performance``, ``balanced``, and ``quality`` match the baselines in
-    :mod:`isaaclab.rendering_mode.rendering_mode_presets`. Choosing a preset via
-    :attr:`rendering_mode_preset` or the CLI flag ``--rendering_mode`` behaves like selecting that
-    profile for the run.
-
-    .. _Omniverse RTX Renderer: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html
+    .. _Omniverse RTX: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html
     """
 
     rendering_mode_preset: Literal["performance", "balanced", "quality"] | None = None
@@ -141,6 +136,20 @@ class RenderingModeCfg:
     Carb path: ``/rtx/domeLight/upperLowerStrategy``.
 
     .. _dome light sampling: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_common.html#dome-light
+    """
+
+    kit_disocclusion_scale: float | None = None
+    """Scales disocclusion handling for tiled / per-camera rendering (ghosting, newly exposed regions).
+
+    Higher values can reduce disocclusion artifacts at the cost of stability or side effects in some scenes.
+    Carb path: ``/rtx/aovConverter/disocclusionScale``.
+    """
+
+    kit_nre_compositing_renderer_hints: int | None = None
+    """NRE compositing renderer hints (Isaac Lab rendering experiences use ``3``).
+
+    Required for correct compositing when using UsdVol 3D Gaussian content across multiple environments.
+    Carb path: ``/omni/rtx/nre/compositing/rendererHints`` (see also ``omni.rtx.nre.compositing.rendererHints`` in app ``.kit`` files).
     """
 
     # TODO: Optional passthrough dict for arbitrary carb keys (cf. legacy RenderCfg.carb_settings).

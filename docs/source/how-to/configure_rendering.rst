@@ -33,7 +33,7 @@ through **renderer configs**.
 2. **Visualizer Configs.** From a Visualizer Config, set the ``rendering_mode`` field to a profile name defined by the
    the RenderingMode Configs. There are 3 presets: ``performance``, ``balanced``, and ``quality``. Users can also define
    custom profiles by adding a named entry to :attr:`~sim.SimulationCfg.rendering_mode_cfgs` (see **Overriding Rendering Mode Settings**
-   below). Visualizers are set to performance mode by default.
+   below). Rendering Modes of Visualizers are set to performance by default.
 
    .. code-block:: python
       # Set KitVisualizer to balanced rendering mode
@@ -46,7 +46,7 @@ through **renderer configs**.
       )
 
 3. **Renderer Configs.** Similar to Visualizer Configs, from a Renderer Config, set the ``rendering_mode`` field to a profile
-   name defined by the RenderingMode Configs. There are 3 presets: ``performance``, ``balanced``, and ``quality``.
+   name defined by the RenderingMode Configs. Rendering Modes of Renderers are set to None by default, which uses the native rendering settings of the workflow.
 
    .. code-block:: python
       # Set RTX Renderer to quality rendering mode.
@@ -142,6 +142,12 @@ specific settings of presets via ``kit_*`` fields (option 1) or by defining and 
       |                                    | light upper/lower hemisphere handling; see Omniverse RTX docs for     |
       |                                    | semantics of each value).                                             |
       +------------------------------------+-------------------------------------------------------------------------+
+      | kit_disocclusion_scale             | Float. Aggressiveness of disocclusion handling for tiled rendering      |
+      |                                    | (maps to ``/rtx/aovConverter/disocclusionScale``).                      |
+      +------------------------------------+-------------------------------------------------------------------------+
+      | kit_nre_compositing_renderer_hints | Int. NRE compositing hint (Isaac Lab apps use ``3``). Maps to           |
+      |                                    | ``/omni/rtx/nre/compositing/rendererHints``.                            |
+      +------------------------------------+-------------------------------------------------------------------------+
 
 
 2. If you need a custom profile, define your own named entry in
@@ -181,21 +187,15 @@ For renders at lower resolutions, we advise setting
 of performance.
 
 
-If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try
-adjusting the ``disocclusionScale`` parameter. This setting controls how aggressively the renderer handles
-areas that become newly visible between frames:
+If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can set
+:attr:`~isaaclab.rendering_mode.RenderingModeCfg.kit_disocclusion_scale` on your profile. It maps to carb
+``/rtx/aovConverter/disocclusionScale`` and controls how aggressively the renderer handles areas that become
+newly visible between frames.
 
 .. note::
 
-   Low-level carb rendering settings (for example,
-   ``/rtx/aovConverter/disocclusionScale``) are not currently exposed through
-   :class:`~isaaclab.rendering_mode.RenderingModeCfg`.
-
-.. note::
-
-   This parameter is not commonly exposed as it may have side effects in certain scenarios.
-   Only use it as a last resort if other quality settings do not resolve the visual artifacts.
-   The value can be adjusted to a very high value to reduce disocclusion artifacts.
+   This knob can have side effects in some scenarios. Prefer tuning other quality settings first; only raise
+   ``kit_disocclusion_scale`` (often to a very high value) if artifacts persist.
 
 
 Rendering UsdVol 3D Gaussian Scenes in Multiple Environments
@@ -203,12 +203,28 @@ Rendering UsdVol 3D Gaussian Scenes in Multiple Environments
 
 When using UsdVol volumes with 3D Gaussian particles (e.g. exported from
 `3DGRUT <https://github.com/nv-tlabs/3dgrut?tab=readme-ov-file#exporting-usdz-for-use-in-omniverse-and-isaac-sim>`_)
-in **multiple environments**, you must set the following so the renderer uses the correct compositing path:
+in **multiple environments**, you must set ``kit_nre_compositing_renderer_hints=3`` (carb
+``/omni/rtx/nre/compositing/rendererHints``) so the renderer uses the correct compositing path—the same value
+Isaac Lab sets in its rendering experience files.
 
-.. note::
+.. code-block:: python
 
-   This setting is not currently exposed through
-   :class:`~isaaclab.rendering_mode.RenderingModeCfg`.
+   from isaaclab.rendering_mode import RenderingModeCfg
+   from isaaclab_physx.visualizers import KitVisualizerCfg
+
+   sim_cfg = sim_utils.SimulationCfg(
+       rendering_mode_cfgs={
+           "gaussian_multi_env": RenderingModeCfg(
+               kit_nre_compositing_renderer_hints=3,
+           ),
+       },
+       visualizer_cfgs=[KitVisualizerCfg(rendering_mode="gaussian_multi_env")],
+   )
+
+   # RTX cameras: use the same profile name on ``renderer_cfg.rendering_mode``.
+
+If tiled rendering shows ghosting or disocclusion artifacts with this content, you can add
+:attr:`~isaaclab.rendering_mode.RenderingModeCfg.kit_disocclusion_scale` on the same profile (e.g. ``10000.0``).
 
 .. warning::
 
