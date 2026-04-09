@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
@@ -20,22 +21,26 @@ _cli_rendering_mode_resolution_warned = False
 
 _KNOWN_RENDERING_MODE_PRESETS = frozenset({"performance", "balanced", "quality"})
 
+# Try leaf paths first: AppLauncher uses set_string; generic get() may return a dict subtree.
+_CLI_MODE_STRING_PATHS = (
+    "/isaaclab/rendering/rendering_mode",
+    "/isaaclab/rendering/rendering_mode/value",
+    "/isaaclab/rendering/rendering_mode/default",
+)
 
-def _collect_str_leaves(obj: Any, out: list[str], depth: int = 0) -> None:
-    """Collect non-empty strings from nested dict/list structures (carb subtrees)."""
-    if depth > 12:
-        return
-    if isinstance(obj, str):
-        s = obj.strip()
-        if s:
-            out.append(s)
-        return
-    if isinstance(obj, dict):
-        for v in obj.values():
-            _collect_str_leaves(v, out, depth + 1)
-    elif isinstance(obj, (list, tuple, set)):
-        for v in obj:
-            _collect_str_leaves(v, out, depth + 1)
+_KIT_FIELD_TO_CARB: dict[str, str] = {
+    "kit_enable_translucency": "/rtx/translucency/enabled",
+    "kit_enable_reflections": "/rtx/reflections/enabled",
+    "kit_enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+    "kit_enable_dlssg": "/rtx-transient/dlssg/enabled",
+    "kit_enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+    "kit_dlss_mode": "/rtx/post/dlss/execMode",
+    "kit_enable_direct_lighting": "/rtx/directLighting/enabled",
+    "kit_samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+    "kit_enable_shadows": "/rtx/shadows/enabled",
+    "kit_enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+    "kit_dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+}
 
 
 def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
@@ -43,6 +48,22 @@ def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
 
     Path is typically ``/isaaclab/rendering/rendering_mode``.
     """
+
+    def collect_str_leaves(obj: Any, out: list[str], depth: int = 0) -> None:
+        if depth > 12:
+            return
+        if isinstance(obj, str):
+            s = obj.strip()
+            if s:
+                out.append(s)
+            return
+        if isinstance(obj, dict):
+            for v in obj.values():
+                collect_str_leaves(v, out, depth + 1)
+        elif isinstance(obj, (list, tuple, set)):
+            for v in obj:
+                collect_str_leaves(v, out, depth + 1)
+
     if raw is None:
         return None
     if isinstance(raw, str):
@@ -60,7 +81,7 @@ def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
                 if nested:
                     return nested
     strings: list[str] = []
-    _collect_str_leaves(raw, strings)
+    collect_str_leaves(raw, strings)
     if not strings:
         return None
     for s in strings:
@@ -78,26 +99,18 @@ def _read_cli_rendering_mode_profile_name(get_setting: Any) -> str | None:
     """
     global _cli_rendering_mode_resolution_warned
 
-    try:
+    with contextlib.suppress(Exception):
         import carb
 
         gs = carb.settings.get_settings()
         if gs is not None and hasattr(gs, "get_string"):
-            for path in (
-                "/isaaclab/rendering/rendering_mode",
-                "/isaaclab/rendering/rendering_mode/value",
-                "/isaaclab/rendering/rendering_mode/default",
-            ):
-                try:
+            for path in _CLI_MODE_STRING_PATHS:
+                with contextlib.suppress(Exception):
                     s = gs.get_string(path)
                     if s is not None:
                         out = str(s).strip()
                         if out:
                             return out
-                except Exception:
-                    continue
-    except Exception:
-        pass
 
     raw = get_setting("/isaaclab/rendering/rendering_mode")
     coerced = _coerce_carb_rendering_mode_value(raw)
@@ -129,6 +142,13 @@ def _normalize_rendering_mode_profile_name(name: Any) -> str | None:
     return None
 
 
+def _resolve_effective_rendering_mode_name(get_setting: Any, cfg: Any) -> str | None:
+    """CLI explicit flag wins; otherwise use ``cfg.rendering_mode``."""
+    if bool(get_setting("/isaaclab/rendering/rendering_mode/explicit")):
+        return _read_cli_rendering_mode_profile_name(get_setting)
+    return _normalize_rendering_mode_profile_name(getattr(cfg, "rendering_mode", None))
+
+
 def apply_kit_rendering_preset(set_setting: Any, preset_name: str) -> None:
     """Apply a named kit preset via provided setting setter."""
     preset = get_kit_rendering_preset(preset_name)
@@ -144,27 +164,12 @@ def apply_kit_rendering_mode_cfg(set_setting: Any, mode_cfg: RenderingModeCfg) -
     # Replicator's set_render_rtx_realtime() can reset other RTX carb flags. Run it before applying
     # explicit kit_* carb paths so user overrides remain authoritative.
     if mode_cfg.kit_antialiasing_mode is not None:
-        try:
+        with contextlib.suppress(Exception):
             import omni.replicator.core as rep
 
             rep.settings.set_render_rtx_realtime(antialiasing=mode_cfg.kit_antialiasing_mode)
-        except Exception:
-            pass
 
-    field_to_carb = {
-        "kit_enable_translucency": "/rtx/translucency/enabled",
-        "kit_enable_reflections": "/rtx/reflections/enabled",
-        "kit_enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-        "kit_enable_dlssg": "/rtx-transient/dlssg/enabled",
-        "kit_enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-        "kit_dlss_mode": "/rtx/post/dlss/execMode",
-        "kit_enable_direct_lighting": "/rtx/directLighting/enabled",
-        "kit_samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-        "kit_enable_shadows": "/rtx/shadows/enabled",
-        "kit_enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-        "kit_dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
-    }
-    for field_name, carb_key in field_to_carb.items():
+    for field_name, carb_key in _KIT_FIELD_TO_CARB.items():
         value = getattr(mode_cfg, field_name, None)
         if value is not None:
             set_setting(carb_key, value)
@@ -172,10 +177,7 @@ def apply_kit_rendering_mode_cfg(set_setting: Any, mode_cfg: RenderingModeCfg) -
 
 def resolve_rendering_mode_name_for_renderer_cfg(get_setting: Any, renderer_cfg: Any) -> str | None:
     """Resolve effective rendering mode profile name for a camera/renderer cfg."""
-    cli_mode_explicit = bool(get_setting("/isaaclab/rendering/rendering_mode/explicit"))
-    if cli_mode_explicit:
-        return _read_cli_rendering_mode_profile_name(get_setting)
-    return _normalize_rendering_mode_profile_name(getattr(renderer_cfg, "rendering_mode", None))
+    return _resolve_effective_rendering_mode_name(get_setting, renderer_cfg)
 
 
 def apply_mode_profile_to_renderer_cfg(
@@ -198,10 +200,7 @@ def apply_mode_profile_to_renderer_cfg(
 
 def resolve_rendering_mode_name_for_visualizer_cfg(get_setting: Any, visualizer_cfg: Any) -> str | None:
     """Resolve effective rendering mode profile name for a visualizer cfg."""
-    cli_mode_explicit = bool(get_setting("/isaaclab/rendering/rendering_mode/explicit"))
-    if cli_mode_explicit:
-        return _read_cli_rendering_mode_profile_name(get_setting)
-    return _normalize_rendering_mode_profile_name(getattr(visualizer_cfg, "rendering_mode", None))
+    return _resolve_effective_rendering_mode_name(get_setting, visualizer_cfg)
 
 
 def resolve_rendering_mode_cfg(

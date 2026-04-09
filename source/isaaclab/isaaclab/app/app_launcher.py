@@ -447,9 +447,9 @@ class AppLauncher:
             action=ExplicitAction,
             choices={"performance", "balanced", "quality"},
             help=(
-                "Selects a named profile from SimulationCfg.rendering_mode_cfgs (default: performance, "
-                "balanced, quality). Overrides per-camera and per-visualizer rendering_mode when set. "
-                "Customize profiles with isaaclab.rendering_mode.RenderingModeCfg."
+                "RTX rendering preset: performance, balanced, or quality. When set, overrides "
+                "rendering_mode on cameras and on the Kit visualizer. Add or adjust named profiles in "
+                "SimulationCfg.rendering_mode_cfgs using RenderingModeCfg."
             ),
         )
         arg_group.add_argument(

@@ -17,17 +17,24 @@ Adjust and fine-tune rendering to achieve the ideal balance for your workflow.
 Selecting a Rendering Mode
 --------------------------
 
-Rendering mode is selected as follows:
+At present, rendering-mode profiles are wired for :mod:`isaaclab_physx.visualizers` (``KitVisualizerCfg`` and the Kit
+viewport) and for RTX camera renderers under :mod:`isaaclab_physx.renderers` (for example ``IsaacRtxRendererCfg``). Other
+visualizer or renderer integrations are not supported for this feature yet.
 
-1. **Camera sensors.** Classic and tiled cameras do not define ``rendering_mode`` on the camera config itself; set
-   it on the nested :attr:`~sensors.camera.camera_cfg.CameraCfg.renderer_cfg` (a :class:`~isaaclab.renderers.RendererCfg`).
-   Use the same profile names as keys in :attr:`~sim.SimulationCfg.rendering_mode_cfgs`. When the CLI does not set
-   an explicit mode, this field selects the profile; otherwise the CLI wins (see item 3 below). For Kit-style
-   renderers (``default``, ``isaac_rtx``, ``rtx``), the profile applies RTX settings; for Newton Warp tiled cameras,
-   configure :class:`~isaaclab_newton.renderers.newton_warp_renderer_cfg.NewtonWarpRendererCfg` directly instead.
+You can pick ``performance``, ``balanced``, or ``quality`` (or a custom name you added under
+:attr:`~sim.SimulationCfg.rendering_mode_cfgs`) in a few places: from the **command line**, through **visualizers**, or
+through **camera renderers**.
 
-2. **Kit visualizer.** On :class:`~isaaclab_physx.visualizers.kit_visualizer_cfg.KitVisualizerCfg`, set ``rendering_mode``
-   to an entry from :attr:`~sim.SimulationCfg.rendering_mode_cfgs` (RTX / viewport settings).
+1. **Command line.** ``--rendering_mode`` sets the mode at launch and overrides visualizer and RTX camera renderer
+   settings when you pass it.
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
+
+2. **Visualizers.** On :class:`~isaaclab_physx.visualizers.kit_visualizer_cfg.KitVisualizerCfg`, set ``rendering_mode``
+   to a profile from :attr:`~sim.SimulationCfg.rendering_mode_cfgs`. This controls RTX settings for the interactive
+   viewport.
 
    .. code-block:: python
 
@@ -42,29 +49,44 @@ Rendering mode is selected as follows:
           ],
       )
 
-3. Use the ``--rendering_mode`` CLI argument, which takes precedence over
-   ``camera_cfg.renderer_cfg.rendering_mode`` and over ``visualizer_cfg.rendering_mode``.
+3. **Renderers.** Set ``rendering_mode`` on :attr:`~sensors.camera.camera_cfg.CameraCfg.renderer_cfg` to a profile
+   name from :attr:`~sim.SimulationCfg.rendering_mode_cfgs`. Use an RTX renderer configuration (for example
+   :class:`~isaaclab_physx.renderers.isaac_rtx_renderer_cfg.IsaacRtxRendererCfg`).
 
-   .. code-block:: bash
+   The profile name is a **string key**; defaults include ``performance``, ``balanced``, and ``quality``.
 
-      ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
+   .. code-block:: python
+
+      import isaaclab.sim as sim_utils
+      from isaaclab.sensors.camera import CameraCfg
+      from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+      # Default SimulationCfg already defines rendering_mode_cfgs["performance"|"balanced"|"quality"].
+      camera_cfg = CameraCfg(
+          prim_path="/World/envs/env_.*/Camera",
+          height=480,
+          width=640,
+          renderer_cfg=IsaacRtxRendererCfg(rendering_mode="quality"),
+      )
+
+      sim_cfg = sim_utils.SimulationCfg()
+      # Register camera_cfg on your scene / task as usual; RTX settings apply when the camera initializes.
 
 Notes:
 
-* If ``rendering_mode=None`` on ``renderer_cfg`` and the CLI did not set an explicit mode, no RTX profile
-  is applied for Kit-style camera renderers; other renderer types ignore ``rendering_mode``.
-* If ``rendering_mode=None`` on a Kit visualizer, Isaac Lab does not apply RTX profile overrides
-  (USD-authored / native defaults apply). Other visualizers ignore ``rendering_mode``; use their own config classes
-  (for example :class:`~isaaclab_visualizers.newton.newton_visualizer_cfg.NewtonVisualizerCfg` for Newton GL).
+* If ``rendering_mode=None`` on :class:`~isaaclab_physx.visualizers.kit_visualizer_cfg.KitVisualizerCfg`, Isaac Lab does
+  not apply RTX profile overrides (USD / Kit defaults apply). Other visualizers ignore ``rendering_mode``; for example
+  use :class:`~isaaclab_visualizers.newton.newton_visualizer_cfg.NewtonVisualizerCfg` for Newton GL.
 * ``--rendering_mode`` is the supported CLI entry point.
 
 .. note::
 
    :class:`~isaaclab.rendering_mode.RenderingModeCfg` only carries ``kit_*`` fields and built-in
    ``rendering_mode_preset`` values (``performance``, ``balanced``, ``quality``). Those profiles drive **Kit / RTX**
-   carb settings for the Kit viewport and for Kit-style camera renderers (``default``, ``isaac_rtx``, ``rtx``).
-   Newton GL and Newton Warp are configured on :class:`~isaaclab_visualizers.newton.newton_visualizer_cfg.NewtonVisualizerCfg`
-   and :class:`~isaaclab_newton.renderers.newton_warp_renderer_cfg.NewtonWarpRendererCfg` respectively, not via
+   carb settings on the Kit viewport (via :mod:`isaaclab_physx.visualizers`) and on RTX camera renderers (``default``,
+   ``isaac_rtx``, ``rtx`` under :mod:`isaaclab_physx.renderers`). Newton GL and Newton Warp are configured on
+   :class:`~isaaclab_visualizers.newton.newton_visualizer_cfg.NewtonVisualizerCfg` and
+   :class:`~isaaclab_newton.renderers.newton_warp_renderer_cfg.NewtonWarpRendererCfg` respectively, not via
    ``SimulationCfg.rendering_mode_cfgs``.
 
 Example renders from the ``set_rendering_mode.py`` script.
@@ -99,7 +121,7 @@ The built-in ``rendering_mode_preset`` field only accepts ``performance``, ``bal
 fixed RTX baselines in ``isaaclab.rendering_mode.rendering_mode_presets``. Isaac Lab does not provide a supported
 way to register additional preset baselines. Customization is done by adding a **named profile** to
 :attr:`~sim.SimulationCfg.rendering_mode_cfgs` that picks one of the three baselines and overrides it with ``kit_*``
-fields—see item 2 below.
+fields—see the **custom profile** step (item 2) below.
 
 There are two ways to provide settings that overwrite presets:
 
@@ -158,13 +180,16 @@ There are two ways to provide settings that overwrite presets:
 
 
 2. If you need a custom profile, define your own named entry in
-   :attr:`~sim.SimulationCfg.rendering_mode_cfgs` and reference that name from
-   ``camera_cfg.renderer_cfg.rendering_mode`` (Kit-style renderers) and/or ``KitVisualizerCfg.rendering_mode``.
+   :attr:`~sim.SimulationCfg.rendering_mode_cfgs` and reference that name from ``KitVisualizerCfg.rendering_mode``
+   (:mod:`isaaclab_physx.visualizers`) and/or ``camera_cfg.renderer_cfg.rendering_mode`` (RTX renderers under
+   :mod:`isaaclab_physx.renderers`).
 
    .. code-block:: python
 
       import isaaclab.sim as sim_utils
       from isaaclab.rendering_mode import RenderingModeCfg
+      from isaaclab.sensors.camera import CameraCfg
+      from isaaclab_physx.renderers import IsaacRtxRendererCfg
       from isaaclab_physx.visualizers import KitVisualizerCfg
 
       sim_cfg = sim_utils.SimulationCfg(
@@ -177,6 +202,14 @@ There are two ways to provide settings that overwrite presets:
           },
           visualizer_cfgs=[KitVisualizerCfg(rendering_mode="my_profile")],
       )
+
+      camera_cfg = CameraCfg(
+          prim_path="/World/envs/env_.*/Camera",
+          height=480,
+          width=640,
+          renderer_cfg=IsaacRtxRendererCfg(rendering_mode="my_profile"),
+      )
+      # Same profile string on ``KitVisualizerCfg`` and on RTX ``renderer_cfg``; attach camera_cfg in your scene.
 
 Current Limitations
 -------------------
