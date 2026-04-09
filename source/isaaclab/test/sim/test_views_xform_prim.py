@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
     _IsaacSimXformPrimView = None
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.sim.views import XformPrimView  # noqa: E402
+from isaaclab.sim.views import UsdXformPrimView as XformPrimView  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 from xform_contract_tests import *  # noqa: F401, F403, E402

@@ -25,7 +25,7 @@ import warp as wp  # noqa: E402
 
 from pxr import Gf, UsdGeom  # noqa: E402
 
-from isaaclab_physx.sim.views import XformPrimView  # noqa: E402
+from isaaclab_physx.sim.views import FabricXformPrimView as XformPrimView  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from xform_contract_tests import *  # noqa: F401, F403, E402

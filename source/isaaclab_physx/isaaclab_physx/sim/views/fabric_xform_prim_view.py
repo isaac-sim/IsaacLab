@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PhysX XformPrimView with Fabric GPU acceleration — Warp-native."""
+"""PhysX XformPrimView with Fabric GPU acceleration."""
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 
 import torch
 import warp as wp
@@ -17,7 +16,8 @@ from pxr import Usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.sim.views.xform_prim_view import XformPrimView as UsdXformPrimView
+from isaaclab.sim.views.base_xform_prim_view import BaseXformPrimView
+from isaaclab.sim.views.usd_xform_prim_view import UsdXformPrimView
 from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
@@ -39,28 +39,18 @@ def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
     return a.view(dtype=wp.float32)
 
 
-class XformPrimView(UsdXformPrimView):
+class FabricXformPrimView(BaseXformPrimView):
     """XformPrimView with Fabric GPU acceleration for the PhysX backend.
 
-    Inherits all USD-based operations from the core
-    :class:`~isaaclab.sim.views.XformPrimView` and adds GPU-accelerated Fabric
-    paths for ``get_world_poses``, ``set_world_poses``, ``get_scales``, and
-    ``set_scales``.
+    Uses composition: holds a :class:`UsdXformPrimView` internally for USD
+    fallback and non-accelerated operations (local poses, visibility, scales
+    when Fabric is disabled).
 
-    When Fabric is enabled, this class leverages NVIDIA's Fabric API:
-
-    - Uses ``omni:fabric:worldMatrix`` for all Boundable prims
-    - Performs batch matrix decomposition/composition using Warp kernels on GPU
-    - Works for both physics-enabled and non-physics prims (cameras, meshes, etc.)
-
-    When Fabric is **not** enabled, all operations fall through to the USD base class.
+    When Fabric is enabled, world-pose and scale operations use GPU-accelerated
+    Warp kernels operating on ``omni:fabric:worldMatrix``.  All other operations
+    delegate to the internal USD view.
 
     All getters return ``wp.array``.  Setters accept ``wp.array``.
-
-    .. warning::
-        **Fabric requires CUDA**: Fabric is only supported on CUDA devices.
-        Warp's CPU backend for fabric-array writes has known issues, so attempting
-        to use Fabric with CPU device will automatically fall back to USD operations.
     """
 
     def __init__(
@@ -71,18 +61,8 @@ class XformPrimView(UsdXformPrimView):
         sync_usd_on_fabric_write: bool = False,
         stage: Usd.Stage | None = None,
     ):
-        """Initialize the view with matching prims and optional Fabric acceleration.
-
-        Args:
-            prim_path: USD prim path pattern to match prims.
-            device: Device to place arrays on. Defaults to ``"cpu"``.
-            validate_xform_ops: Whether to validate standard xform operations. Defaults to True.
-            sync_usd_on_fabric_write: Whether to mirror Fabric transform writes back to USD.
-                Defaults to False for better performance.
-            stage: USD stage to search for prims. Defaults to None (current active stage).
-        """
-        super().__init__(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
-
+        self._usd_view = UsdXformPrimView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
+        self._device = device
         self._sync_usd_on_fabric_write = sync_usd_on_fabric_write
 
         settings = SettingsManager.instance()
@@ -113,17 +93,42 @@ class XformPrimView(UsdXformPrimView):
         self._view_index_attr = f"isaaclab:view_index:{abs(hash(self))}"
 
     # ------------------------------------------------------------------
-    # Overrides — Fabric-accelerated or USD fallback
+    # Delegated properties
     # ------------------------------------------------------------------
 
-    def set_world_poses(
-        self,
-        positions: wp.array | None = None,
-        orientations: wp.array | None = None,
-        indices: Sequence[int] | None = None,
-    ):
+    @property
+    def count(self) -> int:
+        return self._usd_view.count
+
+    @property
+    def device(self) -> str:
+        return self._device
+
+    @property
+    def prims(self) -> list:
+        return self._usd_view.prims
+
+    @property
+    def prim_paths(self) -> list[str]:
+        return self._usd_view.prim_paths
+
+    # ------------------------------------------------------------------
+    # Delegated operations (USD-only)
+    # ------------------------------------------------------------------
+
+    def get_visibility(self, indices=None):
+        return self._usd_view.get_visibility(indices)
+
+    def set_visibility(self, visibility, indices=None):
+        self._usd_view.set_visibility(visibility, indices)
+
+    # ------------------------------------------------------------------
+    # World poses — Fabric-accelerated or USD fallback
+    # ------------------------------------------------------------------
+
+    def set_world_poses(self, positions=None, orientations=None, indices=None):
         if not self._use_fabric:
-            super().set_world_poses(positions, orientations, indices)
+            self._usd_view.set_world_poses(positions, orientations, indices)
             return
 
         if not self._fabric_initialized:
@@ -134,8 +139,11 @@ class XformPrimView(UsdXformPrimView):
 
         dummy = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
         positions_wp = _to_float32_2d(positions) if positions is not None else dummy
-        orientations_wp = _to_float32_2d(orientations) if orientations is not None else wp.zeros((0, 4), dtype=wp.float32, device=self._device)
-        scales_wp = dummy
+        orientations_wp = (
+            _to_float32_2d(orientations)
+            if orientations is not None
+            else wp.zeros((0, 4), dtype=wp.float32, device=self._device)
+        )
 
         wp.launch(
             kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
@@ -144,7 +152,7 @@ class XformPrimView(UsdXformPrimView):
                 self._fabric_world_matrices,
                 positions_wp,
                 orientations_wp,
-                scales_wp,
+                dummy,
                 False,
                 False,
                 False,
@@ -158,58 +166,11 @@ class XformPrimView(UsdXformPrimView):
         self._fabric_hierarchy.update_world_xforms()
         self._fabric_usd_sync_done = True
         if self._sync_usd_on_fabric_write:
-            super().set_world_poses(positions, orientations, indices)
+            self._usd_view.set_world_poses(positions, orientations, indices)
 
-    def set_local_poses(
-        self,
-        translations: wp.array | None = None,
-        orientations: wp.array | None = None,
-        indices: Sequence[int] | None = None,
-    ):
-        # Fabric only accelerates world poses; local poses always go through USD
-        super().set_local_poses(translations, orientations, indices)
-
-    def set_scales(self, scales: wp.array, indices: Sequence[int] | None = None):
+    def get_world_poses(self, indices=None):
         if not self._use_fabric:
-            super().set_scales(scales, indices)
-            return
-
-        if not self._fabric_initialized:
-            self._initialize_fabric()
-
-        indices_wp = self._resolve_indices_wp(indices)
-        count = indices_wp.shape[0]
-
-        dummy3 = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
-        dummy4 = wp.zeros((0, 4), dtype=wp.float32, device=self._device)
-        scales_wp = _to_float32_2d(scales)
-
-        wp.launch(
-            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
-            dim=count,
-            inputs=[
-                self._fabric_world_matrices,
-                dummy3,
-                dummy4,
-                scales_wp,
-                False,
-                False,
-                False,
-                indices_wp,
-                self._view_to_fabric,
-            ],
-            device=self._fabric_device,
-        )
-        wp.synchronize()
-
-        self._fabric_hierarchy.update_world_xforms()
-        self._fabric_usd_sync_done = True
-        if self._sync_usd_on_fabric_write:
-            super().set_scales(scales, indices)
-
-    def get_world_poses(self, indices: Sequence[int] | None = None) -> tuple[wp.array, wp.array]:
-        if not self._use_fabric:
-            return super().get_world_poses(indices)
+            return self._usd_view.get_world_poses(indices)
 
         if not self._fabric_initialized:
             self._initialize_fabric()
@@ -245,13 +206,61 @@ class XformPrimView(UsdXformPrimView):
             wp.synchronize()
         return positions_wp, orientations_wp
 
-    def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[wp.array, wp.array]:
-        # Fabric only accelerates world poses; local poses always go through USD
-        return super().get_local_poses(indices)
+    # ------------------------------------------------------------------
+    # Local poses — USD fallback (Fabric only accelerates world poses)
+    # ------------------------------------------------------------------
 
-    def get_scales(self, indices: Sequence[int] | None = None) -> wp.array:
+    def set_local_poses(self, translations=None, orientations=None, indices=None):
+        self._usd_view.set_local_poses(translations, orientations, indices)
+
+    def get_local_poses(self, indices=None):
+        return self._usd_view.get_local_poses(indices)
+
+    # ------------------------------------------------------------------
+    # Scales — Fabric-accelerated or USD fallback
+    # ------------------------------------------------------------------
+
+    def set_scales(self, scales, indices=None):
         if not self._use_fabric:
-            return super().get_scales(indices)
+            self._usd_view.set_scales(scales, indices)
+            return
+
+        if not self._fabric_initialized:
+            self._initialize_fabric()
+
+        indices_wp = self._resolve_indices_wp(indices)
+        count = indices_wp.shape[0]
+
+        dummy3 = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
+        dummy4 = wp.zeros((0, 4), dtype=wp.float32, device=self._device)
+        scales_wp = _to_float32_2d(scales)
+
+        wp.launch(
+            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
+            dim=count,
+            inputs=[
+                self._fabric_world_matrices,
+                dummy3,
+                dummy4,
+                scales_wp,
+                False,
+                False,
+                False,
+                indices_wp,
+                self._view_to_fabric,
+            ],
+            device=self._fabric_device,
+        )
+        wp.synchronize()
+
+        self._fabric_hierarchy.update_world_xforms()
+        self._fabric_usd_sync_done = True
+        if self._sync_usd_on_fabric_write:
+            self._usd_view.set_scales(scales, indices)
+
+    def get_scales(self, indices=None):
+        if not self._use_fabric:
+            return self._usd_view.get_scales(indices)
 
         if not self._fabric_initialized:
             self._initialize_fabric()
@@ -286,7 +295,7 @@ class XformPrimView(UsdXformPrimView):
         return scales_wp
 
     # ------------------------------------------------------------------
-    # Internal — Initialization
+    # Internal — Fabric initialization
     # ------------------------------------------------------------------
 
     def _initialize_fabric(self) -> None:
@@ -356,7 +365,6 @@ class XformPrimView(UsdXformPrimView):
         )
         wp.synchronize()
 
-        # Cached output buffers for the common no-indices path
         self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_orientations_buf = wp.zeros((self.count, 4), dtype=wp.float32, device=self._device)
         self._fabric_scales_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
@@ -373,9 +381,8 @@ class XformPrimView(UsdXformPrimView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        # Read current USD poses/scales and push them into Fabric
-        positions_usd, orientations_usd = super().get_world_poses()
-        scales_usd = super().get_scales()
+        positions_usd, orientations_usd = self._usd_view.get_world_poses()
+        scales_usd = self._usd_view.get_scales()
 
         prev_sync = self._sync_usd_on_fabric_write
         self._sync_usd_on_fabric_write = False
@@ -385,7 +392,7 @@ class XformPrimView(UsdXformPrimView):
 
         self._fabric_usd_sync_done = True
 
-    def _resolve_indices_wp(self, indices: Sequence[int] | None) -> wp.array:
+    def _resolve_indices_wp(self, indices) -> wp.array:
         """Resolve view indices as a Warp uint32 array."""
         if indices is None or indices == slice(None):
             if self._default_view_indices is None:

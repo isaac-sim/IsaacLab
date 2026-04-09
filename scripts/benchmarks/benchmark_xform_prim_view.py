@@ -47,14 +47,14 @@ import warp as wp
 from pxr import Gf
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.sim.views import XformPrimView as NewtonXformPrimView
-from isaaclab_physx.sim.views import XformPrimView as FabricXformPrimView
+from isaaclab_newton.sim.views import NewtonSiteXformPrimView
+from isaaclab_physx.sim.views import FabricXformPrimView
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.sim.views import XformPrimView as UsdXformPrimView
+from isaaclab.sim.views import UsdXformPrimView
 from isaaclab.utils import configclass
 
 
@@ -110,7 +110,7 @@ def benchmark_xform_prim_view(  # noqa: C901
         sim.reset()
 
         start_time = time.perf_counter()
-        xform_view = NewtonXformPrimView("/World/envs/env_.*/Object/Sensor", device=device)
+        xform_view = NewtonSiteXformPrimView("/World/envs/env_.*/Object/Sensor", device=device)
         timing_results["init"] = time.perf_counter() - start_time
         cleanup = lambda: ctx.__exit__(None, None, None)  # noqa: E731
 

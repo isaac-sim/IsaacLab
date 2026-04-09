@@ -21,7 +21,7 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from isaaclab_newton.sim.views import XformPrimView
+from isaaclab_newton.sim.views import NewtonSiteXformPrimView as XformPrimView
 
 from pxr import Gf
 

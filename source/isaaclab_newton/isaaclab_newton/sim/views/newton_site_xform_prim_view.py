@@ -376,7 +376,7 @@ def _ensure_wp_vec4f(data: wp.array, device: str) -> wp.array:
 # ------------------------------------------------------------------
 
 
-class XformPrimView(BaseXformPrimView):
+class NewtonSiteXformPrimView(BaseXformPrimView):
     """Batched prim view for non-physics prims tracked as sites on Newton bodies.
 
     Each matched USD prim must be a **non-physics** prim (camera, sensor,

@@ -165,8 +165,8 @@ __all__ = [
     "resolve_prim_scale",
     "convert_world_pose_to_local",
     "BaseXformPrimView",
+    "UsdXformPrimView",
     "XformPrimView",
-    "XformPrimViewFactory",
 ]
 
 from .simulation_cfg import RenderCfg, SimulationCfg
@@ -335,4 +335,4 @@ from .utils import (
     resolve_prim_scale,
     convert_world_pose_to_local,
 )
-from .views import BaseXformPrimView, XformPrimView, XformPrimViewFactory
+from .views import BaseXformPrimView, UsdXformPrimView, XformPrimView

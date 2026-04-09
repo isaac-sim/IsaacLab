@@ -5,10 +5,10 @@
 
 __all__ = [
     "BaseXformPrimView",
+    "UsdXformPrimView",
     "XformPrimView",
-    "XformPrimViewFactory",
 ]
 
 from .base_xform_prim_view import BaseXformPrimView
+from .usd_xform_prim_view import UsdXformPrimView
 from .xform_prim_view import XformPrimView
-from .xform_prim_view_factory import XformPrimViewFactory

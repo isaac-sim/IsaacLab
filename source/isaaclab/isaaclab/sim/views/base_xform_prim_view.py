@@ -18,7 +18,7 @@ class BaseXformPrimView(abc.ABC):
 
     Backend-specific implementations (USD/Fabric, Newton GPU state, etc.) subclass
     this to provide efficient batched pose queries.  The factory
-    :class:`~isaaclab.sim.views.XformPrimViewFactory` selects the correct
+    :class:`~isaaclab.sim.views.XformPrimView` selects the correct
     implementation at runtime based on the active physics backend.
 
     All getters return ``wp.array``.  Setters accept ``wp.array``.

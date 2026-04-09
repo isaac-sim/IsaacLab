@@ -73,7 +73,7 @@ from isaaclab.sim.views import XformPrimView
 
 try:
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_newton.sim.views import XformPrimView as NewtonXformPrimView
+    from isaaclab_newton.sim.views import NewtonSiteXformPrimView
 
     HAS_NEWTON = True
 except ImportError:
@@ -181,7 +181,7 @@ def benchmark_newton(num_iterations: int) -> tuple[dict[str, float], dict[str, t
     print(f"  Newton scene setup: {time.perf_counter() - start_time:.4f}s")
 
     start_time = time.perf_counter()
-    view = NewtonXformPrimView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
+    view = NewtonSiteXformPrimView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
     num_prims = view.count
     timing_results["init"] = time.perf_counter() - start_time
 

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "XformPrimView",
+    "FabricXformPrimView",
 ]
 
-from .xform_prim_view import XformPrimView
+from .fabric_xform_prim_view import FabricXformPrimView
