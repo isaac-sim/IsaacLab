@@ -10,6 +10,9 @@ import subprocess
 from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import DictMetadata, StringMetadata
 
+# Path to the repository root.
+_REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 6))
+
 
 class VersionInfoRecorder(MeasurementDataRecorder):
     def __init__(self):
@@ -95,6 +98,14 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         self._record("gymnasium", self._get_pkg_version("gymnasium"))
         self._record("cuda_bindings", self._get_pkg_version("cuda-bindings"))
         self._record("usd_core", self._get_pkg_version("usd-core"))
+
+        # Release version from root VERSION file
+        version_file = os.path.join(_REPO_ROOT, "VERSION")
+        try:
+            with open(version_file) as f:
+                self._record("isaaclab_release", f.read().strip())
+        except Exception:
+            pass
 
     def _get_git_info(self) -> None:
         """Get git repository information."""
