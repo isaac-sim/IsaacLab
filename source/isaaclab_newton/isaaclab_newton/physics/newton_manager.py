@@ -374,8 +374,8 @@ class NewtonManager(PhysicsManager):
             with wp.ScopedDevice(device):
                 cls._simulate()
 
-        # Debug convergence info
-        if cfg is not None and cfg.debug_mode:  # type: ignore[union-attr]
+        # Debug convergence info (MuJoCo-specific; Kamino uses its own metrics API)
+        if cfg is not None and cfg.debug_mode and isinstance(cls._solver, SolverMuJoCo):  # type: ignore[union-attr]
             convergence_data = cls.get_solver_convergence_steps()
             logger.info(f"Solver convergence data: {convergence_data}")
             if convergence_data["max"] == cls._solver.mjw_model.opt.iterations:

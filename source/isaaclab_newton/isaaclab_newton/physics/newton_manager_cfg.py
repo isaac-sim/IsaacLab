@@ -339,6 +339,13 @@ class KaminoSolverCfg(NewtonSolverCfg):
     Only used when :attr:`use_collision_detector` is ``True``. If ``None``, Newton's default is used.
     """
 
+    dynamics_preconditioning: bool = True
+    """Whether to use preconditioning in the constrained dynamics solver.
+
+    Preconditioning improves convergence of the PADMM solver by rescaling the
+    problem. Disabling may be useful for debugging or profiling solver behavior.
+    """
+
 
 @configclass
 class NewtonCfg(PhysicsCfg):

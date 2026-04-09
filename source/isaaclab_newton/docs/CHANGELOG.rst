@@ -26,12 +26,6 @@ Fixed
   These memory-pool addresses became stale before the first graph replay. Added a warm-up
   ``wp.capture_launch`` for Kamino immediately after graph capture to pin the allocations.
 
-Changed
-^^^^^^^
-
-* Changed :attr:`~isaaclab_newton.physics.KaminoSolverCfg.use_fk_solver` default from
-  ``False`` to ``True``. Required for proper environment resets with the Kamino solver.
-
 
 0.5.15 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~
