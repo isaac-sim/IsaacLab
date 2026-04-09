@@ -25,10 +25,7 @@ from isaaclab.physics.scene_data_requirements import (
     VisualizerPrebuiltArtifacts,
     resolve_scene_data_requirements,
 )
-from isaaclab.rendering_mode.rendering_mode_utils import (
-    apply_mode_profile_to_visualizer_cfg,
-    apply_runtime_mode_profile_to_visualizer,
-)
+from isaaclab.rendering_mode.rendering_mode_utils import apply_mode_profile_to_visualizer_cfg
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -207,13 +204,14 @@ class SimulationContext:
     def _apply_runtime_mode_profile_to_visualizer(self, viz: BaseVisualizer) -> None:
         """Apply rendering-mode profile updates to an active Kit visualizer instance."""
         mode_cfgs = self.cfg.rendering_mode_cfgs
-        apply_runtime_mode_profile_to_visualizer(
+        apply_mode_profile_to_visualizer_cfg(
             self.get_setting,
             self.set_setting,
-            viz,
-            self._visualizer_mode_keys,
+            viz.cfg,
             mode_cfgs,
             logger,
+            cache=self._visualizer_mode_keys,
+            cache_key=id(viz),
         )
 
     def _init_usd_physics_scene(self) -> None:

@@ -3,16 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Rendering mode: offline resolution checks and Isaac Sim integration tests.
-
-**Import order:** Do not import Isaac Sim / USD / ``pxr`` at module scope. Pytest loads this file
-before the ``simulation_app`` fixture runs :class:`~isaaclab.app.AppLauncher`; loading ``pxr`` from
-conda before Kit starts causes USD extension failures. Integration tests import sim APIs *inside*
-the test body (after the fixture has launched SimulationApp).
-
-Offline tests only use lightweight imports below.
-"""
-
 import logging
 
 import pytest
@@ -21,7 +11,7 @@ from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.rendering_mode import RenderingModeCfg
 from isaaclab.rendering_mode.rendering_mode_utils import (
     apply_mode_profile_to_renderer_cfg,
-    resolve_rendering_mode_name_for_renderer_cfg,
+    resolve_effective_rendering_mode_name,
 )
 
 
@@ -44,7 +34,7 @@ class _FakeSettings:
     def __init__(self, explicit: bool, mode):
         self._data: dict[str, object] = {
             "/isaaclab/rendering/rendering_mode/explicit": explicit,
-            "/isaaclab/rendering/rendering_mode": mode,
+            "/isaaclab/rendering/rendering_mode/profile": mode,
         }
 
     def get(self, key: str):
@@ -55,14 +45,7 @@ def test_cli_explicit_rendering_mode_overrides_renderer_cfg():
     """CLI explicit flag should win over ``RendererCfg.rendering_mode`` (Kit RTX path)."""
     r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="quality")
     settings = _FakeSettings(explicit=True, mode="performance")
-    assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "performance"
-
-
-def test_cli_explicit_coerces_carb_subtree_to_profile_name():
-    """Some Kit builds return a dict subtree from ``get()``; profile name must still resolve."""
-    r_cfg = RendererCfg(renderer_type="isaac_rtx", rendering_mode="performance")
-    settings = _FakeSettings(explicit=True, mode={"outer": {"inner": "balanced"}})
-    assert resolve_rendering_mode_name_for_renderer_cfg(settings.get, r_cfg) == "balanced"
+    assert resolve_effective_rendering_mode_name(settings.get, r_cfg) == "performance"
 
 
 def test_apply_rtx_profile_skips_non_rtx_renderer_backend():

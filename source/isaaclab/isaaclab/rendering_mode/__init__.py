@@ -7,5 +7,11 @@
 
 from .rendering_mode_cfg import RenderingModeCfg
 from .rendering_mode_presets import get_kit_rendering_preset
+from .rendering_mode_utils import CLI_RENDERING_MODE_PROFILE_PATH, resolve_effective_rendering_mode_name
 
-__all__ = ["RenderingModeCfg", "get_kit_rendering_preset"]
+__all__ = [
+    "CLI_RENDERING_MODE_PROFILE_PATH",
+    "RenderingModeCfg",
+    "get_kit_rendering_preset",
+    "resolve_effective_rendering_mode_name",
+]

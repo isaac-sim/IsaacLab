@@ -24,8 +24,9 @@ class RenderingModeCfg:
     * ``apps/isaaclab.python.rendering.kit`` — simulation with the GUI enabled.
     * ``apps/isaaclab.python.headless.rendering.kit`` — headless simulation.
 
-    Non-``None`` fields here override those defaults for the active profile. Built-in preset names
-    (``performance``, ``balanced``, ``quality``) match the baselines in
+    Newton and other non-Kit visualizer settings belong on ``NewtonVisualizerCfg`` (or the matching cfg), not here.
+    Each non-``None`` ``kit_*`` field or :attr:`rendering_mode_preset` overrides Kit RTX defaults for that profile only.
+    The built-in names ``performance``, ``balanced``, and ``quality`` match the baselines in
     :mod:`isaaclab.rendering_mode.rendering_mode_presets`. Choosing a preset via
     :attr:`rendering_mode_preset` or the CLI flag ``--rendering_mode`` behaves like selecting that
     profile for the run.

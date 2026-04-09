@@ -36,6 +36,7 @@ simulation_app = app_launcher.app
 from isaaclab_physx.visualizers import KitVisualizerCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.rendering_mode import RenderingModeCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -46,11 +47,20 @@ def main():
     # note: the CLI argument (--rendering_mode) takes precedence over this visualizer setting
     rendering_mode = "performance"
 
-    # Initialize simulation config with a Kit visualizer rendering profile.
+    # RTX tuning uses :class:`RenderingModeCfg` profiles on ``SimulationCfg.rendering_mode_cfgs``
+    # (not raw carb paths). Here we extend the ``performance`` preset with reflections for this scene.
     sim_cfg = sim_utils.SimulationCfg(
+        rendering_mode_cfgs={
+            "performance": RenderingModeCfg(
+                rendering_mode_preset="performance",
+                kit_enable_reflections=True,
+            ),
+            "balanced": RenderingModeCfg(rendering_mode_preset="balanced"),
+            "quality": RenderingModeCfg(rendering_mode_preset="quality"),
+        },
         visualizer_cfgs=[
             KitVisualizerCfg(rendering_mode=rendering_mode),
-        ]
+        ],
     )
     sim = sim_utils.SimulationContext(sim_cfg)
 
@@ -64,13 +74,6 @@ def main():
 
     # Play the simulator
     sim.reset()
-
-    # Extra RTX carb overrides (dot keys -> ``/rtx/...`` paths). Applied after reset so they are not
-    # replaced by rendering-mode profile application during ``initialize_visualizers()``.
-    carb_settings = {"rtx.reflections.enabled": True}
-    for key, value in carb_settings.items():
-        path = key if key.startswith("/") else "/" + key.replace(".", "/")
-        sim.set_setting(path, value)
 
     # Now we are ready!
     print("[INFO]: Setup complete...")

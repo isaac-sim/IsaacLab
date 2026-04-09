@@ -16,17 +16,13 @@ from .rendering_mode_presets import get_kit_rendering_preset
 
 _logger = logging.getLogger(__name__)
 
-# Log at most once if carb + heuristics cannot resolve CLI mode.
+# Log at most once if carb cannot read the CLI profile leaf.
 _cli_rendering_mode_resolution_warned = False
 
-_KNOWN_RENDERING_MODE_PRESETS = frozenset({"performance", "balanced", "quality"})
-
-# Try leaf paths first: AppLauncher uses set_string; generic get() may return a dict subtree.
-_CLI_MODE_STRING_PATHS = (
-    "/isaaclab/rendering/rendering_mode",
-    "/isaaclab/rendering/rendering_mode/value",
-    "/isaaclab/rendering/rendering_mode/default",
-)
+# Leaf path for the CLI rendering-mode profile name (``performance`` / ``balanced`` / ``quality``, or empty).
+# AppLauncher writes here with ``set_string`` only—never the parent ``.../rendering_mode`` path—so
+# ``get_string`` / ``get_setting`` return a string instead of a dict subtree.
+CLI_RENDERING_MODE_PROFILE_PATH = "/isaaclab/rendering/rendering_mode/profile"
 
 _KIT_FIELD_TO_CARB: dict[str, str] = {
     "kit_enable_translucency": "/rtx/translucency/enabled",
@@ -43,59 +39,10 @@ _KIT_FIELD_TO_CARB: dict[str, str] = {
 }
 
 
-def _coerce_carb_rendering_mode_value(raw: Any) -> str | None:
-    """Best-effort profile name from carb ``get()`` (often a ``dict`` subtree).
-
-    Path is typically ``/isaaclab/rendering/rendering_mode``.
-    """
-
-    def collect_str_leaves(obj: Any, out: list[str], depth: int = 0) -> None:
-        if depth > 12:
-            return
-        if isinstance(obj, str):
-            s = obj.strip()
-            if s:
-                out.append(s)
-            return
-        if isinstance(obj, dict):
-            for v in obj.values():
-                collect_str_leaves(v, out, depth + 1)
-        elif isinstance(obj, (list, tuple, set)):
-            for v in obj:
-                collect_str_leaves(v, out, depth + 1)
-
-    if raw is None:
-        return None
-    if isinstance(raw, str):
-        out = raw.strip()
-        return out if out else None
-    if isinstance(raw, dict):
-        for key in ("value", "default", "profile", "name", "rendering_mode"):
-            v = raw.get(key)
-            if isinstance(v, str):
-                s = v.strip()
-                if s:
-                    return s
-            if isinstance(v, dict):
-                nested = _coerce_carb_rendering_mode_value(v)
-                if nested:
-                    return nested
-    strings: list[str] = []
-    collect_str_leaves(raw, strings)
-    if not strings:
-        return None
-    for s in strings:
-        if s in _KNOWN_RENDERING_MODE_PRESETS:
-            return s
-    return strings[0]
-
-
 def _read_cli_rendering_mode_profile_name(get_setting: Any) -> str | None:
     """Read CLI rendering mode profile name (``performance`` / ``balanced`` / ``quality``).
 
-    ``AppLauncher`` stores the profile with ``set_string``; ``carb.settings.get()`` on the same path
-    may return a subtree ``dict``. Prefer ``get_string`` on the leaf path first, then
-    :func:`_coerce_carb_rendering_mode_value`.
+    Reads :data:`CLI_RENDERING_MODE_PROFILE_PATH` (a string leaf written by :class:`~isaaclab.app.AppLauncher`).
     """
     global _cli_rendering_mode_resolution_warned
 
@@ -104,49 +51,34 @@ def _read_cli_rendering_mode_profile_name(get_setting: Any) -> str | None:
 
         gs = carb.settings.get_settings()
         if gs is not None and hasattr(gs, "get_string"):
-            for path in _CLI_MODE_STRING_PATHS:
-                with contextlib.suppress(Exception):
-                    s = gs.get_string(path)
-                    if s is not None:
-                        out = str(s).strip()
-                        if out:
-                            return out
+            with contextlib.suppress(Exception):
+                s = gs.get_string(CLI_RENDERING_MODE_PROFILE_PATH)
+                if s is not None:
+                    out = str(s).strip()
+                    if out:
+                        return out
 
-    raw = get_setting("/isaaclab/rendering/rendering_mode")
-    coerced = _coerce_carb_rendering_mode_value(raw)
-    if coerced:
-        return coerced
+    raw = get_setting(CLI_RENDERING_MODE_PROFILE_PATH)
+    if isinstance(raw, str):
+        out = raw.strip()
+        return out if out else None
 
-    if raw is not None and not isinstance(raw, str):
+    if raw is not None:
         if not _cli_rendering_mode_resolution_warned:
             _cli_rendering_mode_resolution_warned = True
             _logger.warning(
-                "Could not read /isaaclab/rendering/rendering_mode as a profile name (got %s). "
-                "CLI rendering mode override may be ignored.",
+                "Could not read %s as a string profile name (got %s). CLI rendering mode override may be ignored.",
+                CLI_RENDERING_MODE_PROFILE_PATH,
                 type(raw).__name__,
             )
     return None
 
 
-def _normalize_rendering_mode_profile_name(name: Any) -> str | None:
-    """Return a non-empty string profile name, or None if invalid."""
-    if name is None:
-        return None
-    if isinstance(name, str):
-        out = name.strip()
-        return out if out else None
-    _logger.warning(
-        "rendering_mode must be a non-empty str, got %s; ignoring.",
-        type(name).__name__,
-    )
-    return None
-
-
-def _resolve_effective_rendering_mode_name(get_setting: Any, cfg: Any) -> str | None:
+def resolve_effective_rendering_mode_name(get_setting: Any, cfg: Any) -> str | None:
     """CLI explicit flag wins; otherwise use ``cfg.rendering_mode``."""
     if bool(get_setting("/isaaclab/rendering/rendering_mode/explicit")):
         return _read_cli_rendering_mode_profile_name(get_setting)
-    return _normalize_rendering_mode_profile_name(getattr(cfg, "rendering_mode", None))
+    return getattr(cfg, "rendering_mode", None)
 
 
 def apply_kit_rendering_preset(set_setting: Any, preset_name: str) -> None:
@@ -175,11 +107,6 @@ def apply_kit_rendering_mode_cfg(set_setting: Any, mode_cfg: RenderingModeCfg) -
             set_setting(carb_key, value)
 
 
-def resolve_rendering_mode_name_for_renderer_cfg(get_setting: Any, renderer_cfg: Any) -> str | None:
-    """Resolve effective rendering mode profile name for a camera/renderer cfg."""
-    return _resolve_effective_rendering_mode_name(get_setting, renderer_cfg)
-
-
 def apply_mode_profile_to_renderer_cfg(
     get_setting: Any,
     set_setting: Any,
@@ -191,16 +118,11 @@ def apply_mode_profile_to_renderer_cfg(
     rtype = getattr(renderer_cfg, "renderer_type", None)
     if rtype not in ("default", "isaac_rtx", "rtx"):
         return
-    mode_name = resolve_rendering_mode_name_for_renderer_cfg(get_setting, renderer_cfg)
+    mode_name = resolve_effective_rendering_mode_name(get_setting, renderer_cfg)
     mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
     if mode_cfg is None:
         return
     apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
-
-
-def resolve_rendering_mode_name_for_visualizer_cfg(get_setting: Any, visualizer_cfg: Any) -> str | None:
-    """Resolve effective rendering mode profile name for a visualizer cfg."""
-    return _resolve_effective_rendering_mode_name(get_setting, visualizer_cfg)
 
 
 def resolve_rendering_mode_cfg(
@@ -231,37 +153,32 @@ def apply_mode_profile_to_visualizer_cfg(
     visualizer_cfg: Any,
     mode_cfgs: dict[str, RenderingModeCfg],
     logger: Any,
+    *,
+    cache: dict[int, str | None] | None = None,
+    cache_key: int | None = None,
 ) -> None:
-    """Resolve and apply rendering mode profile to a Kit visualizer config (RTX / carb settings)."""
+    """Resolve and apply rendering mode profile for a Kit visualizer (RTX / carb settings).
+
+    Pass ``cache`` and ``cache_key`` (typically ``id(viz)``) when updating an active visualizer each
+    frame so we skip redundant carb work when the effective profile name is unchanged—including
+    when the name is missing from ``mode_cfgs`` (avoids repeated warnings).
+    """
+    if (cache is None) != (cache_key is None):
+        raise ValueError("apply_mode_profile_to_visualizer_cfg: pass both `cache` and `cache_key`, or neither.")
     if getattr(visualizer_cfg, "visualizer_type", None) != "kit":
         return
-    mode_name = resolve_rendering_mode_name_for_visualizer_cfg(get_setting, visualizer_cfg)
-    mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
-    if mode_cfg is None:
-        return
-    apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
+    mode_name = resolve_effective_rendering_mode_name(get_setting, visualizer_cfg)
 
-
-def apply_runtime_mode_profile_to_visualizer(
-    get_setting: Any,
-    set_setting: Any,
-    viz: Any,
-    visualizer_mode_keys: dict[int, str | None],
-    mode_cfgs: dict[str, RenderingModeCfg],
-    logger: Any,
-) -> None:
-    """Resolve and apply runtime rendering mode profile to an active Kit visualizer."""
-    if getattr(viz.cfg, "visualizer_type", None) != "kit":
-        return
-    mode_name = resolve_rendering_mode_name_for_visualizer_cfg(get_setting, viz.cfg)
-    viz_id = id(viz)
-    if visualizer_mode_keys.get(viz_id) == mode_name:
-        return
+    if cache is not None and cache_key is not None:
+        if cache.get(cache_key) == mode_name:
+            return
 
     mode_cfg = resolve_rendering_mode_cfg(mode_name, mode_cfgs, logger)
     if mode_cfg is None:
-        visualizer_mode_keys[viz_id] = mode_name
+        if cache is not None and cache_key is not None:
+            cache[cache_key] = mode_name
         return
 
     apply_kit_rendering_mode_cfg(set_setting, mode_cfg)
-    visualizer_mode_keys[viz_id] = mode_name
+    if cache is not None and cache_key is not None:
+        cache[cache_key] = mode_name

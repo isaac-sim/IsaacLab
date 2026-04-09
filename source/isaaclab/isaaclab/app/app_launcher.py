@@ -29,7 +29,10 @@ with contextlib.suppress(ModuleNotFoundError):
     from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
-from isaaclab.rendering_mode.rendering_mode_utils import apply_kit_rendering_preset
+from isaaclab.rendering_mode.rendering_mode_utils import (
+    CLI_RENDERING_MODE_PROFILE_PATH,
+    apply_kit_rendering_preset,
+)
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1126,7 +1129,7 @@ class AppLauncher:
             rendering_mode = ""
 
         settings = get_settings_manager()
-        settings.set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
+        settings.set_string(CLI_RENDERING_MODE_PROFILE_PATH, rendering_mode)
         settings.set_bool("/isaaclab/rendering/rendering_mode/explicit", bool(rendering_mode_explicit))
 
         # Apply built-in Kit presets at launch so RTX matches the CLI before SimulationContext runs.
