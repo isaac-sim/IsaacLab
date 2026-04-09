@@ -76,58 +76,6 @@ def _compute_site_world_transforms_indexed(
 
 
 @wp.kernel
-def _write_body_q_from_site_poses(
-    body_q: wp.array(dtype=wp.transformf),
-    site_body: wp.array(dtype=wp.int32),
-    site_local: wp.array(dtype=wp.transformf),
-    world_pos: wp.array(dtype=wp.vec3f),
-    world_quat: wp.array(dtype=wp.vec4f),
-):
-    """Compute ``body_q = world_site_pose * inverse(local)`` and write it.
-
-    Launched over all sites; skips world-attached sites (``site_body == -1``)
-    since they have no body to write to.
-    """
-    i = wp.tid()
-    bid = site_body[i]
-    if bid == -1:
-        return
-
-    inv_local = wp.transform_inverse(site_local[i])
-    w_pos = world_pos[i]
-    w_q = world_quat[i]
-    world_tf = wp.transform(w_pos, wp.quatf(w_q[0], w_q[1], w_q[2], w_q[3]))
-    body_q[bid] = wp.transform_multiply(world_tf, inv_local)
-
-
-@wp.kernel
-def _write_body_q_from_site_poses_indexed(
-    body_q: wp.array(dtype=wp.transformf),
-    site_body: wp.array(dtype=wp.int32),
-    site_local: wp.array(dtype=wp.transformf),
-    indices: wp.array(dtype=wp.int32),
-    world_pos: wp.array(dtype=wp.vec3f),
-    world_quat: wp.array(dtype=wp.vec4f),
-):
-    """Indexed variant: writes body_q for sites selected by ``indices``.
-
-    ``world_pos`` and ``world_quat`` are dense over the index list (length M),
-    while ``site_body`` and ``site_local`` are indexed via ``indices[i]``.
-    """
-    i = wp.tid()
-    si = indices[i]
-    bid = site_body[si]
-    if bid == -1:
-        return
-
-    inv_local = wp.transform_inverse(site_local[si])
-    w_pos = world_pos[i]
-    w_q = world_quat[i]
-    world_tf = wp.transform(w_pos, wp.quatf(w_q[0], w_q[1], w_q[2], w_q[3]))
-    body_q[bid] = wp.transform_multiply(world_tf, inv_local)
-
-
-@wp.kernel
 def _gather_scales(
     shape_scale: wp.array(dtype=wp.vec3f),
     shape_body: wp.array(dtype=wp.int32),
@@ -204,6 +152,199 @@ def _scatter_scales_indexed(
 
 
 # ------------------------------------------------------------------
+# World-pose site_local write kernels
+# ------------------------------------------------------------------
+
+
+@wp.kernel
+def _write_site_local_from_world_poses(
+    body_q: wp.array(dtype=wp.transformf),
+    site_body: wp.array(dtype=wp.int32),
+    site_local: wp.array(dtype=wp.transformf),
+    world_pos: wp.array(dtype=wp.vec3f),
+    world_quat: wp.array(dtype=wp.vec4f),
+):
+    """Update ``site_local`` so that ``body_q[bid] * site_local == desired_world``.
+
+    Computes ``site_local[i] = inv(body_q[bid]) * desired_world``.
+    For world-attached sites (``site_body == -1``) writes the world transform
+    directly into ``site_local``.
+    """
+    i = wp.tid()
+    w_pos = world_pos[i]
+    w_q = world_quat[i]
+    desired_world = wp.transform(w_pos, wp.quatf(w_q[0], w_q[1], w_q[2], w_q[3]))
+
+    bid = site_body[i]
+    if bid == -1:
+        site_local[i] = desired_world
+    else:
+        site_local[i] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
+
+
+@wp.kernel
+def _write_site_local_from_world_poses_indexed(
+    body_q: wp.array(dtype=wp.transformf),
+    site_body: wp.array(dtype=wp.int32),
+    site_local: wp.array(dtype=wp.transformf),
+    indices: wp.array(dtype=wp.int32),
+    world_pos: wp.array(dtype=wp.vec3f),
+    world_quat: wp.array(dtype=wp.vec4f),
+):
+    """Indexed variant of :func:`_write_site_local_from_world_poses`."""
+    i = wp.tid()
+    si = indices[i]
+    w_pos = world_pos[i]
+    w_q = world_quat[i]
+    desired_world = wp.transform(w_pos, wp.quatf(w_q[0], w_q[1], w_q[2], w_q[3]))
+
+    bid = site_body[si]
+    if bid == -1:
+        site_local[si] = desired_world
+    else:
+        site_local[si] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
+
+
+# ------------------------------------------------------------------
+# Local-pose Warp kernels
+# ------------------------------------------------------------------
+
+
+@wp.kernel
+def _compute_site_local_transforms(
+    body_q: wp.array(dtype=wp.transformf),
+    site_body: wp.array(dtype=wp.int32),
+    site_local: wp.array(dtype=wp.transformf),
+    parent_site_body: wp.array(dtype=wp.int32),
+    parent_site_local: wp.array(dtype=wp.transformf),
+    out_pos: wp.array(dtype=wp.vec3f),
+    out_quat: wp.array(dtype=wp.vec4f),
+):
+    """Compute parent-relative transforms: ``local = inv(parent_world) * prim_world``.
+
+    When ``site_body[i] == -1`` the prim is attached to the world frame and
+    ``site_local[i]`` is its world transform.  The same convention applies to
+    ``parent_site_body`` / ``parent_site_local``.
+    """
+    i = wp.tid()
+    prim_bid = site_body[i]
+    if prim_bid == -1:
+        prim_world = site_local[i]
+    else:
+        prim_world = wp.transform_multiply(body_q[prim_bid], site_local[i])
+
+    parent_bid = parent_site_body[i]
+    if parent_bid == -1:
+        parent_world = parent_site_local[i]
+    else:
+        parent_world = wp.transform_multiply(body_q[parent_bid], parent_site_local[i])
+
+    local_tf = wp.transform_multiply(wp.transform_inverse(parent_world), prim_world)
+    out_pos[i] = wp.transform_get_translation(local_tf)
+    q = wp.transform_get_rotation(local_tf)
+    out_quat[i] = wp.vec4f(q[0], q[1], q[2], q[3])
+
+
+@wp.kernel
+def _compute_site_local_transforms_indexed(
+    body_q: wp.array(dtype=wp.transformf),
+    site_body: wp.array(dtype=wp.int32),
+    site_local: wp.array(dtype=wp.transformf),
+    parent_site_body: wp.array(dtype=wp.int32),
+    parent_site_local: wp.array(dtype=wp.transformf),
+    indices: wp.array(dtype=wp.int32),
+    out_pos: wp.array(dtype=wp.vec3f),
+    out_quat: wp.array(dtype=wp.vec4f),
+):
+    """Compute parent-relative transforms for a subset of sites selected by ``indices``."""
+    i = wp.tid()
+    si = indices[i]
+    prim_bid = site_body[si]
+    if prim_bid == -1:
+        prim_world = site_local[si]
+    else:
+        prim_world = wp.transform_multiply(body_q[prim_bid], site_local[si])
+
+    parent_bid = parent_site_body[si]
+    if parent_bid == -1:
+        parent_world = parent_site_local[si]
+    else:
+        parent_world = wp.transform_multiply(body_q[parent_bid], parent_site_local[si])
+
+    local_tf = wp.transform_multiply(wp.transform_inverse(parent_world), prim_world)
+    out_pos[i] = wp.transform_get_translation(local_tf)
+    q = wp.transform_get_rotation(local_tf)
+    out_quat[i] = wp.vec4f(q[0], q[1], q[2], q[3])
+
+
+@wp.kernel
+def _write_site_local_from_local_poses(
+    body_q: wp.array(dtype=wp.transformf),
+    site_body: wp.array(dtype=wp.int32),
+    site_local: wp.array(dtype=wp.transformf),
+    parent_site_body: wp.array(dtype=wp.int32),
+    parent_site_local: wp.array(dtype=wp.transformf),
+    local_pos: wp.array(dtype=wp.vec3f),
+    local_quat: wp.array(dtype=wp.vec4f),
+):
+    """Update ``site_local`` so that ``inv(parent_world) * prim_world == desired_local``.
+
+    Computes ``site_local[i] = inv(body_q[bid]) * parent_world * desired_local``.
+    For world-attached sites (``site_body == -1``) the site local IS the world
+    transform, so we write ``parent_world * desired_local`` directly.
+    """
+    i = wp.tid()
+    parent_bid = parent_site_body[i]
+    if parent_bid == -1:
+        parent_world = parent_site_local[i]
+    else:
+        parent_world = wp.transform_multiply(body_q[parent_bid], parent_site_local[i])
+
+    l_pos = local_pos[i]
+    l_q = local_quat[i]
+    local_tf = wp.transform(l_pos, wp.quatf(l_q[0], l_q[1], l_q[2], l_q[3]))
+    desired_world = wp.transform_multiply(parent_world, local_tf)
+
+    bid = site_body[i]
+    if bid == -1:
+        site_local[i] = desired_world
+    else:
+        site_local[i] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
+
+
+@wp.kernel
+def _write_site_local_from_local_poses_indexed(
+    body_q: wp.array(dtype=wp.transformf),
+    site_body: wp.array(dtype=wp.int32),
+    site_local: wp.array(dtype=wp.transformf),
+    parent_site_body: wp.array(dtype=wp.int32),
+    parent_site_local: wp.array(dtype=wp.transformf),
+    indices: wp.array(dtype=wp.int32),
+    local_pos: wp.array(dtype=wp.vec3f),
+    local_quat: wp.array(dtype=wp.vec4f),
+):
+    """Indexed variant of :func:`_write_site_local_from_local_poses`."""
+    i = wp.tid()
+    si = indices[i]
+    parent_bid = parent_site_body[si]
+    if parent_bid == -1:
+        parent_world = parent_site_local[si]
+    else:
+        parent_world = wp.transform_multiply(body_q[parent_bid], parent_site_local[si])
+
+    l_pos = local_pos[i]
+    l_q = local_quat[i]
+    local_tf = wp.transform(l_pos, wp.quatf(l_q[0], l_q[1], l_q[2], l_q[3]))
+    desired_world = wp.transform_multiply(parent_world, local_tf)
+
+    bid = site_body[si]
+    if bid == -1:
+        site_local[si] = desired_world
+    else:
+        site_local[si] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
+
+
+# ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
 
@@ -236,31 +377,31 @@ def _ensure_wp_vec4f(data: wp.array, device: str) -> wp.array:
 
 
 class XformPrimView(BaseXformPrimView):
-    """Batched prim view backed by Newton's native site concept on GPU.
+    """Batched prim view for non-physics prims tracked as sites on Newton bodies.
 
-    Each matched USD prim is resolved to a ``(body_index, local_transform)``
-    pair.  World poses are computed on GPU as
-    ``body_q[body_index] * local_transform`` via a Warp kernel, consistent
-    with Newton's site mechanism.
+    Each matched USD prim must be a **non-physics** prim (camera, sensor,
+    Xform marker, etc.) that sits as a child of a Newton rigid body in the
+    USD hierarchy.  The prim path must **not** resolve directly to a physics
+    body or collision shape -- those are owned by Newton and should be
+    accessed through :class:`~isaaclab_newton.assets.Articulation` or
+    :class:`~isaaclab_newton.assets.RigidObject` instead.
 
-    Resolution order (per prim path):
+    At init time each prim is resolved to a ``(body_index, site_local)``
+    pair via ancestor walk: the nearest ancestor that appears in
+    ``model.body_label`` becomes the attachment body, and the relative USD
+    transform becomes the site offset.  If no body ancestor exists the prim
+    is attached to the world frame (``body_index = -1``).
 
-    1. **Shape label** -- look up in ``model.shape_label``.  If found, use
-       ``shape_body`` and ``shape_transform`` for the body index and local
-       offset.
-    2. **Body label** -- look up in ``model.body_label``.  If found, the body
-       itself is the site; local offset is identity.
-    3. **Ancestor walk** -- walk the USD parent hierarchy until a prim whose
-       path appears in ``model.body_label`` is found.  The relative transform
-       from that ancestor body to the target prim is the local offset.  If no
-       ancestor body exists, the site is attached to the world frame
-       (``body_index = -1``) and the local offset is the prim's world
-       transform.
-
-    This supports arbitrary prims -- rigid bodies, collision shapes, cameras,
-    plain Xforms, and any other Xformable prim.
+    World poses are computed on GPU as
+    ``body_q[body_index] * site_local`` via a Warp kernel.  Both
+    ``set_world_poses`` and ``set_local_poses`` update ``site_local`` --
+    neither touches ``body_q``.
 
     All getters return ``wp.array``.  Setters accept ``wp.array``.
+
+    Raises:
+        ValueError: If any matched prim resolves to a Newton physics body
+            or collision shape.
     """
 
     def __init__(self, prim_path: str, device: str = "cpu", stage: Usd.Stage | None = None, **kwargs):
@@ -273,31 +414,55 @@ class XformPrimView(BaseXformPrimView):
         model = NewtonManager.get_model()
         body_labels = list(model.body_label)
         body_label_set = set(body_labels)
-        shape_labels = list(model.shape_label)
-        shape_body_np = model.shape_body.numpy()
-        shape_xform_np = model.shape_transform.numpy()
+        body_label_to_idx = {path: idx for idx, path in enumerate(body_labels)}
+        shape_label_set = set(model.shape_label)
 
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
         site_bodies: list[int] = []
         site_locals: list[list[float]] = []
+        parent_bodies: list[int] = []
+        parent_locals: list[list[float]] = []
 
         identity_xform = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        resolve_cache: dict[str, tuple[int, list[float]]] = {}
 
         for prim in self._prims:
             pp = prim.GetPath().pathString
+            if pp in body_label_set:
+                raise ValueError(
+                    f"XformPrimView prim '{pp}' is a Newton physics body. "
+                    "XformPrimView should only be used for non-physics prims (cameras, sensors, Xform markers). "
+                    "Use Articulation or RigidObject APIs to control physics bodies."
+                )
+            if pp in shape_label_set:
+                raise ValueError(
+                    f"XformPrimView prim '{pp}' is a Newton collision shape. "
+                    "XformPrimView should only be used for non-physics prims (cameras, sensors, Xform markers). "
+                    "Use Articulation or RigidObject APIs to control collision shapes."
+                )
 
-            if pp in shape_labels:
-                si = shape_labels.index(pp)
-                site_bodies.append(int(shape_body_np[si]))
-                site_locals.append(shape_xform_np[si].tolist())
-            elif pp in body_label_set:
-                site_bodies.append(body_labels.index(pp))
-                site_locals.append(identity_xform)
+            body_idx, local_xform = self._resolve_ancestor_body(prim, body_label_to_idx, xform_cache)
+            site_bodies.append(body_idx)
+            site_locals.append(local_xform)
+
+            parent = prim.GetParent()
+            if not parent or not parent.IsValid() or parent.GetPath().pathString == "/":
+                parent_bodies.append(WORLD_BODY_INDEX)
+                parent_locals.append(identity_xform)
             else:
-                body_idx, local_xform = self._resolve_ancestor_body(prim, body_labels, body_label_set, xform_cache)
-                site_bodies.append(body_idx)
-                site_locals.append(local_xform)
+                parent_path = parent.GetPath().pathString
+                if parent_path in resolve_cache:
+                    pb_idx, pb_local = resolve_cache[parent_path]
+                elif parent_path in body_label_to_idx:
+                    pb_idx = body_label_to_idx[parent_path]
+                    pb_local = identity_xform
+                    resolve_cache[parent_path] = (pb_idx, pb_local)
+                else:
+                    pb_idx, pb_local = self._resolve_ancestor_body(parent, body_label_to_idx, xform_cache)
+                    resolve_cache[parent_path] = (pb_idx, pb_local)
+                parent_bodies.append(pb_idx)
+                parent_locals.append(pb_local)
 
         self._site_body = wp.array(site_bodies, dtype=wp.int32, device=device)
         self._site_local = wp.array(
@@ -305,18 +470,30 @@ class XformPrimView(BaseXformPrimView):
             dtype=wp.transformf,
             device=device,
         )
+        self._parent_site_body = wp.array(parent_bodies, dtype=wp.int32, device=device)
+        self._parent_site_local = wp.array(
+            [wp.transform(*x) for x in parent_locals],
+            dtype=wp.transformf,
+            device=device,
+        )
 
         self._pos_buf = wp.zeros(self.count, dtype=wp.vec3f, device=device)
         self._quat_buf = wp.zeros(self.count, dtype=wp.vec4f, device=device)
+        self._local_pos_buf = wp.zeros(self.count, dtype=wp.vec3f, device=device)
+        self._local_quat_buf = wp.zeros(self.count, dtype=wp.vec4f, device=device)
 
     @staticmethod
     def _resolve_ancestor_body(
         prim: Usd.Prim,
-        body_labels: list[str],
-        body_label_set: set[str],
+        body_label_to_idx: dict[str, int],
         xform_cache: UsdGeom.XformCache,
     ) -> tuple[int, list[float]]:
         """Walk USD ancestors to find the nearest Newton body and compute the relative local transform.
+
+        Args:
+            prim: The USD prim to resolve.
+            body_label_to_idx: Dict mapping body prim paths to their Newton body indices.
+            xform_cache: USD xform cache for efficient transform lookups.
 
         Returns:
             A tuple ``(body_index, local_xform_7)`` where *local_xform_7* is
@@ -330,8 +507,8 @@ class XformPrimView(BaseXformPrimView):
         ancestor = prim.GetParent()
         while ancestor and ancestor.IsValid() and ancestor.GetPath().pathString != "/":
             ancestor_path = ancestor.GetPath().pathString
-            if ancestor_path in body_label_set:
-                body_idx = body_labels.index(ancestor_path)
+            body_idx = body_label_to_idx.get(ancestor_path)
+            if body_idx is not None:
                 ancestor_world_tf = xform_cache.GetLocalToWorldTransform(ancestor)
                 ancestor_world_tf.Orthonormalize()
                 local_tf = prim_world_tf * ancestor_world_tf.GetInverse()
@@ -380,12 +557,11 @@ class XformPrimView(BaseXformPrimView):
         orientations: wp.array | None = None,
         indices: Sequence[int] | None = None,
     ) -> None:
-        """Write world poses into Newton ``state.body_q``.
+        """Write world poses by updating the site's local offset.
 
-        For sites with a non-identity local transform the Warp kernel computes
-        ``body_q = world_site_pose * inverse(local_transform)`` so that the
-        resulting world pose of the *site* matches the requested value.
-        World-attached sites (``body_index == -1``) are skipped.
+        Computes the new ``site_local`` such that
+        ``body_q[body] * new_site_local == desired_world``.
+        Does not modify ``body_q``.
         """
         if positions is None and orientations is None:
             return
@@ -406,25 +582,62 @@ class XformPrimView(BaseXformPrimView):
             n = len(indices)
             idx_wp = wp.array(list(indices), dtype=wp.int32, device=self._device)
             wp.launch(
-                _write_body_q_from_site_poses_indexed,
+                _write_site_local_from_world_poses_indexed,
                 dim=n,
                 inputs=[state.body_q, self._site_body, self._site_local, idx_wp, pos_wp, quat_wp],
                 device=self._device,
             )
         else:
             wp.launch(
-                _write_body_q_from_site_poses,
+                _write_site_local_from_world_poses,
                 dim=self.count,
                 inputs=[state.body_q, self._site_body, self._site_local, pos_wp, quat_wp],
                 device=self._device,
             )
 
     # ------------------------------------------------------------------
-    # Local poses -- delegate to world (Newton bodies live in world space)
+    # Local poses (parent-relative)
     # ------------------------------------------------------------------
 
     def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[wp.array, wp.array]:
-        return self.get_world_poses(indices)
+        """Get parent-relative poses: ``local = inv(parent_world) * prim_world``."""
+        state = NewtonManager.get_state_0()
+
+        if indices is not None:
+            n = len(indices)
+            idx_wp = wp.array(list(indices), dtype=wp.int32, device=self._device)
+            pos_buf = wp.zeros(n, dtype=wp.vec3f, device=self._device)
+            quat_buf = wp.zeros(n, dtype=wp.vec4f, device=self._device)
+            wp.launch(
+                _compute_site_local_transforms_indexed,
+                dim=n,
+                inputs=[
+                    state.body_q,
+                    self._site_body,
+                    self._site_local,
+                    self._parent_site_body,
+                    self._parent_site_local,
+                    idx_wp,
+                ],
+                outputs=[pos_buf, quat_buf],
+                device=self._device,
+            )
+            return pos_buf, quat_buf
+
+        wp.launch(
+            _compute_site_local_transforms,
+            dim=self.count,
+            inputs=[
+                state.body_q,
+                self._site_body,
+                self._site_local,
+                self._parent_site_body,
+                self._parent_site_local,
+            ],
+            outputs=[self._local_pos_buf, self._local_quat_buf],
+            device=self._device,
+        )
+        return self._local_pos_buf, self._local_quat_buf
 
     def set_local_poses(
         self,
@@ -432,7 +645,59 @@ class XformPrimView(BaseXformPrimView):
         orientations: wp.array | None = None,
         indices: Sequence[int] | None = None,
     ) -> None:
-        self.set_world_poses(positions=translations, orientations=orientations, indices=indices)
+        """Write parent-relative poses by updating the site's local offset.
+
+        Computes the new ``site_local`` such that
+        ``inv(parent_world) * (body_q[bid] * site_local) == desired_local``.
+        """
+        if translations is None and orientations is None:
+            return
+
+        state = NewtonManager.get_state_0()
+
+        if translations is None or orientations is None:
+            cur_pos, cur_quat = self.get_local_poses(indices)
+            if translations is None:
+                translations = cur_pos
+            if orientations is None:
+                orientations = cur_quat
+
+        pos_wp = _ensure_wp_vec3f(translations, self._device)
+        quat_wp = _ensure_wp_vec4f(orientations, self._device)
+
+        if indices is not None:
+            n = len(indices)
+            idx_wp = wp.array(list(indices), dtype=wp.int32, device=self._device)
+            wp.launch(
+                _write_site_local_from_local_poses_indexed,
+                dim=n,
+                inputs=[
+                    state.body_q,
+                    self._site_body,
+                    self._site_local,
+                    self._parent_site_body,
+                    self._parent_site_local,
+                    idx_wp,
+                    pos_wp,
+                    quat_wp,
+                ],
+                device=self._device,
+            )
+        else:
+            wp.launch(
+                _write_site_local_from_local_poses,
+                dim=self.count,
+                inputs=[
+                    state.body_q,
+                    self._site_body,
+                    self._site_local,
+                    self._parent_site_body,
+                    self._parent_site_local,
+                    pos_wp,
+                    quat_wp,
+                ],
+                device=self._device,
+            )
 
     # ------------------------------------------------------------------
     # Scales

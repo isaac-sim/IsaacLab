@@ -3,54 +3,50 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Benchmark script comparing XformPrimView vs PhysX RigidBodyView for transform operations.
+"""Benchmark script comparing XformPrimView backends and PhysX RigidBodyView.
 
-This script tests the performance of batched transform operations using:
+Compares batched transform operation performance across:
 
-- Isaac Lab's XformPrimView (USD-based)
-- Isaac Lab's XformPrimView (Fabric-based)
-- PhysX RigidBodyView (PhysX tensors-based, as used in RigidObject)
-
-Note:
-    XformPrimView operates on USD attributes directly (useful for non-physics prims),
-    or on Fabric attributes when Fabric is enabled.
-    while RigidBodyView requires rigid body physics components and operates on PhysX tensors.
-    This benchmark helps understand the performance trade-offs between the two approaches.
+- **USD** (baseline): Isaac Lab's XformPrimView via USD XformCache
+- **Fabric**: Isaac Lab's XformPrimView via Fabric GPU arrays
+- **Newton**: Isaac Lab's Newton XformPrimView via Warp site kernels
+- **PhysX**: PhysX RigidBodyView via PhysX tensor API (reference)
 
 Usage:
-    # Basic benchmark
+    # All backends
     ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --device cuda:0 --headless
 
-    # With profiling enabled (for snakeviz visualization)
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --profile --headless
+    # Select specific backends
+    ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --backends usd fabric newton --headless
 
-    # Then visualize with snakeviz:
-    snakeviz profile_results/xform_view_benchmark.prof
-    snakeviz profile_results/physx_view_benchmark.prof
+    # With profiling
+    ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --profile --headless
 """
 
 from __future__ import annotations
-
-"""Launch Isaac Sim Simulator first."""
 
 import argparse
 
 from isaaclab.app import AppLauncher
 
-# parse the arguments
-args_cli = argparse.Namespace()
-
-parser = argparse.ArgumentParser(description="Benchmark XformPrimView vs PhysX RigidBodyView performance.")
+parser = argparse.ArgumentParser(description="Benchmark XformPrimView backends and PhysX RigidBodyView.")
 
 parser.add_argument("--num_envs", type=int, default=1000, help="Number of environments to simulate.")
 parser.add_argument("--num_iterations", type=int, default=50, help="Number of iterations for each test.")
+parser.add_argument(
+    "--backends",
+    nargs="+",
+    default=["usd", "fabric", "newton", "physx"],
+    choices=["usd", "fabric", "newton", "physx"],
+    help="Backends to benchmark. Default: all four.",
+)
 parser.add_argument(
     "--profile",
     action="store_true",
     help="Enable profiling with cProfile. Results saved as .prof files for snakeviz visualization.",
 )
 parser.add_argument(
-    "--profile-dir",
+    "--profile_dir",
     type=str,
     default="./profile_results",
     help="Directory to save profile results. Default: ./profile_results",
@@ -59,7 +55,6 @@ parser.add_argument(
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
-# launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
@@ -69,40 +64,41 @@ import cProfile
 import time
 
 import torch
+import warp as wp
+
+from pxr import Gf
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import XformPrimView
 
+try:
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+    from isaaclab_newton.sim.views import XformPrimView as NewtonXformPrimView
+
+    HAS_NEWTON = True
+except ImportError:
+    HAS_NEWTON = False
+
+
+# ------------------------------------------------------------------
+# Benchmark functions
+# ------------------------------------------------------------------
+
 
 @torch.no_grad()
-def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
-    """Benchmark the specified view class.
-
-    Args:
-        view_type: Type of view to benchmark ("xform", "xform_fabric", or "physx").
-        num_iterations: Number of iterations to run.
-
-    Returns:
-        A tuple of (timing_results, computed_results) where:
-        - timing_results: Dictionary containing timing results for various operations
-        - computed_results: Dictionary containing the computed values for validation
-    """
+def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
+    """Benchmark USD or Fabric XformPrimView."""
     timing_results = {}
     computed_results = {}
 
-    # Setup scene
     print("  Setting up scene")
-    # Clear stage
     sim_utils.create_new_stage()
-    # Create simulation context
     start_time = time.perf_counter()
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=(view_type == "xform_fabric"))
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=(view_type == "fabric"))
     sim = sim_utils.SimulationContext(sim_cfg)
     stage = sim_utils.get_current_stage()
+    print(f"  SimulationContext: {time.perf_counter() - start_time:.4f}s")
 
-    print(f"  Time taken to create simulation context: {time.perf_counter() - start_time:.4f} seconds")
-
-    # create a rigid object
     object_cfg = sim_utils.ConeCfg(
         radius=0.15,
         height=0.5,
@@ -111,110 +107,210 @@ def benchmark_view(view_type: str, num_iterations: int) -> tuple[dict[str, float
         collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
-    # Create prims
+    for i in range(args_cli.num_envs):
+        sim_utils.create_prim(f"/World/Env_{i}", "Xform", stage=stage, translation=(i * 2.0, 0.0, 0.0))
+        object_cfg.func(f"/World/Env_{i}/Object", object_cfg, translation=(0.0, 0.0, 1.0))
+        prim = stage.DefinePrim(f"/World/Env_{i}/Object/Sensor", "Xform")
+        sim_utils.standardize_xform_ops(prim)
+        prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
+        prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
+
+    sim.reset()
+
+    pattern = "/World/Env_.*/Object/Sensor"
+
+    start_time = time.perf_counter()
+    if view_type == "fabric" and "cuda" not in args_cli.device:
+        raise ValueError("Fabric backend requires CUDA.")
+    view = XformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
+    num_prims = view.count
+    timing_results["init"] = time.perf_counter() - start_time
+
+    print(f"  XformPrimView ({view_type.upper()}) managing {num_prims} prims")
+
+    positions, orientations = view.get_world_poses()
+    positions_t = wp.to_torch(positions)
+    orientations_t = wp.to_torch(orientations)
+
+    _run_pose_benchmarks(view, num_prims, num_iterations, timing_results, computed_results, positions_t, orientations_t)
+
+    sim.clear_instance()
+    return timing_results, computed_results
+
+
+@torch.no_grad()
+def benchmark_newton(num_iterations: int) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
+    """Benchmark Newton XformPrimView."""
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.utils import configclass
+
+    timing_results = {}
+    computed_results = {}
+
+    @configclass
+    class _SceneCfg(InteractiveSceneCfg):
+        cube: RigidObjectCfg = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        )
+
+    print("  Setting up Newton scene")
+    newton_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()), device=args_cli.device)
+    start_time = time.perf_counter()
+    ctx = build_simulation_context(device=args_cli.device, sim_cfg=newton_cfg, add_ground_plane=True)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+    InteractiveScene(_SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
+
+    stage = sim_utils.get_current_stage()
+    for i in range(args_cli.num_envs):
+        prim = stage.DefinePrim(f"/World/envs/env_{i}/Cube/Sensor", "Xform")
+        sim_utils.standardize_xform_ops(prim)
+        prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
+        prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
+
+    sim.reset()
+    print(f"  Newton scene setup: {time.perf_counter() - start_time:.4f}s")
+
+    start_time = time.perf_counter()
+    view = NewtonXformPrimView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
+    num_prims = view.count
+    timing_results["init"] = time.perf_counter() - start_time
+
+    print(f"  Newton XformPrimView managing {num_prims} prims")
+
+    positions, orientations = view.get_world_poses()
+    positions_t = wp.to_torch(positions)
+    orientations_t = wp.to_torch(orientations)
+
+    _run_pose_benchmarks(view, num_prims, num_iterations, timing_results, computed_results, positions_t, orientations_t)
+
+    ctx.__exit__(None, None, None)
+    return timing_results, computed_results
+
+
+@torch.no_grad()
+def benchmark_physx(num_iterations: int) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
+    """Benchmark PhysX RigidBodyView."""
+    timing_results = {}
+    computed_results = {}
+
+    print("  Setting up scene")
+    sim_utils.create_new_stage()
+    start_time = time.perf_counter()
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=False)
+    sim = sim_utils.SimulationContext(sim_cfg)
+    stage = sim_utils.get_current_stage()
+    print(f"  SimulationContext: {time.perf_counter() - start_time:.4f}s")
+
+    object_cfg = sim_utils.ConeCfg(
+        radius=0.15,
+        height=0.5,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+    )
     for i in range(args_cli.num_envs):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", stage=stage, translation=(i * 2.0, 0.0, 0.0))
         object_cfg.func(f"/World/Env_{i}/Object", object_cfg, translation=(0.0, 0.0, 1.0))
 
-    # Play simulation
     sim.reset()
 
-    # Pattern to match all prims
-    pattern = "/World/Env_.*/Object" if view_type == "xform" else "/World/Env_*/Object"
-    print(f"  Pattern: {pattern}")
-
-    # Create view based on type
+    pattern = "/World/Env_*/Object"
     start_time = time.perf_counter()
-    if view_type == "xform":
-        view = XformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
-        num_prims = view.count
-        view_name = "XformPrimView (USD)"
-    elif view_type == "xform_fabric":
-        if "cuda" not in args_cli.device:
-            raise ValueError("Fabric backend requires CUDA. Please use --device cuda:0 for this benchmark.")
-        view = XformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
-        num_prims = view.count
-        view_name = "XformPrimView (Fabric)"
-    else:  # physx
-        physics_sim_view = sim.physics_manager.get_physics_sim_view()
-        view = physics_sim_view.create_rigid_body_view(pattern)
-        num_prims = view.count
-        view_name = "PhysX RigidBodyView"
+    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    view = physics_sim_view.create_rigid_body_view(pattern)
+    num_prims = view.count
     timing_results["init"] = time.perf_counter() - start_time
-    # prepare indices for benchmarking
+
+    print(f"  PhysX RigidBodyView managing {num_prims} prims")
+
     all_indices = torch.arange(num_prims, device=args_cli.device)
 
-    print(f"  {view_name} managing {num_prims} prims")
+    transforms = view.get_transforms()
+    positions_t = transforms[:, :3]
+    orientations_t = transforms[:, 3:7]
 
-    # Fabric is write-first: initialize it to match USD before benchmarking reads.
-    if view_type == "xform_fabric" and num_prims > 0:
-        init_positions = torch.zeros((num_prims, 3), dtype=torch.float32, device=args_cli.device)
-        init_positions[:, 0] = 2.0 * torch.arange(num_prims, device=args_cli.device, dtype=torch.float32)
-        init_positions[:, 2] = 1.0
-        init_orientations = torch.tensor(
-            [[1.0, 0.0, 0.0, 0.0]] * num_prims, dtype=torch.float32, device=args_cli.device
-        )
-        view.set_world_poses(init_positions, init_orientations)
-
-    # Benchmark get_world_poses
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if view_type in ("xform", "xform_fabric"):
-            positions, orientations = view.get_world_poses()
-        else:  # physx
-            transforms = view.get_transforms()
-            positions = transforms[:, :3]
-            orientations = transforms[:, 3:7]
+        transforms = view.get_transforms()
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
-    # Store initial world poses
-    computed_results["initial_world_positions"] = positions.clone()
-    computed_results["initial_world_orientations"] = orientations.clone()
+    computed_results["initial_world_positions"] = positions_t.clone()
+    computed_results["initial_world_orientations"] = orientations_t.clone()
 
-    # Benchmark set_world_poses
-    new_positions = positions.clone()
+    new_positions = positions_t.clone()
     new_positions[:, 2] += 0.5
+    new_transforms = torch.cat([new_positions, orientations_t], dim=-1)
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if view_type in ("xform", "xform_fabric"):
-            view.set_world_poses(new_positions, orientations)
-        else:  # physx
-            new_transforms = torch.cat([new_positions, orientations], dim=-1)
-            view.set_transforms(new_transforms, indices=all_indices)
+        view.set_transforms(new_transforms, indices=all_indices)
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
-    # Get world poses after setting to verify
-    if view_type in ("xform", "xform_fabric"):
-        positions_after_set, orientations_after_set = view.get_world_poses()
-    else:  # physx
-        transforms_after = view.get_transforms()
-        positions_after_set = transforms_after[:, :3]
-        orientations_after_set = transforms_after[:, 3:7]
-    computed_results["world_positions_after_set"] = positions_after_set.clone()
-    computed_results["world_orientations_after_set"] = orientations_after_set.clone()
+    transforms_after = view.get_transforms()
+    computed_results["world_positions_after_set"] = transforms_after[:, :3].clone()
+    computed_results["world_orientations_after_set"] = transforms_after[:, 3:7].clone()
 
-    # close simulation
     sim.clear_instance()
-
     return timing_results, computed_results
+
+
+def _run_pose_benchmarks(
+    view,
+    num_prims: int,
+    num_iterations: int,
+    timing_results: dict,
+    computed_results: dict,
+    positions_t: torch.Tensor,
+    orientations_t: torch.Tensor,
+):
+    """Shared benchmark loop for get/set world poses on any XformPrimView."""
+    device = args_cli.device
+
+    start_time = time.perf_counter()
+    for _ in range(num_iterations):
+        view.get_world_poses()
+    timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
+
+    computed_results["initial_world_positions"] = positions_t.clone()
+    computed_results["initial_world_orientations"] = orientations_t.clone()
+
+    new_positions = positions_t.clone()
+    new_positions[:, 2] += 0.5
+    new_pos_wp = wp.from_torch(new_positions)
+    new_quat_wp = wp.from_torch(orientations_t)
+
+    start_time = time.perf_counter()
+    for _ in range(num_iterations):
+        view.set_world_poses(new_pos_wp, new_quat_wp)
+    timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
+
+    ret_pos, ret_quat = view.get_world_poses()
+    computed_results["world_positions_after_set"] = wp.to_torch(ret_pos).clone()
+    computed_results["world_orientations_after_set"] = wp.to_torch(ret_quat).clone()
+
+
+# ------------------------------------------------------------------
+# Reporting
+# ------------------------------------------------------------------
 
 
 def compare_results(
     results_dict: dict[str, dict[str, torch.Tensor]], tolerance: float = 1e-4
 ) -> dict[str, dict[str, dict[str, float]]]:
-    """Compare computed results across implementations.
-
-    Args:
-        results_dict: Dictionary mapping implementation names to their computed values.
-        tolerance: Tolerance for numerical comparison.
-
-    Returns:
-        Nested dictionary: {comparison_pair: {metric: {stats}}}
-    """
+    """Compare computed results across implementations."""
     comparison_stats = {}
     impl_names = list(results_dict.keys())
 
-    # Compare each pair of implementations
     for i, impl1 in enumerate(impl_names):
         for impl2 in impl_names[i + 1 :]:
             pair_key = f"{impl1}_vs_{impl2}"
@@ -223,279 +319,182 @@ def compare_results(
             computed1 = results_dict[impl1]
             computed2 = results_dict[impl2]
 
-            for key in computed1.keys():
+            for key in computed1:
                 if key not in computed2:
                     continue
-
-                val1 = computed1[key]
-                val2 = computed2[key]
-
-                # Skip zero tensors (not applicable tests)
+                val1, val2 = computed1[key], computed2[key]
                 if torch.all(val1 == 0) or torch.all(val2 == 0):
                     continue
 
-                # Compute differences
                 diff = torch.abs(val1 - val2)
-                max_diff = torch.max(diff).item()
-                mean_diff = torch.mean(diff).item()
-
-                # Check if within tolerance
-                all_close = torch.allclose(val1, val2, atol=tolerance, rtol=0)
-
                 comparison_stats[pair_key][key] = {
-                    "max_diff": max_diff,
-                    "mean_diff": mean_diff,
-                    "all_close": all_close,
+                    "max_diff": torch.max(diff).item(),
+                    "mean_diff": torch.mean(diff).item(),
+                    "all_close": torch.allclose(val1, val2, atol=tolerance, rtol=0),
                 }
 
     return comparison_stats
 
 
-def print_comparison_results(comparison_stats: dict[str, dict[str, dict[str, float]]], tolerance: float):
-    """Print comparison results.
-
-    Args:
-        comparison_stats: Nested dictionary containing comparison statistics.
-        tolerance: Tolerance used for comparison.
-    """
+def print_comparison_results(comparison_stats: dict, tolerance: float):
+    """Print comparison results."""
     for pair_key, pair_stats in comparison_stats.items():
-        if not pair_stats:  # Skip if no comparable results
+        if not pair_stats:
             continue
-
-        # Format the pair key for display
         impl1, impl2 = pair_key.split("_vs_")
-        display_impl1 = impl1.replace("_", " ").title()
-        display_impl2 = impl2.replace("_", " ").title()
-        comparison_title = f"{display_impl1} vs {display_impl2}"
+        title = f"{impl1.replace('_', ' ').title()} vs {impl2.replace('_', ' ').title()}"
+        all_match = all(s["all_close"] for s in pair_stats.values())
 
-        # Check if all results match
-        all_match = all(stats["all_close"] for stats in pair_stats.values())
-
+        print("\n" + "=" * 100)
+        print(f"RESULT COMPARISON: {title}")
+        print("=" * 100)
         if all_match:
-            # Compact output when everything matches
-            print("\n" + "=" * 100)
-            print(f"RESULT COMPARISON: {comparison_title}")
-            print("=" * 100)
-            print(f"✓ All computed values match within tolerance ({tolerance})")
-            print("=" * 100)
+            print(f"  All computed values match within tolerance ({tolerance})")
         else:
-            # Detailed output when there are mismatches
-            print("\n" + "=" * 100)
-            print(f"RESULT COMPARISON: {comparison_title}")
-            print("=" * 100)
             print(f"{'Computed Value':<40} {'Max Diff':<15} {'Mean Diff':<15} {'Match':<10}")
             print("-" * 100)
-
             for key, stats in pair_stats.items():
-                # Format the key for display
-                display_key = key.replace("_", " ").title()
-                match_str = "✓ Yes" if stats["all_close"] else "✗ No"
-
-                print(f"{display_key:<40} {stats['max_diff']:<15.6e} {stats['mean_diff']:<15.6e} {match_str:<10}")
-
-            print("=" * 100)
-            print(f"\n✗ Some results differ beyond tolerance ({tolerance})")
-            print(f"  This may indicate implementation differences between {display_impl1} and {display_impl2}")
-
+                match_str = "Yes" if stats["all_close"] else "No"
+                print(f"{key:<40} {stats['max_diff']:<15.6e} {stats['mean_diff']:<15.6e} {match_str:<10}")
     print()
 
 
 def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num_iterations: int):
-    """Print benchmark results in a formatted table.
-
-    Args:
-        results_dict: Dictionary mapping implementation names to their timing results.
-        num_prims: Number of prims tested.
-        num_iterations: Number of iterations run.
-    """
-    print("\n" + "=" * 100)
+    """Print benchmark results in a formatted table."""
+    print("\n" + "=" * 120)
     print(f"BENCHMARK RESULTS: {num_prims} prims, {num_iterations} iterations")
-    print("=" * 100)
+    print("=" * 120)
 
     impl_names = list(results_dict.keys())
-    # Format names for display
-    display_names = [name.replace("_", " ").title() for name in impl_names]
+    display_names = {n: n.replace("_", " ").title() for n in impl_names}
+    col_width = 22
 
-    # Calculate column width
-    col_width = 20
-
-    # Print header
-    header = f"{'Operation':<30}"
-    for display_name in display_names:
-        header += f" {display_name + ' (ms)':<{col_width}}"
+    header = f"{'Operation':<25}"
+    for name in impl_names:
+        header += f" {display_names[name] + ' (ms)':>{col_width}}"
     print(header)
-    print("-" * 100)
+    print("-" * 120)
 
-    # Print each operation
-    operations = [
-        ("Initialization", "init"),
-        ("Get World Poses", "get_world_poses"),
-        ("Set World Poses", "set_world_poses"),
-    ]
+    operations = [("Initialization", "init"), ("Get World Poses", "get_world_poses"), ("Set World Poses", "set_world_poses")]
 
     for op_name, op_key in operations:
-        row = f"{op_name:<30}"
-        for impl_name in impl_names:
-            impl_time = results_dict[impl_name].get(op_key, 0) * 1000  # Convert to ms
-            row += f" {impl_time:>{col_width - 1}.4f}"
+        row = f"{op_name:<25}"
+        for name in impl_names:
+            val = results_dict[name].get(op_key, 0) * 1000
+            row += f" {val:>{col_width}.4f}"
         print(row)
 
-    print("=" * 100)
+    print("=" * 120)
 
-    # Calculate and print total time (excluding N/A operations)
-    total_row = f"{'Total Time':<30}"
-    for impl_name in impl_names:
-        if impl_name == "physx_view":
-            # Exclude local pose operations for PhysX
-            total_time = (
-                results_dict[impl_name].get("init", 0) * 1000
-                + results_dict[impl_name].get("get_world_poses", 0) * 1000
-                + results_dict[impl_name].get("set_world_poses", 0) * 1000
-            )
-        else:
-            total_time = sum(results_dict[impl_name].values()) * 1000
-        total_row += f" {total_time:>{col_width - 1}.4f}"
-    print(f"\n{total_row}")
+    total_row = f"{'Total':<25}"
+    for name in impl_names:
+        total = sum(results_dict[name].values()) * 1000
+        total_row += f" {total:>{col_width}.4f}"
+    print(total_row)
 
-    # Calculate speedups relative to XformPrimView (USD baseline)
-    if "xform_view" in impl_names:
-        print("\n" + "=" * 100)
-        print("SPEEDUP vs XformPrimView (USD)")
-        print("=" * 100)
-        print(f"{'Operation':<30}", end="")
-        for impl_name, display_name in zip(impl_names, display_names):
-            if impl_name != "xform_view":
-                print(f" {display_name + ' Speedup':<{col_width}}", end="")
-        print()
-        print("-" * 100)
+    baseline = "usd"
+    if baseline in results_dict and len(impl_names) > 1:
+        print("\n" + "=" * 120)
+        print(f"SPEEDUP vs {display_names[baseline]}")
+        print("=" * 120)
+        header = f"{'Operation':<25}"
+        for name in impl_names:
+            if name != baseline:
+                header += f" {display_names[name]:>{col_width}}"
+        print(header)
+        print("-" * 120)
 
-        xform_results = results_dict["xform_view"]
+        base = results_dict[baseline]
         for op_name, op_key in operations:
-            print(f"{op_name:<30}", end="")
-            xform_time = xform_results.get(op_key, 0)
-            for impl_name, display_name in zip(impl_names, display_names):
-                if impl_name != "xform_view":
-                    impl_time = results_dict[impl_name].get(op_key, 0)
-                    if xform_time > 0 and impl_time > 0:
-                        speedup = impl_time / xform_time
-                        print(f" {speedup:>{col_width - 1}.2f}x", end="")
+            row = f"{op_name:<25}"
+            base_t = base.get(op_key, 0)
+            for name in impl_names:
+                if name != baseline:
+                    impl_t = results_dict[name].get(op_key, 0)
+                    if base_t > 0 and impl_t > 0:
+                        row += f" {impl_t / base_t:>{col_width}.2f}x"
                     else:
-                        print(f" {'N/A':>{col_width}}", end="")
-            print()
+                        row += f" {'N/A':>{col_width}}"
+            print(row)
+        print("=" * 120)
 
-        # Overall speedup (only world pose operations)
-        print("=" * 100)
-        print(f"{'Overall Speedup (World Ops)':<30}", end="")
-        total_xform = (
-            xform_results.get("init", 0)
-            + xform_results.get("get_world_poses", 0)
-            + xform_results.get("set_world_poses", 0)
-        )
-        for impl_name, display_name in zip(impl_names, display_names):
-            if impl_name != "xform_view":
-                total_impl = (
-                    results_dict[impl_name].get("init", 0)
-                    + results_dict[impl_name].get("get_world_poses", 0)
-                    + results_dict[impl_name].get("set_world_poses", 0)
-                )
-                if total_xform > 0 and total_impl > 0:
-                    overall_speedup = total_impl / total_xform
-                    print(f" {overall_speedup:>{col_width - 1}.2f}x", end="")
-                else:
-                    print(f" {'N/A':>{col_width}}", end="")
-        print()
-
-    print("\n" + "=" * 100)
     print("\nNotes:")
     print("  - Times are averaged over all iterations")
-    print("  - Speedup = (Implementation time) / (XformPrimView USD time)")
-    print("  - Speedup > 1.0 means USD XformPrimView is faster")
-    print("  - Speedup < 1.0 means the implementation is faster than USD")
-    print("  - PhysX View requires rigid body physics components")
-    print("  - XformPrimView works with any Xform prim (physics or non-physics)")
-    print("  - PhysX View does not support local pose operations directly")
+    print("  - Speedup < 1.0 means faster than USD baseline")
+    print("  - PhysX RigidBodyView requires rigid body physics; XformPrimView works with any Xformable prim")
     print()
+
+
+# ------------------------------------------------------------------
+# Main
+# ------------------------------------------------------------------
 
 
 def main():
-    """Main benchmark function."""
-    print("=" * 100)
-    print("View Comparison Benchmark - XformPrimView vs PhysX RigidBodyView")
-    print("=" * 100)
-    print("Configuration:")
-    print(f"  Number of environments: {args_cli.num_envs}")
-    print(f"  Iterations per test: {args_cli.num_iterations}")
-    print(f"  Device: {args_cli.device}")
-    print(f"  Profiling: {'Enabled' if args_cli.profile else 'Disabled'}")
-    if args_cli.profile:
-        print(f"  Profile directory: {args_cli.profile_dir}")
+    print("=" * 120)
+    print("XformPrimView Benchmark: USD vs Fabric vs Newton vs PhysX")
+    print("=" * 120)
+    print(f"  Environments: {args_cli.num_envs}")
+    print(f"  Iterations:   {args_cli.num_iterations}")
+    print(f"  Device:       {args_cli.device}")
+    print(f"  Backends:     {', '.join(args_cli.backends)}")
     print()
 
-    # Create profile directory if profiling is enabled
     if args_cli.profile:
         import os
 
         os.makedirs(args_cli.profile_dir, exist_ok=True)
 
-    # Dictionary to store all results
-    all_timing_results = {}
-    all_computed_results = {}
+    all_timing = {}
+    all_computed = {}
     profile_files = {}
 
-    # Implementations to benchmark
-    implementations = [
-        ("xform_view", "XformPrimView (USD)", "xform"),
-        ("xform_fabric_view", "XformPrimView (Fabric)", "xform_fabric"),
-        ("physx_view", "PhysX RigidBodyView", "physx"),
-    ]
+    dispatch = {
+        "usd": ("usd", "XformPrimView (USD)", lambda n: benchmark_usd_or_fabric("usd", n)),
+        "fabric": ("fabric", "XformPrimView (Fabric)", lambda n: benchmark_usd_or_fabric("fabric", n)),
+        "newton": ("newton", "XformPrimView (Newton)", lambda n: benchmark_newton(n)),
+        "physx": ("physx", "PhysX RigidBodyView", lambda n: benchmark_physx(n)),
+    }
 
-    # Benchmark each implementation
-    for impl_key, impl_name, view_type in implementations:
-        print(f"Benchmarking {impl_name}...")
+    for backend in args_cli.backends:
+        if backend == "newton" and not HAS_NEWTON:
+            print(f"Skipping {backend}: isaaclab_newton not installed")
+            continue
+
+        key, display_name, bench_fn = dispatch[backend]
+        print(f"Benchmarking {display_name}...")
 
         if args_cli.profile:
             profiler = cProfile.Profile()
             profiler.enable()
 
-        timing, computed = benchmark_view(view_type=view_type, num_iterations=args_cli.num_iterations)
+        timing, computed = bench_fn(args_cli.num_iterations)
 
         if args_cli.profile:
             profiler.disable()
-            profile_file = f"{args_cli.profile_dir}/{impl_key}_benchmark.prof"
-            profiler.dump_stats(profile_file)
-            profile_files[impl_key] = profile_file
-            print(f"  Profile saved to: {profile_file}")
+            pf = f"{args_cli.profile_dir}/{key}_benchmark.prof"
+            profiler.dump_stats(pf)
+            profile_files[key] = pf
+            print(f"  Profile saved to: {pf}")
 
-        all_timing_results[impl_key] = timing
-        all_computed_results[impl_key] = computed
+        all_timing[key] = timing
+        all_computed[key] = computed
+        print("  Done!\n")
 
-        print("  Done!")
-        print()
+    print_results(all_timing, args_cli.num_envs, args_cli.num_iterations)
 
-    # Print timing results
-    print_results(all_timing_results, args_cli.num_envs, args_cli.num_iterations)
-
-    # Compare computed results
-    print("\nComparing computed results across implementations...")
-    comparison_stats = compare_results(all_computed_results, tolerance=1e-4)
+    print("Comparing computed results...")
+    comparison_stats = compare_results(all_computed, tolerance=1e-4)
     print_comparison_results(comparison_stats, tolerance=1e-4)
 
-    # Print profiling instructions if enabled
     if args_cli.profile:
         print("\n" + "=" * 100)
         print("PROFILING RESULTS")
         print("=" * 100)
-        print("Profile files have been saved. To visualize with snakeviz, run:")
-        for impl_key, profile_file in profile_files.items():
-            impl_display = impl_key.replace("_", " ").title()
-            print(f"  # {impl_display}")
-            print(f"  snakeviz {profile_file}")
-        print("\nAlternatively, use pstats to analyze in terminal:")
-        print("  python -m pstats <profile_file>")
-        print("=" * 100)
+        for key, pf in profile_files.items():
+            print(f"  snakeviz {pf}")
         print()
 
-    # Clean up
     sim_utils.SimulationContext.clear_instance()
 
 

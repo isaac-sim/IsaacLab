@@ -23,6 +23,22 @@ from isaaclab.utils.warp import fabric as fabric_utils
 logger = logging.getLogger(__name__)
 
 
+def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
+    """Ensure array is compatible with Fabric kernels (2-D float32).
+
+    For ``wp.array`` with vec dtypes (``vec3f``, ``vec4f``), uses
+    :meth:`wp.array.view` for zero-copy reinterpretation.
+    ``torch.Tensor`` and already-correct 2-D float32 arrays pass through.
+    """
+    if not isinstance(a, wp.array):
+        return a
+    if a.shape[0] == 0:
+        return a
+    if a.ndim == 2 and a.dtype == wp.float32:
+        return a
+    return a.view(dtype=wp.float32)
+
+
 class XformPrimView(UsdXformPrimView):
     """XformPrimView with Fabric GPU acceleration for the PhysX backend.
 
@@ -116,11 +132,10 @@ class XformPrimView(UsdXformPrimView):
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
 
-        positions_wp = positions if positions is not None else wp.zeros((0, 3), dtype=wp.float32, device=self._device)
-        orientations_wp = (
-            orientations if orientations is not None else wp.zeros((0, 4), dtype=wp.float32, device=self._device)
-        )
-        scales_wp = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
+        dummy = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
+        positions_wp = _to_float32_2d(positions) if positions is not None else dummy
+        orientations_wp = _to_float32_2d(orientations) if orientations is not None else wp.zeros((0, 4), dtype=wp.float32, device=self._device)
+        scales_wp = dummy
 
         wp.launch(
             kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
@@ -165,17 +180,18 @@ class XformPrimView(UsdXformPrimView):
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
 
-        positions_wp = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
-        orientations_wp = wp.zeros((0, 4), dtype=wp.float32, device=self._device)
+        dummy3 = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
+        dummy4 = wp.zeros((0, 4), dtype=wp.float32, device=self._device)
+        scales_wp = _to_float32_2d(scales)
 
         wp.launch(
             kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
             dim=count,
             inputs=[
                 self._fabric_world_matrices,
-                positions_wp,
-                orientations_wp,
-                scales,
+                dummy3,
+                dummy4,
+                scales_wp,
                 False,
                 False,
                 False,
