@@ -322,6 +322,9 @@ class MultiMeshRayCaster(RayCaster):
         else:
             # Dummy 1×1 buffer so the kernel launch always has a valid array to bind
             self._ray_mesh_id_w = wp.empty((1, 1), dtype=wp.int16, device=self._device)
+        # Persistent dummy buffers for unused kernel outputs; allocated once to avoid per-step allocations.
+        self._dummy_normal_w = wp.empty((1, 1), dtype=wp.vec3, device=self._device)
+        self._dummy_face_id_w = wp.empty((1, 1), dtype=wp.int32, device=self._device)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data."""
@@ -369,10 +372,6 @@ class MultiMeshRayCaster(RayCaster):
             device=self._device,
         )
 
-        # Dummy arrays for unused outputs (normal, face_id)
-        _dummy_normal = wp.empty((1, 1), dtype=wp.vec3, device=self._device)
-        _dummy_face_id = wp.empty((1, 1), dtype=wp.int32, device=self._device)
-
         # Ray-cast against all meshes; closest hit wins via atomic_min on ray_distance
         wp.launch(
             warp_kernels.raycast_dynamic_meshes_kernel,
@@ -384,8 +383,8 @@ class MultiMeshRayCaster(RayCaster):
                 self._ray_directions_w,
                 self._data._ray_hits_w,
                 self._ray_distance_w,
-                _dummy_normal,
-                _dummy_face_id,
+                self._dummy_normal_w,
+                self._dummy_face_id_w,
                 self._ray_mesh_id_w,
                 self._mesh_positions_w,
                 self._mesh_orientations_w,

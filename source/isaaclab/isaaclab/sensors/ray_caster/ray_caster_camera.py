@@ -18,6 +18,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
 
 from .kernels import (
+    ALIGNMENT_BASE,
     apply_depth_clipping_max_masked_kernel,
     apply_depth_clipping_zero_masked_kernel,
     compute_distance_to_image_plane_masked_kernel,
@@ -34,6 +35,9 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+# Large upper-bound distance for the ray-cast pass; clipping is applied afterwards per data type.
+_CAMERA_RAYCAST_MAX_DIST: float = 1e6
 
 
 class RayCasterCamera(RayCaster):
@@ -151,6 +155,10 @@ class RayCasterCamera(RayCaster):
         self.ray_starts[env_ids], self.ray_directions[env_ids] = self.cfg.pattern_cfg.func(
             self.cfg.pattern_cfg, self._data.intrinsic_matrices[env_ids], self._device
         )
+        # Refresh warp views of local ray buffers; .contiguous() produces a copy so views must be recreated.
+        if hasattr(self, "_ray_starts_local"):
+            self._ray_starts_local = wp.from_torch(self.ray_starts.contiguous(), dtype=wp.vec3f)
+            self._ray_directions_local = wp.from_torch(self.ray_directions.contiguous(), dtype=wp.vec3f)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timestamps
@@ -327,7 +335,7 @@ class RayCasterCamera(RayCaster):
         self._offset_quat_wp = wp.from_torch(self._offset_quat.contiguous(), dtype=wp.quatf)
 
         # Update world-frame ray starts/directions and camera pose via warp kernel.
-        # Camera always uses ALIGNMENT_BASE (=2) and zero drift.
+        # Camera always uses ALIGNMENT_BASE (full orientation) and zero drift.
         transforms = self._get_view_transforms_wp()
         wp.launch(
             update_ray_caster_kernel,
@@ -341,7 +349,7 @@ class RayCasterCamera(RayCaster):
                 self._ray_cast_drift,
                 self._ray_starts_local,
                 self._ray_directions_local,
-                2,  # ALIGNMENT_BASE
+                int(ALIGNMENT_BASE),
             ],
             outputs=[
                 self._pos_w_wp,
@@ -383,8 +391,8 @@ class RayCasterCamera(RayCaster):
                 device=self._device,
             )
 
-        # Ray-cast against the mesh; always use a large max_dist so we can apply clipping later
-        # (matching the original behaviour).
+        # Ray-cast against the mesh; use a large upper-bound max_dist so depth clipping
+        # can be applied per-data-type afterwards (matching the original behaviour).
         wp.launch(
             raycast_camera_mesh_masked_kernel,
             dim=(self._num_envs, self.num_rays),
@@ -393,7 +401,7 @@ class RayCasterCamera(RayCaster):
                 env_mask,
                 self._ray_starts_w,
                 self._ray_directions_w,
-                float(1e6),
+                float(_CAMERA_RAYCAST_MAX_DIST),
                 need_normal,
             ],
             outputs=[

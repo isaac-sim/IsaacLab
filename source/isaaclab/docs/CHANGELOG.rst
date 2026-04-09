@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+4.6.5 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale Warp views of local ray buffers in :meth:`~isaaclab.sensors.RayCasterCamera.set_intrinsic_matrices`.
+  After calling this method the warp arrays ``_ray_starts_local`` and ``_ray_directions_local`` are now recreated
+  from the updated torch tensors, preventing the kernel from using the old ray pattern.
+* Migrated distance-to-image-plane computation in :class:`~isaaclab.sensors.MultiMeshRayCasterCamera` to use
+  :func:`~isaaclab.sensors.ray_caster.kernels.compute_distance_to_image_plane_masked_kernel` and the depth
+  clipping kernels, matching the path already used in :class:`~isaaclab.sensors.RayCasterCamera` and
+  making NaN handling consistent between the two camera classes.
+* Moved per-step dummy Warp buffer allocations (``_dummy_normal_w``, ``_dummy_face_id_w``) in
+  :class:`~isaaclab.sensors.MultiMeshRayCaster` to ``_initialize_rays_impl`` to avoid per-step allocations.
+
+Changed
+^^^^^^^
+
+* Replaced the literal constant ``2`` in :class:`~isaaclab.sensors.RayCasterCamera` with the
+  :attr:`~isaaclab.sensors.ray_caster.kernels.ALIGNMENT_BASE` constant and named the ``1e6``
+  upper-bound raycast distance ``_CAMERA_RAYCAST_MAX_DIST`` for clarity.
+* Fixed ``Args:`` ordering in the :func:`~isaaclab.sensors.ray_caster.kernels.fill_vec3_inf_kernel`
+  docstring and added missing ``[m]`` SI unit annotations to ray-start parameters across several
+  kernels in :mod:`~isaaclab.sensors.ray_caster.kernels`.
+
+
 4.6.4 (2026-04-14)
 ~~~~~~~~~~~~~~~~~~
 
