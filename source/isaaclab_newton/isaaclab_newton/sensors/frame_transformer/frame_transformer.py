@@ -250,7 +250,7 @@ class FrameTransformer(BaseFrameTransformer):
         source_indices: list[int],
         target_per_world: list[list[list[int]]],
         target_frame_body_names: list[str],
-        shape_labels: list[str] | dict[int, str],
+        shape_labels: list[str],
         world_origin_idx: int,
         num_envs: int,
     ) -> tuple[list[str], list[list[int]], list[int], list[int]]:
