@@ -19,8 +19,8 @@ from isaaclab.sensors.camera import CameraData
 
 from .kernels import (
     ALIGNMENT_BASE,
-    apply_depth_clipping_max_masked_kernel,
-    apply_depth_clipping_zero_masked_kernel,
+    CAMERA_RAYCAST_MAX_DIST,
+    apply_depth_clipping_masked_kernel,
     compute_distance_to_image_plane_masked_kernel,
     fill_float2d_masked_kernel,
     fill_vec3_inf_kernel,
@@ -35,9 +35,6 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
-
-# Large upper-bound distance for the ray-cast pass; clipping is applied afterwards per data type.
-_CAMERA_RAYCAST_MAX_DIST: float = 1e6
 
 
 class RayCasterCamera(RayCaster):
@@ -275,16 +272,18 @@ class RayCasterCamera(RayCaster):
         )
         self.num_rays = self.ray_directions.shape[1]
 
-        # set offsets as torch tensors (modified by set_world_poses)
+        # Offset buffers: warp-primary so the kernel always sees the current values without re-wrapping.
+        # Zero-copy torch views (_offset_pos, _offset_quat) are used by set_world_poses for indexed writes.
+        self._offset_pos_wp = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
+        self._offset_quat_wp = wp.zeros(self._view.count, dtype=wp.quatf, device=self._device)
+        self._offset_pos = wp.to_torch(self._offset_pos_wp)
+        self._offset_quat = wp.to_torch(self._offset_quat_wp)
+        # Initialize from config
         quat_w = math_utils.convert_camera_frame_orientation_convention(
             torch.tensor([self.cfg.offset.rot], device=self._device), origin=self.cfg.offset.convention, target="world"
         )
-        self._offset_quat = quat_w.repeat(self._view.count, 1)
-        self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
-
-        # Warp views of offset buffers (zero-copy; updated automatically when torch tensors are modified)
-        self._offset_pos_wp = wp.from_torch(self._offset_pos.contiguous(), dtype=wp.vec3f)
-        self._offset_quat_wp = wp.from_torch(self._offset_quat.contiguous(), dtype=wp.quatf)
+        self._offset_pos[:] = torch.tensor(list(self.cfg.offset.pos), device=self._device)
+        self._offset_quat[:] = quat_w
 
         # Warp buffers for world-frame rays (used by update kernel)
         self._ray_starts_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
@@ -329,10 +328,6 @@ class RayCasterCamera(RayCaster):
             return
         # increment frame count
         self._frame[env_ids] += 1
-
-        # Refresh warp views of offset buffers in case set_world_poses modified them
-        self._offset_pos_wp = wp.from_torch(self._offset_pos.contiguous(), dtype=wp.vec3f)
-        self._offset_quat_wp = wp.from_torch(self._offset_quat.contiguous(), dtype=wp.quatf)
 
         # Update world-frame ray starts/directions and camera pose via warp kernel.
         # Camera always uses ALIGNMENT_BASE (full orientation) and zero drift.
@@ -401,7 +396,7 @@ class RayCasterCamera(RayCaster):
                 env_mask,
                 self._ray_starts_w,
                 self._ray_directions_w,
-                float(_CAMERA_RAYCAST_MAX_DIST),
+                float(CAMERA_RAYCAST_MAX_DIST),
                 need_normal,
             ],
             outputs=[
@@ -428,41 +423,14 @@ class RayCasterCamera(RayCaster):
                 ],
                 device=self._device,
             )
-            # Apply depth clipping on the intermediate buffer
-            if self.cfg.depth_clipping_behavior == "max":
-                wp.launch(
-                    apply_depth_clipping_max_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[env_mask, float(self.cfg.max_distance), self._distance_to_image_plane_wp],
-                    device=self._device,
-                )
-            elif self.cfg.depth_clipping_behavior == "zero":
-                wp.launch(
-                    apply_depth_clipping_zero_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[env_mask, float(self.cfg.max_distance), self._distance_to_image_plane_wp],
-                    device=self._device,
-                )
-            # Copy from warp intermediate buffer to torch output (env-masked)
+            # Apply depth clipping on the intermediate buffer (leaves _ray_distance unmodified)
+            self._apply_depth_clipping(env_mask, self._distance_to_image_plane_wp)
             d2ip_torch = wp.to_torch(self._distance_to_image_plane_wp)
             self._data.output["distance_to_image_plane"][env_ids] = d2ip_torch[env_ids].view(-1, *self.image_shape, 1)
 
         if "distance_to_camera" in self.cfg.data_types:
-            # Apply depth clipping on the ray distance buffer
-            if self.cfg.depth_clipping_behavior == "max":
-                wp.launch(
-                    apply_depth_clipping_max_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[env_mask, float(self.cfg.max_distance), self._ray_distance],
-                    device=self._device,
-                )
-            elif self.cfg.depth_clipping_behavior == "zero":
-                wp.launch(
-                    apply_depth_clipping_zero_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[env_mask, float(self.cfg.max_distance), self._ray_distance],
-                    device=self._device,
-                )
+            # d2ip (if requested) was computed before this block so _ray_distance is still unclipped.
+            self._apply_depth_clipping(env_mask, self._ray_distance)
             ray_dist_torch = wp.to_torch(self._ray_distance)
             self._data.output["distance_to_camera"][env_ids] = ray_dist_torch[env_ids].view(-1, *self.image_shape, 1)
 
@@ -480,6 +448,32 @@ class RayCasterCamera(RayCaster):
     """
     Private Helpers
     """
+
+    def _apply_depth_clipping(self, env_mask: wp.array, depth: wp.array) -> None:
+        """Apply depth clipping in-place on a warp float32 buffer.
+
+        Uses :attr:`cfg.depth_clipping_behavior` to determine the fill value:
+        ``"max"`` replaces out-of-range and NaN values with :attr:`cfg.max_distance`;
+        ``"zero"`` replaces them with 0. No-op when behavior is ``"none"``.
+
+        Args:
+            env_mask: Boolean mask selecting which environments to update. Shape is (num_envs,).
+            depth: Warp 2-D float32 buffer to clip in-place. Shape is (num_envs, num_rays).
+        """
+        if self.cfg.depth_clipping_behavior == "max":
+            wp.launch(
+                apply_depth_clipping_masked_kernel,
+                dim=(self._num_envs, self.num_rays),
+                inputs=[env_mask, float(self.cfg.max_distance), float(self.cfg.max_distance), depth],
+                device=self._device,
+            )
+        elif self.cfg.depth_clipping_behavior == "zero":
+            wp.launch(
+                apply_depth_clipping_masked_kernel,
+                dim=(self._num_envs, self.num_rays),
+                inputs=[env_mask, float(self.cfg.max_distance), float(0.0), depth],
+                device=self._device,
+            )
 
     def _check_supported_data_types(self, cfg: RayCasterCameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""

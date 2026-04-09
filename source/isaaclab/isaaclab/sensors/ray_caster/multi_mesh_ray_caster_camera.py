@@ -14,8 +14,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.utils.warp import kernels as warp_kernels
 
 from .kernels import (
-    apply_depth_clipping_max_masked_kernel,
-    apply_depth_clipping_zero_masked_kernel,
+    CAMERA_RAYCAST_MAX_DIST,
     compute_distance_to_image_plane_masked_kernel,
     fill_float2d_masked_kernel,
     fill_vec3_inf_kernel,
@@ -91,6 +90,14 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         )
 
     def _initialize_rays_impl(self):
+        # NOTE: This method intentionally does NOT call super()._initialize_rays_impl() through the MRO
+        # chain. The intermediate classes (RayCasterCamera, MultiMeshRayCaster) use different internal
+        # buffer names and orderings that are incompatible with the camera's full init path:
+        #   - RayCasterCamera creates single-mesh ray buffers (_ray_distance, _ray_normal_w, etc.)
+        #   - MultiMeshRayCaster creates _ray_distance_w / _ray_mesh_id_w for multi-mesh use
+        # The camera replaces all of these with its own camera-named equivalents below.
+        # If either parent class gains new shared buffers, they must be added here explicitly.
+
         # Camera-specific bookkeeping buffers
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
@@ -206,31 +213,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         # Increment frame count for updated environments
         self._frame[env_ids] += 1
 
-        # Update mesh positions/orientations for dynamically tracked targets
-        mesh_idx = 0
-        for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
-            if not target_cfg.track_mesh_transforms:
-                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
-                continue
-
-            pos_w, ori_w = obtain_world_pose_from_view(view, None)
-            pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
-            ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
-
-            if target_cfg.prim_expr in MultiMeshRayCaster.mesh_offsets:
-                pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.prim_expr]
-                pos_w -= pos_offset
-                ori_w = math_utils.quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
-
-            count = view.count
-            if count != 1:
-                count = count // self._num_envs
-                pos_w = pos_w.view(self._num_envs, count, 3)
-                ori_w = ori_w.view(self._num_envs, count, 4)
-
-            self._mesh_positions_w_torch[:, mesh_idx : mesh_idx + count] = pos_w
-            self._mesh_orientations_w_torch[:, mesh_idx : mesh_idx + count] = ori_w
-            mesh_idx += count
+        self._update_mesh_transforms()
 
         n_meshes = self._mesh_ids_wp.shape[1]
         return_normal = "normals" in self.cfg.data_types
@@ -272,7 +255,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
                 self._ray_mesh_id_w,
                 self._mesh_positions_w,
                 self._mesh_orientations_w,
-                float(self.cfg.max_distance),
+                float(CAMERA_RAYCAST_MAX_DIST),
                 int(return_normal),
                 int(False),
                 int(self.cfg.update_mesh_ids),
@@ -288,35 +271,16 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
                 outputs=[self._distance_to_image_plane_wp],
                 device=self._device,
             )
-            if self.cfg.depth_clipping_behavior == "max":
-                wp.launch(
-                    apply_depth_clipping_max_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[env_mask, float(self.cfg.max_distance), self._distance_to_image_plane_wp],
-                    device=self._device,
-                )
-            elif self.cfg.depth_clipping_behavior == "zero":
-                wp.launch(
-                    apply_depth_clipping_zero_masked_kernel,
-                    dim=(self._num_envs, self.num_rays),
-                    inputs=[env_mask, float(self.cfg.max_distance), self._distance_to_image_plane_wp],
-                    device=self._device,
-                )
+            # Apply depth clipping on the intermediate buffer (leaves _ray_distance_cam_w unmodified)
+            self._apply_depth_clipping(env_mask, self._distance_to_image_plane_wp)
             d2ip_torch = wp.to_torch(self._distance_to_image_plane_wp)
             self._data.output["distance_to_image_plane"][env_ids] = d2ip_torch[env_ids].view(-1, *self.image_shape, 1)
 
         if "distance_to_camera" in self.cfg.data_types:
-            # Apply depth clipping on a separate warp buffer to avoid mutating _ray_distance_cam_w
-            # (which is still needed unclipped if distance_to_image_plane was also requested).
-            ray_depth = wp.to_torch(self._ray_distance_cam_w)
-            ray_depth_env = ray_depth[env_ids].clone()
-            if self.cfg.depth_clipping_behavior == "max":
-                ray_depth_env = torch.clip(ray_depth_env, max=self.cfg.max_distance)
-                ray_depth_env[torch.isnan(ray_depth_env)] = self.cfg.max_distance
-            elif self.cfg.depth_clipping_behavior == "zero":
-                ray_depth_env[ray_depth_env > self.cfg.max_distance] = 0.0
-                ray_depth_env[torch.isnan(ray_depth_env)] = 0.0
-            self._data.output["distance_to_camera"][env_ids] = ray_depth_env.view(-1, *self.image_shape, 1)
+            # d2ip (if requested) was computed before this block so _ray_distance_cam_w is still unclipped.
+            self._apply_depth_clipping(env_mask, self._ray_distance_cam_w)
+            ray_dist_torch = wp.to_torch(self._ray_distance_cam_w)
+            self._data.output["distance_to_camera"][env_ids] = ray_dist_torch[env_ids].view(-1, *self.image_shape, 1)
 
         if return_normal:
             ray_normal_torch = wp.to_torch(self._ray_normal_w)

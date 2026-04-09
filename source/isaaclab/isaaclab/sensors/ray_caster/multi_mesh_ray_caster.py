@@ -326,11 +326,13 @@ class MultiMeshRayCaster(RayCaster):
         self._dummy_normal_w = wp.empty((1, 1), dtype=wp.vec3, device=self._device)
         self._dummy_face_id_w = wp.empty((1, 1), dtype=wp.int32, device=self._device)
 
-    def _update_buffers_impl(self, env_mask: wp.array):
-        """Fills the buffers of the sensor data."""
-        self._update_ray_infos(env_mask)
+    def _update_mesh_transforms(self) -> None:
+        """Update world-frame mesh positions and orientations for dynamically tracked targets.
 
-        # Update mesh positions/orientations for targets that track dynamic transforms
+        Iterates over all tracked views and writes the current world poses into
+        ``_mesh_positions_w_torch`` and ``_mesh_orientations_w_torch``.  Static (non-tracked)
+        targets are skipped; their initial poses were set during :meth:`_initialize_warp_meshes`.
+        """
         mesh_idx = 0
         for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
@@ -355,6 +357,11 @@ class MultiMeshRayCaster(RayCaster):
             self._mesh_positions_w_torch[:, mesh_idx : mesh_idx + count] = pos_w
             self._mesh_orientations_w_torch[:, mesh_idx : mesh_idx + count] = ori_w
             mesh_idx += count
+
+    def _update_buffers_impl(self, env_mask: wp.array):
+        """Fills the buffers of the sensor data."""
+        self._update_ray_infos(env_mask)
+        self._update_mesh_transforms()
 
         n_meshes = self._mesh_ids_wp.shape[1]
 
