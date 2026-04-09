@@ -109,7 +109,7 @@ class NewtonManager(PhysicsManager):
     _report_contacts: bool = False
     _fk_dirty: bool = False
 
-    # Kamino solver: pending FK flag (set by write methods, consumed by step/forward)
+    # Kamino solver: pending FK flag (set by write methods, consumed by step)
     _kamino_needs_fk: bool = False
 
     # CUDA graphing
@@ -1031,7 +1031,7 @@ class NewtonManager(PhysicsManager):
         - Call ``wp.capture_end(stream=fresh_stream)`` to finalise the Warp-level capture.
         - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
 
-        Warmup run pre-allocates all MuJoCo-Warp scratch buffers so no ``cudaMalloc`` occurs during
+        Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
         capture.  ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is
         excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
@@ -1041,7 +1041,7 @@ class NewtonManager(PhysicsManager):
             logger.warning("libcudart not available; cannot use relaxed graph capture")
             return None
 
-        # Warmup: pre-allocate all MuJoCo-Warp scratch buffers so the capture window has
+        # Warmup: pre-allocate all solver scratch buffers so the capture window has
         # no new cudaMalloc calls (which are forbidden inside graph capture).
         with wp.ScopedDevice(device):
             cls._simulate_physics_only()
