@@ -7,28 +7,27 @@ from __future__ import annotations
 
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+from isaaclab_tasks.utils.presets import MultiBackendCameraCfg
 
 from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_env_cfg import ShadowHandEnvCfg
 
 
 @configclass
-class _ShadowHandBaseTiledCameraCfg(CameraCfg):
+class _ShadowHandBaseTiledCameraCfg(MultiBackendCameraCfg):
     """Base camera configuration for the shadow hand vision environment.
 
     This is an internal config used by :class:`ShadowHandVisionTiledCameraCfg` presets and
-    by derived env configs that hard-code a specific data type. It embeds
-    :class:`~isaaclab_tasks.utils.MultiBackendRendererCfg` so the renderer backend can
-    still be selected via the ``presets`` CLI argument.
+    by derived env configs that hard-code a specific data type. It inherits
+    :class:`~isaaclab_tasks.utils.MultiBackendCameraCfg` so the renderer backend and
+    frame stacking can be selected via the ``presets`` CLI argument.
     """
 
     prim_path: str = "/World/envs/env_.*/Camera"
-    offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
+    offset: MultiBackendCameraCfg.OffsetCfg = MultiBackendCameraCfg.OffsetCfg(
         pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"
     )
     data_types: list[str] = []
@@ -37,7 +36,6 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     )
     width: int = 120
     height: int = 120
-    renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
 
 @configclass

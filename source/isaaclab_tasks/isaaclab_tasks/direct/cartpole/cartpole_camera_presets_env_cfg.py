@@ -17,7 +17,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+from isaaclab_tasks.utils.presets import MultiBackendCameraCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -32,9 +32,9 @@ class PhysicsCfg(PresetCfg):
 @configclass
 class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
     @configclass
-    class CartpoleTiledCameraCfg(CameraCfg):
+    class CartpoleTiledCameraCfg(MultiBackendCameraCfg):
         prim_path: str = "/World/envs/env_.*/Camera"
-        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
+        offset: MultiBackendCameraCfg.OffsetCfg = MultiBackendCameraCfg.OffsetCfg(
             pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
         )
         data_types: list[str] = []
@@ -43,7 +43,6 @@ class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
         )
         width: int = 100
         height: int = 100
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
     default = CartpoleTiledCameraCfg(data_types=["rgb"])
     depth = CartpoleTiledCameraCfg(data_types=["depth"])

@@ -610,6 +610,26 @@ class DirectRLEnv(gym.Env):
             if isinstance(self.cfg.state_space, type(MISSING)):
                 self.cfg.state_space = self.cfg.num_states
 
+        # Auto-adjust observation_space for camera frame stacking.
+        # When a CameraCfg has frame_stack > 1, the output channel count
+        # is multiplied accordingly. This avoids requiring every task to manually
+        # update observation_space when frame stacking is enabled via presets.
+        if isinstance(self.cfg.observation_space, (list, tuple)) and len(self.cfg.observation_space) == 3:
+            for attr_name in self.cfg.__dataclass_fields__:
+                attr = getattr(self.cfg, attr_name, None)
+                frame_stack = getattr(attr, "frame_stack", None)
+                if isinstance(frame_stack, int) and frame_stack > 1:
+                    h, w, c = self.cfg.observation_space
+                    self.cfg.observation_space = [h, w, c * frame_stack]
+                    logger.info(
+                        "Auto-adjusted observation_space channels %d -> %d for frame_stack=%d on '%s'.",
+                        c,
+                        c * frame_stack,
+                        frame_stack,
+                        attr_name,
+                    )
+                    break
+
         # set up spaces
         self.single_observation_space = gym.spaces.Dict()
         self.single_observation_space["policy"] = spec_to_gym_space(self.cfg.observation_space)

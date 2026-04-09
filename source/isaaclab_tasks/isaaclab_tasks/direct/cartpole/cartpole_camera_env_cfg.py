@@ -13,7 +13,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+from isaaclab_tasks.utils.presets import MultiBackendCameraCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -34,16 +34,15 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     pole_dof_name = "cart_to_pole"
 
     # camera: default=RTX, newton_renderer=Warp. Override: env.tiled_camera.renderer_cfg=newton_renderer
-    tiled_camera: CameraCfg = CameraCfg(
+    tiled_camera: MultiBackendCameraCfg = MultiBackendCameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+        offset=MultiBackendCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         ),
         width=100,
         height=100,
-        renderer_cfg=MultiBackendRendererCfg(),
     )
     write_image_to_file = False
 

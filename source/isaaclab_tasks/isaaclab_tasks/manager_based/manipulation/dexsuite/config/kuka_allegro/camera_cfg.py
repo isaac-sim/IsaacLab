@@ -9,12 +9,11 @@ import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+from isaaclab_tasks.utils.presets import MultiBackendCameraCfg
 
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
@@ -22,9 +21,9 @@ from ... import mdp
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 
 
-BASE_CAMERA_CFG = CameraCfg(
+BASE_CAMERA_CFG = MultiBackendCameraCfg(
     prim_path="/World/envs/env_.*/Camera",
-    offset=CameraCfg.OffsetCfg(
+    offset=MultiBackendCameraCfg.OffsetCfg(
         pos=(0.57, -0.8, 0.5),
         rot=(0.6124, 0.3536, 0.3536, 0.6124),
         convention="opengl",
@@ -33,12 +32,11 @@ BASE_CAMERA_CFG = CameraCfg(
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
     width=MISSING,
     height=MISSING,
-    renderer_cfg=MultiBackendRendererCfg(),
 )
 
-WRIST_CAMERA_CFG = CameraCfg(
+WRIST_CAMERA_CFG = MultiBackendCameraCfg(
     prim_path="/World/envs/env_.*/Robot/ee_link/palm_link/Camera",
-    offset=CameraCfg.OffsetCfg(
+    offset=MultiBackendCameraCfg.OffsetCfg(
         pos=(0.038, -0.38, -0.18),
         rot=(0.641, 0.641, -0.299, 0.299),
         convention="opengl",
@@ -47,7 +45,6 @@ WRIST_CAMERA_CFG = CameraCfg(
     spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
     width=MISSING,
     height=MISSING,
-    renderer_cfg=MultiBackendRendererCfg(),
 )
 
 

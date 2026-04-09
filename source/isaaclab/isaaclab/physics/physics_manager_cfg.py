@@ -30,3 +30,13 @@ class PhysicsCfg:
 
     class_type: type[PhysicsManager] | Any = MISSING
     """The physics manager class to use. Must be set by subclasses."""
+
+    requires_temporal_camera_data: bool = False
+    """Whether this physics backend's dynamics require explicit temporal data for camera-based RL.
+
+    Set to ``True`` by physics backends whose integrators do not produce implicit damping
+    (e.g. energy-conserving symplectic integrators like Newton's). Such backends benefit from
+    frame stacking on camera observations so the policy can infer velocity from pixel
+    differences between frames. Set to ``False`` (default) for backends with implicit damping
+    (e.g. PhysX TGS, OvPhysX) which do not need this temporal augmentation.
+    """

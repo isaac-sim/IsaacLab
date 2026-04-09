@@ -22,7 +22,6 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
 
-
 # Capture warnings from the simulation_context logger
 _warning_capture: list[str] = []
 _original_warning = None

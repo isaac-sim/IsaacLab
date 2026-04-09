@@ -107,6 +107,22 @@ class CameraCfg(SensorBaseCfg):
     If False, the pose of the camera during initialization is returned.
     """
 
+    frame_stack: int = 1
+    """Number of consecutive frames to stack along the channel dimension. Defaults to 1 (disabled).
+
+    When ``frame_stack > 1``, the camera maintains a ring buffer of the last ``frame_stack`` rendered
+    frames and concatenates them along the channel dimension. For example, with ``frame_stack=4`` and
+    an RGB camera, the output channel count becomes 12.
+
+    Frame stacking provides explicit temporal information to RL policies, which is useful when the
+    underlying physics solver does not produce implicit damping (e.g. Newton's energy-conserving
+    integrator). The policy can infer velocity from pixel differences between consecutive frames.
+
+    For performance reasons, values greater than 4 are not recommended: GPU memory scales linearly
+    with ``frame_stack`` and each step performs ``O(frame_stack)`` allocations to build the stacked
+    output.
+    """
+
     semantic_filter: str | list[str] = "*:*"
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.
 

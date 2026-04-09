@@ -133,6 +133,8 @@ class Camera(SensorBase):
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
+        # Frame stacking buffers — populated in _create_buffers when cfg.frame_stack > 1.
+        self._frame_stack_size: int = 1
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
@@ -347,6 +349,13 @@ class Camera(SensorBase):
         self._update_poses(env_ids)
         # Reset the frame count
         self._frame[env_ids] = 0
+        # Reset frame-stack history for these envs; next _update_buffers_impl fills all
+        # history slots with the first post-reset frame so the policy never sees stale frames.
+        if self._frame_stack_size > 1:
+            for history in self._frame_history.values():
+                history[:, env_ids] = 0
+            self._frame_stack_needs_init[env_ids] = True
+            self._frame_stack_needs_init_cpu = True
 
     """
     Implementation.
@@ -446,6 +455,32 @@ class Camera(SensorBase):
             renderer.render(self._render_data)
             renderer.read_output(self._render_data, self._data)
 
+        # Frame stacking: renderer wrote into _single_frame_output; advance ring buffer
+        # and rebuild _stacked_output (which is what _data.output points to).
+        if self._frame_stack_size > 1:
+            # CPU-side flag avoids GPU->CPU sync from .any() on the steady-state path.
+            needs_init = self._frame_stack_needs_init_cpu
+            if needs_init:
+                init_ids = self._frame_stack_needs_init.nonzero(as_tuple=False).squeeze(-1)
+            for name, single in self._single_frame_output.items():
+                history = self._frame_history[name]
+                if needs_init and len(init_ids) > 0:
+                    for i in range(self._frame_stack_size):
+                        history[i, init_ids] = single[init_ids]
+                history[self._frame_stack_idx].copy_(single)
+                ordered = torch.cat(
+                    [
+                        history[(self._frame_stack_idx + 1 + i) % self._frame_stack_size]
+                        for i in range(self._frame_stack_size)
+                    ],
+                    dim=-1,
+                )
+                self._stacked_output[name].copy_(ordered)
+            if needs_init:
+                self._frame_stack_needs_init.zero_()
+                self._frame_stack_needs_init_cpu = False
+            self._frame_stack_idx = (self._frame_stack_idx + 1) % self._frame_stack_size
+
     """
     Private Helpers
     """
@@ -505,7 +540,34 @@ class Camera(SensorBase):
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         self._update_poses(self._ALL_INDICES)
-        self._renderer.set_outputs(self._render_data, self._data.output)
+
+        # Frame stacking: when frame_stack > 1 the renderer writes into per-name single-frame
+        # buffers and we maintain a ring buffer + concatenated stacked output ourselves.
+        # _data.output points at the stacked buffers so external consumers see the stacked shape.
+        self._frame_stack_size = max(1, getattr(self.cfg, "frame_stack", 1))
+        if self._frame_stack_size > 1:
+            self._single_frame_output = self._data.output
+            self._frame_history = {}
+            self._stacked_output = {}
+            for name, tensor in self._single_frame_output.items():
+                channels = tensor.shape[-1]
+                self._frame_history[name] = torch.zeros(
+                    (self._frame_stack_size, *tensor.shape),
+                    device=self._device,
+                    dtype=tensor.dtype,
+                )
+                self._stacked_output[name] = torch.zeros(
+                    (*tensor.shape[:-1], channels * self._frame_stack_size),
+                    device=self._device,
+                    dtype=tensor.dtype,
+                )
+            self._frame_stack_idx = 0
+            self._frame_stack_needs_init = torch.ones(self._view.count, device=self._device, dtype=torch.bool)
+            self._frame_stack_needs_init_cpu = True
+            self._data.output = self._stacked_output
+            self._renderer.set_outputs(self._render_data, self._single_frame_output)
+        else:
+            self._renderer.set_outputs(self._render_data, self._data.output)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
         """Compute camera's matrix of intrinsic parameters.

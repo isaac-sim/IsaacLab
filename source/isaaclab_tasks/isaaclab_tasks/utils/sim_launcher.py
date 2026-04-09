@@ -71,6 +71,23 @@ def _is_kitless_physics(node) -> bool:
     return isinstance(node, PhysicsCfg) and type(node).__name__ in ("NewtonCfg", "OvPhysxCfg")
 
 
+def _physics_needs_temporal_camera_data(node) -> bool:
+    """True when the node is a physics config whose integrator needs explicit temporal data.
+
+    Backends without implicit damping (e.g. Newton's symplectic integrator) declare this
+    via :attr:`PhysicsCfg.requires_temporal_camera_data`. Used to warn when such backends
+    are paired with cameras whose ``frame_stack`` is too low.
+    """
+    return isinstance(node, PhysicsCfg) and getattr(node, "requires_temporal_camera_data", False)
+
+
+def _has_camera_without_frame_stack(node) -> bool:
+    """True when the node is a camera config with frame_stack <= 1."""
+    if not isinstance(node, CameraCfg):
+        return False
+    return node.frame_stack <= 1
+
+
 def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> set[str]:
     """Extract requested visualizer type names from launcher args."""
     if isinstance(launcher_args, argparse.Namespace):
@@ -257,6 +274,19 @@ def launch_simulation(
     needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
     visualizer_intent = _compute_visualizer_intent(env_cfg)
     _set_visualizer_intent_on_launcher_args(launcher_args, visualizer_intent)
+
+    # Warn when a physics backend that needs temporal data is paired with an unstacked camera.
+    needs_temporal, has_unstacked_camera = _scan_config(
+        env_cfg, [_physics_needs_temporal_camera_data, _has_camera_without_frame_stack]
+    )
+    if needs_temporal and has_unstacked_camera:
+        logger.warning(
+            "Physics backend reports requires_temporal_camera_data=True but a camera with"
+            " frame_stack <= 1 was detected. Backends without implicit damping (e.g. Newton's"
+            " symplectic integrator) need temporal information for effective camera-based control."
+            " Set frame_stack >= 2 on CameraCfg (or use MultiBackendCameraCfg which enables"
+            " frame_stack=2 automatically with presets=newton)."
+        )
 
     if needs_kit and has_kit_cameras:
         if isinstance(launcher_args, argparse.Namespace):

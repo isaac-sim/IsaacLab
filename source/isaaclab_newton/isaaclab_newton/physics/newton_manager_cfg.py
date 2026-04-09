@@ -94,6 +94,10 @@ class NewtonCfg(PhysicsCfg):
     Users normally do not set this directly.
     """
 
+    requires_temporal_camera_data: bool = True
+    """Newton's symplectic integrator is energy-conserving and lacks the implicit damping that
+    PhysX-style backends provide; camera-based policies need frame stacking to infer velocity."""
+
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
 
