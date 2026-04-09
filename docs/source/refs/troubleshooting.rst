@@ -77,6 +77,13 @@ Ubuntu 22.04+ satisfies this. For older distributions, use the
 `binary installation <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html>`_
 method for Isaac Sim.
 
+Troubleshooting distributed training NCCL errors
+------------------------------------------------
+
+On some Linux multi-GPU systems, distributed training may fail with
+``CUDA error: an illegal memory access was encountered`` reported by ``ProcessGroupNCCL``.
+For documented NCCL workarounds, see :ref:`multi-gpu-nccl-troubleshooting`.
+
 
 Debugging physics simulation stability issues
 ---------------------------------------------
