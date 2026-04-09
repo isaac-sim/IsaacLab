@@ -447,9 +447,8 @@ class AppLauncher:
             action=ExplicitAction,
             choices={"performance", "balanced", "quality"},
             help=(
-                "RTX rendering preset: performance, balanced, or quality. When set, overrides "
-                "rendering_mode on cameras and on the Kit visualizer. Add or adjust named profiles in "
-                "SimulationCfg.rendering_mode_cfgs using RenderingModeCfg."
+                "When passed, selects RenderingModeCfg presets for overwriting rendering settings of all Renderers"
+                "and Visualizers."
             ),
         )
         arg_group.add_argument(

@@ -63,11 +63,10 @@ class VisualizerCfg:
     """
 
     rendering_mode: str | None = None
-    """Name of the rendering mode profile for selecting rendering settings.
+    """Key into :attr:`~isaaclab.sim.SimulationCfg.rendering_mode_cfgs` (e.g. ``performance``, ``balanced``).
 
-    Note, currently supports rendering settings for Kit Visualizer.
-
-    If set None, default rendering settings are used.
+    Kit visualizers apply this profile; other backends ignore it. ``None`` skips a named profile.
+    An explicit CLI ``--rendering_mode`` overrides this for the run.
     """
 
     def get_visualizer_type(self) -> str | None:

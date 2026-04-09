@@ -33,3 +33,9 @@ class KitVisualizerCfg(VisualizerCfg):
 
     window_height: int = 720
     """Viewport height in pixels."""
+
+    rendering_mode: str | None = "performance"
+    """Kit/RTX profile name from :attr:`~isaaclab.sim.SimulationCfg.rendering_mode_cfgs` (default ``performance``).
+
+    Set to ``None`` to skip applying a named profile (USD / Kit defaults).
+    """

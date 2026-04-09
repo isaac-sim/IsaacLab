@@ -18,4 +18,3 @@ class RTXRendererCfg(RendererCfg):
     """
 
     renderer_type: str = "rtx"
-    rendering_mode: str | None = None
