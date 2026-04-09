@@ -327,8 +327,10 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the joint indices and names.
         """
-        names = joint_subset if joint_subset is not None else self.joint_names
-        return self._resolve_matching_names_cached(name_keys, names, preserve_order)
+        if joint_subset is None:
+            joint_subset = self.joint_names
+        # find joints
+        return self._resolve_matching_names_cached(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -351,6 +353,7 @@ class Articulation(BaseArticulation):
         if tendon_subsets is None:
             # tendons follow the joint names they are attached to
             tendon_subsets = self.fixed_tendon_names
+        # find tendons
         return self._resolve_matching_names_cached(name_keys, tendon_subsets, preserve_order)
 
     def find_spatial_tendons(
@@ -372,6 +375,7 @@ class Articulation(BaseArticulation):
         """
         if tendon_subsets is None:
             tendon_subsets = self.spatial_tendon_names
+        # find tendons
         return self._resolve_matching_names_cached(name_keys, tendon_subsets, preserve_order)
 
     """
