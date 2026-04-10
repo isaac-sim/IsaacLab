@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 class TiledCameraCfg(CameraCfg):
     """Configuration for a tiled rendering-based camera sensor.
 
-    .. deprecated:: 4.5.26
+    .. deprecated:: 4.6.0
         :class:`TiledCameraCfg` is deprecated. Use :class:`CameraCfg` directly —
         :class:`~isaaclab.sensors.camera.Camera` now includes TiledCamera's vectorized
         rendering optimizations via the same renderer abstraction.
