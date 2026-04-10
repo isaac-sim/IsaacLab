@@ -21,14 +21,20 @@ def quat_yaw_only(
     # input
     q: wp.quatf,
 ) -> wp.quatf:
-    """Extract yaw-only quaternion by zeroing x,y components and renormalizing."""
-    z = q[2]
-    w = q[3]
-    length = wp.sqrt(z * z + w * w)
-    if length > 0.0:
-        return wp.quatf(0.0, 0.0, z / length, w / length)
-    else:
-        return wp.quatf(0.0, 0.0, 0.0, 1.0)
+    """Extract the yaw-only quaternion from a general quaternion.
+
+    Equivalent to :func:`isaaclab.utils.math.yaw_quat`: extracts the yaw angle via
+    ``atan2(2*(qw*qz + qx*qy), 1 - 2*(qy^2 + qz^2))`` and returns a pure-yaw quaternion
+    ``(0, 0, sin(yaw/2), cos(yaw/2))``. This is correct for all orientations, including
+    those with non-zero roll and pitch.
+    """
+    qx = q[0]
+    qy = q[1]
+    qz = q[2]
+    qw = q[3]
+    yaw = wp.atan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
+    half_yaw = yaw * 0.5
+    return wp.quatf(0.0, 0.0, wp.sin(half_yaw), wp.cos(half_yaw))
 
 
 @wp.kernel(enable_backward=False)
@@ -134,46 +140,6 @@ def fill_vec3_inf_kernel(
 
 
 @wp.kernel(enable_backward=False)
-def raycast_mesh_masked_kernel(
-    # input
-    mesh: wp.uint64,
-    env_mask: wp.array(dtype=wp.bool),
-    ray_starts: wp.array2d(dtype=wp.vec3f),
-    ray_directions: wp.array2d(dtype=wp.vec3f),
-    max_dist: wp.float32,
-    # output
-    ray_hits: wp.array2d(dtype=wp.vec3f),
-):
-    """Ray-cast against a single static mesh for masked environments.
-
-    Launch with dim=(num_envs, num_rays).
-
-    Args:
-        mesh: The warp mesh id to ray-cast against.
-        env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
-        ray_starts: World-frame ray start positions [m]. Shape is (num_envs, num_rays).
-        ray_directions: World-frame unit ray directions. Shape is (num_envs, num_rays).
-        max_dist: Maximum ray-cast distance [m].
-        ray_hits: Output ray hit positions [m]. Shape is (num_envs, num_rays).
-            Pre-filled with inf for missed hits.
-    """
-    env, ray = wp.tid()
-    if not env_mask[env]:
-        return
-
-    t = float(0.0)
-    u = float(0.0)
-    v = float(0.0)
-    sign = float(0.0)
-    n = wp.vec3()
-    f = int(0)
-
-    hit = wp.mesh_query_ray(mesh, ray_starts[env, ray], ray_directions[env, ray], max_dist, t, u, v, sign, n, f)
-    if hit:
-        ray_hits[env, ray] = ray_starts[env, ray] + t * ray_directions[env, ray]
-
-
-@wp.kernel(enable_backward=False)
 def apply_z_drift_kernel(
     # input
     env_mask: wp.array(dtype=wp.bool),
@@ -218,57 +184,6 @@ def fill_float2d_masked_kernel(
     if not env_mask[env]:
         return
     data[env, ray] = val
-
-
-@wp.kernel(enable_backward=False)
-def raycast_camera_mesh_masked_kernel(
-    # input
-    mesh: wp.uint64,
-    env_mask: wp.array(dtype=wp.bool),
-    ray_starts: wp.array2d(dtype=wp.vec3f),
-    ray_directions: wp.array2d(dtype=wp.vec3f),
-    max_dist: wp.float32,
-    return_normal: int,
-    # output
-    ray_hits: wp.array2d(dtype=wp.vec3f),
-    ray_distance: wp.array2d(dtype=wp.float32),
-    ray_normal: wp.array2d(dtype=wp.vec3f),
-):
-    """Ray-cast against a static mesh and return distances and normals for masked environments.
-
-    Launch with dim=(num_envs, num_rays).
-
-    Args:
-        mesh: The warp mesh id to ray-cast against.
-        env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
-        ray_starts: World-frame ray start positions [m]. Shape is (num_envs, num_rays).
-        ray_directions: World-frame unit ray directions. Shape is (num_envs, num_rays).
-        max_dist: Maximum ray-cast distance [m].
-        return_normal: Whether to write surface normals (1) or skip (0).
-        ray_hits: Output ray hit positions [m]. Shape is (num_envs, num_rays).
-            Pre-filled with inf for missed hits.
-        ray_distance: Output ray hit distances [m]. Shape is (num_envs, num_rays).
-            Pre-filled with inf for missed hits.
-        ray_normal: Output surface normals at hit positions. Shape is (num_envs, num_rays).
-            Written only when return_normal is 1; pre-filled with inf for missed hits.
-    """
-    env, ray = wp.tid()
-    if not env_mask[env]:
-        return
-
-    t = float(0.0)
-    u = float(0.0)
-    v = float(0.0)
-    sign = float(0.0)
-    n = wp.vec3f()
-    f = int(0)
-
-    hit = wp.mesh_query_ray(mesh, ray_starts[env, ray], ray_directions[env, ray], max_dist, t, u, v, sign, n, f)
-    if hit:
-        ray_hits[env, ray] = ray_starts[env, ray] + t * ray_directions[env, ray]
-        ray_distance[env, ray] = t
-        if return_normal == 1:
-            ray_normal[env, ray] = n
 
 
 @wp.kernel(enable_backward=False)

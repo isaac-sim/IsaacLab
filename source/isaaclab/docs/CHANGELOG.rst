@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.6.3 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved :func:`~isaaclab.utils.warp.kernels.raycast_mesh_masked_kernel` to
+  :mod:`~isaaclab.utils.warp.kernels` as a general-purpose utility. The new kernel consolidates
+  the former ``raycast_mesh_masked_kernel`` and ``raycast_camera_mesh_masked_kernel`` from the
+  sensor-specific module into a single kernel with ``return_distance`` and ``return_normal`` flags,
+  matching the design of the existing :func:`~isaaclab.utils.warp.kernels.raycast_mesh_kernel`.
+
+
 4.6.2 (2026-04-14)
 ~~~~~~~~~~~~~~~~~~
 

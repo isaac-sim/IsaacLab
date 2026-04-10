@@ -16,6 +16,7 @@ from pxr import UsdGeom
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
+from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
 
 from .kernels import (
     ALIGNMENT_BASE,
@@ -24,7 +25,6 @@ from .kernels import (
     compute_distance_to_image_plane_masked_kernel,
     fill_float2d_masked_kernel,
     fill_vec3_inf_kernel,
-    raycast_camera_mesh_masked_kernel,
     update_ray_caster_kernel,
 )
 from .ray_cast_utils import obtain_world_pose_from_view
@@ -389,7 +389,7 @@ class RayCasterCamera(RayCaster):
         # Ray-cast against the mesh; use a large upper-bound max_dist so depth clipping
         # can be applied per-data-type afterwards (matching the original behaviour).
         wp.launch(
-            raycast_camera_mesh_masked_kernel,
+            raycast_mesh_masked_kernel,
             dim=(self._num_envs, self.num_rays),
             inputs=[
                 RayCaster.meshes[self.cfg.mesh_prim_paths[0]].id,
@@ -397,9 +397,8 @@ class RayCasterCamera(RayCaster):
                 self._ray_starts_w,
                 self._ray_directions_w,
                 float(CAMERA_RAYCAST_MAX_DIST),
+                int(True),  # return_distance: always needed for depth output
                 need_normal,
-            ],
-            outputs=[
                 self._ray_hits_w_wp,
                 self._ray_distance,
                 self._ray_normal_w,
