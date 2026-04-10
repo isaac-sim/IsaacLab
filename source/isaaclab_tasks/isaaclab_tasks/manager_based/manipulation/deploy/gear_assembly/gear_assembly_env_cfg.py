@@ -281,7 +281,7 @@ class RewardsCfg:
             "keypoint_scale": 0.15,
             "ee_gear_threshold": 0.00,
             "weight_ramp_start": 0.0,  # Set to 0.0 to enable ramp-up
-            "weight_ramp_steps": 512_000,
+            "weight_ramp_steps": 250_000,
         },
     )
 
@@ -295,7 +295,7 @@ class RewardsCfg:
             "keypoint_scale": 0.15,
             "ee_gear_threshold": 0.00,
             "weight_ramp_start": 0.0,  # Set to 0.0 to enable ramp-up
-            "weight_ramp_steps": 512_000,
+            "weight_ramp_steps": 250_000,
         },
     )
 
