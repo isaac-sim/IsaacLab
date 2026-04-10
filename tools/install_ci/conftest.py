@@ -136,6 +136,14 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         print()
 
     for item in items:
+        # Promote @pytest.mark.bug("id") args to standalone markers for -m filtering
+        bug_marker = item.get_closest_marker("bug")
+        if bug_marker and bug_marker.args:
+            for bug_id in bug_marker.args:
+                marker_name = str(bug_id).replace("-", "_")
+                config.addinivalue_line("markers", f"{marker_name}: bug regression (auto-registered)")
+                item.add_marker(getattr(pytest.mark, marker_name))
+
         # Auto-skip docker_only tests when not in Docker
         if "docker_only" in item.keywords and not in_docker:
             item.add_marker(pytest.mark.skip(reason="docker_only: not running inside Docker"))
