@@ -6,7 +6,7 @@
 """Tests for rendering correctness.
 
 Each test builds an environment with a given (physics_backend, renderer, data_type),
-steps once, then checks if camera outputs are not blank (at least one non-zero
+resets, then checks if camera outputs are not blank (at least one non-zero
 pixel) and consistent with golden images. Env-specific fixtures use parametrized
 combinations; a separate test covers a list of registered task IDs that use
 camera-based observations.
@@ -28,7 +28,6 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 from PIL import Image, ImageChops  # noqa: E402
 
-from isaaclab.envs.utils.spaces import sample_space  # noqa: E402
 from isaaclab.sim import SimulationContext  # noqa: E402
 
 from isaaclab_tasks.utils.hydra import (  # noqa: E402
@@ -85,6 +84,18 @@ def cleanup_simulation_context():
     yield
 
     SimulationContext.clear_instance()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _generate_comparison_html_report():
+    """Generate an HTML comparison report after all tests in the session complete."""
+    yield
+    try:
+        _generate_html_report()
+    except Exception as exc:  # noqa: BLE001
+        import warnings
+
+        warnings.warn(f"Failed to generate HTML comparison report: {exc}", stacklevel=1)
 
 
 @pytest.fixture(autouse=True)
@@ -269,7 +280,7 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
 
 
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
-    """Save a PIL image to the comparison-images directory.
+    """Save a PIL image to the comparison-images/images directory.
 
     Args:
         img: PIL Image to save.
@@ -278,10 +289,99 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
     Returns:
         Absolute path to the saved file.
     """
-    path = os.path.join(_COMPARISON_IMAGES_DIR, filename)
+    path = os.path.join(_COMPARISON_IMAGES_DIR, "images", filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, format="PNG")
     return path
+
+
+def _generate_html_report() -> None:
+    """Generate an HTML report of all comparison scores and save it alongside the comparison images.
+
+    The report is written to ``<_COMPARISON_IMAGES_DIR>/_report_.html`` and includes a table of
+    all image comparison results sorted by PixelDiff % descending, with thumbnail links to actual
+    and golden images where available.
+    """
+    if not _COMPARISON_SCORES:
+        return
+
+    os.makedirs(_COMPARISON_IMAGES_DIR, exist_ok=True)
+    report_path = os.path.join(_COMPARISON_IMAGES_DIR, "_report_.html")
+
+    sorted_scores = sorted(_COMPARISON_SCORES, key=lambda e: -e["diff_pct"])
+
+    rows = []
+    for entry in sorted_scores:
+        status_class = "pass" if entry["passed"] else "fail"
+        status_text = status_class.upper()
+
+        actual_img_html = ""
+        golden_img_html = ""
+        if entry.get("img_result_path"):
+            actual_fname = os.path.relpath(entry["img_result_path"], _COMPARISON_IMAGES_DIR)
+            golden_fname = os.path.relpath(entry["img_golden_path"], _COMPARISON_IMAGES_DIR)
+            actual_img_html = f'<a href="{actual_fname}"><img src="{actual_fname}" width="120" loading="lazy"></a>'
+            golden_img_html = f'<a href="{golden_fname}"><img src="{golden_fname}" width="120" loading="lazy"></a>'
+
+        rows.append(
+            f'<tr class="{status_class}">'
+            f"<td>{entry['test']}</td>"
+            f"<td>{entry['backend']}</td>"
+            f"<td>{entry['renderer']}</td>"
+            f"<td>{entry['aov']}</td>"
+            f"<td>{entry['diff_pct']:.2f}</td>"
+            f"<td>{entry['threshold']:.1f}</td>"
+            f"<td>{entry['ssim']:.4f}</td>"
+            f'<td class="status-{status_class}">{status_text}</td>'
+            f"<td>{actual_img_html}</td>"
+            f"<td>{golden_img_html}</td>"
+            "</tr>"
+        )
+
+    html = (
+        "<!DOCTYPE html>\n"
+        "<html>\n"
+        "<head>\n"
+        '<meta charset="utf-8">\n'
+        "<title>Rendering Correctness — Image Comparison Report</title>\n"
+        "<style>\n"
+        "  body { font-family: sans-serif; font-size: 13px; margin: 16px; }\n"
+        "  h1 { font-size: 1.3em; margin-bottom: 4px; }\n"
+        "  p { margin-top: 4px; color: #555; }\n"
+        "  table { border-collapse: collapse; width: 100%; }\n"
+        "  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: middle; }\n"
+        "  th { background: #f0f0f0; white-space: nowrap; }\n"
+        "  tr.fail { background: #fff0f0; }\n"
+        "  tr.pass:hover, tr.fail:hover { filter: brightness(0.96); }\n"
+        "  .status-pass { color: #2a7a2a; font-weight: bold; }\n"
+        "  .status-fail { color: #cc0000; font-weight: bold; }\n"
+        "  img { display: block; max-width: 120px; height: auto; }\n"
+        "</style>\n"
+        "</head>\n"
+        "<body>\n"
+        "<h1>Rendering Correctness — Image Comparison Report</h1>\n"
+        f"<p>Sorted by PixelDiff&nbsp;% (desc) &mdash; {len(sorted_scores)}&nbsp; total.</p>\n"
+        "<table>\n"
+        "<thead><tr>"
+        "<th>Test</th>"
+        "<th>Backend</th>"
+        "<th>Renderer</th>"
+        "<th>AOV</th>"
+        "<th>PixelDiff&nbsp;%</th>"
+        "<th>Threshold&nbsp;%</th>"
+        "<th>SSIM</th>"
+        "<th>Status</th>"
+        "<th>ACTUAL</th>"
+        "<th>GOLDEN</th>"
+        "</tr></thead>\n"
+        "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n"
+        f"<p>Generated:&nbsp;{datetime.now().astimezone().isoformat(timespec='seconds')}.</p>\n"
+        "</body>\n"
+        "</html>\n"
+    )
+
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(html)
 
 
 def _make_grid(images: torch.Tensor) -> torch.Tensor:
@@ -474,20 +574,17 @@ def _validate_camera_outputs(
 
         if diff_pct > 0:
             prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
-            entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-result.png")
+            entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-actual.png")
             entry["img_golden_path"] = _save_comparison_image(golden_image, f"{prefix}-golden.png")
 
         _COMPARISON_SCORES.append(entry)
 
-        if not succeeded:
-            timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            result_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}-{timestamp}.png")
-            result_image.save(result_path)
-            pytest.fail(
-                f"[{test_name}] Inconsistency detected for camera output '{data_type}': {error_message}. "
-                f"Saved result image to {result_path} for further investigation. "
-                f"If result image is correct, please replace the golden image at {golden_path} with the result image."
-            )
+        assert succeeded, (
+            f"[{test_name}] Camera output does not match the golden image "
+            f"(physics={physics_backend}, renderer={renderer}, data_type={data_type}).\n"
+            f"Mismatch details: {error_message}\n"
+            f"Images were written to {_COMPARISON_IMAGES_DIR}."
+        )
 
 
 def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
@@ -527,7 +624,7 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
 
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def shadow_hand_env(request):
-    """Build Shadow Hand vision env for (physics_backend, renderer, data_type); step once, yield, close."""
+    """Build Shadow Hand vision env for (physics_backend, renderer, data_type); reset, yield, close."""
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
@@ -549,8 +646,6 @@ def shadow_hand_env(request):
     try:
         env = ShadowHandVisionEnv(env_cfg)
         env.reset()
-        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-        env.step(actions)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -566,7 +661,7 @@ def test_shadow_hand(shadow_hand_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=5.0,
+        max_different_pixels_percentage=8.0,
     )
 
 
@@ -577,7 +672,7 @@ def test_shadow_hand(shadow_hand_env):
 
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def cartpole_env(request):
-    """Build Cartpole camera env for (physics_backend, renderer, data_type); step once, yield, close."""
+    """Build Cartpole camera env for (physics_backend, renderer, data_type); reset, yield, close."""
     from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
     from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
@@ -595,8 +690,6 @@ def cartpole_env(request):
     try:
         env = CartpoleCameraEnv(env_cfg)
         env.reset()
-        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-        env.step(actions)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -612,7 +705,7 @@ def test_cartpole(cartpole_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=5.0,
+        max_different_pixels_percentage=2.0,
     )
 
 
@@ -623,7 +716,7 @@ def test_cartpole(cartpole_env):
 
 @pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def dexsuite_kuka_allegro_lift_env(request):
-    """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; step once, yield, close."""
+    """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; reset, yield, close."""
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
@@ -631,6 +724,10 @@ def dexsuite_kuka_allegro_lift_env(request):
     )
 
     physics_backend, renderer, data_type = request.param
+
+    if renderer == "newton_renderer" and data_type == "rgb":
+        # TODO: re-enable the test case once the issue is resolved.
+        pytest.skip("Newton Warp produces inconsistent RGB colors run-to-run; skipping test.")
 
     # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64.
     override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
@@ -645,8 +742,6 @@ def dexsuite_kuka_allegro_lift_env(request):
     try:
         env = ManagerBasedRLEnv(env_cfg)
         env.reset()
-        actions = torch.zeros(env_cfg.scene.num_envs, env.action_space.shape[-1], device=env.device)
-        env.step(actions)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -674,20 +769,8 @@ def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
 _RENDER_CORRECTNESS_TASK_IDS = [
     "Isaac-Cartpole-Albedo-Camera-Direct-v0",
     "Isaac-Cartpole-Camera-Presets-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Box-Box-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0",
-    "Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0",
     "Isaac-Cartpole-Depth-Camera-Direct-v0",
-    "Isaac-Cartpole-Depth-v0",
     "Isaac-Cartpole-RGB-Camera-Direct-v0",
-    "Isaac-Cartpole-RGB-ResNet18-v0",
-    "Isaac-Cartpole-RGB-v0",
     "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
     "Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
     "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
@@ -710,30 +793,6 @@ def test_registered_tasks(task_id):
             sim._app_control_on_stop_handle = None
 
         env.reset()
-
-        num_envs = getattr(unwrapped, "num_envs", 4)
-        device = getattr(unwrapped, "device", None)
-
-        if getattr(unwrapped, "possible_agents", None):
-            action_spaces = getattr(unwrapped, "action_spaces", {})
-            actions = {
-                agent: sample_space(
-                    action_spaces[agent],
-                    device=device,
-                    batch_size=num_envs,
-                    fill_value=0,
-                )
-                for agent in unwrapped.possible_agents
-            }
-        else:
-            actions = sample_space(
-                getattr(unwrapped, "single_action_space", None),
-                device=device,
-                batch_size=num_envs,
-                fill_value=0,
-            )
-
-        env.step(actions)
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)

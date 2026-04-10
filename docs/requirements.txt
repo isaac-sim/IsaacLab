@@ -1,5 +1,5 @@
 # for building the docs
-sphinx>=7.0
+sphinx>=7.0,<9
 sphinx-book-theme>=1.1
 myst-parser
 sphinxcontrib-bibtex==2.5.0
