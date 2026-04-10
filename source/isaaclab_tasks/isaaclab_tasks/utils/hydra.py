@@ -218,12 +218,28 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
         was a PresetCfg).
     """
     if isinstance(cfg, PresetCfg):
+        seen: set[int] = {id(cfg)}
         replacement = _pick_alternative(cfg, selected, path="<root>")
+        while isinstance(replacement, PresetCfg):
+            if id(replacement) in seen:
+                raise ValueError(
+                    f"Cyclic PresetCfg chain detected at '<root>': "
+                    f"{type(replacement).__name__} was already visited."
+                )
+            seen.add(id(replacement))
+            replacement = _pick_alternative(replacement, selected, path="<root>")
         return resolve_presets(replacement, selected)
 
     def _resolve(parent, key, preset_obj, _path):
+        seen: set[int] = {id(preset_obj)}
         val = _pick_alternative(preset_obj, selected, path=_path)
         while isinstance(val, PresetCfg):
+            if id(val) in seen:
+                raise ValueError(
+                    f"Cyclic PresetCfg chain detected at '{_path}': "
+                    f"{type(val).__name__} was already visited."
+                )
+            seen.add(id(val))
             val = _pick_alternative(val, selected, path=_path)
         if isinstance(parent, dict):
             parent[key] = val

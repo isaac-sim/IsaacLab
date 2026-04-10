@@ -1214,3 +1214,44 @@ def test_resolve_presets_errors_on_chained_no_default():
 
     with pytest.raises(ValueError, match="no 'default' field"):
         resolve_presets(EnvCfg())
+
+
+def test_resolve_presets_errors_on_cyclic_preset():
+    """Cyclic PresetCfg chain (A.default -> B, B.default -> A) must raise
+    ValueError instead of looping forever."""
+
+    @configclass
+    class CyclicB(PresetCfg):
+        pass
+
+    @configclass
+    class CyclicA(PresetCfg):
+        default: CyclicB = CyclicB()
+
+    CyclicA.default = CyclicB()
+    CyclicB.default = CyclicA()
+
+    @configclass
+    class EnvCfg:
+        mode: CyclicA = CyclicA()
+
+    with pytest.raises(ValueError, match="[Cc]ycl"):
+        resolve_presets(EnvCfg())
+
+
+def test_resolve_presets_errors_on_cyclic_preset_at_root():
+    """Cyclic PresetCfg at root level must raise ValueError, not RecursionError."""
+
+    @configclass
+    class RootCyclicB(PresetCfg):
+        pass
+
+    @configclass
+    class RootCyclicA(PresetCfg):
+        default: RootCyclicB = RootCyclicB()
+
+    RootCyclicA.default = RootCyclicB()
+    RootCyclicB.default = RootCyclicA()
+
+    with pytest.raises(ValueError, match="[Cc]ycl"):
+        resolve_presets(RootCyclicA())
