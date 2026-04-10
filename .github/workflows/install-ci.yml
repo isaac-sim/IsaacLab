@@ -26,14 +26,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Run installation tests
+        env:
+          BASE_IMAGE: ${{ inputs.base_image }}
+          TEST_FILTER: ${{ inputs.test_filter }}
         run: |
-          RUNNER_ARGS="--base-image ${{ inputs.base_image }}"
+          RUNNER_ARGS="--base-image $BASE_IMAGE"
           RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results"
           RUNNER_ARGS="$RUNNER_ARGS --gpu"
           PYTEST_ARGS="-vs --tb=short"
 
-          if [ -n "${{ inputs.test_filter }}" ]; then
-            PYTEST_ARGS="$PYTEST_ARGS -k '${{ inputs.test_filter }}'"
+          if [ -n "$TEST_FILTER" ]; then
+            PYTEST_ARGS="$PYTEST_ARGS -k '$TEST_FILTER'"
           fi
 
           tools/install_ci/run docker $RUNNER_ARGS -- $PYTEST_ARGS
