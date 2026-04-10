@@ -57,4 +57,4 @@ def compose_target_world_kernel(
         if not env_mask[env]:
             return
 
-    target_transforms_w[env, tgt] = wp.transform_multiply(source_transforms[env], target_transforms[env, tgt])
+    target_transforms_w[env, tgt] = source_transforms[env] * target_transforms[env, tgt]
