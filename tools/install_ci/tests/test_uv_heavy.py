@@ -56,6 +56,10 @@ class Test_UV_Heavy(UV_Utils):
                 cwd=isaaclab_root,
                 check=False,
             )
-            assert result.returncode == 0, f"Training failed:\n{result.stdout}\n{result.stderr}"
+            output = result.stdout + result.stderr
+            assert result.returncode == 0, f"Training failed (rc={result.returncode}):\n{output}"
+            assert "Traceback (most recent call last):" not in output, (
+                f"Training produced a Python traceback:\n{output}"
+            )
         finally:
             self.destroy_uv_env()
