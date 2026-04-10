@@ -198,6 +198,47 @@ SKRL
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
             ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
 
+      .. tab-item:: Warp
+
+            .. tab-set::
+               :sync-group: os
+
+               .. tab-item:: :icon:`fa-brands fa-linux` Linux
+                  :sync: linux
+
+                  .. code:: bash
+
+                     # install python module (for skrl)
+                     ./isaaclab.sh -i skrl
+                     # install skrl dependencies for NVIDIA Warp
+                     ./isaaclab.sh -p -m pip install skrl["warp"]
+                     # run script for training
+                     ./isaaclab.sh -p scripts/reinforcement_learning/skrl/train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework warp
+                     # run script for playing with 32 environments
+                     ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --ml_framework warp --checkpoint /PATH/TO/model.pt
+                     # run script for playing a pre-trained checkpoint with 32 environments
+                     ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --ml_framework warp --use_pretrained_checkpoint
+                     # run script for recording video of a trained agent (requires installing `ffmpeg`)
+                     ./isaaclab.sh -p scripts/reinforcement_learning/skrl/play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework warp --video --video_length 200
+
+               .. tab-item:: :icon:`fa-brands fa-windows` Windows
+                  :sync: windows
+
+                  .. code:: batch
+
+                     :: install python module (for skrl)
+                     isaaclab.bat -i skrl
+                     :: install skrl dependencies for NVIDIA Warp
+                     isaaclab.bat -p -m pip install skrl["warp"]
+                     :: run script for training
+                     isaaclab.bat -p scripts\reinforcement_learning\skrl\train.py --task Isaac-Reach-Franka-v0 --headless --ml_framework warp
+                     :: run script for playing with 32 environments
+                     isaaclab.bat -p scripts\reinforcement_learning\skrl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --ml_framework warp --checkpoint /PATH/TO/model.pt
+                     :: run script for playing a pre-trained checkpoint with 32 environments
+                     isaaclab.bat -p scripts\reinforcement_learning\skrl\play.py --task Isaac-Reach-Franka-v0 --num_envs 32 --ml_framework warp --use_pretrained_checkpoint
+                     :: run script for recording video of a trained agent (requires installing `ffmpeg`)
+                     isaaclab.bat -p scripts\reinforcement_learning\skrl\play.py --task Isaac-Reach-Franka-v0 --headless --ml_framework warp --video --video_length 200
+
    - Training the multi-agent environment ``Isaac-Shadow-Hand-Over-Direct-v0`` with skrl:
 
    .. tab-set::
