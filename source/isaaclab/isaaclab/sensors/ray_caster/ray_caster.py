@@ -336,36 +336,30 @@ class RayCaster(SensorBase):
         (e.g. ``{ENV_REGEX_NS}/Robot/base/raycaster``) where a plain Xform is spawned.
 
         This helper preserves backward compatibility: when ``spawn`` is set and the resolved
-        ``prim_path`` points at a prim that already has a physics API, the path is automatically
-        extended with ``/raycaster`` and a deprecation warning is emitted.
+        path already exists as a prim with a physics API, the path is automatically extended
+        with ``/raycaster`` and a deprecation warning is emitted.
         """
         if cfg.spawn is None:
             return
 
-        # Determine which path to inspect. spawn_path is set by InteractiveScene when
-        # cloning; fall back to prim_path for standalone usage.
         resolve_path = cfg.spawn.spawn_path if getattr(cfg.spawn, "spawn_path", None) is not None else cfg.prim_path
 
         prim = sim_utils.find_first_matching_prim(resolve_path)
         if prim is None or not prim.IsValid():
             return
-
-        is_physics_prim = prim.HasAPI(UsdPhysics.ArticulationRootAPI) or prim.HasAPI(UsdPhysics.RigidBodyAPI)
-        if not is_physics_prim:
+        if not (prim.HasAPI(UsdPhysics.ArticulationRootAPI) or prim.HasAPI(UsdPhysics.RigidBodyAPI)):
             return
 
         child_name = "raycaster"
-        warnings.warn(
+        msg = (
             f"RayCasterCfg.prim_path {cfg.prim_path!r} resolves to a prim with a physics API"
             f" (ArticulationRootAPI or RigidBodyAPI). This usage is deprecated. Please set"
             f" prim_path to a non-physics child such as '{cfg.prim_path}/{child_name}'."
-            " The path has been automatically adjusted for this session.",
-            DeprecationWarning,
-            stacklevel=4,
+            " The path has been automatically adjusted for this session."
         )
-
+        logger.warning(msg)
+        warnings.warn(msg, FutureWarning, stacklevel=4)
         cfg.prim_path = f"{cfg.prim_path}/{child_name}"
-        # Also update spawn_path so the Xform is created at the correct location.
         if getattr(cfg.spawn, "spawn_path", None) is not None:
             cfg.spawn.spawn_path = f"{cfg.spawn.spawn_path}/{child_name}"
 

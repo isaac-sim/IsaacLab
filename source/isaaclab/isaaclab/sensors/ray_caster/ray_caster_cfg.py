@@ -50,9 +50,8 @@ class RayCasterCfg(SensorBaseCfg):
         Passing a :attr:`prim_path` that points at a prim with
         ``ArticulationRootAPI`` or ``RigidBodyAPI`` (e.g.
         ``{ENV_REGEX_NS}/Robot/base``) is deprecated.  The sensor will
-        automatically append ``/raycaster`` and emit a
-        :class:`DeprecationWarning`, but users should migrate to the new
-        child-path convention.
+        automatically append ``/raycaster`` and emit a warning, but users
+        should migrate to the new child-path convention.
 
     If ``None``, the prim at :attr:`prim_path` must already exist on the USD stage.
     """
