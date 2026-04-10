@@ -170,10 +170,10 @@ def main(
     agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
 
     # process distributed
+    # env_cfg.sim.device is already resolved by launch_simulation().
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
-        agent_cfg["params"]["config"]["device"] = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
+        agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
         world_rank = int(os.getenv("RANK", "0"))
 
     # specify directory for logging experiments
@@ -190,11 +190,9 @@ def main(
     # multi-gpu training config
     if args_cli.distributed:
         agent_cfg["params"]["seed"] += int(os.getenv("RANK", "0"))
-        agent_cfg["params"]["config"]["device"] = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
-        agent_cfg["params"]["config"]["device_name"] = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
+        agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
+        agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
         agent_cfg["params"]["config"]["multi_gpu"] = True
-        # update env config device
-        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
 
     # max iterations
     if args_cli.max_iterations:

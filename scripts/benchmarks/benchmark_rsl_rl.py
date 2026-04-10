@@ -168,11 +168,11 @@ def main(
         )
 
     # multi-gpu training configuration
+    # env_cfg.sim.device is already resolved by launch_simulation().
     world_rank = 0
     world_size = 1
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
-        agent_cfg.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
+        agent_cfg.device = env_cfg.sim.device
 
         # use global rank for seed diversity across all nodes
         world_rank = int(os.getenv("RANK", "0"))

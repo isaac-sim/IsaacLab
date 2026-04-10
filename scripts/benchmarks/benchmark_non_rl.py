@@ -136,10 +136,10 @@ def main(
         )
 
     # process distributed
+    # env_cfg.sim.device is already resolved by launch_simulation().
     world_size = 1
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
         world_size = int(os.getenv("WORLD_SIZE", 1))
         world_rank = int(os.getenv("RANK", "0"))
 
