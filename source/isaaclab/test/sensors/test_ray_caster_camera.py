@@ -1028,6 +1028,7 @@ def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
 
     # Both should be clipped to max_distance (camera is 6 m above ground, max_distance=5 m)
     assert d2ip_joint.max().item() <= base_cfg.max_distance + 1e-4
+    assert d2c_joint.max().item() <= base_cfg.max_distance + 1e-4
 
 
 @pytest.mark.isaacsim_ci
