@@ -102,7 +102,7 @@ class Test_UV:
                 python = env_path / "bin" / "python"
                 bin_dir = str(env_path / "bin")
 
-            env = {"VIRTUAL_ENV": str(env_path), "PATH": bin_dir + ":" + os.environ.get("PATH", "")}
+            env = {"VIRTUAL_ENV": str(env_path), "PATH": bin_dir + os.pathsep + os.environ.get("PATH", "")}
 
             # Install isaaclab core + assets
             result = run_cmd(
