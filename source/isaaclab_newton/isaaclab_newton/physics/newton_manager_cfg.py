@@ -12,8 +12,10 @@ from typing import TYPE_CHECKING
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
 
+from .newton_collision_cfg import NewtonCollisionPipelineCfg
+
 if TYPE_CHECKING:
-    from .newton_manager import NewtonManager
+    from isaaclab_newton.physics import NewtonManager
 
 
 @configclass
@@ -104,7 +106,27 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     """Whether to use parallel line search."""
 
     use_mujoco_contacts: bool = True
-    """Whether to use MuJoCo's contact solver."""
+    """Whether to use MuJoCo's internal contact solver.
+
+    If ``True`` (default), MuJoCo handles collision detection and contact resolution internally.
+    If ``False``, Newton's :class:`CollisionPipeline` is used instead.  A default pipeline
+    (``broad_phase="explicit"``) is created automatically when :attr:`NewtonCfg.collision_cfg`
+    is ``None``.  Set :attr:`NewtonCfg.collision_cfg` to a :class:`NewtonCollisionPipelineCfg`
+    to customize pipeline parameters (broad phase, contact limits, hydroelastic, etc.).
+
+    .. note::
+        Setting ``collision_cfg`` while ``use_mujoco_contacts=True`` raises
+        :class:`ValueError` because the two collision modes are mutually exclusive.
+    """
+
+    tolerance: float = 1e-6
+    """Solver convergence tolerance for the constraint residual.
+
+    The solver iterates until the residual drops below this threshold or
+    ``iterations`` is reached.  Lower values give more precise constraint
+    satisfaction at the cost of more iterations.  MuJoCo default is ``1e-8``;
+    Newton default is ``1e-6``.
+    """
 
 
 @configclass
@@ -218,3 +240,20 @@ class NewtonCfg(PhysicsCfg):
 
     solver_cfg: NewtonSolverCfg = MJWarpSolverCfg()
     """Solver configuration. Default is MJWarpSolverCfg()."""
+
+    collision_cfg: NewtonCollisionPipelineCfg | None = None
+    """Newton collision pipeline configuration.
+
+    Controls how Newton's :class:`CollisionPipeline` is configured when it is active.
+    The pipeline is active when:
+
+    - :class:`MJWarpSolverCfg` with ``use_mujoco_contacts=False``, or
+    - any non-MuJoCo solver (:class:`XPBDSolverCfg`, :class:`FeatherstoneSolverCfg`).
+
+    If ``None`` (default), a pipeline with ``broad_phase="explicit"`` is created
+    automatically.  Set this to a :class:`NewtonCollisionPipelineCfg` to customize
+    parameters such as broad phase algorithm, contact limits, or hydroelastic mode.
+
+    .. note::
+        Must not be set when ``use_mujoco_contacts=True`` (raises :class:`ValueError`).
+    """
