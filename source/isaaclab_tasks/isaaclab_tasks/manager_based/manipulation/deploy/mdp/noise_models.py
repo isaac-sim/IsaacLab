@@ -179,11 +179,11 @@ class ResetSampledQuaternionNoiseModelCfg(NoiseModelCfg):
     """Unused placeholder inherited from NoiseModelCfg. Quaternion perturbation is
     controlled by roll_range, pitch_range, and yaw_range instead."""
 
-    roll_range: tuple[float, float] = (0.0, 0.0)
-    """Uniform range for roll perturbation in radians. Default is 0 (no noise)."""
+    roll_range: tuple[float, float] = (-0.03491, 0.03491)
+    """Uniform range for roll perturbation in radians. Default is ±2 degrees."""
 
-    pitch_range: tuple[float, float] = (0.0, 0.0)
-    """Uniform range for pitch perturbation in radians. Default is 0 (no noise)."""
+    pitch_range: tuple[float, float] = (-0.03491, 0.03491)
+    """Uniform range for pitch perturbation in radians. Default is ±2 degrees."""
 
-    yaw_range: tuple[float, float] = (0.0, 0.0)
-    """Uniform range for yaw perturbation in radians. Default is 0 (no noise)."""
+    yaw_range: tuple[float, float] = (-0.03491, 0.03491)
+    """Uniform range for yaw perturbation in radians. Default is ±2 degrees."""
