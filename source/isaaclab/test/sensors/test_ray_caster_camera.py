@@ -962,3 +962,72 @@ def test_sensor_print(setup_sim):
     sim.reset()
     # print info
     print(sensor)
+
+
+@pytest.mark.isaacsim_ci
+def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
+    """Clipping distance_to_image_plane must not corrupt distance_to_camera and vice versa.
+
+    Both are derived from the same raw ray_distance buffer. If that buffer is modified
+    in-place by one clipping pass it would corrupt the other. This test verifies that
+    requesting both data types simultaneously gives results consistent with requesting
+    each one alone.
+    """
+    import copy
+
+    sim, camera_cfg, dt = setup_sim
+
+    base_cfg = RayCasterCameraCfg(
+        prim_path="/World/Camera",
+        mesh_prim_paths=["/World/defaultGroundPlane"],
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.0, 0.1305, 0.0, 0.9914449), convention="world"),
+        pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
+            focal_length=38.0,
+            intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
+            height=540,
+            width=960,
+        ),
+        max_distance=5.0,
+        data_types=["distance_to_image_plane", "distance_to_camera"],
+        depth_clipping_behavior="max",
+        update_period=0,
+    )
+
+    # Camera requesting both data types simultaneously
+    sim_utils.create_prim("/World/CameraJoint", "Xform")
+    cfg_joint = copy.deepcopy(base_cfg)
+    cfg_joint.prim_path = "/World/CameraJoint"
+    cam_joint = RayCasterCamera(cfg_joint)
+
+    # Camera requesting only d2ip
+    sim_utils.create_prim("/World/CameraD2IP", "Xform")
+    cfg_d2ip = copy.deepcopy(base_cfg)
+    cfg_d2ip.prim_path = "/World/CameraD2IP"
+    cfg_d2ip.data_types = ["distance_to_image_plane"]
+    cam_d2ip = RayCasterCamera(cfg_d2ip)
+
+    # Camera requesting only d2c
+    sim_utils.create_prim("/World/CameraD2C", "Xform")
+    cfg_d2c = copy.deepcopy(base_cfg)
+    cfg_d2c.prim_path = "/World/CameraD2C"
+    cfg_d2c.data_types = ["distance_to_camera"]
+    cam_d2c = RayCasterCamera(cfg_d2c)
+
+    sim.reset()
+
+    cam_joint.update(dt)
+    cam_d2ip.update(dt)
+    cam_d2c.update(dt)
+
+    d2ip_joint = cam_joint.data.output["distance_to_image_plane"]
+    d2c_joint = cam_joint.data.output["distance_to_camera"]
+    d2ip_solo = cam_d2ip.data.output["distance_to_image_plane"]
+    d2c_solo = cam_d2c.data.output["distance_to_camera"]
+
+    # Joint camera must match solo cameras (clipping one must not affect the other)
+    torch.testing.assert_close(d2ip_joint, d2ip_solo, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(d2c_joint, d2c_solo, atol=1e-5, rtol=1e-5)
+
+    # Both should be clipped to max_distance (camera is 6 m above ground, max_distance=5 m)
+    assert d2ip_joint.max().item() <= base_cfg.max_distance + 1e-4
+    assert d2c_joint.max().item() <= base_cfg.max_distance + 1e-4
