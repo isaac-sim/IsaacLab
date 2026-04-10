@@ -8,7 +8,7 @@ Added
 ^^^^^
 
 * Added Kamino solver physics presets to direct and manager-based environment
-  configs: cartpole, ant, humanoid, anymal_c, and reach.
+  configs: cartpole and ant.
 
 
 1.5.21 (2026-04-13)
