@@ -28,25 +28,14 @@ import functools
 import sys
 from collections.abc import Callable, Mapping
 
-try:
-    import hydra
-    from hydra.core.config_store import ConfigStore
-    from omegaconf import OmegaConf
-
-    _HYDRA_AVAILABLE = True
-except ImportError:
-    _HYDRA_AVAILABLE = False
-
-
-def _require_hydra():
-    """Raise a clear error if hydra-core is not installed."""
-    if not _HYDRA_AVAILABLE:
-        raise ImportError("Hydra not installed. Run: pip install hydra-core")
-
+import hydra
+from hydra.core.config_store import ConfigStore
+from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
 
+_LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 @configclass
 class PresetCfg:
@@ -223,8 +212,7 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
         while isinstance(replacement, PresetCfg):
             if id(replacement) in seen:
                 raise ValueError(
-                    f"Cyclic PresetCfg chain detected at '<root>': "
-                    f"{type(replacement).__name__} was already visited."
+                    f"Cyclic PresetCfg chain detected at '<root>': {type(replacement).__name__} was already visited."
                 )
             seen.add(id(replacement))
             replacement = _pick_alternative(replacement, selected, path="<root>")
@@ -236,8 +224,7 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
         while isinstance(val, PresetCfg):
             if id(val) in seen:
                 raise ValueError(
-                    f"Cyclic PresetCfg chain detected at '{_path}': "
-                    f"{type(val).__name__} was already visited."
+                    f"Cyclic PresetCfg chain detected at '{_path}': {type(val).__name__} was already visited."
                 )
             seen.add(id(val))
             val = _pick_alternative(val, selected, path=_path)
@@ -259,7 +246,6 @@ def resolve_presets(cfg, selected: set[str] = frozenset()):
 
 def _run_hydra(task, env_cfg, agent_cfg, presets, callback):
     """Shared Hydra entry point for :func:`resolve_task_config` and :func:`hydra_task_config`."""
-    _require_hydra()
     global_presets, preset_sel, preset_scalar, global_scalar = parse_overrides(sys.argv[1:], presets)
     original_argv, sys.argv = sys.argv, [sys.argv[0]] + global_scalar
 
@@ -327,17 +313,6 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
     return decorator
 
 
-def _extract_preset_names(args: list[str]) -> set[str]:
-    """Extract global preset names from a list of CLI args."""
-    selected: set[str] = set()
-    for arg in args:
-        if "=" in arg:
-            key, val = arg.split("=", 1)
-            if key.lstrip("-") == "presets":
-                selected.update(v.strip() for v in val.split(",") if v.strip())
-    return selected
-
-
 def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, list[str]], max_paths: int = 5) -> str:
     """Build a readable error message grouping presets by identical path fingerprints."""
     fingerprint_to_names: dict[tuple[str, ...], list[str]] = {}
@@ -380,9 +355,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-    agent_cfg = None
-    if agent_entry:
-        agent_cfg = load_cfg_from_registry(task_name, agent_entry)
+    agent_cfg = load_cfg_from_registry(task_name, agent_entry) if agent_entry else None
 
     # Collect presets before resolution (needed for path-based overrides)
     presets = {
@@ -390,7 +363,15 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         "agent": collect_presets(agent_cfg) if agent_cfg else {},
     }
 
-    selected = _extract_preset_names(sys.argv[1:])
+    selected = {
+        v.strip()
+        for arg in sys.argv[1:]
+        if "=" in arg
+        for key, val in [arg.split("=", 1)]
+        if key.lstrip("-") == "presets"
+        for v in val.split(",")
+        if v.strip()
+    }
 
     if selected:
         name_to_paths: dict[str, list[str]] = {}
@@ -417,15 +398,11 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
 
     # Convert to dict for Hydra (handle gym spaces and slices)
     env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)
-    if agent_cfg is not None and hasattr(agent_cfg, "to_dict"):
-        agent_dict = agent_cfg.to_dict()
-    else:
-        agent_dict = agent_cfg
+    agent_dict = agent_cfg.to_dict() if agent_cfg is not None and hasattr(agent_cfg, "to_dict") else agent_cfg
     env_dict = env_cfg.to_dict()  # type: ignore[union-attr]
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
 
     # Register plain config (no groups) - Hydra only handles global scalars
-    _require_hydra()
     ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict))
     return env_cfg, agent_cfg, presets
 
@@ -504,15 +481,6 @@ def apply_overrides(
                 return False
         return True
 
-    def _apply_node(sec: str, path: str, node):
-        node_dict = node.to_dict() if hasattr(node, "to_dict") else dict(node) if isinstance(node, Mapping) else node
-        if path == "":
-            cfgs[sec] = node
-            hydra_cfg[sec] = node_dict
-        else:
-            _setattr(cfgs[sec], path, node)
-            _setattr(hydra_cfg, f"{sec}.{path}", node_dict)
-
     # --- Phase 1: path-based selections + global broadcast for reachable paths
     resolved: dict[str, tuple[str, str, str]] = {}
     for sec, path, name in preset_sel:
@@ -541,29 +509,32 @@ def apply_overrides(
                             )
                     else:
                         applied_by[full_path] = name
-                    if full_path not in resolved:
-                        resolved[full_path] = (sec, path, name)
+                    resolved.setdefault(full_path, (sec, path, name))
 
     for sec in ("env", "agent"):
         for path, path_presets in presets.get(sec, {}).items():
-            full_path = f"{sec}.{path}" if path else sec
-            if full_path not in resolved and "default" in path_presets:
-                resolved[full_path] = (sec, path, "default")
+            if "default" in path_presets:
+                full_path = f"{sec}.{path}" if path else sec
+                resolved.setdefault(full_path, (sec, path, "default"))
 
     # --- Phase 2: apply in depth order, pruning unreachable children
     for full_path in sorted(resolved, key=lambda fp: fp.count(".")):
         sec, path, name = resolved[full_path]
         if cfgs[sec] is not None and _path_reachable(sec, path):
-            _apply_node(sec, path, presets[sec][path][name])
+            node = presets[sec][path][name]
+            node_dict = node.to_dict() if hasattr(node, "to_dict") else dict(node) if isinstance(node, Mapping) else node
+            if not path:
+                cfgs[sec], hydra_cfg[sec] = node, node_dict
+            else:
+                _setattr(cfgs[sec], path, node)
+                _setattr(hydra_cfg, f"{sec}.{path}", node_dict)
 
     # --- Phase 3: scalar overrides within preset paths
     for full_path, val_str in preset_scalar:
-        if full_path.startswith("env."):
-            sec, path = "env", full_path[4:]
-        elif full_path.startswith("agent."):
-            sec, path = "agent", full_path[6:]
-        else:
+        sec = full_path.split(".", 1)[0]
+        if sec not in cfgs:
             continue
+        path = full_path[len(sec) + 1:]
         if cfgs[sec] is not None:
             val = _parse_val(val_str)
             _setattr(cfgs[sec], path, val)
@@ -585,16 +556,9 @@ def _setattr(obj, path: str, val):
 
 def _parse_val(s: str):
     """Parse string to Python value (bool, None, int, float, or str)."""
-    low = s.lower()
-    if low == "true":
-        return True
-    if low == "false":
-        return False
-    if low in ("none", "null"):
-        return None
+    if s.lower() in _LITERAL_MAP:
+        return _LITERAL_MAP[s.lower()]
     try:
         return float(s) if "." in s else int(s)
     except ValueError:
-        if s[0] in "\"'" and s[-1] in "\"'":
-            return s[1:-1]
-        return s
+        return s[1:-1] if len(s) >= 2 and s[0] in "\"'" and s[-1] in "\"'" else s
