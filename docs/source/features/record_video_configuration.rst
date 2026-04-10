@@ -92,7 +92,7 @@ The same pattern as direct RL.
 
 
 Step 4 - Kit perspective (PhysX Simulation or Isaac RTX Renderer)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Isaac Lab PhysX helper points the Kit perspective prim at ``camera_position`` / ``camera_target`` and attaches a Replicator RGB annotator.
 
@@ -102,7 +102,7 @@ The Isaac Lab PhysX helper points the Kit perspective prim at ``camera_position`
 
 
 Step 5 - Newton GL (Newton physics with Newton Warp or OVRTX Renderer)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Newton helper obtains the Newton model from the simulation's scene data provider, creates a headless ``ViewerGL``, and sets the camera from ``camera_position`` / ``camera_target`` (yaw/pitch derived from the view vector). This is the capture path for Newton physics with Newton Warp or with OVRTX rendering.
 
