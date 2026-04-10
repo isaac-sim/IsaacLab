@@ -80,6 +80,63 @@ def raycast_mesh_kernel(
 
 
 @wp.kernel(enable_backward=False)
+def raycast_mesh_masked_kernel(
+    # input
+    mesh: wp.uint64,
+    env_mask: wp.array(dtype=wp.bool),
+    ray_starts: wp.array2d(dtype=wp.vec3f),
+    ray_directions: wp.array2d(dtype=wp.vec3f),
+    max_dist: wp.float32,
+    return_distance: int,
+    return_normal: int,
+    # output
+    ray_hits: wp.array2d(dtype=wp.vec3f),
+    ray_distance: wp.array2d(dtype=wp.float32),
+    ray_normal: wp.array2d(dtype=wp.vec3f),
+):
+    """Ray-cast against a single static mesh for masked environments.
+
+    Extends :func:`raycast_mesh_kernel` with environment masking and optional distance/normal output,
+    for use in multi-environment sensor pipelines.
+
+    Launch with ``dim=(num_envs, num_rays)``.
+
+    Args:
+        mesh: Warp mesh id to ray-cast against.
+        env_mask: Boolean mask for which environments to update. Shape is (num_envs,).
+        ray_starts: World-frame ray start positions [m]. Shape is (num_envs, num_rays).
+        ray_directions: World-frame unit ray directions. Shape is (num_envs, num_rays).
+        max_dist: Maximum ray-cast distance [m].
+        return_distance: Whether to write hit distances to ``ray_distance`` (1) or skip (0).
+        return_normal: Whether to write surface normals to ``ray_normal`` (1) or skip (0).
+        ray_hits: Output ray hit positions [m]. Shape is (num_envs, num_rays).
+            Pre-filled with inf for missed hits; unchanged on miss.
+        ray_distance: Output hit distances [m]. Shape is (num_envs, num_rays).
+            Written only when ``return_distance`` is 1; pre-filled with inf for missed hits.
+        ray_normal: Output surface normals at hit positions. Shape is (num_envs, num_rays).
+            Written only when ``return_normal`` is 1; pre-filled with inf for missed hits.
+    """
+    env, ray = wp.tid()
+    if not env_mask[env]:
+        return
+
+    t = float(0.0)
+    u = float(0.0)
+    v = float(0.0)
+    sign = float(0.0)
+    n = wp.vec3f()
+    f = int(0)
+
+    hit = wp.mesh_query_ray(mesh, ray_starts[env, ray], ray_directions[env, ray], max_dist, t, u, v, sign, n, f)
+    if hit:
+        ray_hits[env, ray] = ray_starts[env, ray] + t * ray_directions[env, ray]
+        if return_distance == 1:
+            ray_distance[env, ray] = t
+        if return_normal == 1:
+            ray_normal[env, ray] = n
+
+
+@wp.kernel(enable_backward=False)
 def raycast_static_meshes_kernel(
     mesh: wp.array2d(dtype=wp.uint64),
     ray_starts: wp.array2d(dtype=wp.vec3),

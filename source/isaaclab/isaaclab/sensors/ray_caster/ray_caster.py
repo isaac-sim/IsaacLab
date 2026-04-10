@@ -22,12 +22,12 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sim.views import XformPrimView
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.warp import convert_to_warp_mesh
+from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
 
 from ..sensor_base import SensorBase
 from .kernels import (
     apply_z_drift_kernel,
     fill_vec3_inf_kernel,
-    raycast_mesh_masked_kernel,
     update_ray_caster_kernel,
 )
 from .ray_caster_data import RayCasterData
@@ -259,6 +259,11 @@ class RayCaster(SensorBase):
         # Data buffers
         self._data.create_buffers(self._view.count, self.num_rays, self._device)
 
+        # Dummy distance/normal buffers required by the merged raycast_mesh_masked_kernel signature
+        # (RayCaster does not use distance or normals; return_distance=0 and return_normal=0 are passed)
+        self._dummy_ray_distance = wp.empty((1, 1), dtype=wp.float32, device=self._device)
+        self._dummy_ray_normal = wp.empty((1, 1), dtype=wp.vec3f, device=self._device)
+
     def _get_view_transforms_wp(self) -> wp.array:
         """Get world transforms from the physics view as a warp array.
 
@@ -325,7 +330,11 @@ class RayCaster(SensorBase):
                 self._ray_starts_w,
                 self._ray_directions_w,
                 float(self.cfg.max_distance),
+                int(False),  # return_distance: not needed by RayCaster
+                int(False),  # return_normal: not needed by RayCaster
                 self._data._ray_hits_w,
+                self._dummy_ray_distance,
+                self._dummy_ray_normal,
             ],
             device=self._device,
         )
