@@ -462,10 +462,7 @@ class Camera(SensorBase):
         self._renderer.update_transforms()
         self._renderer.render(self._render_data)
 
-        for output_name in self._data.output:
-            if output_name == "rgb":
-                continue
-            self._renderer.read_output(self._render_data, output_name, self._data)
+        self._renderer.read_output(self._render_data, self._data)
 
     """
     Private Helpers

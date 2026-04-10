@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     import torch
 
     from isaaclab.sensors import SensorBase
+    from isaaclab.sensors.camera.camera_data import CameraData
 
 
 class BaseRenderer(ABC):
@@ -93,16 +94,11 @@ class BaseRenderer(ABC):
         pass
 
     @abstractmethod
-    def read_output(self, render_data: Any, output_name: str, camera_data: Any) -> None:
-        """Read a named output from the renderer into the camera data container.
-
-        Implementations should populate ``camera_data.output[output_name]`` with
-        rendered data and, when available, ``camera_data.info[output_name]`` with
-        annotator metadata (e.g. ``idToLabels`` for segmentation types).
+    def read_output(self, render_data: Any, camera_data: CameraData) -> None:
+        """Read rendered outputs from the renderer into the camera data container.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
-            output_name: Name of the output (e.g. ``"rgba"``, ``"depth"``).
             camera_data: The :class:`~isaaclab.sensors.camera.camera_data.CameraData`
                 instance to populate.
         """

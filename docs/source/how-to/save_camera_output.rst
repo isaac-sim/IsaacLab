@@ -32,18 +32,11 @@ images in a numpy format. For more information on the basic writer, please check
 
 While stepping the simulator, the images can be saved to the defined folder. Since the BasicWriter only supports
 saving data using NumPy format, we first need to convert the PyTorch sensors to NumPy arrays before packing
-them in a dictionary.
+them in a dictionary and writing with the BasicWriter.
 
 .. literalinclude:: ../../../scripts/tutorials/04_sensors/run_usd_camera.py
    :language: python
    :start-at: # Save images from camera at camera_index
-   :end-at: single_cam_info = camera.data.info[camera_index]
-
-After this step, we can save the images using the BasicWriter.
-
-.. literalinclude:: ../../../scripts/tutorials/04_sensors/run_usd_camera.py
-   :language: python
-   :start-at: # Pack data back into replicator format to save them using its writer
    :end-at: rep_writer.write(rep_output)
 
 

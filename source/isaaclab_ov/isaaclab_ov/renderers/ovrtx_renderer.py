@@ -391,16 +391,18 @@ class OVRTXRenderer(BaseRenderer):
     def read_output(
         self,
         render_data: OVRTXRenderData,
-        output_name: str,
         camera_data: CameraData,
     ) -> None:
-        """Copy from render_data warp buffer to camera data output tensor."""
-        if output_name not in render_data.warp_buffers:
-            return
-        src = render_data.warp_buffers[output_name]
-        output_data = camera_data.output[output_name]
-        if src.ptr != output_data.data_ptr():
-            wp.copy(dest=wp.from_torch(output_data), src=src)
+        """Copy from render_data warp buffers to camera data output tensors."""
+        for output_name in camera_data.output:
+            if output_name == "rgb":
+                continue
+            src = render_data.warp_buffers.get(output_name)
+            if src is None:
+                continue
+            output_data = camera_data.output[output_name]
+            if src.ptr != output_data.data_ptr():
+                wp.copy(dest=wp.from_torch(output_data), src=src)
 
     def _generate_random_colors_from_ids(self, input_ids: wp.array) -> wp.array:
         """Generate pseudo-random colors from semantic IDs."""

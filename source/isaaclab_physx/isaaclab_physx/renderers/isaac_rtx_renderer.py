@@ -327,12 +327,12 @@ class IsaacRtxRenderer(BaseRenderer):
                     0.0 if cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 )
 
-    def read_output(self, render_data: IsaacRtxRenderData, output_name: str, camera_data: CameraData) -> None:
+    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
         """Populate per-output metadata collected during render(). Pixel data already written in render().
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
-        info = render_data.renderer_info.get(output_name)
-        if info is not None:
-            camera_data.info[output_name] = info
+        for output_name, info in render_data.renderer_info.items():
+            if info is not None:
+                camera_data.info[output_name] = info
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators from render product.
