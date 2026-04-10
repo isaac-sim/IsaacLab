@@ -797,11 +797,15 @@ def test_image_mesh_ids_identifies_hit_mesh(setup_simulation):
     assert mesh_ids.shape[-1] == 1
     assert mesh_ids.dtype == torch.int16
 
-    # All rays that hit the ground (mesh index 0) should have id = 0.
-    # Rays that miss any mesh keep the default value of 0 from initialization.
+    # Identify actual hits via distance < inf. This relies on depth_clipping_behavior="none"
+    # (the default), which leaves missed rays at the Warp-kernel fill value of inf.
+    # Under "max" clipping, missed rays would be clamped to a finite max_distance, making
+    # the inf comparison incorrect.
     hit_mask = camera.data.output["distance_to_camera"][0, :, :, 0] < float("inf")
-    if hit_mask.any():
-        hit_mesh_ids = mesh_ids[0, :, :, 0][hit_mask]
-        assert torch.all(hit_mesh_ids == 0), (
-            f"All hits against the single ground mesh must have mesh_id=0, got: {hit_mesh_ids.unique()}"
-        )
+    assert hit_mask.any(), "Expected at least some rays to hit the ground plane"
+
+    # All hits against the single registered mesh must carry mesh_id=0 (first mesh index).
+    hit_mesh_ids = mesh_ids[0, :, :, 0][hit_mask]
+    assert torch.all(hit_mesh_ids == 0), (
+        f"All hits against the single ground mesh must have mesh_id=0, got: {hit_mesh_ids.unique()}"
+    )
