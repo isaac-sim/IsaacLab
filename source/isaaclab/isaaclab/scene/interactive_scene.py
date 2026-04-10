@@ -736,6 +736,9 @@ class InteractiveScene:
                     template_base = asset_cfg.prim_path.replace(self.env_regex_ns, self.cloner_cfg.template_root)
                     proto_id = self.cloner_cfg.template_prototype_identifier
                     if isinstance(asset_cfg, SensorBaseCfg):
+                        # Sensor may be nested under a proto_asset_N prim (e.g. a camera on a robot
+                        # link). Search for the actual template location so spawning succeeds even
+                        # though the parent asset lives at template_root/<Asset>/proto_asset_0/...
                         asset_cfg.spawn.spawn_path = self._resolve_sensor_template_spawn_path(template_base, proto_id)
                     else:
                         asset_cfg.spawn.spawn_path = f"{template_base}/{proto_id}_.*"
