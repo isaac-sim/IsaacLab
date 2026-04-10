@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 
 import warp as wp
 
@@ -344,32 +343,6 @@ def _write_site_local_from_local_poses_indexed(
         site_local[si] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
 
 
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
-
-def _ensure_wp_vec3f(data: wp.array, device: str) -> wp.array:
-    """Pass-through for ``wp.array``; convert ``torch.Tensor`` via ``wp.from_torch``."""
-    if isinstance(data, wp.array):
-        return data
-    import torch  # noqa: PLC0415
-
-    if isinstance(data, torch.Tensor):
-        return wp.from_torch(data.contiguous(), dtype=wp.vec3f)
-    raise TypeError(f"Expected wp.array or torch.Tensor, got {type(data)}")
-
-
-def _ensure_wp_vec4f(data: wp.array, device: str) -> wp.array:
-    """Pass-through for ``wp.array``; convert ``torch.Tensor`` via ``wp.from_torch``."""
-    if isinstance(data, wp.array):
-        return data
-    import torch  # noqa: PLC0415
-
-    if isinstance(data, torch.Tensor):
-        return wp.from_torch(data.contiguous(), dtype=wp.vec4f)
-    raise TypeError(f"Expected wp.array or torch.Tensor, got {type(data)}")
-
 
 # ------------------------------------------------------------------
 # View class
@@ -525,12 +498,12 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
     # World poses
     # ------------------------------------------------------------------
 
-    def get_world_poses(self, indices: Sequence[int] | None = None) -> tuple[wp.array, wp.array]:
+    def get_world_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
         state = NewtonManager.get_state_0()
 
         if indices is not None:
             n = len(indices)
-            idx_wp = wp.array(list(indices), dtype=wp.int32, device=self._device)
+            idx_wp = indices
             pos_buf = wp.zeros(n, dtype=wp.vec3f, device=self._device)
             quat_buf = wp.zeros(n, dtype=wp.vec4f, device=self._device)
             wp.launch(
@@ -555,7 +528,7 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
         self,
         positions: wp.array | None = None,
         orientations: wp.array | None = None,
-        indices: Sequence[int] | None = None,
+        indices: wp.array | None = None,
     ) -> None:
         """Write world poses by updating the site's local offset.
 
@@ -575,12 +548,12 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
             if orientations is None:
                 orientations = cur_quat
 
-        pos_wp = _ensure_wp_vec3f(positions, self._device)
-        quat_wp = _ensure_wp_vec4f(orientations, self._device)
+        pos_wp = positions
+        quat_wp = orientations
 
         if indices is not None:
             n = len(indices)
-            idx_wp = wp.array(list(indices), dtype=wp.int32, device=self._device)
+            idx_wp = indices
             wp.launch(
                 _write_site_local_from_world_poses_indexed,
                 dim=n,
@@ -599,13 +572,13 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
     # Local poses (parent-relative)
     # ------------------------------------------------------------------
 
-    def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[wp.array, wp.array]:
+    def get_local_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
         """Get parent-relative poses: ``local = inv(parent_world) * prim_world``."""
         state = NewtonManager.get_state_0()
 
         if indices is not None:
             n = len(indices)
-            idx_wp = wp.array(list(indices), dtype=wp.int32, device=self._device)
+            idx_wp = indices
             pos_buf = wp.zeros(n, dtype=wp.vec3f, device=self._device)
             quat_buf = wp.zeros(n, dtype=wp.vec4f, device=self._device)
             wp.launch(
@@ -643,7 +616,7 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
         self,
         translations: wp.array | None = None,
         orientations: wp.array | None = None,
-        indices: Sequence[int] | None = None,
+        indices: wp.array | None = None,
     ) -> None:
         """Write parent-relative poses by updating the site's local offset.
 
@@ -662,12 +635,12 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
             if orientations is None:
                 orientations = cur_quat
 
-        pos_wp = _ensure_wp_vec3f(translations, self._device)
-        quat_wp = _ensure_wp_vec4f(orientations, self._device)
+        pos_wp = translations
+        quat_wp = orientations
 
         if indices is not None:
             n = len(indices)
-            idx_wp = wp.array(list(indices), dtype=wp.int32, device=self._device)
+            idx_wp = indices
             wp.launch(
                 _write_site_local_from_local_poses_indexed,
                 dim=n,
@@ -703,13 +676,13 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
     # Scales
     # ------------------------------------------------------------------
 
-    def get_scales(self, indices: Sequence[int] | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> wp.array:
         model = NewtonManager.get_model()
         num_shapes = model.shape_count
 
         if indices is not None:
             n = len(indices)
-            idx_wp = wp.array(list(indices), dtype=wp.int32, device=self._device)
+            idx_wp = indices
             out = wp.zeros(n, dtype=wp.vec3f, device=self._device)
             wp.launch(
                 _gather_scales_indexed,
@@ -729,14 +702,14 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
             )
         return out
 
-    def set_scales(self, scales: wp.array, indices: Sequence[int] | None = None) -> None:
+    def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         model = NewtonManager.get_model()
         num_shapes = model.shape_count
-        scales_wp = _ensure_wp_vec3f(scales, self._device)
+        scales_wp = scales
 
         if indices is not None:
             n = len(indices)
-            idx_wp = wp.array(list(indices), dtype=wp.int32, device=self._device)
+            idx_wp = indices
             wp.launch(
                 _scatter_scales_indexed,
                 dim=n,

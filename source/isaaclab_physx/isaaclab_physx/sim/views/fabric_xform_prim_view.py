@@ -392,12 +392,12 @@ class FabricXformPrimView(BaseXformPrimView):
 
         self._fabric_usd_sync_done = True
 
-    def _resolve_indices_wp(self, indices) -> wp.array:
+    def _resolve_indices_wp(self, indices: wp.array | None) -> wp.array:
         """Resolve view indices as a Warp uint32 array."""
         if indices is None or indices == slice(None):
             if self._default_view_indices is None:
                 raise RuntimeError("Fabric indices are not initialized.")
             return self._default_view_indices
-        if isinstance(indices, torch.Tensor):
-            indices = indices.tolist()
-        return wp.array(list(indices), dtype=wp.uint32, device=self._device)
+        if indices.dtype != wp.uint32:
+            return wp.array(indices.numpy().astype("uint32"), dtype=wp.uint32, device=self._device)
+        return indices

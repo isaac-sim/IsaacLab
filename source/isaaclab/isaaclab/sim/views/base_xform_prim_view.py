@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import abc
-from collections.abc import Sequence
 
 import warp as wp
 
@@ -31,7 +30,7 @@ class BaseXformPrimView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_world_poses(self, indices: Sequence[int] | None = None) -> tuple[wp.array, wp.array]:
+    def get_world_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
         """Get world-space positions and orientations for prims in the view.
 
         Args:
@@ -47,7 +46,7 @@ class BaseXformPrimView(abc.ABC):
         self,
         positions: wp.array | None = None,
         orientations: wp.array | None = None,
-        indices: Sequence[int] | None = None,
+        indices: wp.array | None = None,
     ) -> None:
         """Set world-space positions and/or orientations for prims in the view.
 
@@ -59,7 +58,7 @@ class BaseXformPrimView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[wp.array, wp.array]:
+    def get_local_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
         """Get local-space positions and orientations for prims in the view.
 
         Args:
@@ -75,7 +74,7 @@ class BaseXformPrimView(abc.ABC):
         self,
         translations: wp.array | None = None,
         orientations: wp.array | None = None,
-        indices: Sequence[int] | None = None,
+        indices: wp.array | None = None,
     ) -> None:
         """Set local-space translations and/or orientations for prims in the view.
 
@@ -87,7 +86,7 @@ class BaseXformPrimView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_scales(self, indices: Sequence[int] | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> wp.array:
         """Get scales for prims in the view.
 
         Args:
@@ -99,7 +98,7 @@ class BaseXformPrimView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def set_scales(self, scales: wp.array, indices: Sequence[int] | None = None) -> None:
+    def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set scales for prims in the view.
 
         Args:

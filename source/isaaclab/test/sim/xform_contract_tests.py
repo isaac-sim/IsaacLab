@@ -165,11 +165,12 @@ def test_indexed_get_returns_correct_subset(device, view_factory):
         all_world = _t(bundle.view.get_world_poses()[0])
         all_local = _t(bundle.view.get_local_poses()[0])
 
-        indices = [4, 1, 3]
+        indices_list = [4, 1, 3]
+        indices = wp.array(indices_list, dtype=wp.int32, device=device)
         sub_world = _t(bundle.view.get_world_poses(indices)[0])
         sub_local = _t(bundle.view.get_local_poses(indices)[0])
 
-        for out_i, view_i in enumerate(indices):
+        for out_i, view_i in enumerate(indices_list):
             torch.testing.assert_close(sub_world[out_i], all_world[view_i], atol=0, rtol=0)
             torch.testing.assert_close(sub_local[out_i], all_local[view_i], atol=0, rtol=0)
     finally:
@@ -345,7 +346,7 @@ def test_set_world_indexed_only_affects_subset(device, view_factory):
     bundle = view_factory(num_envs=4, device=device)
     try:
         orig_pos = _t(bundle.view.get_world_poses()[0]).clone()
-        indices = [1, 3]
+        indices = wp.array([1, 3], dtype=wp.int32, device=device)
         new_pos = _wp_vec3f([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], device=device)
         bundle.view.set_world_poses(positions=new_pos, indices=indices)
 

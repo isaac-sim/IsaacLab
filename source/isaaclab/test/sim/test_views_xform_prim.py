@@ -121,7 +121,7 @@ def test_visibility_toggle(device):
     view.set_visibility(torch.ones(num_prims, dtype=torch.bool, device=device))
     assert torch.all(view.get_visibility())
 
-    view.set_visibility(torch.tensor([False], dtype=torch.bool, device=device), indices=[1])
+    view.set_visibility(torch.tensor([False], dtype=torch.bool, device=device), indices=wp.array([1], dtype=wp.int32, device=device))
     vis = view.get_visibility()
     assert vis[0] and not vis[1] and vis[2]
 

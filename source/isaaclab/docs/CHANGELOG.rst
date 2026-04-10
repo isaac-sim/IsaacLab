@@ -181,9 +181,10 @@ Changed
 ^^^^^^^
 
 * Refactored :class:`~isaaclab.sim.views.XformPrimView` to delegate backend-specific
-  logic to :class:`~isaaclab_physx.sim.views.XformPrimView` and
-  :class:`~isaaclab_newton.sim.views.XformPrimView`. The public API is unchanged;
-  use :class:`~isaaclab.sim.views.XformPrimView` for backend-aware instantiation.
+  logic to :class:`~isaaclab_physx.sim.views.FabricXformPrimView` and
+  :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView`. The public API is
+  unchanged; use :class:`~isaaclab.sim.views.XformPrimView` for backend-aware
+  instantiation.
 
 * Added release version to
   :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.

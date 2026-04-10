@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 
 import numpy as np
 import torch
@@ -134,7 +133,7 @@ class UsdXformPrimView(BaseXformPrimView):
         self,
         positions: wp.array | None = None,
         orientations: wp.array | None = None,
-        indices: Sequence[int] | None = None,
+        indices: wp.array | None = None,
     ):
         """Set world-space poses for prims in the view.
 
@@ -193,7 +192,7 @@ class UsdXformPrimView(BaseXformPrimView):
         self,
         translations: wp.array | None = None,
         orientations: wp.array | None = None,
-        indices: Sequence[int] | None = None,
+        indices: wp.array | None = None,
     ):
         """Set local-space poses for prims in the view.
 
@@ -215,7 +214,7 @@ class UsdXformPrimView(BaseXformPrimView):
                 if orientations_array is not None:
                     prim.GetAttribute("xformOp:orient").Set(orientations_array[idx])
 
-    def set_scales(self, scales: wp.array, indices: Sequence[int] | None = None):
+    def set_scales(self, scales: wp.array, indices: wp.array | None = None):
         """Set scales for prims in the view.
 
         Args:
@@ -230,7 +229,7 @@ class UsdXformPrimView(BaseXformPrimView):
                 prim = self._prims[prim_idx]
                 prim.GetAttribute("xformOp:scale").Set(scales_array[idx])
 
-    def set_visibility(self, visibility: torch.Tensor, indices: Sequence[int] | None = None):
+    def set_visibility(self, visibility: torch.Tensor, indices: wp.array | None = None):
         """Set visibility for prims in the view.
 
         Args:
@@ -254,7 +253,7 @@ class UsdXformPrimView(BaseXformPrimView):
     # Getters
     # ------------------------------------------------------------------
 
-    def get_world_poses(self, indices: Sequence[int] | None = None) -> tuple[wp.array, wp.array]:
+    def get_world_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
         """Get world-space poses for prims in the view.
 
         Args:
@@ -281,7 +280,7 @@ class UsdXformPrimView(BaseXformPrimView):
             wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device),
         )
 
-    def get_local_poses(self, indices: Sequence[int] | None = None) -> tuple[wp.array, wp.array]:
+    def get_local_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
         """Get local-space poses for prims in the view.
 
         Args:
@@ -308,7 +307,7 @@ class UsdXformPrimView(BaseXformPrimView):
             wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device),
         )
 
-    def get_scales(self, indices: Sequence[int] | None = None) -> wp.array:
+    def get_scales(self, indices: wp.array | None = None) -> wp.array:
         """Get scales for prims in the view.
 
         Args:
@@ -326,7 +325,7 @@ class UsdXformPrimView(BaseXformPrimView):
 
         return wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device)
 
-    def get_visibility(self, indices: Sequence[int] | None = None) -> torch.Tensor:
+    def get_visibility(self, indices: wp.array | None = None) -> torch.Tensor:
         """Get visibility for prims in the view.
 
         Args:
@@ -347,13 +346,11 @@ class UsdXformPrimView(BaseXformPrimView):
     # Helpers
     # ------------------------------------------------------------------
 
-    def _resolve_indices(self, indices: Sequence[int] | None) -> list[int]:
-        """Resolve indices to a list, defaulting to all prims."""
+    def _resolve_indices(self, indices: wp.array | None):
+        """Resolve warp indices to an iterable of ints for per-prim USD operations."""
         if indices is None or indices == slice(None):
             return self._ALL_INDICES
-        if isinstance(indices, torch.Tensor):
-            return indices.tolist()
-        return list(indices)
+        return indices.numpy()
 
     @staticmethod
     def _to_numpy(data: wp.array | torch.Tensor) -> np.ndarray:
