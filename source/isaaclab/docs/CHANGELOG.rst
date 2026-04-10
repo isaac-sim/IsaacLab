@@ -1,101 +1,20 @@
 Changelog
 ---------
 
-4.5.32 (2026-04-09)
+4.5.28 (2026-04-10)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* Unified ``apply_depth_clipping_max_masked_kernel`` and ``apply_depth_clipping_zero_masked_kernel``
-  into a single :func:`~isaaclab.sensors.ray_caster.kernels.apply_depth_clipping_masked_kernel` with
-  a ``fill_val`` parameter, eliminating kernel duplication.
-* Moved ``CAMERA_RAYCAST_MAX_DIST`` to :mod:`~isaaclab.sensors.ray_caster.kernels` so both
-  :class:`~isaaclab.sensors.RayCasterCamera` and :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`
-  share the same upper-bound ray-cast distance, fixing a behavioral divergence where
-  ``MultiMeshRayCasterCamera`` previously used ``cfg.max_distance`` as the kernel limit.
-* Replaced per-step ``wp.from_torch`` re-wrapping of offset buffers in
-  :class:`~isaaclab.sensors.RayCasterCamera` with warp-primary buffers and zero-copy torch views,
-  removing hidden per-step allocations.
-* Extracted ``_update_mesh_transforms()`` from :class:`~isaaclab.sensors.MultiMeshRayCaster` and
-  called it from :class:`~isaaclab.sensors.MultiMeshRayCasterCamera` instead of duplicating the loop.
-* Added ``_apply_depth_clipping()`` helper to :class:`~isaaclab.sensors.RayCasterCamera` and unified
-  both camera classes to use the same warp-kernel clipping path for all depth data types.
-* Cached the all-True ``env_mask`` in :func:`~isaaclab.utils.warp.ops.raycast_dynamic_meshes`
-  by ``(n_envs, device)`` to avoid a per-call boolean tensor allocation.
-
-
-4.5.31 (2026-04-09)
-~~~~~~~~~~~~~~~~~~~
-
-Fixed
-^^^^^
-
-* Fixed stale Warp views of local ray buffers in :meth:`~isaaclab.sensors.RayCasterCamera.set_intrinsic_matrices`.
-  After calling this method the warp arrays ``_ray_starts_local`` and ``_ray_directions_local`` are now recreated
-  from the updated torch tensors, preventing the kernel from using the old ray pattern.
-* Migrated distance-to-image-plane computation in :class:`~isaaclab.sensors.MultiMeshRayCasterCamera` to use
-  :func:`~isaaclab.sensors.ray_caster.kernels.compute_distance_to_image_plane_masked_kernel` and the depth
-  clipping kernels, matching the path already used in :class:`~isaaclab.sensors.RayCasterCamera` and
-  making NaN handling consistent between the two camera classes.
-* Moved per-step dummy Warp buffer allocations (``_dummy_normal_w``, ``_dummy_face_id_w``) in
-  :class:`~isaaclab.sensors.MultiMeshRayCaster` to ``_initialize_rays_impl`` to avoid per-step allocations.
-
-Changed
-^^^^^^^
-
-* Replaced the literal constant ``2`` in :class:`~isaaclab.sensors.RayCasterCamera` with the
-  :attr:`~isaaclab.sensors.ray_caster.kernels.ALIGNMENT_BASE` constant and named the ``1e6``
-  upper-bound raycast distance ``_CAMERA_RAYCAST_MAX_DIST`` for clarity.
-* Fixed ``Args:`` ordering in the :func:`~isaaclab.sensors.ray_caster.kernels.fill_vec3_inf_kernel`
-  docstring and added missing ``[m]`` SI unit annotations to ray-start parameters across several
-  kernels in :mod:`~isaaclab.sensors.ray_caster.kernels`.
-
-
-4.5.30 (2026-04-09)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Converted :class:`~isaaclab.sensors.RayCasterCamera` to use Warp kernels for ray-casting.
-  The ``_update_buffers_impl`` method now launches :func:`~isaaclab.sensors.ray_caster.kernels.update_ray_caster_kernel`
-  for world-frame pose and ray transforms and new kernels
-  :func:`~isaaclab.sensors.ray_caster.kernels.raycast_camera_mesh_masked_kernel`,
-  :func:`~isaaclab.sensors.ray_caster.kernels.compute_distance_to_image_plane_masked_kernel`,
-  :func:`~isaaclab.sensors.ray_caster.kernels.apply_depth_clipping_max_masked_kernel`, and
-  :func:`~isaaclab.sensors.ray_caster.kernels.apply_depth_clipping_zero_masked_kernel`
-  instead of the Python-level ``raycast_mesh`` wrapper and torch post-processing. Intermediate
-  warp buffers (``_ray_distance``, ``_ray_normal_w``, ``_distance_to_image_plane_wp``) replace
-  the per-step torch allocations, and world-frame ray buffers are warp-owned with zero-copy
-  torch views, matching the pattern established in :class:`~isaaclab.sensors.RayCaster`.
-
-
-4.5.29 (2026-04-09)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Converted :class:`~isaaclab.sensors.MultiMeshRayCasterCamera` to use Warp kernels for
-  ray-casting. The ``_update_buffers_impl`` method now launches
-  :func:`~isaaclab.utils.warp.kernels.raycast_dynamic_meshes_kernel` directly instead of
-  going through the Python-level ``raycast_dynamic_meshes`` wrapper. World-frame ray buffers
-  (``_ray_starts_w``, ``_ray_directions_w``) are now allocated as Warp arrays with zero-copy
-  torch views, matching the pattern established in :class:`~isaaclab.sensors.MultiMeshRayCaster`.
-
-
-4.5.28 (2026-04-09)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Changed internal mesh transform buffers ``_mesh_positions_w`` and ``_mesh_orientations_w`` in
-  :class:`~isaaclab.sensors.MultiMeshRayCaster` from torch tensors to warp arrays (``wp.vec3`` and
-  ``wp.quat`` respectively). Zero-copy torch views (``_mesh_positions_w_torch``,
-  ``_mesh_orientations_w_torch``) are retained for writes from physics view results.
-  The ``wp.from_torch`` wrapping on every update step is eliminated.
+* Converted all four ray caster sensor classes (:class:`~isaaclab.sensors.RayCaster`,
+  :class:`~isaaclab.sensors.RayCasterCamera`, :class:`~isaaclab.sensors.MultiMeshRayCaster`,
+  :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`) to launch Warp kernels directly via
+  ``wp.launch`` instead of going through Python-level torch wrappers. A new
+  :mod:`~isaaclab.sensors.ray_caster.kernels` module contains all sensor-specific kernels.
+  All intermediate ray buffers are now Warp-owned with zero-copy torch views, eliminating
+  per-step allocations. The existing :func:`~isaaclab.utils.warp.kernels.raycast_dynamic_meshes_kernel`
+  gained an ``env_mask`` parameter to support partial environment updates natively.
 
 
 4.5.27 (2026-04-08)
