@@ -17,19 +17,11 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils import PresetCfg
-
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
-
-
-@configclass
-class AnymalCPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(gpu_max_rigid_patch_count=2**20)
-    physx: PhysxCfg = PhysxCfg(gpu_max_rigid_patch_count=2**20)
 
 
 @configclass
@@ -73,7 +65,7 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 200,
         render_interval=decimation,
-        physics=AnymalCPhysicsCfg(),
+        physics=PhysxCfg(gpu_max_rigid_patch_count=2**20),
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
