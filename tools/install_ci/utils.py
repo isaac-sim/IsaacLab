@@ -82,7 +82,12 @@ def run_cmd(
         except Exception:
             proc.kill()
             raise
-        proc.wait(timeout=timeout)
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            raise
         elapsed = time.monotonic() - t0
         sys.stdout.write(f"{_MAGENTA}[{elapsed:.1f}s]{_RESET}\n")
         sys.stdout.flush()
