@@ -15,6 +15,13 @@ Changed
 
 * Updated :class:`~isaaclab.envs.mdp.randomize_rigid_body_material` to use
   backend-specific APIs (PhysX 3-tuple vs Newton separate friction/restitution).
+* Converted :func:`~isaaclab.envs.mdp.randomize_rigid_body_collider_offsets` from a
+  plain function to a :class:`~isaaclab.managers.ManagerTermBase` class with automatic
+  backend detection. PhysX uses rest/contact offsets directly; Newton maps them to
+  ``shape_margin`` and ``shape_gap``.
+* Updated :func:`~isaaclab.envs.mdp.randomize_rigid_body_com` to detect the active
+  physics backend and pass position-only (vec3) for Newton vs full pose (pos + quat)
+  for PhysX.
 
 
 4.5.30 (2026-04-13)
