@@ -9,6 +9,15 @@ Added
 
 * Added :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` to expose Newton
   collision pipeline parameters via :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg`.
+* Added :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.tolerance` for solver convergence control.
+
+Fixed
+^^^^^
+
+* Fixed truthiness check on hydroelastic config dict in collision pipeline
+  initialization. An explicit ``is not None`` check is now used so that
+  :class:`~isaaclab_newton.physics.newton_collision_cfg.HydroelasticSDFCfg`
+  with all-default values is no longer silently skipped.
 
 
 0.5.12 (2026-04-13)

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from isaaclab.utils import configclass
 
@@ -166,3 +166,21 @@ class NewtonCollisionPipelineCfg:
 
     Defaults to ``None`` (hydroelastic disabled, same as Newton's default).
     """
+
+    def to_pipeline_args(self) -> dict[str, Any]:
+        """Build keyword arguments for :class:`newton.CollisionPipeline`.
+
+        Converts this configuration into the dict expected by
+        ``CollisionPipeline.__init__``, handling nested config conversion
+        (e.g. :class:`HydroelasticSDFCfg` → ``HydroelasticSDF.Config``).
+
+        Returns:
+            Keyword arguments suitable for ``CollisionPipeline(model, **args)``.
+        """
+        from newton.geometry import HydroelasticSDF
+
+        cfg_dict = self.to_dict()
+        hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
+        if hydro_cfg is not None:
+            cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)
+        return cfg_dict

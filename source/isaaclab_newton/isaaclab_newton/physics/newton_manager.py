@@ -28,7 +28,6 @@ except OSError:
         _cudart = None
 from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
-from newton.geometry import HydroelasticSDF
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
@@ -731,11 +730,7 @@ class NewtonManager(PhysicsManager):
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
                 if cls._collision_cfg is not None:
-                    cfg_dict = cls._collision_cfg.to_dict()
-                    hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
-                    if hydro_cfg:
-                        cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)
-                    cls._collision_pipeline = CollisionPipeline(cls._model, **cfg_dict)
+                    cls._collision_pipeline = CollisionPipeline(cls._model, **cls._collision_cfg.to_pipeline_args())
                 else:
                     cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
 
