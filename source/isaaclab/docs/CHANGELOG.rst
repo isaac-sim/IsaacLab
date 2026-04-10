@@ -18,14 +18,14 @@ Changed
   backend-specific implementations. PhysX uses bucket-based 3-tuple materials via the
   tensor API; Newton samples friction and restitution continuously per shape via
   view-level attribute bindings.
-* Converted :func:`~isaaclab.envs.mdp.randomize_rigid_body_com` from a plain function
-  to a :class:`~isaaclab.managers.ManagerTermBase` class with repeatable randomization
+* Converted ``randomize_rigid_body_com`` from a plain function to a
+  :class:`~isaaclab.managers.ManagerTermBase` class with repeatable randomization
   from cached defaults. Newton passes position-only (vec3); PhysX passes full pose
   (pos + quat).
-* Converted :func:`~isaaclab.envs.mdp.randomize_rigid_body_collider_offsets` from a
-  plain function to a :class:`~isaaclab.managers.ManagerTermBase` class with
-  backend-specific implementations. PhysX uses rest/contact offsets directly; Newton
-  maps them to ``shape_margin`` and ``shape_gap``.
+* Converted ``randomize_rigid_body_collider_offsets`` from a plain function to a
+  :class:`~isaaclab.managers.ManagerTermBase` class with backend-specific
+  implementations. PhysX uses rest/contact offsets directly; Newton maps them to
+  ``shape_margin`` and ``shape_gap``.
 
 
 4.5.30 (2026-04-13)

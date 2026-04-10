@@ -293,10 +293,6 @@ class _RandomizeRigidBodyMaterialNewton:
         self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
         self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
 
-        # cache defaults
-        self._default_friction = wp.to_torch(self._friction_binding).clone()
-        self._default_restitution = wp.to_torch(self._restitution_binding).clone()
-
     def __call__(
         self,
         env: ManagerBasedEnv,
@@ -327,10 +323,6 @@ class _RandomizeRigidBodyMaterialNewton:
         restitution_samples = math_utils.sample_uniform(
             restitution_range_t[0], restitution_range_t[1], (len(env_ids), num_shapes), device=device
         )
-
-        # update cached buffers for the affected env_ids
-        self._default_friction[env_ids[:, None], shape_idx] = friction_samples
-        self._default_restitution[env_ids[:, None], shape_idx] = restitution_samples
 
         # write only the affected env_ids to the warp binding
         friction_view = wp.to_torch(self._friction_binding)
@@ -750,10 +742,11 @@ class randomize_rigid_body_com(ManagerTermBase):
         coms[env_ids[:, None], body_ids, :3] += rand_samples
 
         # Newton expects position-only (vec3f), PhysX expects the full pose (pos + quat)
+        # note: pass partial data of shape (len(env_ids), len(body_ids), ...) to match the API
         if self._is_newton:
-            self.asset.set_coms_index(coms=coms[:, body_ids, :3], body_ids=body_ids, env_ids=env_ids)
+            self.asset.set_coms_index(coms=coms[env_ids[:, None], body_ids, :3], body_ids=body_ids, env_ids=env_ids)
         else:
-            self.asset.set_coms_index(coms=coms[:, body_ids], body_ids=body_ids, env_ids=env_ids)
+            self.asset.set_coms_index(coms=coms[env_ids[:, None], body_ids], body_ids=body_ids, env_ids=env_ids)
 
 
 class _RandomizeRigidBodyColliderOffsetsPhysx:
@@ -880,7 +873,8 @@ class _RandomizeRigidBodyColliderOffsetsNewton:
             gap_view = wp.to_torch(self._sim_bind_shape_gap)
             gap_view[env_ids] = gap[env_ids]
 
-        self._newton_manager.add_model_change(self._notify_shape_properties)
+        if rest_offset_distribution_params is not None or contact_offset_distribution_params is not None:
+            self._newton_manager.add_model_change(self._notify_shape_properties)
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
