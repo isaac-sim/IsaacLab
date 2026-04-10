@@ -91,6 +91,7 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "docker_only: tests that only run inside Docker")
     config.addinivalue_line("markers", "needs_network: tests that require network access")
     config.addinivalue_line("markers", "slow: tests that take a long time")
+    config.addinivalue_line("markers", "uv: tests that require the uv package manager")
 
     # Enable real-time output when pytest capture is disabled (-s)
     capture = config.getoption("capture", default="fd")
@@ -140,7 +141,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(pytest.mark.skip(reason="docker_only: not running inside Docker"))
 
         # Auto-skip tests requiring uv when uv is not installed
-        if "uv" in item.nodeid and not has_uv:
+        if item.get_closest_marker("uv") and not has_uv:
             item.add_marker(pytest.mark.skip(reason="uv not available on PATH"))
 
         # Auto-skip shell CLI tests on Windows
