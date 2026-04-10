@@ -64,7 +64,7 @@ _build
 # Teleop Recorded Dataset
 /datasets/
 
-# Tests (why?)
+# Tests
 /tests/
 
 # Docker history
