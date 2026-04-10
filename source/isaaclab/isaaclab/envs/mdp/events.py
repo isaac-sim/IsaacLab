@@ -645,12 +645,15 @@ def randomize_rigid_body_com(
     coms[env_ids[:, None], body_ids, :3] += rand_samples
 
     # Newton's set_coms_index expects position-only (vec3f), while PhysX expects
-    # the full pose (pos + quat). Detect backend to pass the correct shape.
+    # the full pose (pos + quat).
+    # NOTE: On Newton (MuJoCo Warp), runtime COM changes may cause simulation instability
+    # because notify_model_changed(BODY_INERTIAL_PROPERTIES) does not fully recompute the
+    # mass matrix after body_ipos changes. Use with caution until this is fixed upstream.
     manager_name = env.sim.physics_manager.__name__.lower()
     if "newton" in manager_name:
-        asset.set_coms_index(coms=coms[..., :3], env_ids=env_ids)
+        asset.set_coms_index(coms=coms[:, body_ids, :3], body_ids=body_ids, env_ids=env_ids)
     else:
-        asset.set_coms_index(coms=coms, env_ids=env_ids)
+        asset.set_coms_index(coms=coms[:, body_ids], body_ids=body_ids, env_ids=env_ids)
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
