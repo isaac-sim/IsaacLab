@@ -1,0 +1,39 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Installation Tests
+on:
+  workflow_dispatch:
+    inputs:
+      base_image:
+        description: 'Docker base image for the test container'
+        required: false
+        default: 'ubuntu:24.04'
+        type: string
+      test_filter:
+        description: 'pytest -k filter expression (e.g. "uv" or "bugs")'
+        default: ''
+permissions:
+  contents: read
+jobs:
+  install-tests:
+    name: Installation Tests (${{ inputs.base_image }})
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Run installation tests
+        run: |
+          RUNNER_ARGS="--base-image ${{ inputs.base_image }}"
+          RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results"
+          RUNNER_ARGS="$RUNNER_ARGS --gpu"
+          PYTEST_ARGS="-vs --tb=short"
+
+          if [ -n "${{ inputs.test_filter }}" ]; then
+            PYTEST_ARGS="$PYTEST_ARGS -k '${{ inputs.test_filter }}'"
+          fi
+
+          tools/install_ci/run docker $RUNNER_ARGS -- $PYTEST_ARGS
