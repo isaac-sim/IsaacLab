@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.5.27 (2026-04-08)
+4.5.28 (2026-04-10)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -10,6 +10,14 @@ Added
 * Added :meth:`~isaaclab.physics.PhysicsManager.wait_for_playing` hook and
   integrated it into :meth:`~isaaclab.sim.SimulationContext.step` so the
   training loop blocks while the Kit GUI timeline is paused.
+
+
+4.5.27 (2026-04-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
 * Added release version to
   :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.
 
