@@ -21,10 +21,11 @@ Fixed
   containers) that would otherwise become stale after resets.
 
 * Fixed CUDA error 700 (illegal memory access) when calling ``SolverKamino.reset()`` after
-  CUDA graph capture. Kamino allocates internal state arrays (``joint_q_prev``,
-  ``body_f_total``, FK solver buffers) during graph capture via ``wp.clone``/``wp.zeros``.
-  These memory-pool addresses became stale before the first graph replay. Added a warm-up
-  ``wp.capture_launch`` for Kamino immediately after graph capture to pin the allocations.
+  CUDA graph capture. ``StateKamino.from_newton()`` lazily allocates ``body_f_total``,
+  ``joint_q_prev``, and ``joint_lambdas`` via ``wp.clone``/``wp.zeros`` during the first
+  ``step()`` inside graph capture. These memory-pool addresses become stale without a
+  warm-up ``wp.capture_launch`` replay to pin them before any eager ``solver.reset()`` call.
+
 
 
 0.5.15 (2026-04-16)

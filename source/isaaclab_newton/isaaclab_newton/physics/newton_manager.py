@@ -351,7 +351,10 @@ class NewtonManager(PhysicsManager):
             cls._graph_capture_pending = False
             cls._graph = cls._capture_relaxed_graph(device)
             if cls._graph is not None:
-                # Kamino warm-up: pin memory-pool allocations (same as standard capture path).
+                # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
+                # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
+                # first step() inside graph capture. Replay once to pin those
+                # memory-pool addresses before any eager solver.reset() call.
                 if isinstance(cls._solver, SolverKamino):
                     wp.capture_launch(cls._graph)
                 logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
@@ -871,59 +874,7 @@ class NewtonManager(PhysicsManager):
                 cls._solver = SolverFeatherstone(cls._model, **cfg_dict)
             elif cls._solver_type == "kamino":
                 cls._use_single_state = False
-                from newton._src.solvers.kamino.config import (
-                    CollisionDetectorConfig,
-                    ConstrainedDynamicsConfig,
-                    ConstraintStabilizationConfig,
-                    PADMMSolverConfig,
-                )
-
-                # Build collision detector config if using Kamino's internal detector
-                collision_detector = None
-                if cfg_dict.get("use_collision_detector", False):
-                    cd_kwargs = {}
-                    cd_pipeline = cfg_dict.get("collision_detector_pipeline")
-                    if cd_pipeline is not None:
-                        cd_kwargs["pipeline"] = cd_pipeline
-                    cd_max_contacts = cfg_dict.get("collision_detector_max_contacts_per_pair")
-                    if cd_max_contacts is not None:
-                        cd_kwargs["max_contacts_per_pair"] = cd_max_contacts
-                    collision_detector = CollisionDetectorConfig(**cd_kwargs)
-
-                kamino_config = SolverKamino.Config(
-                    integrator=cfg_dict.get("integrator", "euler"),
-                    use_collision_detector=cfg_dict.get("use_collision_detector", False),
-                    use_fk_solver=cfg_dict.get("use_fk_solver", True),
-                    sparse_jacobian=cfg_dict.get("sparse_jacobian", False),
-                    sparse_dynamics=cfg_dict.get("sparse_dynamics", False),
-                    rotation_correction=cfg_dict.get("rotation_correction", "twopi"),
-                    angular_velocity_damping=cfg_dict.get("angular_velocity_damping", 0.0),
-                    collect_solver_info=cfg_dict.get("collect_solver_info", False),
-                    compute_solution_metrics=cfg_dict.get("compute_solution_metrics", False),
-                    collision_detector=collision_detector,
-                    constraints=ConstraintStabilizationConfig(
-                        alpha=cfg_dict.get("constraints_alpha", 0.01),
-                        beta=cfg_dict.get("constraints_beta", 0.01),
-                        gamma=cfg_dict.get("constraints_gamma", 0.01),
-                        delta=cfg_dict.get("constraints_delta", 1.0e-6),
-                    ),
-                    dynamics=ConstrainedDynamicsConfig(
-                        preconditioning=cfg_dict.get("dynamics_preconditioning", True),
-                    ),
-                    padmm=PADMMSolverConfig(
-                        max_iterations=cfg_dict.get("padmm_max_iterations", 200),
-                        primal_tolerance=cfg_dict.get("padmm_primal_tolerance", 1e-6),
-                        dual_tolerance=cfg_dict.get("padmm_dual_tolerance", 1e-6),
-                        compl_tolerance=cfg_dict.get("padmm_compl_tolerance", 1e-6),
-                        rho_0=cfg_dict.get("padmm_rho_0", 1.0),
-                        eta=cfg_dict.get("padmm_eta", 1e-5),
-                        use_acceleration=cfg_dict.get("padmm_use_acceleration", True),
-                        use_graph_conditionals=cfg_dict.get("padmm_use_graph_conditionals", True),
-                        warmstart_mode=cfg_dict.get("padmm_warmstart_mode", "containers"),
-                        contact_warmstart_method=cfg_dict.get("padmm_contact_warmstart_method", "key_and_position"),
-                    ),
-                )
-                cls._solver = SolverKamino(cls._model, kamino_config)
+                cls._solver = SolverKamino(cls._model, solver_cfg.to_solver_config())
             else:
                 raise ValueError(f"Invalid solver type: {cls._solver_type}")
 
@@ -978,11 +929,10 @@ class NewtonManager(PhysicsManager):
                     cls._graph = capture.graph
                     logger.info("Newton CUDA graph captured (standard Warp mode)")
 
-                    # Kamino allocates internal state arrays (joint_q_prev, body_f_total,
-                    # joint_lambdas, FK solver arrays) during graph capture via wp.clone/wp.zeros.
-                    # These memory-pool allocations must be "pinned" by replaying the graph once
-                    # before any non-graphed Kamino operations (e.g. solver.reset()) can safely
-                    # access them.  Without this warm-up, pool-allocated addresses may be stale.
+                    # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
+                    # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
+                    # first step() inside graph capture. Replay once to pin those
+                    # memory-pool addresses before any eager solver.reset() call.
                     if isinstance(cls._solver, SolverKamino):
                         wp.capture_launch(cls._graph)
                 else:

@@ -346,6 +346,67 @@ class KaminoSolverCfg(NewtonSolverCfg):
     problem. Disabling may be useful for debugging or profiling solver behavior.
     """
 
+    def to_solver_config(self):
+        """Build a :class:`SolverKamino.Config` from this configuration.
+
+        Converts the flat field layout of :class:`KaminoSolverCfg` into the
+        nested dataclass hierarchy expected by :class:`SolverKamino`.
+
+        Returns:
+            A ``SolverKamino.Config`` instance ready for solver construction.
+        """
+        from newton._src.solvers.kamino.config import (
+            CollisionDetectorConfig,
+            ConstrainedDynamicsConfig,
+            ConstraintStabilizationConfig,
+            PADMMSolverConfig,
+        )
+        from newton.solvers import SolverKamino
+
+        # Build collision detector config if using Kamino's internal detector
+        collision_detector = None
+        if self.use_collision_detector:
+            cd_kwargs: dict = {}
+            if self.collision_detector_pipeline is not None:
+                cd_kwargs["pipeline"] = self.collision_detector_pipeline
+            if self.collision_detector_max_contacts_per_pair is not None:
+                cd_kwargs["max_contacts_per_pair"] = self.collision_detector_max_contacts_per_pair
+            collision_detector = CollisionDetectorConfig(**cd_kwargs)
+
+        return SolverKamino.Config(
+            integrator=self.integrator,
+            use_collision_detector=self.use_collision_detector,
+            use_fk_solver=self.use_fk_solver,
+            sparse_jacobian=self.sparse_jacobian,
+            sparse_dynamics=self.sparse_dynamics,
+            rotation_correction=self.rotation_correction,
+            angular_velocity_damping=self.angular_velocity_damping,
+            collect_solver_info=self.collect_solver_info,
+            compute_solution_metrics=self.compute_solution_metrics,
+            collision_detector=collision_detector,
+            constraints=ConstraintStabilizationConfig(
+                alpha=self.constraints_alpha,
+                beta=self.constraints_beta,
+                gamma=self.constraints_gamma,
+                delta=self.constraints_delta,
+            ),
+            dynamics=ConstrainedDynamicsConfig(
+                preconditioning=self.dynamics_preconditioning,
+            ),
+            padmm=PADMMSolverConfig(
+                max_iterations=self.padmm_max_iterations,
+                primal_tolerance=self.padmm_primal_tolerance,
+                dual_tolerance=self.padmm_dual_tolerance,
+                compl_tolerance=self.padmm_compl_tolerance,
+                rho_0=self.padmm_rho_0,
+                eta=self.padmm_eta,
+                use_acceleration=self.padmm_use_acceleration,
+                use_graph_conditionals=self.padmm_use_graph_conditionals,
+                warmstart_mode=self.padmm_warmstart_mode,
+                contact_warmstart_method=self.padmm_contact_warmstart_method,
+            ),
+        )
+
 
 @configclass
 class NewtonCfg(PhysicsCfg):

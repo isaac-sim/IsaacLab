@@ -46,7 +46,7 @@ class AntPhysicsCfg(PresetCfg):
     kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(
             integrator="moreau",
-            use_collision_detector=True,
+            use_collision_detector=False,
             sparse_jacobian=True,
             constraints_alpha=0.1,
             padmm_max_iterations=100,
