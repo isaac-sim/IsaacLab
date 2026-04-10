@@ -246,15 +246,16 @@ def test_raycast_random_cube(raycast_setup):
 # Tests for raycast_mesh_masked_kernel (new kernel in utils/warp/kernels.py)
 # ---------------------------------------------------------------------------
 
-_SENTINEL = -1.0  # value pre-filled into output buffers; any write by kernel overwrites this
+_SENTINEL = -2.0  # value pre-filled into output buffers; chosen outside [-1, 1] so it cannot
+# equal any component of a unit-length surface normal, making "not written" assertions unambiguous.
 
 
 def _make_masked_buffers(device, n_envs, n_rays):
     """Allocate all warp buffers needed by raycast_mesh_masked_kernel.
 
-    ray_dist_w and ray_normal_w are pre-filled with a sentinel (-1.0) so that
-    tests can meaningfully assert those buffers were *not* written when the
-    corresponding return flag is 0.
+    ray_dist_w and ray_normal_w are pre-filled with _SENTINEL so that tests can
+    meaningfully assert those buffers were *not* written when the corresponding
+    return flag is 0.
     """
     ray_starts_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
     ray_dirs_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
@@ -318,7 +319,7 @@ def test_raycast_mesh_masked_kernel_with_distance(raycast_setup):
 
 
 def test_raycast_mesh_masked_kernel_with_normal(raycast_setup):
-    """return_normal=1: surface normals are written."""
+    """return_distance=1, return_normal=1: both distances and surface normals are written."""
     device = raycast_setup["device"]
     mesh_id = raycast_setup["single_mesh_id"]
 
@@ -374,3 +375,4 @@ def test_raycast_mesh_masked_kernel_env_mask(raycast_setup):
     torch.testing.assert_close(dist[0], torch.tensor([4.5, 4.5], device=device))
     assert torch.isinf(hits[1]).all(), "Masked env 1 hits must remain inf"
     assert torch.all(dist[1] == _SENTINEL), "Masked env 1 distances must remain at sentinel"
+    assert torch.all(wp.to_torch(ray_normal_w) == _SENTINEL), "Normal buffer must not be written when return_normal=0"
