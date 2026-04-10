@@ -12,33 +12,17 @@ import platform
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
+import utils as _utils
+from utils import find_isaaclab_root, run_cmd  # noqa: F401 – re-exported for tests
 
-# Helpers
-
-# Set to True when pytest runs with -s / --capture=no so that run_cmd()
-# streams subprocess output in real time by default.
-_STREAM_OUTPUT: bool = False
-
-_DIM = "\033[2m"
 _CYAN_BRIGHT = "\033[96m"
-_MAGENTA = "\033[95m"
 _RESET = "\033[0m"
 
 _test_index: dict[str, int] = {}
 _test_total: int = 0
-
-
-def _find_isaaclab_root() -> Path:
-    """Walk up from this file to find the repo root (contains isaaclab.sh)."""
-    here = Path(__file__).resolve()
-    for parent in [here] + list(here.parents):
-        if (parent / "isaaclab.sh").exists():
-            return parent
-    raise FileNotFoundError("Could not locate IsaacLab repository root (no isaaclab.sh found)")
 
 
 def _has_command(name: str) -> bool:
@@ -52,7 +36,7 @@ def _has_command(name: str) -> bool:
 @pytest.fixture(scope="session")
 def isaaclab_root() -> Path:
     """Resolved absolute path to the IsaacLab repository root."""
-    return _find_isaaclab_root()
+    return find_isaaclab_root()
 
 
 @pytest.fixture
@@ -102,7 +86,6 @@ def wheel_path() -> Path | None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    global _STREAM_OUTPUT
     config.addinivalue_line("markers", "regression: bug-regression tests")
     config.addinivalue_line("markers", "gpu: tests that require a GPU")
     config.addinivalue_line("markers", "docker_only: tests that only run inside Docker")
@@ -111,7 +94,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     # Enable real-time output when pytest capture is disabled (-s)
     capture = config.getoption("capture", default="fd")
-    _STREAM_OUTPUT = capture == "no"
+    _utils.stream_output = capture == "no"
 
 
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
@@ -163,75 +146,3 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         # Auto-skip shell CLI tests on Windows
         if "cli_install" in item.nodeid and is_windows:
             item.add_marker(pytest.mark.skip(reason="isaaclab.sh CLI tests are Linux-only"))
-
-
-# Subprocess helper available to all tests
-
-
-def run_cmd(
-    args: list[str],
-    *,
-    cwd: str | Path | None = None,
-    env: dict[str, str] | None = None,
-    timeout: int = 600,
-    check: bool = True,
-    stream: bool | None = None,
-) -> subprocess.CompletedProcess:
-    """Run a command, merging *env* into the current environment.
-
-    Args:
-        stream: When True, stream stdout/stderr to the console in
-            real time instead of capturing them.  Defaults to True when
-            pytest is invoked with ``-s`` (``--capture=no``).
-
-    Returns the CompletedProcess; raises CalledProcessError when *check* is
-    True and return code != 0.
-    """
-    if stream is None:
-        stream = _STREAM_OUTPUT
-    merged_env = {**os.environ, **(env or {})}
-    cmd_str = " ".join(str(a) for a in args)
-    if stream:
-        sys.stdout.write(f"{_MAGENTA}[COMMAND] {cmd_str}{_RESET}\n")
-        sys.stdout.flush()
-        # Stream output to console in real time.
-        t0 = time.monotonic()
-        proc = subprocess.Popen(
-            [str(a) for a in args],
-            cwd=str(cwd) if cwd else None,
-            env=merged_env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        lines: list[str] = []
-        try:
-            for line in proc.stdout:
-                lines.append(line)
-                sys.stdout.write(f"{_DIM}{line}{_RESET}")
-                sys.stdout.flush()
-        except Exception:
-            proc.kill()
-            raise
-        proc.wait(timeout=timeout)
-        elapsed = time.monotonic() - t0
-        sys.stdout.write(f"{_MAGENTA}[{elapsed:.1f}s]{_RESET}\n")
-        sys.stdout.flush()
-        result = subprocess.CompletedProcess(
-            args=proc.args,
-            returncode=proc.returncode,
-            stdout="".join(lines),
-            stderr="",
-        )
-        if check and result.returncode != 0:
-            raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
-        return result
-    return subprocess.run(
-        [str(a) for a in args],
-        cwd=str(cwd) if cwd else None,
-        env=merged_env,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=check,
-    )
