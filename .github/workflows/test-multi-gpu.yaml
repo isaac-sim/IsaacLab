@@ -95,10 +95,10 @@ jobs:
         run: |
           echo "=== GPU Info ==="
           nvidia-smi --query-gpu=index,name,memory.total --format=csv
-          
+
           GPU_COUNT=$(python -c "import torch; print(torch.cuda.device_count())")
           echo "Detected $GPU_COUNT GPU(s)"
-          
+
           if [ "$GPU_COUNT" -lt 2 ]; then
             echo "::error::At least 2 GPUs required for multi-GPU tests, found $GPU_COUNT"
             exit 1
@@ -109,7 +109,7 @@ jobs:
           NCCL_DEBUG: WARN
         run: |
           TRAINER="${{ matrix.trainer || 'rsl_rl' }}"
-          
+
           echo "=========================================="
           echo "Physics: ${{ matrix.physics }}"
           echo "Renderer: ${{ matrix.renderer }}"
@@ -117,7 +117,7 @@ jobs:
           echo "Trainer: $TRAINER"
           echo "Extra args: ${{ matrix.extra_args }}"
           echo "=========================================="
-          
+
           # Run 2-GPU distributed training for 3 iterations
           ./isaaclab.sh -p -m torch.distributed.run --nproc_per_node=2 \
             scripts/reinforcement_learning/${TRAINER}/train.py \
@@ -132,22 +132,22 @@ jobs:
         run: |
           # Find the most recent log directory
           LATEST_LOG=$(ls -td logs/*/*/*/ 2>/dev/null | head -1)
-          
+
           if [ -z "$LATEST_LOG" ]; then
             echo "::error::No training log directory found"
             exit 1
           fi
-          
+
           echo "Log directory: $LATEST_LOG"
           ls -la "$LATEST_LOG"
-          
+
           # Check for model checkpoints
           MODELS=$(find "$LATEST_LOG" -name "*.pt" | wc -l)
           echo "Model checkpoints found: $MODELS"
-          
+
           if [ "$MODELS" -lt 1 ]; then
             echo "::error::No model checkpoints found - training may have failed"
             exit 1
           fi
-          
+
           echo "✅ Multi-GPU training completed successfully (${{ matrix.physics }}, ${{ matrix.renderer }})"

@@ -25,14 +25,14 @@ import argparse
 import os
 import sys
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import isaaclab_tasks.utils.sim_launcher as sim_launcher
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 class _DummySimCfg:
     """Minimal sim config stub with a mutable ``device`` attribute."""
@@ -78,6 +78,7 @@ def _make_env_vars(
 # ---------------------------------------------------------------------------
 # _resolve_distributed_device — Namespace launcher_args
 # ---------------------------------------------------------------------------
+
 
 class TestResolveDistributedDeviceNamespace:
     """Tests for _resolve_distributed_device with argparse.Namespace args."""
@@ -172,6 +173,7 @@ class TestResolveDistributedDeviceNamespace:
 # _resolve_distributed_device — dict launcher_args
 # ---------------------------------------------------------------------------
 
+
 class TestResolveDistributedDeviceDict:
     """Tests for _resolve_distributed_device with dict-style args."""
 
@@ -207,6 +209,7 @@ class TestResolveDistributedDeviceDict:
 # ---------------------------------------------------------------------------
 # _resolve_distributed_device — non-distributed (no-op)
 # ---------------------------------------------------------------------------
+
 
 class TestResolveDistributedDeviceNoop:
     """Tests that non-distributed runs skip device resolution."""
@@ -258,6 +261,7 @@ class TestResolveDistributedDeviceNoop:
 # ---------------------------------------------------------------------------
 # _resolve_distributed_device — edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestResolveDistributedDeviceEdgeCases:
     """Edge cases for device resolution."""
@@ -327,8 +331,11 @@ class TestResolveDistributedDeviceEdgeCases:
         args = _make_distributed_args()
 
         # Remove distributed env vars if they exist
-        clean_env = {k: v for k, v in os.environ.items()
-                     if k not in ("LOCAL_RANK", "WORLD_SIZE", "RANK", "JAX_LOCAL_RANK", "JAX_RANK")}
+        clean_env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("LOCAL_RANK", "WORLD_SIZE", "RANK", "JAX_LOCAL_RANK", "JAX_RANK")
+        }
 
         with patch.dict(os.environ, clean_env, clear=True):
             sim_launcher._resolve_distributed_device(env_cfg, args)
@@ -340,6 +347,7 @@ class TestResolveDistributedDeviceEdgeCases:
 # ---------------------------------------------------------------------------
 # _resolve_distributed_device — multi-node scenarios
 # ---------------------------------------------------------------------------
+
 
 class TestResolveDistributedDeviceMultiNode:
     """Tests for multi-node setups where WORLD_SIZE > local GPU count."""
@@ -395,6 +403,7 @@ class TestResolveDistributedDeviceMultiNode:
 # launch_simulation integration — verify device propagation from AppLauncher
 # ---------------------------------------------------------------------------
 
+
 class TestLaunchSimulationDevicePropagation:
     """Verify that launch_simulation propagates AppLauncher.device to env_cfg."""
 
@@ -412,7 +421,8 @@ class TestLaunchSimulationDevicePropagation:
         monkeypatch.setitem(sys.modules, "isaaclab.utils", mock_isaaclab_utils)
 
         monkeypatch.setitem(
-            sys.modules, "isaaclab.app",
+            sys.modules,
+            "isaaclab.app",
             types.SimpleNamespace(AppLauncher=_FakeAppLauncher),
         )
         monkeypatch.setattr(
@@ -421,12 +431,14 @@ class TestLaunchSimulationDevicePropagation:
         )
         # Force needs_kit=True, no cameras
         monkeypatch.setattr(
-            sim_launcher, "compute_kit_requirements",
+            sim_launcher,
+            "compute_kit_requirements",
             lambda env_cfg, launcher_args: (True, False, set()),
         )
         # Mock _resolve_distributed_device to avoid torch.cuda calls
         monkeypatch.setattr(
-            sim_launcher, "_resolve_distributed_device",
+            sim_launcher,
+            "_resolve_distributed_device",
             lambda env_cfg, launcher_args: None,
         )
 
@@ -447,11 +459,13 @@ class TestLaunchSimulationDevicePropagation:
             resolved_devices.append("cuda:1")
 
         monkeypatch.setattr(
-            sim_launcher, "compute_kit_requirements",
+            sim_launcher,
+            "compute_kit_requirements",
             lambda env_cfg, launcher_args: (False, False, set()),
         )
         monkeypatch.setattr(
-            sim_launcher, "_resolve_distributed_device",
+            sim_launcher,
+            "_resolve_distributed_device",
             _fake_resolve,
         )
 
