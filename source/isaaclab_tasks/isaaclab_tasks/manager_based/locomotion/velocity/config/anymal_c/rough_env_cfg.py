@@ -27,7 +27,6 @@ class AnymalCPhysxEventsCfg(EventsCfg, StartupEventsCfg):
 class AnymalCEventsCfg(PresetCfg):
     default = AnymalCPhysxEventsCfg()
     newton = EventsCfg()
-    kamino = newton
     physx = default
 
 
@@ -40,7 +39,7 @@ class AnymalCRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # switch robot to anymal-c
         self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton=0.01, kamino=0.01, physx=0.0)
+        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton=0.01, physx=0.0)
 
 
 @configclass
