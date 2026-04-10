@@ -973,8 +973,6 @@ def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
     requesting both data types simultaneously gives results consistent with requesting
     each one alone.
     """
-    import copy
-
     sim, camera_cfg, dt = setup_sim
 
     base_cfg = RayCasterCameraCfg(
