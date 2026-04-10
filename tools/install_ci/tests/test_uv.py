@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from conftest import run_cmd
 
 
+@pytest.mark.uv
 class Test_UV:
     """Test uv-based installation scenarios."""
 
