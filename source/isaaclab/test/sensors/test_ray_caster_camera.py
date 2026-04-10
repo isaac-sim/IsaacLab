@@ -1043,7 +1043,7 @@ def test_frame_counter_increments_per_update(setup_sim):
     n_steps = 7
     for step in range(1, n_steps + 1):
         sim.step()
-        camera.update(dt)
+        camera.update(dt, force_recompute=True)
         assert camera.frame[0].item() == step, f"Frame must be {step} after {step} update(s)"
 
     # Partial reset: only env 0 (single-env camera, but API accepts env_ids)
@@ -1053,7 +1053,7 @@ def test_frame_counter_increments_per_update(setup_sim):
     # Full reset
     for _ in range(3):
         sim.step()
-        camera.update(dt)
+        camera.update(dt, force_recompute=True)
     camera.reset()
     assert torch.all(camera.frame == 0), "Frame must be 0 after full reset()"
 

@@ -157,10 +157,17 @@ def test_base_alignment_rotates_ray_direction(sim_ground):
 
 @pytest.mark.isaacsim_ci
 def test_yaw_alignment_direction_unchanged(sim_ground):
-    """In 'yaw' alignment, ray direction is not rotated even with pitch+roll.
+    """In 'yaw' alignment, ray directions stay world-down despite pitch+roll.
 
-    For a sensor with combined pitch+yaw, 'yaw' mode must leave ray direction
-    unchanged (same as 'world' mode for a center ray with zero local offset).
+    Setup: sensor at (0,0,2), pitched 30° and yawed 45°; pattern has a single ray
+    at local offset (+1, 0, 0).
+
+    - world mode: start = sensor_pos + (1,0,0) (no rotation applied to offset)
+    - yaw  mode:  start = sensor_pos + yaw_rot(45°) @ (1,0,0) = (cos45°, sin45°, 0)
+
+    Both modes fire the ray straight down (direction unchanged), so both hit z=0.
+    The hit x-coordinate differs between modes, confirming the yaw-only rotation of
+    start positions is applied in 'yaw' mode but not in 'world' mode.
     """
     sim = sim_ground
 
@@ -174,22 +181,47 @@ def test_yaw_alignment_direction_unchanged(sim_ground):
     sim_utils.create_prim("/World/SensorWorldY", "Xform", translation=(0.0, 0.0, 2.0), orientation=orientation)
     sim_utils.create_prim("/World/SensorYaw", "Xform", translation=(0.0, 0.0, 2.0), orientation=orientation)
 
-    sensor_world = RayCaster(_ray_caster_cfg("/World/SensorWorldY", "world"))
-    sensor_yaw = RayCaster(_ray_caster_cfg("/World/SensorYaw", "yaw"))
+    # Use a single ray at local offset (+1, 0, 0), still pointing down
+    def _cfg_with_offset(prim_path, alignment):
+        return RayCasterCfg(
+            prim_path=prim_path,
+            mesh_prim_paths=[_GROUND_PATH],
+            update_period=0,
+            offset=RayCasterCfg.OffsetCfg(pos=(1.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
+            debug_vis=False,
+            pattern_cfg=patterns.GridPatternCfg(resolution=1.0, size=(0.0, 0.0), direction=(0.0, 0.0, -1.0)),
+            ray_alignment=alignment,
+        )
+
+    sensor_world = RayCaster(_cfg_with_offset("/World/SensorWorldY", "world"))
+    sensor_yaw = RayCaster(_cfg_with_offset("/World/SensorYaw", "yaw"))
     sim.reset()
 
     dt = 0.01
     sensor_world.update(dt)
     sensor_yaw.update(dt)
 
-    hits_world = wp.to_torch(sensor_world.data.ray_hits_w)
+    hits_world = wp.to_torch(sensor_world.data.ray_hits_w)  # (1, 1, 3)
     hits_yaw = wp.to_torch(sensor_yaw.data.ray_hits_w)
 
-    # Both must hit near z=0 (direction unchanged by yaw mode; local_start=0 so start unchanged)
+    # Both modes must hit the ground (direction unchanged = straight down in both modes)
     assert abs(hits_world[0, 0, 2].item()) < 0.05, "World mode must hit z≈0"
-    assert abs(hits_yaw[0, 0, 2].item()) < 0.05, "Yaw mode must hit z≈0 (direction unchanged)"
-    # For zero-offset center ray: same start + same direction → same hit
-    torch.testing.assert_close(hits_world, hits_yaw, atol=0.05, rtol=0)
+    assert abs(hits_yaw[0, 0, 2].item()) < 0.05, "Yaw mode must hit z≈0 (direction straight down)"
+
+    # world mode: offset (1,0,0) not rotated → ray starts at sensor_pos+(1,0,0) → hits x≈1
+    assert abs(hits_world[0, 0, 0].item() - 1.0) < 0.05, (
+        f"World mode: hit x should be ≈1.0 (unrotated offset), got {hits_world[0, 0, 0].item():.3f}"
+    )
+
+    # yaw mode: offset (1,0,0) rotated by 45° yaw → starts at sensor_pos+(cos45°, sin45°, 0) → hits x≈cos45°
+    expected_x_yaw = np.cos(np.pi / 4)  # ≈ 0.707
+    assert abs(hits_yaw[0, 0, 0].item() - expected_x_yaw) < 0.05, (
+        f"Yaw mode: hit x should be ≈{expected_x_yaw:.3f} (yaw-rotated offset), got {hits_yaw[0, 0, 0].item():.3f}"
+    )
+    # Confirm they differ — if they were the same, the test would not cover the yaw rotation
+    assert not torch.allclose(hits_world, hits_yaw, atol=0.1), (
+        "Yaw and world modes must produce different hit positions for non-zero lateral offset"
+    )
 
 
 # -------------------------------------------------------------------
@@ -221,9 +253,17 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     )
 
     # reset() resamples drift; values should remain within the configured range
-    sensor.reset()
-    drift_after = sensor.drift.clone()
+    # Call reset() multiple times until we get a different sample (probability of same is near zero
+    # for continuous uniform distribution, but we retry to avoid flakiness).
+    for _ in range(5):
+        sensor.reset()
+        drift_after = sensor.drift.clone()
+        if not torch.allclose(drift_after, drift_before):
+            break
     assert drift_after.shape == drift_before.shape, "Drift shape must be preserved after reset"
     assert (drift_after >= lo - 1e-6).all() and (drift_after <= hi + 1e-6).all(), (
         f"Drift after reset must be in [{lo}, {hi}], got [{drift_after.min():.4f}, {drift_after.max():.4f}]"
+    )
+    assert not torch.allclose(drift_after, drift_before), (
+        "reset() must resample drift; values must change from initial sample"
     )
