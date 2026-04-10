@@ -23,6 +23,7 @@ _RESET = "\033[0m"
 
 _test_index: dict[str, int] = {}
 _test_total: int = 0
+_index_built: bool = False
 
 
 # Fixtures
@@ -102,6 +103,16 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
     """Print the test's docstring as a human-readable explanation before running."""
+    global _index_built, _test_total, _test_index
+    if not _index_built:
+        # Build index from the final selected items (after -k/-m deselection)
+        selected = item.session.items
+        _test_total = len(selected)
+        _test_index.clear()
+        for i, it in enumerate(selected, 1):
+            _test_index[it.nodeid] = i
+        _index_built = True
+
     idx = _test_index.get(item.nodeid, 0)
     total = _test_total
     prefix = f"[TEST {idx}/{total}]: " if total else ""
@@ -113,21 +124,15 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    global _test_total
     is_windows = platform.system() == "Windows"
     has_uv = shutil.which("uv") is not None
     in_docker = Path("/.dockerenv").exists()
-
-    # Build index for numbering
-    _test_total = len(items)
-    for i, item in enumerate(items, 1):
-        _test_index[item.nodeid] = i
 
     # Print collected tests
     if items:
         print(f"\nCollected {len(items)} tests:")
         for i, item in enumerate(items, 1):
-            print(f"  {i}/{_test_total}: {item.nodeid}")
+            print(f"  {i}/{len(items)}: {item.nodeid}")
         print()
 
     for item in items:
