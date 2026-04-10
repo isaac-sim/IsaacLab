@@ -2486,6 +2486,7 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
             f"body_q was stale when collide() ran: diff={diff:.4f}m, jq={jq_root.tolist()}, bq={bq_root.tolist()}"
         )
 
+
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -2542,6 +2543,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
         restitution_updated = wp.to_torch(articulation.data._sim_bind_shape_material_restitution)
         torch.testing.assert_close(mu_updated[:, 0:1], subset_friction)
         torch.testing.assert_close(restitution_updated[:, 0:1], subset_restitution)
+
 
 @pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", ["cuda:0"])

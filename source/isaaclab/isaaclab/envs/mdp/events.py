@@ -737,15 +737,23 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
 
         if rest_offset_distribution_params is not None:
             data = _randomize_prop_by_op(
-                self._default_rest.clone(), rest_offset_distribution_params,
-                None, slice(None), operation="abs", distribution=distribution,
+                self._default_rest.clone(),
+                rest_offset_distribution_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
             )
             self._write_rest(data, env_ids)
 
         if contact_offset_distribution_params is not None:
             data = _randomize_prop_by_op(
-                self._default_contact.clone(), contact_offset_distribution_params,
-                None, slice(None), operation="abs", distribution=distribution,
+                self._default_contact.clone(),
+                contact_offset_distribution_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
             )
             self._write_contact(data, env_ids)
 
