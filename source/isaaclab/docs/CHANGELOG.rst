@@ -1,19 +1,6 @@
 Changelog
 ---------
 
-4.5.29 (2026-04-09)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Moved :func:`~isaaclab.utils.warp.kernels.raycast_mesh_masked_kernel` to
-  :mod:`~isaaclab.utils.warp.kernels` as a general-purpose utility. The new kernel consolidates
-  the former ``raycast_mesh_masked_kernel`` and ``raycast_camera_mesh_masked_kernel`` from the
-  sensor-specific module into a single kernel with ``return_distance`` and ``return_normal`` flags,
-  matching the design of the existing :func:`~isaaclab.utils.warp.kernels.raycast_mesh_kernel`.
-
-
 4.5.28 (2026-04-10)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -27,7 +14,11 @@ Changed
   :mod:`~isaaclab.sensors.ray_caster.kernels` module contains all sensor-specific kernels.
   All intermediate ray buffers are now Warp-owned with zero-copy torch views, eliminating
   per-step allocations. The existing :func:`~isaaclab.utils.warp.kernels.raycast_dynamic_meshes_kernel`
-  gained an ``env_mask`` parameter to support partial environment updates natively.
+  gained an ``env_mask`` parameter to support partial environment updates natively. A new
+  :func:`~isaaclab.utils.warp.kernels.raycast_mesh_masked_kernel` was added to
+  :mod:`~isaaclab.utils.warp.kernels` as the general-purpose masked single-mesh variant,
+  with ``return_distance`` and ``return_normal`` flags matching the design of
+  :func:`~isaaclab.utils.warp.kernels.raycast_mesh_kernel`.
 
 
 4.5.27 (2026-04-08)
