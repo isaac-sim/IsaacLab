@@ -391,7 +391,7 @@ def _call_quat_yaw_only(q_in: wp.array(dtype=wp.quatf), q_out: wp.array(dtype=wp
 
 
 def test_quat_yaw_only_pure_yaw():
-    """Pure yaw: quat_yaw_only should reproduce the input exactly."""
+    """Pure yaw: quat_yaw_only should match the yaw_quat() reference for all yaw angles."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
     yaw_angles = torch.tensor([0.0, 0.5, 1.2, -0.8, np.pi], device=device)
 
