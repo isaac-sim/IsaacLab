@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.3.9 (2026-04-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_teleop.AsyncRetargetLoop` for background-threaded
+  retargeting with EMA-paced scheduling, so retarget work overlaps with
+  ``env.step()`` instead of blocking the render path.
+
+* Added :meth:`~isaaclab_teleop.IsaacTeleopDevice.set_async` to toggle between
+  synchronous and asynchronous retargeting at runtime.  Async mode is enabled
+  by default.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_teleop.IsaacTeleopDevice` to run retargeting
+  asynchronously by default.  Call ``device.set_async(False)`` to revert to
+  synchronous behavior.
+
+* Changed :class:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle` to
+  support :meth:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle.add_on_stop_callback`
+  for registering cleanup callbacks invoked when the session stops.
+
+
 0.3.8 (2026-04-24)
 ~~~~~~~~~~~~~~~~~~
 
