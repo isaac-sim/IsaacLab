@@ -57,6 +57,7 @@ class RayCaster(SensorBase):
     cfg: RayCasterCfg
     """The configuration parameters."""
 
+    # Class variables to share meshes across instances
     meshes: ClassVar[dict[str, wp.Mesh]] = {}
     """A dictionary to store warp meshes for raycasting, shared across all instances.
 
@@ -71,7 +72,9 @@ class RayCaster(SensorBase):
             cfg: The configuration parameters.
         """
         RayCaster._instance_count += 1
+        # Initialize base class
         super().__init__(cfg)
+        # Create empty variables for storing output data
         self._data = RayCasterData()
 
     def __str__(self) -> str:
@@ -133,7 +136,7 @@ class RayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-
+        # obtain global simulation view
         self._physics_sim_view = sim_utils.SimulationContext.instance().physics_manager.get_physics_sim_view()
         prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if prim is None:
@@ -169,7 +172,9 @@ class RayCaster(SensorBase):
             raise RuntimeError(f"Unsupported ray_alignment type: {self.cfg.ray_alignment}.")
         self._alignment_mode = alignment_map[self.cfg.ray_alignment]
 
+        # load the meshes by parsing the stage
         self._initialize_warp_meshes()
+        # initialize the ray start and directions
         self._initialize_rays_impl()
 
     def _initialize_warp_meshes(self):
@@ -181,19 +186,25 @@ class RayCaster(SensorBase):
 
         # read prims to ray-cast
         for mesh_prim_path in self.cfg.mesh_prim_paths:
+            # check if mesh already casted into warp mesh
             if mesh_prim_path in RayCaster.meshes:
                 continue
 
+            # check if the prim is a plane - handle PhysX plane as a special case
+            # if a plane exists then we need to create an infinite mesh that is a plane
             mesh_prim = sim_utils.get_first_matching_child_prim(
                 mesh_prim_path, lambda prim: prim.GetTypeName() == "Plane"
             )
+            # if we did not find a plane then we need to read the mesh
             if mesh_prim is None:
+                # obtain the mesh prim
                 mesh_prim = sim_utils.get_first_matching_child_prim(
                     mesh_prim_path, lambda prim: prim.GetTypeName() == "Mesh"
                 )
                 if mesh_prim is None or not mesh_prim.IsValid():
                     raise RuntimeError(f"Invalid mesh prim path: {mesh_prim_path}")
                 mesh_prim = UsdGeom.Mesh(mesh_prim)
+                # read the vertices and faces
                 points = np.asarray(mesh_prim.GetPointsAttr().Get())
                 xformable = UsdGeom.Xformable(mesh_prim)
                 world_transform: Gf.Matrix4d = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
@@ -209,8 +220,10 @@ class RayCaster(SensorBase):
                 mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
                 wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
                 logger.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
+            # add the warp mesh to the list
             RayCaster.meshes[mesh_prim_path] = wp_mesh
 
+        # throw an error if no meshes are found
         if all([mesh_prim_path not in RayCaster.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
@@ -348,6 +361,8 @@ class RayCaster(SensorBase):
         )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
+        # set visibility of markers
+        # note: parent only deals with callbacks. not their visibility
         if debug_vis:
             if not hasattr(self, "ray_visualizer"):
                 self.ray_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
@@ -360,6 +375,7 @@ class RayCaster(SensorBase):
         if self._data._ray_hits_w is None:
             return
         ray_hits_torch = wp.to_torch(self._data._ray_hits_w)
+        # remove possible inf values
         viz_points = ray_hits_torch.reshape(-1, 3)
         viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
 
@@ -403,11 +419,13 @@ class RayCaster(SensorBase):
         prim_view = None
 
         while prim_view is None:
+            # TODO: Need to handle the case where API is present but it is disabled
             if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 prim_view = self._physics_sim_view.create_articulation_view(current_path_expr.replace(".*", "*"))
                 logger.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
                 break
 
+            # TODO: Need to handle the case where API is present but it is disabled
             if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 prim_view = self._physics_sim_view.create_rigid_body_view(current_path_expr.replace(".*", "*"))
                 logger.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
@@ -426,6 +444,7 @@ class RayCaster(SensorBase):
                 )
                 break
 
+            # switch the current prim to the parent prim
             current_prim = new_root_prim
 
         # obtain the relative transforms between target prim and the view prims
@@ -456,6 +475,7 @@ class RayCaster(SensorBase):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         super()._invalidate_initialize_callback(event)
+        # set all existing views to None to invalidate them
         self._view = None
 
     def __del__(self):
