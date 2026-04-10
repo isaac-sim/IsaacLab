@@ -40,6 +40,7 @@ from isaaclab.utils.timer import Timer
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
+
     from .newton_collision_cfg import NewtonCollisionPipelineCfg
 
 logger = logging.getLogger(__name__)

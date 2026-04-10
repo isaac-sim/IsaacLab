@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.13 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` to expose Newton
+  collision pipeline parameters via :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg`.
+
+
 0.5.12 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -20,7 +30,6 @@ Added
 * Added :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformer` sensor
   wrapping Newton's ``SensorFrameTransform``. Supports per-env source/target site
   registration, wildcard body matching, and zero-copy transform views.
-
 
 
 0.5.10 (2026-04-05)
