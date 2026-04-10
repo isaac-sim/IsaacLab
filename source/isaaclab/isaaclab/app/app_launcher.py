@@ -906,8 +906,9 @@ class AppLauncher:
             # global rank (GPU id) in multi-gpu multi-node mode
             self.global_rank = int(os.getenv("RANK", "0")) + int(os.getenv("JAX_RANK", "0"))
 
-            self.device_id = self.local_rank
-            device = "cuda:" + str(self.device_id)
+            from isaaclab.utils.distributed import resolve_cuda_device
+
+            device, self.device_id = resolve_cuda_device(self.local_rank)
             launcher_args["multi_gpu"] = False
             # limit CPU threads to minimize thread context switching
             # this ensures processes do not take up all available threads and fight for resources
@@ -923,6 +924,13 @@ class AppLauncher:
         # as the active_gpu device. Setting physics_gpu explicitly may result in a different device to be used.
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
+
+        # Set the current CUDA device early so that physics backends (e.g. Newton/Warp)
+        # that allocate on the "current" device during initialization get the correct GPU.
+        if "cuda" in device:
+            import torch
+
+            torch.cuda.set_device(self.device_id)
 
         logger.info("Using device: %s", device)
 

@@ -132,8 +132,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if args_cli.distributed:
             local_rank = int(os.getenv("LOCAL_RANK", "0"))
             global_rank = int(os.getenv("RANK", "0"))
-            env_cfg.sim.device = f"cuda:{local_rank}"
-            agent_cfg.device = f"cuda:{local_rank}"
+            from isaaclab.utils.distributed import resolve_cuda_device
+
+            env_cfg.sim.device, _ = resolve_cuda_device(local_rank)
+            agent_cfg.device = env_cfg.sim.device
+
+            # Set current CUDA device here because in the kitless Newton path,
+            # AppLauncher may not have run (launch_simulation skips it), so this
+            # is the only place the current CUDA device gets set.
+            if "cuda" in env_cfg.sim.device:
+                torch.cuda.set_device(env_cfg.sim.device)
 
             # use global rank for seed diversity across all nodes
             seed = agent_cfg.seed + global_rank

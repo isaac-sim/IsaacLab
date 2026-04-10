@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.5.22 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``isaacsim_rtx_renderer`` field in ``MultiBackendRendererCfg`` to use proper
+  type annotation, preventing shared mutable instance across all config objects.
+
 1.5.21 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 

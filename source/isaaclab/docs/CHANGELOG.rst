@@ -12,6 +12,14 @@ Added
   joints with zero stiffness and damping receive a minimal stiffness so that
   backends like Newton recognise the drive as active.
 
+Fixed
+^^^^^
+
+* Fixed multi-GPU device assignment for distributed training. ``resolve_cuda_device()``
+  now compares ``local_rank`` against ``torch.cuda.device_count()`` instead of
+  ``WORLD_SIZE``, correctly handling single-node, multi-node, and
+  ``CUDA_VISIBLE_DEVICES``-restricted scenarios. Also calls ``torch.cuda.set_device()``
+  early in ``AppLauncher`` so physics backends allocate on the correct GPU.
 
 4.6.0 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~
