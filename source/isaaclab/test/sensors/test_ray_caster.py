@@ -19,6 +19,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import warp as wp
 
 from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
+from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel as _raycast_mesh_masked_kernel
 from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh
 
 
@@ -245,16 +246,23 @@ def test_raycast_random_cube(raycast_setup):
 # Tests for raycast_mesh_masked_kernel (new kernel in utils/warp/kernels.py)
 # ---------------------------------------------------------------------------
 
-from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel as _raycast_mesh_masked_kernel
+_SENTINEL = -1.0  # value pre-filled into output buffers; any write by kernel overwrites this
 
 
 def _make_masked_buffers(device, n_envs, n_rays):
-    """Helper: allocate all warp buffers needed by raycast_mesh_masked_kernel."""
+    """Allocate all warp buffers needed by raycast_mesh_masked_kernel.
+
+    ray_dist_w and ray_normal_w are pre-filled with a sentinel (-1.0) so that
+    tests can meaningfully assert those buffers were *not* written when the
+    corresponding return flag is 0.
+    """
     ray_starts_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
     ray_dirs_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
     ray_hits_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
     ray_dist_w = wp.zeros((n_envs, n_rays), dtype=wp.float32, device=device)
+    wp.to_torch(ray_dist_w).fill_(_SENTINEL)
     ray_normal_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
+    wp.to_torch(ray_normal_w).fill_(_SENTINEL)
     return ray_starts_w, ray_dirs_w, ray_hits_w, ray_dist_w, ray_normal_w
 
 
@@ -280,8 +288,8 @@ def test_raycast_mesh_masked_kernel_hits_only(raycast_setup):
     )
 
     torch.testing.assert_close(wp.to_torch(ray_hits_w), expected_hits)
-    assert torch.all(wp.to_torch(ray_dist_w) == 0.0), "Distance buffer must not be written when return_distance=0"
-    assert torch.all(wp.to_torch(ray_normal_w) == 0.0), "Normal buffer must not be written when return_normal=0"
+    assert torch.all(wp.to_torch(ray_dist_w) == _SENTINEL), "Distance buffer must not be written when return_distance=0"
+    assert torch.all(wp.to_torch(ray_normal_w) == _SENTINEL), "Normal buffer must not be written when return_normal=0"
 
 
 def test_raycast_mesh_masked_kernel_with_distance(raycast_setup):
@@ -306,7 +314,7 @@ def test_raycast_mesh_masked_kernel_with_distance(raycast_setup):
 
     # Cube bottom at z=-0.5, rays start at z=-5 going +z, distance = 4.5
     torch.testing.assert_close(wp.to_torch(ray_dist_w), torch.tensor([[4.5, 4.5]], device=device))
-    assert torch.all(wp.to_torch(ray_normal_w) == 0.0)
+    assert torch.all(wp.to_torch(ray_normal_w) == _SENTINEL), "Normal buffer must not be written when return_normal=0"
 
 
 def test_raycast_mesh_masked_kernel_with_normal(raycast_setup):
@@ -329,6 +337,8 @@ def test_raycast_mesh_masked_kernel_with_normal(raycast_setup):
         device=device,
     )
 
+    # Cube bottom at z=-0.5, rays start at z=-5, distance = 4.5
+    torch.testing.assert_close(wp.to_torch(ray_dist_w), torch.tensor([[4.5, 4.5]], device=device))
     torch.testing.assert_close(
         wp.to_torch(ray_normal_w),
         torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device, dtype=torch.float32),
@@ -363,4 +373,4 @@ def test_raycast_mesh_masked_kernel_env_mask(raycast_setup):
     assert not torch.isinf(hits[0]).any(), "Active env 0 should have valid hits"
     torch.testing.assert_close(dist[0], torch.tensor([4.5, 4.5], device=device))
     assert torch.isinf(hits[1]).all(), "Masked env 1 hits must remain inf"
-    assert torch.all(dist[1] == 0.0), "Masked env 1 distances must remain zero"
+    assert torch.all(dist[1] == _SENTINEL), "Masked env 1 distances must remain at sentinel"
