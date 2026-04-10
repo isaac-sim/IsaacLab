@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.5.26 (2026-04-07)
+4.5.28 (2026-04-10)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -15,6 +15,30 @@ Changed
 
 * Changed :class:`~isaaclab.scene.InteractiveScene` to format ``sensor_shape_prim_expr``
   and ``filter_shape_prim_expr`` config attributes with the environment regex namespace.
+
+
+4.5.27 (2026-04-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added release version to
+  :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.
+
+
+4.5.26 (2026-04-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``SummaryMetrics`` backend to
+  dynamically render unknown benchmark phases. Previously only hard-coded phase
+  names (``startup``, ``runtime``, ``train``, ``frametime``) were printed in the
+  summary report; any other phases were silently dropped. Unknown phases now
+  render their ``SingleMeasurement`` and ``StatisticalMeasurement`` entries
+  automatically.
 
 
 4.5.25 (2026-04-01)
