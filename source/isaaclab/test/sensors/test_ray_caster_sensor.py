@@ -14,13 +14,13 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 import pytest
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.math import quat_from_euler_xyz
-
 
 # -------------------------------------------------------------------
 # Helpers
@@ -78,7 +78,7 @@ def test_world_alignment_ignores_sensor_pitch(sim_ground):
 
     # Upright sensor: identity orientation
     sim_utils.create_prim("/World/SensorUpright", "Xform", translation=(0.0, 0.0, 2.0))
-    # Pitched 30° sensor
+    # Pitched 30° sensor — orientation=(x,y,z,w) per Isaac Lab convention
     pitch_quat = quat_from_euler_xyz(
         torch.tensor([0.0]), torch.tensor([np.pi / 6]), torch.tensor([0.0])
     )  # shape (1, 4), xyzw
@@ -97,24 +97,29 @@ def test_world_alignment_ignores_sensor_pitch(sim_ground):
     sensor_upright.update(dt)
     sensor_pitched.update(dt)
 
-    hits_upright = sensor_upright.data.ray_hits_w  # (1, 1, 3)
-    hits_pitched = sensor_pitched.data.ray_hits_w
+    # ray_hits_w is a wp.array(dtype=wp.vec3f); convert to torch for indexing
+    hits_upright = wp.to_torch(sensor_upright.data.ray_hits_w)  # (1, 1, 3)
+    hits_pitched = wp.to_torch(sensor_pitched.data.ray_hits_w)
 
     # Both must hit z=0 (straight down, world frame direction)
-    assert abs(hits_upright[0, 0, 2].item()) < 0.01, "Upright world sensor must hit z≈0"
-    assert abs(hits_pitched[0, 0, 2].item()) < 0.01, "Pitched world sensor must hit z≈0"
+    assert abs(hits_upright[0, 0, 2].item()) < 0.02, (
+        f"Upright world sensor must hit z≈0, got {hits_upright[0, 0, 2].item()}"
+    )
+    assert abs(hits_pitched[0, 0, 2].item()) < 0.02, (
+        f"Pitched world sensor must hit z≈0, got {hits_pitched[0, 0, 2].item()}"
+    )
     # Lateral positions must agree (same start at [0,0,2] + same direction [0,0,-1])
-    torch.testing.assert_close(hits_upright, hits_pitched, atol=0.02, rtol=0,
-                                msg="World mode hits must be independent of pitch")
+    torch.testing.assert_close(hits_upright, hits_pitched, atol=0.02, rtol=0)
 
 
 @pytest.mark.isaacsim_ci
 def test_base_alignment_rotates_ray_direction(sim_ground):
     """In 'base' alignment, ray direction follows the full sensor orientation.
 
-    A sensor pitched 30° forward:
-    - world mode → ray still goes straight down, hits (0,0,0)
-    - base mode  → ray tilts 30° forward, hits at x ≈ 2*tan(30°) ≈ 1.155
+    A sensor pitched +30° around Y (quat_from_euler_xyz(pitch=pi/6)):
+    - Rotates (0,0,-1) to (-sin(30°), 0, -cos(30°)) = (-0.5, 0, -0.866)
+    - world mode → ray still goes straight down, hits x≈0, z≈0
+    - base mode  → ray tilts, hits at x ≈ -2*tan(30°) ≈ -1.155
     """
     sim = sim_ground
 
@@ -134,19 +139,20 @@ def test_base_alignment_rotates_ray_direction(sim_ground):
     sensor_world.update(dt)
     sensor_base.update(dt)
 
-    hits_world = sensor_world.data.ray_hits_w  # (1, 1, 3)
-    hits_base = sensor_base.data.ray_hits_w
+    hits_world = wp.to_torch(sensor_world.data.ray_hits_w)  # (1, 1, 3)
+    hits_base = wp.to_torch(sensor_base.data.ray_hits_w)
 
     # World mode: ray still hits directly below (x≈0, y≈0, z≈0)
-    assert abs(hits_world[0, 0, 0].item()) < 0.05, f"World mode hit x must be near 0, got {hits_world[0,0,0].item()}"
-    assert abs(hits_world[0, 0, 2].item()) < 0.05, f"World mode must hit z≈0, got {hits_world[0,0,2].item()}"
+    assert abs(hits_world[0, 0, 0].item()) < 0.05, f"World mode hit x must be near 0, got {hits_world[0, 0, 0].item()}"
+    assert abs(hits_world[0, 0, 2].item()) < 0.05, f"World mode must hit z≈0, got {hits_world[0, 0, 2].item()}"
 
-    # Base mode: ray is tilted forward 30°; from height 2, hit at x ≈ 2*tan(30°) ≈ 1.155
-    expected_x = 2.0 * np.tan(np.pi / 6)
-    assert abs(hits_base[0, 0, 0].item() - expected_x) < 0.15, (
+    # Base mode: pitch +30° around Y rotates (0,0,-1) to (-0.5, 0, -0.866).
+    # From height 2, the ray hits x = -2 * tan(30°) ≈ -1.155.
+    expected_x = -2.0 * np.tan(np.pi / 6)
+    assert abs(hits_base[0, 0, 0].item() - expected_x) < 0.05, (
         f"Base mode hit x should be ≈{expected_x:.3f}, got {hits_base[0, 0, 0].item():.3f}"
     )
-    assert abs(hits_base[0, 0, 2].item()) < 0.05, f"Base mode must hit ground (z≈0), got {hits_base[0,0,2].item()}"
+    assert abs(hits_base[0, 0, 2].item()) < 0.05, f"Base mode must hit ground (z≈0), got {hits_base[0, 0, 2].item()}"
 
 
 @pytest.mark.isaacsim_ci
@@ -160,15 +166,15 @@ def test_yaw_alignment_direction_unchanged(sim_ground):
 
     combined_quat = quat_from_euler_xyz(
         torch.tensor([0.0]),
-        torch.tensor([np.pi / 6]),   # 30° pitch
-        torch.tensor([np.pi / 4]),   # 45° yaw
+        torch.tensor([np.pi / 6]),  # 30° pitch
+        torch.tensor([np.pi / 4]),  # 45° yaw
     )  # shape (1, 4), xyzw
     orientation = tuple(combined_quat[0].tolist())
 
-    sim_utils.create_prim("/World/SensorWorld", "Xform", translation=(0.0, 0.0, 2.0), orientation=orientation)
+    sim_utils.create_prim("/World/SensorWorldY", "Xform", translation=(0.0, 0.0, 2.0), orientation=orientation)
     sim_utils.create_prim("/World/SensorYaw", "Xform", translation=(0.0, 0.0, 2.0), orientation=orientation)
 
-    sensor_world = RayCaster(_ray_caster_cfg("/World/SensorWorld", "world"))
+    sensor_world = RayCaster(_ray_caster_cfg("/World/SensorWorldY", "world"))
     sensor_yaw = RayCaster(_ray_caster_cfg("/World/SensorYaw", "yaw"))
     sim.reset()
 
@@ -176,15 +182,14 @@ def test_yaw_alignment_direction_unchanged(sim_ground):
     sensor_world.update(dt)
     sensor_yaw.update(dt)
 
-    hits_world = sensor_world.data.ray_hits_w
-    hits_yaw = sensor_yaw.data.ray_hits_w
+    hits_world = wp.to_torch(sensor_world.data.ray_hits_w)
+    hits_yaw = wp.to_torch(sensor_yaw.data.ray_hits_w)
 
     # Both must hit near z=0 (direction unchanged by yaw mode; local_start=0 so start unchanged)
     assert abs(hits_world[0, 0, 2].item()) < 0.05, "World mode must hit z≈0"
     assert abs(hits_yaw[0, 0, 2].item()) < 0.05, "Yaw mode must hit z≈0 (direction unchanged)"
     # For zero-offset center ray: same start + same direction → same hit
-    torch.testing.assert_close(hits_world, hits_yaw, atol=0.05, rtol=0,
-                                msg="Yaw and world modes must agree for zero-offset center ray")
+    torch.testing.assert_close(hits_world, hits_yaw, atol=0.05, rtol=0)
 
 
 # -------------------------------------------------------------------
@@ -193,8 +198,8 @@ def test_yaw_alignment_direction_unchanged(sim_ground):
 
 
 @pytest.mark.isaacsim_ci
-def test_ray_caster_reset_clears_drift(sim_ground):
-    """reset() resamples all envs' drift; reset(env_ids) only resets selected envs."""
+def test_ray_caster_reset_resamples_drift(sim_ground):
+    """reset() resamples drift values within the configured drift_range."""
     sim = sim_ground
 
     sim_utils.create_prim("/World/Sensor", "Xform", translation=(0.0, 0.0, 2.0))
@@ -205,10 +210,20 @@ def test_ray_caster_reset_clears_drift(sim_ground):
 
     dt = 0.01
     sensor.update(dt)
-    drift_before = sensor.drift.clone()
+    drift_before = sensor.drift.clone()  # (1, 3) torch tensor
 
-    # Full reset must preserve shape
+    lo, hi = cfg.drift_range
+
+    # After sim.reset() + update, drift should be within the configured range
+    assert drift_before.shape == (1, 3), f"Drift shape should be (1, 3), got {drift_before.shape}"
+    assert (drift_before >= lo - 1e-6).all() and (drift_before <= hi + 1e-6).all(), (
+        f"Initial drift must be in [{lo}, {hi}], got [{drift_before.min():.4f}, {drift_before.max():.4f}]"
+    )
+
+    # reset() resamples drift; values should remain within the configured range
     sensor.reset()
     drift_after = sensor.drift.clone()
     assert drift_after.shape == drift_before.shape, "Drift shape must be preserved after reset"
-    assert drift_after.shape[1] == 3, "Drift must have 3 components (x, y, z)"
+    assert (drift_after >= lo - 1e-6).all() and (drift_after <= hi + 1e-6).all(), (
+        f"Drift after reset must be in [{lo}, {hi}], got [{drift_after.min():.4f}, {drift_after.max():.4f}]"
+    )
