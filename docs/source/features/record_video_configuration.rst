@@ -15,7 +15,7 @@ Overview
 
 * ``VideoRecorderCfg`` (``isaaclab.envs.utils.video_recorder_cfg``) holds resolution and world-space perspective parameters ``camera_position`` and ``camera_target`` (defaults to a diagonal view of the scene).
 * ``VideoRecorder`` (``isaaclab.envs.utils.video_recorder``) picks a video backend from the scene (Kit vs Newton GL), builds the matching low-level capture object, and returns RGB frames via ``render_rgb_array()``.
-* Direct RL direct MARL and manager-based RL environments copy the task's :class:`~isaaclab.envs.common.ViewerCfg` ``eye`` and ``lookat`` into those fields before the recorder is constructed, so training clips align with the task's intended viewport when ``origin_type`` is ``"world"``.
+* Direct RL, Direct MARL and manager-based RL environments copy the task's :class:`~isaaclab.envs.common.ViewerCfg` ``eye`` and ``lookat`` into those fields before the recorder is constructed, so training clips align with the task's intended viewport when ``origin_type`` is ``"world"``.
 
 
 Configuration: ``VideoRecorderCfg``
