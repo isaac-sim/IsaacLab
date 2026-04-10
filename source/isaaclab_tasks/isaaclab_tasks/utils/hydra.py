@@ -37,6 +37,7 @@ from isaaclab.utils import configclass, replace_slices_with_strings, replace_str
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
+
 @configclass
 class PresetCfg:
     """Base class for declarative preset definitions.
@@ -522,7 +523,9 @@ def apply_overrides(
         sec, path, name = resolved[full_path]
         if cfgs[sec] is not None and _path_reachable(sec, path):
             node = presets[sec][path][name]
-            node_dict = node.to_dict() if hasattr(node, "to_dict") else dict(node) if isinstance(node, Mapping) else node
+            node_dict = (
+                node.to_dict() if hasattr(node, "to_dict") else dict(node) if isinstance(node, Mapping) else node
+            )
             if not path:
                 cfgs[sec], hydra_cfg[sec] = node, node_dict
             else:
@@ -534,7 +537,7 @@ def apply_overrides(
         sec = full_path.split(".", 1)[0]
         if sec not in cfgs:
             continue
-        path = full_path[len(sec) + 1:]
+        path = full_path[len(sec) + 1 :]
         if cfgs[sec] is not None:
             val = _parse_val(val_str)
             _setattr(cfgs[sec], path, val)
