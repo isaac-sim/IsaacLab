@@ -35,8 +35,11 @@ jobs:
           RUNNER_ARGS="$RUNNER_ARGS --gpu"
           PYTEST_ARGS="-vs --tb=short"
 
+          PYTEST_EXTRA_ARGS=()
           if [ -n "$TEST_FILTER" ]; then
-            PYTEST_ARGS="$PYTEST_ARGS -k '$TEST_FILTER'"
+            PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
           fi
+
+          tools/install_ci/run docker $RUNNER_ARGS -- -vs --tb=short "${PYTEST_EXTRA_ARGS[@]}"
 
           tools/install_ci/run docker $RUNNER_ARGS -- $PYTEST_ARGS
