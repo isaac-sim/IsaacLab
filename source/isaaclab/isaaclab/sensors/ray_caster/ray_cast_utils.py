@@ -34,16 +34,10 @@ def obtain_world_pose_from_view(
     Raises:
         NotImplementedError: If the prim view is not of the supported type.
     """
-    if isinstance(physx_view, BaseXformPrimView):
-        pos_wp, quat_wp = physx_view.get_world_poses(env_ids)
-        pos_w = wp.to_torch(pos_wp)
-        quat_w = wp.to_torch(quat_wp)
-    elif isinstance(physx_view, physx.ArticulationView):
-        pos_w, quat_w = wp.to_torch(physx_view.get_root_transforms())[env_ids].split([3, 4], dim=-1)
-    elif isinstance(physx_view, physx.RigidBodyView):
-        pos_w, quat_w = wp.to_torch(physx_view.get_transforms())[env_ids].split([3, 4], dim=-1)
-    else:
-        raise NotImplementedError(f"Cannot get world poses for prim view of type '{type(physx_view)}'.")
+    indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+    pos_wp, quat_wp = physx_view.get_world_poses(indices)
+    pos_w = wp.to_torch(pos_wp)
+    quat_w = wp.to_torch(quat_wp)
 
     if clone:
         return pos_w.clone(), quat_w.clone()
