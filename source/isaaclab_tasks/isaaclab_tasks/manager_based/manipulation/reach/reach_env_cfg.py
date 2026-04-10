@@ -102,6 +102,7 @@ class TableCfg(PresetCfg):
         articulation_root_prim_path="",
     )
 
+    kamino = newton
     default = physx
 
 
