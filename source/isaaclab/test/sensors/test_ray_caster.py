@@ -18,7 +18,8 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 # Import after app launch
 import warp as wp
 
-from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
+from isaaclab.sensors.ray_caster.kernels import quat_yaw_only as _quat_yaw_only_func
+from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation, yaw_quat
 from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel as _raycast_mesh_masked_kernel
 from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh
 
@@ -376,3 +377,69 @@ def test_raycast_mesh_masked_kernel_env_mask(raycast_setup):
     assert torch.isinf(hits[1]).all(), "Masked env 1 hits must remain inf"
     assert torch.all(dist[1] == _SENTINEL), "Masked env 1 distances must remain at sentinel"
     assert torch.all(wp.to_torch(ray_normal_w) == _SENTINEL), "Normal buffer must not be written when return_normal=0"
+
+
+# ---------------------------------------------------------------------------
+# Test quat_yaw_only correctness (regression for atan2-based fix)
+# ---------------------------------------------------------------------------
+
+
+@wp.kernel(enable_backward=False)
+def _call_quat_yaw_only(q_in: wp.array(dtype=wp.quatf), q_out: wp.array(dtype=wp.quatf)):
+    i = wp.tid()
+    q_out[i] = _quat_yaw_only_func(q_in[i])
+
+
+def test_quat_yaw_only_pure_yaw():
+    """Pure yaw: quat_yaw_only should reproduce the input exactly."""
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    yaw_angles = torch.tensor([0.0, 0.5, 1.2, -0.8, np.pi], device=device)
+
+    for yaw in yaw_angles:
+        q_torch = quat_from_euler_xyz(
+            torch.tensor([0.0], device=device),
+            torch.tensor([0.0], device=device),
+            yaw.unsqueeze(0),
+        )  # shape (1, 4), xyzw
+
+        expected = yaw_quat(q_torch)  # shape (1, 4)
+
+        q_in = wp.from_torch(q_torch.contiguous(), dtype=wp.quatf)
+        q_out = wp.zeros(1, dtype=wp.quatf, device=device)
+        wp.launch(_call_quat_yaw_only, dim=1, inputs=[q_in, q_out], device=device)
+        result = wp.to_torch(q_out)  # shape (1, 4)
+
+        torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
+
+
+def test_quat_yaw_only_with_pitch_roll():
+    """Non-zero pitch and roll: only the yaw component should be preserved.
+
+    This is the regression test for the old bug where simply zeroing qx/qy and
+    renormalizing gave the wrong answer when pitch or roll was non-zero.
+    """
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Several combined pitch+roll+yaw orientations: (roll, pitch, yaw)
+    test_cases = [
+        (0.3, 0.4, 1.2),
+        (0.5, 0.0, 0.7),
+        (-0.2, 0.6, -1.0),
+        (1.0, 1.0, 0.0),  # heavy pitch+roll, zero yaw → result should be identity
+    ]
+
+    for roll, pitch, yaw in test_cases:
+        q_torch = quat_from_euler_xyz(
+            torch.tensor([roll], device=device),
+            torch.tensor([pitch], device=device),
+            torch.tensor([yaw], device=device),
+        )  # shape (1, 4), xyzw
+
+        expected = yaw_quat(q_torch)  # shape (1, 4)
+
+        q_in = wp.from_torch(q_torch.contiguous(), dtype=wp.quatf)
+        q_out = wp.zeros(1, dtype=wp.quatf, device=device)
+        wp.launch(_call_quat_yaw_only, dim=1, inputs=[q_in, q_out], device=device)
+        result = wp.to_torch(q_out)
+
+        torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
