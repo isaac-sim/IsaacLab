@@ -122,8 +122,11 @@ def _is_kit_camera(node) -> bool:
         return True
     if isinstance(renderer_cfg, RendererCfg):
         return renderer_cfg.renderer_type in ("default", "isaac_rtx")
-    # PresetCfg renderers (e.g. MultiBackendRendererCfg) are resolved later;
-    # assume they will match the physics backend, so not necessarily Kit.
+    # PresetCfg renderers (e.g. MultiBackendRendererCfg) are resolved during
+    # environment construction when the physics backend is known (see
+    # resolve_task_config and preset resolution in presets.py).  At this
+    # stage we assume they will match the physics backend, so not
+    # necessarily Kit.
     from isaaclab_tasks.utils import PresetCfg
 
     if isinstance(renderer_cfg, PresetCfg):
@@ -185,9 +188,11 @@ def _resolve_distributed_device(
 
     local_rank = int(os.getenv("LOCAL_RANK", "0")) + int(os.getenv("JAX_LOCAL_RANK", "0"))
     num_visible_gpus = torch.cuda.device_count()
-    world_size = int(os.getenv("WORLD_SIZE", "1"))
 
-    if num_visible_gpus >= world_size:
+    # Compare local_rank against device_count (not WORLD_SIZE) so that
+    # multi-node setups work correctly: WORLD_SIZE is global across all
+    # nodes, but device_count is local.
+    if local_rank < num_visible_gpus:
         device_str = f"cuda:{local_rank}"
     else:
         device_str = "cuda:0"
@@ -204,11 +209,10 @@ def _resolve_distributed_device(
     torch.cuda.set_device(device_str)
 
     logger.info(
-        "Distributed device resolved to %s (local_rank=%d, visible_gpus=%d, world_size=%d)",
+        "Distributed device resolved to %s (local_rank=%d, visible_gpus=%d)",
         device_str,
         local_rank,
         num_visible_gpus,
-        world_size,
     )
 
 
@@ -275,8 +279,10 @@ def launch_simulation(
             from isaaclab.app import AppLauncher
 
             app_launcher = AppLauncher(launcher_args)
-            # Propagate AppLauncher's resolved device to env_cfg so training
-            # scripts do not need their own distributed device logic.
+            # AppLauncher may refine the device choice (e.g. Kit-specific
+            # overrides), so propagate its final value to env_cfg.  This
+            # intentionally overwrites the earlier value set by
+            # _resolve_distributed_device.
             sim_cfg = getattr(env_cfg, "sim", None)
             if sim_cfg is not None and hasattr(app_launcher, "device"):
                 sim_cfg.device = app_launcher.device

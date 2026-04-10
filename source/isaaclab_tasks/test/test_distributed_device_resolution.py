@@ -10,6 +10,7 @@ correctly handles:
 
 - Normal multi-GPU: each rank sees all GPUs (local_rank maps directly)
 - CUDA_VISIBLE_DEVICES restricted: each rank sees 1 GPU (fallback to cuda:0)
+- Multi-node: WORLD_SIZE > local GPU count (local_rank still maps correctly)
 - JAX_LOCAL_RANK: added to local_rank for JAX distributed training
 - Non-distributed: no device override applied
 - launch_simulation device propagation from AppLauncher
@@ -332,8 +333,62 @@ class TestResolveDistributedDeviceEdgeCases:
         with patch.dict(os.environ, clean_env, clear=True):
             sim_launcher._resolve_distributed_device(env_cfg, args)
 
-        # local_rank=0, world_size=1, 4 GPUs >= 1 → cuda:0
+        # local_rank=0, 0 < 4 → cuda:0
         assert env_cfg.sim.device == "cuda:0"
+
+
+# ---------------------------------------------------------------------------
+# _resolve_distributed_device — multi-node scenarios
+# ---------------------------------------------------------------------------
+
+class TestResolveDistributedDeviceMultiNode:
+    """Tests for multi-node setups where WORLD_SIZE > local GPU count."""
+
+    @patch("torch.cuda.set_device")
+    @patch("torch.cuda.device_count", return_value=4)
+    def test_multi_node_rank3_sees_4_gpus(self, mock_count, mock_set_device):
+        """2 nodes × 4 GPUs, WORLD_SIZE=8, local_rank=3, 4 visible → cuda:3.
+
+        Previously this would fail because 4 >= 8 is False, falling back to cuda:0.
+        With the fix (local_rank < num_visible_gpus), 3 < 4 → cuda:3 ✅
+        """
+        env_cfg = _DummyEnvCfg()
+        args = _make_distributed_args()
+        env = _make_env_vars(local_rank=3, world_size=8, rank=7)
+
+        with patch.dict(os.environ, env, clear=False):
+            sim_launcher._resolve_distributed_device(env_cfg, args)
+
+        assert env_cfg.sim.device == "cuda:3"
+        mock_set_device.assert_called_once_with("cuda:3")
+
+    @patch("torch.cuda.set_device")
+    @patch("torch.cuda.device_count", return_value=4)
+    def test_multi_node_rank0_sees_4_gpus(self, mock_count, mock_set_device):
+        """2 nodes × 4 GPUs, WORLD_SIZE=8, local_rank=0 → cuda:0."""
+        env_cfg = _DummyEnvCfg()
+        args = _make_distributed_args()
+        env = _make_env_vars(local_rank=0, world_size=8, rank=4)
+
+        with patch.dict(os.environ, env, clear=False):
+            sim_launcher._resolve_distributed_device(env_cfg, args)
+
+        assert env_cfg.sim.device == "cuda:0"
+        mock_set_device.assert_called_once_with("cuda:0")
+
+    @patch("torch.cuda.set_device")
+    @patch("torch.cuda.device_count", return_value=1)
+    def test_multi_node_restricted_gpus(self, mock_count, mock_set_device):
+        """Multi-node with CUDA_VISIBLE_DEVICES=<one GPU per rank>, local_rank=1 → cuda:0."""
+        env_cfg = _DummyEnvCfg()
+        args = _make_distributed_args()
+        env = _make_env_vars(local_rank=1, world_size=8, rank=5)
+
+        with patch.dict(os.environ, env, clear=False):
+            sim_launcher._resolve_distributed_device(env_cfg, args)
+
+        assert env_cfg.sim.device == "cuda:0"
+        mock_set_device.assert_called_once_with("cuda:0")
 
 
 # ---------------------------------------------------------------------------

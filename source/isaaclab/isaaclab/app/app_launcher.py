@@ -910,11 +910,13 @@ class AppLauncher:
             # When CUDA_VISIBLE_DEVICES restricts each process to a single GPU,
             # local_rank may exceed the visible device count. Fall back to cuda:0
             # so the process uses the one GPU it can see.
+            # We compare local_rank against device_count (not WORLD_SIZE) so that
+            # multi-node setups work correctly: WORLD_SIZE is global across all
+            # nodes, but device_count is local.
             import torch
 
             num_visible_gpus = torch.cuda.device_count()
-            world_size = int(os.getenv("WORLD_SIZE", "1"))
-            if num_visible_gpus >= world_size:
+            if self.local_rank < num_visible_gpus:
                 self.device_id = self.local_rank
             else:
                 self.device_id = 0
