@@ -82,7 +82,7 @@ def wheel_path() -> Path | None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    config.addinivalue_line("markers", "regression: bug-regression tests")
+    config.addinivalue_line("markers", "bug: bug-regression tests (use bug id as argument)")
     config.addinivalue_line("markers", "gpu: tests that require a GPU")
     config.addinivalue_line("markers", "docker_only: tests that only run inside Docker")
     config.addinivalue_line("markers", "needs_network: tests that require network access")
