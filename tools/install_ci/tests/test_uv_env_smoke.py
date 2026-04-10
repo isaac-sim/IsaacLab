@@ -13,7 +13,7 @@ import pytest
 from uv_utils import UV_Utils
 
 
-class Test_UV_Smoke(UV_Utils):
+class Test_UV_Env_Smoke(UV_Utils):
     """Test uv-based installation scenarios."""
 
     @classmethod

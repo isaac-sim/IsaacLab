@@ -13,7 +13,7 @@ import pytest
 from uv_utils import UV_Utils
 
 
-class Test_UV_Heavy(UV_Utils):
+class Test_UV_Env_Heavy(UV_Utils):
     """Heavy uv-based installation and training tests."""
 
     @classmethod
@@ -26,7 +26,7 @@ class Test_UV_Heavy(UV_Utils):
     @pytest.mark.gpu
     @pytest.mark.timeout(1200)
     def test_install_and_train_cartpole(self, isaaclab_root):
-        """`-i assets,tasks,rl[all],physx,newton,contrib` -> Isaac-Cartpole-Direct-v0 with rsl_rl on newton."""
+        """`isaaclab.x -i assets,tasks,rl[all],physx,newton,contrib` then train Isaac-Cartpole-Direct-v0"""
 
         try:
             self.create_uv_env(isaaclab_root)
