@@ -84,7 +84,12 @@ def main():
     with launch_simulation(env_cfg, args_cli):
         # override configurations with non-hydra CLI arguments
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+        # For distributed training, launch_simulation() already resolved the
+        # correct per-rank device; only apply a CLI --device override for
+        # non-distributed runs (the default "cuda:0" would clobber the
+        # per-rank device otherwise).
+        if not args_cli.distributed:
+            env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
         if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
             raise ValueError(
                 "Distributed training is not supported when using CPU device. "
