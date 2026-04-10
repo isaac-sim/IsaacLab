@@ -239,3 +239,128 @@ def test_raycast_random_cube(raycast_setup):
         torch.testing.assert_close(ray_distance, ray_distance_m)
         torch.testing.assert_close(ray_normal, ray_normal_m)
         torch.testing.assert_close(ray_face_id, ray_face_id_m)
+
+
+# ---------------------------------------------------------------------------
+# Tests for raycast_mesh_masked_kernel (new kernel in utils/warp/kernels.py)
+# ---------------------------------------------------------------------------
+
+from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel as _raycast_mesh_masked_kernel
+
+
+def _make_masked_buffers(device, n_envs, n_rays):
+    """Helper: allocate all warp buffers needed by raycast_mesh_masked_kernel."""
+    ray_starts_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
+    ray_dirs_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
+    ray_hits_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
+    ray_dist_w = wp.zeros((n_envs, n_rays), dtype=wp.float32, device=device)
+    ray_normal_w = wp.zeros((n_envs, n_rays), dtype=wp.vec3f, device=device)
+    return ray_starts_w, ray_dirs_w, ray_hits_w, ray_dist_w, ray_normal_w
+
+
+def test_raycast_mesh_masked_kernel_hits_only(raycast_setup):
+    """return_distance=0, return_normal=0: only ray_hits are written on a hit."""
+    device = raycast_setup["device"]
+    mesh_id = raycast_setup["single_mesh_id"]
+    expected_hits = raycast_setup["expected_ray_hits"]  # shape (1, 2, 3)
+
+    n_envs, n_rays = 1, 2
+    ray_starts_w, ray_dirs_w, ray_hits_w, ray_dist_w, ray_normal_w = _make_masked_buffers(device, n_envs, n_rays)
+    env_mask = wp.array([True], dtype=wp.bool, device=device)
+
+    wp.to_torch(ray_starts_w)[:] = torch.tensor([[[0, -0.35, -5], [0.25, 0.35, -5]]], device=device)
+    wp.to_torch(ray_dirs_w)[:] = torch.tensor([[[0, 0, 1], [0, 0, 1]]], device=device)
+    wp.to_torch(ray_hits_w).fill_(float("inf"))
+
+    wp.launch(
+        _raycast_mesh_masked_kernel,
+        dim=(n_envs, n_rays),
+        inputs=[mesh_id, env_mask, ray_starts_w, ray_dirs_w, float(1e6), 0, 0, ray_hits_w, ray_dist_w, ray_normal_w],
+        device=device,
+    )
+
+    torch.testing.assert_close(wp.to_torch(ray_hits_w), expected_hits)
+    assert torch.all(wp.to_torch(ray_dist_w) == 0.0), "Distance buffer must not be written when return_distance=0"
+    assert torch.all(wp.to_torch(ray_normal_w) == 0.0), "Normal buffer must not be written when return_normal=0"
+
+
+def test_raycast_mesh_masked_kernel_with_distance(raycast_setup):
+    """return_distance=1: distances are written in addition to hits."""
+    device = raycast_setup["device"]
+    mesh_id = raycast_setup["single_mesh_id"]
+
+    n_envs, n_rays = 1, 2
+    ray_starts_w, ray_dirs_w, ray_hits_w, ray_dist_w, ray_normal_w = _make_masked_buffers(device, n_envs, n_rays)
+    env_mask = wp.array([True], dtype=wp.bool, device=device)
+
+    wp.to_torch(ray_starts_w)[:] = torch.tensor([[[0, -0.35, -5], [0.25, 0.35, -5]]], device=device)
+    wp.to_torch(ray_dirs_w)[:] = torch.tensor([[[0, 0, 1], [0, 0, 1]]], device=device)
+    wp.to_torch(ray_hits_w).fill_(float("inf"))
+
+    wp.launch(
+        _raycast_mesh_masked_kernel,
+        dim=(n_envs, n_rays),
+        inputs=[mesh_id, env_mask, ray_starts_w, ray_dirs_w, float(1e6), 1, 0, ray_hits_w, ray_dist_w, ray_normal_w],
+        device=device,
+    )
+
+    # Cube bottom at z=-0.5, rays start at z=-5 going +z, distance = 4.5
+    torch.testing.assert_close(wp.to_torch(ray_dist_w), torch.tensor([[4.5, 4.5]], device=device))
+    assert torch.all(wp.to_torch(ray_normal_w) == 0.0)
+
+
+def test_raycast_mesh_masked_kernel_with_normal(raycast_setup):
+    """return_normal=1: surface normals are written."""
+    device = raycast_setup["device"]
+    mesh_id = raycast_setup["single_mesh_id"]
+
+    n_envs, n_rays = 1, 2
+    ray_starts_w, ray_dirs_w, ray_hits_w, ray_dist_w, ray_normal_w = _make_masked_buffers(device, n_envs, n_rays)
+    env_mask = wp.array([True], dtype=wp.bool, device=device)
+
+    wp.to_torch(ray_starts_w)[:] = torch.tensor([[[0, -0.35, -5], [0.25, 0.35, -5]]], device=device)
+    wp.to_torch(ray_dirs_w)[:] = torch.tensor([[[0, 0, 1], [0, 0, 1]]], device=device)
+    wp.to_torch(ray_hits_w).fill_(float("inf"))
+
+    wp.launch(
+        _raycast_mesh_masked_kernel,
+        dim=(n_envs, n_rays),
+        inputs=[mesh_id, env_mask, ray_starts_w, ray_dirs_w, float(1e6), 1, 1, ray_hits_w, ray_dist_w, ray_normal_w],
+        device=device,
+    )
+
+    torch.testing.assert_close(
+        wp.to_torch(ray_normal_w),
+        torch.tensor([[[0, 0, -1], [0, 0, -1]]], device=device, dtype=torch.float32),
+    )
+
+
+def test_raycast_mesh_masked_kernel_env_mask(raycast_setup):
+    """Masked-out environments must not be written."""
+    device = raycast_setup["device"]
+    mesh_id = raycast_setup["single_mesh_id"]
+
+    n_envs, n_rays = 2, 2
+    ray_starts_w, ray_dirs_w, ray_hits_w, ray_dist_w, ray_normal_w = _make_masked_buffers(device, n_envs, n_rays)
+    env_mask = wp.array([True, False], dtype=wp.bool, device=device)
+
+    starts = torch.tensor([[[0, -0.35, -5], [0.25, 0.35, -5]], [[0, -0.35, -5], [0.25, 0.35, -5]]], device=device)
+    dirs = torch.tensor([[[0, 0, 1], [0, 0, 1]], [[0, 0, 1], [0, 0, 1]]], device=device)
+    wp.to_torch(ray_starts_w)[:] = starts
+    wp.to_torch(ray_dirs_w)[:] = dirs
+    wp.to_torch(ray_hits_w).fill_(float("inf"))
+
+    wp.launch(
+        _raycast_mesh_masked_kernel,
+        dim=(n_envs, n_rays),
+        inputs=[mesh_id, env_mask, ray_starts_w, ray_dirs_w, float(1e6), 1, 0, ray_hits_w, ray_dist_w, ray_normal_w],
+        device=device,
+    )
+
+    hits = wp.to_torch(ray_hits_w)
+    dist = wp.to_torch(ray_dist_w)
+
+    assert not torch.isinf(hits[0]).any(), "Active env 0 should have valid hits"
+    torch.testing.assert_close(dist[0], torch.tensor([4.5, 4.5], device=device))
+    assert torch.isinf(hits[1]).all(), "Masked env 1 hits must remain inf"
+    assert torch.all(dist[1] == 0.0), "Masked env 1 distances must remain zero"
