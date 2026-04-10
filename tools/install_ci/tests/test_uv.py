@@ -10,14 +10,10 @@ from __future__ import annotations
 import os
 import platform
 import shutil
-import sys
 from pathlib import Path
 
 import pytest
-
-# conftest.py lives in install_ci/ (parent of scenarios/)
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from conftest import run_cmd
+from utils import run_cmd
 
 
 @pytest.mark.uv
