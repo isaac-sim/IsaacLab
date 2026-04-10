@@ -92,7 +92,7 @@ The same pattern as direct RL.
 
 
 Step 4 - Kit perspective (PhysX Simulation or Isaac RTX Renderer)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Isaac Lab PhysX helper points the Kit perspective prim at ``camera_position`` / ``camera_target`` and attaches a Replicator RGB annotator.
 
