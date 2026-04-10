@@ -200,9 +200,9 @@ class ObservationsCfg:
         gear_shaft_quat = ObsTerm(
             func=mdp.gear_shaft_quat_w,
             noise=ResetSampledQuaternionNoiseModelCfg(
-                roll_range=(-0.03491, 0.03491),
-                pitch_range=(-0.03491, 0.03491),
-                yaw_range=(-0.03491, 0.03491),
+                roll_range=(-0.01745, 0.01745),
+                pitch_range=(-0.01745, 0.01745),
+                yaw_range=(-0.01745, 0.01745),
             ),
         )
 
