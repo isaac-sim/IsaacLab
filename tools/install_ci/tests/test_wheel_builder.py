@@ -11,8 +11,8 @@ import glob
 import shutil
 
 import pytest
-from uv_utils import UV_Utils
 from utils import run_cmd
+from uv_utils import UV_Utils
 
 
 class Test_Wheel_Builder(UV_Utils):
