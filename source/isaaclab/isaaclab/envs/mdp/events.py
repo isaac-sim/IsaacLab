@@ -206,11 +206,24 @@ class randomize_rigid_body_material(ManagerTermBase):
         # obtain number of shapes per body (needed for indexing the material properties correctly)
         # note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes
         #  per body. We use the physics simulation view to obtain the number of shapes per body.
-        if isinstance(self.asset, BaseArticulation) and self.asset_cfg.body_ids != slice(None):
-            self.num_shapes_per_body = []
-            for link_path in self.asset.root_view.link_paths[0]:
-                link_physx_view = self.asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
-                self.num_shapes_per_body.append(link_physx_view.max_shapes)
+        # Check if the backend supports material property APIs
+        self._supports_material_randomization = hasattr(self.asset.root_view, "max_shapes")
+        if not self._supports_material_randomization:
+            logger.warning(
+                "randomize_rigid_body_material: the current physics backend does not support"
+                " material property randomization (missing root_view.max_shapes). Skipping."
+            )
+            self.num_shapes_per_body = None
+        elif isinstance(self.asset, BaseArticulation) and self.asset_cfg.body_ids != slice(None):
+            if hasattr(self.asset, "num_shapes_per_body"):
+                # Backend (e.g. Newton) provides this directly
+                self.num_shapes_per_body = self.asset.num_shapes_per_body
+            else:
+                # PhysX backend: compute from physics simulation view
+                self.num_shapes_per_body = []
+                for link_path in self.asset.root_view.link_paths[0]:
+                    link_physx_view = self.asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
+                    self.num_shapes_per_body.append(link_physx_view.max_shapes)
             # ensure the parsing is correct
             num_shapes = sum(self.num_shapes_per_body)
             expected_shapes = self.asset.root_view.max_shapes
@@ -252,6 +265,10 @@ class randomize_rigid_body_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
     ):
+        # skip if backend does not support material randomization
+        if not self._supports_material_randomization:
+            return
+
         # resolve environment ids
         if env_ids is None:
             env_ids = torch.arange(env.scene.num_envs, device="cpu", dtype=torch.int32)
