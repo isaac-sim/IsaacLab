@@ -47,16 +47,16 @@ pip install --break-system-packages build wheel
 python -m build --wheel --outdir "$DIST_DIR/"
 
 # 5. Retag the wheel to match official platform tags
-cd "$DIST_DIR"
-GENERIC_WHL=$(ls isaaclab-*.whl)
-echo "Retagging $GENERIC_WHL -> $PYTHON_TAG-$ABI_TAG-$PLATFORM_TAG"
-python3 -m wheel tags --python-tag "$PYTHON_TAG" --abi-tag "$ABI_TAG" --platform-tag "$PLATFORM_TAG" "$GENERIC_WHL"
-# Remove the generic wheel (wheel tags creates a new file)
-TAGGED_WHL=$(ls isaaclab-*"$PLATFORM_TAG"*.whl 2>/dev/null)
-if [ "$GENERIC_WHL" != "$TAGGED_WHL" ] && [ -n "$TAGGED_WHL" ]; then
-    rm -f "$GENERIC_WHL"
-fi
+# cd "$DIST_DIR"
+# GENERIC_WHL=$(ls isaaclab-*.whl)
+# echo "Retagging $GENERIC_WHL -> $PYTHON_TAG-$ABI_TAG-$PLATFORM_TAG"
+# python3 -m wheel tags --python-tag "$PYTHON_TAG" --abi-tag "$ABI_TAG" --platform-tag "$PLATFORM_TAG" "$GENERIC_WHL"
+# # Remove the generic wheel (wheel tags creates a new file)
+# TAGGED_WHL=$(ls isaaclab-*"$PLATFORM_TAG"*.whl 2>/dev/null)
+# if [ "$GENERIC_WHL" != "$TAGGED_WHL" ] && [ -n "$TAGGED_WHL" ]; then
+#     rm -f "$GENERIC_WHL"
+# fi
 
 echo ""
 echo "[WHEEL BUILT]"
-ls -lh isaaclab-*.whl
+ls -lh $DIST_DIR/isaaclab-*.whl
