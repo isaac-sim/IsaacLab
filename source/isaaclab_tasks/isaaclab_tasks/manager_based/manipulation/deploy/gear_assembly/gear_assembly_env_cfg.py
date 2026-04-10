@@ -194,7 +194,7 @@ class ObservationsCfg:
             func=mdp.gear_shaft_pos_w,
             params={},  # Will be populated in __post_init__
             noise=ResetSampledConstantNoiseModelCfg(
-                noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")
+                noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")
             ),
         )
         gear_shaft_quat = ObsTerm(
