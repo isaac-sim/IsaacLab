@@ -45,6 +45,8 @@ def main():
     args = sys.argv[1:]
     raise NotImplementedError(str(args))
 
+# ???
+# disable as we probably dont need it
+# bootstrap_kernel()
 
-bootstrap_kernel()
 expose_api()
