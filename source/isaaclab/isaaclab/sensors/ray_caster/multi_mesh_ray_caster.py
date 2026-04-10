@@ -14,8 +14,6 @@ import torch
 import trimesh
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
-
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import BaseXformPrimView
 from isaaclab.utils.math import matrix_from_quat, quat_mul
@@ -78,7 +76,7 @@ class MultiMeshRayCaster(RayCaster):
 
     mesh_offsets: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
 
-    mesh_views: ClassVar[dict[str, BaseXformPrimView | physx.ArticulationView | physx.RigidBodyView]] = {}
+    mesh_views: ClassVar[dict[str, BaseXformPrimView]] = {}
     """A dictionary to store mesh views for raycasting, shared across all instances.
 
     The keys correspond to the prim path for the mesh views, and values are the corresponding view objects.

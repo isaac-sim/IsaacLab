@@ -119,7 +119,7 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # Scene
         self.scene.robot = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         if self.scene.height_scanner:
-            self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
+            self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link/raycaster"
 
         # Rewards
         self.rewards.undesired_contacts = None

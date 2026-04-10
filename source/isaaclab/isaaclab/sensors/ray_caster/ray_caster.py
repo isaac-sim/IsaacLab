@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
@@ -68,8 +69,26 @@ class RayCaster(SensorBase):
             cfg: The configuration parameters.
         """
         RayCaster._instance_count += 1
+        self._resolve_physics_prim_path(cfg)
         # Initialize base class
         super().__init__(cfg)
+        # Spawn the sensor Xform prim (mirrors how Camera spawns a Camera prim).
+        if self.cfg.spawn is not None:
+            spawn_target = (
+                self.cfg.spawn.spawn_path
+                if getattr(self.cfg.spawn, "spawn_path", None) is not None
+                else self.cfg.prim_path
+            )
+            self.cfg.spawn.func(spawn_target, self.cfg.spawn)
+        # Verify the prim exists (use spawn_path when set because env paths are
+        # not yet populated — clone_environments runs after this).
+        check_path = (
+            self.cfg.spawn.spawn_path
+            if self.cfg.spawn is not None and getattr(self.cfg.spawn, "spawn_path", None) is not None
+            else self.cfg.prim_path
+        )
+        if len(sim_utils.find_matching_prims(check_path)) == 0:
+            raise RuntimeError(f"Could not find prim with path {check_path!r}.")
         # Create empty variables for storing output data
         self._data = RayCasterData()
 
@@ -132,16 +151,6 @@ class RayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        # obtain global simulation view
-
-        self._physics_sim_view = sim_utils.SimulationContext.instance().physics_manager.get_physics_sim_view()
-        prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if prim is None:
-            available_prims = ",".join([str(p.GetPath()) for p in sim_utils.get_current_stage().Traverse()])
-            raise RuntimeError(
-                f"Failed to find a prim at path expression: {self.cfg.prim_path}. Available prims: {available_prims}"
-            )
-
         self._view, self._offset = self._obtain_trackable_prim_view(self.cfg.prim_path)
 
         # load the meshes by parsing the stage
@@ -241,21 +250,6 @@ class RayCaster(SensorBase):
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w[env_ids] = quat_w
 
-        # check if user provided attach_yaw_only flag
-        if self.cfg.attach_yaw_only is not None:
-            msg = (
-                "Raycaster attribute 'attach_yaw_only' property will be deprecated in a future release."
-                " Please use the parameter 'ray_alignment' instead."
-            )
-            # set ray alignment to yaw
-            if self.cfg.attach_yaw_only:
-                self.cfg.ray_alignment = "yaw"
-                msg += " Setting ray_alignment to 'yaw'."
-            else:
-                self.cfg.ray_alignment = "base"
-                msg += " Setting ray_alignment to 'base'."
-            # log the warning
-            logger.warning(msg)
         # ray cast based on the sensor poses
         if self.cfg.ray_alignment == "world":
             # apply horizontal drift to ray starting position in ray caster frame
@@ -332,77 +326,73 @@ class RayCaster(SensorBase):
     Internal Helpers.
     """
 
+    @staticmethod
+    def _resolve_physics_prim_path(cfg: RayCasterCfg) -> None:
+        """Auto-detect legacy ``prim_path`` pointing at a physics prim and redirect to a child Xform.
+
+        Before this refactor, ``prim_path`` was expected to point at an existing link prim (e.g.
+        ``{ENV_REGEX_NS}/Robot/base``) that typically carried an ``ArticulationRootAPI`` or
+        ``RigidBodyAPI``.  The new convention requires ``prim_path`` to be a **non-physics** child
+        (e.g. ``{ENV_REGEX_NS}/Robot/base/raycaster``) where a plain Xform is spawned.
+
+        This helper preserves backward compatibility: when ``spawn`` is set and the resolved
+        ``prim_path`` points at a prim that already has a physics API, the path is automatically
+        extended with ``/raycaster`` and a deprecation warning is emitted.
+        """
+        if cfg.spawn is None:
+            return
+
+        # Determine which path to inspect. spawn_path is set by InteractiveScene when
+        # cloning; fall back to prim_path for standalone usage.
+        resolve_path = cfg.spawn.spawn_path if getattr(cfg.spawn, "spawn_path", None) is not None else cfg.prim_path
+
+        prim = sim_utils.find_first_matching_prim(resolve_path)
+        if prim is None or not prim.IsValid():
+            return
+
+        is_physics_prim = prim.HasAPI(UsdPhysics.ArticulationRootAPI) or prim.HasAPI(UsdPhysics.RigidBodyAPI)
+        if not is_physics_prim:
+            return
+
+        child_name = "raycaster"
+        warnings.warn(
+            f"RayCasterCfg.prim_path {cfg.prim_path!r} resolves to a prim with a physics API"
+            f" (ArticulationRootAPI or RigidBodyAPI). This usage is deprecated. Please set"
+            f" prim_path to a non-physics child such as '{cfg.prim_path}/{child_name}'."
+            " The path has been automatically adjusted for this session.",
+            DeprecationWarning,
+            stacklevel=4,
+        )
+
+        cfg.prim_path = f"{cfg.prim_path}/{child_name}"
+        # Also update spawn_path so the Xform is created at the correct location.
+        if getattr(cfg.spawn, "spawn_path", None) is not None:
+            cfg.spawn.spawn_path = f"{cfg.spawn.spawn_path}/{child_name}"
+
     def _obtain_trackable_prim_view(
         self, target_prim_path: str
-    ) -> tuple[BaseXformPrimView | any, tuple[torch.Tensor, torch.Tensor]]:
-        """Obtain a prim view that can be used to track the pose of the parget prim.
+    ) -> tuple[BaseXformPrimView, tuple[torch.Tensor, torch.Tensor]]:
+        """Obtain a prim view that can be used to track the pose of the target prim.
 
-        The target prim path is a regex expression that matches one or more mesh prims. While we can track its
-        pose directly using XFormPrim, this is not efficient and can be slow. Instead, we create a prim view
-        using the physics simulation view, which provides a more efficient way to track the pose of the mesh prims.
+        Creates an :class:`XformPrimView` for the target prim path, which dispatches to the
+        correct backend implementation automatically (Fabric for PhysX, site-based for Newton).
 
-        The function additionally resolves the relative pose between the mesh and its corresponding physics prim.
-        This is especially useful if the mesh is not directly parented to the physics prim.
+        The function additionally resolves the relative pose between the mesh and the view prim.
 
         Args:
             target_prim_path: The target prim path to obtain the prim view for.
 
         Returns:
-            A tuple containing:
-
-            - An XFormPrim or a physics prim view (ArticulationView or RigidBodyView).
-            - A tuple containing the positions and orientations of the mesh prims in the physics prim frame.
-
+            A tuple containing the :class:`XformPrimView` and the relative offsets
+            (positions, orientations) of each matched prim.
         """
+        prim_view = XformPrimView(target_prim_path, device=self._device, stage=self.stage)
 
-        mesh_prim = sim_utils.find_first_matching_prim(target_prim_path)
-        current_prim = mesh_prim
-        current_path_expr = target_prim_path
-
-        prim_view = None
-
-        while prim_view is None:
-            # TODO: Need to handle the case where API is present but it is disabled
-            if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-                prim_view = self._physics_sim_view.create_articulation_view(current_path_expr.replace(".*", "*"))
-                logger.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
-                break
-
-            # TODO: Need to handle the case where API is present but it is disabled
-            if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                prim_view = self._physics_sim_view.create_rigid_body_view(current_path_expr.replace(".*", "*"))
-                logger.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
-                break
-
-            new_root_prim = current_prim.GetParent()
-            current_path_expr = current_path_expr.rsplit("/", 1)[0]
-            if not new_root_prim.IsValid():
-                prim_view = XformPrimView(target_prim_path, device=self._device, stage=self.stage)
-                current_path_expr = target_prim_path
-                logger.warning(
-                    f"The prim at path {target_prim_path} which is used for raycasting is not a physics prim."
-                    " Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
-                    " be updated correctly when running in headless mode and position lookups will be much slower. \n"
-                    " If possible, ensure that the mesh or its parent is a physics prim (rigid body or articulation)."
-                )
-                break
-
-            # switch the current prim to the parent prim
-            current_prim = new_root_prim
-
-        # obtain the relative transforms between target prim and the view prims
         mesh_prims = sim_utils.find_matching_prims(target_prim_path)
-        view_prims = sim_utils.find_matching_prims(current_path_expr)
-        if len(mesh_prims) != len(view_prims):
-            raise RuntimeError(
-                f"The number of mesh prims ({len(mesh_prims)}) does not match the number of physics prims"
-                f" ({len(view_prims)})Please specify the correct mesh and physics prim paths more"
-                " specifically in your target expressions."
-            )
         positions = []
         quaternions = []
-        for mesh_prim, view_prim in zip(mesh_prims, view_prims):
-            pos, orientation = sim_utils.resolve_prim_pose(mesh_prim, view_prim)
+        for mesh_prim in mesh_prims:
+            pos, orientation = sim_utils.resolve_prim_pose(mesh_prim, mesh_prim)
             positions.append(torch.tensor(pos, dtype=torch.float32, device=self.device))
             quaternions.append(torch.tensor(orientation, dtype=torch.float32, device=self.device))
 

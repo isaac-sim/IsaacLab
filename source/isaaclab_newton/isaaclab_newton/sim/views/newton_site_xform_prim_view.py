@@ -14,6 +14,7 @@ import warp as wp
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_xform_prim_view import BaseXformPrimView
 
 from isaaclab_newton.physics.newton_manager import NewtonManager
@@ -384,6 +385,19 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
         self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
 
         model = NewtonManager.get_model()
+        if model is not None:
+            self._initialize_impl(model)
+        else:
+            self._physics_ready_handle = NewtonManager.register_callback(
+                self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{prim_path}"
+            )
+
+    def _on_physics_ready(self, _event) -> None:
+        """Callback invoked when the Newton model becomes available."""
+        self._initialize_impl(NewtonManager.get_model())
+
+    def _initialize_impl(self, model) -> None:
+        """Resolve USD prims to Newton body indices and allocate GPU buffers."""
         body_labels = list(model.body_label)
         body_label_set = set(body_labels)
         body_label_to_idx = {path: idx for idx, path in enumerate(body_labels)}
@@ -436,6 +450,7 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
                 parent_bodies.append(pb_idx)
                 parent_locals.append(pb_local)
 
+        device = self._device
         self._site_body = wp.array(site_bodies, dtype=wp.int32, device=device)
         self._site_local = wp.array(
             [wp.transform(*x) for x in site_locals],

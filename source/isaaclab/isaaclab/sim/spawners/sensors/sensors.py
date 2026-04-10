@@ -145,3 +145,53 @@ def spawn_camera(
         prim.GetAttribute(prim_prop_name).Set(param_value)
     # return the prim
     return prim
+
+
+@clone
+def spawn_ray_caster_xform(
+    prim_path: str,
+    cfg: sensors_cfg.RayCasterXformCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Create a USD Xform prim for a ray-cast sensor attachment site.
+
+    The function creates a plain ``Xform`` with the given local pose under its parent. It is
+    intended for :class:`~isaaclab.sensors.ray_caster.ray_caster.RayCaster` when
+    :attr:`~isaaclab.sensors.ray_caster.ray_caster_cfg.RayCasterCfg.spawn` is set, mirroring how
+    :func:`spawn_camera` creates camera prims before :class:`~isaaclab.sim.views.XformPrimView`
+    is constructed.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. Visibility and semantic tags from
+        :class:`~isaaclab.sim.spawners.spawner_cfg.SpawnerCfg` are applied by the clone wrapper.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at.
+        cfg: The configuration instance.
+        translation: Local translation (x, y, z) [m] w.r.t. the parent prim. Defaults to None
+            (origin).
+        orientation: Local orientation as quaternion (x, y, z, w) w.r.t. the parent prim.
+            Defaults to None (identity).
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The created USD prim.
+
+    Raises:
+        ValueError: If a prim already exists at the given path.
+    """
+    stage = get_current_stage()
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        prim = create_prim(
+            prim_path,
+            "Xform",
+            translation=translation,
+            orientation=orientation,
+            stage=stage,
+        )
+    else:
+        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+    return prim

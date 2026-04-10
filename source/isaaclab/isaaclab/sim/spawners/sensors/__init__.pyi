@@ -5,9 +5,11 @@
 
 __all__ = [
     "spawn_camera",
+    "spawn_ray_caster_xform",
     "FisheyeCameraCfg",
     "PinholeCameraCfg",
+    "RayCasterXformCfg",
 ]
 
-from .sensors import spawn_camera
-from .sensors_cfg import FisheyeCameraCfg, PinholeCameraCfg
+from .sensors import spawn_camera, spawn_ray_caster_xform
+from .sensors_cfg import FisheyeCameraCfg, PinholeCameraCfg, RayCasterXformCfg

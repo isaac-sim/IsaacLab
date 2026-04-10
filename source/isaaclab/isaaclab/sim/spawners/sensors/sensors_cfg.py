@@ -222,3 +222,16 @@ class FisheyeCameraCfg(PinholeCameraCfg):
 
     fisheye_polynomial_f: float = 0.0
     """Sixth component of fisheye polynomial. Defaults to 0.0."""
+
+
+@configclass
+class RayCasterXformCfg(SpawnerCfg):
+    """Configuration for spawning a plain USD Xform used as a ray-cast sensor frame.
+
+    The spawned prim has no rigid body or collision API. This matches the pattern used by
+    :class:`~isaaclab.sensors.camera.camera_cfg.CameraCfg`, where the sensor prim is created at
+    runtime so :class:`~isaaclab.sim.views.XformPrimView` tracks a non-physics site (required for
+    backends such as Newton where link prims are physics-owned).
+    """
+
+    func: Callable | str = "{DIR}.sensors:spawn_ray_caster_xform"

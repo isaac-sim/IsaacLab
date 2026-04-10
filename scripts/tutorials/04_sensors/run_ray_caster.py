@@ -45,7 +45,7 @@ def define_sensor() -> RayCaster:
     """Defines the ray-caster sensor to add to the scene."""
     # Create a ray-caster sensor
     ray_caster_cfg = RayCasterCfg(
-        prim_path="/World/Origin.*/ball",
+        prim_path="/World/Origin.*/ball/raycaster",
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(2.0, 2.0)),
         ray_alignment="yaw",
