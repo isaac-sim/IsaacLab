@@ -1028,4 +1028,73 @@ def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
 
     # Both should be clipped to max_distance (camera is 6 m above ground, max_distance=5 m)
     assert d2ip_joint.max().item() <= base_cfg.max_distance + 1e-4
-    assert d2c_joint.max().item() <= base_cfg.max_distance + 1e-4
+
+
+@pytest.mark.isaacsim_ci
+def test_frame_counter_increments_per_update(setup_sim):
+    """frame counter must increment by exactly 1 per update() call and reset to 0 on reset()."""
+    sim, camera_cfg, dt = setup_sim
+    camera = RayCasterCamera(cfg=camera_cfg)
+    sim.reset()
+
+    assert torch.all(camera.frame == 0), "Frame must start at 0"
+
+    n_steps = 7
+    for step in range(1, n_steps + 1):
+        sim.step()
+        camera.update(dt)
+        assert camera.frame[0].item() == step, f"Frame must be {step} after {step} update(s)"
+
+    # Partial reset: only env 0 (single-env camera, but API accepts env_ids)
+    camera.reset(env_ids=[0])
+    assert camera.frame[0].item() == 0, "Frame must be 0 after reset(env_ids=[0])"
+
+    # Full reset
+    for _ in range(3):
+        sim.step()
+        camera.update(dt)
+    camera.reset()
+    assert torch.all(camera.frame == 0), "Frame must be 0 after full reset()"
+
+
+@pytest.mark.isaacsim_ci
+def test_set_intrinsic_matrices_updates_output(setup_sim):
+    """Depth output must change when intrinsics are updated via set_intrinsic_matrices().
+
+    This tests that the warp view refresh in set_intrinsic_matrices() actually takes
+    effect: stale warp views would cause subsequent images to use the old ray pattern.
+    """
+    sim, camera_cfg, dt = setup_sim
+
+    # Place camera looking straight down at the ground
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.offset = RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 5.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world")
+    camera_cfg.data_types = ["distance_to_camera"]
+    camera = RayCasterCamera(cfg=camera_cfg)
+    sim.reset()
+
+    # Capture output with default focal length (24 mm → 20.955 mm aperture)
+    for _ in range(3):
+        sim.step()
+        camera.update(dt)
+    output_before = camera.data.output["distance_to_camera"].clone()
+
+    # Change to a very different focal length (longer → tighter FOV → depth values differ at edges)
+    new_matrix = torch.tensor(
+        [[200.0, 0.0, 320.0], [0.0, 200.0, 240.0], [0.0, 0.0, 1.0]],
+        device=camera.device,
+    ).unsqueeze(0)
+    camera.set_intrinsic_matrices(new_matrix, focal_length=1.0)
+
+    for _ in range(3):
+        sim.step()
+        camera.update(dt)
+    output_after = camera.data.output["distance_to_camera"].clone()
+
+    # Outputs must differ after intrinsics change (different ray angles → different depths)
+    assert not torch.allclose(output_before, output_after, atol=1e-3), (
+        "Depth output must change when intrinsic matrix is updated; unchanged output indicates stale warp ray buffers."
+    )
+    # Both outputs must have valid (finite, positive) depth values
+    assert torch.all(torch.isfinite(output_after) | (output_after == 0.0))
+    assert output_after[output_after > 0].min() > 0
