@@ -86,10 +86,9 @@ except ImportError:
 
 
 @torch.no_grad()
-def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
+def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, float]:
     """Benchmark USD or Fabric XformPrimView."""
     timing_results = {}
-    computed_results = {}
 
     print("  Setting up scene")
     sim_utils.create_new_stage()
@@ -129,17 +128,15 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> tuple[dict[s
     print(f"  XformPrimView ({view_type.upper()}) managing {num_prims} prims")
 
     positions, orientations = view.get_world_poses()
-    positions_t = wp.to_torch(positions)
-    orientations_t = wp.to_torch(orientations)
 
-    _run_pose_benchmarks(view, num_prims, num_iterations, timing_results, computed_results, positions_t, orientations_t)
+    _run_pose_benchmarks(view, num_prims, num_iterations, timing_results, positions, orientations)
 
     sim.clear_instance()
-    return timing_results, computed_results
+    return timing_results
 
 
 @torch.no_grad()
-def benchmark_newton(num_iterations: int) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
+def benchmark_newton(num_iterations: int) -> dict[str, float]:
     """Benchmark Newton XformPrimView."""
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -147,7 +144,6 @@ def benchmark_newton(num_iterations: int) -> tuple[dict[str, float], dict[str, t
     from isaaclab.utils import configclass
 
     timing_results = {}
-    computed_results = {}
 
     @configclass
     class _SceneCfg(InteractiveSceneCfg):
@@ -188,20 +184,17 @@ def benchmark_newton(num_iterations: int) -> tuple[dict[str, float], dict[str, t
     print(f"  Newton XformPrimView managing {num_prims} prims")
 
     positions, orientations = view.get_world_poses()
-    positions_t = wp.to_torch(positions)
-    orientations_t = wp.to_torch(orientations)
 
-    _run_pose_benchmarks(view, num_prims, num_iterations, timing_results, computed_results, positions_t, orientations_t)
+    _run_pose_benchmarks(view, num_prims, num_iterations, timing_results, positions, orientations)
 
     ctx.__exit__(None, None, None)
-    return timing_results, computed_results
+    return timing_results
 
 
 @torch.no_grad()
-def benchmark_physx(num_iterations: int) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
+def benchmark_physx(num_iterations: int) -> dict[str, float]:
     """Benchmark PhysX RigidBodyView."""
     timing_results = {}
-    computed_results = {}
 
     print("  Setting up scene")
     sim_utils.create_new_stage()
@@ -234,34 +227,40 @@ def benchmark_physx(num_iterations: int) -> tuple[dict[str, float], dict[str, to
 
     print(f"  PhysX RigidBodyView managing {num_prims} prims")
 
-    all_indices = torch.arange(num_prims, device=args_cli.device)
+    all_indices = wp.from_torch(torch.arange(num_prims, dtype=torch.int32, device=args_cli.device))
 
     transforms = view.get_transforms()
-    positions_t = transforms[:, :3]
-    orientations_t = transforms[:, 3:7]
+    transforms_t = wp.to_torch(transforms) if isinstance(transforms, wp.array) else transforms
+    positions_t = transforms_t[:, :3]
+    orientations_t = transforms_t[:, 3:7]
 
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         transforms = view.get_transforms()
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
-    computed_results["initial_world_positions"] = positions_t.clone()
-    computed_results["initial_world_orientations"] = orientations_t.clone()
-
     new_positions = positions_t.clone()
     new_positions[:, 2] += 0.5
-    new_transforms = torch.cat([new_positions, orientations_t], dim=-1)
+    expected_positions = new_positions.clone()
+    new_transforms = wp.from_torch(torch.cat([new_positions, orientations_t], dim=-1).contiguous())
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         view.set_transforms(new_transforms, indices=all_indices)
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     transforms_after = view.get_transforms()
-    computed_results["world_positions_after_set"] = transforms_after[:, :3].clone()
-    computed_results["world_orientations_after_set"] = transforms_after[:, 3:7].clone()
+    ta = wp.to_torch(transforms_after) if isinstance(transforms_after, wp.array) else transforms_after
+    pos_ok = torch.allclose(ta[:, :3], expected_positions, atol=1e-4, rtol=0)
+    quat_ok = torch.allclose(ta[:, 3:7], orientations_t, atol=1e-4, rtol=0)
+    if pos_ok and quat_ok:
+        print("  Round-trip verification: PASS")
+    else:
+        pos_diff = (ta[:, :3] - expected_positions).abs().max().item()
+        quat_diff = (ta[:, 3:7] - orientations_t).abs().max().item()
+        print(f"  Round-trip verification: FAIL (pos max_diff={pos_diff:.6e}, quat max_diff={quat_diff:.6e})")
 
     sim.clear_instance()
-    return timing_results, computed_results
+    return timing_results
 
 
 def _run_pose_benchmarks(
@@ -269,9 +268,8 @@ def _run_pose_benchmarks(
     num_prims: int,
     num_iterations: int,
     timing_results: dict,
-    computed_results: dict,
-    positions_t: torch.Tensor,
-    orientations_t: torch.Tensor,
+    positions: wp.array,
+    orientations: wp.array,
 ):
     """Shared benchmark loop for get/set world poses on any XformPrimView."""
     start_time = time.perf_counter()
@@ -279,82 +277,34 @@ def _run_pose_benchmarks(
         view.get_world_poses()
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
-    computed_results["initial_world_positions"] = positions_t.clone()
-    computed_results["initial_world_orientations"] = orientations_t.clone()
-
-    new_positions = positions_t.clone()
-    new_positions[:, 2] += 0.5
-    new_pos_wp = wp.from_torch(new_positions)
-    new_quat_wp = wp.from_torch(orientations_t)
+    new_positions = wp.clone(positions)
+    new_positions_t = wp.to_torch(new_positions)
+    new_positions_t[:, 2] += 0.5
+    expected_positions = new_positions_t.clone()
 
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        view.set_world_poses(new_pos_wp, new_quat_wp)
+        view.set_world_poses(new_positions, orientations)
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
     ret_pos, ret_quat = view.get_world_poses()
-    computed_results["world_positions_after_set"] = wp.to_torch(ret_pos).clone()
-    computed_results["world_orientations_after_set"] = wp.to_torch(ret_quat).clone()
+    ret_pos_t = wp.to_torch(ret_pos)
+    ret_quat_t = wp.to_torch(ret_quat)
+    ori_t = wp.to_torch(orientations)
+
+    pos_ok = torch.allclose(ret_pos_t, expected_positions, atol=1e-4, rtol=0)
+    quat_ok = torch.allclose(ret_quat_t, ori_t, atol=1e-4, rtol=0)
+    if pos_ok and quat_ok:
+        print("  Round-trip verification: PASS")
+    else:
+        pos_diff = (ret_pos_t - expected_positions).abs().max().item()
+        quat_diff = (ret_quat_t - ori_t).abs().max().item()
+        print(f"  Round-trip verification: FAIL (pos max_diff={pos_diff:.6e}, quat max_diff={quat_diff:.6e})")
 
 
 # ------------------------------------------------------------------
 # Reporting
 # ------------------------------------------------------------------
-
-
-def compare_results(
-    results_dict: dict[str, dict[str, torch.Tensor]], tolerance: float = 1e-4
-) -> dict[str, dict[str, dict[str, float]]]:
-    """Compare computed results across implementations."""
-    comparison_stats = {}
-    impl_names = list(results_dict.keys())
-
-    for i, impl1 in enumerate(impl_names):
-        for impl2 in impl_names[i + 1 :]:
-            pair_key = f"{impl1}_vs_{impl2}"
-            comparison_stats[pair_key] = {}
-
-            computed1 = results_dict[impl1]
-            computed2 = results_dict[impl2]
-
-            for key in computed1:
-                if key not in computed2:
-                    continue
-                val1, val2 = computed1[key], computed2[key]
-                if torch.all(val1 == 0) or torch.all(val2 == 0):
-                    continue
-
-                diff = torch.abs(val1 - val2)
-                comparison_stats[pair_key][key] = {
-                    "max_diff": torch.max(diff).item(),
-                    "mean_diff": torch.mean(diff).item(),
-                    "all_close": torch.allclose(val1, val2, atol=tolerance, rtol=0),
-                }
-
-    return comparison_stats
-
-
-def print_comparison_results(comparison_stats: dict, tolerance: float):
-    """Print comparison results."""
-    for pair_key, pair_stats in comparison_stats.items():
-        if not pair_stats:
-            continue
-        impl1, impl2 = pair_key.split("_vs_")
-        title = f"{impl1.replace('_', ' ').title()} vs {impl2.replace('_', ' ').title()}"
-        all_match = all(s["all_close"] for s in pair_stats.values())
-
-        print("\n" + "=" * 100)
-        print(f"RESULT COMPARISON: {title}")
-        print("=" * 100)
-        if all_match:
-            print(f"  All computed values match within tolerance ({tolerance})")
-        else:
-            print(f"{'Computed Value':<40} {'Max Diff':<15} {'Mean Diff':<15} {'Match':<10}")
-            print("-" * 100)
-            for key, stats in pair_stats.items():
-                match_str = "Yes" if stats["all_close"] else "No"
-                print(f"{key:<40} {stats['max_diff']:<15.6e} {stats['mean_diff']:<15.6e} {match_str:<10}")
-    print()
 
 
 def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num_iterations: int):
@@ -414,7 +364,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
                 if name != baseline:
                     impl_t = results_dict[name].get(op_key, 0)
                     if base_t > 0 and impl_t > 0:
-                        row += f" {impl_t / base_t:>{col_width}.2f}x"
+                        row += f" {base_t / impl_t:>{col_width}.2f}x"
                     else:
                         row += f" {'N/A':>{col_width}}"
             print(row)
@@ -422,7 +372,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
 
     print("\nNotes:")
     print("  - Times are averaged over all iterations")
-    print("  - Speedup < 1.0 means faster than USD baseline")
+    print("  - Speedup > 1.0 means faster than USD baseline")
     print("  - PhysX RigidBodyView requires rigid body physics; XformPrimView works with any Xformable prim")
     print()
 
@@ -448,7 +398,6 @@ def main():
         os.makedirs(args_cli.profile_dir, exist_ok=True)
 
     all_timing = {}
-    all_computed = {}
     profile_files = {}
 
     dispatch = {
@@ -470,7 +419,7 @@ def main():
             profiler = cProfile.Profile()
             profiler.enable()
 
-        timing, computed = bench_fn(args_cli.num_iterations)
+        timing = bench_fn(args_cli.num_iterations)
 
         if args_cli.profile:
             profiler.disable()
@@ -480,14 +429,9 @@ def main():
             print(f"  Profile saved to: {pf}")
 
         all_timing[key] = timing
-        all_computed[key] = computed
         print("  Done!\n")
 
     print_results(all_timing, args_cli.num_envs, args_cli.num_iterations)
-
-    print("Comparing computed results...")
-    comparison_stats = compare_results(all_computed, tolerance=1e-4)
-    print_comparison_results(comparison_stats, tolerance=1e-4)
 
     if args_cli.profile:
         print("\n" + "=" * 100)
