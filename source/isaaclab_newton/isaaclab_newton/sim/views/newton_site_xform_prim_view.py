@@ -343,7 +343,6 @@ def _write_site_local_from_local_poses_indexed(
         site_local[si] = wp.transform_multiply(wp.transform_inverse(body_q[bid]), desired_world)
 
 
-
 # ------------------------------------------------------------------
 # View class
 # ------------------------------------------------------------------
