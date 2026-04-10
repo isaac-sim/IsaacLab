@@ -43,9 +43,9 @@ import sys
 import time
 from pathlib import Path
 
-# Add install_ci dir to path so we can import conftest helpers
+# Add install_ci dir to path so we can import shared utilities
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from conftest import run_cmd
+from utils import run_cmd
 
 _DIM = "\033[2m"
 _MAGENTA = "\033[95m"
@@ -141,7 +141,11 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     print(f"{_MAGENTA}[COMMAND] {' '.join(docker_run_cmd)}{_RESET}")
 
     t0 = time.monotonic()
-    ret = subprocess.call(docker_run_cmd)
+    try:
+        ret = subprocess.call(docker_run_cmd, timeout=5400)
+    except subprocess.TimeoutExpired:
+        print("Docker run timed out after 90 minutes", file=sys.stderr)
+        ret = 124
     elapsed = time.monotonic() - t0
     print(f"{_MAGENTA}[{elapsed:.1f}s]{_RESET}")
     return ret
