@@ -18,19 +18,29 @@ Examples
 .. code-block:: bash
 
     # Run all tests inside Docker (Ubuntu 24.04)
-    tools/install_ci/cli docker [args] -- [pytest args]
+    tools/install_ci/run docker
 
     # Run only pip tests with a custom base image
-    tools/install_ci/cli docker --base-image ubuntu:22.04 -- -vs -k "testname"
+    tools/install_ci/run docker --base-image ubuntu:22.04 -- -vs -k "testname"
+
+    # Run with GPU support (passes --gpus all to Docker)
+    tools/install_ci/run docker --gpu
+
+    # Filter by marker (e.g. only uv tests, only slow tests)
+    tools/install_ci/run docker -- -m uv
+    tools/install_ci/run docker --gpu -- -m "slow and gpu"
+
+    # Filter by bug ID (dashes become underscores)
+    tools/install_ci/run docker --gpu -- -m nvbugs_5968136
 
     # Drop into a shell for debugging
-    tools/install_ci/cli docker --shell
+    tools/install_ci/run docker --shell
 
     # Run natively (no Docker)
-    tools/install_ci/cli native -- -vs
+    tools/install_ci/run native -- -vs
 
     # Pass a pre-built wheel
-    tools/install_ci/cli docker --wheel /tmp/isaaclab-3.0.0-py3-none-any.whl
+    tools/install_ci/run docker --wheel /tmp/isaaclab-3.0.0-py3-none-any.whl
 """
 
 from __future__ import annotations
@@ -206,11 +216,16 @@ pytest arguments:
   Pass pytest options after '--'. Without '--', defaults to '-sv --tb=short'.
 
   examples:
-    %(prog)s docker -- -sv                   # verbose with output
-    %(prog)s docker -- -k "uv"               # run only tests matching 'uv'
-    %(prog)s docker -- -x                    # stop on first failure
-    %(prog)s docker -- --collect-only        # list tests without running
-    %(prog)s native -- -sv -k "assets"       # native mode, filter by name
+    %(prog)s docker                                          # run all tests in Docker
+    %(prog)s docker --base-image ubuntu:22.04 -- -vs -k "testname"  # custom base image
+    %(prog)s docker --gpu                                    # GPU support (--gpus all)
+    %(prog)s docker -- -m uv                                 # filter by marker
+    %(prog)s docker --gpu -- -m "slow and gpu"               # combine markers with GPU
+    %(prog)s docker --gpu -- -m nvbugs_5968136               # filter by bug ID
+    %(prog)s docker --shell                                  # drop into shell for debugging
+    %(prog)s native -- -vs                                   # run natively (no Docker)
+    %(prog)s docker --wheel /tmp/isaaclab.whl                # pass a pre-built wheel
+    %(prog)s docker -- --collect-only                        # list tests without running
 """,
     )
     sub = parser.add_subparsers(dest="mode")
