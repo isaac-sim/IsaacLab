@@ -28,11 +28,15 @@ class Test_UV_Smoke:
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
-    def _create_uv_env(self, isaaclab_root: Path, env_name: str) -> None:
+    def _create_uv_env(self, isaaclab_root: Path, env_name: str = "") -> None:
         """Create a uv environment and store info on self.
 
         Sets ``self.env_path``, ``self.python``, and ``self.cli_script``.
         """
+        
+        # gen random env name to avoid conflicts with other tests and ensure cleanup
+        env_name = f"_isaaclab_install_ci_{os.urandom(4).hex()}" if not env_name else env_name
+        
         self.env_path = isaaclab_root / env_name
         self.cli_script = isaaclab_root / ("isaaclab.bat" if _IS_WINDOWS else "isaaclab.sh")
 
@@ -70,9 +74,8 @@ class Test_UV_Smoke:
     def test_isaaclab_sh_uv_creates_env_with_python_312(self, isaaclab_root):
         """Run ./isaaclab.x -u and verify the created env has Python 3.12."""
 
-        env_name = f"_installci_uvenv_{os.urandom(4).hex()}"
         try:
-            self._create_uv_env(isaaclab_root, env_name)
+            self._create_uv_env(isaaclab_root)
             version_output = self._run_in_env(["python", "--version"], check=False).stdout.strip()
             assert "3.12" in version_output, f"Expected Python 3.12, got: {version_output}"
         finally:
@@ -83,9 +86,8 @@ class Test_UV_Smoke:
     def test_isaaclab_install_assets(self, isaaclab_root):
         """Run ./isaaclab.x -i 'assets' and verify isaaclab_assets is importable."""
 
-        env_name = f"install_ci_uvenv_{os.urandom(4).hex()}"
         try:
-            self._create_uv_env(isaaclab_root, env_name)
+            self._create_uv_env(isaaclab_root)
 
             result = self._run_in_env(
                 [str(self.cli_script), "-i", "assets"], cwd=isaaclab_root, check=False
@@ -105,9 +107,8 @@ class Test_UV_Smoke:
     def test_isaaclab_newton_installs_isaaclab_physx(self, isaaclab_root):
         """Run ./isaaclab.x -i 'newton' and verify isaaclab_physx is importable."""
 
-        env_name = f"install_ci_uvenv_newton_{os.urandom(4).hex()}"
         try:
-            self._create_uv_env(isaaclab_root, env_name)
+            self._create_uv_env(isaaclab_root)
 
             result = self._run_in_env(
                 [str(self.cli_script), "-i", "newton"], cwd=isaaclab_root, check=False
