@@ -1053,65 +1053,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
-    def set_material_properties_index(
-        self,
-        *,
-        materials: torch.Tensor | wp.array,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set material properties (friction and restitution) for collision shapes using indices.
-
-        The material properties consist of static friction, dynamic friction, and restitution
-        coefficients for each collision shape.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
-
-        Args:
-            materials: Material properties for all shapes. Shape is (len(env_ids), max_shapes, 3)
-                where the 3 values are [static_friction, dynamic_friction, restitution].
-            env_ids: Environment indices. If None, all environments are updated.
-        """
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        # convert materials to warp array if needed (root_view requires warp arrays)
-        if isinstance(materials, torch.Tensor):
-            materials = wp.from_torch(materials, dtype=wp.float32)
-        # set material properties via root view
-        self.root_view.set_material_properties(materials, env_ids)
-
-    def set_material_properties_mask(
-        self,
-        *,
-        materials: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set material properties (friction and restitution) for collision shapes using masks.
-
-        The material properties consist of static friction, dynamic friction, and restitution
-        coefficients for each collision shape.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-            is only supporting indexing, hence masks need to be converted to indices.
-
-        Args:
-            materials: Material properties for all shapes. Shape is ``(num_instances, max_shapes, 3)``
-                where the 3 values are ``[static_friction, dynamic_friction, restitution]``.
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-        """
-        # Resolve masks to indices
-        env_ids = self._resolve_env_mask(env_mask)
-        # Call the index method
-        self.set_material_properties_index(materials=materials, env_ids=env_ids)
-
     """
     Helper functions.
     """

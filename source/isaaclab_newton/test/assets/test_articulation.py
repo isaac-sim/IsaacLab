@@ -2493,7 +2493,7 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.isaacsim_ci
 def test_set_material_properties(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """Test getting and setting material properties (friction/restitution) of articulation shapes."""
+    """Test getting and setting material properties (friction/restitution) via view-level APIs."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -2502,47 +2502,47 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     # Play the simulator
     sim.reset()
 
-    # Get actual number of shapes from the articulation
-    num_shapes = articulation.num_shapes
+    # Get friction/restitution bindings via view-level API
+    model = SimulationManager.get_model()
+    friction_binding = articulation._root_view.get_attribute("shape_material_mu", model)[:, 0]
+    restitution_binding = articulation._root_view.get_attribute("shape_material_restitution", model)[:, 0]
+    num_shapes = friction_binding.shape[1]
 
-    # Test 1: Set all shapes using index method (passing shape_ids explicitly)
-    shape_ids = torch.arange(num_shapes, dtype=torch.int32, device=device)
-    env_ids = torch.arange(num_articulations, dtype=torch.int32, device=device)
+    # Test 1: Set all shapes via in-place writes to the warp binding
     friction = torch.empty(num_articulations, num_shapes, device=device).uniform_(0.4, 0.8)
     restitution = torch.empty(num_articulations, num_shapes, device=device).uniform_(0.0, 0.2)
 
-    articulation.set_friction_index(friction=friction, shape_ids=shape_ids, env_ids=env_ids)
-    articulation.set_restitution_index(restitution=restitution, shape_ids=shape_ids, env_ids=env_ids)
+    wp.to_torch(friction_binding)[:] = friction
+    wp.to_torch(restitution_binding)[:] = restitution
+    SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
 
     # Simulate physics
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    # Get material properties via internal bindings (for test verification only)
-    mu = wp.to_torch(articulation.data._sim_bind_shape_material_mu)
-    restitution_check = wp.to_torch(articulation.data._sim_bind_shape_material_restitution)
-
-    # Check if material properties are set correctly
+    # Verify by reading back from the binding
+    mu = wp.to_torch(friction_binding)
+    restitution_check = wp.to_torch(restitution_binding)
     torch.testing.assert_close(mu, friction)
     torch.testing.assert_close(restitution_check, restitution)
 
-    # Test 2: Set subset of shapes using index method
+    # Test 2: Set subset of shapes (only shape 0)
     if num_shapes > 1:
-        subset_shape_ids = torch.tensor([0], dtype=torch.int32, device=device)
-        subset_friction = torch.empty(num_articulations, 1, device=device).uniform_(0.1, 0.2)
-        subset_restitution = torch.empty(num_articulations, 1, device=device).uniform_(0.5, 0.6)
+        subset_friction = torch.empty(num_articulations, device=device).uniform_(0.1, 0.2)
+        subset_restitution = torch.empty(num_articulations, device=device).uniform_(0.5, 0.6)
 
-        articulation.set_friction_index(friction=subset_friction, shape_ids=subset_shape_ids, env_ids=env_ids)
-        articulation.set_restitution_index(restitution=subset_restitution, shape_ids=subset_shape_ids, env_ids=env_ids)
+        wp.to_torch(friction_binding)[:, 0] = subset_friction
+        wp.to_torch(restitution_binding)[:, 0] = subset_restitution
+        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
 
         sim.step()
         articulation.update(sim.cfg.dt)
 
         # Check only the subset was updated
-        mu_updated = wp.to_torch(articulation.data._sim_bind_shape_material_mu)
-        restitution_updated = wp.to_torch(articulation.data._sim_bind_shape_material_restitution)
-        torch.testing.assert_close(mu_updated[:, 0:1], subset_friction)
-        torch.testing.assert_close(restitution_updated[:, 0:1], subset_restitution)
+        mu_updated = wp.to_torch(friction_binding)
+        restitution_updated = wp.to_torch(restitution_binding)
+        torch.testing.assert_close(mu_updated[:, 0], subset_friction)
+        torch.testing.assert_close(restitution_updated[:, 0], subset_restitution)
 
 
 @pytest.mark.parametrize("num_articulations", [2])

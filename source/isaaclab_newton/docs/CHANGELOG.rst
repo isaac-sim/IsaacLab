@@ -22,6 +22,7 @@ Added
   registration, wildcard body matching, and zero-copy transform views.
 
 
+
 0.5.10 (2026-04-05)
 ~~~~~~~~~~~~~~~~~~~
 

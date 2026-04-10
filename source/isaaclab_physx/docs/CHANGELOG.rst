@@ -32,6 +32,7 @@ Fixed
   remain visually updated after resuming.
 
 
+
 0.5.13 (2026-03-25)
 ~~~~~~~~~~~~~~~~~~~
 

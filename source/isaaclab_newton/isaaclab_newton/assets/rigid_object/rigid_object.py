@@ -81,11 +81,6 @@ class RigidObject(BaseRigidObject):
         return 1
 
     @property
-    def num_shapes(self) -> int:
-        """Total number of collision shapes in the rigid object."""
-        return self.data._num_shapes
-
-    @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in the rigid object."""
         return self.root_view.link_names
@@ -989,170 +984,6 @@ class RigidObject(BaseRigidObject):
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
-    def set_friction_index(
-        self,
-        *,
-        friction: torch.Tensor | wp.array,
-        shape_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set friction coefficient (mu) for collision shapes using indices.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
-
-        Args:
-            friction: Friction coefficient for shapes. Shape is (len(env_ids), len(shape_ids)).
-            shape_ids: Shape indices. If None, all shapes are updated.
-            env_ids: Environment indices. If None, all environments are updated.
-        """
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        shape_ids = self._resolve_shape_ids(shape_ids)
-        self.assert_shape_and_dtype(friction, (env_ids.shape[0], shape_ids.shape[0]), wp.float32, "friction")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], shape_ids.shape[0]),
-            inputs=[
-                friction,
-                env_ids,
-                shape_ids,
-            ],
-            outputs=[
-                self.data._sim_bind_shape_material_mu,
-            ],
-            device=self.device,
-        )
-        # tell the physics engine that some of the shape properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
-
-    def set_friction_mask(
-        self,
-        *,
-        friction: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set friction coefficient (mu) for collision shapes using masks.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
-
-        Args:
-            friction: Friction coefficient for all shapes. Shape is (num_instances, num_shapes).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-        """
-        # resolve masks
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        shape_mask = self._ALL_SHAPE_MASK
-        self.assert_shape_and_dtype_mask(friction, (env_mask, shape_mask), wp.float32, "friction")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(env_mask.shape[0], shape_mask.shape[0]),
-            inputs=[
-                friction,
-                env_mask,
-                shape_mask,
-            ],
-            outputs=[
-                self.data._sim_bind_shape_material_mu,
-            ],
-            device=self.device,
-        )
-        # tell the physics engine that some of the shape properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
-
-    def set_restitution_index(
-        self,
-        *,
-        restitution: torch.Tensor | wp.array,
-        shape_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Set restitution coefficient for collision shapes using indices.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
-
-        Args:
-            restitution: Restitution coefficient for shapes. Shape is (len(env_ids), len(shape_ids)).
-            shape_ids: Shape indices. If None, all shapes are updated.
-            env_ids: Environment indices. If None, all environments are updated.
-        """
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        shape_ids = self._resolve_shape_ids(shape_ids)
-        self.assert_shape_and_dtype(restitution, (env_ids.shape[0], shape_ids.shape[0]), wp.float32, "restitution")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], shape_ids.shape[0]),
-            inputs=[
-                restitution,
-                env_ids,
-                shape_ids,
-            ],
-            outputs=[
-                self.data._sim_bind_shape_material_restitution,
-            ],
-            device=self.device,
-        )
-        # tell the physics engine that some of the shape properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
-
-    def set_restitution_mask(
-        self,
-        *,
-        restitution: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-    ) -> None:
-        """Set restitution coefficient for collision shapes using masks.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
-
-        Args:
-            restitution: Restitution coefficient for all shapes. Shape is (num_instances, num_shapes).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-        """
-        # resolve masks
-        if env_mask is None:
-            env_mask = self._ALL_ENV_MASK
-        shape_mask = self._ALL_SHAPE_MASK
-        self.assert_shape_and_dtype_mask(restitution, (env_mask, shape_mask), wp.float32, "restitution")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(env_mask.shape[0], shape_mask.shape[0]),
-            inputs=[
-                restitution,
-                env_mask,
-                shape_mask,
-            ],
-            outputs=[
-                self.data._sim_bind_shape_material_restitution,
-            ],
-            device=self.device,
-        )
-        # tell the physics engine that some of the shape properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
-
     """
     Internal helper.
     """
@@ -1239,8 +1070,6 @@ class RigidObject(BaseRigidObject):
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
-        self._ALL_SHAPE_INDICES = wp.array(np.arange(self.num_shapes, dtype=np.int32), device=self.device)
-        self._ALL_SHAPE_MASK = wp.ones((self.num_shapes,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1298,24 +1127,6 @@ class RigidObject(BaseRigidObject):
         elif isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         return body_ids
-
-    def _resolve_shape_ids(self, shape_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
-        """Resolve shape indices to a warp array or tensor.
-
-        .. note::
-            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
-
-        Args:
-            shape_ids: Shape indices. If None, then all indices are used.
-
-        Returns:
-            A warp array of shape indices or a tensor of shape indices.
-        """
-        if (shape_ids is None) or (shape_ids == slice(None)):
-            return self._ALL_SHAPE_INDICES
-        elif isinstance(shape_ids, list):
-            return wp.array(shape_ids, dtype=wp.int32, device=self.device)
-        return shape_ids
 
     """
     Internal simulation callbacks.

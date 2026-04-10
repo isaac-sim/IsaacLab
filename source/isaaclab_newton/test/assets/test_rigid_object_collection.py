@@ -526,33 +526,37 @@ def test_reset_object_collection(num_envs, num_cubes, device):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_set_material_properties(num_envs, num_cubes, device):
-    """Test getting and setting material properties of rigid object collection."""
+    """Test getting and setting material properties of rigid object collection via view-level APIs."""
     with _newton_sim_context(device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
         sim.reset()
 
-        # Set material properties using Newton's native API
-        # Get actual number of shapes from the collection
-        num_shapes = object_collection.num_shapes
-        shape_ids = torch.arange(num_shapes, dtype=torch.int32, device=device)
-        env_ids = torch.arange(num_envs, dtype=torch.int32, device=device)
-        friction = torch.empty(num_envs, num_shapes, device=device).uniform_(0.4, 0.8)
-        restitution = torch.empty(num_envs, num_shapes, device=device).uniform_(0.0, 0.2)
+        # Get friction/restitution bindings via view-level API
+        # The collection's _root_view stores data in flat view order: (num_envs * num_cubes, ...)
+        model = SimulationManager.get_model()
+        friction_raw = object_collection._root_view.get_attribute("shape_material_mu", model)
+        restitution_raw = object_collection._root_view.get_attribute("shape_material_restitution", model)
 
-        # Use Newton's native friction/restitution API with shape_ids
-        object_collection.set_friction_index(friction=friction, shape_ids=shape_ids, env_ids=env_ids)
-        object_collection.set_restitution_index(restitution=restitution, shape_ids=shape_ids, env_ids=env_ids)
+        # Shape is (num_envs * num_cubes, num_shapes_per_body, 1) — slice off trailing dim
+        friction_binding = friction_raw[:, :, 0]
+        restitution_binding = restitution_raw[:, :, 0]
+
+        # Generate random values matching the flat view shape
+        friction = torch.empty_like(wp.to_torch(friction_binding)).uniform_(0.4, 0.8)
+        restitution = torch.empty_like(wp.to_torch(restitution_binding)).uniform_(0.0, 0.2)
+
+        wp.to_torch(friction_binding)[:] = friction
+        wp.to_torch(restitution_binding)[:] = restitution
+        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
 
         # Perform simulation
         sim.step()
         object_collection.update(sim.cfg.dt)
 
-        # Get material properties via internal bindings (for test verification only)
-        mu = wp.to_torch(object_collection.data._sim_bind_shape_material_mu)
-        restitution_check = wp.to_torch(object_collection.data._sim_bind_shape_material_restitution)
-
-        # Check if material properties are set correctly
+        # Verify by reading back from the binding
+        mu = wp.to_torch(friction_binding)
+        restitution_check = wp.to_torch(restitution_binding)
         torch.testing.assert_close(mu, friction)
         torch.testing.assert_close(restitution_check, restitution)
 

@@ -2268,9 +2268,11 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     # Ensure dynamic friction <= static friction
     materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])
 
-    # Use PhysX's material properties API
+    # Set material properties via the PhysX view-level API
     env_ids = torch.arange(num_articulations, dtype=torch.int32)
-    articulation.set_material_properties_index(materials=materials, env_ids=env_ids)
+    articulation.root_view.set_material_properties(
+        wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32)
+    )
 
     # Simulate physics
     sim.step()

@@ -607,8 +607,8 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
-def test_set_material_properties_index(num_cubes, device):
-    """Test setting material properties using the set_material_properties_index API."""
+def test_set_material_properties_via_view(num_cubes, device):
+    """Test setting material properties via the PhysX view-level API."""
     with build_simulation_context(
         device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
     ) as sim:
@@ -627,9 +627,11 @@ def test_set_material_properties_index(num_cubes, device):
         # Ensure dynamic friction <= static friction
         materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])
 
-        # Use the new set_material_properties_index API
+        # Set material properties via the PhysX view-level API
         env_ids = torch.arange(num_cubes, dtype=torch.int32)
-        cube_object.set_material_properties_index(materials=materials, env_ids=env_ids)
+        cube_object.root_view.set_material_properties(
+            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32)
+        )
 
         # Simulate physics
         sim.step()

@@ -29,13 +29,7 @@ from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
 
 if TYPE_CHECKING:
-    from isaaclab_newton.assets import Articulation as NewtonArticulation
-    from isaaclab_newton.assets import RigidObject as NewtonRigidObject
-    from isaaclab_newton.assets import RigidObjectCollection as NewtonRigidObjectCollection
-    from isaaclab_physx.assets import Articulation as PhysXArticulation
     from isaaclab_physx.assets import DeformableObject
-    from isaaclab_physx.assets import RigidObject as PhysXRigidObject
-    from isaaclab_physx.assets import RigidObjectCollection as PhysXRigidObjectCollection
 
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedEnv
@@ -157,36 +151,219 @@ def randomize_rigid_body_scale(
                 op_order_spec.default = Vt.TokenArray(["xformOp:translate", "xformOp:orient", "xformOp:scale"])
 
 
+class _RandomizeRigidBodyMaterialPhysx:
+    """PhysX backend implementation for material randomization.
+
+    Uses the bucket-based approach required by PhysX's 64000 unique material limit.
+    Materials are pre-sampled into buckets and randomly assigned to shapes.
+    """
+
+    def __init__(
+        self, cfg: EventTermCfg, env: ManagerBasedEnv, asset: RigidObject | Articulation, asset_cfg: SceneEntityCfg
+    ):
+        from isaaclab.assets import BaseArticulation
+
+        # obtain parameters for sampling friction and restitution values
+        static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
+        dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
+        restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
+        num_buckets = int(cfg.params.get("num_buckets", 1))
+
+        # sample material properties from the given ranges
+        # note: we only sample the materials once during initialization
+        #   afterwards these are randomly assigned to the geometries of the asset
+        range_list = [static_friction_range, dynamic_friction_range, restitution_range]
+        ranges = torch.tensor(range_list, device="cpu")
+        self.material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
+
+        # ensure dynamic friction is always less than static friction
+        make_consistent = cfg.params.get("make_consistent", False)
+        if make_consistent:
+            self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
+
+        self.asset = asset
+        self.asset_cfg = asset_cfg
+
+        # obtain number of shapes per body (needed for indexing the material properties correctly)
+        # note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes
+        #  per body. We use the physics simulation view to obtain the number of shapes per body.
+        if isinstance(asset, BaseArticulation) and asset_cfg.body_ids != slice(None):
+            self.num_shapes_per_body = []
+            for link_path in asset.root_view.link_paths[0]:
+                link_physx_view = asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
+                self.num_shapes_per_body.append(link_physx_view.max_shapes)
+            # ensure the parsing is correct
+            num_shapes = sum(self.num_shapes_per_body)
+            expected_shapes = asset.root_view.max_shapes
+            if num_shapes != expected_shapes:
+                raise ValueError(
+                    "Randomization term 'randomize_rigid_body_material' failed to parse the number of shapes per body."
+                    f" Expected total shapes: {expected_shapes}, but got: {num_shapes}."
+                )
+        else:
+            # in this case, we don't need to do special indexing
+            self.num_shapes_per_body = None
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        static_friction_range: tuple[float, float],
+        dynamic_friction_range: tuple[float, float],
+        restitution_range: tuple[float, float],
+        num_buckets: int,
+        asset_cfg: SceneEntityCfg,
+        make_consistent: bool = False,
+    ):
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device="cpu", dtype=torch.int32)
+        else:
+            env_ids = env_ids.cpu()
+
+        # randomly assign material IDs to the geometries
+        total_num_shapes = self.asset.root_view.max_shapes
+        bucket_ids = torch.randint(0, num_buckets, (len(env_ids), total_num_shapes), device="cpu")
+        material_samples = self.material_buckets[bucket_ids]
+
+        # retrieve material buffer from the physics simulation
+        materials = wp.to_torch(self.asset.root_view.get_material_properties())
+
+        # update material buffer with new samples
+        if self.num_shapes_per_body is not None:
+            # sample material properties from the given ranges
+            for body_id in self.asset_cfg.body_ids:
+                # obtain indices of shapes for the body
+                start_idx = sum(self.num_shapes_per_body[:body_id])
+                end_idx = start_idx + self.num_shapes_per_body[body_id]
+                # assign the new materials
+                # material samples are of shape: num_env_ids x total_num_shapes x 3
+                materials[env_ids, start_idx:end_idx] = material_samples[:, start_idx:end_idx]
+        else:
+            # assign all the materials
+            materials[env_ids] = material_samples[:]
+
+        # apply to simulation
+        self.asset.root_view.set_material_properties(
+            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32)
+        )
+
+
+class _RandomizeRigidBodyMaterialNewton:
+    """Newton backend implementation for material randomization.
+
+    Newton can assign arbitrary friction/restitution per shape (no bucket limitation).
+    Samples friction (mu) and restitution continuously from the given ranges.
+    Newton uses a single friction coefficient (mu), so ``dynamic_friction_range``
+    and ``num_buckets`` are ignored.
+    """
+
+    def __init__(
+        self, cfg: EventTermCfg, env: ManagerBasedEnv, asset: RigidObject | Articulation, asset_cfg: SceneEntityCfg
+    ):
+        import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
+        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+
+        from isaaclab.assets import BaseArticulation
+
+        self.asset = asset
+        self.asset_cfg = asset_cfg
+        self._newton_manager = newton_manager_module.NewtonManager
+        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
+
+        # cache friction/restitution ranges for continuous per-shape sampling
+        self._static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
+        self._restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
+
+        # compute shape indices for body-specific randomization
+        if isinstance(asset, BaseArticulation) and asset_cfg.body_ids != slice(None):
+            num_shapes_per_body = asset.num_shapes_per_body
+            shape_indices_list = []
+            for body_id in asset_cfg.body_ids:
+                start_idx = sum(num_shapes_per_body[:body_id])
+                end_idx = start_idx + num_shapes_per_body[body_id]
+                shape_indices_list.extend(range(start_idx, end_idx))
+            self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
+        else:
+            total_shapes = sum(asset.num_shapes_per_body)
+            self._shape_indices = torch.arange(total_shapes, dtype=torch.long)
+
+        # get friction/restitution view-level bindings
+        model = self._newton_manager.get_model()
+        self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
+        self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
+
+        # cache defaults
+        self._default_friction = wp.to_torch(self._friction_binding).clone()
+        self._default_restitution = wp.to_torch(self._restitution_binding).clone()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        static_friction_range: tuple[float, float],
+        dynamic_friction_range: tuple[float, float],
+        restitution_range: tuple[float, float],
+        num_buckets: int,
+        asset_cfg: SceneEntityCfg,
+        make_consistent: bool = False,
+    ):
+        device = env.device
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device=device, dtype=torch.int32)
+        else:
+            env_ids = env_ids.to(device)
+
+        num_shapes = len(self._shape_indices)
+        shape_idx = self._shape_indices.to(device)
+
+        # sample friction (mu) and restitution continuously per shape
+        friction_range = torch.tensor(self._static_friction_range, device=device)
+        restitution_range_t = torch.tensor(self._restitution_range, device=device)
+        friction_samples = math_utils.sample_uniform(
+            friction_range[0], friction_range[1], (len(env_ids), num_shapes), device=device
+        )
+        restitution_samples = math_utils.sample_uniform(
+            restitution_range_t[0], restitution_range_t[1], (len(env_ids), num_shapes), device=device
+        )
+
+        # update cached buffers for the affected env_ids
+        self._default_friction[env_ids[:, None], shape_idx] = friction_samples
+        self._default_restitution[env_ids[:, None], shape_idx] = restitution_samples
+
+        # write only the affected env_ids to the warp binding
+        friction_view = wp.to_torch(self._friction_binding)
+        restitution_view = wp.to_torch(self._restitution_binding)
+        friction_view[env_ids[:, None], shape_idx] = friction_samples
+        restitution_view[env_ids[:, None], shape_idx] = restitution_samples
+
+        # notify the physics engine
+        self._newton_manager.add_model_change(self._notify_shape_properties)
+
+
 class randomize_rigid_body_material(ManagerTermBase):
     """Randomize the physics materials on all geometries of the asset.
 
     This function creates a set of physics materials with random static friction, dynamic friction, and restitution
-    values. The number of materials is specified by ``num_buckets``. The materials are generated by sampling
-    uniform random values from the given ranges.
+    values and assigns them to the geometries of the asset.
 
-    Automatically detects the active physics backend (PhysX or Newton) and applies the appropriate
-    material randomization strategy:
+    Automatically detects the active physics backend (PhysX or Newton) and delegates to
+    the appropriate backend-specific implementation:
 
     - **PhysX**: Uses the 3-tuple material format (static_friction, dynamic_friction, restitution)
-      and applies via the unified ``set_material_properties_index`` method.
-    - **Newton**: Uses separate friction (mu) and restitution values, applying them via
-      ``set_friction_index`` and ``set_restitution_index`` methods. Newton uses a single
-      friction coefficient (mu), so only the static friction value is used.
-
-    The material properties are then assigned to the geometries of the asset. The assignment is done by
-    creating a random integer tensor of shape  (num_instances, max_num_shapes) where ``num_instances``
-    is the number of assets spawned and ``max_num_shapes`` is the maximum number of shapes in the asset (over
-    all bodies). The integer values are used as indices to select the material properties from the
-    material buckets.
+      with bucket-based assignment (limited to 64000 unique materials). Applied via the PhysX
+      tensor API (``root_view.set_material_properties``).
+    - **Newton**: Samples friction (mu) and restitution continuously per shape (no bucket
+      limitation). Newton uses a single friction coefficient, so ``dynamic_friction_range``
+      and ``num_buckets`` are ignored. Applied directly to Newton's view-level bindings.
 
     If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to
-    the static friction. This obeys the physics constraint on friction values. However, it may not always be
-    essential for the application. Thus, the flag is set to ``False`` by default.
+    the static friction (PhysX only). This obeys the physics constraint on friction values.
 
     .. attention::
-        This function uses CPU tensors to assign the material properties. It is recommended to use this function
-        only during the initialization of the environment. Otherwise, it may lead to a significant performance
-        overhead.
+        On PhysX, this function uses CPU tensors to assign the material properties. It is recommended to
+        use this function only during the initialization of the environment.
 
     .. note::
         PhysX only allows 64000 unique physics materials in the scene. If the number of materials exceeds this
@@ -218,82 +395,12 @@ class randomize_rigid_body_material(ManagerTermBase):
                 f" with type: '{type(self.asset)}'."
             )
 
-        # detect physics backend and initialize backend-specific state
+        # detect physics backend and instantiate the appropriate implementation
         manager_name = env.sim.physics_manager.__name__.lower()
-        self._backend = "newton" if "newton" in manager_name else "physx"
-
-        # obtain parameters for sampling friction and restitution values
-        static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
-        dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
-        restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
-        num_buckets = int(cfg.params.get("num_buckets", 1))
-
-        # sample material properties from the given ranges
-        # note: we only sample the materials once during initialization
-        #   afterwards these are randomly assigned to the geometries of the asset
-        ranges = torch.tensor([static_friction_range, dynamic_friction_range, restitution_range], device="cpu")
-        self.material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
-
-        # ensure dynamic friction is always less than static friction
-        make_consistent = cfg.params.get("make_consistent", False)
-        if make_consistent:
-            self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
-
-        # initialize backend-specific state (shape indices, cached materials)
-        use_body_ids = isinstance(self.asset, BaseArticulation) and self.asset_cfg.body_ids != slice(None)
-        if self._backend == "newton":
-            self._init_newton(use_body_ids)
+        if "newton" in manager_name:
+            self._impl = _RandomizeRigidBodyMaterialNewton(cfg, env, self.asset, self.asset_cfg)
         else:
-            self._init_physx(use_body_ids)
-
-    def _init_physx(self, use_body_ids: bool) -> None:
-        """Initialize PhysX-specific state: shape indices and cached materials."""
-        asset: PhysXArticulation | PhysXRigidObject | PhysXRigidObjectCollection = self.asset  # type: ignore[assignment]
-
-        # compute shape indices
-        if use_body_ids:
-            # note: workaround since Articulation doesn't expose shapes per body directly
-            num_shapes_per_body = []
-            for link_path in asset.root_view.link_paths[0]:  # type: ignore[union-attr]
-                link_physx_view = asset.root_view.create_rigid_body_view(link_path)  # type: ignore
-                num_shapes_per_body.append(link_physx_view.max_shapes)
-            shape_indices_list = []
-            for body_id in self.asset_cfg.body_ids:
-                start_idx = sum(num_shapes_per_body[:body_id])
-                end_idx = start_idx + num_shapes_per_body[body_id]
-                shape_indices_list.extend(range(start_idx, end_idx))
-            self.shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
-        else:
-            self.shape_indices = torch.arange(asset.root_view.max_shapes, dtype=torch.long)
-
-        # cache default materials
-        self.default_materials = wp.to_torch(asset.root_view.get_material_properties()).clone()
-
-    def _init_newton(self, use_body_ids: bool) -> None:
-        """Initialize Newton-specific state: shape indices and cached materials."""
-        asset: NewtonArticulation | NewtonRigidObject | NewtonRigidObjectCollection = self.asset  # type: ignore[assignment]
-
-        # compute shape indices
-        if use_body_ids:
-            num_shapes_per_body = asset.num_shapes_per_body  # type: ignore[union-attr]
-            shape_indices_list = []
-            for body_id in self.asset_cfg.body_ids:
-                start_idx = sum(num_shapes_per_body[:body_id])
-                end_idx = start_idx + num_shapes_per_body[body_id]
-                shape_indices_list.extend(range(start_idx, end_idx))
-            self.shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
-        else:
-            self.shape_indices = torch.arange(asset.num_shapes, dtype=torch.long)
-
-        # cache default materials
-        # TODO(newton-material-api): We access internal bindings `_sim_bind_shape_material_*` directly
-        # because Newton's friction model (single mu) differs from PhysX (static/dynamic friction).
-        # This is not ideal - we should either:
-        #   1. Add a unified getter API that abstracts backend differences, or
-        #   2. Use Newton's selection API (e.g., root_view.get_attribute) for querying
-        # For now, internal code accesses the bindings directly while we iterate on the design.
-        self.default_friction = wp.to_torch(asset.data._sim_bind_shape_material_mu).clone()
-        self.default_restitution = wp.to_torch(asset.data._sim_bind_shape_material_restitution).clone()
+            self._impl = _RandomizeRigidBodyMaterialPhysx(cfg, env, self.asset, self.asset_cfg)
 
     def __call__(
         self,
@@ -306,46 +413,16 @@ class randomize_rigid_body_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
     ):
-        # determine device based on backend
-        device = env.device if self._backend == "newton" else "cpu"  # physx uses cpu to process material randomization
-
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = torch.arange(env.scene.num_envs, device=device, dtype=torch.int32)
-        else:
-            env_ids = env_ids.to(device)
-
-        # randomly assign material IDs to the geometries
-        total_num_shapes = len(self.shape_indices)
-        bucket_ids = torch.randint(0, num_buckets, (len(env_ids), total_num_shapes), device=device)
-        shape_idx = self.shape_indices.to(device)
-        material_samples = self.material_buckets.to(device)[bucket_ids]
-
-        # dispatch to backend-specific implementation
-        if self._backend == "newton":
-            self._call_newton(env_ids, shape_idx, material_samples)
-        else:
-            self._call_physx(env_ids, shape_idx, material_samples)
-
-    def _call_physx(self, env_ids: torch.Tensor, shape_idx: torch.Tensor, material_samples: torch.Tensor) -> None:
-        """Apply material randomization via PhysX's 3-tuple material format."""
-        # update cached material buffer with new samples (vectorized)
-        self.default_materials[env_ids[:, None], shape_idx] = material_samples
-
-        # apply to simulation via PhysX's unified material API
-        asset: PhysXRigidObject | PhysXArticulation | PhysXRigidObjectCollection = self.asset  # type: ignore[assignment]
-        asset.set_material_properties_index(materials=self.default_materials, env_ids=env_ids)
-
-    def _call_newton(self, env_ids: torch.Tensor, shape_idx: torch.Tensor, material_samples: torch.Tensor) -> None:
-        """Apply material randomization via Newton's native friction/restitution API."""
-        # update cached default buffers with new samples (vectorized)
-        self.default_friction[env_ids[:, None], shape_idx] = material_samples[..., 0]
-        self.default_restitution[env_ids[:, None], shape_idx] = material_samples[..., 2]
-
-        # apply via Newton's setter methods (handles kernel write + notification)
-        asset: NewtonRigidObject | NewtonArticulation | NewtonRigidObjectCollection = self.asset  # type: ignore[assignment]
-        asset.set_friction_mask(friction=self.default_friction)
-        asset.set_restitution_mask(restitution=self.default_restitution)
+        self._impl(
+            env,
+            env_ids,
+            static_friction_range,
+            dynamic_friction_range,
+            restitution_range,
+            num_buckets,
+            asset_cfg,
+            make_consistent,
+        )
 
 
 class randomize_rigid_body_mass(ManagerTermBase):
@@ -501,7 +578,7 @@ class randomize_rigid_body_inertia(ManagerTermBase):
             ValueError: If the lower bound is negative or zero when not allowed for scale operation.
             ValueError: If the upper bound is less than the lower bound.
         """
-        from isaaclab.assets import BaseArticulation, BaseRigidObject
+        from isaaclab.assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
 
         super().__init__(cfg, env)
 
@@ -509,7 +586,7 @@ class randomize_rigid_body_inertia(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        if not isinstance(self.asset, (BaseRigidObject, BaseArticulation)):
+        if not isinstance(self.asset, (BaseRigidObject, BaseArticulation, BaseRigidObjectCollection)):
             raise ValueError(
                 f"Randomization term 'randomize_rigid_body_inertia' not supported for asset: '{self.asset_cfg.name}'"
                 f" with type: '{type(self.asset)}'."
@@ -605,55 +682,205 @@ class randomize_rigid_body_inertia(ManagerTermBase):
         self.asset.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
 
 
-def randomize_rigid_body_com(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor | None,
-    com_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg,
-):
+class randomize_rigid_body_com(ManagerTermBase):
     """Randomize the center of mass (CoM) of rigid bodies by adding a random value sampled from the given ranges.
 
-    .. note::
-        This function does not properly track the original CoM values. It is recommended to use this function
-        only once, during the initialization of the environment.
+    This class tracks the original CoM values and randomizes from those defaults on each call,
+    ensuring repeatable randomization across resets.
+
+    Automatically detects the active physics backend:
+
+    - **PhysX**: Passes the full CoM pose (position + quaternion) to ``set_coms_index``.
+    - **Newton**: Passes position-only (vec3) to ``set_coms_index``. Note that on Newton
+      (MuJoCo Warp), runtime CoM changes may cause simulation instability because
+      ``notify_model_changed(BODY_INERTIAL_PROPERTIES)`` does not fully recompute the
+      mass matrix after ``body_ipos`` changes. Use with caution until this is fixed upstream.
     """
-    # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-    # resolve environment ids
-    if env_ids is None:
-        env_ids = torch.arange(env.scene.num_envs, device=asset.device)
-    else:
-        env_ids = env_ids.to(asset.device)
 
-    # resolve body indices
-    if asset_cfg.body_ids == slice(None):
-        body_ids = torch.arange(asset.num_bodies, dtype=torch.int, device=asset.device)
-    else:
-        body_ids = torch.tensor(asset_cfg.body_ids, dtype=torch.int, device=asset.device)
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the term.
 
-    # sample random CoM values
-    range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(
-        ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device
-    ).unsqueeze(1)
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+        """
+        super().__init__(cfg, env)
 
-    # get the current com of the bodies (num_assets, num_bodies, 7)
-    coms = wp.to_torch(asset.data.body_com_pose_b).clone()
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-    # Randomize the com position
-    coms[env_ids[:, None], body_ids, :3] += rand_samples
+        # detect physics backend
+        manager_name = env.sim.physics_manager.__name__.lower()
+        self._is_newton = "newton" in manager_name
 
-    # Newton's set_coms_index expects position-only (vec3f), while PhysX expects
-    # the full pose (pos + quat).
-    # NOTE: On Newton (MuJoCo Warp), runtime COM changes may cause simulation instability
-    # because notify_model_changed(BODY_INERTIAL_PROPERTIES) does not fully recompute the
-    # mass matrix after body_ipos changes. Use with caution until this is fixed upstream.
-    manager_name = env.sim.physics_manager.__name__.lower()
-    if "newton" in manager_name:
-        asset.set_coms_index(coms=coms[:, body_ids, :3], body_ids=body_ids, env_ids=env_ids)
-    else:
-        asset.set_coms_index(coms=coms[:, body_ids], body_ids=body_ids, env_ids=env_ids)
+        self.default_com = None
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        com_range: dict[str, tuple[float, float]],
+        asset_cfg: SceneEntityCfg,
+    ):
+        # store default CoM on first call for repeatable randomization
+        if self.default_com is None:
+            self.default_com = wp.to_torch(self.asset.data.body_com_pose_b).clone()
+
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device=self.asset.device)
+        else:
+            env_ids = env_ids.to(self.asset.device)
+
+        # resolve body indices
+        if self.asset_cfg.body_ids == slice(None):
+            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int, device=self.asset.device)
+        else:
+            body_ids = torch.tensor(self.asset_cfg.body_ids, dtype=torch.int, device=self.asset.device)
+
+        # sample random CoM values
+        range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
+        ranges = torch.tensor(range_list, device=self.asset.device)
+        rand_samples = math_utils.sample_uniform(
+            ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=self.asset.device
+        ).unsqueeze(1)
+
+        # start from defaults and add random offsets
+        coms = self.default_com.clone()
+        coms[env_ids[:, None], body_ids, :3] += rand_samples
+
+        # Newton expects position-only (vec3f), PhysX expects the full pose (pos + quat)
+        if self._is_newton:
+            self.asset.set_coms_index(coms=coms[:, body_ids, :3], body_ids=body_ids, env_ids=env_ids)
+        else:
+            self.asset.set_coms_index(coms=coms[:, body_ids], body_ids=body_ids, env_ids=env_ids)
+
+
+class _RandomizeRigidBodyColliderOffsetsPhysx:
+    """PhysX backend implementation for collider offset randomization.
+
+    Uses rest offset and contact offset directly via the PhysX tensor API.
+    """
+
+    def __init__(self, asset: RigidObject | Articulation):
+        self.asset = asset
+        self.default_rest_offsets = wp.to_torch(asset.root_view.get_rest_offsets()).clone()
+        self.default_contact_offsets = wp.to_torch(asset.root_view.get_contact_offsets()).clone()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        asset_cfg: SceneEntityCfg,
+        rest_offset_distribution_params: tuple[float, float] | None = None,
+        contact_offset_distribution_params: tuple[float, float] | None = None,
+        distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+    ):
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device="cpu")
+        else:
+            env_ids = env_ids.cpu()
+
+        if rest_offset_distribution_params is not None:
+            rest_offset = self.default_rest_offsets.clone()
+            rest_offset = _randomize_prop_by_op(
+                rest_offset,
+                rest_offset_distribution_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            self.asset.root_view.set_rest_offsets(rest_offset, env_ids)
+
+        if contact_offset_distribution_params is not None:
+            contact_offset = self.default_contact_offsets.clone()
+            contact_offset = _randomize_prop_by_op(
+                contact_offset,
+                contact_offset_distribution_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            self.asset.root_view.set_contact_offsets(contact_offset, env_ids)
+
+
+class _RandomizeRigidBodyColliderOffsetsNewton:
+    """Newton backend implementation for collider offset randomization.
+
+    Maps PhysX concepts to Newton's geometry properties:
+
+    - ``rest_offset`` -> ``shape_margin`` (Newton margin)
+    - ``contact_offset`` -> ``shape_gap`` (Newton gap = contact_offset - margin)
+
+    See the `Newton collision schema`_ for details.
+
+    .. _Newton collision schema: https://newton-physics.github.io/newton/latest/concepts/collisions.html
+    """
+
+    def __init__(self, asset: RigidObject | Articulation):
+        import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
+        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
+
+        self.asset = asset
+        self._newton_manager = newton_manager_module.NewtonManager
+        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
+
+        model = self._newton_manager.get_model()
+        self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
+        self._sim_bind_shape_gap = asset._root_view.get_attribute("shape_gap", model)[:, 0]  # type: ignore
+
+        self.default_margin = wp.to_torch(self._sim_bind_shape_margin).clone()
+        self.default_gap = wp.to_torch(self._sim_bind_shape_gap).clone()
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        asset_cfg: SceneEntityCfg,
+        rest_offset_distribution_params: tuple[float, float] | None = None,
+        contact_offset_distribution_params: tuple[float, float] | None = None,
+        distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+    ):
+        device = env.device
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device=device, dtype=torch.int32)
+        else:
+            env_ids = env_ids.to(device)
+
+        margin_view = wp.to_torch(self._sim_bind_shape_margin)
+
+        if rest_offset_distribution_params is not None:
+            margin = self.default_margin.clone()
+            margin = _randomize_prop_by_op(
+                margin,
+                rest_offset_distribution_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            self.default_margin[env_ids] = margin[env_ids]
+            margin_view[env_ids] = margin[env_ids]
+
+        if contact_offset_distribution_params is not None:
+            current_margin = self.default_margin
+            contact_offset = torch.zeros_like(self.default_gap)
+            contact_offset = _randomize_prop_by_op(
+                contact_offset,
+                contact_offset_distribution_params,
+                None,
+                slice(None),
+                operation="abs",
+                distribution=distribution,
+            )
+            gap = torch.clamp(contact_offset - current_margin, min=0.0)
+            self.default_gap[env_ids] = gap[env_ids]
+            gap_view = wp.to_torch(self._sim_bind_shape_gap)
+            gap_view[env_ids] = gap[env_ids]
+
+        self._newton_manager.add_model_change(self._notify_shape_properties)
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
@@ -662,21 +889,18 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     This function allows randomizing the collider parameters of the asset, such as rest and contact offsets.
     These correspond to the physics engine collider properties that affect collision checking.
 
-    Automatically detects the active physics backend (PhysX or Newton) and applies the appropriate
-    collider offset randomization strategy:
+    Automatically detects the active physics backend (PhysX or Newton) and delegates to
+    the appropriate backend-specific implementation:
 
     - **PhysX**: Uses rest offset and contact offset directly via the PhysX tensor API
       (``root_view.set_rest_offsets`` / ``root_view.set_contact_offsets``).
     - **Newton**: Maps PhysX concepts to Newton's geometry properties. PhysX ``rest_offset``
       maps to Newton ``shape_margin``, and PhysX ``contact_offset`` is converted to Newton
       ``shape_gap`` via ``gap = contact_offset - margin``.
-      See the `Newton collision schema`_ for details on this mapping.
 
     The function samples random values from the given distribution parameters and applies them
     as absolute values to the collider properties. If the distribution parameters are not
     provided for a particular property, the function does not modify it.
-
-    .. _Newton collision schema: https://newton-physics.github.io/newton/latest/concepts/collisions.html
 
     .. tip::
         This function uses CPU tensors (PhysX) or GPU tensors (Newton) to assign the collision
@@ -694,7 +918,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         Raises:
             ValueError: If the asset is not a RigidObject or an Articulation.
         """
-        from isaaclab.assets import BaseArticulation, BaseRigidObject  # noqa: PLC0415
+        from isaaclab.assets import BaseArticulation, BaseRigidObject
 
         super().__init__(cfg, env)
 
@@ -707,40 +931,12 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
                 f" '{self.asset_cfg.name}' with type: '{type(self.asset)}'."
             )
 
+        # detect physics backend and instantiate the appropriate implementation
         manager_name = env.sim.physics_manager.__name__.lower()
-        self._backend = "newton" if "newton" in manager_name else "physx"
-
-        if self._backend == "newton":
-            self._init_newton()
+        if "newton" in manager_name:
+            self._impl = _RandomizeRigidBodyColliderOffsetsNewton(self.asset)
         else:
-            self._init_physx()
-
-    def _init_physx(self) -> None:
-        """Initialize PhysX-specific state: cache default offsets."""
-        asset: PhysXArticulation | PhysXRigidObject | PhysXRigidObjectCollection = self.asset  # type: ignore[assignment]
-        self.default_rest_offsets = wp.to_torch(asset.root_view.get_rest_offsets()).clone()
-        self.default_contact_offsets = wp.to_torch(asset.root_view.get_contact_offsets()).clone()
-
-    def _init_newton(self) -> None:
-        """Initialize Newton-specific state: bind to shape_margin and shape_gap."""
-        import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
-        from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
-
-        self._newton_manager = newton_manager_module.NewtonManager
-        self._notify_shape_properties = SolverNotifyFlags.SHAPE_PROPERTIES
-
-        asset: NewtonArticulation | NewtonRigidObject | NewtonRigidObjectCollection = self.asset  # type: ignore[assignment]
-        model = self._newton_manager.get_model()
-        # TODO(newton-collider-api): We access root_view.get_attribute directly to create
-        # bindings for shape_margin and shape_gap because Newton doesn't yet expose dedicated
-        # APIs for these properties on its asset classes. This mirrors the approach used for
-        # material properties in randomize_rigid_body_material. When Newton adds proper
-        # getter/setter APIs for collision geometry properties, update this code.
-        self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]
-        self._sim_bind_shape_gap = asset._root_view.get_attribute("shape_gap", model)[:, 0]
-
-        self.default_margin = wp.to_torch(self._sim_bind_shape_margin).clone()
-        self.default_gap = wp.to_torch(self._sim_bind_shape_gap).clone()
+            self._impl = _RandomizeRigidBodyColliderOffsetsPhysx(self.asset)
 
     def __call__(
         self,
@@ -751,107 +947,14 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         contact_offset_distribution_params: tuple[float, float] | None = None,
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
     ):
-        if self._backend == "newton":
-            self._call_newton(
-                env, env_ids, rest_offset_distribution_params, contact_offset_distribution_params, distribution
-            )
-        else:
-            self._call_physx(
-                env, env_ids, rest_offset_distribution_params, contact_offset_distribution_params, distribution
-            )
-
-    def _call_physx(
-        self,
-        env: ManagerBasedEnv,
-        env_ids: torch.Tensor | None,
-        rest_offset_params: tuple[float, float] | None,
-        contact_offset_params: tuple[float, float] | None,
-        distribution: Literal["uniform", "log_uniform", "gaussian"],
-    ) -> None:
-        """Apply collider offset randomization via PhysX's tensor API."""
-        asset: PhysXRigidObject | PhysXArticulation | PhysXRigidObjectCollection = self.asset  # type: ignore[assignment]
-        if env_ids is None:
-            env_ids = torch.arange(env.scene.num_envs, device="cpu")
-        else:
-            env_ids = env_ids.cpu()
-
-        if rest_offset_params is not None:
-            rest_offset = self.default_rest_offsets.clone()
-            rest_offset = _randomize_prop_by_op(
-                rest_offset,
-                rest_offset_params,
-                None,
-                slice(None),
-                operation="abs",
-                distribution=distribution,
-            )
-            asset.root_view.set_rest_offsets(rest_offset, env_ids)
-
-        if contact_offset_params is not None:
-            contact_offset = self.default_contact_offsets.clone()
-            contact_offset = _randomize_prop_by_op(
-                contact_offset,
-                contact_offset_params,
-                None,
-                slice(None),
-                operation="abs",
-                distribution=distribution,
-            )
-            asset.root_view.set_contact_offsets(contact_offset, env_ids)
-
-    def _call_newton(
-        self,
-        env: ManagerBasedEnv,
-        env_ids: torch.Tensor | None,
-        rest_offset_params: tuple[float, float] | None,
-        contact_offset_params: tuple[float, float] | None,
-        distribution: Literal["uniform", "log_uniform", "gaussian"],
-    ) -> None:
-        """Apply collider offset randomization via Newton's shape geometry properties.
-
-        Maps PhysX concepts to Newton (see ``SchemaResolverPhysx`` in newton):
-
-        - ``rest_offset`` → ``shape_margin`` (Newton margin)
-        - ``contact_offset`` → ``shape_gap`` (Newton gap = contact_offset - rest_offset)
-        """
-        device = env.device
-        if env_ids is None:
-            env_ids = torch.arange(env.scene.num_envs, device=device, dtype=torch.int32)
-        else:
-            env_ids = env_ids.to(device)
-
-        margin_view = wp.to_torch(self._sim_bind_shape_margin)
-
-        if rest_offset_params is not None:
-            margin = self.default_margin.clone()
-            margin = _randomize_prop_by_op(
-                margin,
-                rest_offset_params,
-                None,
-                slice(None),
-                operation="abs",
-                distribution=distribution,
-            )
-            self.default_margin[env_ids] = margin[env_ids]
-            margin_view[env_ids] = margin[env_ids]
-
-        if contact_offset_params is not None:
-            current_margin = self.default_margin
-            contact_offset = torch.zeros_like(self.default_gap)
-            contact_offset = _randomize_prop_by_op(
-                contact_offset,
-                contact_offset_params,
-                None,
-                slice(None),
-                operation="abs",
-                distribution=distribution,
-            )
-            gap = torch.clamp(contact_offset - current_margin, min=0.0)
-            self.default_gap[env_ids] = gap[env_ids]
-            gap_view = wp.to_torch(self._sim_bind_shape_gap)
-            gap_view[env_ids] = gap[env_ids]
-
-        self._newton_manager.add_model_change(self._notify_shape_properties)
+        self._impl(
+            env,
+            env_ids,
+            asset_cfg,
+            rest_offset_distribution_params,
+            contact_offset_distribution_params,
+            distribution,
+        )
 
 
 class randomize_physics_scene_gravity(ManagerTermBase):
