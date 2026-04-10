@@ -26,7 +26,7 @@ class Test_UV_Heavy(UV_Utils):
     @pytest.mark.gpu
     @pytest.mark.timeout(1200)
     def test_install_and_train_cartpole(self, isaaclab_root):
-        """Run `./isaaclab.x -i assets,tasks,rl[all],physx,newton,contrib` and train Isaac-Cartpole-Direct-v0 with rsl_rl on newton."""
+        """`-i assets,tasks,rl[all],physx,newton,contrib` -> Isaac-Cartpole-Direct-v0 with rsl_rl on newton."""
 
         try:
             self.create_uv_env(isaaclab_root)
