@@ -25,11 +25,6 @@ _test_index: dict[str, int] = {}
 _test_total: int = 0
 
 
-def _has_command(name: str) -> bool:
-    """Return True if *name* is available on PATH."""
-    return shutil.which(name) is not None
-
-
 # Fixtures
 
 
@@ -120,7 +115,7 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     global _test_total
     is_windows = platform.system() == "Windows"
-    has_uv = _has_command("uv")
+    has_uv = shutil.which("uv") is not None
     in_docker = Path("/.dockerenv").exists()
 
     # Build index for numbering
