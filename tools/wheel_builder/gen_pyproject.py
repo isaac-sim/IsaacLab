@@ -9,6 +9,10 @@ import sys
 
 import tomllib
 
+if len(sys.argv) != 4:
+    print(f"Usage: {sys.argv[0]} <packages_toml> <output_path> <version>", file=sys.stderr)
+    sys.exit(1)
+
 packages_toml_path = sys.argv[1]
 output_path = sys.argv[2]
 version = sys.argv[3]
