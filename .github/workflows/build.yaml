@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# region help
 # Test job gating summary
 #
 # +------------------------------------+-----------------------------------------------------+
@@ -63,6 +64,7 @@
 #
 # Remember to REVERT all temporary changes before merging!
 # =============================================================================
+#endregion
 
 name: Docker + Tests
 
