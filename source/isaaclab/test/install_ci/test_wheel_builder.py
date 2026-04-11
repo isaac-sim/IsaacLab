@@ -11,11 +11,10 @@ import glob
 import shutil
 
 import pytest
-from utils import run_cmd
-from uv_utils import UV_Utils
+from utils import UV_Mixin, run_cmd
 
 
-class Test_Wheel_Builder(UV_Utils):
+class Test_Wheel_Builder(UV_Mixin):
     """Test building the isaaclab wheel and installing it in a uv environment."""
 
     @classmethod
@@ -44,11 +43,11 @@ class Test_Wheel_Builder(UV_Utils):
 
             # Create uv environment and install the wheel (without isaacsim extra to avoid dep conflicts)
             self.create_uv_env(isaaclab_root)
-            result = self.run_in_env(["uv", "pip", "install", wheel_path], check=False)
+            result = self.run_in_uv_env(["uv", "pip", "install", wheel_path], check=False)
             assert result.returncode == 0, f"uv pip install wheel failed:\n{result.stdout}\n{result.stderr}"
 
             # Verify isaaclab is importable
-            result = self.run_in_env(
+            result = self.run_in_uv_env(
                 ["python", "-c", "import isaaclab; print(isaaclab.__version__)"],
                 check=False,
             )
