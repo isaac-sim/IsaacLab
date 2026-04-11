@@ -48,9 +48,17 @@ class Test_Wheel_Builder(UV_Mixin):
 
             # Verify isaaclab is importable
             result = self.run_in_uv_env(
-                ["python", "-c", "import isaaclab; print(isaaclab.__version__)"],
+                ["python", "-c", "import isaaclab; print(dir(isaaclab))"],
                 check=False,
             )
             assert result.returncode == 0, f"import isaaclab failed:\n{result.stdout}\n{result.stderr}"
+            
+            # Verify isaaclab.app is importable
+            result = self.run_in_uv_env(
+                ["python", "-c", "from isaaclab.app import AppLauncher; print(dir(AppLauncher))"],
+                check=False,
+            )
+            assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
+            
         finally:
             self.destroy_uv_env()
