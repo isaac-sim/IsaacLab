@@ -98,7 +98,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis/raycaster"
+        self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 
         # actions
         self.actions.joint_pos.scale = 0.5

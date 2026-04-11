@@ -90,7 +90,7 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # sensors
     height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base/raycaster",
+        prim_path="{ENV_REGEX_NS}/Robot/base",
         spawn=sim_utils.RayCasterXformCfg(),
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         ray_alignment="yaw",

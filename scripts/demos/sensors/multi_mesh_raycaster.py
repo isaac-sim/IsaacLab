@@ -80,7 +80,7 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 if args_cli.asset_type == "allegro_hand":
     asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/raycaster",
+        prim_path="{ENV_REGEX_NS}/Robot",
         update_period=1 / 60,
         offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
         mesh_prim_paths=[
@@ -101,7 +101,7 @@ if args_cli.asset_type == "allegro_hand":
 elif args_cli.asset_type == "anymal_d":
     asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base/raycaster",
+        prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
         offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, -0.1, 0.3)),
         mesh_prim_paths=[
@@ -160,7 +160,7 @@ elif args_cli.asset_type == "objects":
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
     )
     ray_caster_cfg = MultiMeshRayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Object/raycaster",
+        prim_path="{ENV_REGEX_NS}/Object",
         update_period=1 / 60,
         offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0, 0.0, 0.6)),
         mesh_prim_paths=[

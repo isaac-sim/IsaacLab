@@ -44,9 +44,9 @@ class RayCasterCfg(SensorBaseCfg):
     pattern used by :class:`~isaaclab.sensors.camera.camera_cfg.CameraCfg` (which spawns a
     Camera prim). The :attr:`prim_path` can be either:
 
-    - A **new** child path under a parent link (e.g. ``{ENV_REGEX_NS}/Robot/base/raycaster``).
+    - A **new** child path under a parent link (e.g. ``{ENV_REGEX_NS}/Robot/base``).
     - A **physics body** path (e.g. ``{ENV_REGEX_NS}/Robot/base``). In this case, the sensor
-      will automatically create a child Xform at ``{prim_path}/raycaster``.
+      will automatically create a child Xform at ``{prim_path}``.
 
     If ``None``, the prim at :attr:`prim_path` must already exist on the USD stage and must
     **not** be a physics body.

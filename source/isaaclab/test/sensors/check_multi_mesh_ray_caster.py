@@ -139,7 +139,7 @@ def main():
         )
     # Create a ray-caster sensor
     ray_caster_cfg = MultiMeshRayCasterCfg(
-        prim_path="/World/envs/env_.*/ball/raycaster",
+        prim_path="/World/envs/env_.*/ball",
         mesh_prim_paths=mesh_targets,
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
         ray_alignment="yaw",

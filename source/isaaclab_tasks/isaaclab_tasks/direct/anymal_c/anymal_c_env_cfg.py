@@ -139,7 +139,7 @@ class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
 
     # we add a height scanner for perceptive locomotion
     height_scanner = RayCasterCfg(
-        prim_path="/World/envs/env_.*/Robot/base/raycaster",
+        prim_path="/World/envs/env_.*/Robot/base",
         spawn=sim_utils.RayCasterXformCfg(),
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         ray_alignment="yaw",

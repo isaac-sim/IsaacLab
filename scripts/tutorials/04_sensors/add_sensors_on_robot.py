@@ -82,7 +82,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
     height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base/raycaster",
+        prim_path="{ENV_REGEX_NS}/Robot/base",
         spawn=sim_utils.RayCasterXformCfg(),
         update_period=0.02,
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),

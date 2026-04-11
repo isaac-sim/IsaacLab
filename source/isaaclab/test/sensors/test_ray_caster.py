@@ -275,7 +275,7 @@ def test_raycaster_offset_does_not_affect_pos_w():
     # large z-offset to make the regression obvious
     offset_z = 20.0
     cfg = RayCasterCfg(
-        prim_path="/World/Robot/raycaster",
+        prim_path="/World/Robot",
         spawn=sim_utils.RayCasterXformCfg(),
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, offset_z)),
         mesh_prim_paths=["/World/ground"],
