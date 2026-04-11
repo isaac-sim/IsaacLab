@@ -12,6 +12,9 @@ ARG ISAACSIM_VERSION_ARG
 FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
+# Enable debug logging for ./isaaaclab.sh
+ENV DEBUG=1
+
 # Set default RUN shell to bash
 SHELL ["/bin/bash", "-c"]
 
