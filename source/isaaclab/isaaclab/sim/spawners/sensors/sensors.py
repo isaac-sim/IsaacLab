@@ -188,5 +188,3 @@ def spawn_sensor_frame(
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     return prim
-
-

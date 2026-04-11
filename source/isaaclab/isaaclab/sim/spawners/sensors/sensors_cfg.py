@@ -234,5 +234,3 @@ class SensorFrameCfg(SpawnerCfg):
     """
 
     func: Callable | str = "{DIR}.sensors:spawn_sensor_frame"
-
-
