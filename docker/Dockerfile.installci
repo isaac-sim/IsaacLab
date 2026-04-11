@@ -63,5 +63,5 @@ WORKDIR ${ISAACLAB_PATH}
 ENV DEBUG=1
 
 # Run all installation CI tests by default
-ENTRYPOINT ["python", "-m", "pytest", "-c", "tools/install_ci/pytest.ini", "source/isaaclab/test/install_ci"]
+ENTRYPOINT ["python", "-m", "pytest", "-c", "source/isaaclab/test/install_ci/pytest.ini", "source/isaaclab/test/install_ci"]
 CMD ["-v", "--tb=short"]
