@@ -157,7 +157,7 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 
 # HACK: Install pin globally (IsaacSim has moved it to a private extension dir)
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --force-reinstall pin>=2.6.3
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-deps --force-reinstall pin>=2.6.3
 
 # Install cuRobo from source (pinned commit); needs CUDA env and Torch
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
