@@ -108,8 +108,9 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
 # HACK: Remove install of quadprog dependency
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 
-# HACK: Install pin globally (IsaacSim has moved it to a private extension dir)
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-deps --force-reinstall pin>=2.6.3
+# HACK: Expose pin/pinocchio from IsaacSim's private extension prebundle
+ENV PYTHONPATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle:${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib/python3.12/site-packages:${PYTHONPATH}"
+ENV LD_LIBRARY_PATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib:${LD_LIBRARY_PATH}"
 
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
