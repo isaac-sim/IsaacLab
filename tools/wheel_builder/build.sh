@@ -29,6 +29,32 @@ cp -r source "$BUILD_DIR/src/isaaclab/"
 # Ensure apps/ is discovered as a Python sub-package (it has no __init__.py)
 find "$BUILD_DIR/src/isaaclab/apps" -type d -exec touch {}/__init__.py \;
 
+# Promote sub-packages (isaaclab_assets, isaaclab_rl, etc.) to top-level
+# so they are importable as e.g. `import isaaclab_assets`.
+# Each extension has the structure: source/isaaclab_FOO/isaaclab_FOO/ (Python pkg)
+# plus sibling dirs like config/, data/. The __init__.py references ../config etc.
+# We copy the inner Python package to src/ and also copy sibling resource dirs
+# (config, data) into it so the relative-path lookups in __init__.py work.
+for ext_dir in "$BUILD_DIR"/src/isaaclab/source/isaaclab_*; do
+    pkg=$(basename "$ext_dir")
+    inner="$ext_dir/$pkg"
+    if [ -d "$inner" ] && [ -f "$inner/__init__.py" ]; then
+        cp -r "$inner" "$BUILD_DIR/src/$pkg"
+        # Copy resource dirs (config/, data/) into the Python package
+        for res_dir in config data; do
+            if [ -d "$ext_dir/$res_dir" ]; then
+                cp -r "$ext_dir/$res_dir" "$BUILD_DIR/src/$pkg/$res_dir"
+            fi
+        done
+        # Patch EXT_DIR: change '../' to '.' so __init__.py finds config/ inside
+        # the package dir rather than one level up.
+        sed -i 's|os\.path\.join(os\.path\.dirname(__file__), "\.\./"|os.path.join(os.path.dirname(__file__), ""|g' \
+            "$BUILD_DIR/src/$pkg/__init__.py"
+        # Remove the original from inside the isaaclab bundle to avoid duplication
+        rm -rf "$ext_dir"
+    fi
+done
+
 # Clean build artifacts that shouldn't be in the wheel
 find "$BUILD_DIR/src" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 find "$BUILD_DIR/src" -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true

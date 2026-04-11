@@ -46,7 +46,7 @@ class Test_Wheel_Builder(UV_Mixin):
         cls.env_path = self.env_path
         cls.python = self.python
         cls.cli_script = self.cli_script
-        result = self.run_in_uv_env(["uv", "pip", "install", cls.wheel_path])
+        result = self.run_in_uv_env(["uv", "pip", "install", cls.wheel_path + "[all]"])
         assert result.returncode == 0, f"uv pip install wheel failed:\n{result.stdout}\n{result.stderr}"
 
         yield
@@ -76,3 +76,8 @@ class Test_Wheel_Builder(UV_Mixin):
         """Verify isaaclab.envs is importable."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab.envs import ViewerCfg"])
         assert result.returncode == 0, f"import isaaclab.envs failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_import_isaaclab_assets(self):
+        """Verify isaaclab_assets is importable."""
+        result = self.run_in_uv_env(["python", "-c", "from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG"])
+        assert result.returncode == 0, f"import isaaclab_assets failed:\n{result.stdout}\n{result.stderr}"
