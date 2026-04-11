@@ -78,7 +78,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     """Build the Docker image and run tests inside the container based on *args*."""
 
     repo_root = _find_repo_root()
-    dockerfile = repo_root / "tools" / "install_ci" / "Dockerfile.installci"
+    dockerfile = repo_root / "docker" / "Dockerfile.installci"
     image_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
 
     # Build the Docker image
