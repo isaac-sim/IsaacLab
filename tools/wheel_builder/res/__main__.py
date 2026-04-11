@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2024-2025, NVIDIA CORPORATION. All rights reserved.
-#
-# NVIDIA CORPORATION and its licensors retain all intellectual property
-# and proprietary rights in and to this software, related documentation
-# and any modifications thereto. Any use, reproduction, disclosure or
-# distribution of this software and related documentation without an express
-# license agreement from NVIDIA CORPORATION is strictly prohibited.
-#
-
 import argparse
 import os
 import re
@@ -143,7 +134,8 @@ def generate_vscode_settings():
     print("VS Code settings generated at", vscode_settings_path)
 
 
-if __name__ == "__main__":
+def main():
+    """Entry point for ``isaaclab`` console script and ``python -m isaaclab``."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--generate-vscode-settings", default=False, action="store_true", help="Generate VS Code settings."
@@ -151,7 +143,12 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", default=False, action="store_true", help="Verbose output.")
     args, _ = parser.parse_known_args()
 
+    global cprint
     cprint = print if args.verbose else lambda *args, **kwargs: None
 
     if args.generate_vscode_settings:
         generate_vscode_settings()
+
+
+if __name__ == "__main__":
+    main()

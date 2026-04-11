@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
+import sys
 from importlib.metadata import version
 
 __version__ = version("isaaclab")
@@ -12,5 +13,13 @@ __version__ = version("isaaclab")
 # nested source tree are importable as isaaclab.app, isaaclab.envs, etc.
 __path__.append(os.path.join(os.path.dirname(__file__), "source", "isaaclab", "isaaclab"))
 
+
+def main():
+    """Entry point for the ``isaaclab`` console script (python -m isaaclab)."""
+    from isaaclab.__main__ import main as _main
+
+    sys.exit(_main())
+
+
 if __name__ == "__main__":
-    raise NotImplementedError()
+    main()

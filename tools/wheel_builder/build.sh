@@ -69,8 +69,8 @@ python3 "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/res/python_packages.toml" "$BUIL
 
 # 4. Build the wheel
 cd "$BUILD_DIR"
-pip install --break-system-packages build wheel
-python -m build --wheel --outdir "$DIST_DIR/"
+python3 -m pip install --break-system-packages build wheel
+python3 -m build --wheel --outdir "$DIST_DIR/"
 
 # 5. Retag the wheel to match official platform tags
 # cd "$DIST_DIR"

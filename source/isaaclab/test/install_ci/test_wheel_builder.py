@@ -91,3 +91,9 @@ class Test_Wheel_Builder(UV_Mixin):
         """Verify isaaclab.scene and InteractiveSceneCfg are importable."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab.scene import InteractiveSceneCfg"])
         assert result.returncode == 0, f"import isaaclab.scene failed:\n{result.stdout}\n{result.stderr}"
+        
+    # python -m isaaclab --help
+    def test_cli_help(self):
+        """Verify the isaaclab CLI is functional."""
+        result = self.run_in_uv_env(["python", "-m", "isaaclab", "--help"])
+        assert result.returncode == 0, f"isaaclab CLI help failed:\n{result.stdout}\n{result.stderr}"
