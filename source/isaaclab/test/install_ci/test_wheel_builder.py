@@ -25,7 +25,7 @@ class Test_Wheel_Builder(UV_Mixin):
     @pytest.fixture(autouse=True, scope="class")
     def _build_and_install_wheel(self, isaaclab_root):
         """Build the wheel and install it in a uv environment once for all tests."""
-        
+
         cls = self.__class__
         build_script = isaaclab_root / "tools" / "wheel_builder" / "build.sh"
         dist_dir = isaaclab_root / "tools" / "wheel_builder" / "build" / "dist"
@@ -41,7 +41,7 @@ class Test_Wheel_Builder(UV_Mixin):
 
         # Create uv environment and install the wheel
         self.create_uv_env(isaaclab_root)
-        
+
         # Share env state with all test instances via the class
         cls.env_path = self.env_path
         cls.python = self.python
@@ -91,7 +91,7 @@ class Test_Wheel_Builder(UV_Mixin):
         """Verify isaaclab.scene and InteractiveSceneCfg are importable."""
         result = self.run_in_uv_env(["python", "-c", "from isaaclab.scene import InteractiveSceneCfg"])
         assert result.returncode == 0, f"import isaaclab.scene failed:\n{result.stdout}\n{result.stderr}"
-        
+
     # python -m isaaclab --help
     def test_cli_help(self):
         """Verify the isaaclab CLI is functional."""
