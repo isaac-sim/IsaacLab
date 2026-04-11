@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton backend tests for XformPrimView.
+"""Newton backend tests for FrameView.
 
 Imports the shared contract tests and provides the Newton-specific
 ``view_factory`` fixture.  Also includes Newton-only guard tests and
@@ -21,7 +21,7 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from isaaclab_newton.sim.views import NewtonSiteXformPrimView as XformPrimView
+from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 from xform_contract_tests import *  # noqa: F401, F403 — import all contract tests
 from xform_contract_tests import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
 
@@ -94,7 +94,7 @@ def view_factory():
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
         sim.reset()
-        view = XformPrimView("/World/envs/env_.*/Cube/CameraMount", device=device)
+        view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
 
         return ViewBundle(
             view=view,
@@ -113,7 +113,7 @@ def view_factory():
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_reject_body_path(device):
-    """XformPrimView rejects prim paths that resolve to a Newton physics body."""
+    """FrameView rejects prim paths that resolve to a Newton physics body."""
     ctx = _sim_context(device, num_envs=2)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
@@ -121,13 +121,13 @@ def test_reject_body_path(device):
     sim.reset()
 
     with pytest.raises(ValueError, match="physics body"):
-        XformPrimView("/World/envs/env_.*/Cube", device=device)
+        FrameView("/World/envs/env_.*/Cube", device=device)
     ctx.__exit__(None, None, None)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_reject_shape_path(device):
-    """XformPrimView rejects prim paths that resolve to a Newton collision shape."""
+    """FrameView rejects prim paths that resolve to a Newton collision shape."""
     ctx = _sim_context(device, num_envs=2)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
@@ -139,7 +139,7 @@ def test_reject_shape_path(device):
         pytest.skip("No shapes in model")
 
     with pytest.raises(ValueError, match="collision shape"):
-        XformPrimView(shape_labels[0], device=device)
+        FrameView(shape_labels[0], device=device)
     ctx.__exit__(None, None, None)
 
 
@@ -163,7 +163,7 @@ def test_world_attached_returns_initial_pose(device):
     prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
     sim.reset()
-    view = XformPrimView("/World/StaticMarker", device=device)
+    view = FrameView("/World/StaticMarker", device=device)
 
     pos = wp.to_torch(view.get_world_poses()[0])
     expected = torch.tensor([list(WORLD_MARKER_POS)], device=device)
@@ -186,7 +186,7 @@ def test_world_attached_set_world_roundtrip(device):
     prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
     sim.reset()
-    view = XformPrimView("/World/StaticMarker", device=device)
+    view = FrameView("/World/StaticMarker", device=device)
 
     new_pos = _wp_vec3f([[10.0, 20.0, 30.0]], device=device)
     new_quat = _wp_vec4f([[0.0, 0.0, 0.0, 1.0]], device=device)

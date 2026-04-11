@@ -159,8 +159,8 @@ def spawn_ray_caster_xform(
 
     The function creates a plain ``Xform`` with the given local pose under its parent. It is
     intended for :class:`~isaaclab.sensors.ray_caster.ray_caster.RayCaster` when
-    :attr:`~isaaclab.sensors.ray_caster.ray_caster_cfg.RayCasterCfg.spawn` is set, mirroring how
-    :func:`spawn_camera` creates camera prims before :class:`~isaaclab.sim.views.XformPrimView`
+    :attr:`~isaaclab.sensors.ray_caster.ray_caster_cfg.RayCasterCfg.spawn` is set,     mirroring how
+    :func:`spawn_camera` creates camera prims before :class:`~isaaclab.sim.views.FrameView`
     is constructed.
 
     .. note::

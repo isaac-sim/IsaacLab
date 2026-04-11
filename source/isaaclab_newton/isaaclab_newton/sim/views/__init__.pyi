@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "NewtonSiteXformPrimView",
+    "NewtonSiteFrameView",
 ]
 
-from .newton_site_xform_prim_view import NewtonSiteXformPrimView
+from .newton_site_frame_view import NewtonSiteFrameView

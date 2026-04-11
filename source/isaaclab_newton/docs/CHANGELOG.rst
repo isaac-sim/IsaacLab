@@ -10,6 +10,12 @@ Added
 * Added :class:`~isaaclab_newton.sim.views.XformPrimView` providing the Newton
   backend implementation for xform prim views.
 
+Changed
+^^^^^^^
+
+* Renamed :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView` to
+  :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`. Old name is kept as a deprecated alias.
+
 
 0.5.13 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~

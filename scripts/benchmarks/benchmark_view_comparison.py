@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Benchmark script comparing XformPrimView backends and PhysX RigidBodyView.
+"""Benchmark script comparing FrameView backends and PhysX RigidBodyView.
 
 Compares batched transform operation performance across:
 
-- **USD** (baseline): Isaac Lab's XformPrimView via USD XformCache
-- **Fabric**: Isaac Lab's XformPrimView via Fabric GPU arrays
-- **Newton**: Isaac Lab's Newton XformPrimView via Warp site kernels
+- **USD** (baseline): Isaac Lab's FrameView via USD XformCache
+- **Fabric**: Isaac Lab's FrameView via Fabric GPU arrays
+- **Newton**: Isaac Lab's Newton FrameView via Warp site kernels
 - **PhysX**: PhysX RigidBodyView via PhysX tensor API (reference)
 
 Usage:
@@ -29,7 +29,7 @@ import argparse
 
 from isaaclab.app import AppLauncher
 
-parser = argparse.ArgumentParser(description="Benchmark XformPrimView backends and PhysX RigidBodyView.")
+parser = argparse.ArgumentParser(description="Benchmark FrameView backends and PhysX RigidBodyView.")
 
 parser.add_argument("--num_envs", type=int, default=1000, help="Number of environments to simulate.")
 parser.add_argument("--num_iterations", type=int, default=50, help="Number of iterations for each test.")
@@ -69,11 +69,11 @@ import warp as wp
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.views import XformPrimView
+from isaaclab.sim.views import FrameView
 
 try:
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-    from isaaclab_newton.sim.views import NewtonSiteXformPrimView
+    from isaaclab_newton.sim.views import NewtonSiteFrameView
 
     HAS_NEWTON = True
 except ImportError:
@@ -87,7 +87,7 @@ except ImportError:
 
 @torch.no_grad()
 def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, float]:
-    """Benchmark USD or Fabric XformPrimView."""
+    """Benchmark USD or Fabric FrameView."""
     timing_results = {}
 
     print("  Setting up scene")
@@ -121,11 +121,11 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, fl
     start_time = time.perf_counter()
     if view_type == "fabric" and "cuda" not in args_cli.device:
         raise ValueError("Fabric backend requires CUDA.")
-    view = XformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
+    view = FrameView(pattern, device=args_cli.device, validate_xform_ops=False)
     num_prims = view.count
     timing_results["init"] = time.perf_counter() - start_time
 
-    print(f"  XformPrimView ({view_type.upper()}) managing {num_prims} prims")
+    print(f"  FrameView ({view_type.upper()}) managing {num_prims} prims")
 
     positions, orientations = view.get_world_poses()
 
@@ -137,7 +137,7 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, fl
 
 @torch.no_grad()
 def benchmark_newton(num_iterations: int) -> dict[str, float]:
-    """Benchmark Newton XformPrimView."""
+    """Benchmark Newton FrameView."""
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -177,11 +177,11 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
     print(f"  Newton scene setup: {time.perf_counter() - start_time:.4f}s")
 
     start_time = time.perf_counter()
-    view = NewtonSiteXformPrimView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
+    view = NewtonSiteFrameView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
     num_prims = view.count
     timing_results["init"] = time.perf_counter() - start_time
 
-    print(f"  Newton XformPrimView managing {num_prims} prims")
+    print(f"  Newton FrameView managing {num_prims} prims")
 
     positions, orientations = view.get_world_poses()
 
@@ -271,7 +271,7 @@ def _run_pose_benchmarks(
     positions: wp.array,
     orientations: wp.array,
 ):
-    """Shared benchmark loop for get/set world poses on any XformPrimView."""
+    """Shared benchmark loop for get/set world poses on any FrameView."""
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         view.get_world_poses()
@@ -373,7 +373,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
     print("\nNotes:")
     print("  - Times are averaged over all iterations")
     print("  - Speedup > 1.0 means faster than USD baseline")
-    print("  - PhysX RigidBodyView requires rigid body physics; XformPrimView works with any Xformable prim")
+    print("  - PhysX RigidBodyView requires rigid body physics; FrameView works with any Xformable prim")
     print()
 
 
@@ -384,7 +384,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
 
 def main():
     print("=" * 120)
-    print("XformPrimView Benchmark: USD vs Fabric vs Newton vs PhysX")
+    print("FrameView Benchmark: USD vs Fabric vs Newton vs PhysX")
     print("=" * 120)
     print(f"  Environments: {args_cli.num_envs}")
     print(f"  Iterations:   {args_cli.num_iterations}")
@@ -401,9 +401,9 @@ def main():
     profile_files = {}
 
     dispatch = {
-        "usd": ("usd", "XformPrimView (USD)", lambda n: benchmark_usd_or_fabric("usd", n)),
-        "fabric": ("fabric", "XformPrimView (Fabric)", lambda n: benchmark_usd_or_fabric("fabric", n)),
-        "newton": ("newton", "XformPrimView (Newton)", lambda n: benchmark_newton(n)),
+        "usd": ("usd", "FrameView (USD)", lambda n: benchmark_usd_or_fabric("usd", n)),
+        "fabric": ("fabric", "FrameView (Fabric)", lambda n: benchmark_usd_or_fabric("fabric", n)),
+        "newton": ("newton", "FrameView (Newton)", lambda n: benchmark_newton(n)),
         "physx": ("physx", "PhysX RigidBodyView", lambda n: benchmark_physx(n)),
     }
 

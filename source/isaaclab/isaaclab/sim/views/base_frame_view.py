@@ -12,12 +12,12 @@ import abc
 import warp as wp
 
 
-class BaseXformPrimView(abc.ABC):
+class BaseFrameView(abc.ABC):
     """Abstract interface for reading and writing world-space transforms of multiple prims.
 
     Backend-specific implementations (USD/Fabric, Newton GPU state, etc.) subclass
     this to provide efficient batched pose queries.  The factory
-    :class:`~isaaclab.sim.views.XformPrimView` selects the correct
+    :class:`~isaaclab.sim.views.FrameView` selects the correct
     implementation at runtime based on the active physics backend.
 
     All getters return ``wp.array``.  Setters accept ``wp.array``.

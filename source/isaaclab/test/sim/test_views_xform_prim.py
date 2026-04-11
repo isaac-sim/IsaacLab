@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""USD backend tests for XformPrimView.
+"""USD backend tests for FrameView.
 
 Imports the shared contract tests and provides the USD-specific
 ``view_factory`` fixture.  Also includes USD-only tests for visibility,
@@ -29,7 +29,7 @@ from xform_contract_tests import *  # noqa: F401, F403, E402
 from xform_contract_tests import CHILD_OFFSET, ViewBundle  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.sim.views import UsdXformPrimView as XformPrimView  # noqa: E402
+from isaaclab.sim.views import UsdFrameView as FrameView  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 PARENT_POS = (0.0, 0.0, 1.0)
@@ -84,7 +84,7 @@ def view_factory():
             sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage)
             sim_utils.create_prim(f"/World/Parent_{i}/Child", "Xform", translation=CHILD_OFFSET, stage=stage)
 
-        view = XformPrimView("/World/Parent_.*/Child", device=device)
+        view = FrameView("/World/Parent_.*/Child", device=device)
         return ViewBundle(
             view=view,
             get_parent_pos=_get_parent_positions,
@@ -111,7 +111,7 @@ def test_visibility_toggle(device):
     for i in range(num_prims):
         sim_utils.create_prim(f"/World/Object_{i}", "Xform", stage=stage)
 
-    view = XformPrimView("/World/Object_.*", device=device)
+    view = FrameView("/World/Object_.*", device=device)
 
     assert torch.all(view.get_visibility())
 
@@ -139,8 +139,8 @@ def test_visibility_parent_inheritance(device):
     for i in range(4):
         sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", stage=stage)
 
-    parent_view = XformPrimView("/World/Parent", device=device)
-    children_view = XformPrimView("/World/Parent/Child_.*", device=device)
+    parent_view = FrameView("/World/Parent", device=device)
+    children_view = FrameView("/World/Parent/Child_.*", device=device)
 
     parent_view.set_visibility(torch.tensor([False], dtype=torch.bool, device=device))
     assert not torch.any(children_view.get_visibility())
@@ -167,7 +167,7 @@ def test_prim_ordering_follows_creation_order(device):
         sim_utils.create_prim(f"/World/Env_{i}/Object_0", "Xform", stage=stage)
         sim_utils.create_prim(f"/World/Env_{i}/Object_A", "Xform", stage=stage)
 
-    view = XformPrimView("/World/Env_.*/Object_.*", device=device)
+    view = FrameView("/World/Env_.*/Object_.*", device=device)
     expected = []
     for i in range(num_envs):
         expected += [f"/World/Env_{i}/Object_1", f"/World/Env_{i}/Object_0", f"/World/Env_{i}/Object_A"]
@@ -182,7 +182,7 @@ def test_prim_ordering_follows_creation_order(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_standardize_transform_op(device):
-    """XformPrimView standardizes a prim with xformOp:transform to translate/orient/scale."""
+    """FrameView standardizes a prim with xformOp:transform to translate/orient/scale."""
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -194,7 +194,7 @@ def test_standardize_transform_op(device):
     prim = stage.DefinePrim("/World/TransformPrim", "Xform")
     UsdGeom.Xformable(prim).AddTransformOp().Set(matrix)
 
-    view = XformPrimView("/World/TransformPrim", device=device)
+    view = FrameView("/World/TransformPrim", device=device)
     assert sim_utils.validate_standard_xform_ops(view.prims[0])
 
     ordered_ops = UsdGeom.Xformable(view.prims[0]).GetOrderedXformOps()
@@ -222,8 +222,8 @@ def test_nested_hierarchy_world_poses(device):
         sim_utils.create_prim(f"/World/Frame_{i}", "Xform", translation=frame_positions[i], stage=stage)
         sim_utils.create_prim(f"/World/Frame_{i}/Target", "Xform", translation=target_positions[i], stage=stage)
 
-    frames_view = XformPrimView("/World/Frame_.*", device=device)
-    targets_view = XformPrimView("/World/Frame_.*/Target", device=device)
+    frames_view = FrameView("/World/Frame_.*", device=device)
+    targets_view = FrameView("/World/Frame_.*/Target", device=device)
 
     frames_view.set_local_poses(translations=torch.tensor(frame_positions, device=device))
     targets_view.set_local_poses(translations=torch.tensor(target_positions, device=device))
@@ -254,7 +254,7 @@ def test_compare_get_world_poses_with_isaacsim():
         sim_utils.create_prim(f"/World/Env_{i}/Object", "Xform", translation=pos, orientation=quat, stage=stage)
 
     pattern = "/World/Env_.*/Object"
-    isaaclab_view = XformPrimView(pattern, device="cpu")
+    isaaclab_view = FrameView(pattern, device="cpu")
     isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
     isaaclab_pos = wp.to_torch(isaaclab_view.get_world_poses()[0])
@@ -272,7 +272,7 @@ def test_compare_get_world_poses_with_isaacsim():
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_with_franka_robots(device):
-    """Verify XformPrimView works with real Franka robot USD assets."""
+    """Verify FrameView works with real Franka robot USD assets."""
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -282,7 +282,7 @@ def test_with_franka_robots(device):
     sim_utils.create_prim("/World/Franka_1", "Xform", usd_path=franka_usd_path, stage=stage)
     sim_utils.create_prim("/World/Franka_2", "Xform", usd_path=franka_usd_path, stage=stage)
 
-    view = XformPrimView("/World/Franka_.*", device=device)
+    view = FrameView("/World/Franka_.*", device=device)
     assert view.count == 2
 
     positions = wp.to_torch(view.get_world_poses()[0])

@@ -166,8 +166,10 @@ __all__ = [
     "resolve_prim_pose",
     "resolve_prim_scale",
     "convert_world_pose_to_local",
-    "BaseXformPrimView",
-    "UsdXformPrimView",
+    "BaseFrameView",
+    "UsdFrameView",
+    "FrameView",
+    # Deprecated alias
     "XformPrimView",
 ]
 
@@ -339,4 +341,5 @@ from .utils import (
     resolve_prim_scale,
     convert_world_pose_to_local,
 )
-from .views import BaseXformPrimView, UsdXformPrimView, XformPrimView
+from .views import BaseFrameView, UsdFrameView, FrameView
+from .views import XformPrimView  # deprecated alias

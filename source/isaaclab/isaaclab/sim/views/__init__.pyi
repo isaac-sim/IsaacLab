@@ -4,11 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "BaseXformPrimView",
-    "UsdXformPrimView",
+    "BaseFrameView",
+    "UsdFrameView",
+    "FrameView",
+    # Deprecated alias
     "XformPrimView",
 ]
 
-from .base_xform_prim_view import BaseXformPrimView
-from .usd_xform_prim_view import UsdXformPrimView
+from .base_frame_view import BaseFrameView
+from .usd_frame_view import UsdFrameView
+from .frame_view import FrameView
+# Deprecated alias
 from .xform_prim_view import XformPrimView

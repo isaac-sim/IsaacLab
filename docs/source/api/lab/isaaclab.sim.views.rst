@@ -7,11 +7,11 @@
 
   .. autosummary::
 
-    XformPrimView
+    FrameView
 
-XForm Prim View
----------------
+Frame View
+----------
 
-.. autoclass:: XformPrimView
+.. autoclass:: FrameView
     :members:
     :show-inheritance:

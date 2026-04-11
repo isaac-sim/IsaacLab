@@ -15,13 +15,12 @@ import trimesh
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.views import BaseXformPrimView
-from isaaclab.utils.math import matrix_from_quat, quat_mul
+from isaaclab.sim.views import BaseFrameView, FrameView
+from isaaclab.utils.math import matrix_from_quat
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_dynamic_meshes
 
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
-from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
 if TYPE_CHECKING:
@@ -74,9 +73,7 @@ class MultiMeshRayCaster(RayCaster):
     cfg: MultiMeshRayCasterCfg
     """The configuration parameters."""
 
-    mesh_offsets: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
-
-    mesh_views: ClassVar[dict[str, BaseXformPrimView]] = {}
+    mesh_views: ClassVar[dict[str, BaseFrameView]] = {}
     """A dictionary to store mesh views for raycasting, shared across all instances.
 
     The keys correspond to the prim path for the mesh views, and values are the corresponding view objects.
@@ -290,8 +287,8 @@ class MultiMeshRayCaster(RayCaster):
                     mesh_idx += n_meshes_per_env
 
             if target_cfg.track_mesh_transforms:
-                MultiMeshRayCaster.mesh_views[target_prim_path], MultiMeshRayCaster.mesh_offsets[target_prim_path] = (
-                    self._obtain_trackable_prim_view(target_prim_path)
+                MultiMeshRayCaster.mesh_views[target_prim_path] = FrameView(
+                    target_prim_path, device=self._device, stage=self.stage
                 )
 
         # throw an error if no meshes are found
@@ -361,14 +358,10 @@ class MultiMeshRayCaster(RayCaster):
                 continue
 
             # update position of the target meshes
-            pos_w, ori_w = obtain_world_pose_from_view(view, None)
+            pos_wp, quat_wp = view.get_world_poses(None)
+            pos_w, ori_w = wp.to_torch(pos_wp), wp.to_torch(quat_wp)
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
-
-            if target_cfg.prim_expr in MultiMeshRayCaster.mesh_offsets:
-                pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.prim_expr]
-                pos_w -= pos_offset
-                ori_w = quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
 
             count = view.count
             if count != 1:  # Mesh is not global, i.e. we have different meshes for each env
@@ -396,7 +389,6 @@ class MultiMeshRayCaster(RayCaster):
     def __del__(self):
         super().__del__()
         if RayCaster._instance_count == 0:
-            MultiMeshRayCaster.mesh_offsets.clear()
             MultiMeshRayCaster.mesh_views.clear()
 
 

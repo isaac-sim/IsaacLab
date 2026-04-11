@@ -15,12 +15,12 @@ from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
 
-from .base_xform_prim_view import BaseXformPrimView
+from .base_frame_view import BaseFrameView
 
 logger = logging.getLogger(__name__)
 
 
-class UsdXformPrimView(BaseXformPrimView):
+class UsdFrameView(BaseFrameView):
     """Batched interface for reading and writing transforms of multiple USD prims.
 
     Provides batch operations for getting and setting poses (position and orientation)
@@ -32,7 +32,7 @@ class UsdXformPrimView(BaseXformPrimView):
     - **Local poses**: Positions and orientations relative to each prim's parent
 
     For GPU-accelerated Fabric operations, use the PhysX backend variant
-    obtained via :class:`~isaaclab.sim.views.XformPrimView`.
+    obtained via :class:`~isaaclab.sim.views.FrameView`.
 
     All getters return ``wp.array``.  Setters accept ``wp.array``.
 
@@ -160,7 +160,6 @@ class UsdXformPrimView(BaseXformPrimView):
                 world_pos = positions_array[idx] if positions_array is not None else None
                 world_quat = orientations_array[idx] if orientations_array is not None else None
 
-                # Convert world pose to local pose relative to parent
                 if parent_prim.IsValid() and parent_prim.GetPath() != Sdf.Path.absoluteRootPath:
                     if positions_array is None or orientations_array is None:
                         prim_tf = xform_cache.GetLocalToWorldTransform(prim)

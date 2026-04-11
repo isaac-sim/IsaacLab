@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared XformPrimView contract tests.
+"""Shared FrameView contract tests.
 
-This module defines the invariants that **every** XformPrimView backend
+This module defines the invariants that **every** FrameView backend
 (USD, Fabric, Newton) must satisfy.  Backend test files import these tests
 via ``from isaaclab.test.sim.xform_contract_tests import *`` and provide a
 ``view_factory`` pytest fixture that builds the backend-specific scene.
@@ -17,12 +17,12 @@ The factory signature is::
 Where ``ViewBundle`` is a :class:`NamedTuple`::
 
     class ViewBundle(NamedTuple):
-        view: BaseXformPrimView
+        view: BaseFrameView
         get_parent_pos: Callable[[int, str], torch.Tensor]
         set_parent_pos: Callable[[torch.Tensor, int], None]
         teardown: Callable[[], None]
 
-- ``view``: The XformPrimView under test.  Must track child prims at
+- ``view``: The FrameView under test.  Must track child prims at
   :data:`CHILD_OFFSET` under parent prims/bodies.
 - ``get_parent_pos(n, device)``: Read the parent prim/body positions.
 - ``set_parent_pos(positions, n)``: Write the parent prim/body positions.

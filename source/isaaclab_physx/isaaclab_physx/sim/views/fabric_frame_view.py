@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PhysX XformPrimView with Fabric GPU acceleration."""
+"""PhysX FrameView with Fabric GPU acceleration."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from pxr import Usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.sim.views.base_xform_prim_view import BaseXformPrimView
-from isaaclab.sim.views.usd_xform_prim_view import UsdXformPrimView
+from isaaclab.sim.views.base_frame_view import BaseFrameView
+from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
@@ -39,10 +39,10 @@ def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
     return a.view(dtype=wp.float32)
 
 
-class FabricXformPrimView(BaseXformPrimView):
-    """XformPrimView with Fabric GPU acceleration for the PhysX backend.
+class FabricFrameView(BaseFrameView):
+    """FrameView with Fabric GPU acceleration for the PhysX backend.
 
-    Uses composition: holds a :class:`UsdXformPrimView` internally for USD
+    Uses composition: holds a :class:`UsdFrameView` internally for USD
     fallback and non-accelerated operations (local poses, visibility, scales
     when Fabric is disabled).
 
@@ -61,7 +61,7 @@ class FabricXformPrimView(BaseXformPrimView):
         sync_usd_on_fabric_write: bool = False,
         stage: Usd.Stage | None = None,
     ):
-        self._usd_view = UsdXformPrimView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
+        self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
         self._sync_usd_on_fabric_write = sync_usd_on_fabric_write
 

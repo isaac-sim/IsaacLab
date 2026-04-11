@@ -42,18 +42,14 @@ class RayCasterCfg(SensorBaseCfg):
 
     A plain USD Xform is created at :attr:`prim_path` before initialization, matching the
     pattern used by :class:`~isaaclab.sensors.camera.camera_cfg.CameraCfg` (which spawns a
-    Camera prim). The :attr:`prim_path` should therefore be a **new** child path under the
-    desired parent link (e.g. ``{ENV_REGEX_NS}/Robot/base/raycaster``), **not** the link
-    itself.
+    Camera prim). The :attr:`prim_path` can be either:
 
-    .. deprecated::
-        Passing a :attr:`prim_path` that points at a prim with
-        ``ArticulationRootAPI`` or ``RigidBodyAPI`` (e.g.
-        ``{ENV_REGEX_NS}/Robot/base``) is deprecated.  The sensor will
-        automatically append ``/raycaster`` and emit a warning, but users
-        should migrate to the new child-path convention.
+    - A **new** child path under a parent link (e.g. ``{ENV_REGEX_NS}/Robot/base/raycaster``).
+    - A **physics body** path (e.g. ``{ENV_REGEX_NS}/Robot/base``). In this case, the sensor
+      will automatically create a child Xform at ``{prim_path}/raycaster``.
 
-    If ``None``, the prim at :attr:`prim_path` must already exist on the USD stage.
+    If ``None``, the prim at :attr:`prim_path` must already exist on the USD stage and must
+    **not** be a physics body.
     """
 
     mesh_prim_paths: list[str] = MISSING

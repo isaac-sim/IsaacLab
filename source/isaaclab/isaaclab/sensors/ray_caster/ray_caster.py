@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, ClassVar
 
@@ -14,18 +13,17 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.views import BaseXformPrimView, XformPrimView
+from isaaclab.sim.views import FrameView
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.math import quat_apply, quat_apply_yaw
 from isaaclab.utils.warp import convert_to_warp_mesh, raycast_mesh
 
 from ..sensor_base import SensorBase
-from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster_data import RayCasterData
 
 if TYPE_CHECKING:
@@ -69,26 +67,12 @@ class RayCaster(SensorBase):
             cfg: The configuration parameters.
         """
         RayCaster._instance_count += 1
-        self._resolve_physics_prim_path(cfg)
         # Initialize base class
         super().__init__(cfg)
-        # Spawn the sensor Xform prim (mirrors how Camera spawns a Camera prim).
-        if self.cfg.spawn is not None:
-            spawn_target = (
-                self.cfg.spawn.spawn_path
-                if getattr(self.cfg.spawn, "spawn_path", None) is not None
-                else self.cfg.prim_path
-            )
-            self.cfg.spawn.func(spawn_target, self.cfg.spawn)
-        # Verify the prim exists (use spawn_path when set because env paths are
-        # not yet populated — clone_environments runs after this).
-        check_path = (
-            self.cfg.spawn.spawn_path
-            if self.cfg.spawn is not None and getattr(self.cfg.spawn, "spawn_path", None) is not None
-            else self.cfg.prim_path
-        )
-        if len(sim_utils.find_matching_prims(check_path)) == 0:
-            raise RuntimeError(f"Could not find prim with path {check_path!r}.")
+        # Only position is baked into the Xform — rotation is applied to the
+        # ray pattern in _initialize_rays_impl so that ray_alignment modes
+        # (especially "yaw") still operate on the parent body's orientation.
+        self._resolve_and_spawn("raycaster", translation=self.cfg.offset.pos)
         # Create empty variables for storing output data
         self._data = RayCasterData()
 
@@ -151,7 +135,7 @@ class RayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        self._view, self._offset = self._obtain_trackable_prim_view(self.cfg.prim_path)
+        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
 
         # load the meshes by parsing the stage
         self._initialize_warp_meshes()
@@ -216,14 +200,11 @@ class RayCaster(SensorBase):
             )
 
     def _initialize_rays_impl(self):
-        # compute ray stars and directions
         self.ray_starts, self.ray_directions = self.cfg.pattern_cfg.func(self.cfg.pattern_cfg, self._device)
         self.num_rays = len(self.ray_directions)
-        # apply offset transformation to the rays
-        offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device)
+        # apply offset rotation to the ray pattern (position offset is baked into the Xform)
         offset_quat = torch.tensor(list(self.cfg.offset.rot), device=self._device)
         self.ray_directions = quat_apply(offset_quat.repeat(len(self.ray_directions), 1), self.ray_directions)
-        self.ray_starts += offset_pos
         # repeat the rays for each sensor
         self.ray_starts = self.ray_starts.repeat(self._view.count, 1, 1)
         self.ray_directions = self.ray_directions.repeat(self._view.count, 1, 1)
@@ -239,11 +220,9 @@ class RayCaster(SensorBase):
 
     def _update_ray_infos(self, env_ids: Sequence[int]):
         """Updates the ray information buffers."""
-
-        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids)
-        pos_w, quat_w = math_utils.combine_frame_transforms(
-            pos_w, quat_w, self._offset[0][env_ids], self._offset[1][env_ids]
-        )
+        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+        pos_wp, quat_wp = self._view.get_world_poses(indices)
+        pos_w, quat_w = wp.to_torch(pos_wp), wp.to_torch(quat_wp)
         # apply drift to ray starting position in world frame
         pos_w += self.drift[env_ids]
         # store the poses
@@ -325,75 +304,6 @@ class RayCaster(SensorBase):
     """
     Internal Helpers.
     """
-
-    @staticmethod
-    def _resolve_physics_prim_path(cfg: RayCasterCfg) -> None:
-        """Auto-detect legacy ``prim_path`` pointing at a physics prim and redirect to a child Xform.
-
-        Before this refactor, ``prim_path`` was expected to point at an existing link prim (e.g.
-        ``{ENV_REGEX_NS}/Robot/base``) that typically carried an ``ArticulationRootAPI`` or
-        ``RigidBodyAPI``.  The new convention requires ``prim_path`` to be a **non-physics** child
-        (e.g. ``{ENV_REGEX_NS}/Robot/base/raycaster``) where a plain Xform is spawned.
-
-        This helper preserves backward compatibility: when ``spawn`` is set and the resolved
-        path already exists as a prim with a physics API, the path is automatically extended
-        with ``/raycaster`` and a deprecation warning is emitted.
-        """
-        if cfg.spawn is None:
-            return
-
-        resolve_path = cfg.spawn.spawn_path if getattr(cfg.spawn, "spawn_path", None) is not None else cfg.prim_path
-
-        prim = sim_utils.find_first_matching_prim(resolve_path)
-        if prim is None or not prim.IsValid():
-            return
-        if not (prim.HasAPI(UsdPhysics.ArticulationRootAPI) or prim.HasAPI(UsdPhysics.RigidBodyAPI)):
-            return
-
-        child_name = "raycaster"
-        msg = (
-            f"RayCasterCfg.prim_path {cfg.prim_path!r} resolves to a prim with a physics API"
-            f" (ArticulationRootAPI or RigidBodyAPI). This usage is deprecated. Please set"
-            f" prim_path to a non-physics child such as '{cfg.prim_path}/{child_name}'."
-            " The path has been automatically adjusted for this session."
-        )
-        logger.warning(msg)
-        warnings.warn(msg, FutureWarning, stacklevel=4)
-        cfg.prim_path = f"{cfg.prim_path}/{child_name}"
-        if getattr(cfg.spawn, "spawn_path", None) is not None:
-            cfg.spawn.spawn_path = f"{cfg.spawn.spawn_path}/{child_name}"
-
-    def _obtain_trackable_prim_view(
-        self, target_prim_path: str
-    ) -> tuple[BaseXformPrimView, tuple[torch.Tensor, torch.Tensor]]:
-        """Obtain a prim view that can be used to track the pose of the target prim.
-
-        Creates an :class:`XformPrimView` for the target prim path, which dispatches to the
-        correct backend implementation automatically (Fabric for PhysX, site-based for Newton).
-
-        The function additionally resolves the relative pose between the mesh and the view prim.
-
-        Args:
-            target_prim_path: The target prim path to obtain the prim view for.
-
-        Returns:
-            A tuple containing the :class:`XformPrimView` and the relative offsets
-            (positions, orientations) of each matched prim.
-        """
-        prim_view = XformPrimView(target_prim_path, device=self._device, stage=self.stage)
-
-        mesh_prims = sim_utils.find_matching_prims(target_prim_path)
-        positions = []
-        quaternions = []
-        for mesh_prim in mesh_prims:
-            pos, orientation = sim_utils.resolve_prim_pose(mesh_prim, mesh_prim)
-            positions.append(torch.tensor(pos, dtype=torch.float32, device=self.device))
-            quaternions.append(torch.tensor(orientation, dtype=torch.float32, device=self.device))
-
-        positions = torch.stack(positions).to(device=self.device, dtype=torch.float32)
-        quaternions = torch.stack(quaternions).to(device=self.device, dtype=torch.float32)
-
-        return prim_view, (positions, quaternions)
 
     """
     Internal simulation callbacks.

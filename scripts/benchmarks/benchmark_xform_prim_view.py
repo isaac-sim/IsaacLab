@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Benchmark script comparing XformPrimView implementations across backends.
+"""Benchmark script comparing FrameView implementations across backends.
 
 Compares batched transform operation performance across:
-- Isaac Lab XformPrimView (USD backend) -- baseline
-- Isaac Lab XformPrimView (Fabric backend)
-- Isaac Lab XformPrimView (Newton backend)
+- Isaac Lab FrameView (USD backend) -- baseline
+- Isaac Lab FrameView (Fabric backend)
+- Isaac Lab FrameView (Newton backend)
 
 Usage:
     ./isaaclab.sh -p scripts/benchmarks/benchmark_xform_prim_view.py --num_envs 1024 --device cuda:0 --headless
@@ -23,7 +23,7 @@ import argparse
 
 from isaaclab.app import AppLauncher
 
-parser = argparse.ArgumentParser(description="Benchmark XformPrimView performance across backends.")
+parser = argparse.ArgumentParser(description="Benchmark FrameView performance across backends.")
 parser.add_argument("--num_envs", type=int, default=100, help="Number of environments to simulate.")
 parser.add_argument("--num_iterations", type=int, default=50, help="Number of iterations for each test.")
 parser.add_argument("--profile", action="store_true", help="Enable cProfile profiling.")
@@ -44,8 +44,8 @@ from typing import Literal
 import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.sim.views import NewtonSiteXformPrimView
-from isaaclab_physx.sim.views import FabricXformPrimView
+from isaaclab_newton.sim.views import NewtonSiteFrameView
+from isaaclab_physx.sim.views import FabricFrameView
 
 from pxr import Gf
 
@@ -53,7 +53,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.sim.views import UsdXformPrimView
+from isaaclab.sim.views import UsdFrameView
 from isaaclab.utils import configclass
 
 
@@ -77,11 +77,11 @@ class _NewtonSceneCfg(InteractiveSceneCfg):
 
 
 @torch.no_grad()
-def benchmark_xform_prim_view(  # noqa: C901
+def benchmark_frame_view(  # noqa: C901
     api: Literal["isaaclab-usd", "isaaclab-fabric", "isaaclab-newton-site"],
     num_iterations: int,
 ) -> tuple[dict[str, float], dict[str, torch.Tensor]]:
-    """Benchmark get/set world/local poses for the given XformPrimView backend."""
+    """Benchmark get/set world/local poses for the given FrameView backend."""
     timing_results: dict[str, float] = {}
     computed_results: dict[str, torch.Tensor] = {}
     device = args_cli.device
@@ -109,7 +109,7 @@ def benchmark_xform_prim_view(  # noqa: C901
         sim.reset()
 
         start_time = time.perf_counter()
-        xform_view = NewtonSiteXformPrimView("/World/envs/env_.*/Object/Sensor", device=device)
+        xform_view = NewtonSiteFrameView("/World/envs/env_.*/Object/Sensor", device=device)
         timing_results["init"] = time.perf_counter() - start_time
         cleanup = lambda: ctx.__exit__(None, None, None)  # noqa: E731
 
@@ -128,7 +128,7 @@ def benchmark_xform_prim_view(  # noqa: C901
 
         pattern = "/World/Env_.*/Object"
         start_time = time.perf_counter()
-        ViewClass = FabricXformPrimView if use_fabric else UsdXformPrimView
+        ViewClass = FabricFrameView if use_fabric else UsdFrameView
         xform_view = ViewClass(pattern, device=device, validate_xform_ops=False)
         timing_results["init"] = time.perf_counter() - start_time
         cleanup = lambda: sim.clear_instance()  # noqa: E731
@@ -337,7 +337,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
 
 def main():
     print("=" * 120)
-    print("XformPrimView Benchmark")
+    print("FrameView Benchmark")
     print("=" * 120)
     print(f"  Environments: {args_cli.num_envs}")
     print(f"  Iterations:   {args_cli.num_iterations}")
@@ -354,9 +354,9 @@ def main():
     profile_files = {}
 
     apis = [
-        ("isaaclab-usd", "Isaac Lab XformPrimView (USD)"),
-        ("isaaclab-fabric", "Isaac Lab XformPrimView (Fabric)"),
-        ("isaaclab-newton-site", "Isaac Lab XformPrimView (Newton Site)"),
+        ("isaaclab-usd", "Isaac Lab FrameView (USD)"),
+        ("isaaclab-fabric", "Isaac Lab FrameView (Fabric)"),
+        ("isaaclab-newton-site", "Isaac Lab FrameView (Newton Site)"),
     ]
 
     for api_key, api_name in apis:
@@ -366,7 +366,7 @@ def main():
             profiler = cProfile.Profile()
             profiler.enable()
 
-        timing, computed = benchmark_xform_prim_view(api=api_key, num_iterations=args_cli.num_iterations)
+        timing, computed = benchmark_frame_view(api=api_key, num_iterations=args_cli.num_iterations)
 
         if args_cli.profile:
             profiler.disable()

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton-backed XformPrimView — Warp-native, GPU-resident pose queries."""
+"""Newton-backed FrameView — Warp-native, GPU-resident pose queries."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.views.base_xform_prim_view import BaseXformPrimView
+from isaaclab.sim.views.base_frame_view import BaseFrameView
 
 from isaaclab_newton.physics.newton_manager import NewtonManager
 
@@ -349,7 +349,7 @@ def _write_site_local_from_local_poses_indexed(
 # ------------------------------------------------------------------
 
 
-class NewtonSiteXformPrimView(BaseXformPrimView):
+class NewtonSiteFrameView(BaseFrameView):
     """Batched prim view for non-physics prims tracked as sites on Newton bodies.
 
     Each matched USD prim must be a **non-physics** prim (camera, sensor,
@@ -417,14 +417,14 @@ class NewtonSiteXformPrimView(BaseXformPrimView):
             pp = prim.GetPath().pathString
             if pp in body_label_set:
                 raise ValueError(
-                    f"XformPrimView prim '{pp}' is a Newton physics body. "
-                    "XformPrimView should only be used for non-physics prims (cameras, sensors, Xform markers). "
+                    f"FrameView prim '{pp}' is a Newton physics body. "
+                    "FrameView should only be used for non-physics prims (cameras, sensors, Xform markers). "
                     "Use Articulation or RigidObject APIs to control physics bodies."
                 )
             if pp in shape_label_set:
                 raise ValueError(
-                    f"XformPrimView prim '{pp}' is a Newton collision shape. "
-                    "XformPrimView should only be used for non-physics prims (cameras, sensors, Xform markers). "
+                    f"FrameView prim '{pp}' is a Newton collision shape. "
+                    "FrameView should only be used for non-physics prims (cameras, sensors, Xform markers). "
                     "Use Articulation or RigidObject APIs to control collision shapes."
                 )
 

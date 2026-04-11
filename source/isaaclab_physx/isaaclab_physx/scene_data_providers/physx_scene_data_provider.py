@@ -53,7 +53,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     """Scene data provider for Omni PhysX backend.
 
     Supports:
-    - body poses via PhysX tensor views, with XformPrimView fallback
+    - body poses via PhysX tensor views, with FrameView fallback
     - camera poses & intrinsics
     - USD stage handles
     - Newton model/state handles
@@ -547,13 +547,13 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return count
 
     def _apply_xform_poses(self, positions: Any, orientations: Any, covered: Any, xform_mask: Any) -> int:
-        """Fill remaining poses using XformPrimView (USD fallback).
+        """Fill remaining poses using FrameView (USD fallback).
 
         This is slower but more robust when PhysX views don't cover all bodies.
         """
         import torch
 
-        from isaaclab.sim.views import XformPrimView
+        from isaaclab.sim.views import FrameView
 
         uncovered = torch.where(~covered)[0].cpu().tolist()
         if not uncovered:
@@ -565,7 +565,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             path = self._rigid_body_paths[idx]
             try:
                 if path not in self._xform_views:
-                    self._xform_views[path] = XformPrimView(
+                    self._xform_views[path] = FrameView(
                         path, device=self._device, stage=self._stage, validate_xform_ops=False
                     )
 
@@ -592,7 +592,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     def _convert_xform_quats(self, orientations: Any, xform_mask: Any) -> Any:
         """Return quaternions in xyzw convention.
 
-        PhysX views, XformPrimView, and resolve_prim_pose() in Isaac Lab all use xyzw.
+        PhysX views, FrameView, and resolve_prim_pose() in Isaac Lab all use xyzw.
         Keeping this helper as a no-op preserves a single conversion point if conventions
         ever diverge again.
         """
