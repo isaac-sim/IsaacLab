@@ -21,10 +21,6 @@ from utils import find_isaaclab_root, run_cmd  # noqa: F401 – re-exported for 
 _CYAN_BRIGHT = "\033[96m"
 _RESET = "\033[0m"
 
-_test_index: dict[str, int] = {}
-_test_total: int = 0
-_index_built: bool = False
-
 
 # Fixtures
 
@@ -98,60 +94,3 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     """Print a newline after the PASSED/FAILED/SKIPPED result."""
     if report.when == "call" or (report.when == "setup" and report.skipped):
         sys.stdout.write("\n")
-        sys.stdout.flush()
-
-
-def pytest_runtest_setup(item: pytest.Item) -> None:
-    """Print the test's docstring as a human-readable explanation before running."""
-    global _index_built, _test_total, _test_index
-    if not _index_built:
-        # Build index from the final selected items (after -k/-m deselection)
-        selected = item.session.items
-        _test_total = len(selected)
-        _test_index.clear()
-        for i, it in enumerate(selected, 1):
-            _test_index[it.nodeid] = i
-        _index_built = True
-
-    idx = _test_index.get(item.nodeid, 0)
-    total = _test_total
-    prefix = f"[TEST {idx}/{total}]: " if total else ""
-    doc = item.function.__doc__
-    if doc:
-        first_line = doc.strip().split("\n")[0].strip()
-        sys.stdout.write(f"\n{_CYAN_BRIGHT}{prefix}{first_line}{_RESET}\n")
-        sys.stdout.flush()
-
-
-def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    is_windows = platform.system() == "Windows"
-    has_uv = shutil.which("uv") is not None
-    in_docker = Path("/.dockerenv").exists()
-
-    # Print collected tests
-    if items:
-        print(f"\nCollected {len(items)} tests:")
-        for i, item in enumerate(items, 1):
-            print(f"  {i}/{len(items)}: {item.nodeid}")
-        print()
-
-    for item in items:
-        # Promote @pytest.mark.bug("id") args to standalone markers for -m filtering
-        bug_marker = item.get_closest_marker("bug")
-        if bug_marker and bug_marker.args:
-            for bug_id in bug_marker.args:
-                marker_name = str(bug_id).replace("-", "_")
-                config.addinivalue_line("markers", f"{marker_name}: bug regression (auto-registered)")
-                item.add_marker(getattr(pytest.mark, marker_name))
-
-        # Auto-skip docker_only tests when not in Docker
-        if "docker_only" in item.keywords and not in_docker:
-            item.add_marker(pytest.mark.skip(reason="docker_only: not running inside Docker"))
-
-        # Auto-skip tests requiring uv when uv is not installed
-        if item.get_closest_marker("uv") and not has_uv:
-            item.add_marker(pytest.mark.skip(reason="uv not available on PATH"))
-
-        # Auto-skip shell CLI tests on Windows
-        if "cli_install" in item.nodeid and is_windows:
-            item.add_marker(pytest.mark.skip(reason="isaaclab.sh CLI tests are Linux-only"))

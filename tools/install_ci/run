@@ -168,7 +168,7 @@ def _cmd_native(args: argparse.Namespace) -> int:
     """Run tests directly on the host OS."""
 
     repo_root = _find_repo_root()
-    test_dir = repo_root / "tools" / "install_ci"
+    test_dir = repo_root / "source" / "isaaclab" / "test" / "install_ci"
 
     env = os.environ.copy()
     if args.wheel:

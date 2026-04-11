@@ -10,10 +10,10 @@ from __future__ import annotations
 import shutil
 
 import pytest
-from uv_utils import UV_Utils
+from utils import UV_Mixin
 
 
-class Test_UV_Env_Heavy(UV_Utils):
+class Test_UV_Env_Heavy(UV_Mixin):
     """Heavy uv-based installation and training tests."""
 
     @classmethod
@@ -33,7 +33,7 @@ class Test_UV_Env_Heavy(UV_Utils):
             self.create_uv_env(isaaclab_root)
 
             # Install assets, tasks, rl[all], physx, newton, contrib
-            result = self.run_in_env(
+            result = self.run_in_uv_env(
                 [str(self.cli_script), "-i", "assets,tasks,rl[all],physx,newton,contrib"],
                 cwd=isaaclab_root,
                 check=False,
@@ -41,7 +41,7 @@ class Test_UV_Env_Heavy(UV_Utils):
             assert result.returncode == 0, f"isaaclab -i failed:\n{result.stdout}\n{result.stderr}"
 
             # Run a short training
-            result = self.run_in_env(
+            result = self.run_in_uv_env(
                 [
                     str(self.cli_script),
                     "-p",

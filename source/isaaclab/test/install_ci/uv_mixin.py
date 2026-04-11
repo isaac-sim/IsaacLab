@@ -19,8 +19,8 @@ from utils import run_cmd
 _IS_WINDOWS = platform.system() == "Windows"
 
 
-class UV_Utils:
-    """Mixin providing uv virtual-environment helpers for test classes."""
+class UV_Mixin:
+    """Mixin providing uv virtual-environment helpers for test classes.""
 
     env_path: Path
     python: Path
