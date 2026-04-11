@@ -18,29 +18,29 @@ Examples
 .. code-block:: bash
 
     # Run all tests inside Docker (Ubuntu 24.04)
-    tools/install_ci/run docker
+    tools/run_install_ci.py docker
 
     # Run only pip tests with a custom base image
-    tools/install_ci/run docker --base-image ubuntu:22.04 -- -vs -k "testname"
+    tools/run_install_ci.py docker --base-image ubuntu:22.04 -- -vs -k "testname"
 
     # Run with GPU support (passes --gpus all to Docker)
-    tools/install_ci/run docker --gpu
+    tools/run_install_ci.py docker --gpu
 
     # Filter by marker (e.g. only uv tests, only slow tests)
-    tools/install_ci/run docker -- -m uv
-    tools/install_ci/run docker --gpu -- -m "slow and gpu"
+    tools/run_install_ci.py docker -- -m uv
+    tools/run_install_ci.py docker --gpu -- -m "slow and gpu"
 
     # Filter by bug ID (dashes become underscores)
-    tools/install_ci/run docker --gpu -- -m nvbugs_5968136
+    tools/run_install_ci.py docker --gpu -- -m nvbugs_5968136
 
     # Drop into a shell for debugging
-    tools/install_ci/run docker --shell
+    tools/run_install_ci.py docker --shell
 
     # Run natively (no Docker)
-    tools/install_ci/run native -- -vs
+    tools/run_install_ci.py native -- -vs
 
     # Pass a pre-built wheel
-    tools/install_ci/run docker --wheel /tmp/isaaclab-3.0.0-py3-none-any.whl
+    tools/run_install_ci.py docker --wheel /tmp/isaaclab-3.0.0-py3-none-any.whl
 """
 
 from __future__ import annotations

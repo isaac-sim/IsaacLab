@@ -39,4 +39,4 @@ jobs:
             PYTEST_EXTRA_ARGS+=(-k "$TEST_FILTER")
           fi
 
-          tools/install_ci/run docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
+          tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
