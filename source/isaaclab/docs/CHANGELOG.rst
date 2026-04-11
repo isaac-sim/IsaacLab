@@ -43,6 +43,8 @@ Added
 * Added physics material support to
   :func:`~isaaclab.sim.spawners.from_files.spawn_from_usd` for deformable bodies
   loaded from USD files.
+* Added wheel builder installation CI tests that verify the isaaclab wheel
+  builds, installs, and imports correctly in a clean uv environment.
 
 Changed
 ^^^^^^^
