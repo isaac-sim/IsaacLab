@@ -69,10 +69,7 @@ class RayCaster(SensorBase):
         RayCaster._instance_count += 1
         # Initialize base class
         super().__init__(cfg)
-        # Only position is baked into the Xform — rotation is applied to the
-        # ray pattern in _initialize_rays_impl so that ray_alignment modes
-        # (especially "yaw") still operate on the parent body's orientation.
-        self._resolve_and_spawn("raycaster", translation=self.cfg.offset.pos)
+        self._resolve_and_spawn("raycaster")
         # Create empty variables for storing output data
         self._data = RayCasterData()
 
@@ -202,9 +199,11 @@ class RayCaster(SensorBase):
     def _initialize_rays_impl(self):
         self.ray_starts, self.ray_directions = self.cfg.pattern_cfg.func(self.cfg.pattern_cfg, self._device)
         self.num_rays = len(self.ray_directions)
-        # apply offset rotation to the ray pattern (position offset is baked into the Xform)
+        # apply offset to the ray pattern in local space
+        offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device)
         offset_quat = torch.tensor(list(self.cfg.offset.rot), device=self._device)
         self.ray_directions = quat_apply(offset_quat.repeat(len(self.ray_directions), 1), self.ray_directions)
+        self.ray_starts += offset_pos
         # repeat the rays for each sensor
         self.ray_starts = self.ray_starts.repeat(self._view.count, 1, 1)
         self.ray_directions = self.ray_directions.repeat(self._view.count, 1, 1)

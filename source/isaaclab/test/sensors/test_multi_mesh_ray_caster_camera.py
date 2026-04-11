@@ -185,7 +185,9 @@ def test_camera_init_intrinsic_matrix(setup_simulation):
         prim_path="/World/Camera",
         mesh_prim_paths=["/World/defaultGroundPlane"],
         update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
+            pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
+        ),
         debug_vis=False,
         pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
             intrinsic_matrix=intrinsic_matrix,
