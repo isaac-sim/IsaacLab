@@ -262,9 +262,8 @@ class _RandomizeRigidBodyMaterialNewton:
         self, cfg: EventTermCfg, env: ManagerBasedEnv, asset: RigidObject | Articulation, asset_cfg: SceneEntityCfg
     ):
         import isaaclab_newton.physics.newton_manager as newton_manager_module  # noqa: PLC0415
+        from isaaclab_newton.assets import Articulation as NewtonArticulation  # noqa: PLC0415
         from newton.solvers import SolverNotifyFlags  # noqa: PLC0415
-
-        from isaaclab.assets import BaseArticulation
 
         self.asset = asset
         self.asset_cfg = asset_cfg
@@ -275,8 +274,13 @@ class _RandomizeRigidBodyMaterialNewton:
         self._static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
         self._restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
 
+        # get friction/restitution view-level bindings
+        model = self._newton_manager.get_model()
+        self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
+        self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
+
         # compute shape indices for body-specific randomization
-        if isinstance(asset, BaseArticulation) and asset_cfg.body_ids != slice(None):
+        if isinstance(asset, NewtonArticulation) and asset_cfg.body_ids != slice(None):
             num_shapes_per_body = asset.num_shapes_per_body
             shape_indices_list = []
             for body_id in asset_cfg.body_ids:
@@ -285,13 +289,7 @@ class _RandomizeRigidBodyMaterialNewton:
                 shape_indices_list.extend(range(start_idx, end_idx))
             self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
         else:
-            total_shapes = sum(asset.num_shapes_per_body)
-            self._shape_indices = torch.arange(total_shapes, dtype=torch.long)
-
-        # get friction/restitution view-level bindings
-        model = self._newton_manager.get_model()
-        self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
-        self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
+            self._shape_indices = torch.arange(self._friction_binding.shape[1], dtype=torch.long)
 
     def __call__(
         self,
