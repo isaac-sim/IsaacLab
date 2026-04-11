@@ -61,7 +61,6 @@ class MySceneCfg(InteractiveSceneCfg):
     # sensor - ray caster attached to the base of robot 1 that scans the ground
     height_scanner = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot_1/base",
-        spawn=sim_utils.RayCasterXformCfg(),
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
         ray_alignment="yaw",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),

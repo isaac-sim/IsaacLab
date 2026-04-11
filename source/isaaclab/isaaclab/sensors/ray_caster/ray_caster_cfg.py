@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
-from isaaclab.sim.spawners.sensors.sensors_cfg import RayCasterXformCfg
+from isaaclab.sim.spawners.sensors.sensors_cfg import SensorFrameCfg
 from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
@@ -37,7 +37,7 @@ class RayCasterCfg(SensorBaseCfg):
 
     class_type: type[RayCaster] | str = "{DIR}.ray_caster:RayCaster"
 
-    spawn: RayCasterXformCfg | None = RayCasterXformCfg()
+    spawn: SensorFrameCfg | None = SensorFrameCfg()
     """Spawn configuration for the sensor Xform prim.
 
     A plain USD Xform is created at :attr:`prim_path` before initialization, matching the

@@ -225,13 +225,14 @@ class FisheyeCameraCfg(PinholeCameraCfg):
 
 
 @configclass
-class RayCasterXformCfg(SpawnerCfg):
-    """Configuration for spawning a plain USD Xform used as a ray-cast sensor frame.
+class SensorFrameCfg(SpawnerCfg):
+    """Spawns a plain USD Xform as a sensor attachment frame.
 
-    The spawned prim has no rigid body or collision API.     This matches the pattern used by
-    :class:`~isaaclab.sensors.camera.camera_cfg.CameraCfg`, where the sensor prim is created at
-    runtime so :class:`~isaaclab.sim.views.FrameView` tracks a non-physics site (required for
-    backends such as Newton where link prims are physics-owned).
+    The spawned prim carries no rigid body or collision API. It serves as a
+    non-physics child under a link so that :class:`~isaaclab.sim.views.FrameView`
+    can track it on all backends (including Newton, which rejects physics body prims).
     """
 
-    func: Callable | str = "{DIR}.sensors:spawn_ray_caster_xform"
+    func: Callable | str = "{DIR}.sensors:spawn_sensor_frame"
+
+

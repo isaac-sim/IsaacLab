@@ -22,8 +22,8 @@ import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
-from xform_contract_tests import *  # noqa: F401, F403 — import all contract tests
-from xform_contract_tests import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
+from test_frame_view_contract import *  # noqa: F401, F403 — import all contract tests
+from test_frame_view_contract import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
 
 from pxr import Gf
 

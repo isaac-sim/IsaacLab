@@ -276,7 +276,6 @@ def test_raycaster_offset_does_not_affect_pos_w():
     offset_z = 20.0
     cfg = RayCasterCfg(
         prim_path="/World/Robot",
-        spawn=sim_utils.RayCasterXformCfg(),
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, offset_z)),
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.5, size=[1.0, 1.0]),

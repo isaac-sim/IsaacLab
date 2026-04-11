@@ -22,8 +22,8 @@ simulation_app = AppLauncher(headless=True).app
 import pytest  # noqa: E402
 import torch  # noqa: E402
 from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
-from xform_contract_tests import *  # noqa: F401, F403, E402
-from xform_contract_tests import CHILD_OFFSET, ViewBundle  # noqa: E402
+from test_frame_view_contract import *  # noqa: F401, F403, E402
+from test_frame_view_contract import CHILD_OFFSET, ViewBundle  # noqa: E402
 
 from pxr import Gf, UsdGeom  # noqa: E402
 

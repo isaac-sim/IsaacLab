@@ -25,8 +25,8 @@ try:
 except (ModuleNotFoundError, ImportError):
     _IsaacSimXformPrimView = None
 
-from xform_contract_tests import *  # noqa: F401, F403, E402
-from xform_contract_tests import CHILD_OFFSET, ViewBundle  # noqa: E402
+from test_frame_view_contract import *  # noqa: F401, F403, E402
+from test_frame_view_contract import CHILD_OFFSET, ViewBundle  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim.views import UsdFrameView as FrameView  # noqa: E402

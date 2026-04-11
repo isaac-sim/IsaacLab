@@ -148,25 +148,18 @@ def spawn_camera(
 
 
 @clone
-def spawn_ray_caster_xform(
+def spawn_sensor_frame(
     prim_path: str,
-    cfg: sensors_cfg.RayCasterXformCfg,
+    cfg: sensors_cfg.SensorFrameCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
 ) -> Usd.Prim:
-    """Create a USD Xform prim for a ray-cast sensor attachment site.
-
-    The function creates a plain ``Xform`` with the given local pose under its parent. It is
-    intended for :class:`~isaaclab.sensors.ray_caster.ray_caster.RayCaster` when
-    :attr:`~isaaclab.sensors.ray_caster.ray_caster_cfg.RayCasterCfg.spawn` is set,     mirroring how
-    :func:`spawn_camera` creates camera prims before :class:`~isaaclab.sim.views.FrameView`
-    is constructed.
+    """Create a plain USD Xform prim as a sensor attachment frame.
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
-        if the input prim path is a regex pattern. Visibility and semantic tags from
-        :class:`~isaaclab.sim.spawners.spawner_cfg.SpawnerCfg` are applied by the clone wrapper.
+        if the input prim path is a regex pattern.
 
     Args:
         prim_path: The prim path or pattern to spawn the asset at.
@@ -195,3 +188,5 @@ def spawn_ray_caster_xform(
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     return prim
+
+

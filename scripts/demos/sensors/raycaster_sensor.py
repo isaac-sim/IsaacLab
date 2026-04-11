@@ -63,7 +63,6 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
 
     ray_caster = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
-        spawn=sim_utils.RayCasterXformCfg(),
         update_period=1 / 60,
         offset=RayCasterCfg.OffsetCfg(pos=(0, 0, 0.5)),
         mesh_prim_paths=["/World/Ground"],
