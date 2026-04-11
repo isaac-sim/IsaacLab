@@ -33,7 +33,7 @@ class Test_Wheel_Builder(UV_Mixin):
 
         try:
             # Build the wheel
-            result = run_cmd(["bash", str(build_script)], cwd=isaaclab_root, check=False)
+            result = run_cmd(["bash", str(build_script)], cwd=isaaclab_root)
             assert result.returncode == 0, f"build.sh failed:\n{result.stdout}\n{result.stderr}"
 
             # Find the built wheel
@@ -43,22 +43,24 @@ class Test_Wheel_Builder(UV_Mixin):
 
             # Create uv environment and install the wheel (without isaacsim extra to avoid dep conflicts)
             self.create_uv_env(isaaclab_root)
-            result = self.run_in_uv_env(["uv", "pip", "install", wheel_path], check=False)
+            result = self.run_in_uv_env(["uv", "pip", "install", wheel_path])
             assert result.returncode == 0, f"uv pip install wheel failed:\n{result.stdout}\n{result.stderr}"
 
             # Verify isaaclab is importable
-            result = self.run_in_uv_env(
-                ["python", "-c", "import isaaclab; print(dir(isaaclab))"],
-                check=False,
-            )
+            result = self.run_in_uv_env(["python", "-c", "import isaaclab;"])
             assert result.returncode == 0, f"import isaaclab failed:\n{result.stdout}\n{result.stderr}"
-            
-            # Verify isaaclab.app is importable
-            result = self.run_in_uv_env(
-                ["python", "-c", "from isaaclab.app import AppLauncher; print(dir(AppLauncher))"],
-                check=False,
+
+            # Verify isaaclab.__version__ is set and matches the wheel version
+            result = self.run_in_uv_env(["python", "-c", "import isaaclab; print(isaaclab.__version__)"])
+            imported_version = result.stdout.strip()
+            expected_version = wheel_path.split("/")[-1].split("-")[1]
+            assert imported_version == expected_version, (
+                f"isaaclab.__version__ mismatch: expected {expected_version}, got {imported_version}"
             )
+
+            # Verify isaaclab.app is importable
+            result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import AppLauncher"])
             assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
-            
+
         finally:
             self.destroy_uv_env()
