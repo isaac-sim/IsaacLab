@@ -151,6 +151,41 @@ def joint_effort_out_of_limit(
 
 
 """
+Body velocity terminations.
+"""
+
+
+def body_lin_vel_out_of_limit(
+    env: ManagerBasedRLEnv,
+    max_velocity: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Terminate when any body's linear velocity magnitude exceeds the limit [m/s].
+
+    Also terminates on NaN velocities, which indicate a solver singularity.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    body_vel = wp.to_torch(asset.data.body_lin_vel_w)[:, asset_cfg.body_ids]
+    speed = torch.linalg.norm(body_vel, dim=-1)
+    return torch.any((speed > max_velocity) | torch.isnan(speed), dim=1)
+
+
+def body_ang_vel_out_of_limit(
+    env: ManagerBasedRLEnv,
+    max_velocity: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Terminate when any body's angular velocity magnitude exceeds the limit [rad/s].
+
+    Also terminates on NaN velocities, which indicate a solver singularity.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    body_vel = wp.to_torch(asset.data.body_ang_vel_w)[:, asset_cfg.body_ids]
+    speed = torch.linalg.norm(body_vel, dim=-1)
+    return torch.any((speed > max_velocity) | torch.isnan(speed), dim=1)
+
+
+"""
 Contact sensor.
 """
 

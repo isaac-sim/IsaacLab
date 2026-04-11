@@ -137,6 +137,8 @@ __all__ = [
     "joint_pos_out_of_manual_limit",
     "joint_vel_out_of_limit",
     "joint_vel_out_of_manual_limit",
+    "body_lin_vel_out_of_limit",
+    "body_ang_vel_out_of_limit",
     "root_height_below_minimum",
     "time_out",
 ]
@@ -285,6 +287,8 @@ from .terminations import (
     joint_pos_out_of_manual_limit,
     joint_vel_out_of_limit,
     joint_vel_out_of_manual_limit,
+    body_lin_vel_out_of_limit,
+    body_ang_vel_out_of_limit,
     root_height_below_minimum,
     time_out,
 )

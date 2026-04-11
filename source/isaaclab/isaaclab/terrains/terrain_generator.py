@@ -18,7 +18,6 @@ from isaaclab.utils.io import dump_yaml
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.warp import convert_to_warp_mesh
 
-from .trimesh.utils import make_border
 from .utils import color_meshes_by_height, find_flat_patches
 
 if TYPE_CHECKING:
@@ -270,25 +269,48 @@ class TerrainGenerator:
     """
 
     def _add_terrain_border(self):
-        """Add a surrounding border over all the sub-terrains into the terrain meshes."""
-        # border parameters
-        border_size = (
-            self.cfg.num_rows * self.cfg.size[0] + 2 * self.cfg.border_width,
-            self.cfg.num_cols * self.cfg.size[1] + 2 * self.cfg.border_width,
-        )
-        inner_size = (self.cfg.num_rows * self.cfg.size[0], self.cfg.num_cols * self.cfg.size[1])
-        border_center = (
-            self.cfg.num_rows * self.cfg.size[0] / 2,
-            self.cfg.num_cols * self.cfg.size[1] / 2,
-            -self.cfg.border_height / 2,
-        )
-        # border mesh
-        border_meshes = make_border(border_size, inner_size, height=abs(self.cfg.border_height), position=border_center)
-        border = trimesh.util.concatenate(border_meshes)
-        # update the faces to have minimal triangles
-        selector = ~(np.asarray(border.triangles)[:, :, 2] < -0.1).any(1)
-        border.update_faces(selector)
-        # add the border to the list of meshes
+        """Add a surrounding border over all the sub-terrains into the terrain meshes.
+
+        The border is built as a subdivided grid mesh (matching ``horizontal_scale``)
+        rather than large box primitives.  Large triangles on the border can cause
+        collision detection failures in some physics backends (e.g. Newton/MuJoCo).
+        """
+        bw = self.cfg.border_width
+        if bw <= 0:
+            return
+
+        inner_w = self.cfg.num_rows * self.cfg.size[0]
+        inner_l = self.cfg.num_cols * self.cfg.size[1]
+        hs = self.cfg.horizontal_scale
+
+        def _make_grid_strip(x0: float, y0: float, width: float, length: float) -> trimesh.Trimesh:
+            """Create a flat subdivided mesh strip at z=0 with grid spacing ``hs``."""
+            nx = max(int(np.ceil(width / hs)), 1) + 1
+            ny = max(int(np.ceil(length / hs)), 1) + 1
+            xs = np.linspace(x0, x0 + width, nx)
+            ys = np.linspace(y0, y0 + length, ny)
+            xx, yy = np.meshgrid(xs, ys, indexing="ij")
+            vertices = np.zeros((nx * ny, 3))
+            vertices[:, 0] = xx.flatten()
+            vertices[:, 1] = yy.flatten()
+            faces = []
+            for i in range(nx - 1):
+                for j in range(ny - 1):
+                    v0 = i * ny + j
+                    v1 = v0 + 1
+                    v2 = (i + 1) * ny + j
+                    v3 = v2 + 1
+                    faces.append([v0, v2, v1])
+                    faces.append([v1, v2, v3])
+            return trimesh.Trimesh(vertices=vertices, faces=np.array(faces, dtype=np.uint32))
+
+        strips = [
+            _make_grid_strip(-bw, -bw, inner_w + 2 * bw, bw),  # bottom
+            _make_grid_strip(-bw, inner_l, inner_w + 2 * bw, bw),  # top
+            _make_grid_strip(-bw, 0.0, bw, inner_l),  # left
+            _make_grid_strip(inner_w, 0.0, bw, inner_l),  # right
+        ]
+        border = trimesh.util.concatenate(strips)
         self.terrain_meshes.append(border)
 
     def _add_sub_terrain(
