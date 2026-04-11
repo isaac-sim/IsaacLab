@@ -50,7 +50,7 @@ def run_cmd(
         cwd: Working directory for the subprocess.
         env: Extra environment variables merged into the current environment.
         timeout: Timeout in seconds.
-        check: Raise CalledProcessError on non-zero exit.
+        err_on_err: Raise CalledProcessError on non-zero exit.
         stream: When True, stream stdout/stderr to the console in
             real time instead of capturing them.  Defaults to True when
             pytest is invoked with ``-s`` (``--capture=no``).
