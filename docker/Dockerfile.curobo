@@ -12,9 +12,6 @@ ARG ISAACSIM_VERSION_ARG
 FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
-# Enable debug logging for ./isaaaclab.sh
-ENV DEBUG=1
-
 # Set default RUN shell to bash
 SHELL ["/bin/bash", "-c"]
 
@@ -151,7 +148,7 @@ RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* &&
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    ${ISAACLAB_PATH}/isaaclab.sh --install
+    DEBUG=1 ${ISAACLAB_PATH}/isaaclab.sh --install
 
 # HACK: Uninstall quadprog as it causes issues with some reinforcement learning frameworks
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
