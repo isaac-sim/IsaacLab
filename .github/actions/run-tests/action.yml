@@ -183,7 +183,8 @@ runs:
               set -e
               cd /workspace/isaaclab
               mkdir -p tests
-              ln -s /isaac-sim _isaac-sim
+              rm _isaac_sim || true
+              ln -s /isaac-sim _isaac_sim
               echo 'Starting pytest with path: $test_path'
               ./isaaclab.sh -p "-m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file"
             "
