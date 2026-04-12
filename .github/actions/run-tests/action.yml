@@ -183,12 +183,11 @@ runs:
               set -e
               cd /workspace/isaaclab
               mkdir -p tests
-              [ -f /workspace/isaaclab/_isaac-sim ] || ln -s /isaac-sim /workspace/isaaclab/_isaac-sim
+              ln -s /isaac-sim /workspace/isaaclab/_isaac-sim
               echo 'Starting pytest with path: $test_path'
               /workspace/isaaclab/isaaclab.sh -p -m pytest \
                 --ignore=tools/conftest.py \
-                --ignore=source/isaaclab/test/install_ci \
-                $test_path $pytest_options -v --junitxml=tests/$result_file
+                --ignore=source/isaaclab/test/install_ci \$test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
           # Stream container logs to CI output (this is the killable foreground process).
