@@ -745,7 +745,7 @@ jobs:
         include-files: "test_environments_training.py"
         container-name: isaac-lab-environments-training-test
   #endregion
-  
+
 #region disabled quarantined tests
 # test-quarantined:
 #   name: "Quarantined Tests"
