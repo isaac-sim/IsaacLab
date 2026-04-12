@@ -156,6 +156,8 @@ runs:
         # Don't let cleanup errors fail a passing test job
         set +e
 
+        echo "🔵 Cleaning up old Docker images..."
+
         echo "⚪ Disk usage before cleanup:"
         df -h /var/lib/docker
 
