@@ -78,7 +78,7 @@ runs:
           echo "⚪ Instance ID: ${INSTANCE_ID:-Not running on EC2}"
           echo "⚪ Instance Region: ${INSTANCE_REGION:-Not running on EC2}"
           echo "⚪ Instance Type: ${INSTANCE_TYPE:-Not running on EC2}"
-          echo "⚪ Connect: https://${INSTANCE_REGION}.console.aws.amazon.com/ec2-instance-connect/ssh/home?region=${INSTANCE_REGION}&connType=standard&instanceId=${INSTANCE_ID:-i-0085036d4e5616869}&osUser=ubuntu&sshPort=22&addressFamily=ipv4"
+          echo "⚪ Connect: https://${INSTANCE_REGION}.console.aws.amazon.com/ec2-instance-connect/ssh/home?region=${INSTANCE_REGION}&connType=standard&instanceId=${INSTANCE_ID}&osUser=ubuntu&sshPort=22&addressFamily=ipv4"
         else
           echo "🟠 Could not obtain IMDS token, probably not running on EC2"
         fi
