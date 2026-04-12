@@ -53,6 +53,7 @@ class Test_Wheel_Builder(UV_Mixin):
 
         self.destroy_uv_env()
 
+    # import isaaclab
     def test_import_isaaclab(self):
         """Verify 'isaaclab' is importable."""
         result = self.run_in_uv_env(["python", "-c", "import isaaclab;"])
@@ -97,3 +98,9 @@ class Test_Wheel_Builder(UV_Mixin):
         """Verify the isaaclab CLI is functional."""
         result = self.run_in_uv_env(["python", "-m", "isaaclab", "--help"])
         assert result.returncode == 0, f"isaaclab CLI help failed:\n{result.stdout}\n{result.stderr}"
+        
+    # import pinocchio as pin; print(pin.__version__)
+    def test_pinocchio_import(self):
+        """Verify pinocchio is importable and has the expected version."""
+        result = self.run_in_uv_env(["python", "-c", "import pinocchio as pin; print(pin.__version__)"])
+        assert result.returncode == 0, f"import pinocchio failed:\n{result.stdout}\n{result.stderr}"

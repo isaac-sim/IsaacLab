@@ -43,6 +43,8 @@ pyproject.dependencies.all = [
     "viser>=1.0.16",
     "typing_extensions==4.12.2",
     "lazy_loader>=0.4",
+    "pin ; platform_system == 'Linux'",
+    "pin-pink>=2.3.6 ; platform_system == 'Linux'",
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_rl/setup.py
     # ================================================================================
