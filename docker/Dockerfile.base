@@ -112,6 +112,10 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 ENV PYTHONPATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle:${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib/python3.12/site-packages:${PYTHONPATH}"
 ENV LD_LIBRARY_PATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib:${LD_LIBRARY_PATH}"
 
+# HACK: Expose nvidia.srl from Kit python into the ml_archive nvidia namespace
+RUN ln -s ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/nvidia/srl \
+    ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/nvidia/srl
+
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${HOME}/.bashrc && \
