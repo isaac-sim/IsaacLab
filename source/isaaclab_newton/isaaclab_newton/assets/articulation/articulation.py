@@ -30,6 +30,7 @@ from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matchin
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from isaaclab.utils.warp_torch_cache import warp_to_torch
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -3484,21 +3485,28 @@ class Articulation(BaseArticulation):
         The actions are first processed using actuator models. Depending on the robot configuration,
         the actuator models compute the joint level simulation commands and sets them into the PhysX buffers.
         """
+        # cache torch views of warp arrays outside the actuator loop to avoid
+        # repeated wp.to_torch() calls when multiple actuator groups exist
+        joint_pos_target = warp_to_torch(self._data, "joint_pos_target")
+        joint_vel_target = warp_to_torch(self._data, "joint_vel_target")
+        joint_effort_target = warp_to_torch(self._data, "joint_effort_target")
+        joint_pos = warp_to_torch(self._data, "joint_pos")
+        joint_vel = warp_to_torch(self._data, "joint_vel")
         # process actions per group
         for actuator in self.actuators.values():
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
-                joint_positions=wp.to_torch(self._data.joint_pos_target)[:, actuator.joint_indices],
-                joint_velocities=wp.to_torch(self._data.joint_vel_target)[:, actuator.joint_indices],
-                joint_efforts=wp.to_torch(self._data.joint_effort_target)[:, actuator.joint_indices],
+                joint_positions=joint_pos_target[:, actuator.joint_indices],
+                joint_velocities=joint_vel_target[:, actuator.joint_indices],
+                joint_efforts=joint_effort_target[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
             # compute joint command from the actuator model
             control_action = actuator.compute(
                 control_action,
-                joint_pos=wp.to_torch(self._data.joint_pos)[:, actuator.joint_indices],
-                joint_vel=wp.to_torch(self._data.joint_vel)[:, actuator.joint_indices],
+                joint_pos=joint_pos[:, actuator.joint_indices],
+                joint_vel=joint_vel[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
             joint_indices = actuator.joint_indices
