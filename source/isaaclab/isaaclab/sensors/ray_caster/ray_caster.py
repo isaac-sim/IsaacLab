@@ -147,9 +147,15 @@ class RayCaster(SensorBase):
 
         self._view, self._offset = self._obtain_trackable_prim_view(self.cfg.prim_path)
 
-        # Convert offsets to warp (zero-copy from existing torch tensors)
-        self._offset_pos_wp = wp.from_torch(self._offset[0].contiguous(), dtype=wp.vec3f)
-        self._offset_quat_wp = wp.from_torch(self._offset[1].contiguous(), dtype=wp.quatf)
+        # Convert offsets to warp (zero-copy from existing torch tensors).
+        # Store the contiguous tensors explicitly so they are not garbage-collected while
+        # the wp.array views (_offset_pos_wp / _offset_quat_wp) are alive. If the tensor
+        # returned by .contiguous() is a temporary copy (non-contiguous input), the warp
+        # view would otherwise point to freed memory once GC reclaims it.
+        self._offset_pos_contiguous = self._offset[0].contiguous()
+        self._offset_quat_contiguous = self._offset[1].contiguous()
+        self._offset_pos_wp = wp.from_torch(self._offset_pos_contiguous, dtype=wp.vec3f)
+        self._offset_quat_wp = wp.from_torch(self._offset_quat_contiguous, dtype=wp.quatf)
 
         # Handle deprecated attach_yaw_only at init time
         if self.cfg.attach_yaw_only is not None:
@@ -272,8 +278,11 @@ class RayCaster(SensorBase):
         # Data buffers
         self._data.create_buffers(self._view.count, self.num_rays, self._device)
 
-        # Dummy distance/normal buffers required by the merged raycast_mesh_masked_kernel signature
-        # (RayCaster does not use distance or normals; return_distance=0 and return_normal=0 are passed)
+        # Dummy distance/normal buffers required by the merged raycast_mesh_masked_kernel signature.
+        # Sized (1, 1) even though the kernel is launched at (num_envs, num_rays): the kernel only
+        # writes to these buffers when return_distance==1 or return_normal==1 respectively, and
+        # RayCaster always passes 0 for both flags. If those flags are ever enabled here, these
+        # buffers must be resized to (num_envs, num_rays) to avoid an out-of-bounds write.
         self._dummy_ray_distance = wp.empty((1, 1), dtype=wp.float32, device=self._device)
         self._dummy_ray_normal = wp.empty((1, 1), dtype=wp.vec3f, device=self._device)
 

@@ -108,6 +108,10 @@ def update_ray_caster_kernel(
         rot_drift = wp.quat_rotate(yaw_q, rcd)
         pos_drifted = wp.vec3f(combined_pos[0] + rot_drift[0], combined_pos[1] + rot_drift[1], combined_pos[2])
         ray_starts_w[env_id, ray_id] = wp.quat_rotate(yaw_q, local_start) + pos_drifted
+        # Ray DIRECTIONS are intentionally NOT rotated in yaw mode: the sensor's ray pattern
+        # (e.g. straight-down (0,0,-1) for a height scanner) stays fixed in world frame.
+        # Only ray STARTS are rotated by the yaw-only quaternion so the scan footprint
+        # follows the body heading without tilting when the body pitches or rolls.
         ray_directions_w[env_id, ray_id] = local_dir
     else:
         rot_drift = wp.quat_rotate(combined_quat, rcd)
