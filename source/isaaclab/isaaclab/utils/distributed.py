@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import os
-
 import torch
 
 
@@ -27,9 +25,10 @@ def resolve_cuda_device(local_rank: int) -> tuple[str, int]:
         ``("cuda:2", 2)``.
     """
     num_visible = torch.cuda.device_count()
-    world_size = int(os.getenv("WORLD_SIZE", "1"))
-    if num_visible >= world_size:
+    if local_rank < num_visible:
         device_id = local_rank
     else:
+        # CUDA_VISIBLE_DEVICES restricts this process to fewer GPUs than
+        # local_rank implies — fall back to cuda:0.
         device_id = 0
     return f"cuda:{device_id}", device_id
