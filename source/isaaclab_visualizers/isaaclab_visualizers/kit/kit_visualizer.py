@@ -86,6 +86,7 @@ class KitVisualizer(BaseVisualizer):
                 ("lookat", self.cfg.lookat),
                 ("cam_source", self.cfg.cam_source),
                 ("visualizer_camera_prim_path", self.cfg.visualizer_camera_prim_path),
+                ("focal_length", self.cfg.focal_length),
                 ("enable_visualizer_cam", self.cfg.enable_visualizer_cam),
                 ("num_visualized_envs", num_visualized_envs),
                 ("create_viewport", self.cfg.create_viewport),
@@ -321,6 +322,11 @@ class KitVisualizer(BaseVisualizer):
         camera_prim = usd_stage.GetPrimAtPath(camera_path)
         if not camera_prim.IsValid():
             UsdGeom.Camera.Define(usd_stage, camera_path)
+            camera_prim = usd_stage.GetPrimAtPath(camera_path)
+
+        camera_geom = UsdGeom.Camera(camera_prim)
+        if camera_geom:
+            camera_geom.GetFocalLengthAttr().Set(float(self.cfg.focal_length))
 
         if self._viewport_api:
             self._viewport_api.set_active_camera(camera_path)

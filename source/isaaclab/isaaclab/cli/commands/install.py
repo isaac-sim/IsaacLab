@@ -305,6 +305,9 @@ _PREBUNDLE_REPOINT_PACKAGES: list[str] = [
     "newton_actuators",
     "warp",
     "mujoco_warp",
+    "websockets",
+    "viser",
+    "imgui_bundle",
 ]
 """Package directory names in Isaac Sim prebundle directories to repoint.
 
@@ -352,7 +355,25 @@ def _repoint_prebundle_packages() -> None:
         print_warning(f"site-packages directory not found: {site_packages} — skipping prebundle repoint.")
         return
 
-    prebundle_dirs = list(isaacsim_path.rglob("pip_prebundle"))
+    # Discover pip_prebundle directories from both the Isaac Sim tree and
+    # Omniverse cache roots. Some Isaac Sim directories are symlinked into
+    # ~/.local/share/ov and may be missed by a plain rglob() on _isaac_sim.
+    candidate_roots: set[Path] = set()
+    for root in (
+        isaacsim_path,
+        isaacsim_path.resolve(),
+        isaacsim_path / "extscache",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts" / "v2",
+    ):
+        if root.exists():
+            candidate_roots.add(root)
+            candidate_roots.add(root.resolve())
+
+    prebundle_dirs: set[Path] = set()
+    for root in candidate_roots:
+        prebundle_dirs.update(root.rglob("pip_prebundle"))
+
     if not prebundle_dirs:
         print_debug("No pip_prebundle directories found under Isaac Sim.")
         return

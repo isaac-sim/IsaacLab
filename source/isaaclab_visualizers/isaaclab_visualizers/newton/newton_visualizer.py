@@ -56,7 +56,7 @@ class NewtonViewerGL(ViewerGL):
             self._fallback_draw_controls = True
 
     def is_training_paused(self) -> bool:
-        """Return whether training is paused by viewer controls."""
+        """Return whether physics is paused by viewer controls."""
         return self._paused_training
 
     def is_rendering_paused(self) -> bool:
@@ -68,7 +68,7 @@ class NewtonViewerGL(ViewerGL):
         imgui.separator()
         imgui.text("IsaacLab Controls")
 
-        pause_label = "Resume Training" if self._paused_training else "Pause Training"
+        pause_label = "Resume Physics" if self._paused_training else "Pause Physics"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
 
@@ -110,7 +110,7 @@ class NewtonViewerGL(ViewerGL):
             imgui.set_next_window_pos(imgui.ImVec2(320, 10))
 
         flags = 0
-        if imgui.begin("Training Controls", flags=flags):
+        if imgui.begin("Physics Controls", flags=flags):
             self._render_training_controls(imgui)
         imgui.end()
         return None

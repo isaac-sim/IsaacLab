@@ -25,6 +25,9 @@ class KitVisualizerCfg(VisualizerCfg):
     visualizer_camera_prim_path: str = "/World/Cameras/KitVisualizerCamera"
     """Dedicated camera prim path controlled by the Kit visualizer."""
 
+    focal_length: float = 12.0
+    """Focal length in millimeters applied to the dedicated visualizer camera."""
+
     enable_visualizer_cam: bool = True
     """Whether the Kit visualizer should control/bind a dedicated viewport camera.
 
