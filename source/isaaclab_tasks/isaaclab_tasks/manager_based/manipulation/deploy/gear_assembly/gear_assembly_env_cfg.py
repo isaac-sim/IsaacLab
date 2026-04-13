@@ -194,15 +194,15 @@ class ObservationsCfg:
             func=mdp.gear_shaft_pos_w,
             params={},  # Will be populated in __post_init__
             noise=ResetSampledConstantNoiseModelCfg(
-                noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")
+                noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")
             ),
         )
         gear_shaft_quat = ObsTerm(
             func=mdp.gear_shaft_quat_w,
             noise=ResetSampledQuaternionNoiseModelCfg(
-                roll_range=(-0.03491, 0.03491),
-                pitch_range=(-0.03491, 0.03491),
-                yaw_range=(-0.03491, 0.03491),
+                roll_range=(-0.01745, 0.01745),
+                pitch_range=(-0.01745, 0.01745),
+                yaw_range=(-0.01745, 0.01745),
             ),
         )
 
