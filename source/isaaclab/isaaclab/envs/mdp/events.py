@@ -768,9 +768,10 @@ class _RandomizeRigidBodyColliderOffsetsPhysx:
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
     ):
         if env_ids is None:
-            env_ids = torch.arange(env.scene.num_envs, device="cpu")
+            env_ids = torch.arange(env.scene.num_envs, device="cpu", dtype=torch.int32)
         else:
-            env_ids = env_ids.cpu()
+            env_ids = env_ids.to(device="cpu", dtype=torch.int32)
+        wp_env_ids = wp.from_torch(env_ids, dtype=wp.int32)
 
         if rest_offset_distribution_params is not None:
             rest_offset = self.default_rest_offsets.clone()
@@ -782,7 +783,7 @@ class _RandomizeRigidBodyColliderOffsetsPhysx:
                 operation="abs",
                 distribution=distribution,
             )
-            self.asset.root_view.set_rest_offsets(rest_offset, env_ids)
+            self.asset.root_view.set_rest_offsets(wp.from_torch(rest_offset), wp_env_ids)
 
         if contact_offset_distribution_params is not None:
             contact_offset = self.default_contact_offsets.clone()
@@ -794,7 +795,7 @@ class _RandomizeRigidBodyColliderOffsetsPhysx:
                 operation="abs",
                 distribution=distribution,
             )
-            self.asset.root_view.set_contact_offsets(contact_offset, env_ids)
+            self.asset.root_view.set_contact_offsets(wp.from_torch(contact_offset), wp_env_ids)
 
 
 class _RandomizeRigidBodyColliderOffsetsNewton:
