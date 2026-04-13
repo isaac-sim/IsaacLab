@@ -66,6 +66,9 @@ _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
 #              "img_result_path": str | None, "img_golden_path": str | None}
 _COMPARISON_SCORES: list[dict] = []
 
+# Environment seed.
+_ENV_SEED = 42
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -640,7 +643,7 @@ def shadow_hand_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
+    env_cfg.seed = _ENV_SEED
 
     if data_type == "depth":
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
@@ -649,7 +652,7 @@ def shadow_hand_env(request):
     env = None
     try:
         env = ShadowHandVisionEnv(env_cfg)
-        env.reset()
+        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -688,12 +691,12 @@ def cartpole_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
+    env_cfg.seed = _ENV_SEED
 
     env = None
     try:
         env = CartpoleCameraEnv(env_cfg)
-        env.reset()
+        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -736,12 +739,12 @@ def dexsuite_kuka_allegro_lift_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
+    env_cfg.seed = _ENV_SEED
 
     env = None
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.reset()
+        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -784,7 +787,7 @@ def test_registered_tasks(task_id):
     env = None
     try:
         env_cfg = parse_env_cfg(task_id, num_envs=4)
-        env_cfg.seed = 42
+        env_cfg.seed = _ENV_SEED
 
         env = gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped
@@ -792,7 +795,7 @@ def test_registered_tasks(task_id):
         if sim is not None:
             sim._app_control_on_stop_handle = None
 
-        env.reset()
+        env.reset(seed=_ENV_SEED)
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)
