@@ -26,7 +26,7 @@ INSTALL_REQUIRES = [
     # configuration management
     "hydra-core",
     # data collection
-    "h5py",
+    "h5py==3.15.1",
     # basic logger
     "tensorboard",
     # video recording

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.5.20 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Change Franka visuomotor and GR1T2 nut pouring environments to use TiledCamera.
+
+
 1.5.19 (2026-04-06)
 ~~~~~~~~~~~~~~~~~~~
 

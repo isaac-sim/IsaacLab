@@ -61,6 +61,28 @@ inputs:
 runs:
   using: composite
   steps:
+    # Display some details on AWS instance we're running on
+    - name: AWS Instance Info
+      shell: bash
+      run: |
+        # get instance ID for debugging purposes (if running on EC2)
+        IMDS_TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" \
+          -H "X-aws-ec2-metadata-token-ttl-seconds: 21600") || true
+        if [ -n "$IMDS_TOKEN" ]; then
+          INSTANCE_ID=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+            "http://169.254.169.254/latest/meta-data/instance-id") || true
+          INSTANCE_REGION=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+              "http://169.254.169.254/latest/meta-data/placement/region") || true
+          INSTANCE_TYPE=$(curl -sf -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+              "http://169.254.169.254/latest/meta-data/instance-type") || true
+          echo "⚪ Instance ID: ${INSTANCE_ID:-Not running on EC2}"
+          echo "⚪ Instance Region: ${INSTANCE_REGION:-Not running on EC2}"
+          echo "⚪ Instance Type: ${INSTANCE_TYPE:-Not running on EC2}"
+          echo "⚪ Connect: https://${INSTANCE_REGION}.console.aws.amazon.com/ec2-instance-connect/ssh/home?region=${INSTANCE_REGION}&connType=standard&instanceId=${INSTANCE_ID}&osUser=ubuntu&sshPort=22&addressFamily=ipv4"
+        else
+          echo "🟠 Could not obtain IMDS token, probably not running on EC2"
+        fi
+
     - name: Record pull start time
       id: pull-start
       shell: bash
@@ -133,6 +155,8 @@ runs:
       run: |
         # Don't let cleanup errors fail a passing test job
         set +e
+
+        echo "🔵 Cleaning up old Docker images..."
 
         echo "⚪ Disk usage before cleanup:"
         df -h /var/lib/docker

@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.5.14 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the simulation training loop not pausing when the Kit GUI timeline is
+  paused. :meth:`~isaaclab_physx.physics.PhysxManager.wait_for_playing` now
+  blocks and keeps the GUI responsive until the timeline is resumed or stopped.
+* Fixed articulation visualization freezing after pausing and unpausing the
+  simulation through the headed GUI in Isaac Sim 5.1+. Articulation meshes now
+  remain visually updated after resuming.
+
+
 0.5.13 (2026-03-25)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -11,12 +11,11 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import os
-import signal
-import subprocess
 import sys
 import tempfile
 
 import pytest
+from mimic_test_utils import run_script
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
@@ -25,48 +24,7 @@ NUCLEUS_SKILLGEN_ANNOTATED_DATASET_PATH = os.path.join(
     ISAACLAB_NUCLEUS_DIR, "Mimic", "franka_stack_datasets", "annotated_dataset_skillgen.hdf5"
 )
 
-# Timeout for subprocess execution (seconds).
 _SUBPROCESS_TIMEOUT = 600
-_SUBPROCESS_GRACE_PERIOD = 15
-
-
-def _run_script(command: list[str]) -> subprocess.CompletedProcess:
-    """Run a script in a subprocess and return a CompletedProcess.
-
-    The Kit / Omniverse runtime's ``simulation_app.close()`` can hang
-    indefinitely when another ``SimulationApp`` instance is alive in the parent
-    test process (shared GPU / IPC resources).  To avoid blocking the test
-    suite we use ``Popen`` with an explicit timeout:
-
-    1. Wait up to ``_SUBPROCESS_TIMEOUT`` seconds for the process to finish.
-    2. On timeout send ``SIGTERM`` and wait ``_SUBPROCESS_GRACE_PERIOD`` seconds.
-    3. If still alive, ``SIGKILL`` and collect remaining output.
-
-    The captured *stdout* / *stderr* are returned regardless of how the process
-    terminated so that callers can validate the script's printed output.
-    """
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    try:
-        stdout, stderr = process.communicate(timeout=_SUBPROCESS_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        process.send_signal(signal.SIGTERM)
-        try:
-            stdout, stderr = process.communicate(timeout=_SUBPROCESS_GRACE_PERIOD)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            stdout, stderr = process.communicate()
-
-    return subprocess.CompletedProcess(
-        args=command,
-        returncode=process.returncode,
-        stdout=stdout or "",
-        stderr=stderr or "",
-    )
 
 
 @pytest.fixture
@@ -132,7 +90,7 @@ def test_generate_dataset_skillgen(setup_skillgen_test_environment):
         "Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0",
     ]
 
-    result = _run_script(command)
+    result = run_script(command, timeout=_SUBPROCESS_TIMEOUT)
 
     print("SkillGen dataset generation result:")
     print(result.stdout)

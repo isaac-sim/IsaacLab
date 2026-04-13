@@ -23,7 +23,7 @@ INSTALL_REQUIRES = [
     # jupyter notebook
     "ipywidgets==8.1.5",
     # data collection
-    "h5py",
+    "h5py==3.15.1",
 ]
 
 # nvidia-srl-usd-to-urdf depends on usd-core which has no aarch64 wheels

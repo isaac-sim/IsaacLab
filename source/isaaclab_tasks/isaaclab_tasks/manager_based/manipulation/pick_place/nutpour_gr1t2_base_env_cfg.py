@@ -27,7 +27,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.sensors import TiledCameraCfg
 
 # from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
@@ -167,14 +167,14 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Set table view camera
-    robot_pov_cam = CameraCfg(
+    robot_pov_cam = TiledCameraCfg(
         prim_path="{ENV_REGEX_NS}/RobotPOVCam",
         update_period=0.0,
         height=160,
         width=256,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.67675), rot=(0.9801, 0.0, 0.0, -0.19848), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.12, 1.67675), rot=(0.9801, 0.0, 0.0, -0.19848), convention="ros"),
     )
 
     # Ground plane
