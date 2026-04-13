@@ -261,12 +261,6 @@ Isaac Sim Freezes or Hangs
 2. If latency is very high (>100ms), try:
 
    - Selecting an instance in a region closer to you
-   - Reducing the graphics quality by setting environment variables before launch:
-
-     .. code-block:: bash
-
-        export NVIDIA_HEADLESS=1
-        export NVIDIA_DISABLE_DEVICE_PLUGIN=1
 
 3. If the instance consistently exhibits poor performance, it may not meet the bandwidth requirements - consider renting a different instance
 
