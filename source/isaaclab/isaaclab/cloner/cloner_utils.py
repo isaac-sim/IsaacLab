@@ -47,12 +47,15 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         predicate=lambda prim: str(prim.GetPath()).split("/")[-1].startswith(prototype_id),
     )
     if len(prototypes) > 0:
-        prototype_root_set = {"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes}
+        # Sort the prototype roots to ensure consistent order from run to run.
+        prototype_roots = sorted(
+            {"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes}
+        )
         # discover prototypes per root then make a clone plan
         src: list[list[str]] = []
         dest: list[str] = []
 
-        for prototype_root in prototype_root_set:
+        for prototype_root in prototype_roots:
             protos = sim_utils.find_matching_prim_paths(f"{prototype_root}/.*")
             protos = [proto for proto in protos if proto.split("/")[-1].startswith(prototype_id)]
             src.append(protos)
