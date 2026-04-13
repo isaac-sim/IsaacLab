@@ -12,7 +12,6 @@ on:
       - develop
       - 'release/**'
       - 'feature/isaacsim-6-0'
-      - '*docfix*'
   pull_request:
     # we're skipping the branches and paths filter to allow docs to be built on any PR because heredoc is used
     # additionally, we have a check that determines what version of docs will be built
