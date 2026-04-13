@@ -40,6 +40,8 @@ from isaaclab.utils.timer import Timer
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
+    from .newton_collision_cfg import NewtonCollisionPipelineCfg
+
 logger = logging.getLogger(__name__)
 
 # Tagged union for entries in _cl_site_index_map.
@@ -97,6 +99,7 @@ class NewtonManager(PhysicsManager):
     _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
+    _collision_cfg: NewtonCollisionPipelineCfg | None = None
     _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
     _newton_frame_transform_sensors: list = []  # List of SensorFrameTransform
     _report_contacts: bool = False
@@ -385,6 +388,7 @@ class NewtonManager(PhysicsManager):
         cls._contacts = None
         cls._needs_collision_pipeline = False
         cls._collision_pipeline = None
+        cls._collision_cfg = None
         cls._newton_contact_sensors = {}
         cls._newton_frame_transform_sensors = []
         cls._report_contacts = False
@@ -725,7 +729,11 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+                if cls._collision_cfg is not None:
+                    cls._collision_pipeline = CollisionPipeline(cls._model, **cls._collision_cfg.to_pipeline_args())
+                else:
+                    cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
@@ -785,19 +793,20 @@ class NewtonManager(PhysicsManager):
             else:
                 raise ValueError(f"Invalid solver type: {cls._solver_type}")
 
+            # Store collision pipeline config
+            cls._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
+
             # Determine if we need external collision detection
             # - SolverMuJoCo with use_mujoco_contacts=True: uses internal MuJoCo collision detection
             # - SolverMuJoCo with use_mujoco_contacts=False: needs Newton's unified collision pipeline
             # - Other solvers (XPBD, Featherstone): always need Newton's unified collision pipeline
             if isinstance(cls._solver, SolverMuJoCo):
-                # Handle both dict and object configs
-                if hasattr(solver_cfg, "use_mujoco_contacts"):
-                    use_mujoco_contacts = solver_cfg.use_mujoco_contacts
-                elif isinstance(solver_cfg, dict):
-                    use_mujoco_contacts = solver_cfg.get("use_mujoco_contacts", False)
-                else:
-                    use_mujoco_contacts = getattr(solver_cfg, "use_mujoco_contacts", False)
-                cls._needs_collision_pipeline = not use_mujoco_contacts
+                cls._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
+                if solver_cfg.use_mujoco_contacts and cls._collision_cfg is not None:
+                    raise ValueError(
+                        "NewtonManager: collision_cfg cannot be set when use_mujoco_contacts=True."
+                        " Either set use_mujoco_contacts=False or remove collision_cfg."
+                    )
             else:
                 cls._needs_collision_pipeline = True
 
