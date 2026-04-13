@@ -607,3 +607,37 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )
+
+        # Legacy teleop devices (used when --teleop_device is explicitly passed).
+        from isaaclab.devices.device_base import DevicesCfg  # isort: skip
+        from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import GR1T2RetargeterCfg  # isort: skip
+        from isaaclab.devices.openxr import ManusViveCfg, OpenXRDeviceCfg
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "handtracking": OpenXRDeviceCfg(
+                    retargeters=[
+                        GR1T2RetargeterCfg(
+                            enable_visualization=True,
+                            num_open_xr_hand_joints=2 * 26,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+                "manusvive": ManusViveCfg(
+                    retargeters=[
+                        GR1T2RetargeterCfg(
+                            enable_visualization=True,
+                            num_open_xr_hand_joints=2 * 26,
+                            sim_device=self.sim.device,
+                            hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+            }
+        )
