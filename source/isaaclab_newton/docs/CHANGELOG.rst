@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.11 (2026-04-07)
+0.5.11 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -10,13 +10,6 @@ Added
 * Added :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformer` sensor
   wrapping Newton's ``SensorFrameTransform``. Supports per-env source/target site
   registration, wildcard body matching, and zero-copy transform views.
-
-Changed
-^^^^^^^
-
-* Changed :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation` to inject
-  pending frame-transformer sites via :meth:`_cl_inject_sites_fallback` in the
-  non-replication path.
 
 
 0.5.10 (2026-04-05)

@@ -10,13 +10,6 @@ Added
   zero-copy splitting of ``wp.transformf`` arrays into ``vec3f`` and ``quatf`` views.
 
 
-Changed
-^^^^^^^
-
-* Changed :class:`~isaaclab.scene.InteractiveScene` to format ``sensor_shape_prim_expr``
-  and ``filter_shape_prim_expr`` config attributes with the environment regex namespace.
-
-
 4.5.29 (2026-04-10)
 ~~~~~~~~~~~~~~~~~~~
 
