@@ -41,7 +41,7 @@ from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import (  # no
     ShadowHandVisionBenchmarkEnvCfg,
     ShadowHandVisionEnvCfg,
 )
-from isaaclab_tasks.utils.hydra import collect_presets, resolve_preset_defaults  # noqa: E402
+from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -383,7 +383,7 @@ def render_correctness_env(request, shadow_hand_vision_presets):
     camera_cfg = copy.deepcopy(shadow_hand_vision_presets["tiled_camera"][camera_preset])
     camera_cfg.renderer_cfg = copy.deepcopy(shadow_hand_vision_presets["tiled_camera.renderer_cfg"][renderer_preset])
     cfg.tiled_camera = camera_cfg
-    # Apply Newton presets before resolve_preset_defaults so they are not overwritten by defaults.
+    # Apply Newton presets before resolve_presets so they are not overwritten by defaults.
     # Newton needs a specific solver config, a different robot USD, an articulation-based object,
     # and a stripped-down event cfg (no PhysX-specific material randomization).
     if physics == "newton":
@@ -392,7 +392,7 @@ def render_correctness_env(request, shadow_hand_vision_presets):
         cfg.object_cfg = copy.deepcopy(shadow_hand_vision_presets["object_cfg"]["newton"])
         if "events" in shadow_hand_vision_presets:
             cfg.events = copy.deepcopy(shadow_hand_vision_presets["events"]["newton"])
-    cfg = resolve_preset_defaults(cfg)
+    cfg = resolve_presets(cfg)
     cfg.scene.num_envs = 4
     cfg.feature_extractor.write_image_to_file = False
     env = ShadowHandVisionEnv(cfg)

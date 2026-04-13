@@ -1,6 +1,67 @@
 Changelog
 ---------
 
+4.5.31 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.envs.mdp.randomize_rigid_body_inertia` event term for
+  randomizing body inertia tensors independently of mass. Supports diagonal-only
+  (Ixx, Iyy, Izz) and full 3x3 modes.
+
+Changed
+^^^^^^^
+
+* Split :class:`~isaaclab.envs.mdp.randomize_rigid_body_material` into
+  backend-specific implementations. PhysX uses bucket-based 3-tuple materials via the
+  tensor API; Newton samples friction and restitution continuously per shape via
+  view-level attribute bindings.
+* Converted ``randomize_rigid_body_com`` from a plain function to a
+  :class:`~isaaclab.managers.ManagerTermBase` class with repeatable randomization
+  from cached defaults. Newton passes position-only (vec3); PhysX passes full pose
+  (pos + quat).
+* Converted ``randomize_rigid_body_collider_offsets`` from a plain function to a
+  :class:`~isaaclab.managers.ManagerTermBase` class with backend-specific
+  implementations. PhysX uses rest/contact offsets directly; Newton maps them to
+  ``shape_margin`` and ``shape_gap``.
+
+
+4.5.30 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+* Added :func:`~isaaclab.utils.warp.math_ops.transform_to_vec_quat` utility for
+  zero-copy splitting of ``wp.transformf`` arrays into ``vec3f`` and ``quatf`` views.
+
+
+4.5.29 (2026-04-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added flag to toggle dataset compression in RecorderManager and dataset file handler.
+
+Changed
+^^^^^^^
+
+* Changed RecorderManager to clone value tensors before adding to episode data, removing multiple clones in ``episodes.add()`` and replacing with a single clone.
+
+
+4.5.28 (2026-04-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.physics.PhysicsManager.wait_for_playing` hook and
+  integrated it into :meth:`~isaaclab.sim.SimulationContext.step` so the
+  training loop blocks while the Kit GUI timeline is paused.
+
+
 4.5.27 (2026-04-08)
 ~~~~~~~~~~~~~~~~~~~
 

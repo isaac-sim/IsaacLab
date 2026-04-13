@@ -790,6 +790,14 @@ class InteractiveScene:
                     asset_cfg.filter_prim_paths_expr = [
                         p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_prim_paths_expr
                     ]
+                    if hasattr(asset_cfg, "sensor_shape_prim_expr") and asset_cfg.sensor_shape_prim_expr:
+                        asset_cfg.sensor_shape_prim_expr = [
+                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.sensor_shape_prim_expr
+                        ]
+                    if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr:
+                        asset_cfg.filter_shape_prim_expr = [
+                            p.format(ENV_REGEX_NS=self.env_regex_ns) for p in asset_cfg.filter_shape_prim_expr
+                        ]
                 elif isinstance(asset_cfg, VisuoTactileSensorCfg):
                     if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
                         asset_cfg.camera_cfg.prim_path = asset_cfg.camera_cfg.prim_path.format(

@@ -654,9 +654,15 @@ class SimulationContext:
     def step(self, render: bool = True) -> None:
         """Step physics and optionally render.
 
+        If the timeline is paused (e.g. via the GUI), this method blocks and keeps
+        the visualizer responsive until the timeline is resumed or stopped.
+
         Args:
             render: Whether to render the scene after stepping. Defaults to True.
         """
+        # Block while the GUI timeline is paused so the entire training loop freezes.
+        # See: https://github.com/isaac-sim/IsaacLab/issues/4279
+        self.physics_manager.wait_for_playing()
         self._physics_step_count += 1
         self.physics_manager.step()
         if render and self.is_rendering:
