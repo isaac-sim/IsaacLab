@@ -20,6 +20,19 @@ Changed
   with ``return_distance`` and ``return_normal`` flags matching the design of
   :func:`~isaaclab.utils.warp.kernels.raycast_mesh_kernel`.
 
+  **Breaking change** — :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
+  :attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
+  :attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` now return :class:`wp.array`
+  instead of :class:`torch.Tensor`. Call-sites that previously accessed these as tensors
+  must wrap the result with :func:`wp.to_torch`:
+
+  .. code-block:: python
+
+     # Before
+     hits = sensor.data.ray_hits_w          # torch.Tensor (old)
+     # After
+     hits = wp.to_torch(sensor.data.ray_hits_w)  # torch.Tensor (zero-copy view)
+
 
 4.5.27 (2026-04-08)
 ~~~~~~~~~~~~~~~~~~~

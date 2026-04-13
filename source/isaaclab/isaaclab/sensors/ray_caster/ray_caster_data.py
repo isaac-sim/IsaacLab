@@ -5,16 +5,15 @@
 
 from __future__ import annotations
 
-import torch
 import warp as wp
 
 
 class RayCasterData:
     """Data container for the ray-cast sensor.
 
-    Public properties return :class:`torch.Tensor` objects that are zero-copy views of the
-    underlying Warp buffers. Internal code accesses the raw ``wp.array`` buffers via the
-    private ``_pos_w``, ``_quat_w``, and ``_ray_hits_w`` attributes.
+    All public properties return :class:`wp.array` objects backed by device memory.
+    Use :func:`wp.to_torch` at the call-site when a PyTorch tensor is needed, e.g.
+    ``wp.to_torch(sensor.data.ray_hits_w)``.
     """
 
     def __init__(self):
@@ -22,37 +21,42 @@ class RayCasterData:
         self._quat_w: wp.array | None = None
         self._ray_hits_w: wp.array | None = None
 
-        self._pos_w_torch: torch.Tensor | None = None
-        self._quat_w_torch: torch.Tensor | None = None
-        self._ray_hits_w_torch: torch.Tensor | None = None
+        # Zero-copy torch views; kept alive to prevent GC of the underlying warp buffers.
+        # Not surfaced as public API — callers should use wp.to_torch() at the call-site.
+        self._pos_w_torch = None
+        self._quat_w_torch = None
+        self._ray_hits_w_torch = None
 
     @property
-    def pos_w(self) -> torch.Tensor | None:
+    def pos_w(self) -> wp.array | None:
         """Position of the sensor origin in world frame [m].
 
-        Shape is (N, 3) where N is the number of sensors.
-        Returns a zero-copy torch view of the underlying Warp buffer.
+        Shape is (N,), dtype ``wp.vec3f``. In torch this resolves to (N, 3),
+        where N is the number of sensors. Use :func:`wp.to_torch` to obtain a
+        :class:`torch.Tensor` view without copying data.
         """
-        return self._pos_w_torch
+        return self._pos_w
 
     @property
-    def quat_w(self) -> torch.Tensor | None:
+    def quat_w(self) -> wp.array | None:
         """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame.
 
-        Shape is (N, 4) where N is the number of sensors.
-        Returns a zero-copy torch view of the underlying Warp buffer.
+        Shape is (N,), dtype ``wp.quatf``. In torch this resolves to (N, 4),
+        where N is the number of sensors. Use :func:`wp.to_torch` to obtain a
+        :class:`torch.Tensor` view without copying data.
         """
-        return self._quat_w_torch
+        return self._quat_w
 
     @property
-    def ray_hits_w(self) -> torch.Tensor | None:
+    def ray_hits_w(self) -> wp.array | None:
         """The ray hit positions in the world frame [m].
 
-        Shape is (N, B, 3) where N is the number of sensors and B is the number of rays per sensor.
-        Contains ``inf`` for missed hits.
-        Returns a zero-copy torch view of the underlying Warp buffer.
+        Shape is (N, B), dtype ``wp.vec3f``. In torch this resolves to (N, B, 3),
+        where N is the number of sensors and B is the number of rays per sensor.
+        Contains ``inf`` for missed hits. Use :func:`wp.to_torch` to obtain a
+        :class:`torch.Tensor` view without copying data.
         """
-        return self._ray_hits_w_torch
+        return self._ray_hits_w
 
     def create_buffers(self, num_envs: int, num_rays: int, device: str) -> None:
         """Create internal warp buffers and corresponding zero-copy torch views.
