@@ -122,6 +122,7 @@ Guidelines for modifications:
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
+* Olusanya Todd
 * Ori Gadot
 * Oyindamola Omotuyi
 * Özhan Özen
