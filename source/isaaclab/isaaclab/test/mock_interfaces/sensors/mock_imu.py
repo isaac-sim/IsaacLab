@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-import numpy as np
 import torch
 import warp as wp
 
@@ -31,7 +30,7 @@ class MockImuData(BaseImuData):
     """Mock data container for IMU sensor.
 
     This class mimics the interface of BaseImuData for testing purposes.
-    All tensor properties return zero warp arrays with correct shapes if not explicitly set.
+    The IMU only provides angular velocity and linear acceleration.
     """
 
     def __init__(self, num_instances: int, device: str = "cpu"):
@@ -44,97 +43,26 @@ class MockImuData(BaseImuData):
         self._num_instances = num_instances
         self.device = device
 
-        # Internal storage for mock data
-        self._pos_w: wp.array | None = None
-        self._quat_w: wp.array | None = None
-        self._projected_gravity_b: wp.array | None = None
-        self._lin_vel_b: wp.array | None = None
         self._ang_vel_b: wp.array | None = None
         self._lin_acc_b: wp.array | None = None
-        self._ang_acc_b: wp.array | None = None
 
     # -- Properties --
 
     @property
-    def pos_w(self) -> wp.array:
-        """Position of sensor origin in world frame. Shape: (N, 3)."""
-        if self._pos_w is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._pos_w
-
-    @property
-    def quat_w(self) -> wp.array:
-        """Orientation (x, y, z, w) in world frame. Shape: (N, 4)."""
-        if self._quat_w is None:
-            # Default to identity quaternion (x, y, z, w) = (0, 0, 0, 1)
-            quat_np = np.zeros((self._num_instances, 4), dtype=np.float32)
-            quat_np[:, 3] = 1.0  # w component is at index 3 in XYZW format
-            return wp.array(quat_np, dtype=wp.float32, device=self.device)
-        return self._quat_w
-
-    @property
-    def pose_w(self) -> wp.array:
-        """Pose in world frame (pos + quat). Shape: (N, 7)."""
-        pos_t = wp.to_torch(self.pos_w)
-        quat_t = wp.to_torch(self.quat_w)
-        pose_t = torch.cat([pos_t, quat_t], dim=-1)
-        return wp.from_torch(pose_t.contiguous(), dtype=wp.float32)
-
-    @property
-    def projected_gravity_b(self) -> wp.array:
-        """Gravity direction in IMU body frame. Shape: (N, 3)."""
-        if self._projected_gravity_b is None:
-            # Default gravity pointing down in body frame
-            gravity_np = np.zeros((self._num_instances, 3), dtype=np.float32)
-            gravity_np[:, 2] = -1.0
-            return wp.array(gravity_np, dtype=wp.float32, device=self.device)
-        return self._projected_gravity_b
-
-    @property
-    def lin_vel_b(self) -> wp.array:
-        """Linear velocity in IMU body frame. Shape: (N, 3)."""
-        if self._lin_vel_b is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._lin_vel_b
-
-    @property
     def ang_vel_b(self) -> wp.array:
-        """Angular velocity in IMU body frame. Shape: (N, 3)."""
+        """Angular velocity in IMU body frame [rad/s]. Shape: (N, 3)."""
         if self._ang_vel_b is None:
             return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
         return self._ang_vel_b
 
     @property
     def lin_acc_b(self) -> wp.array:
-        """Linear acceleration in IMU body frame. Shape: (N, 3)."""
+        """Linear acceleration in IMU body frame [m/s^2]. Shape: (N, 3)."""
         if self._lin_acc_b is None:
             return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
         return self._lin_acc_b
 
-    @property
-    def ang_acc_b(self) -> wp.array:
-        """Angular acceleration in IMU body frame. Shape: (N, 3)."""
-        if self._ang_acc_b is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._ang_acc_b
-
     # -- Setters --
-
-    def set_pos_w(self, value: torch.Tensor) -> None:
-        """Set position in world frame."""
-        self._pos_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
-
-    def set_quat_w(self, value: torch.Tensor) -> None:
-        """Set orientation in world frame."""
-        self._quat_w = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
-
-    def set_projected_gravity_b(self, value: torch.Tensor) -> None:
-        """Set projected gravity in body frame."""
-        self._projected_gravity_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
-
-    def set_lin_vel_b(self, value: torch.Tensor) -> None:
-        """Set linear velocity in body frame."""
-        self._lin_vel_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
     def set_ang_vel_b(self, value: torch.Tensor) -> None:
         """Set angular velocity in body frame."""
@@ -144,45 +72,21 @@ class MockImuData(BaseImuData):
         """Set linear acceleration in body frame."""
         self._lin_acc_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
 
-    def set_ang_acc_b(self, value: torch.Tensor) -> None:
-        """Set angular acceleration in body frame."""
-        self._ang_acc_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
-
     def set_mock_data(
         self,
-        pos_w: torch.Tensor | None = None,
-        quat_w: torch.Tensor | None = None,
-        projected_gravity_b: torch.Tensor | None = None,
-        lin_vel_b: torch.Tensor | None = None,
         ang_vel_b: torch.Tensor | None = None,
         lin_acc_b: torch.Tensor | None = None,
-        ang_acc_b: torch.Tensor | None = None,
     ) -> None:
         """Bulk setter for mock data.
 
         Args:
-            pos_w: Position in world frame. Shape: (N, 3).
-            quat_w: Orientation (x, y, z, w) in world frame. Shape: (N, 4).
-            projected_gravity_b: Gravity direction in body frame. Shape: (N, 3).
-            lin_vel_b: Linear velocity in body frame. Shape: (N, 3).
-            ang_vel_b: Angular velocity in body frame. Shape: (N, 3).
-            lin_acc_b: Linear acceleration in body frame. Shape: (N, 3).
-            ang_acc_b: Angular acceleration in body frame. Shape: (N, 3).
+            ang_vel_b: Angular velocity in body frame [rad/s]. Shape: (N, 3).
+            lin_acc_b: Linear acceleration in body frame [m/s^2]. Shape: (N, 3).
         """
-        if pos_w is not None:
-            self.set_pos_w(pos_w)
-        if quat_w is not None:
-            self.set_quat_w(quat_w)
-        if projected_gravity_b is not None:
-            self.set_projected_gravity_b(projected_gravity_b)
-        if lin_vel_b is not None:
-            self.set_lin_vel_b(lin_vel_b)
         if ang_vel_b is not None:
             self.set_ang_vel_b(ang_vel_b)
         if lin_acc_b is not None:
             self.set_lin_acc_b(lin_acc_b)
-        if ang_acc_b is not None:
-            self.set_ang_acc_b(ang_acc_b)
 
 
 class MockImu:
@@ -232,7 +136,6 @@ class MockImu:
         Args:
             env_ids: Environment indices to reset. If None, resets all.
         """
-        # No-op for mock - data persists until explicitly changed
         pass
 
     def update(self, dt: float, force_recompute: bool = False) -> None:
@@ -242,5 +145,4 @@ class MockImu:
             dt: Time step since last update.
             force_recompute: Force recomputation of buffers.
         """
-        # No-op for mock - data is set explicitly
         pass

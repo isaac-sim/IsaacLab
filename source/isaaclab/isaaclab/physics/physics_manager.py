@@ -325,6 +325,11 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
+    def wait_for_playing(cls) -> None:
+        """Block until the timeline is playing. Default is no-op."""
+        pass
+
+    @classmethod
     def get_backend(cls) -> str:
         """Get the tensor backend being used ("numpy" or "torch")."""
         return "torch" if "cuda" in PhysicsManager._device else "numpy"

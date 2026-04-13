@@ -28,9 +28,13 @@ jobs:
     outputs:
       trigger-deploy: ${{ steps.trigger-deploy.outputs.defined }}
     steps:
+    - id: info
+      run: echo "repo=github.repository=${{ github.repository }}, ref=github.ref=${{ github.ref }}"
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
+      # develop, main, release/ trigger multi-version build, then deployment to gh-pages
+      # all others - just the current docs without deployment
       if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')) }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
@@ -89,12 +93,11 @@ jobs:
     - name: Generate multi-version docs
       working-directory: ./docs
       env:
-        # When triggered from develop, build only the develop branch, no tags or main.
-        # Branches main and release/* will build main + release/* + tags.
-        # This way each main branch does not overwrite develop content,
-        # provided keep_files is true for gh-pages action.
-        SMV_BRANCH_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^develop$' || '^(main|release/.*)$' }}
-        SMV_TAG_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^$' || '^v[1-9]\d*\.\d+\.\d+$' }}
+        # "deploy" branches build the full set of versions so every page
+        # has a complete version dropdown: main, develop, tags >= v2.0.0.
+        # v1.x tags and release/ branches are excluded to keep it lean and mean.
+        SMV_BRANCH_WHITELIST: '^(main|develop)$'
+        SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+$'
       run: |
         git fetch --prune --unshallow --tags
         git checkout --detach HEAD
@@ -126,4 +129,4 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./docs/_build
-        keep_files: true
+        keep_files: false

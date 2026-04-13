@@ -29,16 +29,24 @@ except OSError:
 from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
+from newton.sensors import SensorFrameTransform
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
+    from .newton_collision_cfg import NewtonCollisionPipelineCfg
+
 logger = logging.getLogger(__name__)
+
+# Tagged union for entries in _cl_site_index_map.
+# _GlobalSite: (global_shape_idx, None)           — body_pattern was None
+# _LocalSite:  (None, [[env0_idx, ...], ...])     — per-world site indices
 
 
 @wp.kernel(enable_backward=False)
@@ -91,7 +99,9 @@ class NewtonManager(PhysicsManager):
     _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
+    _collision_cfg: NewtonCollisionPipelineCfg | None = None
     _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
+    _newton_frame_transform_sensors: list = []  # List of SensorFrameTransform
     _report_contacts: bool = False
     _fk_dirty: bool = False
 
@@ -116,6 +126,19 @@ class NewtonManager(PhysicsManager):
 
     # Views list for assets to register their views
     _views: list = []
+
+    # CL: Cloning / Replication logic
+    # TODO: These attributes support cloning-specific logic and should be moved into a cloner class
+    # Pending site requests from sensors.
+    # Key: (body_pattern, xform_floats), Value: (label, wp.transform)
+    # identical (body_pattern, transform) reuses the same site.
+    _cl_pending_sites: dict[tuple[str | None, tuple[float, ...]], tuple[str, wp.transform]] = {}
+
+    # Maps each site label to its resolved global or local site entry.
+    _GlobalSite = tuple[int, None]
+    _LocalSite = tuple[None, list[list[int]]]
+    _SiteEntry = _GlobalSite | _LocalSite
+    _cl_site_index_map: dict[str, _SiteEntry] = {}
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -365,7 +388,9 @@ class NewtonManager(PhysicsManager):
         cls._contacts = None
         cls._needs_collision_pipeline = False
         cls._collision_pipeline = None
+        cls._collision_cfg = None
         cls._newton_contact_sensors = {}
+        cls._newton_frame_transform_sensors = []
         cls._report_contacts = False
         cls._fk_dirty = False
         cls._graph = None
@@ -375,12 +400,164 @@ class NewtonManager(PhysicsManager):
         cls._transforms_dirty = False
         cls._up_axis = "Z"
         cls._model_changes = set()
+        cls._cl_pending_sites = {}
+        cls._cl_site_index_map = {}
         cls._views = []
 
     @classmethod
     def set_builder(cls, builder: ModelBuilder) -> None:
         """Set the Newton model builder."""
         cls._builder = builder
+
+    @classmethod
+    def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:
+        """Create a :class:`ModelBuilder` configured with default settings.
+
+        Args:
+            up_axis: Override for the up-axis. Defaults to ``None``, which uses
+                the manager's ``_up_axis``.
+            **kwargs: Forwarded to :class:`ModelBuilder`.
+
+        Returns:
+            New builder with up-axis and contact margin defaults applied.
+        """
+        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
+        builder.default_shape_cfg.contact_margin = 0.01
+        return builder
+
+    @classmethod
+    def cl_register_site(cls, body_pattern: str | None, xform: wp.transform) -> str:
+        """Register a site request for injection into prototypes before replication.
+
+        Sensors call this during ``__init__``. Sites are injected into prototype
+        builders by :meth:`_cl_inject_sites` (called from ``newton_replicate``)
+        before ``add_builder``, so they replicate correctly per-world.
+
+        Identical ``(body_pattern, transform)`` registrations share sites.
+
+        The *body_pattern* is matched against prototype-local body labels
+        (e.g. ``"Robot/link.*"``) when replication is active, or against the
+        flat builder's body labels in the fallback path. Wildcard patterns
+        that match multiple bodies create one site per matched body.
+
+        Args:
+            body_pattern: Regex pattern matched against body labels in the
+                prototype builder (e.g. ``"Robot/link0"`` or ``"Robot/finger.*"``
+                for multi-body wildcards), or ``None`` for global sites
+                (world-origin reference, etc.).
+            xform: Site transform relative to body.
+
+        Returns:
+            Assigned site label suffix.
+        """
+        xform_key = tuple(xform)
+        key = (body_pattern, xform_key)
+        if key in cls._cl_pending_sites:
+            return cls._cl_pending_sites[key][0]
+        label = f"ft_{len(cls._cl_pending_sites)}"
+        cls._cl_pending_sites[key] = (label, xform)
+        return label
+
+    @classmethod
+    def _cl_inject_sites(
+        cls,
+        main_builder: ModelBuilder,
+        proto_builders: dict[str, ModelBuilder],
+    ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]]]:
+        """Inject registered sites into prototype builders before replication.
+
+        Non-global sites are matched against prototype body labels using
+        :func:`resolve_matching_names` (regex). Global sites
+        (``body_pattern is None``) are added to *main_builder* with
+        ``body=-1``.
+
+        Returns proto-local shape indices so that ``newton_replicate`` can
+        compute final indices during replication without a second pattern match.
+
+        Pending requests are cleared after processing.
+
+        Args:
+            main_builder: Top-level builder that receives global sites.
+            proto_builders: ``{src_path: ModelBuilder}`` prototype builders.
+
+        Returns:
+            Tuple of ``(global_sites, proto_sites)`` where *global_sites* maps
+            ``{label: main_builder_shape_idx}`` and *proto_sites* maps
+            ``{id(proto): {label: [proto_local_shape_idx, ...]}}``.
+        """
+        global_sites: dict[str, int] = {}
+        proto_sites: dict[int, dict[str, list[int]]] = {}
+
+        for (body_pattern, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+            if body_pattern is None:
+                site_idx = main_builder.add_site(body=-1, xform=xform, label=label)
+                global_sites[label] = site_idx
+                continue
+
+            any_matched = False
+            for src_prefix, proto in proto_builders.items():
+                body_labels = list(proto.body_label)
+                matched_indices, matched_names = resolve_matching_names(
+                    body_pattern, body_labels, raise_when_no_match=False
+                )
+                if not matched_indices:  # Pattern has no matches in this prototype
+                    continue
+
+                any_matched = True
+                proto_id = id(proto)
+                site_indices: list[int] = []
+                for body_idx, body_name in zip(matched_indices, matched_names):
+                    site_label = f"{body_name}/{label}"
+                    proto_site_idx = proto.add_site(body=body_idx, xform=xform, label=site_label)
+                    site_indices.append(proto_site_idx)
+                    logger.debug(f"Injected site '{site_label}' into prototype")
+                proto_sites.setdefault(proto_id, {})[label] = site_indices
+
+            if not any_matched:
+                raise ValueError(
+                    f"Site '{label}' with body_pattern '{body_pattern}' matched no prototype bodies "
+                    f"across {len(proto_builders)} prototype(s). "
+                    f"Check that the pattern matches a body label in the prototype builder."
+                )
+
+        cls._cl_pending_sites.clear()
+        return global_sites, proto_sites
+
+    @classmethod
+    def _cl_inject_sites_fallback(cls) -> None:
+        """Inject pending sites into the flat builder (no-replication path).
+
+        Populates :attr:`_cl_site_index_map` with the unified per-world structure:
+
+        - Global sites (``body_pattern is None``): ``(shape_idx, None)``
+        - Local sites: ``(None, [[idx, ...]])`` — one sublist for the single world.
+        """
+        builder = cls._builder
+        body_labels = list(builder.body_label)
+
+        for (body_pattern, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+            if body_pattern is None:
+                site_idx = builder.add_site(body=-1, xform=xform, label=label)
+                cls._cl_site_index_map[label] = (site_idx, None)
+            else:
+                try:
+                    matched_indices, matched_names = resolve_matching_names(body_pattern, body_labels)
+                except ValueError as e:
+                    raise ValueError(
+                        f"Site '{label}' with body_pattern '{body_pattern}' matched no bodies "
+                        f"in the flat builder. Available body labels: {body_labels}."
+                    ) from e
+
+                site_indices: list[int] = []
+                for body_idx in matched_indices:
+                    site_label = f"{builder.body_label[body_idx]}/{label}"
+                    site_idx = builder.add_site(body=body_idx, xform=xform, label=site_label)
+                    site_indices.append(site_idx)
+
+                # Single world (no replication): one-element outer list
+                cls._cl_site_index_map[label] = (None, [site_indices])
+
+        cls._cl_pending_sites.clear()
 
     @classmethod
     def add_model_change(cls, change: SolverNotifyFlags) -> None:
@@ -414,10 +591,13 @@ class NewtonManager(PhysicsManager):
         logger.info("Dispatching MODEL_INIT callbacks")
         cls.dispatch_event(PhysicsEvent.MODEL_INIT)
 
+        # Inject any pending site requests (no-replication fallback path).
+        # In the replication path, _cl_inject_sites() already ran from newton_replicate.
+        cls._cl_inject_sites_fallback()
+
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
-        # Set smaller contact margin for manipulation examples (default 10cm is too large)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
             cls._model = cls._builder.finalize(device=device)
             cls._model.set_gravity(cls._gravity_vector)
@@ -501,10 +681,18 @@ class NewtonManager(PhysicsManager):
                 schema_resolvers=schema_resolvers,
             )
 
+            # Inject registered sites into the proto before replication
+            global_sites, proto_sites = cls._cl_inject_sites(builder, {proto_path: proto})
+            global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
+            num_worlds = len(env_paths)
+            local_site_map: dict[str, list[list[int]]] = {}
+            site_entries = proto_sites.get(id(proto), {})
+
             # Add each env as a separate Newton world
             xform_cache = UsdGeom.XformCache()
-            for _, env_path in env_paths:
+            for col, (_, env_path) in enumerate(env_paths):
                 builder.begin_world()
+                offset = builder.shape_count
                 world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
                 translation = world_xform.ExtractTranslation()
                 rotation = world_xform.ExtractRotationQuat()
@@ -516,8 +704,17 @@ class NewtonManager(PhysicsManager):
                     rotation.GetReal(),
                 )
                 builder.add_builder(proto, xform=wp.transform(pos, quat))
+                for label, proto_shape_indices in site_entries.items():
+                    if label not in local_site_map:
+                        local_site_map[label] = [[] for _ in range(num_worlds)]
+                    for proto_shape_idx in proto_shape_indices:
+                        local_site_map[label][col].append(offset + proto_shape_idx)
                 builder.end_world()
 
+            cls._cl_site_index_map = {
+                **global_site_map,
+                **{label: (None, per_world) for label, per_world in local_site_map.items()},
+            }
             cls._num_envs = len(env_paths)
 
         cls.set_builder(builder)
@@ -532,7 +729,11 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+                if cls._collision_cfg is not None:
+                    cls._collision_pipeline = CollisionPipeline(cls._model, **cls._collision_cfg.to_pipeline_args())
+                else:
+                    cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
@@ -592,19 +793,20 @@ class NewtonManager(PhysicsManager):
             else:
                 raise ValueError(f"Invalid solver type: {cls._solver_type}")
 
+            # Store collision pipeline config
+            cls._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
+
             # Determine if we need external collision detection
             # - SolverMuJoCo with use_mujoco_contacts=True: uses internal MuJoCo collision detection
             # - SolverMuJoCo with use_mujoco_contacts=False: needs Newton's unified collision pipeline
             # - Other solvers (XPBD, Featherstone): always need Newton's unified collision pipeline
             if isinstance(cls._solver, SolverMuJoCo):
-                # Handle both dict and object configs
-                if hasattr(solver_cfg, "use_mujoco_contacts"):
-                    use_mujoco_contacts = solver_cfg.use_mujoco_contacts
-                elif isinstance(solver_cfg, dict):
-                    use_mujoco_contacts = solver_cfg.get("use_mujoco_contacts", False)
-                else:
-                    use_mujoco_contacts = getattr(solver_cfg, "use_mujoco_contacts", False)
-                cls._needs_collision_pipeline = not use_mujoco_contacts
+                cls._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
+                if solver_cfg.use_mujoco_contacts and cls._collision_cfg is not None:
+                    raise ValueError(
+                        "NewtonManager: collision_cfg cannot be set when use_mujoco_contacts=True."
+                        " Either set use_mujoco_contacts=False or remove collision_cfg."
+                    )
             else:
                 cls._needs_collision_pipeline = True
 
@@ -803,6 +1005,12 @@ class NewtonManager(PhysicsManager):
                     cls._state_0, cls._state_1 = cls._state_1, cls._state_0
                 cls._state_0.clear_forces()
 
+        # Update frame transform sensors
+        if cls._newton_frame_transform_sensors:
+            for sensor in cls._newton_frame_transform_sensors:
+                sensor.update(cls._state_0)
+
+        # Populate contacts for contact sensors
         if cls._report_contacts:
             eval_contacts = contacts if contacts is not None else cls._contacts
             cls._solver.update_contacts(eval_contacts, cls._state_0)
@@ -951,3 +1159,27 @@ class NewtonManager(PhysicsManager):
             cls._initialize_contacts()
 
         return sensor_key
+
+    @classmethod
+    def add_frame_transform_sensor(cls, shapes: list[int], reference_sites: list[int]) -> int:
+        """Add a frame transform sensor for measuring relative transforms.
+
+        Creates a :class:`SensorFrameTransform` from pre-resolved shape and reference
+        site indices, appends it to the internal list, and returns its index.
+
+        Args:
+            shapes: Ordered list of shape indices to measure.
+            reference_sites: 1:1 list of reference site indices (same length as shapes).
+
+        Returns:
+            Index of the newly created sensor in :attr:`_newton_frame_transform_sensors`.
+        """
+        sensor = SensorFrameTransform(
+            cls._model,
+            shapes=shapes,
+            reference_sites=reference_sites,
+        )
+        idx = len(cls._newton_frame_transform_sensors)
+        cls._newton_frame_transform_sensors.append(sensor)
+        logger.info(f"Added frame transform sensor (index={idx}, shapes={len(shapes)})")
+        return idx

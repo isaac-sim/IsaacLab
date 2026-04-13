@@ -2487,5 +2487,122 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
         )
 
 
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_set_material_properties(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Test getting and setting material properties (friction/restitution) via view-level APIs."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(
+        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+    )
+
+    # Play the simulator
+    sim.reset()
+
+    # Get friction/restitution bindings via view-level API
+    model = SimulationManager.get_model()
+    friction_binding = articulation._root_view.get_attribute("shape_material_mu", model)[:, 0]
+    restitution_binding = articulation._root_view.get_attribute("shape_material_restitution", model)[:, 0]
+    num_shapes = friction_binding.shape[1]
+
+    # Test 1: Set all shapes via in-place writes to the warp binding
+    friction = torch.empty(num_articulations, num_shapes, device=device).uniform_(0.4, 0.8)
+    restitution = torch.empty(num_articulations, num_shapes, device=device).uniform_(0.0, 0.2)
+
+    wp.to_torch(friction_binding)[:] = friction
+    wp.to_torch(restitution_binding)[:] = restitution
+    SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+
+    # Simulate physics
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    # Verify by reading back from the binding
+    mu = wp.to_torch(friction_binding)
+    restitution_check = wp.to_torch(restitution_binding)
+    torch.testing.assert_close(mu, friction)
+    torch.testing.assert_close(restitution_check, restitution)
+
+    # Test 2: Set subset of shapes (only shape 0)
+    if num_shapes > 1:
+        subset_friction = torch.empty(num_articulations, device=device).uniform_(0.1, 0.2)
+        subset_restitution = torch.empty(num_articulations, device=device).uniform_(0.5, 0.6)
+
+        wp.to_torch(friction_binding)[:, 0] = subset_friction
+        wp.to_torch(restitution_binding)[:, 0] = subset_restitution
+        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+
+        sim.step()
+        articulation.update(sim.cfg.dt)
+
+        # Check only the subset was updated
+        mu_updated = wp.to_torch(friction_binding)
+        restitution_updated = wp.to_torch(restitution_binding)
+        torch.testing.assert_close(mu_updated[:, 0], subset_friction)
+        torch.testing.assert_close(restitution_updated[:, 0], subset_restitution)
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_randomize_rigid_body_com(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Test that randomize_rigid_body_com modifies CoM and affects simulation dynamics."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+
+    sim.reset()
+    assert articulation.is_initialized
+
+    original_com = wp.to_torch(articulation.data.body_com_pos_b).clone()
+
+    com_offset = torch.zeros(num_articulations, articulation.num_bodies, 3, device=device)
+    com_offset[..., 0] = 0.5
+    new_com = original_com + com_offset
+    env_ids = torch.arange(num_articulations, device=device, dtype=torch.int32)
+    articulation.set_coms_index(coms=new_com, env_ids=env_ids)
+
+    updated_com = wp.to_torch(articulation.data.body_com_pos_b)
+    torch.testing.assert_close(updated_com, new_com, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Test that Newton collider offset randomization (shape_margin, shape_gap) takes effect."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+
+    sim.reset()
+    assert articulation.is_initialized
+
+    model = SimulationManager.get_model()
+    original_margin = wp.to_torch(articulation.root_view.get_attribute("shape_margin", model)).clone()
+    original_gap = wp.to_torch(articulation.root_view.get_attribute("shape_gap", model)).clone()
+
+    new_margin = original_margin.clone()
+    new_margin[:, 0] += 0.01
+    articulation.root_view.set_attribute("shape_margin", model, wp.from_torch(new_margin, dtype=wp.float32))
+
+    new_gap = original_gap.clone()
+    new_gap[:, 0] += 0.005
+    articulation.root_view.set_attribute("shape_gap", model, wp.from_torch(new_gap, dtype=wp.float32))
+
+    with wp.ScopedDevice(device):
+        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
+
+    updated_margin = wp.to_torch(articulation.root_view.get_attribute("shape_margin", model))
+    updated_gap = wp.to_torch(articulation.root_view.get_attribute("shape_gap", model))
+    torch.testing.assert_close(updated_margin, new_margin)
+    torch.testing.assert_close(updated_gap, new_gap)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])

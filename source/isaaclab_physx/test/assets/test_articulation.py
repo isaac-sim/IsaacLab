@@ -2245,5 +2245,45 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
         assert torch.allclose(joint_friction_coeff_sim_2, friction_2.cpu())
 
 
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_set_material_properties(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Test getting and setting material properties (friction/restitution) of articulation shapes."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(
+        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+    )
+
+    # Play the simulator
+    sim.reset()
+
+    # Get number of shapes from the articulation
+    max_shapes = articulation.root_view.max_shapes
+
+    # Generate random material properties: (static_friction, dynamic_friction, restitution)
+    materials = torch.empty(num_articulations, max_shapes, 3, device="cpu").uniform_(0.0, 1.0)
+    # Ensure dynamic friction <= static friction
+    materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])
+
+    # Set material properties via the PhysX view-level API
+    env_ids = torch.arange(num_articulations, dtype=torch.int32)
+    articulation.root_view.set_material_properties(
+        wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32)
+    )
+
+    # Simulate physics
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    # Get material properties from simulation
+    materials_check = wp.to_torch(articulation.root_view.get_material_properties())
+
+    # Check if material properties are set correctly
+    torch.testing.assert_close(materials_check, materials)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])

@@ -1,6 +1,68 @@
 Changelog
 ---------
 
+0.5.16 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the PhysX IMU sensor implementation to
+  :class:`~isaaclab_physx.sensors.Pva`. The ``isaaclab_physx.sensors.imu``
+  module now contains a new lightweight IMU sensor that only provides angular
+  velocity and linear acceleration.
+* Changed :class:`~isaaclab_physx.sensors.Pva` to no longer accept a
+  ``gravity_bias`` parameter. Linear acceleration is now pure finite
+  differencing of velocity without any gravity contribution.
+* Changed :class:`~isaaclab_physx.sensors.Imu` to unconditionally include
+  gravity in accelerometer readings. The gravity vector is queried from the
+  PhysX simulation at initialization instead of being user-configured.
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sensors.Imu` PhysX backend for the new
+  lightweight IMU sensor with simplified Warp kernels that only compute
+  angular velocity and linear acceleration.
+
+Fixed
+^^^^^
+
+* Fixed unused ``body_pos`` variable in the IMU Warp kernel.
+* Fixed ``phsyx`` typo in :class:`~isaaclab.sensors.pva.BasePva` docstring.
+
+
+0.5.15 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_physx.assets.RigidObject.set_material_properties_index`,
+  :meth:`~isaaclab_physx.assets.RigidObject.set_material_properties_mask`,
+  :meth:`~isaaclab_physx.assets.Articulation.set_material_properties_index`,
+  :meth:`~isaaclab_physx.assets.Articulation.set_material_properties_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_material_properties_index`, and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_material_properties_mask`
+  methods for setting collision shape material properties (friction, restitution).
+  These methods follow the standard ``_index``/``_mask`` pattern, providing a unified
+  API across PhysX and Newton backends.
+
+
+0.5.14 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the simulation training loop not pausing when the Kit GUI timeline is
+  paused. :meth:`~isaaclab_physx.physics.PhysxManager.wait_for_playing` now
+  blocks and keeps the GUI responsive until the timeline is resumed or stopped.
+* Fixed articulation visualization freezing after pausing and unpausing the
+  simulation through the headed GUI in Isaac Sim 5.1+. Articulation meshes now
+  remain visually updated after resuming.
+
+
 0.5.13 (2026-03-25)
 ~~~~~~~~~~~~~~~~~~~
 

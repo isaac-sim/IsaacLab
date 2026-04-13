@@ -56,7 +56,7 @@ class CameraData:
     .. _Replicator Documentation: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output
     """
 
-    info: list[dict[str, Any]] = None
+    info: dict[str, Any] = None
     """The retrieved sensor info with sensor types as key.
 
     This contains extra information provided by the sensor such as semantic segmentation label mapping, prim paths.

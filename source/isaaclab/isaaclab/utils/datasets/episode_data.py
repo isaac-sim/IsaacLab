@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 import torch
@@ -90,7 +85,7 @@ class EpisodeData:
         """Check if the episode data is empty."""
         return not bool(self._data)
 
-    def add(self, key: str, value: torch.Tensor | dict):
+    def add(self, key: str, value: torch.Tensor | dict, clone: bool = True):
         """Add a key-value pair to the dataset.
 
         The key can be nested by using the "/" character.
@@ -99,13 +94,15 @@ class EpisodeData:
         Args:
             key: The key name.
             value: The corresponding value of tensor type or of dict type.
+            clone: Whether to clone the tensor value before storing it in the episode data.
         """
         # check datatype
         if isinstance(value, dict):
             for sub_key, sub_value in value.items():
-                self.add(f"{key}/{sub_key}", sub_value)
+                self.add(f"{key}/{sub_key}", sub_value, clone=clone)
             return
 
+        stored = value.clone() if (clone and isinstance(value, torch.Tensor)) else value
         sub_keys = key.split("/")
         current_dataset_pointer = self._data
         for sub_key_index in range(len(sub_keys)):
@@ -113,9 +110,9 @@ class EpisodeData:
                 # Add value to the final dict layer
                 # Use lists to prevent slow tensor copy during concatenation
                 if sub_keys[sub_key_index] not in current_dataset_pointer:
-                    current_dataset_pointer[sub_keys[sub_key_index]] = [value.clone()]
+                    current_dataset_pointer[sub_keys[sub_key_index]] = [stored]
                 else:
-                    current_dataset_pointer[sub_keys[sub_key_index]].append(value.clone())
+                    current_dataset_pointer[sub_keys[sub_key_index]].append(stored)
                 break
             # key index
             if sub_keys[sub_key_index] not in current_dataset_pointer:
