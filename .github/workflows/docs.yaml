@@ -12,6 +12,7 @@ on:
       - develop
       - 'release/**'
       - 'feature/isaacsim-6-0'
+      - '*docfix*'
   pull_request:
     # we're skipping the branches and paths filter to allow docs to be built on any PR because heredoc is used
     # additionally, we have a check that determines what version of docs will be built
@@ -31,7 +32,8 @@ jobs:
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
-      if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')) }}"
+      # develop, main, release/, *docfix*
+      if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/') || contains(github.ref, 'docfix')) }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
   build-latest-docs:
@@ -89,12 +91,11 @@ jobs:
     - name: Generate multi-version docs
       working-directory: ./docs
       env:
-        # When triggered from develop, build only the develop branch, no tags or main.
-        # Branches main and release/* will build main + release/* + tags.
-        # This way each main branch does not overwrite develop content,
-        # provided keep_files is true for gh-pages action.
-        SMV_BRANCH_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^develop$' || '^(main|release/.*)$' }}
-        SMV_TAG_WHITELIST: ${{ github.ref == 'refs/heads/develop' && '^$' || '^v[1-9]\d*\.\d+\.\d+$' }}
+        # "deploy" branches build the full set of versions so every page
+        # has a complete version dropdown: main, develop, tags >= v2.0.0.
+        # v1.x tags and release/ branches are excluded to keep it lean and mean.
+        SMV_BRANCH_WHITELIST: '^(main|develop)$'
+        SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+$'
       run: |
         git fetch --prune --unshallow --tags
         git checkout --detach HEAD
