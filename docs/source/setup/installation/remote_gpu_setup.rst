@@ -281,7 +281,7 @@ Asset Download Timeouts
    .. code-block:: bash
 
       # Follow the asset caching guide
-      # https://isaac-sim.github.io/IsaacLab/latest/source/setup/installation/asset_caching.html
+      # https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/asset_caching.html
 
 3. If downloads keep timing out, your instance's bandwidth may be insufficient - consider selecting a higher-bandwidth instance
 
