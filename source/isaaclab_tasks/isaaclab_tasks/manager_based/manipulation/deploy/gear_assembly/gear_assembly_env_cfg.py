@@ -200,9 +200,9 @@ class ObservationsCfg:
         gear_shaft_quat = ObsTerm(
             func=mdp.gear_shaft_quat_w,
             noise=ResetSampledQuaternionNoiseModelCfg(
-                roll_range=(-0.01745, 0.01745),
-                pitch_range=(-0.01745, 0.01745),
-                yaw_range=(-0.01745, 0.01745),
+                roll_range=(-0.03491, 0.03491),
+                pitch_range=(-0.03491, 0.03491),
+                yaw_range=(-0.03491, 0.03491),
             ),
         )
 
@@ -281,7 +281,7 @@ class RewardsCfg:
             "keypoint_scale": 0.15,
             "ee_gear_threshold": 0.00,
             "weight_ramp_start": 0.0,  # Set to 0.0 to enable ramp-up
-            "weight_ramp_steps": 250_000,
+            "weight_ramp_steps": 128_000,
         },
     )
 
@@ -295,7 +295,7 @@ class RewardsCfg:
             "keypoint_scale": 0.15,
             "ee_gear_threshold": 0.00,
             "weight_ramp_start": 0.0,  # Set to 0.0 to enable ramp-up
-            "weight_ramp_steps": 250_000,
+            "weight_ramp_steps": 128_000,
         },
     )
 
