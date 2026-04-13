@@ -479,6 +479,8 @@ def set_forces_and_torques_at_position(
         composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = cast_torque_to_link_frame(
             torques[tid_env, tid_body], link_quaternions[env_ids[tid_env], body_ids[tid_body]], is_global
         )
+    else:
+        composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = wp.vec3(0.0)
     # set the forces to the composed force, if the positions are provided, adds a torque to the composed torque
     # from the force at that position.
     if forces:
@@ -488,7 +490,7 @@ def set_forces_and_torques_at_position(
         )
         # if there is a position offset, set the torque from the force at that position.
         if positions:
-            composed_torques_b[env_ids[tid_env], body_ids[tid_body]] = wp.skew(
+            composed_torques_b[env_ids[tid_env], body_ids[tid_body]] += wp.skew(
                 cast_position_to_link_frame(
                     positions[tid_env, tid_body],
                     link_positions[env_ids[tid_env], body_ids[tid_body]],
