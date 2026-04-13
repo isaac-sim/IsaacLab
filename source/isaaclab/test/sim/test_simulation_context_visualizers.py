@@ -136,20 +136,9 @@ def test_update_visualizers_removes_closed_nonrunning_and_failed(caplog):
     assert stopped_viz.close_calls == 1
     assert failing_viz.close_calls == 1
     assert paused_viz.close_calls == 0
-    assert paused_viz.step_calls == [0.0]
+    assert paused_viz.step_calls == []
     assert healthy_viz.step_calls == [0.1]
     assert any("Error stepping visualizer" in r.message for r in caplog.records)
-
-
-def test_update_visualizers_keeps_rendering_paused_visualizer_ui_responsive():
-    provider = _FakeProvider()
-    paused_viz = _FakeVisualizer(rendering_paused=True)
-    ctx = _make_context([paused_viz], provider=provider)
-
-    ctx.update_visualizers(0.3)
-
-    # Rendering-paused visualizers still receive zero-dt ticks to keep UI callbacks alive.
-    assert paused_viz.step_calls == [0.0]
 
 
 def test_update_visualizers_handles_training_pause_loop():

@@ -180,7 +180,6 @@ class SimulationContext:
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
         self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
-        self._video_auto_start_kit = bool(self.get_setting("/isaaclab/video/auto_start_kit"))
         # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
@@ -345,9 +344,7 @@ class SimulationContext:
 
     def has_active_visualizers(self) -> bool:
         """Return whether any visualizer path is active for rendering/camera control."""
-        return bool(self.get_setting("/isaaclab/visualizer/types")) or bool(
-            self.get_setting("/isaaclab/video/auto_start_kit")
-        )
+        return bool(self.get_setting("/isaaclab/visualizer/types"))
 
     def can_render_rgb_array(self) -> bool:
         """Return whether rgb-array rendering is currently available."""
@@ -555,26 +552,6 @@ class SimulationContext:
                         exc,
                     )
 
-        # Headless video auto-start: inject a KitVisualizer when needed so that
-        # app.update() is pumped and viewer camera updates can be applied in
-        # rgb-array recording flows.
-        if self._video_auto_start_kit and not cli_disable_all:
-            has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
-            if not has_kit:
-                try:
-                    import importlib
-
-                    mod = importlib.import_module("isaaclab_visualizers.kit")
-                    kit_cfg_cls = getattr(mod, "KitVisualizerCfg")
-                    resolved.append(kit_cfg_cls(headless=True))
-                    logger.info("[SimulationContext] Auto-injecting KitVisualizer for headless video recording.")
-                except (ImportError, ModuleNotFoundError, AttributeError, TypeError) as exc:
-                    logger.warning(
-                        "[SimulationContext] Headless video could not auto-inject a KitVisualizer: %s. "
-                        "Install isaaclab_visualizers[kit] or pass --visualizer kit.",
-                        exc,
-                    )
-
         return resolved
 
     def initialize_visualizers(self) -> None:
@@ -744,6 +721,7 @@ class SimulationContext:
         """
         self.physics_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt())
+        self._pump_kit_app_if_needed()
         self._render_generation += 1
 
         # Call render callbacks
@@ -769,9 +747,6 @@ class SimulationContext:
                     visualizers_to_remove.append(viz)
                     continue
                 if viz.is_rendering_paused():
-                    # Keep visualizer event loops responsive while rendering is paused
-                    # so UI controls (e.g. "Resume Rendering") remain interactive.
-                    viz.step(0.0)
                     continue
                 while viz.is_training_paused() and viz.is_running():
                     viz.step(0.0)
@@ -787,6 +762,21 @@ class SimulationContext:
                 logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
+
+    def _pump_kit_app_if_needed(self) -> None:
+        """Pump Kit app-loop for headless rgb-array rendering when needed."""
+        if not bool(self.get_setting("/isaaclab/video/enabled")):
+            return
+        if not has_kit():
+            return
+        if any(viz.pumps_app_update() for viz in self._visualizers):
+            return
+        try:
+            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+
+            ensure_isaac_rtx_render_update()
+        except Exception as exc:
+            logger.debug("[SimulationContext] Skipping Kit app-loop pump in render(): %s", exc)
 
     def update_scene_data_provider(self, force_require_forward: bool = False):
         if force_require_forward or self._should_forward_before_visualizer_update():

@@ -11,6 +11,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+import carb
 from pxr import UsdGeom
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -109,7 +110,10 @@ class KitVisualizer(BaseVisualizer):
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
+                settings = carb.settings.get_settings()
+                settings.set_bool("/app/player/playSimulations", False)
                 app.update()
+                settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 
@@ -143,15 +147,11 @@ class KitVisualizer(BaseVisualizer):
             return False
 
     def is_training_paused(self) -> bool:
-        """Return whether Kit timeline transport is paused."""
+        """Return whether simulation play flag is paused in Kit settings."""
         try:
-            import omni.timeline
-
-            timeline = omni.timeline.get_timeline_interface()
-            if timeline is None:
-                return False
-            # Pause is transport state that is neither playing nor stopped.
-            return (not timeline.is_playing()) and (not timeline.is_stopped())
+            settings = carb.settings.get_settings()
+            play_flag = settings.get("/app/player/playSimulations")
+            return play_flag is not None and not bool(play_flag)
         except Exception:
             return False
 
