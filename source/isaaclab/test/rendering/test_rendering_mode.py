@@ -78,7 +78,7 @@ def test_apply_rtx_profile_skips_non_rtx_renderer_backend():
 @pytest.mark.usefixtures("simulation_app")
 def test_rendering_mode_presets_apply_via_visualizer():
     """Built-in presets + ``kit_*`` overrides should propagate to carb via Kit visualizer init."""
-    from isaaclab_physx.visualizers import KitVisualizerCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
 
     from isaaclab.app.settings_manager import get_settings_manager
     from isaaclab.rendering_mode import get_rendering_mode_preset
@@ -120,7 +120,7 @@ def test_rendering_mode_presets_apply_via_visualizer():
 @pytest.mark.usefixtures("simulation_app")
 def test_rendering_mode_kit_field_overrides_via_visualizer():
     """Explicit ``RenderingModeCfg`` fields should map to carb when the Kit visualizer applies the profile."""
-    from isaaclab_physx.visualizers import KitVisualizerCfg
+    from isaaclab_visualizers.kit import KitVisualizerCfg
 
     from isaaclab.sim.simulation_cfg import SimulationCfg
     from isaaclab.sim.simulation_context import SimulationContext

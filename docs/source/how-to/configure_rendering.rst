@@ -89,7 +89,7 @@ Preset rendering settings can be overwritten via
 :class:`~isaaclab.rendering_mode.RenderingModeCfg`.
 
 The built-in ``rendering_mode_preset`` field only accepts ``performance``, ``balanced``, or ``quality``; those map to
-fixed RTX baselines in ``isaaclab.rendering_mode.rendering_mode_presets``.
+fixed RTX baselines in ``isaaclab_physx.rendering.rtx_rendering_mode_presets`` (also available via :func:`isaaclab.rendering_mode.get_rendering_mode_preset`).
 
 Rendering settings can be customized by either overwriting
 specific settings of presets via ``kit_*`` fields (option 1) or by defining and adding a new **named profile** to :attr:`~sim.SimulationCfg.rendering_mode_cfgs` (option 2).

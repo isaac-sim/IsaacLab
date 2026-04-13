@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.14 (2026-04-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved built-in RTX rendering mode preset tables (``performance`` / ``balanced`` / ``quality``) from the core
+  ``isaaclab`` package into :mod:`isaaclab_physx.rendering.rtx_rendering_mode_presets`. The public
+  :func:`isaaclab.rendering_mode.get_rendering_mode_preset` API still resolves these values when ``isaaclab_physx``
+  is installed.
+
+
 0.5.13 (2026-03-25)
 ~~~~~~~~~~~~~~~~~~~
 

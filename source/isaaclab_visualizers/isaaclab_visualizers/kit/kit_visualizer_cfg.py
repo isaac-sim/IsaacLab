@@ -37,5 +37,9 @@ class KitVisualizerCfg(VisualizerCfg):
     rendering_mode: str | None = "performance"
     """Kit/RTX profile name from :attr:`~isaaclab.sim.SimulationCfg.rendering_mode_cfgs` (default ``performance``).
 
+    Built-in ``performance`` / ``balanced`` / ``quality`` baselines are defined in
+    :mod:`isaaclab_physx.rendering.rtx_rendering_mode_presets` and applied through the same mechanism as RTX camera
+    renderers; no separate copy lives under ``isaaclab_visualizers``.
+
     Set to ``None`` to skip applying a named profile (USD / Kit defaults).
     """

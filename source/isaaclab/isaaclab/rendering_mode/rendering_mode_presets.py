@@ -3,85 +3,28 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Built-in RTX rendering mode presets (performance, balanced, quality).
+"""Stable entry point for built-in RTX presets.
 
-Carb path values align with Isaac Lab application rendering profiles under ``apps/rendering_modes/``.
+Preset tables are defined in :mod:`isaaclab_physx.rendering.rtx_rendering_mode_presets` and loaded here
+so ``isaaclab.rendering_mode`` keeps a single public API.
 """
 
 from __future__ import annotations
 
-from copy import deepcopy
 from typing import Any
-
-# Carb settings for each built-in preset; kept in sync with apps/rendering_modes application profiles.
-_BUILTIN_RENDERING_MODE_PRESETS: dict[str, dict[str, Any]] = {
-    "performance": {
-        "/rtx/rtpt/cached/enabled": False,
-        "/rtx/rtpt/lightcache/cached/enabled": False,
-        "/rtx/rtpt/translucency/virtualMotion/enabled": False,
-        "/rtx/rtpt/maxBounces": 2,
-        "/rtx/rtpt/splitGlass": False,
-        "/rtx/rtpt/splitClearcoat": False,
-        "/rtx/rtpt/splitRoughReflection": True,
-        "/rtx/rtpt/useAmbientOcclusionForAmbientLight": False,
-        "/rtx/sceneDb/ambientLightIntensity": 1.0,
-        "/rtx/shadows/enabled": True,
-        "/rtx/domeLight/upperLowerStrategy": 3,
-        "/rtx/ambientOcclusion/enabled": False,
-        "/rtx/ambientOcclusion/denoiserMode": 1,
-        "/rtx/raytracing/subpixel/mode": 0,
-        "/rtx/raytracing/cached/enabled": False,
-        "/rtx-transient/dlssg/enabled": False,
-        "/rtx-transient/dldenoiser/enabled": False,
-        "/rtx/post/dlss/execMode": 1,
-        "/rtx/pathtracing/maxSamplesPerLaunch": 1_000_000,
-        "/rtx/viewTile/limit": 1_000_000,
-    },
-    "balanced": {
-        "/rtx/rtpt/cached/enabled": False,
-        "/rtx/rtpt/lightcache/cached/enabled": False,
-        "/rtx/rtpt/translucency/virtualMotion/enabled": False,
-        "/rtx/rtpt/maxBounces": 2,
-        "/rtx/rtpt/splitGlass": False,
-        "/rtx/rtpt/splitClearcoat": False,
-        "/rtx/rtpt/splitRoughReflection": True,
-        "/rtx/rtpt/useAmbientOcclusionForAmbientLight": False,
-        "/rtx/sceneDb/ambientLightIntensity": 1.0,
-        "/rtx/shadows/enabled": True,
-        "/rtx/ambientOcclusion/enabled": False,
-        "/rtx/ambientOcclusion/denoiserMode": 1,
-        "/rtx/raytracing/subpixel/mode": 0,
-        "/rtx/raytracing/cached/enabled": True,
-        "/rtx-transient/dlssg/enabled": False,
-        "/rtx-transient/dldenoiser/enabled": True,
-        "/rtx/post/dlss/execMode": 1,
-        "/rtx/pathtracing/maxSamplesPerLaunch": 1_000_000,
-        "/rtx/viewTile/limit": 1_000_000,
-    },
-    "quality": {
-        "/rtx/rtpt/maxBounces": 3,
-        "/rtx/rtpt/cached/enabled": False,
-        "/rtx/rtpt/lightcache/cached/enabled": False,
-        "/rtx/rtpt/translucency/virtualMotion/enabled": False,
-        "/rtx/rtpt/splitRoughReflection": True,
-        "/rtx/rtpt/adaptiveSampling/disocclusion/enabled": True,
-        "/rtx/rtpt/adaptiveSampling/disocclusion/spp": 4,
-        "/rtx/sceneDb/ambientLightIntensity": 1.0,
-        "/rtx/shadows/enabled": True,
-        "/rtx/ambientOcclusion/enabled": True,
-        "/rtx/ambientOcclusion/denoiserMode": 0,
-        "/rtx/raytracing/subpixel/mode": 1,
-        "/rtx/raytracing/cached/enabled": True,
-        "/rtx-transient/dlssg/enabled": False,
-        "/rtx/post/dlss/execMode": 2,
-        "/rtx/pathtracing/maxSamplesPerLaunch": 1_000_000,
-        "/rtx/viewTile/limit": 1_000_000,
-    },
-}
 
 
 def get_rendering_mode_preset(preset_name: str) -> dict[str, Any]:
-    """Return a deep copy of the requested built-in rendering mode preset."""
-    if preset_name not in {"performance", "balanced", "quality"}:
-        raise ValueError(f"Unknown preset '{preset_name}'.")
-    return deepcopy(_BUILTIN_RENDERING_MODE_PRESETS[preset_name])
+    """Return a deep copy of the requested built-in rendering mode preset.
+
+    Raises:
+        ImportError: If ``isaaclab_physx`` is not installed (RTX presets live in that package).
+    """
+    try:
+        from isaaclab_physx.rendering.rtx_rendering_mode_presets import get_builtin_rtx_rendering_mode_preset
+    except ImportError as e:
+        raise ImportError(
+            "RTX rendering mode presets are provided by isaaclab_physx. "
+            "Install with: pip install 'isaaclab[physx]' or install the isaaclab_physx package."
+        ) from e
+    return get_builtin_rtx_rendering_mode_preset(preset_name)

@@ -19,7 +19,8 @@ class RenderingModeCfg:
     ``KitVisualizerCfg.rendering_mode`` or ``CameraCfg.renderer_cfg.rendering_mode`` (non-Kit renderers ignore it).
 
     **Order:** optional :attr:`rendering_mode_preset` (``performance`` / ``balanced`` / ``quality``) loads the
-    matching baseline from :mod:`isaaclab.rendering_mode.rendering_mode_presets`—the same three choices as CLI
+    matching baseline from :mod:`isaaclab_physx.rendering.rtx_rendering_mode_presets` (via
+    :func:`isaaclab.rendering_mode.get_rendering_mode_preset`)—the same three choices as CLI
     ``--rendering_mode``. Each non-``None`` ``kit_*`` field then overrides specific carb paths on top of that
     baseline.
 
@@ -33,7 +34,7 @@ class RenderingModeCfg:
     rendering_mode_preset: Literal["performance", "balanced", "quality"] | None = None
     """Optional built-in RTX baseline (performance, balanced, or quality).
 
-    Values are defined in :mod:`isaaclab.rendering_mode.rendering_mode_presets`. This is the same
+    Values are defined in :mod:`isaaclab_physx.rendering.rtx_rendering_mode_presets`. This is the same
     conceptual knob as passing ``--rendering_mode`` to a script: it selects one of the three
     packaged profiles before any per-field ``kit_*`` overrides below are applied.
     """
