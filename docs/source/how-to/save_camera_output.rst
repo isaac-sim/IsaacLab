@@ -21,6 +21,10 @@ directory.
 Saving using Replicator Basic Writer
 ------------------------------------
 
+.. note::
+   The BasicWriter is part of the Omniverse Replicator ecosystem and is specific to the default
+   Isaac RTX renderer backend. Other renderer backends may require different save workflows.
+
 To save camera outputs, we use the basic write class from Omniverse Replicator. This class allows us to save the
 images in a numpy format. For more information on the basic writer, please check the
 `documentation <https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/writer_examples.html>`_.

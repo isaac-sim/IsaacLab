@@ -19,6 +19,12 @@ Changed
     ``camera.data.info[data_type]``.
   - **TiledCamera users (old):** access pattern ``camera.data.info[data_type]`` is unchanged.
 
+* **Breaking:** :meth:`~isaaclab.renderers.BaseRenderer.write_output` has been replaced by
+  :meth:`~isaaclab.renderers.BaseRenderer.read_output`. The new method receives the full
+  :class:`~isaaclab.sensors.camera.CameraData` instance and iterates output types internally.
+  Custom renderer implementations must replace ``write_output(render_data, output_name, output_data)``
+  with ``read_output(render_data, camera_data)``.
+
 Deprecated
 ^^^^^^^^^^
 

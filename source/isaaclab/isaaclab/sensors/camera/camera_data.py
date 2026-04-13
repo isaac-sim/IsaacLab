@@ -53,9 +53,6 @@ class CameraData:
     The format of the data is available in the `Replicator Documentation`_. For semantic-based data,
     this corresponds to the ``"data"`` key in the output of the sensor.
 
-    Key iteration order is not guaranteed to match the order of entries in the camera configuration's
-    ``data_types`` list; index by name or iterate ``data_types`` and look up each key explicitly.
-
     .. _Replicator Documentation: https://docs.omniverse.nvidia.com/prod_extensions/prod_extensions/ext_replicator/annotators_details.html#annotator-output
     """
 
