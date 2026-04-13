@@ -346,5 +346,3 @@ For Additional Help
 
 
 .. _Vast.ai: https://vast.ai/
-.. _Docker website: https://docs.docker.com/get-docker/
-.. _post-installation steps: https://docs.docker.com/engine/install/linux-postinstall/
