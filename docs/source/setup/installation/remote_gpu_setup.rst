@@ -37,8 +37,8 @@ CUDA Version Requirements
 
 .. warning::
 
-   **CUDA 12.8 is the only fully supported version for Isaac Lab.**
-   Newer CUDA versions (e.g., 12.9+) may introduce compatibility issues with Isaac Sim.
+   **CUDA 12.8 is recommended for compatibility with the current Isaac Sim release.**
+   Newer CUDA versions (e.g., 12.9+) have not been validated and may introduce issues.
 
 When selecting an instance on your GPU provider:
 
