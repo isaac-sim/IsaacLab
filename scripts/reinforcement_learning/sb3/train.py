@@ -43,6 +43,18 @@ parser = argparse.ArgumentParser(description="Train an RL agent with Stable-Base
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
+parser.add_argument(
+    "--video_frame_skip",
+    type=int,
+    default=1,
+    help="Capture 1 frame every N simulation steps during recording. Reduces GPU render overhead (default: 1).",
+)
+parser.add_argument(
+    "--video_keep_last",
+    type=int,
+    default=None,
+    help="Keep only the N most recent video files, removing older recordings (default: keep all).",
+)
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
@@ -139,6 +151,10 @@ def main():
         # set the log directory for the environment
         env_cfg.log_dir = log_dir
 
+        # propagate frame_skip to the video recorder config before the env is constructed
+        if args_cli.video and hasattr(env_cfg, "video_recorder") and env_cfg.video_recorder is not None:
+            env_cfg.video_recorder.frame_skip = args_cli.video_frame_skip
+
         # create isaac environment
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
@@ -150,15 +166,18 @@ def main():
 
         # wrap for video recording
         if args_cli.video:
+            from isaaclab.envs.utils.record_video_wrapper import RecordVideoWrapper
+
             video_kwargs = {
                 "video_folder": os.path.join(log_dir, "videos", "train"),
                 "step_trigger": lambda step: step % args_cli.video_interval == 0,
                 "video_length": args_cli.video_length,
                 "disable_logger": True,
+                "video_keep_last": args_cli.video_keep_last,
             }
             print("[INFO] Recording videos during training.")
             print_dict(video_kwargs, nesting=4)
-            env = gym.wrappers.RecordVideo(env, **video_kwargs)
+            env = RecordVideoWrapper(env, **video_kwargs)
 
         start_time = time.time()
 

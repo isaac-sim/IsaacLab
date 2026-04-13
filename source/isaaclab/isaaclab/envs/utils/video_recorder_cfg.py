@@ -46,3 +46,15 @@ class VideoRecorderCfg:
 
     window_height: int = 720
     """Height in pixels of the recorded frame."""
+
+    frame_skip: int = 1
+    """Number of simulation steps between frame captures (must be >= 1).
+
+    When set to N > 1, the backend renderer is invoked only once every N calls to
+    :meth:`~VideoRecorder.render_rgb_array`. The previous frame is returned for all
+    intermediate calls. This reduces GPU render overhead at the cost of duplicate
+    frames in the output video, which effectively plays back at a lower frame rate.
+
+    Example: ``frame_skip=4`` with ``video_length=200`` produces a 50-unique-frame clip
+    that covers 200 simulation steps.
+    """

@@ -72,6 +72,8 @@ class VideoRecorder:
         self._scene = scene
         self._backend: _VideoBackend | None = None
         self._capture = None
+        self._render_call_count: int = 0
+        self._last_frame: np.ndarray | None = None
 
         if cfg.env_render_mode == "rgb_array":
             self._backend = _resolve_video_backend(scene)
@@ -114,7 +116,15 @@ class VideoRecorder:
                 self._capture = create_isaacsim_kit_perspective_video(kcfg)
 
     def render_rgb_array(self) -> np.ndarray | None:
-        """Return an RGB frame for the resolved backend. Fails if backend is unavailable."""
+        """Return an RGB frame for the resolved backend, respecting :attr:`~VideoRecorderCfg.frame_skip`.
+
+        The backend renderer is only invoked once every ``cfg.frame_skip`` calls. For all
+        intermediate calls the previous frame is returned unchanged, avoiding the GPU cost
+        of a full render on every simulation step.
+        """
         if self._backend is None or self._capture is None:
             return None
-        return self._capture.render_rgb_array()
+        if self._render_call_count % self.cfg.frame_skip == 0:
+            self._last_frame = self._capture.render_rgb_array()
+        self._render_call_count += 1
+        return self._last_frame
