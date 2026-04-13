@@ -68,6 +68,20 @@ class AsyncRetargetLoop:
         ema_alpha: float = 0.3,
         margin_s: float = 0.005,
     ):
+        """Create a new loop (stopped).  Call :meth:`start` to begin.
+
+        Args:
+            step_fn: Retarget function called each iteration with
+                ``(anchor_matrix, target_T_world)`` and returning an
+                action tensor or ``None``.  **Called from a background
+                thread**; must not touch USD/Kit/Omniverse APIs directly.
+            ema_alpha: EMA smoothing factor in ``(0, 1]``.
+            margin_s: Safety margin [s] subtracted from the predicted
+                deadline.
+        """
+        if not (0.0 < ema_alpha <= 1.0):
+            raise ValueError(f"ema_alpha must be in (0, 1], got {ema_alpha}")
+
         # alpha=0.3 gives an EMA half-life of ~2 samples (ln2/ln(1/0.7)≈1.9).
         # At a 45 Hz target frame rate that adapts within ~44 ms — fast
         # enough to track frame-rate changes (e.g. VSync toggle, workload
@@ -104,6 +118,12 @@ class AsyncRetargetLoop:
     def start(self) -> None:
         """Start the retarget loop in a daemon thread."""
         self._stop.clear()
+        with self._cond:
+            self._gen = 0
+            self._consumed_gen = 0
+            self._latest = None
+            self._exc = None
+        self._last_consume = 0.0
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -140,6 +160,8 @@ class AsyncRetargetLoop:
             self._anchor_matrix = np.array(anchor_matrix, dtype=np.float32, copy=True)
             if isinstance(target_T_world, np.ndarray):
                 target_T_world = np.array(target_T_world, dtype=np.float32, copy=True)
+            elif isinstance(target_T_world, torch.Tensor):
+                target_T_world = target_T_world.clone()
             self._target_T_world = target_T_world
 
     def consume(self, block: bool = True) -> tuple[torch.Tensor | None, bool]:
@@ -162,24 +184,25 @@ class AsyncRetargetLoop:
             Exception: Re-raises any exception that killed the background
                 thread, chained under a :class:`RuntimeError`.
         """
-        if block:
-            with self._cond:
+        now = time.monotonic()
+        with self._cond:
+            if block:
                 while not self._stop.is_set() and self._gen == self._consumed_gen:
+                    if self._thread is not None and not self._thread.is_alive():
+                        break
                     self._cond.wait(timeout=0.1)
 
-        now = time.monotonic()
-        if self._last_consume > 0:
-            dt = now - self._last_consume
-            if 0.001 < dt < 1.0:
-                # EMA update: blend the new measurement (dt) at weight alpha
-                # with the running estimate at weight (1 - alpha).  With the
-                # default alpha=0.3 the effective window is ~1/alpha ≈ 3
-                # samples, so the estimate tracks frame-rate changes within
-                # 2-3 frames while filtering single-frame jitter.
-                self._step_period = self._ema_alpha * dt + (1 - self._ema_alpha) * self._step_period
-        self._last_consume = now
+            if self._last_consume > 0:
+                dt = now - self._last_consume
+                if 0.001 < dt < 1.0:
+                    # EMA update: blend the new measurement (dt) at weight alpha
+                    # with the running estimate at weight (1 - alpha).  With the
+                    # default alpha=0.3 the effective window is ~1/alpha ≈ 3
+                    # samples, so the estimate tracks frame-rate changes within
+                    # 2-3 frames while filtering single-frame jitter.
+                    self._step_period = self._ema_alpha * dt + (1 - self._ema_alpha) * self._step_period
+            self._last_consume = now
 
-        with self._cond:
             exc = self._exc
             self._exc = None
             fresh = self._gen != self._consumed_gen
@@ -188,6 +211,9 @@ class AsyncRetargetLoop:
 
         if exc is not None:
             raise RuntimeError("Background retarget thread failed") from exc
+
+        if block and not fresh and self._thread is not None and not self._thread.is_alive():
+            raise RuntimeError("Background retarget thread died unexpectedly")
 
         return result, fresh
 
@@ -249,7 +275,6 @@ class AsyncRetargetLoop:
         iteration), return immediately so the first result is produced
         as fast as possible.
 
-
         ``margin_s`` is subtracted so we wake slightly *early* rather
         than risk finishing late.  ``_MIN_LOOP_PERIOD`` clamps the sleep
         to at least 1 ms to prevent busy-spinning when the deadline has
@@ -257,6 +282,10 @@ class AsyncRetargetLoop:
         """
         if self._last_consume <= 0:
             return
+
+        # _step_period, _retarget_dur, and _last_consume are read without
+        # _cond here (benign race): float assignment is atomic under CPython's
+        # GIL, and the EMA tolerates values stale by at most one sample.
 
         # How much time has already elapsed since the last consume().
         elapsed_since_consume = time.monotonic() - self._last_consume

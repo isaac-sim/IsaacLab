@@ -7,7 +7,7 @@ Changelog
 Added
 ^^^^^
 
-* Added :class:`~isaaclab_teleop.AsyncRetargetLoop` for background-threaded
+* Added :class:`~isaaclab_teleop.async_retarget_loop.AsyncRetargetLoop` for background-threaded
   retargeting with EMA-paced scheduling, so retarget work overlaps with
   ``env.step()`` instead of blocking the render path.
 

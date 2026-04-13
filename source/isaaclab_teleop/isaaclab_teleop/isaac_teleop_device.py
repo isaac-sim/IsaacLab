@@ -189,13 +189,14 @@ class IsaacTeleopDevice:
         Returns:
             Self for context manager protocol.
         """
+        self._saved_async_enabled = self._async_enabled
         self._session_lifecycle.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context manager and clean up the IsaacTeleop session."""
         self._stop_retarget_loop()
-        self._async_enabled = False
+        self._async_enabled = self._saved_async_enabled
         self._anchor_manager.cleanup()
         self._session_lifecycle.stop(exc_type, exc_val, exc_tb)
         return False
@@ -274,6 +275,9 @@ class IsaacTeleopDevice:
                 deadline.  Increase if retarget occasionally misses the
                 deadline.
         """
+        if not (0.0 < ema_alpha <= 1.0):
+            raise ValueError(f"ema_alpha must be in (0, 1], got {ema_alpha}")
+
         needs_restart = (
             enabled != self._async_enabled
             or (enabled and blocking != self._async_blocking)
@@ -410,13 +414,15 @@ class IsaacTeleopDevice:
 
         if action is not None:
             self._cached_action = action
-            self._poll_buttons()
         elif fresh:
             # Background thread explicitly produced None (session down).
             # Stop the loop so the next advance() re-enters the sync seed
             # path, keeping session management on the main thread.
             self._cached_action = None
             self._stop_retarget_loop()
+
+        if self._cached_action is not None:
+            self._poll_buttons()
 
         self._dispatch_control_callbacks()
 

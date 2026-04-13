@@ -163,6 +163,20 @@ class TestErrorPropagation:
 
         assert isinstance(exc_info.value.__cause__, ValueError)
 
+    def test_dead_thread_raises_instead_of_deadlock(self, make_loop):
+        def _raise_base_exception(_a, _t):
+            raise KeyboardInterrupt("simulated")
+
+        loop = make_loop(_raise_base_exception)
+        loop.start()
+
+        # Give the thread time to die.
+        time.sleep(0.3)
+        assert not loop._thread.is_alive()
+
+        with pytest.raises(RuntimeError, match="died unexpectedly"):
+            loop.consume(block=True)
+
     def test_transient_failures_recover(self, make_loop):
         call_count = 0
         lock = threading.Lock()
@@ -208,6 +222,18 @@ class TestInputIsolation:
             loop._anchor_matrix[:3, 3],
             [0.0, 0.0, 0.0],
         )
+
+    def test_update_inputs_clones_tensor(self, make_loop):
+        loop = make_loop(_constant_step_fn)
+
+        original = torch.eye(4)
+        loop.update_inputs(np.eye(4, dtype=np.float32), target_T_world=original)
+
+        original[0, 3] = 99.0
+
+        stored = loop._target_T_world
+        assert isinstance(stored, torch.Tensor)
+        assert stored[0, 3].item() == 0.0
 
 
 # ---------------------------------------------------------------------------
