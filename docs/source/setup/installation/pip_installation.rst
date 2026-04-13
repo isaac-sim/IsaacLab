@@ -5,6 +5,13 @@ Installation using Isaac Sim Pip Package
 
 The following steps first installs Isaac Sim from pip, then Isaac Lab from source code.
 
+.. note::
+
+   **Setting up on a remote GPU instance?** If you are installing Isaac Lab on a remote GPU provider
+   (such as Vast.ai or Lambda Labs), please refer to the :doc:`remote_gpu_setup` guide first.
+   This guide provides critical information about hardware selection (CUDA version and bandwidth requirements)
+   and remote desktop configuration before proceeding with the installation steps below.
+
 .. attention::
 
    Installing Isaac Sim with pip requires GLIBC 2.35+ version compatibility.

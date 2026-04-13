@@ -165,6 +165,12 @@ Once you've reviewed the installation methods, continue with the guide that matc
   - Install Isaac Sim and Isaac Lab in a Docker container.
   - Best for users who want to use Isaac Lab in a containerized environment.
 
+- :doc:`remote_gpu_setup`
+
+  - Set up Isaac Lab on remote GPU providers (e.g., Vast.ai, Lambda Labs).
+  - Best for users deploying Isaac Lab on cloud GPU instances.
+  - Includes hardware selection guidelines and step-by-step provider-specific instructions.
+
 
 Asset Caching
 -------------
@@ -190,3 +196,4 @@ Please follow the steps :doc:`asset_caching` to enable asset caching and speed u
    source_installation
    isaaclab_pip_installation
    asset_caching
+   remote_gpu_setup
