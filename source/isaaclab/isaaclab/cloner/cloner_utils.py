@@ -48,9 +48,8 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
     )
     if len(prototypes) > 0:
         # Sort the prototype roots to ensure consistent order from run to run.
-        prototype_roots = sorted(
-            {"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes}
-        )
+        prototype_roots = sorted({"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes})
+
         # discover prototypes per root then make a clone plan
         src: list[list[str]] = []
         dest: list[str] = []
