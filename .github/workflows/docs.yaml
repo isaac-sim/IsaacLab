@@ -29,6 +29,8 @@ jobs:
     outputs:
       trigger-deploy: ${{ steps.trigger-deploy.outputs.defined }}
     steps:
+    - id: info
+      run: echo "repo=github.repository=${{ github.repository }}, ref=github.ref=${{ github.ref }}"
     - id: trigger-deploy
       env:
         REPO_NAME: ${{ secrets.REPO_NAME }}
