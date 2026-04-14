@@ -22,3 +22,4 @@ services:
       - ..:/workspace
     working_dir: /workspace/docs
     command: sh -c "sphinx-multiversion . _build && cp _redirect/index.html _build/index.html"
+    
