@@ -16,12 +16,33 @@ import weakref
 
 import numpy as np
 import pytest
+import torch
+import warp as wp
 from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
 
 import omni.timeline
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.utils.warp_torch_cache import warp_to_torch
+
+
+class _MockWarpArray:
+    """Lightweight stand-in for a ``wp.array`` used by cache tests."""
+
+    def __init__(self, ptr: int = 0):
+        self.ptr = ptr
+        self.shape = (2,)
+        self.dtype = "float32"
+        self.strides = (1,)
+        self.device = "cpu"
+
+
+class _MockCacheOwner:
+    """Minimal owner that holds a single Warp-like attribute."""
+
+    def __init__(self, joint_pos):
+        self.joint_pos = joint_pos
 
 
 @pytest.fixture(autouse=True)
@@ -97,6 +118,33 @@ def test_instance_before_creation():
 
     # accessing instance before creation should return None
     assert SimulationContext.instance() is None
+
+
+@pytest.mark.isaacsim_ci
+def test_init_clears_stale_warp_torch_cache(monkeypatch: pytest.MonkeyPatch):
+    """SimulationContext init clears stale cached warp-to-torch entries."""
+    monkeypatch.setattr(wp, "to_torch", lambda arr: torch.empty(arr.shape))
+
+    owner = _MockCacheOwner(_MockWarpArray(ptr=123))
+    warp_to_torch(owner, "joint_pos")
+    assert hasattr(owner, "_warp_torch_cache")
+
+    SimulationContext(cfg=SimulationCfg(device="cpu"))
+    assert not hasattr(owner, "_warp_torch_cache")
+
+
+@pytest.mark.isaacsim_ci
+def test_teardown_clears_warp_torch_cache_via_stop_callback(monkeypatch: pytest.MonkeyPatch):
+    """SimulationContext teardown clears caches via STOP callback."""
+    monkeypatch.setattr(wp, "to_torch", lambda arr: torch.empty(arr.shape))
+
+    sim = SimulationContext(cfg=SimulationCfg(device="cpu"))
+    owner = _MockCacheOwner(_MockWarpArray(ptr=456))
+    warp_to_torch(owner, "joint_pos")
+    assert hasattr(owner, "_warp_torch_cache")
+
+    sim.clear_instance()
+    assert not hasattr(owner, "_warp_torch_cache")
 
 
 @pytest.mark.isaacsim_ci

@@ -57,6 +57,7 @@ __all__ = [
     "resolve_cfg_presets",
     "warp_to_torch",
     "set_caching_enabled",
+    "clear_warp_torch_cache",
 ]
 
 from .timer import Timer
@@ -107,4 +108,4 @@ from .string import (
 from .types import ArticulationActions
 from .version import has_kit, get_isaac_sim_version, compare_versions
 from .configclass import configclass, resolve_cfg_presets
-from .warp_torch_cache import warp_to_torch, set_caching_enabled
+from .warp_torch_cache import warp_to_torch, set_caching_enabled, clear_warp_torch_cache

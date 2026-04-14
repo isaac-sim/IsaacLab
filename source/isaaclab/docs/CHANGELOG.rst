@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+4.6.2 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.warp_torch_cache.clear_warp_torch_cache` to
+  flush all cached ``wp.to_torch()`` tensor views. The function is registered
+  automatically on :attr:`~isaaclab.physics.PhysicsEvent.STOP` so that stale
+  views do not survive a simulation teardown or scene change.
+
 4.6.1 (2026-04-14)
 ~~~~~~~~~~~~~~~~~~
 
@@ -51,6 +62,12 @@ Removed
 * Removed :attr:`~isaaclab.sensors.camera.Camera.render_product_paths`. Render products are
   now managed internally by the renderer backend and are not part of the public API.
 
+=======
+* Added :func:`~isaaclab.utils.warp_torch_cache.clear_warp_torch_cache` to
+  flush all cached ``wp.to_torch()`` tensor views. The function is registered
+  automatically on :attr:`~isaaclab.physics.PhysicsEvent.STOP` so that stale
+  views do not survive a simulation teardown or scene change.
+>>>>>>> f2cc4bcd818 (Add cache invalidation for warp_to_torch on simulation teardown)
 
 4.5.33 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~

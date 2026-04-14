@@ -176,10 +176,17 @@ class SimulationContext:
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
 
-        # Apply warp-to-torch cache setting
-        from isaaclab.utils.warp_torch_cache import set_caching_enabled
+        # Apply warp-to-torch cache setting and register STOP callback to flush
+        # all cached wp.to_torch tensors when the simulation is torn down.
+        from isaaclab.physics import PhysicsEvent
+        from isaaclab.utils.warp_torch_cache import clear_warp_torch_cache, set_caching_enabled
 
+        # Defensive clear in case a prior session exited without dispatching STOP.
+        clear_warp_torch_cache()
         set_caching_enabled(self.cfg.enable_warp_torch_cache)
+        self.physics_manager.register_callback(
+            lambda _: clear_warp_torch_cache(), PhysicsEvent.STOP, order=0, wrap_weak_ref=False
+        )
 
         # Cache commonly-used settings (these don't change during runtime)
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
