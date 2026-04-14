@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Factory class for IMU data."""
+"""Re-exports the base PVA data class."""
 
 from __future__ import annotations
 
@@ -11,15 +11,15 @@ from typing import TYPE_CHECKING
 
 from isaaclab.utils.backend_utils import FactoryBase
 
-from .base_imu_data import BaseImuData
+from .base_pva_data import BasePvaData
 
 if TYPE_CHECKING:
-    from isaaclab_physx.sensors.imu import ImuData as PhysXImuData
+    from isaaclab_physx.sensors.pva import PvaData as PhysXPvaData
 
 
-class ImuData(FactoryBase, BaseImuData):
-    """Factory for creating IMU data instances."""
+class PvaData(FactoryBase, BasePvaData):
+    """Factory for creating PVA data instances."""
 
-    def __new__(cls, *args, **kwargs) -> BaseImuData | PhysXImuData:
-        """Create a new instance of IMU data based on the backend."""
+    def __new__(cls, *args, **kwargs) -> BasePvaData | PhysXPvaData:
+        """Create a new instance of PVA data based on the backend."""
         return super().__new__(cls, *args, **kwargs)

@@ -18,6 +18,7 @@ from isaaclab.test.mock_interfaces.sensors import (
     MockContactSensorData,
     MockFrameTransformerData,
     MockImuData,
+    MockPvaData,
 )
 
 # ==============================================================================
@@ -26,12 +27,70 @@ from isaaclab.test.mock_interfaces.sensors import (
 
 
 class TestMockImuDataProperties:
-    """Comprehensive tests for all MockImuData properties."""
+    """Comprehensive tests for all MockImuData properties.
+
+    MockImuData only provides angular velocity and linear acceleration.
+    """
 
     @pytest.fixture
     def data(self):
         """Create MockImuData fixture."""
         return MockImuData(num_instances=4, device="cpu")
+
+    @pytest.mark.parametrize(
+        "property_name,expected_shape",
+        [
+            ("ang_vel_b", (4, 3)),
+            ("lin_acc_b", (4, 3)),
+        ],
+    )
+    def test_property_shapes(self, data, property_name, expected_shape):
+        """Test that all properties return tensors with correct shapes."""
+        prop = getattr(data, property_name)
+        assert wp.to_torch(prop).shape == expected_shape, f"{property_name} has wrong shape"
+
+    @pytest.mark.parametrize(
+        "setter_name,property_name,shape",
+        [
+            ("set_ang_vel_b", "ang_vel_b", (4, 3)),
+            ("set_lin_acc_b", "lin_acc_b", (4, 3)),
+        ],
+    )
+    def test_setters_update_properties(self, data, setter_name, property_name, shape):
+        """Test that setters properly update the corresponding properties."""
+        import warp as wp
+
+        test_value = torch.randn(shape)
+        setter = getattr(data, setter_name)
+        setter(test_value)
+        result = wp.to_torch(getattr(data, property_name))
+        assert torch.allclose(result, test_value), f"{setter_name} did not update {property_name}"
+
+    def test_bulk_setter(self, data):
+        """Test that set_mock_data updates multiple properties at once."""
+        import warp as wp
+
+        ang_vel = torch.randn(4, 3)
+        lin_acc = torch.randn(4, 3)
+
+        data.set_mock_data(ang_vel_b=ang_vel, lin_acc_b=lin_acc)
+
+        assert torch.allclose(wp.to_torch(data.ang_vel_b), ang_vel)
+        assert torch.allclose(wp.to_torch(data.lin_acc_b), lin_acc)
+
+
+# ==============================================================================
+# PVA Data Property Tests
+# ==============================================================================
+
+
+class TestMockPvaDataProperties:
+    """Comprehensive tests for all MockPvaData properties."""
+
+    @pytest.fixture
+    def data(self):
+        """Create MockPvaData fixture."""
+        return MockPvaData(num_instances=4, device="cpu")
 
     @pytest.mark.parametrize(
         "property_name,expected_shape",
@@ -615,8 +674,8 @@ class TestDeviceHandling:
     def test_imu_data_device(self):
         """Test IMU data tensors are on correct device."""
         data = MockImuData(num_instances=2, device="cpu")
-        assert str(data.pos_w.device) == "cpu"
-        assert str(data.quat_w.device) == "cpu"
+        assert str(data.ang_vel_b.device) == "cpu"
+        assert str(data.lin_acc_b.device) == "cpu"
 
     def test_contact_sensor_data_device(self):
         """Test contact sensor data tensors are on correct device."""
@@ -634,8 +693,8 @@ class TestDeviceHandling:
         data = MockImuData(num_instances=2, device="cpu")
         # Create tensor on CPU (default)
         test_tensor = torch.randn(2, 3)
-        data.set_pos_w(test_tensor)
-        assert str(data.pos_w.device) == "cpu"
+        data.set_ang_vel_b(test_tensor)
+        assert str(data.ang_vel_b.device) == "cpu"
 
 
 # ==============================================================================
@@ -646,9 +705,9 @@ class TestDeviceHandling:
 class TestCompositeProperties:
     """Test that composite properties are correctly composed from components."""
 
-    def test_imu_pose_composition(self):
-        """Test IMU pose_w is correctly composed from pos_w and quat_w."""
-        data = MockImuData(num_instances=2, device="cpu")
+    def test_pva_pose_composition(self):
+        """Test PVA pose_w is correctly composed from pos_w and quat_w."""
+        data = MockPvaData(num_instances=2, device="cpu")
         pos = torch.randn(2, 3)
         quat = torch.tensor([[1, 0, 0, 0], [0.707, 0.707, 0, 0]], dtype=torch.float32)
 

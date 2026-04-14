@@ -7,25 +7,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.markers.config import RED_ARROW_X_MARKER_CFG
 from isaaclab.utils import configclass
 
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:
-    from .imu import Imu
+    from .pva import Pva
 
 
 @configclass
-class ImuCfg(SensorBaseCfg):
-    """Configuration for an Inertial Measurement Unit (IMU) sensor.
+class PvaCfg(SensorBaseCfg):
+    """Configuration for a Pose Velocity Acceleration (PVA) sensor."""
 
-    This configures a sensor that provides the two physical quantities measured by a
-    real IMU: angular velocity (gyroscope) and linear acceleration (accelerometer).
-    For a richer sensor that also provides pose, velocity, and angular acceleration,
-    see :class:`~isaaclab.sensors.PvaCfg`.
-    """
-
-    class_type: type[Imu] | str = "{DIR}.imu:Imu"
+    class_type: type[Pva] | str = "{DIR}.pva:Pva"
 
     @configclass
     class OffsetCfg:
@@ -39,3 +35,9 @@ class ImuCfg(SensorBaseCfg):
 
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
+
+    visualizer_cfg: VisualizationMarkersCfg = RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Command/velocity_goal")
+    """The configuration object for the visualization markers. Defaults to RED_ARROW_X_MARKER_CFG.
+
+    This attribute is only used when debug visualization is enabled.
+    """
