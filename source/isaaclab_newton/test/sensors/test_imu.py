@@ -160,7 +160,6 @@ def test_reset(sim):
 
     imu: Imu = scene["imu"]
 
-    ang_vel = wp.to_torch(imu.data.ang_vel_b)
     lin_acc = wp.to_torch(imu.data.lin_acc_b)
     assert torch.any(lin_acc != 0), "Expected non-zero data before reset"
 
