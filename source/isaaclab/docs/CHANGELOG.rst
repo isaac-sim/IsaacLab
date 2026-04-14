@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+4.6.4 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton viewer compatibility by restricting ``pyglet`` to ``<3``.
+
+
 4.6.3 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~
 
