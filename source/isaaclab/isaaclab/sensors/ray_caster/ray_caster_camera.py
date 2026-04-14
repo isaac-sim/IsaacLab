@@ -376,7 +376,7 @@ class RayCasterCamera(RayCaster):
         # -- output data
         # create the buffers to store the annotator data.
         self._data.output = {}
-        self._data.info = [{name: None for name in self.cfg.data_types}] * self._view.count
+        self._data.info = {name: None for name in self.cfg.data_types}
         for name in self.cfg.data_types:
             if name in ["distance_to_image_plane", "distance_to_camera"]:
                 shape = (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width, 1)

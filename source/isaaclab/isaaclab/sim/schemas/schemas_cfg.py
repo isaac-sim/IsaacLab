@@ -231,6 +231,18 @@ class JointDrivePropertiesCfg:
     * For angular joints, the unit is kg-m^2/s/rad (N-m-s/rad).
     """
 
+    ensure_drives_exist: bool = False
+    """If True, ensure every joint has a non-zero drive so that physics backends
+    (e.g. Newton) create proper actuators for it.
+
+    When a USD asset defines ``PhysicsDriveAPI`` with ``stiffness=0`` and
+    ``damping=0``, some backends treat the joint as passive (no PD control).
+    Enabling this flag writes a minimal stiffness (``1e-3``) to any drive whose
+    stiffness *and* damping are both zero, guaranteeing that the backend
+    recognises the drive as active.  The actual gains are expected to be
+    overridden later by the actuator model.
+    """
+
 
 @configclass
 class FixedTendonPropertiesCfg:
