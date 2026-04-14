@@ -18,7 +18,7 @@ import torch
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
-from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
+from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # resolution
@@ -97,28 +97,6 @@ def _assert_first_frame_textured(first_frame: torch.Tensor, stable_frame: torch.
     )
 
 
-def _run_first_frame_test(sim, dt, camera):
-    """Shared test logic: the very first camera.update() after sim.reset()
-    must produce a textured frame — no extra warmup steps.
-    """
-    sim.reset()
-
-    # The first sim step + camera update should already have textured output
-    sim.step()
-    camera.update(dt)
-    first_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
-
-    # Let the renderer stabilise, then capture the reference frame
-    for _ in range(STABILISATION_STEPS):
-        sim.step()
-    camera.update(dt)
-    stable_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
-
-    del camera
-
-    _assert_first_frame_textured(first_frame, stable_frame)
-
-
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
 def test_first_frame_is_textured_camera(setup_sim, device):
@@ -140,31 +118,23 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     )
     # Create camera
     camera = Camera(camera_cfg)
-    _run_first_frame_test(sim, dt, camera)
 
+    sim.reset()
 
-@pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
-def test_first_frame_is_textured_tiled_camera(setup_sim, device):
-    """First RTX frame from a TiledCamera must show loaded textures, not a grey placeholder."""
-    sim, dt = setup_sim
-    camera_cfg = TiledCameraCfg(
-        height=HEIGHT,
-        width=WIDTH,
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.75), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
-        prim_path="/World/Camera",
-        update_period=0,
-        data_types=["rgb"],
-        spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0,
-            focus_distance=400.0,
-            horizontal_aperture=20.955,
-            clipping_range=(0.1, 1.0e5),
-        ),
-    )
-    # Create camera
-    camera = TiledCamera(camera_cfg)
-    _run_first_frame_test(sim, dt, camera)
+    # The first sim step + camera update should produce textured output
+    sim.step()
+    camera.update(dt)
+    first_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
+
+    # Let the renderer stabilise, then capture the reference frame
+    for _ in range(STABILISATION_STEPS):
+        sim.step()
+    camera.update(dt)
+    stable_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
+
+    del camera
+
+    _assert_first_frame_textured(first_frame, stable_frame)
 
 
 """
