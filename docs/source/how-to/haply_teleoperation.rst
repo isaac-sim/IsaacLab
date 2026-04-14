@@ -70,7 +70,7 @@ Software Requirements
 
 * Isaac Lab (follow the :ref:`installation guide <isaaclab-installation-root>`)
 * Haply SDK (provided by Haply Robotics)
-* Python 3.12+
+* Python 3.10+
 * ``websockets`` Python package (automatically installed with Isaac Lab)
 
 

@@ -34,7 +34,7 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.12",
+    python_requires=">=3.11",
     install_requires=INSTALL_REQUIRES,
     packages=[
         "isaaclab_physx",
@@ -60,7 +60,10 @@ setup(
     ],
     classifiers=[
         "Natural Language :: English",
+        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Isaac Sim :: 5.0.0",
+        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,
