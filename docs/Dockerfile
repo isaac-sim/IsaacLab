@@ -8,7 +8,7 @@ FROM python:3.11-slim
 WORKDIR /workspace
 
 # system deps (needed for sphinx-multiversion + git-based builds)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     make \
     && rm -rf /var/lib/apt/lists/*
