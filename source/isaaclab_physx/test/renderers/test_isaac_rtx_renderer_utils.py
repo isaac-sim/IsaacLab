@@ -5,199 +5,232 @@
 
 """Unit tests for RTX streaming wait helpers.
 
-Covers callback state updates, subscription behavior, and timeout-aware wait
-logic in :mod:`isaaclab_physx.renderers.isaac_rtx_renderer_utils`.
+Covers direct-polling status queries, timeout-aware wait logic,
+and dedup stamping in
+:mod:`isaaclab_physx.renderers.isaac_rtx_renderer_utils`.
 """
 
 from __future__ import annotations
 
+import sys
 import time
 from unittest.mock import MagicMock, patch
 
 import isaaclab_physx.renderers.isaac_rtx_renderer_utils as rtx_utils
 import pytest
 
-# test-specific timeout overrides for _STREAMING_WAIT_TIMEOUT_S
 STREAMING_TIMEOUT_S = 0.1
 STREAMING_TIMEOUT_SHORT_S = 0.01
 
-# simulated per-update sleep to advance wall-clock time inside the wait loop
 MOCK_UPDATE_SLEEP_S = 0.02
 
-# how many app.update() iterations before the mock becomes idle
-MOCK_ITERATIONS_BEFORE_IDLE = 3
+MOCK_QUERIES_BEFORE_IDLE = 3
 
 
-@pytest.fixture(autouse=True)
-def _reset_streaming_globals(monkeypatch):
-    """Restore module-level streaming state so tests are isolated."""
-    monkeypatch.setattr(rtx_utils, "_streaming_is_busy", False)
-    monkeypatch.setattr(rtx_utils, "_streaming_subscription", None)
-    monkeypatch.setattr(rtx_utils, "_streaming_subscribed", False)
+@pytest.fixture()
+def _mock_omni_usd():
+    """Inject a mock ``omni.usd`` module so ``import omni.usd`` succeeds.
+
+    ``import omni.usd`` requires *both* a ``sys.modules`` entry and an
+    attribute on the parent ``omni`` package.  We patch both and restore
+    the original state on teardown.
+    """
+    import omni
+
+    mock_usd = MagicMock()
+    had_usd = hasattr(omni, "usd")
+    old_usd = getattr(omni, "usd", None)
+    omni.usd = mock_usd
+    with patch.dict(
+        sys.modules, {"omni.usd": mock_usd}
+    ):
+        yield mock_usd
+    if had_usd:
+        omni.usd = old_usd
+    else:
+        delattr(omni, "usd")
 
 
-# ---------------------------------------------------------------------------
-# _on_streaming_status_event
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------
+# _is_stage_loading_or_streaming
+# -----------------------------------------------------------
 
 
-class TestOnStreamingStatusEvent:
-    """Callback correctly translates RTX streaming events into the busy flag."""
+class TestIsStageLoadingOrStreaming:
+    """Direct status query identifies load/stream/idle."""
 
-    def test_sets_busy_true(self):
-        """Sets busy flag to true when event reports busy."""
-        rtx_utils._on_streaming_status_event({"isBusy": True})
-        assert rtx_utils._streaming_is_busy is True
-
-    def test_sets_busy_false(self):
-        """Sets busy flag to false when event reports idle."""
-        rtx_utils._streaming_is_busy = True
-        rtx_utils._on_streaming_status_event({"isBusy": False})
-        assert rtx_utils._streaming_is_busy is False
-
-    def test_ignores_missing_key(self):
-        """Leaves busy state unchanged when key is absent."""
-        rtx_utils._streaming_is_busy = True
-        rtx_utils._on_streaming_status_event({"otherField": 42})
-        assert rtx_utils._streaming_is_busy is True
-
-    def test_ignores_none_value(self):
-        """Leaves busy state unchanged when value is None."""
-        rtx_utils._streaming_is_busy = True
-        rtx_utils._on_streaming_status_event({"isBusy": None})
-        assert rtx_utils._streaming_is_busy is True
-
-    def test_handles_non_subscriptable_event(self):
-        """Ignores malformed events that are not subscriptable."""
-        rtx_utils._on_streaming_status_event(None)
-        assert rtx_utils._streaming_is_busy is False
-
-
-# ---------------------------------------------------------------------------
-# _ensure_streaming_subscription
-# ---------------------------------------------------------------------------
-
-
-class TestEnsureStreamingSubscription:
-    """Subscription helper registers once and does not retry on first failure."""
-
-    def test_subscribes_to_correct_event(self):
-        """Subscribes to the expected event and stores its handle."""
-        mock_dispatcher = MagicMock()
-        mock_dispatcher.observe_event.return_value = "sub_handle"
-
-        with patch("carb.eventdispatcher.get_eventdispatcher", return_value=mock_dispatcher):
-            rtx_utils._ensure_streaming_subscription()
-
-        mock_dispatcher.observe_event.assert_called_once_with(
-            observer_name="isaaclab_rtx_streaming_wait",
-            event_name=rtx_utils._RTX_STREAMING_STATUS_EVENT,
-            on_event=rtx_utils._on_streaming_status_event,
+    def test_idle(self, _mock_omni_usd):
+        ctx = MagicMock()
+        ctx.get_stage_loading_status.return_value = (
+            "", 0, 0,
         )
-        assert rtx_utils._streaming_subscribed is True
-        assert rtx_utils._streaming_subscription == "sub_handle"
+        ctx.get_stage_streaming_status.return_value = False
+        _mock_omni_usd.get_context.return_value = ctx
 
-    def test_idempotent_after_first_call(self):
-        """Performs subscription at most once across repeated calls."""
-        mock_dispatcher = MagicMock()
-        with patch("carb.eventdispatcher.get_eventdispatcher", return_value=mock_dispatcher):
-            rtx_utils._ensure_streaming_subscription()
-            rtx_utils._ensure_streaming_subscription()
+        assert rtx_utils._is_stage_loading_or_streaming() is False
 
-        assert mock_dispatcher.observe_event.call_count == 1
+    def test_loading(self, _mock_omni_usd):
+        ctx = MagicMock()
+        ctx.get_stage_loading_status.return_value = (
+            "", 5, 10,
+        )
+        _mock_omni_usd.get_context.return_value = ctx
 
-    def test_handles_missing_dispatcher(self):
-        """Marks subscription as attempted even when dispatcher is unavailable."""
-        with patch("carb.eventdispatcher.get_eventdispatcher", return_value=None):
-            rtx_utils._ensure_streaming_subscription()
+        assert rtx_utils._is_stage_loading_or_streaming() is True
 
-        assert rtx_utils._streaming_subscribed is True
-        assert rtx_utils._streaming_subscription is None
+    def test_streaming(self, _mock_omni_usd):
+        ctx = MagicMock()
+        ctx.get_stage_loading_status.return_value = (
+            "", 0, 0,
+        )
+        ctx.get_stage_streaming_status.return_value = True
+        _mock_omni_usd.get_context.return_value = ctx
+
+        assert rtx_utils._is_stage_loading_or_streaming() is True
+
+    def test_loading_skips_streaming_check(
+        self, _mock_omni_usd
+    ):
+        ctx = MagicMock()
+        ctx.get_stage_loading_status.return_value = (
+            "", 2, 5,
+        )
+        _mock_omni_usd.get_context.return_value = ctx
+
+        rtx_utils._is_stage_loading_or_streaming()
+        ctx.get_stage_streaming_status.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------
 # _wait_for_streaming_complete
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------
+
+
+def _patch_busy(return_values):
+    """Mock ``_is_stage_loading_or_streaming`` with a sequence.
+
+    Each call pops the next value. Once exhausted, returns the
+    last value forever.
+    """
+    values = list(return_values)
+
+    def _side_effect():
+        if len(values) > 1:
+            return values.pop(0)
+        return values[0]
+
+    return patch.object(
+        rtx_utils,
+        "_is_stage_loading_or_streaming",
+        side_effect=_side_effect,
+    )
 
 
 class TestWaitForStreamingComplete:
-    """Blocking wait pumps app.update() while busy and respects timeout."""
+    """Blocking wait pumps app.update() while busy."""
 
-    def test_returns_immediately_when_not_busy(self):
-        """Skips loop and issues only the final update when idle."""
+    def test_returns_immediately_when_idle(self):
+        """No pumps at all when stage is already idle."""
         mock_app = MagicMock()
-        with patch("omni.kit.app.get_app", return_value=mock_app):
+        with (
+            patch(
+                "omni.kit.app.get_app",
+                return_value=mock_app,
+            ),
+            _patch_busy([False]),
+        ):
             rtx_utils._wait_for_streaming_complete()
 
-        # Only the final update call, no streaming loop iterations.
-        mock_app.update.assert_called_once()
+        mock_app.update.assert_not_called()
 
     def test_pumps_updates_until_idle(self):
-        """Pumps updates until busy flips to false."""
-        rtx_utils._streaming_is_busy = True
+        """Pumps updates until status flips to idle."""
         mock_app = MagicMock()
-        loop_calls = 0
-
-        def _simulate_streaming_done():
-            nonlocal loop_calls
-            loop_calls += 1
-            if loop_calls >= MOCK_ITERATIONS_BEFORE_IDLE:
-                rtx_utils._streaming_is_busy = False
-
-        mock_app.update.side_effect = _simulate_streaming_done
-
-        with patch("omni.kit.app.get_app", return_value=mock_app):
+        # busy, busy (while-check), idle (while-check),
+        # idle (post-loop check)
+        with (
+            patch(
+                "omni.kit.app.get_app",
+                return_value=mock_app,
+            ),
+            _patch_busy([True, True, False]),
+        ):
             rtx_utils._wait_for_streaming_complete()
 
-        assert mock_app.update.call_count == MOCK_ITERATIONS_BEFORE_IDLE + 1
-        assert rtx_utils._streaming_is_busy is False
+        # 1 loop pump + 1 final pump
+        assert mock_app.update.call_count == 2
 
     def test_respects_timeout(self, monkeypatch):
-        """Exits wait loop on timeout if busy never clears."""
-        monkeypatch.setattr(rtx_utils, "_STREAMING_WAIT_TIMEOUT_S", STREAMING_TIMEOUT_S)
-        rtx_utils._streaming_is_busy = True
+        """Exits wait loop on timeout if stage never idles."""
+        monkeypatch.setattr(
+            rtx_utils,
+            "_STREAMING_WAIT_TIMEOUT_S",
+            STREAMING_TIMEOUT_S,
+        )
         mock_app = MagicMock()
-        mock_app.update.side_effect = lambda: time.sleep(MOCK_UPDATE_SLEEP_S)
+        mock_app.update.side_effect = lambda: time.sleep(
+            MOCK_UPDATE_SLEEP_S
+        )
 
-        with patch("omni.kit.app.get_app", return_value=mock_app):
+        with (
+            patch(
+                "omni.kit.app.get_app",
+                return_value=mock_app,
+            ),
+            _patch_busy([True]),
+        ):
             rtx_utils._wait_for_streaming_complete()
 
-        assert rtx_utils._streaming_is_busy is True
         assert mock_app.update.call_count > 0
 
     def test_timeout_logs_warning(self, monkeypatch):
-        """Logs warning when timeout is reached while still busy."""
-        monkeypatch.setattr(rtx_utils, "_STREAMING_WAIT_TIMEOUT_S", STREAMING_TIMEOUT_SHORT_S)
-        rtx_utils._streaming_is_busy = True
+        """Logs warning when timeout reached while busy."""
+        monkeypatch.setattr(
+            rtx_utils,
+            "_STREAMING_WAIT_TIMEOUT_S",
+            STREAMING_TIMEOUT_SHORT_S,
+        )
         mock_app = MagicMock()
         mock_logger = MagicMock()
 
         with (
-            patch("omni.kit.app.get_app", return_value=mock_app),
-            patch.object(rtx_utils, "logger", mock_logger),
+            patch(
+                "omni.kit.app.get_app",
+                return_value=mock_app,
+            ),
+            _patch_busy([True]),
+            patch.object(
+                rtx_utils, "logger", mock_logger
+            ),
         ):
             rtx_utils._wait_for_streaming_complete()
 
         mock_logger.warning.assert_called_once()
-        assert "RTX streaming did not complete within" in mock_logger.warning.call_args[0][0]
+        msg = mock_logger.warning.call_args[0][0]
+        assert "did not complete within" in msg
 
     def test_logs_info_on_non_trivial_completion(self):
-        """Logs completion info when streaming finishes after delay."""
-        rtx_utils._streaming_is_busy = True
+        """Logs info when streaming finishes after delay."""
         mock_app = MagicMock()
         mock_logger = MagicMock()
 
-        def _become_idle_after_delay():
+        def _slow_update():
             time.sleep(MOCK_UPDATE_SLEEP_S)
-            rtx_utils._streaming_is_busy = False
 
-        mock_app.update.side_effect = _become_idle_after_delay
+        mock_app.update.side_effect = _slow_update
 
         with (
-            patch("omni.kit.app.get_app", return_value=mock_app),
-            patch.object(rtx_utils, "logger", mock_logger),
+            patch(
+                "omni.kit.app.get_app",
+                return_value=mock_app,
+            ),
+            _patch_busy([True, True, False]),
+            patch.object(
+                rtx_utils, "logger", mock_logger
+            ),
         ):
             rtx_utils._wait_for_streaming_complete()
 
         mock_logger.info.assert_called_once()
-        assert "RTX streaming completed in" in mock_logger.info.call_args[0][0]
+        msg = mock_logger.info.call_args[0][0]
+        assert "RTX streaming completed in" in msg
