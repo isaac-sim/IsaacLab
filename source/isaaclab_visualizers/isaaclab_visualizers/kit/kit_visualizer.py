@@ -111,7 +111,10 @@ class KitVisualizer(BaseVisualizer):
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
+                settings = carb.settings.get_settings()
+                settings.set_bool("/app/player/playSimulations", False)
                 app.update()
+                settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
 

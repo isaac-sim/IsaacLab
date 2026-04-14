@@ -600,8 +600,9 @@ class SimulationContext:
                 )
 
         # Replay any camera pose requested before visualizers were initialized.
-        if self._pending_camera_view is not None:
-            eye, target = self._pending_camera_view
+        pending = getattr(self, "_pending_camera_view", None)
+        if pending is not None:
+            eye, target = pending
             for viz in self._visualizers:
                 viz.set_camera_view(eye, target)
 

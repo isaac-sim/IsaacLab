@@ -414,6 +414,8 @@ def _make_context_with_settings(
     ctx._has_gui = has_gui
     ctx._has_offscreen_render = has_offscreen_render
     ctx._xr_enabled = False
+    ctx._pending_camera_view = None
+    ctx._render_generation = 0
     ctx._visualizers = []
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
