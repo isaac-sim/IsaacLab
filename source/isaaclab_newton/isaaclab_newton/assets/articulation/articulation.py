@@ -469,6 +469,9 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -495,7 +498,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -526,6 +529,9 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
@@ -551,7 +557,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -583,6 +589,9 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -616,7 +625,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -648,6 +657,9 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
@@ -677,7 +689,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -995,6 +1007,9 @@ class Articulation(BaseArticulation):
             position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -1016,7 +1031,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -1052,6 +1067,9 @@ class Articulation(BaseArticulation):
             position: Joint positions. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
@@ -1071,7 +1089,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
