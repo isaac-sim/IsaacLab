@@ -109,6 +109,10 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 ENV PYTHONPATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle:${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib/python3.12/site-packages:${PYTHONPATH}"
 ENV LD_LIBRARY_PATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib:${LD_LIBRARY_PATH}"
 
+# HACK: nvidia-srl-usd-to-urdf was previously bundled in Kit python but has been
+# removed from the latest-develop Isaac Sim image. Install it explicitly for Pink IK.
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install nvidia-srl-usd-to-urdf
+
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${HOME}/.bashrc && \
