@@ -109,9 +109,17 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 ENV PYTHONPATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle:${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib/python3.12/site-packages:${PYTHONPATH}"
 ENV LD_LIBRARY_PATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib:${LD_LIBRARY_PATH}"
 
-# HACK: Expose nvidia.srl from Kit python into the ml_archive nvidia namespace
-RUN ln -s ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/nvidia/srl \
-    ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/nvidia/srl
+# HACK: Expose nvidia.srl from Kit python into the ml_archive nvidia namespace.
+# The extension moved from exts/ to extsDeprecated/ in recent Isaac Sim nightlies;
+# probe both locations so the build works regardless of which image is used.
+RUN SRL_SRC="${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/nvidia/srl" && \
+    if [ -d "${ISAACSIM_ROOT_PATH}/extsDeprecated/omni.isaac.ml_archive/pip_prebundle/nvidia" ]; then \
+        ln -sf "$SRL_SRC" "${ISAACSIM_ROOT_PATH}/extsDeprecated/omni.isaac.ml_archive/pip_prebundle/nvidia/srl"; \
+    elif [ -d "${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/nvidia" ]; then \
+        ln -sf "$SRL_SRC" "${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/nvidia/srl"; \
+    else \
+        echo "WARNING: omni.isaac.ml_archive pip_prebundle/nvidia not found in exts/ or extsDeprecated/ — skipping nvidia.srl symlink"; \
+    fi
 
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
