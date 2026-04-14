@@ -41,9 +41,7 @@ def _mock_omni_usd():
     had_usd = hasattr(omni, "usd")
     old_usd = getattr(omni, "usd", None)
     omni.usd = mock_usd
-    with patch.dict(
-        sys.modules, {"omni.usd": mock_usd}
-    ):
+    with patch.dict(sys.modules, {"omni.usd": mock_usd}):
         yield mock_usd
     if had_usd:
         omni.usd = old_usd
@@ -62,7 +60,9 @@ class TestIsStageLoadingOrStreaming:
     def test_idle(self, _mock_omni_usd):
         ctx = MagicMock()
         ctx.get_stage_loading_status.return_value = (
-            "", 0, 0,
+            "",
+            0,
+            0,
         )
         ctx.get_stage_streaming_status.return_value = False
         _mock_omni_usd.get_context.return_value = ctx
@@ -72,7 +72,9 @@ class TestIsStageLoadingOrStreaming:
     def test_loading(self, _mock_omni_usd):
         ctx = MagicMock()
         ctx.get_stage_loading_status.return_value = (
-            "", 5, 10,
+            "",
+            5,
+            10,
         )
         _mock_omni_usd.get_context.return_value = ctx
 
@@ -81,19 +83,21 @@ class TestIsStageLoadingOrStreaming:
     def test_streaming(self, _mock_omni_usd):
         ctx = MagicMock()
         ctx.get_stage_loading_status.return_value = (
-            "", 0, 0,
+            "",
+            0,
+            0,
         )
         ctx.get_stage_streaming_status.return_value = True
         _mock_omni_usd.get_context.return_value = ctx
 
         assert rtx_utils._is_stage_loading_or_streaming() is True
 
-    def test_loading_skips_streaming_check(
-        self, _mock_omni_usd
-    ):
+    def test_loading_skips_streaming_check(self, _mock_omni_usd):
         ctx = MagicMock()
         ctx.get_stage_loading_status.return_value = (
-            "", 2, 5,
+            "",
+            2,
+            5,
         )
         _mock_omni_usd.get_context.return_value = ctx
 
@@ -168,9 +172,7 @@ class TestWaitForStreamingComplete:
             STREAMING_TIMEOUT_S,
         )
         mock_app = MagicMock()
-        mock_app.update.side_effect = lambda: time.sleep(
-            MOCK_UPDATE_SLEEP_S
-        )
+        mock_app.update.side_effect = lambda: time.sleep(MOCK_UPDATE_SLEEP_S)
 
         with (
             patch(
@@ -199,9 +201,7 @@ class TestWaitForStreamingComplete:
                 return_value=mock_app,
             ),
             _patch_busy([True]),
-            patch.object(
-                rtx_utils, "logger", mock_logger
-            ),
+            patch.object(rtx_utils, "logger", mock_logger),
         ):
             rtx_utils._wait_for_streaming_complete()
 
@@ -225,9 +225,7 @@ class TestWaitForStreamingComplete:
                 return_value=mock_app,
             ),
             _patch_busy([True, True, False]),
-            patch.object(
-                rtx_utils, "logger", mock_logger
-            ),
+            patch.object(rtx_utils, "logger", mock_logger),
         ):
             rtx_utils._wait_for_streaming_complete()
 
