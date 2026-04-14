@@ -13,12 +13,12 @@ Added
 Fixed
 ^^^^^
 
-* Fixed environment resets for the Kamino solver. Articulation state write methods now
-  set a ``_kamino_needs_fk`` flag via :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk`,
-  consumed in :meth:`~isaaclab_newton.physics.NewtonManager.step` before physics stepping.
-  This calls ``SolverKamino.reset()`` with the FK solver to compute consistent body poses
-  and reinitialise internal solver state (``joint_q_prev``, constraint multipliers, warm-start
-  containers) that would otherwise become stale after resets.
+* Replaced boolean ``_fk_dirty`` and ``_kamino_needs_fk`` flags with per-world
+  reset masks (``_world_reset_mask`` and ``_fk_reset_mask``). Asset write methods
+  now call :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk` with
+  ``env_mask``/``env_ids`` and ``articulation_ids``, so ``eval_fk`` and
+  ``SolverKamino.reset()`` only operate on dirtied environments. Rigid object
+  and rigid object collection write methods now also trigger FK invalidation.
 
 * Fixed CUDA error 700 (illegal memory access) when calling ``SolverKamino.reset()`` after
   CUDA graph capture. ``StateKamino.from_newton()`` lazily allocates ``body_f_total``,
