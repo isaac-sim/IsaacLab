@@ -6,6 +6,7 @@
 docs/
 # copy in licenses folder to the container
 !docs/licenses/
+!docs/requirements.txt
 # ignore logs
 **/logs/
 **/runs/
