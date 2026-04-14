@@ -132,12 +132,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             single_cam_data = convert_dict_to_backend(
                 {k: v[camera_index] for k, v in camera.data.output.items()}, backend="numpy"
             )
-            # Extract the other information
-            single_cam_info = camera.data.info[camera_index]
-
             # Pack data back into replicator format to save them using its writer
             rep_output = {"annotators": {}}
-            for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+            for key, data in single_cam_data.items():
+                info = camera.data.info.get(key)
                 if info is not None:
                     rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
                 else:

@@ -29,6 +29,10 @@ from pxr import Gf, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
 
+# Deprecation warnings from TiledCamera/TiledCameraCfg are expected in this file;
+# the deprecation mechanism itself is validated in test_tiled_camera.py.
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
+
 
 @pytest.fixture()
 def setup_camera():
