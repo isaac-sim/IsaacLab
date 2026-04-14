@@ -224,8 +224,7 @@ def _step_until_non_black_kit_viewport(
 ) -> None:
     """Step env until Kit viewport camera render product is non-black, bounded by max_steps."""
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
-    if not camera_path:
-        pytest.skip("Kit visualizer does not expose a controlled viewport camera path.")
+    assert camera_path, "Kit visualizer does not expose a controlled viewport camera path."
 
     annotator = None
     render_product = None
@@ -385,8 +384,7 @@ def test_newton_visualizer_non_black_viewer_frame(backend_kind: str):
         assert viewer is not None, "Newton viewer was not created."
 
         get_frame = getattr(viewer, "get_frame", None)
-        if not callable(get_frame):
-            pytest.skip("ViewerGL.get_frame is not available in this Newton version.")
+        assert callable(get_frame), "ViewerGL.get_frame is not available in this Newton version."
 
         frame = get_frame()
         _assert_non_black_frame_array(frame)

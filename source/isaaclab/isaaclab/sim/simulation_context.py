@@ -294,10 +294,14 @@ class SimulationContext:
             UsdGeom.SetStageMetersPerUnit(self.stage, 1.0)
             UsdPhysics.SetStageKilogramsPerUnit(self.stage, 1.0)
 
-            # Find and delete any existing physics scene
-            for prim in self.stage.Traverse():
-                if prim.GetTypeName() == "PhysicsScene":
-                    sim_utils.delete_prim(prim.GetPath().pathString, stage=self.stage)
+            # Find and delete any existing physics scene.
+            # Collect paths first to avoid mutating the stage while traversing,
+            # which can invalidate the USD iterator.
+            physics_scene_paths = [
+                prim.GetPath().pathString for prim in self.stage.Traverse() if prim.GetTypeName() == "PhysicsScene"
+            ]
+            for physics_scene_path in physics_scene_paths:
+                sim_utils.delete_prim(physics_scene_path, stage=self.stage)
 
             # Create a new physics scene
             if self.stage.GetPrimAtPath(cfg.physics_prim_path).IsValid():
