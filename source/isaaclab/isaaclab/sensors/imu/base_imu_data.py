@@ -34,7 +34,7 @@ class BaseImuData(ABC):
     @property
     @abstractmethod
     def lin_acc_b(self) -> wp.array:
-        """Proper linear acceleration in the IMU frame [m/s^2].
+        """Linear acceleration (proper) in the IMU frame [m/s^2].
 
         Zero in freefall, +g upward at rest.
 

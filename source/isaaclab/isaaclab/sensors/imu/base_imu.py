@@ -21,7 +21,7 @@ class BaseImu(SensorBase):
     """The Inertial Measurement Unit (IMU) sensor.
 
     This sensor models a real IMU that measures angular velocity (gyroscope) and
-    proper acceleration (accelerometer) in the sensor's body frame. Unlike the
+    proper linear acceleration (accelerometer) in the sensor's body frame. Unlike the
     PVA sensor, it does not provide pose, linear velocity, angular acceleration,
     or projected gravity.
 

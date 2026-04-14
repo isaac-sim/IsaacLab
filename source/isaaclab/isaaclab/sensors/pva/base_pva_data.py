@@ -78,7 +78,7 @@ class BasePvaData(ABC):
     @property
     @abstractmethod
     def lin_acc_b(self) -> wp.array:
-        """Coordinate linear acceleration in the PVA frame [m/s^2].
+        """Linear acceleration (coordinate) in the sensor frame [m/s^2].
 
         Equal to -g in freefall, zero at rest.
 
