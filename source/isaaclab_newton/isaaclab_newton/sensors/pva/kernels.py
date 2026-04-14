@@ -31,11 +31,6 @@ def pva_update_kernel(
     out_lin_acc_b: wp.array(dtype=wp.vec3f),
     out_ang_acc_b: wp.array(dtype=wp.vec3f),
 ):
-    """Compute all PVA quantities from Newton body state.
-
-    Launched with dim=num_envs. Each thread reads the body state for one
-    environment's site and writes all eight output buffers.
-    """
     idx = wp.tid()
     if not env_mask[idx]:
         return
@@ -99,10 +94,6 @@ def pva_reset_kernel(
     out_lin_acc_b: wp.array(dtype=wp.vec3f),
     out_ang_acc_b: wp.array(dtype=wp.vec3f),
 ):
-    """Zero out PVA data for reset environments.
-
-    Launched with dim=num_envs.
-    """
     idx = wp.tid()
     if not env_mask[idx]:
         return

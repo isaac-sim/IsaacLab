@@ -9,8 +9,13 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 
+from pxr import UsdGeom
+
+import isaaclab.utils.math as math_utils
+from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
 
 from isaaclab_newton.physics import NewtonManager
@@ -190,6 +195,42 @@ class Pva(BasePva):
             ],
             device=self._device,
         )
+
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        if debug_vis:
+            if not hasattr(self, "acceleration_visualizer"):
+                self.acceleration_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+            self.acceleration_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "acceleration_visualizer"):
+                self.acceleration_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
+        if self._newton_model is None:
+            return
+        # base position (offset upward for visibility)
+        base_pos_w = wp.to_torch(self._data.pos_w).clone()
+        base_pos_w[:, 2] += 0.5
+        # arrow scale
+        default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
+        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(
+            wp.to_torch(self._data.lin_acc_b).shape[0], 1
+        )
+        # arrow direction from acceleration
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
+        pos_w_torch = wp.to_torch(self._data.pos_w)
+        quat_w_torch = wp.to_torch(self._data.quat_w)
+        lin_acc_b_torch = wp.to_torch(self._data.lin_acc_b)
+        quat_opengl = math_utils.quat_from_matrix(
+            math_utils.create_rotation_matrix_from_view(
+                pos_w_torch,
+                pos_w_torch + math_utils.quat_apply(quat_w_torch, lin_acc_b_torch),
+                up_axis=up_axis,
+                device=self._device,
+            )
+        )
+        quat_w = math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world")
+        self.acceleration_visualizer.visualize(base_pos_w, quat_w, arrow_scale)
 
     def _invalidate_initialize_callback(self, event):
         """Clears references for re-initialization and re-registers with NewtonManager."""
