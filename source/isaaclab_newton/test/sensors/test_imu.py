@@ -28,6 +28,7 @@ from isaaclab.utils import configclass
 class ImuTestSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and an IMU sensor."""
 
+    env_spacing = 2.0
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
 
     cube = RigidObjectCfg(
@@ -36,6 +37,7 @@ class ImuTestSceneCfg(InteractiveSceneCfg):
             size=(0.2, 0.2, 0.2),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
@@ -149,8 +151,10 @@ def test_reset(sim):
     scene = InteractiveScene(scene_cfg)
     sim.reset()
 
-    # Step to get non-zero data
-    for _ in range(10):
+    # Step enough for the cube to settle on the ground so the accelerometer reads gravity.
+    # The cube falls from z=1.0 (bottom at z=0.9) and reaches the ground in ~86 steps
+    # at 200 Hz; 200 steps gives time to settle after impact.
+    for _ in range(200):
         sim.step()
         scene.update(sim.get_physics_dt())
 
@@ -162,23 +166,27 @@ def test_reset(sim):
 
     imu.reset()
 
-    ang_vel = wp.to_torch(imu.data.ang_vel_b)
-    lin_acc = wp.to_torch(imu.data.lin_acc_b)
+    # Access internal buffers directly: accessing imu.data triggers lazy re-evaluation
+    # which re-fills from the Newton sensor, so we check the raw buffers instead.
+    ang_vel_after = wp.to_torch(imu._data._ang_vel_b)
+    lin_acc_after = wp.to_torch(imu._data._lin_acc_b)
 
-    torch.testing.assert_close(ang_vel, torch.zeros_like(ang_vel))
-    torch.testing.assert_close(lin_acc, torch.zeros_like(lin_acc))
+    torch.testing.assert_close(ang_vel_after, torch.zeros_like(ang_vel_after))
+    torch.testing.assert_close(lin_acc_after, torch.zeros_like(lin_acc_after))
 
 
 @configclass
 class FreefallSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and IMU but no ground plane (freefall)."""
 
+    env_spacing = 2.0
     cube = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
