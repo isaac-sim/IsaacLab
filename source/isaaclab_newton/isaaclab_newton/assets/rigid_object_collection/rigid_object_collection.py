@@ -486,7 +486,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.write_body_link_pose_to_sim_index(
             body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True
         )
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
 
     def write_body_com_pose_to_sim_index(
         self,
@@ -585,7 +584,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask = self._ALL_ENV_MASK
             env_ids = self._ALL_ENV_INDICES
         self.write_body_com_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -694,7 +692,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.write_body_com_velocity_to_sim_index(
             body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
         )
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
 
     def write_body_link_velocity_to_sim_index(
         self,
@@ -805,7 +802,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.write_body_link_velocity_to_sim_index(
             body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
         )
-        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
 
     """
     Operations - Setters.
