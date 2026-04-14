@@ -27,9 +27,9 @@ logger = logging.getLogger(__name__)
 class Pva(BasePva):
     """Newton Pose Velocity Acceleration (PVA) sensor.
 
-    Reads body transforms, velocities, and analytic accelerations directly
-    from Newton's simulation state (``body_q``, ``body_qd``, ``body_qdd``)
-    to provide world-frame pose and body-frame velocities/accelerations.
+    Reads body transforms, velocities, and accelerations directly from
+    Newton's simulation state (``body_q``, ``body_qd``, ``body_qdd``) to
+    provide world-frame pose and body-frame velocities/accelerations.
     """
 
     cfg: PvaCfg

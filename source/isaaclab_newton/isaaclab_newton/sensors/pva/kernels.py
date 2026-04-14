@@ -66,7 +66,7 @@ def pva_update_kernel(
     lin_vel_b = wp.quat_rotate_inv(sensor_quat, lin_vel_w)
     ang_vel_b = wp.quat_rotate_inv(sensor_quat, ang_vel_w)
 
-    # 4. Acceleration at sensor site via rigid-body transport (analytic from body_qdd):
+    # 4. Acceleration at sensor site via rigid-body transport (from body_qdd):
     #    a_site = a_com + alpha x r + omega x (omega x r)
     ang_acc_w = wp.spatial_bottom(body_qdd[body_idx])
     lin_acc_w = (

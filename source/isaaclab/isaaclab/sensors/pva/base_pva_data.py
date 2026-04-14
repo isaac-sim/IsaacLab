@@ -78,7 +78,9 @@ class BasePvaData(ABC):
     @property
     @abstractmethod
     def lin_acc_b(self) -> wp.array:
-        """PVA frame linear acceleration relative to the world expressed in PVA frame [m/s^2].
+        """Coordinate linear acceleration in the PVA frame [m/s^2].
+
+        Equal to -g in freefall, zero at rest.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
