@@ -296,8 +296,8 @@ class SimulationContext:
             UsdPhysics.SetStageKilogramsPerUnit(self.stage, 1.0)
 
             # Find and delete any existing physics scene.
-            # Collect paths first to avoid mutating the stage while traversing,
-            # which can invalidate the USD iterator.
+            # Collect paths first to avoid mutating the stage while traversing
+            # (iterator invalidation during deletion).
             physics_scene_paths = [
                 prim.GetPath().pathString for prim in self.stage.Traverse() if prim.GetTypeName() == "PhysicsScene"
             ]
