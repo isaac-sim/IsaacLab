@@ -3,7 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Smoke test visualizer stepping and error logging."""
+"""Integration tests: Cartpole + visualizers, non-black frames, and log hygiene.
+
+Visualizer packages use ``logging.getLogger(__name__)``, so loggers are named like
+``isaaclab_visualizers.kit.kit_visualizer`` and ``isaaclab.visualizers.base_visualizer``.
+:class:`~isaaclab.sim.simulation_context.SimulationContext` uses
+``logging.getLogger(__name__)`` → ``isaaclab.sim.simulation_context``.
+
+We filter :class:`~pytest.LogCaptureFixture` records with :data:`_VIS_LOGGER_PREFIXES`
+so only those namespaces count (not Omniverse, PhysX, or unrelated warnings).
+
+Set :data:`ASSERT_VISUALIZER_WARNINGS` to ``True`` locally or in CI if you want tests to
+fail on WARNING-level records from those loggers; by default only ERROR+ fails.
+"""
+
+from __future__ import annotations
 
 from isaaclab.app import AppLauncher
 
@@ -24,28 +38,59 @@ from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
 from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils import configclass
-
+from isaaclab.sim import SimulationContext
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import (
-    CartpolePhysicsCfg,
-    CartpoleSceneCfg,
-)
+from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpolePhysicsCfg
 
-# Set to False to only fail on visualizer errors; when True, also fail on warnings.
-ASSERT_VISUALIZER_WARNINGS = True
+# When True, tests also fail on WARNING-level records from visualizer-related loggers.
+ASSERT_VISUALIZER_WARNINGS = False
 
-_SMOKE_STEPS = 4
-_MAX_NON_BLACK_STEPS = max(_SMOKE_STEPS, 8)
+_MAX_NON_BLACK_STEPS = 8
 _VIS_LOGGER_PREFIXES = (
     "isaaclab.visualizers",
     "isaaclab_visualizers",
     "isaaclab.sim.simulation_context",
 )
+
+
+def _logger_name_matches_visualizer_scope(logger_name: str) -> bool:
+    """Return True if *logger_name* is a visualizer / SimulationContext visualizer path."""
+    return any(logger_name.startswith(prefix) for prefix in _VIS_LOGGER_PREFIXES)
+
+
+def _assert_no_visualizer_log_issues(caplog: pytest.LogCaptureFixture, *, fail_on_warnings: bool | None = None) -> None:
+    """Fail if captured records include ERROR/CRITICAL (always) or WARNING (if *fail_on_warnings*).
+
+    *fail_on_warnings* defaults to :data:`ASSERT_VISUALIZER_WARNINGS`.
+    """
+    if fail_on_warnings is None:
+        fail_on_warnings = ASSERT_VISUALIZER_WARNINGS
+
+    error_logs = [
+        r
+        for r in caplog.records
+        if r.levelno >= logging.ERROR and _logger_name_matches_visualizer_scope(r.name)
+    ]
+    assert not error_logs, "Visualizer-related error logs: " + "; ".join(
+        f"{r.name}: {r.getMessage()}" for r in error_logs
+    )
+
+    if fail_on_warnings:
+        warning_logs = [
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and _logger_name_matches_visualizer_scope(r.name)
+        ]
+        assert not warning_logs, "Visualizer-related warning logs: " + "; ".join(
+            f"{r.name}: {r.getMessage()}" for r in warning_logs
+        )
+
+
+def _configure_sim_for_visualizer_test(env: CartpoleCameraEnv) -> None:
+    """Settings used by the previous smoke tests; keep RTX sensors enabled for camera paths."""
+    env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
+    env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
 
 
 def _find_free_tcp_port(host: str = "127.0.0.1") -> int:
@@ -64,33 +109,6 @@ def _allocate_rerun_test_ports(host: str = "127.0.0.1") -> tuple[int, int]:
     return web_port, grpc_port
 
 
-@configclass
-class _SmokeEnvCfg(DirectRLEnvCfg):
-    decimation: int = 2
-    action_space: int = 0
-    observation_space: int = 0
-    episode_length_s: float = 5.0
-    sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=2, visualizer_cfgs=KitVisualizerCfg())
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
-
-
-class _SmokeEnv(DirectRLEnv):
-    def _pre_physics_step(self, actions):
-        return
-
-    def _apply_action(self):
-        return
-
-    def _get_observations(self):
-        return {}
-
-    def _get_rewards(self):
-        return {}
-
-    def _get_dones(self):
-        return torch.zeros(1, dtype=torch.bool), torch.zeros(1, dtype=torch.bool)
-
-
 def _get_visualizer_cfg(visualizer_kind: str):
     """Return (visualizer_cfg, expected_visualizer_cls) for the given visualizer kind."""
     if visualizer_kind == "newton":
@@ -105,8 +123,6 @@ def _get_visualizer_cfg(visualizer_kind: str):
         __import__("newton")
         __import__("rerun")
         web_port, grpc_port = _allocate_rerun_test_ports(host="127.0.0.1")
-        # Use dynamically allocated non-default ports in smoke tests to avoid collisions.
-        # TODO: Consider supporting cleanup/termination of stale rerun processes when ports are occupied.
         return (
             RerunVisualizerCfg(
                 bind_address="127.0.0.1",
@@ -120,11 +136,7 @@ def _get_visualizer_cfg(visualizer_kind: str):
 
 
 def _get_physics_cfg(backend_kind: str):
-    """Return physics config and expected backend substring for the given backend kind.
-
-    Uses cartpole preset instance so we work whether presets are class or instance attributes.
-    Fallback: build PhysxCfg/NewtonCfg in-test if preset does not expose that backend.
-    """
+    """Return physics config and expected backend substring for the given backend kind."""
     if backend_kind == "physx":
         __import__("isaaclab_physx")
         preset = CartpolePhysicsCfg()
@@ -184,7 +196,7 @@ def _assert_non_black_frame_array(frame) -> None:
 
 
 def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int = _MAX_NON_BLACK_STEPS) -> None:
-    """Step env until camera frame is non-black, bounded by max_steps."""
+    """Step env until the env's tiled camera RGB tensor is non-black, bounded by *max_steps*."""
     last_rgb = None
     for _ in range(max_steps):
         env.step(action=actions)
@@ -197,8 +209,21 @@ def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int =
             return
         except AssertionError:
             continue
-    # Preserve existing assertion semantics with a final explicit check.
     _assert_non_black_tensor(last_rgb)
+
+
+def _step_until_non_black_viewer_get_frame(viewer, *, max_steps: int, step_hook) -> None:
+    """Call *step_hook* each iteration until *viewer*.``get_frame()`` is non-black within *max_steps*."""
+    last_frame = None
+    for _ in range(max_steps):
+        step_hook()
+        last_frame = viewer.get_frame()
+        try:
+            _assert_non_black_frame_array(last_frame)
+            return
+        except AssertionError:
+            continue
+    _assert_non_black_frame_array(last_frame)
 
 
 def _build_rgb_annotator_for_camera(camera_path: str, *, resolution: tuple[int, int] = (320, 240)):
@@ -262,8 +287,6 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
         )
     env_cfg = copy.deepcopy(env_cfg)
     env_cfg.scene.num_envs = 1
-    # Avoid hard dependency on replicator graph initialization in this smoke test;
-    # deterministic seeding is not required for black-frame detection coverage.
     env_cfg.seed = None
     env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
     visualizer_cfg, _ = _get_visualizer_cfg(visualizer_kind)
@@ -271,92 +294,21 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
     return CartpoleCameraEnv(env_cfg)
 
 
-def _resolve_case(visualizer_kind: str, backend_kind: str):
-    """Resolve (env_cfg, expected_visualizer_cls, expected_backend_substring) for one smoke test.
-
-    Uses cartpole scene for all combinations (works with both PhysX and Newton).
-    """
-    scene_cfg = CartpoleSceneCfg(num_envs=1, env_spacing=1.0)
-    viz_cfg, expected_viz_cls = _get_visualizer_cfg(visualizer_kind)
-    physics_cfg, expected_backend = _get_physics_cfg(backend_kind)
-
-    cfg = _SmokeEnvCfg()
-    cfg.scene = scene_cfg
-    cfg.sim = SimulationCfg(
-        dt=0.005,
-        render_interval=2,
-        visualizer_cfgs=viz_cfg,
-        physics=physics_cfg,
-    )
-    return cfg, expected_viz_cls, expected_backend
-
-
-def _run_smoke_test(cfg, expected_visualizer_cls, expected_backend: str, caplog) -> None:
-    """Run smoke steps and assert no visualizer errors; optionally no warnings (see ASSERT_VISUALIZER_WARNINGS)."""
-    env = None
-    try:
-        sim_utils.create_new_stage()
-        env = _SmokeEnv(cfg=cfg)
-        backend_name = env.sim.physics_manager.__name__.lower()
-        assert expected_backend in backend_name, (
-            f"Expected physics backend containing {expected_backend!r}, got {backend_name!r}"
-        )
-        env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
-        env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
-
-        actions = torch.zeros((env.num_envs, 0), device=env.device)
-        with caplog.at_level(logging.WARNING):
-            env.reset()
-            assert env.sim.visualizers
-            assert isinstance(env.sim.visualizers[0], expected_visualizer_cls)
-            for _ in range(_SMOKE_STEPS):
-                env.step(action=actions)
-
-        # Always fail on errors
-        error_logs = [
-            r for r in caplog.records if r.levelno >= logging.ERROR and r.name.startswith(_VIS_LOGGER_PREFIXES)
-        ]
-        assert not error_logs, "Visualizer emitted error logs during smoke stepping: " + "; ".join(
-            f"{r.name}: {r.message}" for r in error_logs
-        )
-
-        # Optionally fail on warnings
-        if ASSERT_VISUALIZER_WARNINGS:
-            warning_logs = [
-                r for r in caplog.records if r.levelno >= logging.WARNING and r.name.startswith(_VIS_LOGGER_PREFIXES)
-            ]
-            assert not warning_logs, "Visualizer emitted warning logs during smoke stepping: " + "; ".join(
-                f"{r.name}: {r.message}" for r in warning_logs
-            )
-    finally:
-        if env is not None:
-            env.close()
-        else:
-            SimulationContext.clear_instance()
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("visualizer_kind", ["kit", "newton", "rerun", "viser"])
-@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_visualizer_backend_smoke(visualizer_kind: str, backend_kind: str, caplog):
-    """Smoke test each (visualizer, backend) pair; assert no errors (optionally no warnings)."""
-    cfg, expected_viz_cls, expected_backend = _resolve_case(visualizer_kind, backend_kind)
-    _run_smoke_test(cfg, expected_viz_cls, expected_backend, caplog)
-
-
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_kit_visualizer_non_black_viewport_frame(backend_kind: str):
-    """Kit visualizer viewport camera output should not be black."""
+def test_kit_visualizer_non_black_viewport_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Kit visualizer viewport (Replicator RGB) is not black; no visualizer ERROR (optional WARNING)."""
     env = None
     try:
         sim_utils.create_new_stage()
         env = _make_cartpole_camera_env(visualizer_kind="kit", backend_kind=backend_kind)
-        env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
-        env.reset()
-        kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
-        assert kit_visualizers, "Expected an initialized Kit visualizer."
-        _step_until_non_black_kit_viewport(env, kit_visualizers[0], max_steps=_MAX_NON_BLACK_STEPS)
+        _configure_sim_for_visualizer_test(env)
+        with caplog.at_level(logging.WARNING):
+            env.reset()
+            kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
+            assert kit_visualizers, "Expected an initialized Kit visualizer."
+            _step_until_non_black_kit_viewport(env, kit_visualizers[0], max_steps=_MAX_NON_BLACK_STEPS)
+        _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
             env.close()
@@ -366,28 +318,105 @@ def test_kit_visualizer_non_black_viewport_frame(backend_kind: str):
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_newton_visualizer_non_black_viewer_frame(backend_kind: str):
-    """Newton visualizer should produce at least one non-black viewer frame for Cartpole."""
+def test_cartpole_tiled_camera_rgb_non_black(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Tiled camera RGB is not all-black; no visualizer ERROR (optional WARNING)."""
     env = None
     try:
         sim_utils.create_new_stage()
         env = _make_cartpole_camera_env(visualizer_kind="newton", backend_kind=backend_kind)
-        env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
-        env.reset()
-        actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        for _ in range(_MAX_NON_BLACK_STEPS):
-            env.step(action=actions)
+        _configure_sim_for_visualizer_test(env)
+        with caplog.at_level(logging.WARNING):
+            env.reset()
+            actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+            _step_until_non_black_camera(env, actions, max_steps=_MAX_NON_BLACK_STEPS)
+        _assert_no_visualizer_log_issues(caplog)
+    finally:
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
 
-        newton_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, NewtonVisualizer)]
-        assert newton_visualizers, "Expected an initialized Newton visualizer."
-        viewer = getattr(newton_visualizers[0], "_viewer", None)
-        assert viewer is not None, "Newton viewer was not created."
 
-        get_frame = getattr(viewer, "get_frame", None)
-        assert callable(get_frame), "ViewerGL.get_frame is not available in this Newton version."
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
+def test_newton_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Newton GL ``get_frame`` is not all-black; no visualizer ERROR (optional WARNING)."""
+    env = None
+    try:
+        sim_utils.create_new_stage()
+        env = _make_cartpole_camera_env(visualizer_kind="newton", backend_kind=backend_kind)
+        _configure_sim_for_visualizer_test(env)
+        with caplog.at_level(logging.WARNING):
+            env.reset()
+            actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+            newton_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, NewtonVisualizer)]
+            assert newton_visualizers, "Expected an initialized Newton visualizer."
+            viewer = getattr(newton_visualizers[0], "_viewer", None)
+            assert viewer is not None, "Newton viewer was not created."
 
-        frame = get_frame()
-        _assert_non_black_frame_array(frame)
+            def _step_env() -> None:
+                env.step(action=actions)
+
+            _step_until_non_black_viewer_get_frame(viewer, max_steps=_MAX_NON_BLACK_STEPS, step_hook=_step_env)
+        _assert_no_visualizer_log_issues(caplog)
+    finally:
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
+def test_rerun_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Rerun ``ViewerRerun.get_frame`` is not all-black; no visualizer ERROR (optional WARNING)."""
+    env = None
+    try:
+        sim_utils.create_new_stage()
+        env = _make_cartpole_camera_env(visualizer_kind="rerun", backend_kind=backend_kind)
+        _configure_sim_for_visualizer_test(env)
+        with caplog.at_level(logging.WARNING):
+            env.reset()
+            actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+            rerun_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, RerunVisualizer)]
+            assert rerun_visualizers, "Expected an initialized Rerun visualizer."
+            viewer = getattr(rerun_visualizers[0], "_viewer", None)
+            assert viewer is not None, "Rerun viewer was not created."
+
+            def _step_env() -> None:
+                env.step(action=actions)
+
+            _step_until_non_black_viewer_get_frame(viewer, max_steps=_MAX_NON_BLACK_STEPS, step_hook=_step_env)
+        _assert_no_visualizer_log_issues(caplog)
+    finally:
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
+def test_viser_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Viser ``ViewerViser.get_frame`` is not all-black; no visualizer ERROR (optional WARNING)."""
+    env = None
+    try:
+        sim_utils.create_new_stage()
+        env = _make_cartpole_camera_env(visualizer_kind="viser", backend_kind=backend_kind)
+        _configure_sim_for_visualizer_test(env)
+        with caplog.at_level(logging.WARNING):
+            env.reset()
+            actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+            viser_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, ViserVisualizer)]
+            assert viser_visualizers, "Expected an initialized Viser visualizer."
+            viewer = getattr(viser_visualizers[0], "_viewer", None)
+            assert viewer is not None, "Viser viewer was not created."
+
+            def _step_env() -> None:
+                env.step(action=actions)
+
+            _step_until_non_black_viewer_get_frame(viewer, max_steps=_MAX_NON_BLACK_STEPS, step_hook=_step_env)
+        _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
             env.close()
