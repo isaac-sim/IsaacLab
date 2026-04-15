@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.22 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated stack-event utilities to enable optional extensions via
+  ``isaacsim.core.experimental.utils.app.enable_extension`` (non-deprecated Isaac Sim path).
+
+
 1.5.21 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 

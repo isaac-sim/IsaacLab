@@ -99,7 +99,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             stage: USD stage handle.
             simulation_context: Active simulation context.
         """
-        from isaacsim.core.simulation_manager import SimulationManager
+        from isaaclab_physx.physics import SimulationManager
 
         self._simulation_context = simulation_context
         self._stage = stage

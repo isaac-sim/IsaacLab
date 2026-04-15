@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+4.6.3 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated cross-backend asset interface tests to import ``SimulationManager`` from
+  :mod:`isaaclab_physx.physics` instead of ``isaacsim.core.simulation_manager``.
+
+
+4.6.2 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Stopped registering deprecated Isaac Sim extension search paths in Isaac Lab Kit experiences and
+  switched explicit Isaac Sim extension dependencies to non-deprecated ``isaacsim.core.experimental.*``,
+  ``isaacsim.robot.experimental.wheeled_robots``, ``isaacsim.robot.wheeled_robots.nodes``, and
+  ``isaacsim.sensors.experimental.*`` equivalents.
+* Migrated remaining Isaac Lab imports off deprecated Isaac Sim core utility/prim Python module paths
+  to their ``isaacsim.core.experimental.*`` replacements.
+* Retired several ``source/isaaclab/test/deps/isaacsim`` standalone reproducers that depended on
+  deprecated Isaac Sim core extensions; use :mod:`isaaclab.sim` and ``isaacsim.core.experimental.*``
+  for similar debugging workflows.
+
+
 4.6.1 (2026-04-14)
 ~~~~~~~~~~~~~~~~~~
 

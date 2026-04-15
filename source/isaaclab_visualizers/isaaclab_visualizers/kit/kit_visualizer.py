@@ -11,7 +11,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from pxr import UsdGeom
+from pxr import Gf, UsdGeom
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
@@ -317,7 +317,7 @@ class KitVisualizer(BaseVisualizer):
 
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Apply eye/target camera view to the active viewport."""
-        import isaacsim.core.utils.viewports as isaacsim_viewports
+        from omni.kit.viewport.utility.camera_state import ViewportCameraState
 
         if self._viewport_api is None:
             return
@@ -329,9 +329,9 @@ class KitVisualizer(BaseVisualizer):
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"
 
-        isaacsim_viewports.set_camera_view(
-            eye=list(position), target=list(target), camera_prim_path=camera_path, viewport_api=self._viewport_api
-        )
+        camera_state = ViewportCameraState(camera_path, self._viewport_api)
+        camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), True)
+        camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
 
     def _set_active_camera_path(self, camera_path: str) -> bool:
         """Set active camera path for viewport if the prim exists.
