@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""EMA-paced, consumption-gated background retarget loop for :class:`IsaacTeleopDevice`.
+"""Consumption-gated background retarget loop with pluggable timing estimation.
 
 The background thread produces exactly one retarget result per
 :meth:`consume` call.  After posting a result it waits for the main
@@ -11,15 +11,18 @@ thread to consume it before retargeting again, ensuring the retarget
 pipeline is invoked at the same cadence as ``advance()`` (just like the
 synchronous path).
 
-Within each cycle the thread uses an Exponential Moving Average (EMA)
-to predict *when* the next :meth:`consume` will happen, then delays
-reading inputs and retargeting until just before that deadline.  This
-maximises input freshness while still overlapping the retarget
-computation with ``env.step()``.
+Within each cycle a :class:`TimingEstimator` predicts *when* the next
+:meth:`consume` will happen and delays reading inputs until just before
+that deadline.  The default strategy uses Exponential Moving Average
+(EMA) via :class:`EmaTimingEstimator`.  To swap in a different
+prediction algorithm, subclass :class:`TimingEstimator` and
+:class:`TimingEstimatorCfg`, then pass the custom cfg to
+:class:`AsyncRetargetLoop`.
 """
 
 from __future__ import annotations
 
+import abc
 import logging
 import threading
 import time
@@ -28,7 +31,186 @@ from collections.abc import Callable
 import numpy as np
 import torch
 
+from isaaclab.utils import configclass
+
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Timing estimator interface + default EMA implementation
+# ---------------------------------------------------------------------------
+
+
+class TimingEstimator(abc.ABC):
+    """Base class for retarget-loop timing estimators.
+
+    Subclasses predict *when* to start each retarget cycle so the result
+    is ready just before the consumer calls :meth:`consume`.
+
+    Subclass both this class and :class:`TimingEstimatorCfg` to
+    implement a custom estimation strategy.
+    """
+
+    def __init__(self, cfg: TimingEstimatorCfg):
+        """Initialize the estimator.
+
+        Args:
+            cfg: Configuration for this estimator instance.
+        """
+
+    @abc.abstractmethod
+    def reset(self) -> None:
+        """Reset to initial state (no timing data)."""
+
+    @abc.abstractmethod
+    def record_consume(self, timestamp: float) -> None:
+        """Record a consume() call, updating the step-period estimate.
+
+        Args:
+            timestamp: :func:`time.monotonic` value at the consume call.
+        """
+
+    @abc.abstractmethod
+    def record_retarget(self, duration_s: float) -> None:
+        """Record a completed retarget, updating the cost estimate.
+
+        Args:
+            duration_s: Wall-clock time [s] of the retarget computation.
+        """
+
+    @abc.abstractmethod
+    def compute_sleep(self, now: float) -> float:
+        """Return how long to sleep before starting the next retarget [s].
+
+        Returns ``0.0`` when no timing data is available yet (first
+        iteration), signalling that the caller should proceed immediately.
+
+        Args:
+            now: Current :func:`time.monotonic` value.
+        """
+
+
+@configclass
+class TimingEstimatorCfg:
+    """Base configuration for :class:`TimingEstimator` subclasses.
+
+    Subclass to add parameters for a custom estimation strategy and set
+    :attr:`class_type` to the corresponding :class:`TimingEstimator`
+    subclass.
+    """
+
+    class_type: type[TimingEstimator] | None = None
+    """The :class:`TimingEstimator` subclass to instantiate.  Must be
+    set by concrete cfg subclasses."""
+
+
+class EmaTimingEstimator(TimingEstimator):
+    """Timing estimator using Exponential Moving Average (EMA).
+
+    Tracks two quantities via EMA:
+
+    * **Step period** -- interval between consecutive consumer calls
+      (i.e. how often a fresh result is needed).
+    * **Retarget duration** -- wall-clock cost of one retarget computation.
+
+    :meth:`compute_sleep` combines both estimates to return how long the
+    background thread should sleep before starting the next retarget,
+    aiming to finish just before the consumer arrives.
+    """
+
+    _MIN_SLEEP = 0.001  # 1 ms floor to prevent busy-spinning
+
+    def __init__(self, cfg: EmaTimingEstimatorCfg):
+        """Initialize the EMA estimator.
+
+        Args:
+            cfg: Configuration for this estimator instance.
+        """
+        super().__init__(cfg)
+        self._alpha = cfg.ema_alpha
+        self._margin_s = cfg.margin_s
+        # Seed estimates assume ~45 Hz consume cadence and ~5 ms retarget
+        # cost.  The EMA converges within a few frames regardless of the
+        # actual rates, so these only affect the first 2-3 pacing decisions.
+        self._step_period = 0.022
+        self._retarget_dur = 0.005
+        self._last_consume = 0.0
+
+    @property
+    def step_period(self) -> float:
+        """Current estimate of the consumer call interval [s]."""
+        return self._step_period
+
+    @property
+    def retarget_dur(self) -> float:
+        """Current estimate of the retarget computation cost [s]."""
+        return self._retarget_dur
+
+    def reset(self) -> None:
+        """Reset to initial state (no timing data)."""
+        self._last_consume = 0.0
+
+    def record_consume(self, timestamp: float) -> None:
+        """Record a consume() call, updating the step-period estimate.
+
+        Args:
+            timestamp: :func:`time.monotonic` value at the consume call.
+        """
+        if self._last_consume > 0:
+            dt = timestamp - self._last_consume
+            if 0.001 < dt < 1.0:
+                self._step_period = self._alpha * dt + (1 - self._alpha) * self._step_period
+        self._last_consume = timestamp
+
+    def record_retarget(self, duration_s: float) -> None:
+        """Record a completed retarget, updating the cost estimate.
+
+        Args:
+            duration_s: Wall-clock time [s] of the retarget computation.
+        """
+        self._retarget_dur = self._alpha * duration_s + (1 - self._alpha) * self._retarget_dur
+
+    def compute_sleep(self, now: float) -> float:
+        """Return how long to sleep before starting the next retarget [s].
+
+        Returns ``0.0`` when no timing data is available yet (first
+        iteration), signalling that the caller should proceed immediately.
+
+        Args:
+            now: Current :func:`time.monotonic` value.
+        """
+        if self._last_consume <= 0:
+            return 0.0
+        elapsed_since_consume = now - self._last_consume
+        time_until_next = self._step_period - elapsed_since_consume
+        ideal = time_until_next - self._retarget_dur - self._margin_s
+        return max(ideal, self._MIN_SLEEP)
+
+
+@configclass
+class EmaTimingEstimatorCfg(TimingEstimatorCfg):
+    """Configuration for :class:`EmaTimingEstimator`."""
+
+    class_type: type = EmaTimingEstimator
+    """The estimator class to instantiate."""
+
+    ema_alpha: float = 0.3
+    """EMA smoothing factor in ``(0, 1]``.  Higher values adapt faster
+    but are more sensitive to jitter.  The default 0.3 gives a half-life
+    of ~2 samples (``ln2 / ln(1 / 0.7) ≈ 1.9``)."""
+
+    margin_s: float = 0.005
+    """Safety margin [s] subtracted from the predicted deadline so the
+    retarget finishes slightly early."""
+
+    def __post_init__(self):
+        if not (0.0 < self.ema_alpha <= 1.0):
+            raise ValueError(f"ema_alpha must be in (0, 1], got {self.ema_alpha}")
+
+
+# ---------------------------------------------------------------------------
+# Async retarget loop
+# ---------------------------------------------------------------------------
 
 
 class AsyncRetargetLoop:
@@ -39,30 +221,26 @@ class AsyncRetargetLoop:
     1. **Consumption gate** -- after posting a result the thread blocks
        until :meth:`consume` has read it, preventing more than one
        retarget per ``advance()`` call.
-    2. **EMA pacer** -- once the gate opens, the thread sleeps until the
-       optimal moment to start retargeting so inputs are as fresh as
-       possible when read.
+    2. **Timing estimator** -- once the gate opens, the estimator sleeps
+       until the optimal moment to start retargeting so inputs are as
+       fresh as possible when read.
 
-    The EMA tracks two quantities:
+    Timeline (one cycle, time flows left → right)::
 
-    * **step period** -- time between consecutive :meth:`consume` calls
-      (i.e. the main loop's frame period).
-    * **retarget duration** -- wall-clock cost of one ``step_fn`` call.
+        main  ──consume()──env.step()────────────────────consume()──
+                  ↑                                         ↑
+                  │                                         │
+        bg    ──[gate]──|                              |──[gate]──
+                        ├────────sleep──────┤          │
+                                            ├─retarget─┤
+                                                       │
+                                                    result ready
 
-    With those estimates the pacer computes::
-
-        sleep = predicted_next_consume - now - retarget_duration - margin
-
-    so it wakes up just early enough to finish retargeting right before
-    the caller needs the result.
-
-    Timeline sketch (one consume-to-consume period)::
-
-        main: advance() → update_inputs() → consume(block) [waits] →
-                                                      gets result → env.step()
-
-        bg:   [gate: wait consumed] → [ema sleep] → read inputs →
-                                       retarget → post result → [gate] …
+    When :meth:`consume` is called with ``block=True`` (the default), it
+    waits until the background thread has produced a fresh result since
+    the previous :meth:`consume`.  Because the pacer aims to finish
+    just in time, the wait is almost always instantaneous; the block acts
+    as a safety net when retarget occasionally runs longer than predicted.
 
     Thread-safety contract:
         All USD/Kit/Omniverse API calls must stay on the main thread.
@@ -73,14 +251,12 @@ class AsyncRetargetLoop:
     """
 
     _MAX_CONSECUTIVE_FAILURES = 5
-    _MIN_LOOP_PERIOD = 0.001  # 1 ms floor to prevent busy-spinning
 
     def __init__(
         self,
         step_fn: Callable[[np.ndarray, np.ndarray | torch.Tensor | None], torch.Tensor | None],
         *,
-        ema_alpha: float = 0.3,
-        margin_s: float = 0.005,
+        timing_cfg: TimingEstimatorCfg | None = None,
     ):
         """Create a new loop (stopped).  Call :meth:`start` to begin.
 
@@ -89,14 +265,16 @@ class AsyncRetargetLoop:
                 ``(anchor_matrix, target_T_world)`` and returning an
                 action tensor or ``None``.  **Called from a background
                 thread**; must not touch USD/Kit/Omniverse APIs directly.
-            ema_alpha: EMA smoothing factor in ``(0, 1]``.
-            margin_s: Safety margin [s] subtracted from the predicted
-                deadline.
+            timing_cfg: Configuration for the timing estimator.  Defaults
+                to :class:`EmaTimingEstimatorCfg` when ``None``.
         """
-        if not (0.0 < ema_alpha <= 1.0):
-            raise ValueError(f"ema_alpha must be in (0, 1], got {ema_alpha}")
+        if timing_cfg is None:
+            timing_cfg = EmaTimingEstimatorCfg()
+        if timing_cfg.class_type is None:
+            raise ValueError("timing_cfg.class_type must be set to a TimingEstimator subclass")
 
         self._step_fn = step_fn
+        self._timing: TimingEstimator = timing_cfg.class_type(timing_cfg)
 
         self._lock = threading.Lock()
         self._cond = threading.Condition(self._lock)
@@ -113,12 +291,6 @@ class AsyncRetargetLoop:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
-        self._ema_alpha = ema_alpha
-        self._margin_s = margin_s
-        self._step_period = 0.022
-        self._retarget_dur = 0.005
-        self._last_consume = 0.0
-
     def start(self) -> None:
         """Start the retarget loop in a daemon thread."""
         self._stop.clear()
@@ -127,7 +299,7 @@ class AsyncRetargetLoop:
             self._consumed_gen = 0
             self._latest = None
             self._exc = None
-        self._last_consume = 0.0
+        self._timing.reset()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -171,8 +343,8 @@ class AsyncRetargetLoop:
     def consume(self, block: bool = True) -> tuple[torch.Tensor | None, bool]:
         """Read the most recent retarget result.
 
-        Updates the EMA estimate of the consumer's call period so the
-        pacer can predict the next deadline.
+        Updates the timing estimator so the pacer can predict the next
+        deadline.
 
         Args:
             block: When ``True`` (default), wait until the background
@@ -195,14 +367,7 @@ class AsyncRetargetLoop:
                         break
                     self._cond.wait(timeout=0.1)
 
-            now = time.monotonic()
-            if self._last_consume > 0:
-                dt = now - self._last_consume
-                if 0.001 < dt < 1.0:
-                    self._step_period = (
-                        self._ema_alpha * dt + (1 - self._ema_alpha) * self._step_period
-                    )
-            self._last_consume = now
+            self._timing.record_consume(time.monotonic())
 
             exc = self._exc
             self._exc = None
@@ -233,9 +398,9 @@ class AsyncRetargetLoop:
             if self._stop.is_set():
                 break
 
-            # EMA pace: delay reading inputs until just before the
-            # predicted next consume() so that inputs are as fresh as
-            # possible.
+            # Timing estimator pace: delay reading inputs until just
+            # before the predicted next consume() so that inputs are as
+            # fresh as possible.
             self._pace()
             if self._stop.is_set():
                 break
@@ -266,9 +431,7 @@ class AsyncRetargetLoop:
                 continue
             elapsed = time.monotonic() - t0
 
-            self._retarget_dur = (
-                self._ema_alpha * elapsed + (1 - self._ema_alpha) * self._retarget_dur
-            )
+            self._timing.record_retarget(elapsed)
 
             if action is not None:
                 action = action.clone()
@@ -283,20 +446,15 @@ class AsyncRetargetLoop:
     def _pace(self) -> None:
         """Sleep until the optimal moment to begin the next retarget.
 
-        Goal: read inputs and start retargeting as late as possible
-        while still finishing before the predicted next :meth:`consume`.
-        If there is no timing data yet (first iteration), return
-        immediately so the first result is produced as fast as possible.
+        Delegates to :meth:`TimingEstimator.compute_sleep` for the
+        actual duration.  If there is no timing data yet (first
+        iteration), returns immediately so the first result is produced
+        as fast as possible.
 
         The consumption gate in :meth:`_run` guarantees at most one
         retarget per consume, so this method never needs to worry about
         a second retarget sneaking in.
         """
-        if self._last_consume <= 0:
-            return
-
-        elapsed_since_consume = time.monotonic() - self._last_consume
-        time_until_next = self._step_period - elapsed_since_consume
-        ideal_sleep = time_until_next - self._retarget_dur - self._margin_s
-
-        self._stop.wait(timeout=max(ideal_sleep, self._MIN_LOOP_PERIOD))
+        sleep = self._timing.compute_sleep(time.monotonic())
+        if sleep > 0:
+            self._stop.wait(timeout=sleep)

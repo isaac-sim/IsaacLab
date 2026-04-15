@@ -15,7 +15,7 @@ import time
 import numpy as np
 import pytest
 import torch
-from isaaclab_teleop.async_retarget_loop import AsyncRetargetLoop
+from isaaclab_teleop.async_retarget_loop import AsyncRetargetLoop, EmaTimingEstimatorCfg
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -123,24 +123,24 @@ class TestNonBlockingConsume:
 class TestEMAConvergence:
     def test_step_period_converges(self, make_loop):
         cadence_s = 0.020
-        loop = make_loop(_constant_step_fn, ema_alpha=0.3)
+        loop = make_loop(_constant_step_fn, timing_cfg=EmaTimingEstimatorCfg(ema_alpha=0.3))
         loop.start()
 
         for _ in range(20):
             loop.consume(block=True)
             time.sleep(cadence_s)
 
-        assert loop._step_period == pytest.approx(cadence_s, rel=0.5)
+        assert loop._timing.step_period == pytest.approx(cadence_s, rel=0.5)
 
     def test_retarget_dur_converges(self, make_loop):
         sleep_s = 0.005
-        loop = make_loop(_sleeping_step_fn(sleep_s=sleep_s), ema_alpha=0.3)
+        loop = make_loop(_sleeping_step_fn(sleep_s=sleep_s), timing_cfg=EmaTimingEstimatorCfg(ema_alpha=0.3))
         loop.start()
 
         for _ in range(20):
             loop.consume(block=True)
 
-        assert loop._retarget_dur == pytest.approx(sleep_s, rel=0.5)
+        assert loop._timing.retarget_dur == pytest.approx(sleep_s, rel=0.5)
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +163,7 @@ class TestErrorPropagation:
 
         assert isinstance(exc_info.value.__cause__, ValueError)
 
+    @pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
     def test_dead_thread_raises_instead_of_deadlock(self, make_loop):
         def _raise_base_exception(_a, _t):
             raise KeyboardInterrupt("simulated")

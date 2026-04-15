@@ -8,14 +8,22 @@ Added
 ^^^^^
 
 * Added :class:`~isaaclab_teleop.async_retarget_loop.AsyncRetargetLoop` for background-threaded
-  retargeting with consumption-gated, EMA-paced scheduling, so retarget work
+  retargeting with consumption-gated, paced scheduling, so retarget work
   overlaps with ``env.step()`` instead of blocking the render path.  The
-  consumption gate enforces a strict 1:1 retarget-to-advance ratio while the
-  EMA pacer delays input reads until just before the predicted deadline for
-  maximum freshness.
+  consumption gate enforces a strict 1:1 retarget-to-advance ratio while a
+  pluggable :class:`~isaaclab_teleop.async_retarget_loop.TimingEstimator`
+  delays input reads until just before the predicted deadline for maximum
+  freshness.
+
+* Added :class:`~isaaclab_teleop.async_retarget_loop.TimingEstimator` ABC and
+  :class:`~isaaclab_teleop.async_retarget_loop.TimingEstimatorCfg` base config
+  for pluggable timing strategies.  The default
+  :class:`~isaaclab_teleop.async_retarget_loop.EmaTimingEstimator` uses
+  Exponential Moving Average to predict consume cadence and retarget cost.
 
 * Added :meth:`~isaaclab_teleop.IsaacTeleopDevice.set_async` to toggle between
-  synchronous and asynchronous retargeting at runtime.  Async mode is enabled
+  synchronous and asynchronous retargeting at runtime.  Pass a custom
+  ``timing_cfg`` to use a different estimation strategy.  Async mode is enabled
   by default.
 
 Changed
