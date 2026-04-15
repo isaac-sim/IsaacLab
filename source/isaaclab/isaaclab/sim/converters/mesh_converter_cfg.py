@@ -19,7 +19,7 @@ class MeshConverterCfg(AssetConverterBaseCfg):
         If None, then no mass properties will be added.
     """
 
-    rigid_props: schemas_cfg.RigidBodyPropertiesCfg = None
+    rigid_props: schemas_cfg.RigidBodyBaseCfg = None
     """Rigid body properties to apply to the USD. Defaults to None.
 
     Note:

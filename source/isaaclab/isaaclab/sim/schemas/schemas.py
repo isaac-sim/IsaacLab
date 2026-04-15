@@ -242,9 +242,7 @@ Rigid body properties.
 """
 
 
-def define_rigid_body_properties(
-    prim_path: str, cfg: schemas_cfg.RigidBodyPropertiesCfg, stage: Usd.Stage | None = None
-):
+def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None):
     """Apply the rigid body schema on the input prim and set its properties.
 
     See :func:`modify_rigid_body_properties` for more details on how the properties are set.
@@ -277,7 +275,7 @@ def define_rigid_body_properties(
 
 @apply_nested
 def modify_rigid_body_properties(
-    prim_path: str, cfg: schemas_cfg.RigidBodyPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Modify PhysX parameters for a rigid body prim.
 
@@ -317,22 +315,34 @@ def modify_rigid_body_properties(
         return False
     # retrieve the USD rigid-body api
     usd_rigid_body_api = UsdPhysics.RigidBodyAPI(rigid_body_prim)
-    # ensure PhysX rigid body API is applied
-    applied_schemas = rigid_body_prim.GetAppliedSchemas()
-    if "PhysxRigidBodyAPI" not in applied_schemas:
-        rigid_body_prim.AddAppliedSchema("PhysxRigidBodyAPI")
 
-    # convert to dict
-    cfg = cfg.to_dict()
-    # set into USD API
+    # read solver-specific metadata from the cfg instance
+    namespace = getattr(cfg, "_usd_namespace", None)
+    applied_schema = getattr(cfg, "_usd_applied_schema", None)
+
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+
+    # set into USD API (solver-common properties)
     for attr_name in ["rigid_body_enabled", "kinematic_enabled"]:
-        value = cfg.pop(attr_name, None)
+        value = cfg_dict.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value, camel_case=True)
-    # set into PhysX API (prim attributes under physxRigidBody:*)
-    for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(
-            rigid_body_prim, f"physxRigidBody:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-        )
+
+    # set solver-specific properties using class metadata (namespace + applied schema)
+    if cfg_dict:
+        if namespace is None:
+            raise ValueError(
+                f"{type(cfg).__name__} has solver-specific fields {list(cfg_dict)} but does not define"
+                " '_usd_namespace'. Subclasses of RigidBodyBaseCfg that add fields must set"
+                " '_usd_namespace' (and optionally '_usd_applied_schema')."
+            )
+        if applied_schema:
+            if applied_schema not in rigid_body_prim.GetAppliedSchemas():
+                rigid_body_prim.AddAppliedSchema(applied_schema)
+        for attr_name, value in cfg_dict.items():
+            safe_set_attribute_on_usd_prim(
+                rigid_body_prim, f"{namespace}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+            )
     # success
     return True
 
@@ -612,7 +622,7 @@ Joint drive properties.
 
 @apply_nested
 def modify_joint_drive_properties(
-    prim_path: str, cfg: schemas_cfg.JointDrivePropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.JointDriveBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Modify PhysX parameters for a joint prim.
 
@@ -671,52 +681,61 @@ def modify_joint_drive_properties(
     usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name)
     if not usd_drive_api:
         usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
-    # ensure PhysX joint API is applied
-    if "PhysxJointAPI" not in applied_schemas_str:
-        prim.AddAppliedSchema("PhysxJointAPI")
 
-    # mapping from configuration name to USD attribute name
+    # read solver-specific metadata from the cfg instance
+    namespace = getattr(cfg, "_usd_namespace", None)
+    applied_schema = getattr(cfg, "_usd_applied_schema", None)
+    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
+
+    # mapping from configuration name to USD attribute name (for solver-common fields)
     cfg_to_usd_map = {
-        "max_velocity": "max_joint_velocity",
         "max_effort": "max_force",
         "drive_type": "type",
     }
-    # convert to dict
-    cfg = cfg.to_dict()
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
 
     # ensure_drives_exist: if both stiffness and damping are zero on the authored drive,
     # set a minimal stiffness so that backends like Newton recognise the drive as active.
-    ensure_drives = cfg.pop("ensure_drives_exist", False)
-    if ensure_drives and cfg["stiffness"] is None and cfg["damping"] is None:
+    ensure_drives = cfg_dict.pop("ensure_drives_exist", False)
+    if ensure_drives and cfg_dict["stiffness"] is None and cfg_dict["damping"] is None:
         # read the current values from the drive
         cur_stiffness = usd_drive_api.GetStiffnessAttr().Get()
         cur_damping = usd_drive_api.GetDampingAttr().Get()
         if (cur_stiffness is None or cur_stiffness == 0.0) and (cur_damping is None or cur_damping == 0.0):
-            cfg["stiffness"] = 1e-3
+            cfg_dict["stiffness"] = 1e-3
 
     # check if linear drive
     is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)
     # convert values for angular drives from radians to degrees units
     if not is_linear_drive:
-        if cfg["max_velocity"] is not None:
+        if cfg_dict.get("max_velocity") is not None:
             # rad / s --> deg / s
-            cfg["max_velocity"] = cfg["max_velocity"] * 180.0 / math.pi
-        if cfg["stiffness"] is not None:
+            cfg_dict["max_velocity"] = cfg_dict["max_velocity"] * 180.0 / math.pi
+        if cfg_dict["stiffness"] is not None:
             # N-m/rad --> N-m/deg
-            cfg["stiffness"] = cfg["stiffness"] * math.pi / 180.0
-        if cfg["damping"] is not None:
+            cfg_dict["stiffness"] = cfg_dict["stiffness"] * math.pi / 180.0
+        if cfg_dict["damping"] is not None:
             # N-m-s/rad --> N-m-s/deg
-            cfg["damping"] = cfg["damping"] * math.pi / 180.0
+            cfg_dict["damping"] = cfg_dict["damping"] * math.pi / 180.0
 
-    # set into PhysX API (prim attributes under physxJoint:*)
-    for attr_name in ["max_velocity"]:
-        value = cfg.pop(attr_name, None)
-        usd_attr_name = cfg_to_usd_map[attr_name]
-        safe_set_attribute_on_usd_prim(
-            prim, f"physxJoint:{to_camel_case(usd_attr_name, 'cC')}", value, camel_case=False
-        )
-    # set into USD API
-    for attr_name, attr_value in cfg.items():
+    # set solver-specific properties using class metadata (namespace + applied schema + attr name map)
+    if attr_name_map:
+        if namespace is None:
+            raise ValueError(
+                f"{type(cfg).__name__} has '_usd_attr_name_map' but does not define '_usd_namespace'."
+                " Subclasses of JointDriveBaseCfg that add fields must set '_usd_namespace'."
+            )
+        if applied_schema:
+            if applied_schema not in applied_schemas_str:
+                prim.AddAppliedSchema(applied_schema)
+        for attr_name in list(attr_name_map):
+            value = cfg_dict.pop(attr_name, None)
+            usd_attr_name = attr_name_map[attr_name]
+            safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr_name}", value, camel_case=False)
+
+    # set into USD API (solver-common properties)
+    for attr_name, attr_value in cfg_dict.items():
         attr_name = cfg_to_usd_map.get(attr_name, attr_name)
         safe_set_attribute_on_usd_schema(usd_drive_api, attr_name, attr_value, camel_case=True)
 

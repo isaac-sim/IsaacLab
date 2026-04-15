@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+4.6.22 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` with solver-common rigid body
+  properties (``rigid_body_enabled``, ``kinematic_enabled``).
+* Added :class:`~isaaclab.sim.schemas.PhysxRigidBodyPropertiesCfg` with PhysX-specific
+  rigid body properties, extending :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`.
+* Added :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` with solver-common joint drive
+  properties (``drive_type``, ``max_effort``, ``stiffness``, ``damping``,
+  ``ensure_drives_exist``).
+* Added :class:`~isaaclab.sim.schemas.PhysxJointDrivePropertiesCfg` with the PhysX-specific
+  ``max_velocity`` field, extending :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`.
+
+Changed
+^^^^^^^
+
+* Refactored :meth:`~isaaclab.sim.schemas.modify_rigid_body_properties` and
+  :meth:`~isaaclab.sim.schemas.modify_joint_drive_properties` to use class-level
+  metadata (``_usd_applied_schema``, ``_usd_namespace``) from the cfg for writing
+  solver-specific attributes, eliminating backend-specific branching.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`~isaaclab.sim.schemas.RigidBodyPropertiesCfg` in favor of
+  :class:`~isaaclab.sim.schemas.PhysxRigidBodyPropertiesCfg`.
+* Deprecated :class:`~isaaclab.sim.schemas.JointDrivePropertiesCfg` in favor of
+  :class:`~isaaclab.sim.schemas.PhysxJointDrivePropertiesCfg`.
+
+
 4.6.21 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
