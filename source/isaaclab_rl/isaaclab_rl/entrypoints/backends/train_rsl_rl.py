@@ -112,9 +112,9 @@ def _run(args_cli: argparse.Namespace) -> None:
             logger.info(f"Logging experiment in directory: {log_root_path}")
             resume_path = cli_args.resolve_rsl_rl_training_checkpoint(args_cli, agent_cfg, log_root_path)
             run_name = args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            logger.info(f"Exact experiment name requested from command line: {run_name}")
             if agent_cfg.run_name:
                 run_name += f"_{agent_cfg.run_name}"
+            logger.info(f"Exact experiment name requested from command line: {run_name}")
             log_dir = os.path.join(log_root_path, run_name)
             # rank 0 writes its settings and videos where a single-GPU run does; other ranks use rank_<rank>/
             rank_dir = log_dir if rank in (None, 0) else os.path.join(log_dir, f"rank_{rank}")
