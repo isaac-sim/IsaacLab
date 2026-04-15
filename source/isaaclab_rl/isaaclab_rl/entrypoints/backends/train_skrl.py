@@ -119,9 +119,9 @@ def _run(args_cli: argparse.Namespace) -> None:
             run_name = (
                 args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             ) + f"_{algorithm}_{args_cli.ml_framework}"
-            logger.info(f"Exact experiment name requested from command line: {run_name}")
             if experiment_cfg["experiment_name"]:
                 run_name += f"_{experiment_cfg['experiment_name']}"
+            logger.info(f"Exact experiment name requested from command line: {run_name}")
             experiment_cfg["directory"] = log_root_path
             experiment_cfg["experiment_name"] = run_name
             log_dir = os.path.join(log_root_path, run_name)
