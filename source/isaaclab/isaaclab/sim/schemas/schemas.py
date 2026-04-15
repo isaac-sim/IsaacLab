@@ -709,6 +709,8 @@ def modify_joint_drive_properties(
     is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)
     # convert values for angular drives from radians to degrees units
     if not is_linear_drive:
+        # note: max_velocity uses .get() because it only exists on PhysxJointDrivePropertiesCfg,
+        # not the base JointDriveBaseCfg. stiffness/damping always exist on the base.
         if cfg_dict.get("max_velocity") is not None:
             # rad / s --> deg / s
             cfg_dict["max_velocity"] = cfg_dict["max_velocity"] * 180.0 / math.pi

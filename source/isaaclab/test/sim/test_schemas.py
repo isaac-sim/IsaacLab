@@ -334,8 +334,12 @@ def _validate_rigid_body_properties_on_prim(prim_path: str, rigid_cfg, verbose: 
     for link_prim in root_prim.GetChildren():
         if UsdPhysics.RigidBodyAPI(link_prim):
             for attr_name, attr_value in rigid_cfg.__dict__.items():
-                # skip names we know are not present
-                if attr_name in ["func", "rigid_body_enabled", "kinematic_enabled"]:
+                # skip class metadata and names we know are not present
+                if attr_name.startswith("_") or attr_name in [
+                    "func",
+                    "rigid_body_enabled",
+                    "kinematic_enabled",
+                ]:
                     continue
                 # convert attribute name in prim to cfg name
                 prim_prop_name = f"physxRigidBody:{to_camel_case(attr_name, to='cC')}"
@@ -423,8 +427,8 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                 assert joint_prim.HasAPI(UsdPhysics.DriveAPI)
                 # iterate over the joint properties
                 for attr_name, attr_value in joint_cfg.__dict__.items():
-                    # skip names we know are not present
-                    if attr_name in ["func", "ensure_drives_exist"]:
+                    # skip class metadata and names we know are not present on the USD prim
+                    if attr_name.startswith("_") or attr_name in ["func", "ensure_drives_exist"]:
                         continue
                     # resolve the drive (linear or angular)
                     drive_model = "linear" if joint_prim.IsA(UsdPhysics.PrismaticJoint) else "angular"
