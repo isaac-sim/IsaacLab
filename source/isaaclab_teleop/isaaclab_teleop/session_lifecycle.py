@@ -21,7 +21,9 @@ if TYPE_CHECKING:
     from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
     from isaacteleop.teleop_session_manager import TeleopSession
 
+from .control_events import _NO_OP_EVENTS, ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
+from .message_channel_state_manager import MessageChannelTeleopStateManager
 
 
 class SupportsDLPack(Protocol):
@@ -118,8 +120,11 @@ class TeleopSessionLifecycle:
         # Session state (populated during start)
         self._session: TeleopSession | None = None
         self._pipeline = None
+        self._teleop_control_pipeline = None
+        self._control_state_manager: MessageChannelTeleopStateManager | None = None
         self._last_right_controller = None
         self._session_start_deferred_logged = False
+        self._pending_reset = False
 
         # CloudXR runtime launcher (created in start if configured, stopped in stop)
         self._cloudxr_launcher: CloudXRLauncher | None = None
@@ -192,6 +197,40 @@ class TeleopSessionLifecycle:
         """
         return self._last_right_controller
 
+    @property
+    def has_control_channel(self) -> bool:
+        """Whether a message-channel-based control channel is configured."""
+        return self._control_state_manager is not None
+
+    @property
+    def last_control_events(self) -> ControlEvents:
+        """Control events from the most recent :meth:`step`.
+
+        Returns a :class:`ControlEvents` derived from messages received over
+        the control channel.  When no control channel is configured, returns
+        a default (no-op) :class:`ControlEvents`.
+        """
+        if self._control_state_manager is not None:
+            return self._control_state_manager.last_control_events
+        return _NO_OP_EVENTS
+
+    def request_reset(self) -> None:
+        """Schedule a reset ``ExecutionEvents`` for the next :meth:`step`.
+
+        The reset is consumed exactly once: on the next ``step()`` call,
+        ``ExecutionEvents(reset=True)`` is injected into the
+        ``TeleopSession``, which propagates the reset to all retargeters
+        via ``ComputeContext``.  Subsequent steps resume normal control
+        pipeline operation.
+
+        If the control channel already processed a reset this frame
+        (headset-initiated), this method is a no-op to avoid injecting a
+        redundant second reset pulse on the following frame.
+        """
+        if self._control_state_manager is not None and self._control_state_manager.last_control_events.should_reset:
+            return
+        self._pending_reset = True
+
     # ------------------------------------------------------------------
     # Lifecycle: start / stop
     # ------------------------------------------------------------------
@@ -222,12 +261,32 @@ class TeleopSessionLifecycle:
         self._last_right_controller = None
 
         button_controllers = ControllersSource("_button_controllers")
-        self._pipeline = OutputCombiner(
-            {
-                "action": user_pipeline.output("action"),
-                self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
-            }
-        )
+        pipeline_outputs: dict = {
+            "action": user_pipeline.output("action"),
+            self._CONTROLLER_RIGHT_KEY: button_controllers.output(ControllersSource.RIGHT),
+        }
+        self._pipeline = OutputCombiner(pipeline_outputs)
+
+        # Build optional teleop_control_pipeline for message-channel control
+        self._teleop_control_pipeline = None
+        self._control_state_manager = None
+        if self._cfg.control_channel_uuid is not None:
+            from isaacteleop.retargeting_engine.deviceio_source_nodes import message_channel_config
+
+            # The sink (write-side) is unused; only the source is needed.
+            # message_channel_config wires source and sink internally, so
+            # discarding the sink reference does not affect the channel lifetime.
+            source, _sink = message_channel_config(
+                name="_teleop_control",
+                channel_uuid=self._cfg.control_channel_uuid,
+            )
+            state_manager = MessageChannelTeleopStateManager(name="_teleop_control_state")
+            self._teleop_control_pipeline = state_manager.connect(
+                {
+                    state_manager.INPUT_MESSAGES: source.output("messages_tracked"),
+                }
+            )
+            self._control_state_manager = state_manager
 
         # Try to start the session now; it may be deferred
         self._try_start_session()
@@ -270,6 +329,8 @@ class TeleopSessionLifecycle:
                 logger.debug(f"Suppressed error during IsaacTeleop session cleanup: {e}")
             self._session = None
             self._pipeline = None
+            self._teleop_control_pipeline = None
+            self._control_state_manager = None
 
         if self._cloudxr_launcher is not None:
             try:
@@ -285,15 +346,22 @@ class TeleopSessionLifecycle:
     def _on_request_required_extensions(self) -> list[str]:
         """Callback for required extensions subscription.
 
+        Inspects both the main pipeline and the ``teleop_control_pipeline``
+        (if configured) so that extensions required by the control channel
+        (e.g. ``XR_NV_opaque_data_channel``) are included.
+
         Returns:
             A list of required extensions.
         """
         from isaacteleop.teleop_session_manager.helpers import get_required_oxr_extensions_from_pipeline
 
-        required_extensions = (
-            get_required_oxr_extensions_from_pipeline(self._pipeline) if self._pipeline is not None else []
-        )
+        required_extensions: list[str] = []
+        if self._pipeline is not None:
+            required_extensions.extend(get_required_oxr_extensions_from_pipeline(self._pipeline))
+        if self._teleop_control_pipeline is not None:
+            required_extensions.extend(get_required_oxr_extensions_from_pipeline(self._teleop_control_pipeline))
 
+        required_extensions = sorted(set(required_extensions))
         logger.info(f"Required extensions: {required_extensions}")
         return required_extensions
 
@@ -307,10 +375,16 @@ class TeleopSessionLifecycle:
             self._teardown_dead_session()
 
     def _on_pre_shutdown(self, _event):
-        """Called when Kit is closing; run full cleanup since the app is exiting."""
+        """Called when Kit is closing; tear down the session but leave the
+        pipeline intact so the main loop can exit via its own control flow
+        (``simulation_app.is_running()`` will go ``False``).
+
+        Full resource cleanup happens later when the context manager's
+        ``__exit__`` calls :meth:`stop`.
+        """
         logger.info("Shutting down IsaacTeleop session due to Kit close")
         self._pre_shutdown_subscription = None
-        self.stop()
+        self._teardown_dead_session()
 
     # ------------------------------------------------------------------
     # Deferred session creation
@@ -371,6 +445,7 @@ class TeleopSessionLifecycle:
             app_name=self._cfg.app_name,
             trackers=[],
             pipeline=self._pipeline,
+            teleop_control_pipeline=self._teleop_control_pipeline,
             plugins=self._cfg.plugins,
             oxr_handles=oxr_handles,
         )
@@ -436,14 +511,31 @@ class TeleopSessionLifecycle:
         # pipeline contains ValueInput leaf nodes.
         external_inputs = self._build_external_inputs(anchor_world_matrix_fn, target_T_world)
 
-        # Execute one step of the teleop session.
+        # Execute one step of the teleop session.  TeleopCore natively runs
+        # the teleop_control_pipeline (if configured), decodes the control
+        # outputs into ExecutionEvents, and injects them into ComputeContext.
         # If the underlying OpenXR session was destroyed externally (e.g.
         # user clicked "Stop AR"), the step call will fail.  We catch the
         # error, tear down the dead session, and return None so the caller
         # can continue rendering (or wait for the session to restart).
+        # Consume pending host-initiated reset (e.g. env reset on success).
+        # Preserve the control-channel execution state so the injected reset
+        # does not accidentally override a headset-initiated PAUSED state.
+        execution_events = None
+        if self._pending_reset:
+            from isaacteleop.retargeting_engine.interface.execution_events import ExecutionEvents, ExecutionState
+
+            ctrl = self.last_control_events
+            prev_state = ExecutionState.PAUSED if ctrl.is_active is False else ExecutionState.RUNNING
+            execution_events = ExecutionEvents(reset=True, execution_state=prev_state)
+            self._pending_reset = False
+
         assert self._session is not None  # guaranteed by _try_start_session above
         try:
-            result = self._session.step(external_inputs=external_inputs)
+            result = self._session.step(
+                external_inputs=external_inputs,
+                execution_events=execution_events,
+            )
         except Exception as e:
             logger.warning(f"IsaacTeleop session step failed (XR session likely torn down): {e}")
             self._teardown_dead_session()
