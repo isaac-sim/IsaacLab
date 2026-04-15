@@ -253,7 +253,8 @@ class IsaacRtxRenderer(BaseRenderer):
 
         num_tiles_x = tiling_grid_shape()[0]
 
-        # Extract the flattened image buffer
+        # Extract the flattened image buffer — first pass: launch all reshape kernels.
+        dev = torch.device(sensor.device)
         for data_type, annotator in render_data.annotators.items():
             # check whether returned data is a dict (used for segmentation)
             output = annotator.get_data()
@@ -307,15 +308,16 @@ class IsaacRtxRenderer(BaseRenderer):
                 device=sensor.device,
             )
 
-            # Replicator + Warp populate GPU buffers asynchronously; newer RTX stacks can
-            # overlap with subsequent Torch ops (reshape output, clipping, or env code
-            # reading :attr:`Camera.data`) and surface as cudaErrorIllegalAddress.
-            dev = torch.device(sensor.device)
-            if dev.type == "cuda":
-                cuda_idx = dev.index if dev.index is not None else torch.cuda.current_device()
-                with torch.cuda.device(cuda_idx):
-                    torch.cuda.synchronize()
+        # Synchronize once after all kernel launches so subsequent Torch ops see completed writes.
+        # Replicator + Warp populate GPU buffers asynchronously; without this, newer RTX stacks
+        # can overlap with Torch ops and surface as cudaErrorIllegalAddress.
+        if dev.type == "cuda":
+            cuda_idx = dev.index if dev.index is not None else torch.cuda.current_device()
+            with torch.cuda.device(cuda_idx):
+                torch.cuda.synchronize()
 
+        # Second pass: Torch post-processing (rgb alias, depth clipping).
+        for data_type in render_data.annotators:
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in cfg.data_types:
                 output_data["rgb"] = output_data["rgba"][..., :3]
