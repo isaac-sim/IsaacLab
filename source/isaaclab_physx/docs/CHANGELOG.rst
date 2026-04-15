@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.5.21 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Exposed ``SimulationManager`` as a public alias of :class:`~isaaclab_physx.physics.PhysxManager`
+  in :mod:`isaaclab_physx.physics` so Isaac Lab code can import the PhysX simulation manager
+  without depending on ``isaacsim.core.simulation_manager``.
+
+Changed
+^^^^^^^
+
+* Migrated the PhysX scene data provider and PhysX asset micro-benchmarks to use
+  :mod:`isaaclab_physx.physics` for ``SimulationManager``.
+* Updated optional-extension enablement and Kit perspective capture helpers to use non-deprecated
+  Isaac Sim module paths (``isaacsim.core.experimental.utils.app`` and ``isaacsim.core.rendering_manager``).
+
+
 0.5.20 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -24,7 +43,6 @@ Fixed
   :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_shape_colors` on
   the artifact, per-environment, and filtered Newton models in
   :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`.
-
 
 0.5.18 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~

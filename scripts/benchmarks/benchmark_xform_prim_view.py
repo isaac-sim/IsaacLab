@@ -67,12 +67,11 @@ from typing import Literal
 
 import torch
 
-from isaacsim.core.prims import XFormPrim as IsaacSimXformPrimView
-from isaacsim.core.utils.extensions import enable_extension
+from isaacsim.core.experimental.prims import XformPrim as IsaacSimExperimentalXformPrimView
+from isaacsim.core.experimental.utils.app import enable_extension
 
 # compare against latest Isaac Sim implementation
 enable_extension("isaacsim.core.experimental.prims")
-from isaacsim.core.experimental.prims import XformPrim as IsaacSimExperimentalXformPrimView
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import XformPrimView as IsaacLabXformPrimView
@@ -89,9 +88,9 @@ def benchmark_xform_prim_view(  # noqa: C901
         api: Which API to benchmark:
             - "isaaclab-usd": Isaac Lab XformPrimView with USD backend
             - "isaaclab-fabric": Isaac Lab XformPrimView with Fabric backend
-            - "isaacsim-usd": Isaac Sim legacy XformPrimView with USD (usd=True)
-            - "isaacsim-fabric": Isaac Sim legacy XformPrimView with Fabric (usd=False)
-            - "isaacsim-exp": Isaac Sim Experimental XformPrim
+            - "isaacsim-usd": Isaac Sim ``XformPrim`` with Fabric disabled on the simulation context
+            - "isaacsim-fabric": Isaac Sim ``XformPrim`` with Fabric enabled on the simulation context
+            - "isaacsim-exp": Isaac Sim ``XformPrim`` (same as USD/Fabric modes; kept for CLI compatibility)
         num_iterations: Number of iterations to run.
 
     Returns:
@@ -135,19 +134,15 @@ def benchmark_xform_prim_view(  # noqa: C901
     start_time = time.perf_counter()
     if api == "isaaclab-usd" or api == "isaaclab-fabric":
         xform_view = IsaacLabXformPrimView(pattern, device=args_cli.device, validate_xform_ops=False)
-    elif api == "isaacsim-usd":
-        xform_view = IsaacSimXformPrimView(pattern, reset_xform_properties=False, usd=True)
-    elif api == "isaacsim-fabric":
-        xform_view = IsaacSimXformPrimView(pattern, reset_xform_properties=False, usd=False)
-    elif api == "isaacsim-exp":
-        xform_view = IsaacSimExperimentalXformPrimView(pattern)
+    elif api == "isaacsim-usd" or api == "isaacsim-fabric" or api == "isaacsim-exp":
+        xform_view = IsaacSimExperimentalXformPrimView(pattern, reset_xform_op_properties=False)
     else:
         raise ValueError(f"Invalid API: {api}")
     timing_results["init"] = time.perf_counter() - start_time
 
-    if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
+    if api in ("isaaclab-usd", "isaaclab-fabric"):
         num_prims = xform_view.count
-    elif api == "isaacsim-exp":
+    else:
         num_prims = len(xform_view.prims)
     print(f"  XformView managing {num_prims} prims")
 
@@ -177,9 +172,9 @@ def benchmark_xform_prim_view(  # noqa: C901
     new_positions[:, 2] += 0.1
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
+        if api in ("isaaclab-usd", "isaaclab-fabric"):
             xform_view.set_world_poses(new_positions, orientations)
-        elif api == "isaacsim-exp":
+        else:
             xform_view.set_world_poses(new_positions.cpu().numpy(), orientations.cpu().numpy())
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
@@ -217,9 +212,9 @@ def benchmark_xform_prim_view(  # noqa: C901
     new_translations[:, 2] += 0.1
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
+        if api in ("isaaclab-usd", "isaaclab-fabric"):
             xform_view.set_local_poses(new_translations, orientations_local)
-        elif api == "isaacsim-exp":
+        else:
             xform_view.set_local_poses(new_translations.cpu().numpy(), orientations_local.cpu().numpy())
     timing_results["set_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
@@ -245,16 +240,16 @@ def benchmark_xform_prim_view(  # noqa: C901
     timing_results["get_both"] = (time.perf_counter() - start_time) / num_iterations
 
     # Benchmark interleaved set/get (realistic workflow pattern)
-    # Pre-convert tensors for experimental API to avoid conversion overhead in loop
-    if api == "isaacsim-exp":
+    # Pre-convert tensors for Isaac Sim experimental API to avoid conversion overhead in loop
+    if api not in ("isaaclab-usd", "isaaclab-fabric"):
         new_positions_np = new_positions.cpu().numpy()
-        orientations_np = orientations
+        orientations_np = orientations.cpu().numpy()
 
     # Warmup
-    if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
+    if api in ("isaaclab-usd", "isaaclab-fabric"):
         xform_view.set_world_poses(new_positions, orientations)
         positions, orientations = xform_view.get_world_poses()
-    elif api == "isaacsim-exp":
+    else:
         xform_view.set_world_poses(new_positions_np, orientations_np)
         positions, orientations = xform_view.get_world_poses()
         positions = torch.tensor(positions, dtype=torch.float32)
@@ -264,10 +259,10 @@ def benchmark_xform_prim_view(  # noqa: C901
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         # Write then immediately read (common pattern: set pose, verify/query result)
-        if api in ("isaaclab-usd", "isaaclab-fabric", "isaacsim-usd", "isaacsim-fabric"):
+        if api in ("isaaclab-usd", "isaaclab-fabric"):
             xform_view.set_world_poses(new_positions, orientations)
             positions, orientations = xform_view.get_world_poses()
-        elif api == "isaacsim-exp":
+        else:
             xform_view.set_world_poses(new_positions_np, orientations_np)
             positions, orientations = xform_view.get_world_poses()
 

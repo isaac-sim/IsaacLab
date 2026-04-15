@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.24 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated stack-event utilities to enable optional extensions via
+  ``isaacsim.core.experimental.utils.app.enable_extension`` (non-deprecated Isaac Sim path).
+
+
 1.5.23 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -21,7 +31,6 @@ Fixed
   ``pytest.fail`` message in ``test_rendering_correctness``.
 * Refreshed Newton Warp renderer golden images in ``test_rendering_correctness`` so image baselines match the current
   camera output after Newton shape color alignment and the clear background color change.
-
 
 1.5.21 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~

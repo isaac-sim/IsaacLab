@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
     from .physx_cfg import PhysxCfg
 
-__all__ = ["IsaacEvents", "PhysxManager"]
+__all__ = ["IsaacEvents", "PhysxManager", "SimulationManager"]
 
 logger = logging.getLogger(__name__)
 
@@ -750,3 +750,7 @@ class PhysxManager(PhysicsManager):
         cls._subscriptions["assets_loaded"] = cls._event_bus.observe_event(
             event_name=ctx.stage_event_name(omni.usd.StageEventType.ASSETS_LOADED), on_event=on_loaded
         )
+
+
+# Public name aligned with Isaac Sim's ``SimulationManager``; PhysX backend is :class:`PhysxManager`.
+SimulationManager = PhysxManager

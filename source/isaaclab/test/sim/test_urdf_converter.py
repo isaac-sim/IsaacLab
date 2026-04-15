@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 import omni.kit.app
-from isaacsim.core.prims import Articulation
+from isaacsim.core.experimental.prims import Articulation
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext

@@ -25,7 +25,7 @@ with contextlib.suppress(ModuleNotFoundError):
     from omni.kit.xr.core import XRCore, XRCoreEventType
 
 with contextlib.suppress(ModuleNotFoundError):
-    from isaacsim.core.prims import SingleXFormPrim
+    from isaacsim.core.experimental.prims import XformPrim as SingleXFormPrim
 
 logger = logging.getLogger(__name__)
 
@@ -77,14 +77,12 @@ class XrAnchorManager:
             self._xr_anchor_headset_path = "/World/XRAnchor"
 
         # Create the XR anchor prim in USD.
-        # XrCfg.anchor_rot is xyzw; SingleXFormPrim expects wxyz.
+        # XrCfg.anchor_rot is xyzw; XformPrim expects wxyz orientations.
         x, y, z, w = self._xr_cfg.anchor_rot
         try:
-            _ = SingleXFormPrim(
-                self._xr_anchor_headset_path,
-                position=self._xr_cfg.anchor_pos,
-                orientation=np.array([w, x, y, z], dtype=np.float64),
-            )
+            pos = np.asarray(self._xr_cfg.anchor_pos, dtype=np.float64).reshape(1, 3)
+            quat_wxyz = np.asarray([w, x, y, z], dtype=np.float64).reshape(1, 4)
+            _ = SingleXFormPrim(self._xr_anchor_headset_path, positions=pos, orientations=quat_wxyz)
         except Exception as e:
             logger.warning(f"Failed to create XR anchor prim: {e}")
 

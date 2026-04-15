@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.3.7 (2026-04-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated XR anchor utilities to use non-deprecated Isaac Sim core module paths
+  (``isaacsim.core.experimental.prims`` / ``isaacsim.core.experimental.utils``).
+
+
 0.3.6 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -44,7 +54,6 @@ Fixed
 * Fixed shutdown hang caused by Kit's pre-shutdown callback calling
   ``stop()`` while the simulation loop was still running.  The callback
   now uses the same graceful teardown path as the XR-disabled handler.
-
 
 0.3.5 (2026-04-06)
 ~~~~~~~~~~~~~~~~~~~
