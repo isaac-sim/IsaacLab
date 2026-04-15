@@ -77,12 +77,17 @@ def _install_system_deps() -> None:
             run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
 
-def _torch_first_on_sys_path_is_exts_deprecated(python_exe: str, *, env: dict[str, str]) -> bool:
-    """Return True when the first ``torch`` directory on ``sys.path`` lies under ``extsDeprecated``.
+def _torch_first_on_sys_path_is_prebundle(python_exe: str, *, env: dict[str, str]) -> bool:
+    """Return True when the first ``torch`` on ``sys.path`` comes from a prebundle directory.
 
-    Does not import ``torch`` (that can fail on missing ``libcudnn`` while the deprecated
-    ``omni.isaac.ml_archive`` prebundle still appears earlier on ``sys.path`` than
-    ``site-packages``).
+    Checks whether the first directory on ``sys.path`` that contains a
+    ``torch`` package lives under a ``pip_prebundle`` path (e.g.
+    ``omni.isaac.ml_archive/pip_prebundle``).  This catches the prebundle
+    regardless of whether the extension lives under ``exts/``,
+    ``extsDeprecated/``, or any other search path.
+
+    Does not import ``torch`` (that can fail on missing ``libcudnn`` while the
+    prebundle still appears earlier on ``sys.path`` than ``site-packages``).
     """
     probe = """import os, sys
 for p in sys.path:
@@ -90,7 +95,7 @@ for p in sys.path:
         continue
     if os.path.isfile(os.path.join(p, "torch", "__init__.py")):
         norm = os.path.normpath(p)
-        sys.exit(1 if "extsDeprecated" in norm else 0)
+        sys.exit(1 if "pip_prebundle" in norm else 0)
 sys.exit(0)
 """
     result = run_command(
@@ -103,19 +108,19 @@ sys.exit(0)
     return result.returncode == 1
 
 
-def _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path(
+def _maybe_uninstall_prebundled_torch(
     python_exe: str,
     pip_cmd: list[str],
     using_uv: bool,
     *,
     probe_env: dict[str, str],
 ) -> None:
-    """Uninstall pip torch stack when ``sys.path`` would load ``torch`` from ``extsDeprecated`` first."""
-    if not _torch_first_on_sys_path_is_exts_deprecated(python_exe, env=probe_env):
+    """Uninstall pip torch stack when ``sys.path`` would load ``torch`` from a prebundle first."""
+    if not _torch_first_on_sys_path_is_prebundle(python_exe, env=probe_env):
         return
     print_info(
-        "The first ``torch`` on ``sys.path`` is under ``extsDeprecated`` (e.g. "
-        "``omni.isaac.ml_archive`` pip prebundle). Uninstalling pip "
+        "The first ``torch`` on ``sys.path`` is under a prebundle directory (e.g. "
+        "``omni.isaac.ml_archive/pip_prebundle``). Uninstalling pip "
         "``torch``/``torchvision``/``torchaudio`` before continuing."
     )
     uninstall_flags = ["-y"] if not using_uv else []
@@ -604,9 +609,7 @@ def command_install(install_type: str = "all") -> None:
         run_command(pip_cmd + ["install", "setuptools<82.0.0"])
 
         # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
-        _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path(
-            python_exe, pip_cmd, using_uv, probe_env=probe_env
-        )
+        _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
 
         # Install Isaac Sim if requested.
         if install_isaacsim:

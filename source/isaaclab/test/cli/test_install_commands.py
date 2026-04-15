@@ -20,9 +20,9 @@ import pytest
 from isaaclab.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
-    _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path,
+    _maybe_uninstall_prebundled_torch,
     _repoint_prebundle_packages,
-    _torch_first_on_sys_path_is_exts_deprecated,
+    _torch_first_on_sys_path_is_prebundle,
 )
 
 # ---------------------------------------------------------------------------
@@ -69,21 +69,21 @@ def _make_site_packages(
 
 
 # ---------------------------------------------------------------------------
-# _torch_first_on_sys_path_is_exts_deprecated
+# _torch_first_on_sys_path_is_prebundle
 # ---------------------------------------------------------------------------
 
 
 class TestTorchProbe:
-    """Tests for :func:`_torch_first_on_sys_path_is_exts_deprecated`.
+    """Tests for :func:`_torch_first_on_sys_path_is_prebundle`.
 
     The function shells out to ``python_exe -c <probe>`` and interprets the
-    subprocess exit code: 1 → extsDeprecated is first; 0 → it is not.
+    subprocess exit code: 1 → prebundle is first; 0 → it is not.
     """
 
-    def test_returns_true_when_exts_deprecated_first(self, tmp_path):
-        """Probe exits 1 → the first torch on sys.path is under extsDeprecated."""
+    def test_returns_true_when_prebundle_first(self, tmp_path):
+        """Probe exits 1 → the first torch on sys.path is under a pip_prebundle directory."""
         with mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(returncode=1)):
-            result = _torch_first_on_sys_path_is_exts_deprecated(
+            result = _torch_first_on_sys_path_is_prebundle(
                 str(tmp_path / "python"),
                 env={"PYTHONPATH": "/fake/extsDeprecated/pip_prebundle"},
             )
@@ -92,7 +92,7 @@ class TestTorchProbe:
     def test_returns_false_when_site_packages_first(self, tmp_path):
         """Probe exits 0 → the first torch on sys.path is in regular site-packages."""
         with mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(returncode=0)):
-            result = _torch_first_on_sys_path_is_exts_deprecated(
+            result = _torch_first_on_sys_path_is_prebundle(
                 str(tmp_path / "python"),
                 env={"PYTHONPATH": "/conda/lib/python3.12/site-packages"},
             )
@@ -101,7 +101,7 @@ class TestTorchProbe:
     def test_returns_false_when_torch_not_found_anywhere(self, tmp_path):
         """Probe exits 0 (no torch on sys.path at all) → returns False."""
         with mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(returncode=0)):
-            result = _torch_first_on_sys_path_is_exts_deprecated(
+            result = _torch_first_on_sys_path_is_prebundle(
                 str(tmp_path / "python"),
                 env={},
             )
@@ -111,7 +111,7 @@ class TestTorchProbe:
         """The custom env dict is forwarded to run_command."""
         env_sent = {"PYTHONPATH": "/some/path"}
         with mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(0)) as mock_run:
-            _torch_first_on_sys_path_is_exts_deprecated(str(tmp_path / "python"), env=env_sent)
+            _torch_first_on_sys_path_is_prebundle(str(tmp_path / "python"), env=env_sent)
         call_kwargs = mock_run.call_args
         assert call_kwargs.kwargs.get("env") == env_sent or (
             len(call_kwargs.args) > 1 and call_kwargs.args[1] == env_sent
@@ -119,26 +119,24 @@ class TestTorchProbe:
 
 
 # ---------------------------------------------------------------------------
-# _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path
+# _maybe_uninstall_prebundled_torch
 # ---------------------------------------------------------------------------
 
 
 class TestMaybeUninstallTorch:
-    """Tests for :func:`_maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path`."""
+    """Tests for :func:`_maybe_uninstall_prebundled_torch`."""
 
     def test_does_not_uninstall_when_probe_false(self, tmp_path):
         """When the probe returns False, no pip uninstall command is issued."""
         py = str(tmp_path / "python")
         with (
             mock.patch(
-                "isaaclab.cli.commands.install._torch_first_on_sys_path_is_exts_deprecated",
+                "isaaclab.cli.commands.install._torch_first_on_sys_path_is_prebundle",
                 return_value=False,
             ),
             mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
         ):
-            _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path(
-                py, [py, "-m", "pip"], using_uv=False, probe_env={}
-            )
+            _maybe_uninstall_prebundled_torch(py, [py, "-m", "pip"], using_uv=False, probe_env={})
         mock_run.assert_not_called()
 
     def test_uninstalls_torch_stack_with_minus_y_for_pip(self, tmp_path):
@@ -146,14 +144,12 @@ class TestMaybeUninstallTorch:
         py = str(tmp_path / "python")
         with (
             mock.patch(
-                "isaaclab.cli.commands.install._torch_first_on_sys_path_is_exts_deprecated",
+                "isaaclab.cli.commands.install._torch_first_on_sys_path_is_prebundle",
                 return_value=True,
             ),
             mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
         ):
-            _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path(
-                py, [py, "-m", "pip"], using_uv=False, probe_env={}
-            )
+            _maybe_uninstall_prebundled_torch(py, [py, "-m", "pip"], using_uv=False, probe_env={})
         mock_run.assert_called_once()
         issued = mock_run.call_args[0][0]
         assert "uninstall" in issued
@@ -166,14 +162,12 @@ class TestMaybeUninstallTorch:
         """When probe returns True and uv pip is in use, uninstall omits -y (uv doesn't accept it)."""
         with (
             mock.patch(
-                "isaaclab.cli.commands.install._torch_first_on_sys_path_is_exts_deprecated",
+                "isaaclab.cli.commands.install._torch_first_on_sys_path_is_prebundle",
                 return_value=True,
             ),
             mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
         ):
-            _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path(
-                "/fake/python", ["uv", "pip"], using_uv=True, probe_env={}
-            )
+            _maybe_uninstall_prebundled_torch("/fake/python", ["uv", "pip"], using_uv=True, probe_env={})
         issued = mock_run.call_args[0][0]
         assert "uninstall" in issued
         assert "-y" not in issued
@@ -183,12 +177,10 @@ class TestMaybeUninstallTorch:
         py = str(tmp_path / "python")
         probe_env = {"PYTHONPATH": "/a/extsDeprecated/pip_prebundle:/b/site-packages"}
         with mock.patch(
-            "isaaclab.cli.commands.install._torch_first_on_sys_path_is_exts_deprecated",
+            "isaaclab.cli.commands.install._torch_first_on_sys_path_is_prebundle",
             return_value=False,
         ) as mock_probe:
-            _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path(
-                py, [py, "-m", "pip"], using_uv=False, probe_env=probe_env
-            )
+            _maybe_uninstall_prebundled_torch(py, [py, "-m", "pip"], using_uv=False, probe_env=probe_env)
         mock_probe.assert_called_once_with(py, env=probe_env)
 
 
