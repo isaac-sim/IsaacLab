@@ -204,7 +204,7 @@ def compute_distance_to_image_plane_masked_kernel(
 
     The distance to the image plane is the signed projection of the hit displacement
     (``ray_distance * ray_direction_w``) onto the camera forward axis (+X in world convention).
-    This equals the z-component of the hit vector in the camera frame.
+    This equals the x-component of the hit vector in the camera frame.
 
     Launch with dim=(num_envs, num_rays).
 

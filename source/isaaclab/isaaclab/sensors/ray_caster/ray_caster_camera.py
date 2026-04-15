@@ -320,6 +320,15 @@ class RayCasterCamera(RayCaster):
         # Warp view of ray_hits_w
         self._ray_hits_w_wp = wp.from_torch(self.ray_hits_w.contiguous(), dtype=wp.vec3f)
 
+        # Cache zero-copy torch views of warp output buffers to avoid per-step wrapper allocation.
+        self._pos_w_torch = wp.to_torch(self._pos_w_wp)
+        self._quat_w_torch = wp.to_torch(self._quat_w_wp)
+        self._ray_distance_torch = wp.to_torch(self._ray_distance)
+        if "distance_to_image_plane" in self.cfg.data_types:
+            self._distance_to_image_plane_torch = wp.to_torch(self._distance_to_image_plane_wp)
+        if "normals" in self.cfg.data_types:
+            self._ray_normal_w_torch = wp.to_torch(self._ray_normal_w)
+
     def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data."""
         # Convert mask to indices for torch-indexed writes
@@ -356,8 +365,8 @@ class RayCasterCamera(RayCaster):
         )
 
         # Write camera pose to CameraData (torch tensors)
-        self._data.pos_w[env_ids] = wp.to_torch(self._pos_w_wp)[env_ids]
-        self._data.quat_w_world[env_ids] = wp.to_torch(self._quat_w_wp)[env_ids]
+        self._data.pos_w[env_ids] = self._pos_w_torch[env_ids]
+        self._data.quat_w_world[env_ids] = self._quat_w_torch[env_ids]
 
         # Fill ray hit positions with inf before raycasting
         wp.launch(
@@ -424,25 +433,32 @@ class RayCasterCamera(RayCaster):
             )
             # Apply depth clipping on the intermediate buffer (leaves _ray_distance unmodified)
             self._apply_depth_clipping(env_mask, self._distance_to_image_plane_wp)
-            d2ip_torch = wp.to_torch(self._distance_to_image_plane_wp)
-            self._data.output["distance_to_image_plane"][env_ids] = d2ip_torch[env_ids].view(-1, *self.image_shape, 1)
+            self._data.output["distance_to_image_plane"][env_ids] = self._distance_to_image_plane_torch[env_ids].view(
+                -1, *self.image_shape, 1
+            )
 
         if "distance_to_camera" in self.cfg.data_types:
             # d2ip (if requested) was computed before this block so _ray_distance is still unclipped.
             self._apply_depth_clipping(env_mask, self._ray_distance)
-            ray_dist_torch = wp.to_torch(self._ray_distance)
-            self._data.output["distance_to_camera"][env_ids] = ray_dist_torch[env_ids].view(-1, *self.image_shape, 1)
+            self._data.output["distance_to_camera"][env_ids] = self._ray_distance_torch[env_ids].view(
+                -1, *self.image_shape, 1
+            )
 
         if "normals" in self.cfg.data_types:
-            ray_normal_torch = wp.to_torch(self._ray_normal_w)
-            self._data.output["normals"][env_ids] = ray_normal_torch[env_ids].view(-1, *self.image_shape, 3)
+            self._data.output["normals"][env_ids] = self._ray_normal_w_torch[env_ids].view(-1, *self.image_shape, 3)
 
     def _debug_vis_callback(self, event):
         # in case it crashes be safe
         if not hasattr(self, "ray_hits_w"):
             return
-        # show ray hit positions
-        self.ray_visualizer.visualize(self.ray_hits_w.view(-1, 3))
+        # filter out missed rays (inf values) before visualizing
+        ray_hits_flat = self.ray_hits_w.reshape(-1, 3)
+        valid_mask = ~torch.isinf(ray_hits_flat).any(dim=-1)
+        viz_points = ray_hits_flat[valid_mask]
+        # if no valid hits, skip
+        if viz_points.shape[0] == 0:
+            return
+        self.ray_visualizer.visualize(viz_points)
 
     """
     Private Helpers
@@ -472,6 +488,13 @@ class RayCasterCamera(RayCaster):
                 dim=(self._num_envs, self.num_rays),
                 inputs=[env_mask, float(self.cfg.max_distance), float(0.0), depth],
                 device=self._device,
+            )
+        elif self.cfg.depth_clipping_behavior == "none":
+            pass  # no clipping: inf values remain as-is
+        else:
+            raise ValueError(
+                f"Unknown depth_clipping_behavior: {self.cfg.depth_clipping_behavior!r}."
+                " Valid values are 'max', 'zero', and 'none'."
             )
 
     def _check_supported_data_types(self, cfg: RayCasterCameraCfg):

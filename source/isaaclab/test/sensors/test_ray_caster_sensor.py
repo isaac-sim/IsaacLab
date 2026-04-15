@@ -239,6 +239,9 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     cfg.drift_range = (0.01, 0.05)  # force non-zero drift
     sensor = RayCaster(cfg)
     sim.reset()
+    # sim.reset() initializes the sensor with zero drift; call sensor.reset() to resample
+    # from the configured drift_range before we capture the baseline.
+    sensor.reset()
 
     dt = 0.01
     sensor.update(dt)
@@ -246,7 +249,7 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
 
     lo, hi = cfg.drift_range
 
-    # After sim.reset() + update, drift should be within the configured range
+    # After sensor.reset(), drift should be within the configured range
     assert drift_before.shape == (1, 3), f"Drift shape should be (1, 3), got {drift_before.shape}"
     assert (drift_before >= lo - 1e-6).all() and (drift_before <= hi + 1e-6).all(), (
         f"Initial drift must be in [{lo}, {hi}], got [{drift_before.min():.4f}, {drift_before.max():.4f}]"

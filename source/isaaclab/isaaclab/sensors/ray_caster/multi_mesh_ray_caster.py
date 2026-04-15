@@ -414,7 +414,7 @@ class MultiMeshRayCaster(RayCaster):
 
         # Ray-cast against all meshes; closest hit wins via atomic_min on ray_distance
         wp.launch(
-            warp_kernels.raycast_dynamic_meshes_kernel,
+            warp_kernels.raycast_dynamic_meshes_masked_kernel,
             dim=(n_meshes, self._num_envs, self.num_rays),
             inputs=[
                 env_mask,
@@ -435,6 +435,12 @@ class MultiMeshRayCaster(RayCaster):
             ],
             device=self._device,
         )
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidates the scene elements."""
+        super()._invalidate_initialize_callback(event)
+        # clear mesh views so they are re-created on the next initialization
+        MultiMeshRayCaster.mesh_views.clear()
 
     def __del__(self):
         super().__del__()

@@ -1096,6 +1096,8 @@ def test_set_intrinsic_matrices_updates_output(setup_sim):
     assert not torch.allclose(output_before, output_after, atol=1e-3), (
         "Depth output must change when intrinsic matrix is updated; unchanged output indicates stale warp ray buffers."
     )
-    # Both outputs must have valid (finite, positive) depth values
-    assert torch.all(torch.isfinite(output_after) | (output_after == 0.0))
-    assert output_after[output_after > 0].min() > 0
+    # With depth_clipping_behavior="none" (default), missed rays produce inf — that is valid.
+    # No NaN values must appear; where rays hit, depth must be positive.
+    assert not torch.any(torch.isnan(output_after)), "Expected no NaN values in depth output after intrinsics update"
+    if torch.any(torch.isfinite(output_after)):
+        assert output_after[torch.isfinite(output_after)].min() > 0

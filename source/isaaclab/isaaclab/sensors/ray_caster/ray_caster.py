@@ -293,6 +293,8 @@ class RayCaster(SensorBase):
             Warp array of ``wp.transformf`` with shape (num_envs,).
         """
         if isinstance(self._view, XformPrimView):
+            # XformPrimView.get_world_poses() returns quaternions in (x, y, z, w) convention,
+            # which matches the wp.transformf layout (translation then xyzw quaternion).
             pos_w, quat_w = self._view.get_world_poses()
             poses = torch.cat([pos_w, quat_w], dim=-1).contiguous()
             return wp.from_torch(poses).view(wp.transformf)
