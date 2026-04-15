@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         CartpoleSimpleShadingDiffuseCameraEnvCfg,
         CartpoleSimpleShadingFullCameraEnvCfg,
     )
+    from .cartpole_camera_env_preset_cfg import CartpoleCameraEnvCfg
 
 SIMPLE_SHADING_TYPES = {
     "simple_shading_constant_diffuse",
@@ -45,6 +46,7 @@ class CartpoleCameraEnv(DirectRLEnv):
         | CartpoleSimpleShadingConstantCameraEnvCfg
         | CartpoleSimpleShadingDiffuseCameraEnvCfg
         | CartpoleSimpleShadingFullCameraEnvCfg
+        | CartpoleCameraEnvCfg
     )
 
     def __init__(
@@ -113,6 +115,9 @@ class CartpoleCameraEnv(DirectRLEnv):
         elif "depth" in self.cfg.tiled_camera.data_types:
             camera_data = self._tiled_camera.data.output[data_type]
             camera_data[camera_data == float("inf")] = 0
+        elif "semantic_segmentation" in self.cfg.tiled_camera.data_types:
+            camera_data = self._tiled_camera.data.output[data_type]
+
         observations = {"policy": camera_data.clone()}
 
         if self.cfg.write_image_to_file:
