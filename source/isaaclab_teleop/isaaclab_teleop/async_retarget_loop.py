@@ -3,7 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""EMA-paced background retarget loop used by :class:`IsaacTeleopDevice`."""
+"""EMA-paced, consumption-gated background retarget loop for :class:`IsaacTeleopDevice`.
+
+The background thread produces exactly one retarget result per
+:meth:`consume` call.  After posting a result it waits for the main
+thread to consume it before retargeting again, ensuring the retarget
+pipeline is invoked at the same cadence as ``advance()`` (just like the
+synchronous path).
+
+Within each cycle the thread uses an Exponential Moving Average (EMA)
+to predict *when* the next :meth:`consume` will happen, then delays
+reading inputs and retargeting until just before that deadline.  This
+maximises input freshness while still overlapping the retarget
+computation with ``env.step()``.
+"""
 
 from __future__ import annotations
 
@@ -19,17 +32,24 @@ logger = logging.getLogger(__name__)
 
 
 class AsyncRetargetLoop:
-    """Background loop that retargets with EMA-paced scheduling.
+    """Background loop that retargets once per :meth:`consume` call.
 
-    The loop runs continuously in a background thread and uses an
-    Exponential Moving Average (EMA) to predict *when* the next
-    :meth:`consume` will happen and *how long* retargeting takes.  The
-    EMA is a weighted running average where each new sample contributes
-    ``alpha`` and the accumulated history contributes ``1 - alpha``,
-    giving a smooth estimate that adapts to changing timing without
-    reacting to every jitter spike.
+    The loop runs in a daemon thread and combines two mechanisms:
 
-    With those two estimates the loop computes::
+    1. **Consumption gate** -- after posting a result the thread blocks
+       until :meth:`consume` has read it, preventing more than one
+       retarget per ``advance()`` call.
+    2. **EMA pacer** -- once the gate opens, the thread sleeps until the
+       optimal moment to start retargeting so inputs are as fresh as
+       possible when read.
+
+    The EMA tracks two quantities:
+
+    * **step period** -- time between consecutive :meth:`consume` calls
+      (i.e. the main loop's frame period).
+    * **retarget duration** -- wall-clock cost of one ``step_fn`` call.
+
+    With those estimates the pacer computes::
 
         sleep = predicted_next_consume - now - retarget_duration - margin
 
@@ -38,17 +58,11 @@ class AsyncRetargetLoop:
 
     Timeline sketch (one consume-to-consume period)::
 
-        last_consume                        next_consume (predicted)
-            |                                       |
-            |-------sleep--------->|--retarget--|   |
-                                   ^            ^   ^
-                                wake here    ready  consume
+        main: advance() → update_inputs() → consume(block) [waits] →
+                                                      gets result → env.step()
 
-    When :meth:`consume` is called with ``block=True`` (the default), it
-    waits until the background thread has produced a fresh result since
-    the previous :meth:`consume`.  Because the EMA pacer aims to finish
-    just in time, the wait is almost always instantaneous; the block acts
-    as a safety net when retarget occasionally runs longer than predicted.
+        bg:   [gate: wait consumed] → [ema sleep] → read inputs →
+                                       retarget → post result → [gate] …
 
     Thread-safety contract:
         All USD/Kit/Omniverse API calls must stay on the main thread.
@@ -82,18 +96,8 @@ class AsyncRetargetLoop:
         if not (0.0 < ema_alpha <= 1.0):
             raise ValueError(f"ema_alpha must be in (0, 1], got {ema_alpha}")
 
-        # alpha=0.3 gives an EMA half-life of ~2 samples (ln2/ln(1/0.7)≈1.9).
-        # At a 45 Hz target frame rate that adapts within ~44 ms — fast
-        # enough to track frame-rate changes (e.g. VSync toggle, workload
-        # shifts) while still filtering single-frame timing jitter.
         self._step_fn = step_fn
 
-        # Result state protected by a Condition rather than a bare Event to
-        # avoid a TOCTOU (Time-of-Check-to-Time-of-Use) race: with Event the
-        # consumer would check is_set() then separately read _latest, but
-        # the producer could overwrite _latest between those two steps.
-        # Condition bundles the "is there a new result?" check and the read
-        # under a single lock acquisition.
         self._lock = threading.Lock()
         self._cond = threading.Condition(self._lock)
         self._gen = 0
@@ -112,7 +116,7 @@ class AsyncRetargetLoop:
         self._ema_alpha = ema_alpha
         self._margin_s = margin_s
         self._step_period = 0.022
-        self._retarget_dur = 0.020
+        self._retarget_dur = 0.005
         self._last_consume = 0.0
 
     def start(self) -> None:
@@ -184,7 +188,6 @@ class AsyncRetargetLoop:
             Exception: Re-raises any exception that killed the background
                 thread, chained under a :class:`RuntimeError`.
         """
-        now = time.monotonic()
         with self._cond:
             if block:
                 while not self._stop.is_set() and self._gen == self._consumed_gen:
@@ -192,15 +195,13 @@ class AsyncRetargetLoop:
                         break
                     self._cond.wait(timeout=0.1)
 
+            now = time.monotonic()
             if self._last_consume > 0:
                 dt = now - self._last_consume
                 if 0.001 < dt < 1.0:
-                    # EMA update: blend the new measurement (dt) at weight alpha
-                    # with the running estimate at weight (1 - alpha).  With the
-                    # default alpha=0.3 the effective window is ~1/alpha ≈ 3
-                    # samples, so the estimate tracks frame-rate changes within
-                    # 2-3 frames while filtering single-frame jitter.
-                    self._step_period = self._ema_alpha * dt + (1 - self._ema_alpha) * self._step_period
+                    self._step_period = (
+                        self._ema_alpha * dt + (1 - self._ema_alpha) * self._step_period
+                    )
             self._last_consume = now
 
             exc = self._exc
@@ -208,6 +209,8 @@ class AsyncRetargetLoop:
             fresh = self._gen != self._consumed_gen
             self._consumed_gen = self._gen
             result = self._latest
+            # Wake the BG thread now that we have consumed the result.
+            self._cond.notify_all()
 
         if exc is not None:
             raise RuntimeError("Background retarget thread failed") from exc
@@ -222,6 +225,17 @@ class AsyncRetargetLoop:
     def _run(self) -> None:
         consecutive_failures = 0
         while not self._stop.is_set():
+            # Gate: wait until the previous result has been consumed so
+            # the pipeline is invoked exactly once per advance() call.
+            with self._cond:
+                while not self._stop.is_set() and self._gen > self._consumed_gen:
+                    self._cond.wait(timeout=0.1)
+            if self._stop.is_set():
+                break
+
+            # EMA pace: delay reading inputs until just before the
+            # predicted next consume() so that inputs are as fresh as
+            # possible.
             self._pace()
             if self._stop.is_set():
                 break
@@ -252,10 +266,9 @@ class AsyncRetargetLoop:
                 continue
             elapsed = time.monotonic() - t0
 
-            # Same EMA formula as _step_period but applied to retarget
-            # wall-clock duration, so the pacer knows how much lead time
-            # to reserve before the next predicted consume().
-            self._retarget_dur = self._ema_alpha * elapsed + (1 - self._ema_alpha) * self._retarget_dur
+            self._retarget_dur = (
+                self._ema_alpha * elapsed + (1 - self._ema_alpha) * self._retarget_dur
+            )
 
             if action is not None:
                 action = action.clone()
@@ -270,29 +283,20 @@ class AsyncRetargetLoop:
     def _pace(self) -> None:
         """Sleep until the optimal moment to begin the next retarget.
 
-        Goal: finish retargeting just before the predicted next
-        :meth:`consume` call.  If there is no timing data yet (first
-        iteration), return immediately so the first result is produced
-        as fast as possible.
+        Goal: read inputs and start retargeting as late as possible
+        while still finishing before the predicted next :meth:`consume`.
+        If there is no timing data yet (first iteration), return
+        immediately so the first result is produced as fast as possible.
 
-        ``margin_s`` is subtracted so we wake slightly *early* rather
-        than risk finishing late.  ``_MIN_LOOP_PERIOD`` clamps the sleep
-        to at least 1 ms to prevent busy-spinning when the deadline has
-        already passed.
+        The consumption gate in :meth:`_run` guarantees at most one
+        retarget per consume, so this method never needs to worry about
+        a second retarget sneaking in.
         """
         if self._last_consume <= 0:
             return
 
-        # _step_period, _retarget_dur, and _last_consume are read without
-        # _cond here (benign race): float assignment is atomic under CPython's
-        # GIL, and the EMA tolerates values stale by at most one sample.
-
-        # How much time has already elapsed since the last consume().
         elapsed_since_consume = time.monotonic() - self._last_consume
-        # EMA-predicted time remaining until the next consume() call.
         time_until_next = self._step_period - elapsed_since_consume
-        # Subtract the predicted retarget cost and a safety margin so we
-        # wake up just early enough to have a fresh result ready.
         ideal_sleep = time_until_next - self._retarget_dur - self._margin_s
 
         self._stop.wait(timeout=max(ideal_sleep, self._MIN_LOOP_PERIOD))

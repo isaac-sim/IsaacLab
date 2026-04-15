@@ -241,16 +241,19 @@ class IsaacTeleopDevice:
     ) -> None:
         """Enable or disable asynchronous advance mode.
 
-        When enabled, retargeting runs in a background thread with
-        EMA (Exponential Moving Average)-based pacing that predicts
-        when the next :meth:`advance` call will happen and starts each
-        retarget just early enough to finish in time.
+        When enabled, retargeting runs in a background thread that
+        combines a **consumption gate** with **EMA-paced scheduling**:
+
+        1. After producing a result the thread waits for
+           :meth:`advance` to consume it, guaranteeing a strict 1:1
+           ratio between retarget invocations and ``advance()`` calls.
+        2. Once the gate opens the thread sleeps until the EMA-predicted
+           optimal moment, then reads inputs and retargets, delivering
+           the freshest possible result just before the next
+           :meth:`advance`.
 
         With ``blocking=True`` (default), :meth:`advance` waits for the
         background thread to produce a fresh result before returning.
-        Because the EMA pacer aims to finish just in time, the wait is
-        almost always instantaneous; the block acts as a safety net when
-        retarget occasionally runs longer than predicted.
 
         With ``blocking=False``, :meth:`advance` returns immediately
         with whatever result is available (may be stale if the background
@@ -265,17 +268,12 @@ class IsaacTeleopDevice:
                 until a fresh result is available.  When ``False``,
                 returns immediately (possibly stale).  Ignored when
                 *enabled* is ``False``.
-            ema_alpha: EMA smoothing factor for timing prediction in
-                ``(0, 1]``.  Higher values adapt faster to timing
-                changes but are more sensitive to jitter.  The default
-                0.3 gives a half-life of ~2 samples, adapting within
-                ~44 ms at 45 Hz — empirically a good balance for
-                typical teleop frame rates (45-90 Hz).
+            ema_alpha: EMA smoothing factor in ``(0, 1]`` for predicting
+                the consumer's call period and retarget cost.
             margin_s: Safety margin [s] subtracted from the predicted
-                deadline.  Increase if retarget occasionally misses the
-                deadline.
+                deadline to avoid late delivery.
         """
-        if not (0.0 < ema_alpha <= 1.0):
+        if enabled and not (0.0 < ema_alpha <= 1.0):
             raise ValueError(f"ema_alpha must be in (0, 1], got {ema_alpha}")
 
         needs_restart = (
@@ -306,12 +304,12 @@ class IsaacTeleopDevice:
         the handles become available, the session is created transparently.
 
         When async mode is enabled (see :meth:`set_async`), the retargeting
-        pipeline runs in a background thread with EMA (Exponential Moving
-        Average)-based pacing.  By
-        default the call blocks until a fresh result is ready (the block
-        is almost always instantaneous because the pacer finishes just in
-        time).  This lets retargeting overlap with ``env.step()`` while
-        guaranteeing up-to-date data every frame.
+        pipeline runs in a background thread with consumption-gated,
+        EMA-paced scheduling.  By default the call blocks until a fresh
+        result is ready (the block is almost always instantaneous because
+        the pacer finishes just in time).  This lets retargeting overlap
+        with ``env.step()`` while guaranteeing exactly one retarget per
+        ``advance()`` call with inputs as fresh as possible.
 
         Args:
             target_T_world: Optional 4x4 transform matrix that rebases all
@@ -364,7 +362,7 @@ class IsaacTeleopDevice:
         return action
 
     def _advance_async(self, target_T_world=None) -> torch.Tensor | None:
-        """Async advance: read from the EMA-paced background retarget loop.
+        """Async advance: read from the EMA-paced, consumption-gated loop.
 
         All USD/Kit interactions (anchor matrix, target-frame transform,
         button polling) run on the calling (main) thread.  Only the

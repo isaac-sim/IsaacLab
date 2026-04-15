@@ -8,8 +8,11 @@ Added
 ^^^^^
 
 * Added :class:`~isaaclab_teleop.async_retarget_loop.AsyncRetargetLoop` for background-threaded
-  retargeting with EMA-paced scheduling, so retarget work overlaps with
-  ``env.step()`` instead of blocking the render path.
+  retargeting with consumption-gated, EMA-paced scheduling, so retarget work
+  overlaps with ``env.step()`` instead of blocking the render path.  The
+  consumption gate enforces a strict 1:1 retarget-to-advance ratio while the
+  EMA pacer delays input reads until just before the predicted deadline for
+  maximum freshness.
 
 * Added :meth:`~isaaclab_teleop.IsaacTeleopDevice.set_async` to toggle between
   synchronous and asynchronous retargeting at runtime.  Async mode is enabled
