@@ -254,7 +254,6 @@ class IsaacRtxRenderer(BaseRenderer):
         num_tiles_x = tiling_grid_shape()[0]
 
         # Extract the flattened image buffer — first pass: launch all reshape kernels.
-        dev = torch.device(sensor.device)
         for data_type, annotator in render_data.annotators.items():
             # check whether returned data is a dict (used for segmentation)
             output = annotator.get_data()
@@ -309,12 +308,9 @@ class IsaacRtxRenderer(BaseRenderer):
             )
 
         # Synchronize once after all kernel launches so subsequent Torch ops see completed writes.
-        # Replicator + Warp populate GPU buffers asynchronously; without this, newer RTX stacks
-        # can overlap with Torch ops and surface as cudaErrorIllegalAddress.
-        if dev.type == "cuda":
-            cuda_idx = dev.index if dev.index is not None else torch.cuda.current_device()
-            with torch.cuda.device(cuda_idx):
-                torch.cuda.synchronize()
+        # Replicator + Warp populate GPU buffers asynchronously on their own CUDA stream; without
+        # this, newer RTX stacks can overlap with Torch ops and surface as cudaErrorIllegalAddress.
+        wp.synchronize_device(sensor.device)
 
         # Second pass: Torch post-processing (rgb alias, depth clipping).
         for data_type in render_data.annotators:
