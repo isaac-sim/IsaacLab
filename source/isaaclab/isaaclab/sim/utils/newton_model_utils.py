@@ -3,24 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Map OmniPBR USD material albedo to Newton ``shape_color`` (display-referred sRGB).
-
-**Color space:** OmniPBR ``diffuse_color_constant`` × ``diffuse_tint`` are treated as **linear**
-RGB. They are encoded with the **sRGB OETF** before writing to ``shape_color``, so Newton
-visualization matches typical viewport gamma. Newton Warp raytracing may still **multiply**
-these values by mesh textures when texturing is enabled.
-
-**Policy (internal workaround, not on :class:`~isaaclab.sim.simulation_cfg.SimulationCfg`):**
-
-* Shapes with authored ``primvars:displayColor`` on the prim or an ancestor are **skipped**
-  so explicit preview colors are preserved.
-* Shapes with **no** visual material and **no** authored ``displayColor`` receive a neutral
-  linear gray before encoding (see :data:`UNBOUND_SHAPE_LINEAR_GRAY`), then sRGB.
-* Shapes with a material that is not OmniPBR (or missing resolvable diffuse) are left
-  unchanged (no write for that index).
-
-Used by Newton/PhysX init paths only.
-"""
+"""DO NOT USE ANY FUNCTION IN THIS FILE."""
 
 from __future__ import annotations
 
@@ -148,8 +131,8 @@ def _get_surface_shader(material_prim: Usd.Prim) -> Usd.Prim | None:
     return shader_prim
 
 
-def _omnipbr_linear_diffuse_from_material(shader_prim: Usd.Prim) -> tuple[float, float, float] | None:
-    """Return linear RGB from OmniPBR diffuse × tint, or None if material is not OmniPBR."""
+def _omnipbr_linear_diffuse_from_material(shader_prim: Usd.Prim) -> tuple[float, float, float]:
+    """Return linear RGB from OmniPBR diffuse × tint."""
     surface_shader = UsdShade.Shader(shader_prim)
 
     constant = _get_input_value(surface_shader, "diffuse_color_constant")
@@ -160,8 +143,7 @@ def _omnipbr_linear_diffuse_from_material(shader_prim: Usd.Prim) -> tuple[float,
     if tint is None:
         tint = _OMNIPBR_DEFAULT_DIFFUSE_TINT
 
-    albedo = (constant[0] * tint[0], constant[1] * tint[1], constant[2] * tint[2])
-    return _linear_to_srgb(albedo)
+    return (constant[0] * tint[0], constant[1] * tint[1], constant[2] * tint[2])
 
 
 def _coerce_color(value: Any) -> tuple[float, float, float] | None:
@@ -252,20 +234,21 @@ def replace_default_shape_colors(model: Any, stage: Usd.Stage | None = None) -> 
 
         # If the prim has no material binding, use the display color if it is authored on the prim, otherwise 18% gray.
         if not material_prim:
-            new_color = None
+            linear_color = None
 
             primvars_api = UsdGeom.PrimvarsAPI(shape_prim)
             if primvars_api.HasPrimvar("displayColor"):
                 primvar = primvars_api.GetPrimvar("displayColor")
                 if primvar is not None:
-                    new_color = _coerce_color(primvar.Get())
+                    linear_color = _coerce_color(primvar.Get())
 
-            if not new_color:
-                new_color = UNBOUND_SHAPE_LINEAR_GRAY
+            if not linear_color:
+                linear_color = UNBOUND_SHAPE_LINEAR_GRAY
 
-            color[0] = new_color[0]
-            color[1] = new_color[1]
-            color[2] = new_color[2]
+            srgb_color = _linear_to_srgb(linear_color)
+            color[0] = srgb_color[0]
+            color[1] = srgb_color[1]
+            color[2] = srgb_color[2]
 
             updated += 1
             continue
@@ -275,10 +258,11 @@ def replace_default_shape_colors(model: Any, stage: Usd.Stage | None = None) -> 
             continue
 
         # If the prim uses an OmniPBR shader, use the albedo color defined in the OmniPBR shader.
-        new_color = _omnipbr_linear_diffuse_from_material(shader_prim)
-        color[0] = new_color[0]
-        color[1] = new_color[1]
-        color[2] = new_color[2]
+        linear_color = _omnipbr_linear_diffuse_from_material(shader_prim)
+        srgb_color = _linear_to_srgb(linear_color)
+        color[0] = srgb_color[0]
+        color[1] = srgb_color[1]
+        color[2] = srgb_color[2]
 
         updated += 1
 

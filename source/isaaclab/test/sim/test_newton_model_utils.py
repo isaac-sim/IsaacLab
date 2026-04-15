@@ -43,8 +43,8 @@ def test_linear_to_srgb_triple():
     assert s[2] == pytest.approx(0.0)
 
 
-def test_omnipbr_linear_diffuse_from_material_applies_srgb_oetf():
-    """OmniPBR path encodes diffuse × tint with the sRGB OETF (display-referred)."""
+def test_omnipbr_linear_diffuse_from_material_returns_linear_diffuse_times_tint():
+    """OmniPBR helper returns linear RGB (diffuse × tint); callers apply :func:`_linear_to_srgb`."""
     stage = Usd.Stage.CreateInMemory()
     mat = UsdShade.Material.Define(stage, "/World/Mat")
     shader = UsdShade.Shader.Define(stage, "/World/Mat/OmniPBRShader")
@@ -55,11 +55,11 @@ def test_omnipbr_linear_diffuse_from_material_applies_srgb_oetf():
     shader.CreateInput("diffuse_tint", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(1.0, 1.0, 1.0))
 
     out = _omnipbr_linear_diffuse_from_material(sp)
-    assert out == pytest.approx(_linear_to_srgb((0.2, 0.2, 0.2)), rel=1e-5)
+    assert out == pytest.approx((0.2, 0.2, 0.2), rel=1e-5)
 
 
 def test_replace_default_shape_colors_unbound_display_and_gray():
-    """No material: copy ``displayColor`` when authored; otherwise use linear unbound gray (no OETF)."""
+    """No material: ``displayColor`` or unbound gray as linear RGB, then sRGB OETF into ``shape_color``."""
     stage = Usd.Stage.CreateInMemory()
     mesh_a = UsdGeom.Mesh.Define(stage, "/World/A")
     assert mesh_a is not None
@@ -78,12 +78,14 @@ def test_replace_default_shape_colors_unbound_display_and_gray():
     assert count == 2
 
     after = wp.to_torch(shape_color)
-    assert after[0, 0].item() == pytest.approx(0.2)
-    assert after[0, 1].item() == pytest.approx(0.4)
-    assert after[0, 2].item() == pytest.approx(0.6)
-    assert after[1, 0].item() == pytest.approx(UNBOUND_SHAPE_LINEAR_GRAY[0])
-    assert after[1, 1].item() == pytest.approx(UNBOUND_SHAPE_LINEAR_GRAY[1])
-    assert after[1, 2].item() == pytest.approx(UNBOUND_SHAPE_LINEAR_GRAY[2])
+    exp_a = _linear_to_srgb((0.2, 0.4, 0.6))
+    exp_b = _linear_to_srgb(UNBOUND_SHAPE_LINEAR_GRAY)
+    assert after[0, 0].item() == pytest.approx(exp_a[0])
+    assert after[0, 1].item() == pytest.approx(exp_a[1])
+    assert after[0, 2].item() == pytest.approx(exp_a[2])
+    assert after[1, 0].item() == pytest.approx(exp_b[0])
+    assert after[1, 1].item() == pytest.approx(exp_b[1])
+    assert after[1, 2].item() == pytest.approx(exp_b[2])
 
 
 def test_replace_default_shape_colors_skips_non_omnipbr_material():
