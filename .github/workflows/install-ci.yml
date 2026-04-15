@@ -5,6 +5,14 @@
 
 name: Installation Tests
 on:
+  pull_request:
+    paths:
+      # Install command logic and its tests
+      - 'source/isaaclab/isaaclab/cli/commands/install.py'
+      - 'source/isaaclab/isaaclab/cli/utils.py'
+      - 'source/isaaclab/test/install_ci/**'
+      - 'isaaclab.sh'
+      - 'isaaclab.bat'
   workflow_dispatch:
     inputs:
       base_image:
@@ -19,7 +27,7 @@ permissions:
   contents: read
 jobs:
   install-tests:
-    name: Installation Tests (${{ inputs.base_image }})
+    name: Installation Tests (${{ inputs.base_image || 'ubuntu:24.04' }})
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     steps:
@@ -27,8 +35,8 @@ jobs:
         uses: actions/checkout@v6
       - name: Run installation tests
         env:
-          BASE_IMAGE: ${{ inputs.base_image }}
-          TEST_FILTER: ${{ inputs.test_filter }}
+          BASE_IMAGE: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          TEST_FILTER: ${{ inputs.test_filter || '' }}
         run: |
           RUNNER_ARGS="--base-image $BASE_IMAGE"
           RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results"

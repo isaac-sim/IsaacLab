@@ -124,6 +124,69 @@ class TestExtractPythonExe:
             result = extract_python_exe()
             assert Path(result) == conda_python
 
+    def test_uses_default_venv_when_no_env_vars(self, tmp_path):
+        """Should fall back to env_isaaclab/bin/python when no VIRTUAL_ENV or CONDA_PREFIX."""
+        default_python = tmp_path / "env_isaaclab" / "bin" / "python"
+        default_python.parent.mkdir(parents=True)
+        default_python.touch()
+
+        env = os.environ.copy()
+        env.pop("VIRTUAL_ENV", None)
+        env.pop("CONDA_PREFIX", None)
+
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch("isaaclab.cli.utils.ISAACLAB_ROOT", tmp_path),
+            mock.patch("isaaclab.cli.utils.is_windows", return_value=False),
+        ):
+            result = extract_python_exe()
+            assert Path(result) == default_python
+
+    def test_uses_kit_python_when_no_venv_or_default(self, tmp_path):
+        """Should return _isaac_sim/python.sh when no env vars and no default env_isaaclab venv."""
+        fake_sim = tmp_path / "_isaac_sim"
+        fake_sim.mkdir()
+        python_sh = fake_sim / "python.sh"
+        python_sh.touch()
+
+        env = os.environ.copy()
+        env.pop("VIRTUAL_ENV", None)
+        env.pop("CONDA_PREFIX", None)
+
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            # ISAACLAB_ROOT has no env_isaaclab dir, so default venv is skipped
+            mock.patch("isaaclab.cli.utils.ISAACLAB_ROOT", tmp_path),
+            mock.patch("isaaclab.cli.utils.extract_isaacsim_path", return_value=fake_sim),
+            mock.patch("isaaclab.cli.utils.is_windows", return_value=False),
+        ):
+            result = extract_python_exe()
+            assert Path(result) == python_sh
+
+    def test_uses_system_python_as_last_resort(self, tmp_path):
+        """Should fall back to system Python 3.12 when no environment or Isaac Sim is found."""
+        system_python = tmp_path / "python3.12"
+        system_python.touch()
+        system_python.chmod(0o755)
+
+        env = os.environ.copy()
+        env.pop("VIRTUAL_ENV", None)
+        env.pop("CONDA_PREFIX", None)
+
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch("isaaclab.cli.utils.ISAACLAB_ROOT", tmp_path),
+            mock.patch("isaaclab.cli.utils.extract_isaacsim_path", return_value=None),
+            mock.patch("isaaclab.cli.utils.is_windows", return_value=False),
+            mock.patch("isaaclab.cli.utils.shutil.which", return_value=str(system_python)),
+            mock.patch(
+                "isaaclab.cli.utils.subprocess.run",
+                return_value=subprocess.CompletedProcess(args=[], returncode=0, stdout="3.12"),
+            ),
+        ):
+            result = extract_python_exe()
+            assert Path(result) == system_python
+
 
 # ---------------------------------------------------------------------------
 # extract_isaacsim_path
