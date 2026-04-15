@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.17 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed intermittent ``cudaErrorIllegalAddress`` when reading tiled camera outputs after
+  Replicator + Warp reshaping on CUDA. The Isaac RTX renderer now synchronizes the CUDA
+  device after each tiled copy so Torch and downstream env code never race GPU writes.
+
+
 0.5.16 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 
