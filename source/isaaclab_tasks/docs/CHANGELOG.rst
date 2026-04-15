@@ -1,29 +1,6 @@
 Changelog
 ---------
 
-1.5.23 (2026-04-14)
-~~~~~~~~~~~~~~~~~~~
-
-Fixed
-^^^^^
-
-* Fixed Ruff F821 in ``cartpole_camera_env`` by removing erroneous
-  ``TYPE_CHECKING`` assignments (they referenced undefined names) and by
-  dropping ``CartpoleCameraEnvCfg`` from the ``cfg`` type union (that symbol
-  is not defined in ``cartpole_camera_env_cfg``; showcase code uses
-  ``CartpoleRGBCameraEnvCfg`` as the base config type).
-
-
-1.5.22 (2026-04-14)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Updated stack-event utilities to enable optional extensions via
-  ``isaacsim.core.experimental.utils.app.enable_extension`` (non-deprecated Isaac Sim path).
-
-
 1.5.21 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 

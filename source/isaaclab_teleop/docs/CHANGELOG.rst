@@ -1,16 +1,6 @@
 Changelog
 ---------
 
-0.3.5 (2026-04-14)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Updated XR anchor utilities to use non-deprecated Isaac Sim core module paths
-  (``isaacsim.core.experimental.prims`` / ``isaacsim.core.experimental.utils``).
-
-
 0.3.4 (2026-03-17)
 ~~~~~~~~~~~~~~~~~~~
 

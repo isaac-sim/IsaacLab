@@ -41,7 +41,7 @@ import traceback
 import torch
 
 from isaacsim.core.cloner import GridCloner
-from isaacsim.core.rendering_manager import ViewportManager
+from isaacsim.core.utils.viewports import set_camera_view
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -119,7 +119,7 @@ def main():
     # Load kit helper
     sim = SimulationContext(SimulationCfg())
     # Set main camera
-    ViewportManager.set_camera_view("/OmniverseKit_Persp", eye=[0.0, 30.0, 25.0], target=[0.0, 0.0, -2.5])
+    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
 
     # Parameters
     num_envs = args_cli.num_envs

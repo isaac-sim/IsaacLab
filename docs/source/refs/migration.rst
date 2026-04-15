@@ -20,10 +20,10 @@ framework that can be customized by users through the use of app templates.
 Notably, the following commonly used Isaac Sim extensions in Isaac Lab are renamed as follow:
 
 * ``omni.isaac.cloner`` --> ``isaacsim.core.cloner``
-* ``omni.isaac.core.prims`` --> ``isaacsim.core.experimental.prims`` (Isaac Sim 6.0+)
-* ``omni.isaac.core.simulation_context`` --> ``isaacsim.core.experimental.*`` and :mod:`isaaclab.sim`
-* ``omni.isaac.core.utils`` --> ``isaacsim.core.experimental.utils`` (Isaac Sim 6.0+)
-* ``omni.isaac.core.world`` --> ``isaacsim.core.experimental.*`` and :mod:`isaaclab.sim`
+* ``omni.isaac.core.prims`` --> ``isaacsim.core.prims``
+* ``omni.isaac.core.simulation_context`` --> ``isaacsim.core.api.simulation_context``
+* ``omni.isaac.core.utils`` --> ``isaacsim.core.utils``
+* ``omni.isaac.core.world`` --> ``isaacsim.core.api.world``
 * ``omni.isaac.kit.SimulationApp`` --> ``isaacsim.SimulationApp``
 * ``omni.isaac.ui`` --> ``isaacsim.gui.components``
 
