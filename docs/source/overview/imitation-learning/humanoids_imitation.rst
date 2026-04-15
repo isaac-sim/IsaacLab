@@ -563,7 +563,7 @@ To generate the locomanipulation dataset, use the following command:
    ./isaaclab.sh -p \
        scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
        --device cpu \
-       --kit_args="--enable isaacsim.replicator.mobility_gen" \
+       --kit_args="--enable isaacsim.replicator.experimental.mobility_gen" \
        --task="Isaac-G1-SteeringWheel-Locomanipulation" \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
        --num_runs 1 \
@@ -736,7 +736,7 @@ Download the files and place them under ``<PATH_TO_USD_ASSET>``, then run the fo
 
    ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
        --device cpu \
-       --kit_args="--enable isaacsim.replicator.mobility_gen" \
+       --kit_args="--enable isaacsim.replicator.experimental.mobility_gen" \
        --task="Isaac-G1-SteeringWheel-Locomanipulation" \
        --dataset <DATASET_FOLDER>/dataset_annotated_g1_locomanip.hdf5 \
        --num_runs 1 \

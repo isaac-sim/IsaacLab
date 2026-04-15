@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+0.5.19 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Exposed ``SimulationManager`` as a public alias of :class:`~isaaclab_physx.physics.PhysxManager`
+  in :mod:`isaaclab_physx.physics` so Isaac Lab code can import the PhysX simulation manager
+  without depending on ``isaacsim.core.simulation_manager``.
+
+Changed
+^^^^^^^
+
+* Migrated the PhysX scene data provider and PhysX asset micro-benchmarks to use
+  :mod:`isaaclab_physx.physics` for ``SimulationManager``.
+
+
+0.5.18 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed intermittent ``cudaErrorIllegalAddress`` when reading tiled camera outputs after
+  Replicator + Warp reshaping on CUDA. The Isaac RTX renderer now synchronizes the CUDA
+  device after each tiled copy so Torch and downstream env code never race GPU writes.
+
+
+0.5.17 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated optional-extension enablement and Kit perspective capture helpers to use non-deprecated
+  Isaac Sim module paths (``isaacsim.core.experimental.utils.app`` and ``isaacsim.core.rendering_manager``).
+
+
 0.5.16 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 

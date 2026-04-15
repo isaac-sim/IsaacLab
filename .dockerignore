@@ -22,8 +22,8 @@ recordings/
 # ignore __pycache__
 **/__pycache__/
 **/*.egg-info/
-# ignore isaac sim symlink
-_isaac_sim?
+# ignore isaac sim symlink (host absolute targets must not replace image ln -sf)
+_isaac_sim
 # Docker history
 docker/.isaac-lab-docker-history
 # ignore uv environment

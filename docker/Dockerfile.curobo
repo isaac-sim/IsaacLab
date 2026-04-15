@@ -159,11 +159,11 @@ ENV LD_LIBRARY_PATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_p
 
 # HACK: nvidia-srl-usd-to-urdf was previously bundled in the Isaac Sim image but has
 # been removed. Install with --no-deps to avoid lxml<5 conflict with dex-retargeting.
-# Then symlink nvidia.srl into the ml_archive nvidia namespace so Python can find it
-# (the deprecated ml_archive prebundle shadows site-packages for the nvidia namespace).
+# Then symlink nvidia.srl into the packaged ml_archive extension namespace so Python can find it
+# (the ml_archive prebundle may shadow site-packages for the nvidia namespace).
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-deps nvidia-srl-usd-to-urdf \
     && ln -s ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/nvidia/srl \
-       ${ISAACSIM_ROOT_PATH}/extsDeprecated/omni.isaac.ml_archive/pip_prebundle/nvidia/srl
+       ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/nvidia/srl
 
 # Install cuRobo from source (pinned commit); needs CUDA env and Torch
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
@@ -186,6 +186,10 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
 
 # copy the rest of the files
 COPY ../ ${ISAACLAB_PATH}/
+
+# Re-apply after COPY: final context copy can bring a host `_isaac_sim` with absolute paths;
+# the image must always point at the container Isaac Sim root.
+RUN rm -f "${ISAACLAB_PATH}/_isaac_sim" && ln -s "${ISAACSIM_ROOT_PATH}" "${ISAACLAB_PATH}/_isaac_sim"
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run

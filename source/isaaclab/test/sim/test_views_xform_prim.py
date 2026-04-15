@@ -16,7 +16,7 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 
 try:
-    from isaacsim.core.prims import XFormPrim as _IsaacSimXformPrimView
+    from isaacsim.core.experimental.prims import XformPrim as _IsaacSimXformPrimView
 except (ModuleNotFoundError, ImportError):
     _IsaacSimXformPrimView = None
 

@@ -1,6 +1,56 @@
 Changelog
 ---------
 
+4.6.5 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* During :func:`~isaaclab.cli.commands.install.command_install`, detect when the first
+  ``torch`` on ``sys.path`` would come from an ``extsDeprecated`` extension prebundle
+  (for example ``omni.isaac.ml_archive``) and run ``pip uninstall`` on ``torch``,
+  ``torchvision``, and ``torchaudio`` before installing pinned CUDA wheels.
+
+
+4.6.4 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated cross-backend asset interface tests to import ``SimulationManager`` from
+  :mod:`isaaclab_physx.physics` instead of ``isaacsim.core.simulation_manager``.
+
+
+4.6.3 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Docker images shipping a host ``_isaac_sim`` symlink (absolute paths) by correcting
+  ``.dockerignore`` (``_isaac_sim?`` did not exclude ``_isaac_sim``) and re-creating
+  ``_isaac_sim`` after the final ``COPY`` into ``Dockerfile.base`` and ``Dockerfile.curobo``.
+
+
+4.6.2 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Stopped registering deprecated Isaac Sim extension search paths in Isaac Lab Kit experiences and
+  switched explicit Isaac Sim extension dependencies to non-deprecated ``isaacsim.core.experimental.*``,
+  ``isaacsim.robot.experimental.wheeled_robots``, ``isaacsim.robot.wheeled_robots.nodes``, and
+  ``isaacsim.sensors.experimental.*`` equivalents.
+* Migrated remaining Isaac Lab imports off deprecated Isaac Sim core utility/prim Python module paths
+  to their ``isaacsim.core.experimental.*`` replacements.
+* Retired several ``source/isaaclab/test/deps/isaacsim`` standalone reproducers that depended on
+  deprecated Isaac Sim core extensions; use :mod:`isaaclab.sim` and ``isaacsim.core.experimental.*``
+  for similar debugging workflows.
+
+
 4.6.1 (2026-04-14)
 ~~~~~~~~~~~~~~~~~~
 

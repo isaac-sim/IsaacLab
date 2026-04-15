@@ -307,6 +307,15 @@ class IsaacRtxRenderer(BaseRenderer):
                 device=sensor.device,
             )
 
+            # Replicator + Warp populate GPU buffers asynchronously; newer RTX stacks can
+            # overlap with subsequent Torch ops (reshape output, clipping, or env code
+            # reading :attr:`Camera.data`) and surface as cudaErrorIllegalAddress.
+            dev = torch.device(sensor.device)
+            if dev.type == "cuda":
+                cuda_idx = dev.index if dev.index is not None else torch.cuda.current_device()
+                with torch.cuda.device(cuda_idx):
+                    torch.cuda.synchronize()
+
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in cfg.data_types:
                 output_data["rgb"] = output_data["rgba"][..., :3]

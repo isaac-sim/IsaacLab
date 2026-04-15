@@ -77,6 +77,54 @@ def _install_system_deps() -> None:
             run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
 
+def _torch_first_on_sys_path_is_exts_deprecated(python_exe: str, *, env: dict[str, str]) -> bool:
+    """Return True when the first ``torch`` directory on ``sys.path`` lies under ``extsDeprecated``.
+
+    Does not import ``torch`` (that can fail on missing ``libcudnn`` while the deprecated
+    ``omni.isaac.ml_archive`` prebundle still appears earlier on ``sys.path`` than
+    ``site-packages``).
+    """
+    probe = """import os, sys
+for p in sys.path:
+    if not p:
+        continue
+    if os.path.isfile(os.path.join(p, "torch", "__init__.py")):
+        norm = os.path.normpath(p)
+        sys.exit(1 if "extsDeprecated" in norm else 0)
+sys.exit(0)
+"""
+    result = run_command(
+        [python_exe, "-c", probe],
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 1
+
+
+def _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path(
+    python_exe: str,
+    pip_cmd: list[str],
+    using_uv: bool,
+    *,
+    probe_env: dict[str, str],
+) -> None:
+    """Uninstall pip torch stack when ``sys.path`` would load ``torch`` from ``extsDeprecated`` first."""
+    if not _torch_first_on_sys_path_is_exts_deprecated(python_exe, env=probe_env):
+        return
+    print_info(
+        "The first ``torch`` on ``sys.path`` is under ``extsDeprecated`` (e.g. "
+        "``omni.isaac.ml_archive`` pip prebundle). Uninstalling pip "
+        "``torch``/``torchvision``/``torchaudio`` before continuing."
+    )
+    uninstall_flags = ["-y"] if not using_uv else []
+    run_command(
+        pip_cmd + ["uninstall"] + uninstall_flags + ["torch", "torchvision", "torchaudio"],
+        check=False,
+    )
+
+
 def _ensure_cuda_torch() -> None:
     """Ensure correct PyTorch and CUDA versions are installed."""
     python_exe = extract_python_exe()
@@ -353,6 +401,7 @@ def _repoint_prebundle_packages() -> None:
         return
 
     prebundle_dirs = list(isaacsim_path.rglob("pip_prebundle"))
+
     if not prebundle_dirs:
         print_debug("No pip_prebundle directories found under Isaac Sim.")
         return
@@ -366,6 +415,17 @@ def _repoint_prebundle_packages() -> None:
             if not venv_pkg.exists():
                 continue
             if not prebundled.exists() and not prebundled.is_symlink():
+                continue
+
+            # The 'nvidia' directory is a Python namespace package shared across many
+            # distributions (nvidia-cudnn-cu12, nvidia-cublas-cu12, nvidia-srl, …).
+            # When using Isaac Sim's built-in Python, site-packages/nvidia only contains
+            # 'srl'; replacing the whole prebundle nvidia/ with that symlink strips away
+            # the CUDA shared libraries (libcudnn.so.9, etc.) that torch needs.
+            # Only repoint the nvidia namespace when the target actually provides the
+            # CUDA subpackages (cudnn is the minimal required indicator).
+            if pkg_name == "nvidia" and not (venv_pkg / "cudnn").exists():
+                print_debug(f"Skipping repoint of {prebundled}: {venv_pkg} lacks CUDA subpackages (cudnn missing).")
                 continue
 
             try:
@@ -528,6 +588,12 @@ def command_install(install_type: str = "all") -> None:
     pip_cmd = get_pip_command(python_exe)
     using_uv = pip_cmd[0] == "uv"
 
+    # Probe with the user's original PYTHONPATH (before pip-time filtering) so we detect
+    # Isaac Sim's setup_python_env.sh ordering that prefers extsDeprecated/ml_archive.
+    probe_env = {**os.environ}
+    if saved_pythonpath is not None:
+        probe_env["PYTHONPATH"] = saved_pythonpath
+
     try:
         # Upgrade pip first to avoid compatibility issues (skip when using uv).
         if not using_uv:
@@ -536,6 +602,11 @@ def command_install(install_type: str = "all") -> None:
 
         # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
         run_command(pip_cmd + ["install", "setuptools<82.0.0"])
+
+        # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
+        _maybe_uninstall_torch_if_exts_deprecated_prebundle_first_on_path(
+            python_exe, pip_cmd, using_uv, probe_env=probe_env
+        )
 
         # Install Isaac Sim if requested.
         if install_isaacsim:
