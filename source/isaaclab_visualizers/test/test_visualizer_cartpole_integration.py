@@ -39,6 +39,7 @@ from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
+
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpolePhysicsCfg
@@ -68,9 +69,7 @@ def _assert_no_visualizer_log_issues(caplog: pytest.LogCaptureFixture, *, fail_o
         fail_on_warnings = ASSERT_VISUALIZER_WARNINGS
 
     error_logs = [
-        r
-        for r in caplog.records
-        if r.levelno >= logging.ERROR and _logger_name_matches_visualizer_scope(r.name)
+        r for r in caplog.records if r.levelno >= logging.ERROR and _logger_name_matches_visualizer_scope(r.name)
     ]
     assert not error_logs, "Visualizer-related error logs: " + "; ".join(
         f"{r.name}: {r.getMessage()}" for r in error_logs
@@ -78,9 +77,7 @@ def _assert_no_visualizer_log_issues(caplog: pytest.LogCaptureFixture, *, fail_o
 
     if fail_on_warnings:
         warning_logs = [
-            r
-            for r in caplog.records
-            if r.levelno == logging.WARNING and _logger_name_matches_visualizer_scope(r.name)
+            r for r in caplog.records if r.levelno == logging.WARNING and _logger_name_matches_visualizer_scope(r.name)
         ]
         assert not warning_logs, "Visualizer-related warning logs: " + "; ".join(
             f"{r.name}: {r.getMessage()}" for r in warning_logs
