@@ -11,7 +11,6 @@ Covers all combinations of:
 """
 
 import subprocess
-import sys
 from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
@@ -25,7 +24,6 @@ from isaaclab.cli.commands.install import (
     _repoint_prebundle_packages,
     _torch_first_on_sys_path_is_exts_deprecated,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
