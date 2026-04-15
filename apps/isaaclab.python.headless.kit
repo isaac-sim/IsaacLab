@@ -107,7 +107,7 @@ isaac.startup.ros_bridge_extension = ""
 metricsAssembler.changeListenerEnabled = false
 
 # explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
-app.extensions.excluded = ["omni.kit.pip_archive"]
+app.extensions.excluded = ["omni.kit.pip_archive", "omni.isaac.ml_archive"]
 
 # Extensions
 ###############################
@@ -174,11 +174,9 @@ folders = [
     "${exe-path}/exts",  # kit extensions
     "${exe-path}/extscore",  # kit core extensions
     "${exe-path}/../exts",  # isaac extensions
-    "${exe-path}/../extsDeprecated",  # deprecated isaac extensions
     "${exe-path}/../extscache",  # isaac cache extensions
     "${exe-path}/../extsPhysics",  # isaac physics extensions
     "${exe-path}/../isaacsim/exts",  # isaac extensions for pip
-    "${exe-path}/../isaacsim/extsDeprecated",  # deprecated isaac extensions
     "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
     "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
     "${app}", # needed to find other app files
@@ -192,10 +190,8 @@ enabled=true # Enable this for DLSS
 # Isaac Sim Extensions #
 ########################
 [dependencies]
-"isaacsim.simulation_app" = {}
-"isaacsim.core.api" = {}
-"isaacsim.core.cloner" = {}
-"isaacsim.core.utils" = {}
+
+
 "isaacsim.core.version" = {}
 
 ########################
