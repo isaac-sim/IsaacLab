@@ -10,7 +10,6 @@ WORKDIR /workspace
 # system deps (needed for sphinx-multiversion + git-based builds)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
-    make \
     && rm -rf /var/lib/apt/lists/*
 
 # install python deps
