@@ -4,6 +4,8 @@ We use [Sphinx](https://www.sphinx-doc.org/en/master/) with the [Book Theme](htt
 
 > **Recommended:** Use the Docker-based build to avoid managing Python dependencies entirely. This is the easiest method on all platforms, especially Windows.
 
+> **Note:** If building natively, we strongly recommend using a Python virtual environment to isolate the required dependencies from your system's global Python environment.
+
 ## Current-Version Documentation
 
 This section describes how to build the documentation for the current version of the project.
