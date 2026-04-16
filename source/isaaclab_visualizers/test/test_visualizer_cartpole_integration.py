@@ -15,10 +15,6 @@ so only those namespaces count (not Omniverse, PhysX, or unrelated warnings).
 
 Set :data:`ASSERT_VISUALIZER_WARNINGS` to ``True`` locally or in CI if you want tests to
 fail on WARNING-level records from those loggers; by default only ERROR+ fails.
-
-For Kit/Newton motion-check debugging, set env ``ISAACLAB_VIZ_CARTPOLE_DEBUG_DIR`` or
-:data:`VIZ_CARTPOLE_DEBUG_OUTPUT_DIR` to a directory path to write
-``viz_<viz>_physics_<phys>_frame_<n>.png`` for the early/late compared frames and ``_frame_delta.png``.
 """
 
 from __future__ import annotations
@@ -31,9 +27,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import contextlib
 import copy
 import logging
-import os
 import socket
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -68,7 +62,7 @@ _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (-4.0, -4.
 
 # Resolution overrides for this test module (cartpole preset defaults: tiled camera 100×100; Kit helper was 320×240).
 _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (600, 600)
-"""Kit: Replicator ``render_product`` (width, height) for viewport RGB used in motion/debug PNGs."""
+"""Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
 _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (600, 600)
 """Newton: ``NewtonVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
@@ -93,28 +87,11 @@ _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD = 50
 _FRAME_MOTION_MIN_DIFFERING_PIXELS = 100
 """Minimum number of such pixels between early and late frames (stale/frozen viz should be near zero)."""
 
-# When True, print differing-pixel stats for the motion check (use ``pytest -s`` to see stdout).
-REPORT_FRAME_MOTION_PIXEL_COUNT = True
-
-# Debug PNGs for the motion check: set to a directory path, or set env ``ISAACLAB_VIZ_CARTPOLE_DEBUG_DIR``.
-# Writes ``viz_<viz>_physics_<phys>_frame_<n>.png`` for the two compared frames (e.g. 2 and 60) and
-# ``viz_<viz>_physics_<phys>_frame_delta.png`` (per-pixel max |ΔR|,|ΔG|,|ΔB|, grayscale 0–255).
-VIZ_CARTPOLE_DEBUG_OUTPUT_DIR: str = ""
-
 _VIS_LOGGER_PREFIXES = (
     "isaaclab.visualizers",
     "isaaclab_visualizers",
     "isaaclab.sim.simulation_context",
 )
-
-
-def _cartpole_debug_output_root() -> Path | None:
-    """Directory to write motion debug PNGs, or None if disabled."""
-    env = os.environ.get("ISAACLAB_VIZ_CARTPOLE_DEBUG_DIR", "").strip()
-    raw = env or (VIZ_CARTPOLE_DEBUG_OUTPUT_DIR or "").strip()
-    if not raw:
-        return None
-    return Path(raw).expanduser().resolve()
 
 
 def _logger_name_matches_visualizer_scope(logger_name: str) -> bool:
@@ -293,67 +270,6 @@ def _frame_rgb_255_space(frame) -> np.ndarray:
     return rgb
 
 
-def _frame_to_uint8_rgb_hwc(frame) -> np.ndarray:
-    """RGB uint8 HxWx3 for PNG export."""
-    rgb = _frame_rgb_255_space(frame)
-    return np.clip(rgb, 0, 255).astype(np.uint8)
-
-
-def _save_cartpole_motion_debug_pngs(
-    viz: str,
-    physics: str,
-    frame_early: object,
-    frame_late: object,
-    *,
-    early_frame_1_based: int,
-    late_frame_1_based: int,
-) -> None:
-    """Write early/late RGB PNGs and grayscale delta under the debug root (same pair as the motion assert)."""
-    root = _cartpole_debug_output_root()
-    if root is None:
-        return
-    root.mkdir(parents=True, exist_ok=True)
-    prefix = f"viz_{viz}_physics_{physics}"
-    rgb_a = _frame_to_uint8_rgb_hwc(frame_early)
-    rgb_b = _frame_to_uint8_rgb_hwc(frame_late)
-    a_f = _frame_rgb_255_space(frame_early)
-    b_f = _frame_rgb_255_space(frame_late)
-    assert a_f.shape == b_f.shape, "Debug save: frame shape mismatch."
-    per_pixel_max = np.max(np.abs(a_f - b_f), axis=-1)
-    delta_u8 = np.clip(per_pixel_max, 0, 255).astype(np.uint8)
-
-    from PIL import Image
-
-    Image.fromarray(rgb_a).save(root / f"{prefix}_frame_{early_frame_1_based}.png")
-    Image.fromarray(rgb_b).save(root / f"{prefix}_frame_{late_frame_1_based}.png")
-    Image.fromarray(delta_u8, mode="L").save(root / f"{prefix}_frame_delta.png")
-    if REPORT_FRAME_MOTION_PIXEL_COUNT:
-        print(
-            f"[cartpole viz motion] wrote debug PNGs to {root} "
-            f"({prefix}_frame_{early_frame_1_based}.png, _frame_{late_frame_1_based}.png, _frame_delta.png)"
-        )
-
-
-def _export_cartpole_motion_debug_pngs_if_enabled(viz: str, physics: str, frames: list) -> None:
-    """Write motion debug PNGs as soon as frames exist (before non-black / motion asserts).
-
-    Ensures outputs like ``viz_newton_physics_newton_*.png`` are produced even when a later
-    assertion fails (e.g. last frame black for one physics backend).
-    """
-    if _cartpole_debug_output_root() is None or not viz or not physics:
-        return
-    if len(frames) <= _MOTION_FRAME_LATE_IDX:
-        return
-    _save_cartpole_motion_debug_pngs(
-        viz,
-        physics,
-        frames[_MOTION_FRAME_EARLY_IDX],
-        frames[_MOTION_FRAME_LATE_IDX],
-        early_frame_1_based=_MOTION_FRAME_EARLY_IDX + 1,
-        late_frame_1_based=_MOTION_FRAME_LATE_IDX + 1,
-    )
-
-
 def _count_significantly_differing_pixels(
     frame_a,
     frame_b,
@@ -380,9 +296,6 @@ def _assert_early_and_late_motion_frames_differ(
 
     Voids/background stay near-identical; we only count pixels that change by at least
     *channel_diff_threshold* on some channel (0–255).
-
-    Debug PNGs are written earlier by :func:`_export_cartpole_motion_debug_pngs_if_enabled` so
-    failed assertions still leave images on disk.
     """
     assert len(frames) >= _VIS_FRAME_TEST_STEPS, (
         f"Need at least {_VIS_FRAME_TEST_STEPS} frames for motion check, got {len(frames)}."
@@ -394,17 +307,6 @@ def _assert_early_and_late_motion_frames_differ(
     n_diff = _count_significantly_differing_pixels(
         frames[i_early], frames[i_late], channel_diff_threshold=channel_diff_threshold
     )
-    if REPORT_FRAME_MOTION_PIXEL_COUNT:
-        rgb = _frame_rgb_255_space(frames[i_early])
-        h, w = int(rgb.shape[0]), int(rgb.shape[1])
-        n_pix = h * w
-        pct = 100.0 * n_diff / n_pix if n_pix else 0.0
-        print(
-            f"[cartpole viz motion] frame[{i_early}] vs frame[{i_late}] "
-            f"(capture #{early_1} vs #{late_1}): "
-            f"{n_diff} pixels exceed per-channel diff >= {channel_diff_threshold:g} "
-            f"(min required {min_differing_pixels}; frame {h}x{w}={n_pix}px, {pct:.4f}% of image)"
-        )
     assert n_diff >= min_differing_pixels, (
         f"Viewport captures #{early_1} and #{late_1} have too few strongly differing pixels "
         f"({n_diff} < {min_differing_pixels}; threshold per channel={channel_diff_threshold} in 0–255 space). "
@@ -441,7 +343,6 @@ def _run_newton_viewer_frame_motion_test(
     for _ in range(_VIS_FRAME_TEST_STEPS):
         step_hook()
         frames.append(viewer.get_frame())
-    _export_cartpole_motion_debug_pngs_if_enabled(viz_kind, physics_kind, frames)
     _assert_non_black_frame_array(frames[-1])
     _assert_early_and_late_motion_frames_differ(frames)
 
@@ -497,7 +398,6 @@ def _run_kit_viewport_frame_motion_test(
             env.step(action=actions)
             rgb_data = annotator.get_data()
             frames.append(_annotator_rgb_to_numpy(rgb_data))
-        _export_cartpole_motion_debug_pngs_if_enabled(viz_kind, physics_kind, frames)
         _assert_non_black_frame_array(frames[-1])
         _assert_early_and_late_motion_frames_differ(frames)
     finally:

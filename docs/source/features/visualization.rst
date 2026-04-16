@@ -217,7 +217,7 @@ Newton Visualizer
 
 - Lightweight OpenGL rendering with low overhead
 - Visualization markers (joints, contacts, springs, COM)
-- Training and rendering pause controls
+- Simulation and rendering pause controls
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 
