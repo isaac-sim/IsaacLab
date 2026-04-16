@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+1.5.21 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced ``resolve_preset_defaults`` with :func:`~isaaclab_tasks.utils.hydra.resolve_presets`
+  which resolves all presets in one pass with CLI selection support.
+
+Added
+^^^^^
+
+* Unknown preset names now raise ``ValueError`` with a grouped listing of all
+  available presets and the config paths they affect.
+
+Fixed
+^^^^^
+
+* Fixed presets inside dict-valued alternatives and ``PresetCfg(default=None)``
+  not being discovered or resolved, causing wrong defaults in deeply nested configs.
+* Unresolvable ``PresetCfg`` (no ``default``, no matching selection) now raises
+  ``ValueError`` instead of silently lingering in the config tree.
+
+
+1.5.20 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Change Franka visuomotor and GR1T2 nut pouring environments to use TiledCamera.
+
+
 1.5.19 (2026-04-06)
 ~~~~~~~~~~~~~~~~~~~
 

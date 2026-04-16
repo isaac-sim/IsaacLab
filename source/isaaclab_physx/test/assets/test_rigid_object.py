@@ -607,6 +607,46 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.isaacsim_ci
+def test_set_material_properties_via_view(num_cubes, device):
+    """Test setting material properties via the PhysX view-level API."""
+    with build_simulation_context(
+        device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
+    ) as sim:
+        sim._app_control_on_stop_handle = None
+        # Generate cubes scene
+        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+
+        # Play sim
+        sim.reset()
+
+        # Get number of shapes
+        max_shapes = cube_object.root_view.max_shapes
+
+        # Generate random material properties: (static_friction, dynamic_friction, restitution)
+        materials = torch.empty(num_cubes, max_shapes, 3, device="cpu").uniform_(0.0, 1.0)
+        # Ensure dynamic friction <= static friction
+        materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])
+
+        # Set material properties via the PhysX view-level API
+        env_ids = torch.arange(num_cubes, dtype=torch.int32)
+        cube_object.root_view.set_material_properties(
+            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32)
+        )
+
+        # Simulate physics
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        # Get material properties from simulation
+        materials_check = wp.to_torch(cube_object.root_view.get_material_properties())
+
+        # Check if material properties are set correctly
+        torch.testing.assert_close(materials_check, materials)
+
+
+@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
 def test_rigid_body_no_friction(num_cubes, device):
     """Test that a rigid object with no friction will maintain it's velocity when sliding across a plane."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:

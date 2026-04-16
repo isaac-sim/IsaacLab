@@ -65,7 +65,7 @@ _build
 /datasets/
 
 # Tests
-tests/
+/tests/
 
 # Docker history
 .isaac-lab-docker-history

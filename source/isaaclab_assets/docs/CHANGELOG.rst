@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.3.2 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Cassie failing to load on Newton by enabling
+  :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
+  in :data:`~isaaclab_assets.robots.cassie.CASSIE_CFG`.
+
+
 0.3.1 (2026-02-17)
 ~~~~~~~~~~~~~~~~~~
 

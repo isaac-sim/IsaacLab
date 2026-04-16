@@ -30,8 +30,8 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6",
-    "mujoco>=3.5",
-    "mujoco-warp>=3.5",
+    "mujoco==3.5.0",
+    "mujoco-warp==3.5.0.2",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
@@ -130,16 +130,13 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.10",
+    python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

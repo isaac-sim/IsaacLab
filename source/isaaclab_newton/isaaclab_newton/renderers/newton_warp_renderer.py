@@ -25,6 +25,7 @@ from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 if TYPE_CHECKING:
     from isaaclab.physics import BaseSceneDataProvider
     from isaaclab.sensors import SensorBase
+    from isaaclab.sensors.camera.camera_data import CameraData
 
 logger = logging.getLogger(__name__)
 
@@ -223,13 +224,17 @@ class NewtonWarpRenderer(BaseRenderer):
             shape_index_image=render_data.outputs.instance_segmentation_image,
         )
 
-    def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
-        """Copy a specific output to the given buffer.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""
-        image_data = render_data.get_output(output_name)
-        if image_data is not None:
-            if image_data.ptr != output_data.data_ptr():
-                wp.copy(wp.from_torch(output_data), image_data)
+    def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
+        """Copy rendered outputs to the camera data buffers.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
+        for output_name in camera_data.output:
+            if output_name == "rgb":
+                continue
+            image_data = render_data.get_output(output_name)
+            if image_data is not None:
+                output_data = camera_data.output[output_name]
+                if image_data.ptr != output_data.data_ptr():
+                    wp.copy(wp.from_torch(output_data), image_data)
 
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.

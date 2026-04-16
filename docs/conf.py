@@ -209,6 +209,10 @@ autodoc_mock_imports = [
     "mpl_toolkits",
     "isaacteleop",
     "scipy",
+    "hydra",
+    "hydra.core",
+    "hydra.core.config_store",
+    "omegaconf",
 ]
 
 # List of zero or more Sphinx-specific warning categories to be squelched (i.e.,

@@ -18,32 +18,22 @@ if TYPE_CHECKING:
 
 
 class BaseImu(SensorBase):
-    """The Inertia Measurement Unit (IMU) sensor.
+    """The Inertial Measurement Unit (IMU) sensor.
 
-    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame
-    linear acceleration and angular velocity, along with world-frame pose and body-frame linear and angular
-    accelerations/velocities.
+    This sensor models a real IMU that measures angular velocity (gyroscope) and
+    linear acceleration (accelerometer) in the sensor's body frame. Unlike the PVA
+    sensor, it does not provide pose, linear velocity, angular acceleration, or
+    projected gravity.
 
-    If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.
-    The fixed transform from that ancestor to the target prim is computed once during initialization and
-    composed with the configured sensor offset.
-
-    .. note::
-
-        We are computing the accelerations using numerical differentiation from the velocities. Consequently, the
-        IMU sensor accuracy depends on the chosen phsyx timestep. For a sufficient accuracy, we recommend to keep the
-        timestep at least as 200Hz.
+    The sensor can be attached to any prim path with a rigid ancestor in its tree.
+    If the provided path is not a rigid body, the closest rigid-body ancestor is used
+    for simulation queries. The fixed transform from that ancestor to the target prim
+    is computed once during initialization and composed with the configured sensor offset.
 
     .. note::
 
-        The user can configure the sensor offset in the configuration file. The offset is applied relative to the
-        rigid source prim. If the target prim is not a rigid body, the offset is composed with the fixed transform
-        from the rigid ancestor to the target prim. The offset is applied in the body frame of the rigid source prim.
-        The offset is defined as a position vector and a quaternion rotation, which
-        are applied in the order: position, then rotation. The position is applied as a translation
-        in the body frame of the rigid source prim, and the rotation is applied as a rotation
-        in the body frame of the rigid source prim.
-
+        The accuracy of the acceleration readings depends on the physics backend and timestep.
+        For sufficient accuracy, we recommend keeping the timestep at least 200 Hz.
     """
 
     cfg: ImuCfg
@@ -53,12 +43,11 @@ class BaseImu(SensorBase):
     """The name of the backend for the IMU sensor."""
 
     def __init__(self, cfg: ImuCfg):
-        """Initializes the Imu sensor.
+        """Initializes the IMU sensor.
 
         Args:
             cfg: The configuration parameters.
         """
-        # initialize base class
         super().__init__(cfg)
 
     """
