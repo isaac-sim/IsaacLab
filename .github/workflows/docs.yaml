@@ -35,9 +35,7 @@ jobs:
         REPO_NAME: ${{ secrets.REPO_NAME }}
       # develop, main, release/ trigger multi-version build, then deployment to GitHub Pages
       # all others - just the current docs without deployment
-      # if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')) }}"
-      # always for debugging
-      if: "true"
+      if: "${{ github.repository == env.REPO_NAME && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/')) }}"
       run: echo "defined=true" >> "$GITHUB_OUTPUT"; echo "Docs will be built multi-version and deployed"
 
   build-latest-docs:
