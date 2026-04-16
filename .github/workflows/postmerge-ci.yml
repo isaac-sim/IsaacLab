@@ -25,7 +25,7 @@ env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   # On merge to main defaults will point to "nvcr.io/nvidia/isaac-sim:6.0.0"
   ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim' # ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSIONS_STRING: 'latest-release-6-0' # ${{ vars.ISAACSIM_BASE_VERSIONS_STRING || '6.0.0' }}
+  ISAACSIM_BASE_VERSIONS_STRING: 'latest-develop@sha256:f085fb5b6899511bb19abdf18121bfc469901334aefb029d0def56d4fef79c58' # Pinned to the Apr 8 nightly digest that last passed CI, while latest-develop is broken. TODO: Revert to 'latest-develop' once the nightly is fixed. # ${{ vars.ISAACSIM_BASE_VERSIONS_STRING || '6.0.0' }}
   ISAACLAB_IMAGE_NAME: ${{ vars.ISAACLAB_IMAGE_NAME || 'isaac-lab-base' }}
 
 jobs:
