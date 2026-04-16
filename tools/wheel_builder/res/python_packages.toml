@@ -51,7 +51,7 @@ pyproject.dependencies.all = [
     # generic
     "numpy>=2",
     "torch>=2.10",
-    "torchvision>=0.0.25.0",  # ensure compatibility with torch 2.10
+    "torchvision>=0.25.0",  # ensure compatibility with torch 2.10
     "protobuf>=4.25.8,!=5.26.0",
     # configuration management
     "hydra-core",
