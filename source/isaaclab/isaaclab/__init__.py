@@ -10,12 +10,12 @@ import sys
 
 
 def _deprioritize_prebundle_paths():
-    """Move Isaac Sim ``pip_prebundle`` directories to the end of ``sys.path``.
+    """Move **all** Isaac Sim ``pip_prebundle`` directories to the end of ``sys.path``.
 
     Isaac Sim's ``setup_python_env.sh`` injects ``pip_prebundle`` directories
-    (e.g. ``omni.isaac.ml_archive/pip_prebundle``) onto ``PYTHONPATH``.  These
-    contain older copies of packages like torch, warp, and nvidia-cudnn that
-    shadow the versions installed by Isaac Lab, causing CUDA runtime errors.
+    onto ``PYTHONPATH``.  These contain older copies of packages like torch,
+    warp, and nvidia-cudnn that shadow the versions installed by Isaac Lab,
+    causing CUDA runtime errors.
 
     Rather than removing these paths entirely (which would break packages like
     ``sympy`` that only exist in the prebundle), this function moves them to
@@ -25,21 +25,16 @@ def _deprioritize_prebundle_paths():
     The ``PYTHONPATH`` environment variable is also rewritten so that child
     processes inherit the corrected ordering.
     """
-    # Extensions whose prebundled packages conflict with Isaac Lab deps.
-    _CONFLICTING_EXTS = (
-        "omni.isaac.ml_archive",
-        "isaacsim.pip.newton",
-    )
 
-    def _is_conflicting(path: str) -> bool:
+    def _is_prebundle(path: str) -> bool:
         norm = path.replace("\\", "/").lower()
-        return "pip_prebundle" in norm and any(ext.lower() in norm for ext in _CONFLICTING_EXTS)
+        return "pip_prebundle" in norm
 
-    # Partition: keep non-conflicting in place, collect conflicting.
+    # Partition: keep non-prebundle in place, collect prebundle.
     clean = []
     demoted = []
     for p in sys.path:
-        if _is_conflicting(p):
+        if _is_prebundle(p):
             demoted.append(p)
         else:
             clean.append(p)
@@ -56,7 +51,7 @@ def _deprioritize_prebundle_paths():
         env_clean = []
         env_demoted = []
         for p in parts:
-            if _is_conflicting(p):
+            if _is_prebundle(p):
                 env_demoted.append(p)
             else:
                 env_clean.append(p)
