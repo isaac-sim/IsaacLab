@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+4.6.2 (2026-04-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Introduced :class:`~isaaclab.renderers.render_context.RenderContext` on
+  :class:`~isaaclab.sim.simulation_context.SimulationContext` so all
+  :class:`~isaaclab.sensors.camera.Camera` sensors with compatible
+  :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` share one
+  :class:`~isaaclab.renderers.base_renderer.BaseRenderer` instance for the simulation
+  lifetime. :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage` runs once.
+  For Newton and OVRTX backends, :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`
+  is invoked at most once per physics step (see :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_physics_step_count`).
+  Mixing incompatible per-camera ``renderer_cfg`` in the same simulation raises :class:`RuntimeError`.
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_physics_step_count` and
+  :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context`.
+
 4.6.1 (2026-04-14)
 ~~~~~~~~~~~~~~~~~~
 

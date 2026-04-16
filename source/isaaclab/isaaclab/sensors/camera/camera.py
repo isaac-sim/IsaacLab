@@ -19,7 +19,7 @@ from pxr import Sdf, UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer, Renderer
+from isaaclab.renderers import BaseRenderer
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils import has_kit, to_camel_case
 from isaaclab.utils.math import (
@@ -390,7 +390,8 @@ class Camera(SensorBase):
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
-        This function creates a :class:`~isaaclab.renderers.Renderer` from the configured
+        This function obtains the simulation-scoped :class:`~isaaclab.renderers.base_renderer.BaseRenderer`
+        from :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context` using the configured
         :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` and delegates all render-product
         and annotator management to it. It also initializes the internal buffers to store the data.
 
@@ -409,12 +410,15 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
 
-        self._renderer = Renderer(self.cfg.renderer_cfg)
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is None:
+            raise RuntimeError("SimulationContext is not initialized.")
+        self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self._renderer).__name__)
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
-        self._renderer.prepare_stage(self.stage, self._num_envs)
+        sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
 
         # Create a view for the sensor with Fabric enabled for fast pose queries.
         # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
@@ -459,7 +463,9 @@ class Camera(SensorBase):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
-        self._renderer.update_transforms()
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.render_context.maybe_update_transforms(sim_ctx.get_physics_step_count())
         self._renderer.render(self._render_data)
 
         self._renderer.read_output(self._render_data, self._data)
@@ -630,6 +636,10 @@ class Camera(SensorBase):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
+        if self._renderer is not None and self._render_data is not None:
+            self._renderer.cleanup(self._render_data)
+        self._render_data = None
+        self._renderer = None
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them

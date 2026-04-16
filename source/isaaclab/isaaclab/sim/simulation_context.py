@@ -29,6 +29,7 @@ from isaaclab.physics.scene_data_requirements import (
 )
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
+from isaaclab.renderers.render_context import RenderContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from .simulation_cfg import SimulationCfg
@@ -188,6 +189,9 @@ class SimulationContext:
 
         # Monotonic physics-step counter used by camera sensors for
         self._physics_step_count: int = 0
+
+        # Shared renderer for all Camera sensors (compatible renderer_cfg only).
+        self._render_context = RenderContext()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -351,6 +355,15 @@ class SimulationContext:
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""
         return self.physics_manager.get_physics_dt()
+
+    def get_physics_step_count(self) -> int:
+        """Return the monotonic physics step counter (incremented each :meth:`step`)."""
+        return self._physics_step_count
+
+    @property
+    def render_context(self) -> RenderContext:
+        """Shared :class:`~isaaclab.renderers.render_context.RenderContext` for camera renderers."""
+        return self._render_context
 
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configs for requested types.
