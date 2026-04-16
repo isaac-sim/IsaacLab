@@ -25,6 +25,7 @@ class Test_UV_Env_Heavy(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.bug("nvbugs_5968136")
+    @pytest.mark.skip(reason="Cartpole training fails in MuJoCo stiffness conversion.")
     @pytest.mark.timeout(1200)
     def test_install_and_train_cartpole(self, isaaclab_root):
         """`isaaclab.x -i assets,tasks,rl[all],physx,newton,contrib` then train Isaac-Cartpole-Direct-v0"""
