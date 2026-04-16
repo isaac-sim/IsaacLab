@@ -7,10 +7,11 @@ Interacting with a deformable object
 .. currentmodule:: isaaclab
 
 While deformable objects sometimes refer to a broader class of objects, such as cloths, fluids and soft bodies,
-in PhysX, deformable objects syntactically correspond to soft bodies. Unlike rigid objects, soft bodies can deform
-under external forces and collisions.
+in PhysX, deformable objects are represented as either surface or volume deformables. Unlike rigid objects, soft bodies can deform
+under external forces and collisions. In this tutorial, we will focus on volume deformable bodies. For an example of surface
+deformables (cloth), see the deformable demo at ``scripts/demos/deformables.py``.
 
-Soft bodies are simulated using Finite Element Method (FEM) in PhysX. The soft body comprises of two tetrahedral
+Soft bodies are simulated using Finite Element Method (FEM) in PhysX. The volume deformable comprises of two tetrahedral
 meshes -- a simulation mesh and a collision mesh. The simulation mesh is used to simulate the deformations of
 the soft body, while the collision mesh is used to detect collisions with other objects in the scene.
 For more details, please check the `PhysX documentation`_.
@@ -30,7 +31,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 61-73, 75-77, 102-110, 112-115, 117-118, 123-130, 132-133, 139-140
+      :emphasize-lines: 68-82, 110-126, 131-139, 141-149
       :linenos:
 
 
@@ -62,7 +63,7 @@ an instance of the :class:`assets.DeformableObject` class by passing the configu
 
 .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
-   :start-at: # Create separate groups called "Origin1", "Origin2", "Origin3"
+   :start-at: # Create separate groups called "Origin0", "Origin1", ...
    :end-at: cube_object = DeformableObject(cfg=cfg)
 
 Running the simulation loop
@@ -149,7 +150,7 @@ the average position of all the nodes in the mesh.
 .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: # update buffers
-   :end-at: print(f"Root position (in world): {wp.to_torch(cube_object.data.root_pos_w)[:, :3]}")
+   :end-at: cube_object.data.root_pos_w
 
 
 The Code Execution
@@ -159,7 +160,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py
+   ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
 
 
 This should open a stage with a ground plane, lights, and several green cubes. Two of the four cubes must be dropping
@@ -174,7 +175,7 @@ To stop the simulation, you can either close the window, or press ``Ctrl+C`` in 
 
 This tutorial showed how to spawn deformable objects and wrap them in a :class:`DeformableObject` class to initialize their
 physics handles which allows setting and obtaining their state. We also saw how to apply kinematic commands to the
-deformable object to move the mesh nodes in a controlled manner. In the next tutorial, we will see how to create
+deformable object to move the mesh nodes in a controlled manner. An advanced demo of deformable objects, including surface deformables and loading USD assets and applying deformable material on them, can be found in ``scripts/demos/deformables.py``. In the next tutorial, we will see how to create
 a scene using the :class:`InteractiveScene` class.
 
 .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html

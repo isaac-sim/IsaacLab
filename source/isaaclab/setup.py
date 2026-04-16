@@ -29,9 +29,9 @@ INSTALL_REQUIRES = [
     "gymnasium==1.2.1",
     # procedural-generation
     "trimesh",
-    "pyglet>=2.1.6",
-    "mujoco>=3.5",
-    "mujoco-warp>=3.5",
+    "pyglet>=2.1.6,<3",
+    "mujoco==3.5.0",
+    "mujoco-warp==3.5.0.2",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
