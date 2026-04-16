@@ -47,11 +47,9 @@ class Test_UV_Env_Smoke(UV_Mixin):
             assert result.returncode == 0, f"isaaclab -i assets failed:\n{result.stdout}\n{result.stderr}"
 
             # import isaaclab_assets
-            result = self.run_in_uv_env(
-                ["python", "-c", "import isaaclab_assets; print(isaaclab_assets.__version__)"]
-            )
+            result = self.run_in_uv_env(["python", "-c", "import isaaclab_assets; print(isaaclab_assets.__version__)"])
             assert result.returncode == 0, f"import isaaclab_assets failed:\n{result.stdout}\n{result.stderr}"
-            
+
         finally:
             self.destroy_uv_env()
 
@@ -68,10 +66,8 @@ class Test_UV_Env_Smoke(UV_Mixin):
             assert result.returncode == 0, f"isaaclab -i newton failed:\n{result.stdout}\n{result.stderr}"
 
             # import isaaclab_physx
-            result = self.run_in_uv_env(
-                ["python", "-c", "import isaaclab_physx; print(isaaclab_physx.__version__)"]
-            )
+            result = self.run_in_uv_env(["python", "-c", "import isaaclab_physx; print(isaaclab_physx.__version__)"])
             assert result.returncode == 0, f"import isaaclab_physx failed:\n{result.stdout}\n{result.stderr}"
-            
+
         finally:
             self.destroy_uv_env()
