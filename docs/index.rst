@@ -135,7 +135,6 @@ Table of Contents
    source/features/ray
    source/features/reproducibility
    source/features/visualization
-   source/features/record_video_configuration
 
 
 .. toctree::
