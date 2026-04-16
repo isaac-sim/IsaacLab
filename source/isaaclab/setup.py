@@ -30,7 +30,7 @@ INSTALL_REQUIRES = [
     # procedural-generation
     "trimesh",
     "pyglet>=2.1.6",
-    "mujoco>=3.5",
+    "mujoco==3.5.0",
     "mujoco-warp>=3.5",
     # image processing
     "transformers==4.57.6",
