@@ -55,7 +55,7 @@ class DeformableObject(AssetBase):
     The state of a deformable object comprises of its nodal positions and velocities, and not the object's root
     position and orientation. The nodal positions and velocities are in the simulation frame.
 
-    Soft bodies can be `partially kinematic`_, where some nodes are driven by kinematic targets, and the rest are
+    Volume deformables can be `partially kinematic`_, where some nodes are driven by kinematic targets, and the rest are
     simulated. The kinematic targets are the desired positions of the nodes, and the simulation drives the nodes
     towards these targets. This is useful for partial control of the object, such as moving a stuffed animal's
     head while the rest of the body is simulated.
@@ -80,6 +80,8 @@ class DeformableObject(AssetBase):
         super().__init__(cfg)
         # Register custom vec6f type for nodal state validation.
         self._DTYPE_TO_TORCH_TRAILING_DIMS = {**self._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
+        # initialize deformable type to None, should be set to either surface or volume on initialization
+        self._deformable_type: str | None = None
 
     """
     Properties
@@ -102,7 +104,7 @@ class DeformableObject(AssetBase):
         return 1
 
     @property
-    def root_view(self) -> physx.SoftBodyView:
+    def root_view(self) -> physx.DeformableBodyView:
         """Deformable body view for the asset.
 
         .. note::
@@ -111,7 +113,7 @@ class DeformableObject(AssetBase):
         return self._root_physx_view
 
     @property
-    def root_physx_view(self) -> physx.SoftBodyView:
+    def root_physx_view(self) -> physx.DeformableBodyView:
         """Deprecated property. Please use :attr:`root_view` instead."""
         logger.warning(
             "The `root_physx_view` property will be deprecated in a future release. Please use `root_view` instead."
@@ -119,7 +121,7 @@ class DeformableObject(AssetBase):
         return self.root_view
 
     @property
-    def material_physx_view(self) -> physx.SoftBodyMaterialView | None:
+    def material_physx_view(self) -> physx.DeformableMaterialView | None:
         """Deformable material view for the asset (PhysX).
 
         This view is optional and may not be available if the material is not bound to the deformable body.
@@ -133,22 +135,22 @@ class DeformableObject(AssetBase):
     @property
     def max_sim_elements_per_body(self) -> int:
         """The maximum number of simulation mesh elements per deformable body."""
-        return self.root_view.max_sim_elements_per_body
+        return self.root_view.max_simulation_elements_per_body
 
     @property
     def max_collision_elements_per_body(self) -> int:
         """The maximum number of collision mesh elements per deformable body."""
-        return self.root_view.max_elements_per_body
+        return self.root_view.max_collision_elements_per_body
 
     @property
     def max_sim_vertices_per_body(self) -> int:
         """The maximum number of simulation mesh vertices per deformable body."""
-        return self.root_view.max_sim_vertices_per_body
+        return self.root_view.max_simulation_nodes_per_body
 
     @property
     def max_collision_vertices_per_body(self) -> int:
         """The maximum number of collision mesh vertices per deformable body."""
-        return self.root_view.max_vertices_per_body
+        return self.root_view.max_collision_nodes_per_body
 
     """
     Operations.
@@ -264,7 +266,7 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_pos_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_sim_nodal_positions(self._data._nodal_pos_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_positions(self._data._nodal_pos_w.data.view(wp.float32), indices=env_ids)
 
     def write_nodal_pos_to_sim_mask(
         self,
@@ -332,7 +334,7 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_vel_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_sim_nodal_velocities(self._data._nodal_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_velocities(self._data._nodal_vel_w.data.view(wp.float32), indices=env_ids)
 
     def write_nodal_velocity_to_sim_mask(
         self,
@@ -377,6 +379,9 @@ class DeformableObject(AssetBase):
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
         """
+        if self._deformable_type != "volume":
+            raise ValueError("Kinematic targets can only be set for volume deformable bodies.")
+
         # resolve env_ids
         env_ids = self._resolve_env_ids(env_ids)
         if full_data:
@@ -401,7 +406,9 @@ class DeformableObject(AssetBase):
             device=self.device,
         )
         # set into simulation
-        self.root_view.set_sim_kinematic_targets(self._data.nodal_kinematic_target.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_kinematic_targets(
+            self._data.nodal_kinematic_target.view(wp.float32), indices=env_ids
+        )
 
     def write_nodal_kinematic_target_to_sim_mask(
         self,
@@ -541,13 +548,13 @@ class DeformableObject(AssetBase):
         # find deformable root prims
         root_prims = sim_utils.get_all_matching_child_prims(
             template_prim_path,
-            predicate=lambda prim: "PhysxDeformableBodyAPI" in prim.GetAppliedSchemas(),
+            predicate=lambda prim: "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas(),
             traverse_instance_prims=False,
         )
         if len(root_prims) == 0:
             raise RuntimeError(
                 f"Failed to find a deformable body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'PhysxDeformableBodyAPI' applied."
+                " Please ensure that the prim has 'OmniPhysicsDeformableBodyAPI' applied."
             )
         if len(root_prims) > 1:
             raise RuntimeError(
@@ -571,27 +578,71 @@ class DeformableObject(AssetBase):
             if len(material_paths) > 0:
                 for mat_path in material_paths:
                     mat_prim = root_prim.GetStage().GetPrimAtPath(mat_path)
-                    if "PhysxDeformableBodyMaterialAPI" in mat_prim.GetAppliedSchemas():
+                    if "OmniPhysicsDeformableMaterialAPI" in mat_prim.GetAppliedSchemas():
                         material_prim = mat_prim
+                        # determine deformable material type
+                        if "PhysxSurfaceDeformableMaterialAPI" in mat_prim.GetAppliedSchemas():
+                            self._deformable_type = "surface"
+                        elif "PhysxDeformableMaterialAPI" in mat_prim.GetAppliedSchemas():
+                            self._deformable_type = "volume"
                         break
+
         if material_prim is None:
-            logger.info(
+            logger.warning(
                 f"Failed to find a deformable material binding for '{root_prim.GetPath().pathString}'."
-                " The material properties will be set to default values and are not modifiable at runtime."
-                " If you want to modify the material properties, please ensure that the material is bound"
-                " to the deformable body."
+                " The material properties will be set to default values and are not modifiable "
+                "at runtime. If you want to modify the material properties, please ensure that the material is "
+                "bound to the deformable body."
             )
+
+        # fall back to prim hierarchy heuristic when material type detection was inconclusive
+        if self._deformable_type is None:
+            # volume deformables must have a tetmesh in the hierarchy
+            has_tetmesh = (
+                len(sim_utils.get_all_matching_child_prims(root_prim.GetPath(), lambda p: p.GetTypeName() == "TetMesh"))
+                > 0
+            )
+            if has_tetmesh:
+                self._deformable_type = "volume"
+            else:
+                # surface deformables must have a mesh in the hierarchy
+                has_mesh = (
+                    len(
+                        sim_utils.get_all_matching_child_prims(root_prim.GetPath(), lambda p: p.GetTypeName() == "Mesh")
+                    )
+                    > 0
+                )
+                if has_mesh:
+                    self._deformable_type = "surface"
 
         # resolve root path back into regex expression
         # -- root prim expression
         root_prim_path = root_prim.GetPath().pathString
         root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
         # -- object view
-        self._root_physx_view = self._physics_sim_view.create_soft_body_view(root_prim_path_expr.replace(".*", "*"))
+        if self._deformable_type == "surface":
+            # surface deformable
+            self._root_physx_view = self._physics_sim_view.create_surface_deformable_body_view(
+                root_prim_path_expr.replace(".*", "*")
+            )
+        elif self._deformable_type == "volume":
+            # volume deformable
+            self._root_physx_view = self._physics_sim_view.create_volume_deformable_body_view(
+                root_prim_path_expr.replace(".*", "*")
+            )
+        else:
+            raise RuntimeError(
+                f"Failed to determine deformable material type for '{root_prim.GetPath().pathString}'."
+                " Please ensure that the material has either 'PhysxSurfaceDeformableMaterialAPI' or "
+                "'PhysxDeformableMaterialAPI' applied, or that a valid tetmesh is found under the root prim."
+            )
 
         # Return if the asset is not found
         if self._root_physx_view._backend is None:
             raise RuntimeError(f"Failed to create deformable body at: {self.cfg.prim_path}. Please check PhysX logs.")
+        # Check validity of deformables in view
+        if not self._root_physx_view.check():
+            logger.warning(f"Deformable body view is not valid for: {self.cfg.prim_path}. Please check PhysX logs.")
 
         # resolve material path back into regex expression
         if material_prim is not None:
@@ -604,7 +655,7 @@ class DeformableObject(AssetBase):
             else:
                 material_prim_path_expr = material_prim_path
             # -- material view
-            self._material_physx_view = self._physics_sim_view.create_soft_body_material_view(
+            self._material_physx_view = self._physics_sim_view.create_deformable_material_view(
                 material_prim_path_expr.replace(".*", "*")
             )
         else:
@@ -641,7 +692,7 @@ class DeformableObject(AssetBase):
         # default state
         # we use the initial nodal positions at spawn time as the default state
         # note: these are all in the simulation frame
-        nodal_positions_raw = self.root_view.get_sim_nodal_positions()  # (N, V, 3) float32
+        nodal_positions_raw = self.root_view.get_simulation_nodal_positions()  # (N, V, 3) float32
         nodal_positions = nodal_positions_raw.view(wp.vec3f).reshape(
             (self.num_instances, self.max_sim_vertices_per_body)
         )
@@ -660,20 +711,24 @@ class DeformableObject(AssetBase):
             device=self.device,
         )
 
-        # kinematic targets — allocate our own buffer and copy from PhysX
-        kinematic_raw = self.root_view.get_sim_kinematic_targets()  # (N, V, 4) float32
-        kinematic_view = kinematic_raw.view(wp.vec4f).reshape((self.num_instances, self.max_sim_vertices_per_body))
-        self._data.nodal_kinematic_target = wp.zeros(
-            (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec4f, device=self.device
-        )
-        wp.copy(self._data.nodal_kinematic_target, kinematic_view)
-        # set all nodes as non-kinematic targets by default (flag = 1.0)
-        wp.launch(
-            set_kinematic_flags_to_one,
-            dim=(self.num_instances * self.max_sim_vertices_per_body,),
-            inputs=[self._data.nodal_kinematic_target.reshape((self.num_instances * self.max_sim_vertices_per_body,))],
-            device=self.device,
-        )
+        # kinematic targets (only for volume deformables, surface deformables do not support kinematic targets)
+        if self._deformable_type == "volume":
+            # kinematic targets — allocate our own buffer and copy from PhysX
+            kinematic_raw = self.root_view.get_simulation_nodal_kinematic_targets()  # (N, V, 4) float32
+            kinematic_view = kinematic_raw.view(wp.vec4f).reshape((self.num_instances, self.max_sim_vertices_per_body))
+            self._data.nodal_kinematic_target = wp.zeros(
+                (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec4f, device=self.device
+            )
+            wp.copy(self._data.nodal_kinematic_target, kinematic_view)
+            # set all nodes as non-kinematic targets by default (flag = 1.0)
+            wp.launch(
+                set_kinematic_flags_to_one,
+                dim=(self.num_instances * self.max_sim_vertices_per_body,),
+                inputs=[
+                    self._data.nodal_kinematic_target.reshape((self.num_instances * self.max_sim_vertices_per_body,))
+                ],
+                device=self.device,
+            )
 
     """
     Internal simulation callbacks.
@@ -692,10 +747,12 @@ class DeformableObject(AssetBase):
                 self.target_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
-        # check where to visualize
-        kinematic_target_torch = wp.to_torch(self.data.nodal_kinematic_target)
-        targets_enabled = kinematic_target_torch[:, :, 3] == 0.0
-        num_enabled = int(torch.sum(targets_enabled).item())
+        # check where to visualize, kinematic targets only supported for volume deformables
+        num_enabled = 0
+        if self._deformable_type == "volume":
+            kinematic_target_torch = wp.to_torch(self.data.nodal_kinematic_target)
+            targets_enabled = kinematic_target_torch[:, :, 3] == 0.0
+            num_enabled = int(torch.sum(targets_enabled).item())
         # get positions if any targets are enabled
         if num_enabled == 0:
             # create a marker below the ground

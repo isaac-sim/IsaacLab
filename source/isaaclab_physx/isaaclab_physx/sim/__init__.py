@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PhysX simulation utilities."""
+"""Sub-package containing simulation-specific functionalities for PhysX backend."""
 
 from isaaclab.utils.module import lazy_export
 

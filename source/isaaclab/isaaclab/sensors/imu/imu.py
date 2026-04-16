@@ -13,6 +13,8 @@ from .base_imu import BaseImu
 from .base_imu_data import BaseImuData
 
 if TYPE_CHECKING:
+    from isaaclab_newton.sensors.imu import Imu as NewtonImu
+    from isaaclab_newton.sensors.imu import ImuData as NewtonImuData
     from isaaclab_physx.sensors.imu import Imu as PhysXImu
     from isaaclab_physx.sensors.imu import ImuData as PhysXImuData
 
@@ -20,8 +22,8 @@ if TYPE_CHECKING:
 class Imu(FactoryBase, BaseImu):
     """Factory for creating IMU sensor instances."""
 
-    data: BaseImuData | PhysXImuData
+    data: BaseImuData | PhysXImuData | NewtonImuData
 
-    def __new__(cls, *args, **kwargs) -> BaseImu | PhysXImu:
+    def __new__(cls, *args, **kwargs) -> BaseImu | PhysXImu | NewtonImu:
         """Create a new instance of an IMU sensor based on the backend."""
         return super().__new__(cls, *args, **kwargs)

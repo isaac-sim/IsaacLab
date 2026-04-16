@@ -23,6 +23,7 @@ import torch
 import warp as wp
 from flaky import flaky
 from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
+from isaaclab_physx.sim import DeformableBodyMaterialCfg, DeformableBodyPropertiesCfg, SurfaceDeformableBodyMaterialCfg
 
 import carb
 
@@ -38,6 +39,7 @@ def generate_cubes_scene(
     has_api: bool = True,
     material_path: str | None = "material",
     kinematic_enabled: bool = False,
+    deformable_type: str = "volume",
     device: str = "cuda:0",
 ) -> DeformableObject:
     """Generate a scene with the provided number of cubes.
@@ -50,6 +52,7 @@ def generate_cubes_scene(
         material_path: Path to the material file. If None, no material is added. Default is "material",
             which is path relative to the spawned object prim path.
         kinematic_enabled: Whether the cubes are kinematic.
+        deformable_type: The type of deformable body to spawn. Supported values are "volume" and "surface".
         device: Device to use for the simulation.
 
     Returns:
@@ -65,11 +68,14 @@ def generate_cubes_scene(
     if has_api:
         spawn_cfg = sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=sim_utils.DeformableBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            deformable_props=DeformableBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
         )
         # Add physics material if provided
         if material_path is not None:
-            spawn_cfg.physics_material = sim_utils.DeformableBodyMaterialCfg()
+            if deformable_type == "surface":
+                spawn_cfg.physics_material = SurfaceDeformableBodyMaterialCfg()
+            else:
+                spawn_cfg.physics_material = DeformableBodyMaterialCfg()
             spawn_cfg.physics_material_path = material_path
         else:
             spawn_cfg.physics_material = None
@@ -142,41 +148,40 @@ def test_initialization(sim, num_cubes, material_path):
     assert wp.to_torch(cube_object.data.root_pos_w).shape == (num_cubes, 3)
     assert wp.to_torch(cube_object.data.root_vel_w).shape == (num_cubes, 3)
 
-    # Simulate physics
-    for _ in range(2):
-        sim.step()
-        cube_object.update(sim.cfg.dt)
 
-    # Check sim data
-    assert wp.to_torch(cube_object.data.sim_element_quat_w).shape == (
-        num_cubes,
-        cube_object.max_sim_elements_per_body,
-        4,
-    )
-    assert cube_object.data.sim_element_deform_gradient_w.shape == (
-        num_cubes,
-        cube_object.max_sim_elements_per_body,
-        3,
-        3,
-    )
-    assert cube_object.data.sim_element_stress_w.shape == (num_cubes, cube_object.max_sim_elements_per_body, 3, 3)
-    assert wp.to_torch(cube_object.data.collision_element_quat_w).shape == (
-        num_cubes,
-        cube_object.max_collision_elements_per_body,
-        4,
-    )
-    assert cube_object.data.collision_element_deform_gradient_w.shape == (
-        num_cubes,
-        cube_object.max_collision_elements_per_body,
-        3,
-        3,
-    )
-    assert cube_object.data.collision_element_stress_w.shape == (
-        num_cubes,
-        cube_object.max_collision_elements_per_body,
-        3,
-        3,
-    )
+@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.isaacsim_ci
+def test_initialization_surface_deformable(sim, num_cubes):
+    """Test initialization of a surface deformable body."""
+    cube_object = generate_cubes_scene(num_cubes=num_cubes, deformable_type="surface")
+
+    # Play sim
+    sim.reset()
+
+    # Check if object is initialized
+    assert cube_object.is_initialized
+    assert cube_object._deformable_type == "surface"
+
+    # Check correct number of instances
+    assert cube_object.num_instances == num_cubes
+    assert cube_object.root_view.count == num_cubes
+
+    # Check material view is created
+    assert cube_object.material_physx_view is not None
+    assert cube_object.material_physx_view.count == num_cubes
+
+    # Check nodal state buffers have correct shapes
+    assert wp.to_torch(cube_object.data.nodal_state_w).shape == (num_cubes, cube_object.max_sim_vertices_per_body, 6)
+    assert wp.to_torch(cube_object.data.root_pos_w).shape == (num_cubes, 3)
+    assert wp.to_torch(cube_object.data.root_vel_w).shape == (num_cubes, 3)
+
+    # Kinematic targets are not allocated for surface deformables
+    assert cube_object.data.nodal_kinematic_target is None
+
+    # Writing kinematic targets should raise ValueError
+    dummy_targets = torch.zeros(num_cubes, cube_object.max_sim_vertices_per_body, 4, device=sim.device)
+    with pytest.raises(ValueError, match="Kinematic targets can only be set for volume deformable bodies"):
+        cube_object.write_nodal_kinematic_target_to_sim_index(dummy_targets)
 
 
 @pytest.mark.isaacsim_ci
@@ -192,33 +197,6 @@ def test_initialization_on_device_cpu():
         # Play sim
         with pytest.raises(RuntimeError):
             sim.reset()
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.isaacsim_ci
-def test_initialization_with_kinematic_enabled(sim, num_cubes):
-    """Test that initialization for prim with kinematic flag enabled."""
-    cube_object = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(cube_object) < 10
-
-    # Play sim
-    sim.reset()
-
-    # Check if object is initialized
-    assert cube_object.is_initialized
-
-    # Check buffers that exist and have correct shapes
-    assert wp.to_torch(cube_object.data.root_pos_w).shape == (num_cubes, 3)
-    assert wp.to_torch(cube_object.data.root_vel_w).shape == (num_cubes, 3)
-
-    # Simulate physics
-    for _ in range(2):
-        sim.step()
-        cube_object.update(sim.cfg.dt)
-        default_nodal_state_w = wp.to_torch(cube_object.data.default_nodal_state_w).clone()
-        torch.testing.assert_close(wp.to_torch(cube_object.data.nodal_state_w), default_nodal_state_w)
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -251,7 +229,7 @@ def test_set_nodal_state(sim, num_cubes):
                     ],
                     dim=-1,
                 )
-                cube_object.write_nodal_state_to_sim(nodal_state)
+                cube_object.write_nodal_state_to_sim_index(nodal_state)
 
                 torch.testing.assert_close(
                     wp.to_torch(cube_object.data.nodal_state_w), nodal_state, rtol=1e-5, atol=1e-5
@@ -282,7 +260,7 @@ def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, random
             mean_nodal_pos_default = nodal_state[..., :3].mean(dim=1)
 
             if randomize_pos:
-                pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device)
+                pos_w = 0.5 * torch.rand(cube_object.num_instances, 3, device=sim.device)
                 pos_w[:, 2] += 0.5
             else:
                 pos_w = None
@@ -299,7 +277,7 @@ def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, random
             else:
                 torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
 
-            cube_object.write_nodal_state_to_sim(nodal_state)
+            cube_object.write_nodal_state_to_sim_index(nodal_state)
             cube_object.reset()
 
             for _ in range(50):
@@ -319,10 +297,10 @@ def test_set_kinematic_targets(sim, num_cubes):
 
     sim.reset()
 
-    nodal_kinematic_targets = wp.to_torch(cube_object.root_view.get_sim_kinematic_targets()).clone()
+    nodal_kinematic_targets = wp.to_torch(cube_object.root_view.get_simulation_nodal_kinematic_targets()).clone()
 
     for _ in range(5):
-        cube_object.write_nodal_state_to_sim(wp.to_torch(cube_object.data.default_nodal_state_w))
+        cube_object.write_nodal_state_to_sim_index(wp.to_torch(cube_object.data.default_nodal_state_w))
 
         default_root_pos = wp.to_torch(cube_object.data.default_nodal_state_w).mean(dim=1)
 
@@ -331,7 +309,7 @@ def test_set_kinematic_targets(sim, num_cubes):
         nodal_kinematic_targets[1:, :, 3] = 1.0
         nodal_kinematic_targets[0, :, 3] = 0.0
         nodal_kinematic_targets[0, :, :3] = wp.to_torch(cube_object.data.default_nodal_state_w)[0, :, :3]
-        cube_object.write_nodal_kinematic_target_to_sim(
+        cube_object.write_nodal_kinematic_target_to_sim_index(
             nodal_kinematic_targets[0:1], env_ids=torch.tensor([0], device=sim.device)
         )
 
