@@ -1,7 +1,7 @@
 .. _features_record_video:
 
 Perspective Video Recording for Training and Benchmarking (``VideoRecorder``)
-============================================================================
+=============================================================================
 
 .. currentmodule:: isaaclab
 
