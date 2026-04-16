@@ -277,6 +277,15 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
+    def after_visualizers_render(cls) -> None:
+        """Hook after visualizers have stepped during :meth:`~isaaclab.sim.SimulationContext.render`.
+
+        Kit/RTX-specific work (e.g. pumping the Omniverse app loop for headless video)
+        belongs in backend overrides. Default is a no-op.
+        """
+        pass
+
+    @classmethod
     def close(cls) -> None:
         """Clean up physics resources.
 

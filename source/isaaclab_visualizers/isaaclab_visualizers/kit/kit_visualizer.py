@@ -11,9 +11,9 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-import carb
 from pxr import UsdGeom
 
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from .kit_visualizer_cfg import KitVisualizerCfg
@@ -111,7 +111,9 @@ class KitVisualizer(BaseVisualizer):
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
-                settings = carb.settings.get_settings()
+                # Keep app pumping for viewport/UI updates only.
+                # Simulation stepping is owned by SimulationContext.
+                settings = get_settings_manager()
                 settings.set_bool("/app/player/playSimulations", False)
                 app.update()
                 settings.set_bool("/app/player/playSimulations", True)
@@ -150,9 +152,9 @@ class KitVisualizer(BaseVisualizer):
     def is_training_paused(self) -> bool:
         """Return whether simulation play flag is paused in Kit settings."""
         try:
-            settings = carb.settings.get_settings()
+            settings = get_settings_manager()
             play_flag = settings.get("/app/player/playSimulations")
-            return play_flag is not None and not bool(play_flag)
+            return play_flag is False
         except Exception:
             return False
 

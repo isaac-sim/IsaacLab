@@ -660,25 +660,6 @@ class SimulationContext:
         for viz in self._visualizers:
             viz.set_camera_view(eye, target)
 
-    def set_renderer_camera_view(
-        self,
-        eye: tuple[float, float, float] | list[float],
-        target: tuple[float, float, float] | list[float],
-        camera_prim_path: str = "/OmniverseKit_Persp",
-    ) -> None:
-        """Set camera view for renderer/viewport camera only.
-
-        This does not broadcast to visualizers.
-        """
-        try:
-            import isaacsim.core.utils.viewports as isaacsim_viewports
-
-            isaacsim_viewports.set_camera_view(
-                eye=list(eye), target=list(target), camera_prim_path=str(camera_prim_path)
-            )
-        except Exception as exc:
-            logger.debug("[SimulationContext] Renderer camera update skipped: %s", exc)
-
     def forward(self) -> None:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
@@ -722,11 +703,12 @@ class SimulationContext:
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
         every physics step). Camera sensors drive their configured renderer when
-        fetching data, so this method remains backend-agnostic.
+        fetching data. Backend-specific render follow-up (e.g. Kit app pump for
+        headless video) runs in :meth:`~isaaclab.physics.PhysicsManager.after_visualizers_render`.
         """
         self.physics_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt())
-        self._pump_kit_app_if_needed()
+        self.physics_manager.after_visualizers_render()
         self._render_generation += 1
 
         # Call render callbacks
@@ -772,21 +754,6 @@ class SimulationContext:
                 logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
-
-    def _pump_kit_app_if_needed(self) -> None:
-        """Pump Kit app-loop for headless rgb-array rendering when needed."""
-        if not bool(self.get_setting("/isaaclab/video/enabled")):
-            return
-        if not has_kit():
-            return
-        if any(viz.pumps_app_update() for viz in self._visualizers):
-            return
-        try:
-            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
-
-            ensure_isaac_rtx_render_update()
-        except Exception as exc:
-            logger.debug("[SimulationContext] Skipping Kit app-loop pump in render(): %s", exc)
 
     def update_scene_data_provider(self, force_require_forward: bool = False):
         if force_require_forward or self._should_forward_before_visualizer_update():

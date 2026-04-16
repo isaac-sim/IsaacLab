@@ -218,8 +218,12 @@ class ViewportCameraController:
         cam_eye = viewer_origin + self.default_cam_eye
         cam_target = viewer_origin + self.default_cam_lookat
 
-        # set the renderer viewport camera view (does not broadcast to visualizers)
-        self._env.sim.set_renderer_camera_view(eye=cam_eye, target=cam_target, camera_prim_path=self.cfg.cam_prim_path)
+        # set the renderer viewport camera view (does not broadcast to visualizers); Kit-specific helper lives in isaaclab_physx
+        from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view
+
+        set_kit_renderer_camera_view(
+            eye=cam_eye, target=cam_target, camera_prim_path=self.cfg.cam_prim_path
+        )
 
     """
     Private Functions

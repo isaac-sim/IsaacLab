@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 
 import isaaclab.sim as sim_utils
 
@@ -157,3 +158,23 @@ def ensure_isaac_rtx_render_update() -> None:
     sim.set_setting("/app/player/playSimulations", True)
 
     _last_render_update_key = key
+
+
+def pump_kit_app_for_headless_video_render_if_needed(sim: Any) -> None:
+    """Pump Kit app-loop for headless rgb-array rendering when needed.
+
+    Isaac Sim / RTX specific; kept out of backend-agnostic :class:`~isaaclab.sim.SimulationContext`.
+    """
+    if not bool(sim.get_setting("/isaaclab/video/enabled")):
+        return
+
+    from isaaclab.utils.version import has_kit
+
+    if not has_kit():
+        return
+    if any(viz.pumps_app_update() for viz in sim.visualizers):
+        return
+    try:
+        ensure_isaac_rtx_render_update()
+    except Exception as exc:
+        logger.debug("[isaac_rtx] Skipping Kit app-loop pump in render(): %s", exc)
