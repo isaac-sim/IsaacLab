@@ -6,6 +6,49 @@
 """Package containing the core framework."""
 
 import os
+import sys
+
+
+def _filter_prebundle_paths():
+    """Remove Isaac Sim ``pip_prebundle`` directories from ``sys.path``.
+
+    Isaac Sim's ``setup_python_env.sh`` injects ``pip_prebundle`` directories
+    (e.g. ``omni.isaac.ml_archive/pip_prebundle``) onto ``PYTHONPATH``.  These
+    contain older copies of packages like torch, warp, and nvidia-cudnn that
+    shadow the versions installed by Isaac Lab, causing CUDA runtime errors.
+
+    This function strips those entries from ``sys.path`` (and ``PYTHONPATH`` in
+    the environment so child processes also stay clean) early — before any
+    ``import torch`` can resolve to the wrong package.
+
+    Only paths that include *both* ``pip_prebundle`` and one of the known
+    conflicting extensions are removed.  Other ``pip_prebundle`` paths (e.g.
+    ``isaacsim.robot_motion.lula``) are left alone since they don't conflict.
+    """
+    # Extensions whose prebundled packages conflict with Isaac Lab deps.
+    _CONFLICTING_EXTS = (
+        "omni.isaac.ml_archive",
+        "omni.isaac.core_archive",
+        "omni.kit.pip_archive",
+        "isaacsim.pip.newton",
+    )
+
+    def _is_conflicting(path: str) -> bool:
+        norm = path.replace("\\", "/").lower()
+        return "pip_prebundle" in norm and any(ext.lower() in norm for ext in _CONFLICTING_EXTS)
+
+    # Filter sys.path in-place.
+    original_len = len(sys.path)
+    sys.path[:] = [p for p in sys.path if not _is_conflicting(p)]
+    removed = original_len - len(sys.path)
+
+    # Also filter PYTHONPATH so subprocesses inherit the clean version.
+    if removed and "PYTHONPATH" in os.environ:
+        parts = os.environ["PYTHONPATH"].split(os.pathsep)
+        os.environ["PYTHONPATH"] = os.pathsep.join(p for p in parts if not _is_conflicting(p))
+
+
+_filter_prebundle_paths()
 
 # Conveniences to other module directories via relative paths.
 ISAACLAB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
