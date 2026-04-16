@@ -9,6 +9,7 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 
 from isaaclab.sensors.imu import BaseImu
@@ -85,7 +86,7 @@ class Imu(BaseImu):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         """Reset the sensor for the given environments.
 
         Zeroes out angular velocity and linear acceleration buffers for the
@@ -97,10 +98,11 @@ class Imu(BaseImu):
         """
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
+        wp_env_mask = wp.from_torch(env_mask)
         wp.launch(
             imu_reset_kernel,
             dim=self._num_envs,
-            inputs=[env_mask, self._data._lin_acc_b, self._data._ang_vel_b],
+            inputs=[wp_env_mask, self._data._lin_acc_b, self._data._ang_vel_b],
             device=self._device,
         )
 
@@ -148,17 +150,18 @@ class Imu(BaseImu):
 
         logger.info(f"IMU initialized: {num_envs} envs, sensor_index={self._sensor_index}")
 
-    def _update_buffers_impl(self, env_mask: wp.array):
+    def _update_buffers_impl(self, env_mask: torch.Tensor):
         """Copies accelerometer/gyroscope data from native Newton sensor into owned buffers."""
         if self._newton_sensor is None:
             raise RuntimeError(
                 f"IMU '{self.cfg.prim_path}': sensor not initialized. "
                 "Access sensor data only after sim.reset() has been called."
             )
+        wp_env_mask = wp.from_torch(env_mask)
         wp.launch(
             imu_copy_kernel,
             dim=self._num_envs,
-            inputs=[env_mask, self._newton_sensor.accelerometer, self._newton_sensor.gyroscope],
+            inputs=[wp_env_mask, self._newton_sensor.accelerometer, self._newton_sensor.gyroscope],
             outputs=[self._data._lin_acc_b, self._data._ang_vel_b],
             device=self._device,
         )

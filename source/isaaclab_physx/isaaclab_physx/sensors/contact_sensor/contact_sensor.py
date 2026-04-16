@@ -161,19 +161,20 @@ class ContactSensor(BaseContactSensor):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
-        # resolve env_ids to warp array
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+        # resolve env_ids to boolean mask
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timers and counters
         super().reset(None, env_mask)
 
+        wp_env_mask = wp.from_torch(env_mask)
         wp.launch(
             reset_contact_sensor_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
                 self._history_length,
                 self._num_filter_shapes,
-                env_mask,
+                wp_env_mask,
                 self._data._net_forces_w,
                 self._data._net_forces_w_history,
                 self._data._force_matrix_w,
@@ -362,10 +363,13 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: torch.Tensor | None = None):
         """Fills the buffers of the sensor data."""
-        # Convert env_mask to warp array
+        # Resolve env_mask to boolean torch tensor
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        wp_env_mask = wp.from_torch(env_mask)
+        wp_timestamp = wp.from_torch(self._timestamp)
+        wp_timestamp_last_update = wp.from_torch(self._timestamp_last_update)
 
         # PhysX returns (N*B, 3) float32 -> (N*B,) vec3f
         net_forces_flat = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt).view(wp.vec3f)
@@ -381,13 +385,13 @@ class ContactSensor(BaseContactSensor):
             inputs=[
                 net_forces_flat,
                 force_matrix_flat,
-                env_mask,
+                wp_env_mask,
                 self._num_sensors,
                 self._num_filter_shapes,
                 self._history_length,
                 self.cfg.force_threshold,
-                self._timestamp,
-                self._timestamp_last_update,
+                wp_timestamp,
+                wp_timestamp_last_update,
             ],
             outputs=[
                 self._data._net_forces_w,
@@ -409,7 +413,7 @@ class ContactSensor(BaseContactSensor):
             wp.launch(
                 split_flat_pose_to_pos_quat,
                 dim=(self._num_envs, self._num_sensors),
-                inputs=[poses_flat, env_mask, self._num_sensors],
+                inputs=[poses_flat, wp_env_mask, self._num_sensors],
                 outputs=[self._data._pos_w, self._data._quat_w],
                 device=self.device,
             )
@@ -428,7 +432,7 @@ class ContactSensor(BaseContactSensor):
                     pts_vec3,
                     buffer_count,
                     buffer_start_indices,
-                    env_mask,
+                    wp_env_mask,
                     self._num_sensors,
                     True,
                     float("nan"),
@@ -450,7 +454,7 @@ class ContactSensor(BaseContactSensor):
                     friction_vec3,
                     buffer_count,
                     buffer_start_indices,
-                    env_mask,
+                    wp_env_mask,
                     self._num_sensors,
                     False,
                     0.0,

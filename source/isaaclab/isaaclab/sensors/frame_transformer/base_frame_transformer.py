@@ -9,7 +9,7 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import warp as wp
+import torch
 
 import isaaclab.utils.string as string_utils
 
@@ -117,7 +117,7 @@ class BaseFrameTransformer(SensorBase):
         super()._initialize_impl()
 
     @abstractmethod
-    def _update_buffers_impl(self, env_mask: wp.array):
+    def _update_buffers_impl(self, env_mask: torch.Tensor):
         raise NotImplementedError
 
     def _invalidate_initialize_callback(self, event):

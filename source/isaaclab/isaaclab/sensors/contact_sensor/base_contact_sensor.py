@@ -10,6 +10,7 @@ from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 
 import isaaclab.utils.string as string_utils
@@ -113,7 +114,7 @@ class BaseContactSensor(SensorBase):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array(dtype=wp.bool) | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         """Resets the sensor.
 
         Args:
@@ -204,7 +205,7 @@ class BaseContactSensor(SensorBase):
         raise NotImplementedError(f"Create buffers is not implemented for {self.__class__.__name__}.")
 
     @abstractmethod
-    def _update_buffers_impl(self, env_mask: wp.array | None):
+    def _update_buffers_impl(self, env_mask: torch.Tensor | None):
         """Fills the buffers of the sensor data.
 
         Args:

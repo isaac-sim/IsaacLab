@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 
 from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameTransformer
@@ -304,14 +305,15 @@ class FrameTransformer(BaseFrameTransformer):
 
         return expanded_names, target_indices_per_target, shapes_list, references_list
 
-    def _update_buffers_impl(self, env_mask: wp.array):
+    def _update_buffers_impl(self, env_mask: torch.Tensor):
         """Copies transforms from Newton sensor into owned buffers."""
         if self._newton_transforms is None:
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
+        wp_env_mask = wp.from_torch(env_mask)
         wp.launch(
             copy_from_newton_kernel,
             dim=(self._num_envs, 1 + self._num_targets),
-            inputs=[env_mask, self._newton_transforms, self._stride],
+            inputs=[wp_env_mask, self._newton_transforms, self._stride],
             outputs=[self._data._source_transforms, self._data._target_transforms],
             device=self._device,
         )
@@ -321,7 +323,7 @@ class FrameTransformer(BaseFrameTransformer):
             wp.launch(
                 compose_target_world_kernel,
                 dim=(self._num_envs, self._num_targets),
-                inputs=[env_mask, self._data._source_transforms, self._data._target_transforms],
+                inputs=[wp_env_mask, self._data._source_transforms, self._data._target_transforms],
                 outputs=[self._data._target_transforms_w],
                 device=self._device,
             )

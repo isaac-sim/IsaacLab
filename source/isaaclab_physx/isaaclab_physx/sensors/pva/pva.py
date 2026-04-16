@@ -104,17 +104,18 @@ class Pva(BasePva):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         # resolve indices and mask
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         # reset the timestamps
         super().reset(None, env_mask)
 
+        wp_env_mask = wp.from_torch(env_mask)
         wp.launch(
             pva_reset_kernel,
             dim=self._num_envs,
             inputs=[
-                env_mask,
+                wp_env_mask,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,
@@ -202,7 +203,7 @@ class Pva(BasePva):
             self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
             self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
 
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: torch.Tensor | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
@@ -212,11 +213,12 @@ class Pva(BasePva):
         # get_coms() returns a CPU warp array; copy to pre-allocated GPU buffer
         wp.copy(self._coms_buffer, self._view.get_coms().view(wp.transformf))
 
+        wp_env_mask = wp.from_torch(env_mask)
         wp.launch(
             pva_update_kernel,
             dim=self._num_envs,
             inputs=[
-                env_mask,
+                wp_env_mask,
                 transforms,
                 velocities,
                 self._coms_buffer,

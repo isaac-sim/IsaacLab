@@ -92,15 +92,16 @@ class Imu(BaseImu):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
 
+        wp_env_mask = wp.from_torch(env_mask)
         wp.launch(
             imu_reset_kernel,
             dim=self._num_envs,
             inputs=[
-                env_mask,
+                wp_env_mask,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
                 self._prev_lin_vel_w,
@@ -167,7 +168,7 @@ class Imu(BaseImu):
             self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
             self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
 
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: torch.Tensor | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
@@ -175,11 +176,12 @@ class Imu(BaseImu):
         velocities = self._view.get_velocities().view(wp.spatial_vectorf)
         wp.copy(self._coms_buffer, self._view.get_coms().view(wp.transformf))
 
+        wp_env_mask = wp.from_torch(env_mask)
         wp.launch(
             imu_update_kernel,
             dim=self._num_envs,
             inputs=[
-                env_mask,
+                wp_env_mask,
                 transforms,
                 velocities,
                 self._coms_buffer,

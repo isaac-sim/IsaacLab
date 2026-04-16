@@ -8,7 +8,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import TYPE_CHECKING
 
-import warp as wp
+import torch
 
 from ..sensor_base import SensorBase
 from .base_imu_data import BaseImuData
@@ -73,5 +73,5 @@ class BaseImu(SensorBase):
         super()._initialize_impl()
 
     @abstractmethod
-    def _update_buffers_impl(self, env_mask: wp.array):
+    def _update_buffers_impl(self, env_mask: torch.Tensor):
         raise NotImplementedError

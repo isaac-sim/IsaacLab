@@ -136,35 +136,28 @@ class ContactSensor(BaseContactSensor):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         # reset the timers and counters
         super().reset(env_ids, env_mask)
 
         # Resolve env_mask (same logic as base class)
         if env_ids is None and env_mask is None:
-            env_mask = wp.full(self._num_envs, True, dtype=wp.bool, device=self._device)
+            env_mask = torch.ones(self._num_envs, dtype=torch.bool, device=self._device)
         elif env_mask is None:
+            mask_torch = torch.zeros(self._num_envs, dtype=torch.bool, device=self._device)
             if isinstance(env_ids, torch.Tensor):
                 env_ids_torch = env_ids.to(device=self._device, dtype=torch.long).reshape(-1)
-                mask_torch = torch.zeros(self._num_envs, dtype=torch.bool, device=self._device)
                 if env_ids_torch.numel() > 0:
                     mask_torch[env_ids_torch] = True
-                env_mask = wp.from_torch(mask_torch, dtype=wp.bool)
-            elif isinstance(env_ids, wp.array):
-                env_ids_np = np.asarray(env_ids.numpy(), dtype=np.int64).reshape(-1)
-                mask_np = np.zeros(self._num_envs, dtype=np.bool_)
-                if env_ids_np.size > 0:
-                    mask_np[env_ids_np] = True
-                env_mask = wp.array(mask_np, dtype=wp.bool, device=self._device)
             else:
                 env_ids_np = np.asarray(env_ids, dtype=np.int64).reshape(-1)
-                mask_np = np.zeros(self._num_envs, dtype=np.bool_)
                 if env_ids_np.size > 0:
-                    mask_np[env_ids_np] = True
-                env_mask = wp.array(mask_np, dtype=wp.bool, device=self._device)
+                    mask_torch[torch.from_numpy(env_ids_np).to(self._device)] = True
+            env_mask = mask_torch
 
         # Compute num_filter_objects
         num_filter_objects = self._num_filter_objects
+        wp_env_mask = wp.from_torch(env_mask)
 
         # Reset contact sensor buffers via kernel
         wp.launch(
@@ -173,7 +166,7 @@ class ContactSensor(BaseContactSensor):
             inputs=[
                 self.cfg.history_length,
                 num_filter_objects,
-                env_mask,
+                wp_env_mask,
                 self._data._net_forces_w,
                 self._data._net_forces_w_history,
                 self._data._force_matrix_w,
@@ -399,19 +392,22 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError(f"Newton model does not expose '{primary}' or '{fallback}'.")
         return list(labels)
 
-    def _update_buffers_impl(self, env_mask: wp.array):
+    def _update_buffers_impl(self, env_mask: torch.Tensor):
         """Fills the buffers of the sensor data.
 
         Args:
             env_mask: Mask of the environments to update. None: update all environments.
         """
+        wp_env_mask = wp.from_torch(env_mask)
+        wp_timestamp = wp.from_torch(self._timestamp)
+        wp_timestamp_last_update = wp.from_torch(self._timestamp_last_update)
         # Copy data from Newton into owned buffers (respecting env_mask)
         # Launch with 3D for coalescing: dim=(num_envs, num_sensors, max(num_filter_objects, 1))
         wp.launch(
             copy_from_newton_kernel,
             dim=(self._num_envs, self._num_sensors, max(self._num_filter_objects, 1)),
             inputs=[
-                env_mask,
+                wp_env_mask,
                 self._newton_forces_view,
             ],
             outputs=[
@@ -428,10 +424,10 @@ class ContactSensor(BaseContactSensor):
             inputs=[
                 self.cfg.history_length,
                 self.cfg.force_threshold,
-                env_mask,
+                wp_env_mask,
                 self._data._net_forces_w,
-                self._timestamp,
-                self._timestamp_last_update,
+                wp_timestamp,
+                wp_timestamp_last_update,
                 self._data._net_forces_w_history,
                 self._data._current_air_time,
                 self._data._current_contact_time,
