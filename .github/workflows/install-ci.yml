@@ -7,6 +7,14 @@ name: Installation Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/**'
+      - 'VERSION'
+      - 'tools/**'
+      - 'source/**'
+      - '**/pyproject.toml'
+      - '**/environment.yaml'
+      - '.github/workflows/install-ci.yml'
   push:
     branches:
       - main
