@@ -142,6 +142,20 @@ The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visu
 For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
+Partial visualization
+~~~~~~~~~~~~~~~~~~~~~
+
+``env_selection_*`` fields on :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` and the CLI cap
+``--viz_env_selection_max_visible`` limit what each **viewer** shows. If both apply, explicit selection
+(``env_selection_mode`` is ``env_ids`` or ``random_n``) wins over
+:attr:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg.env_selection_max_visible`.
+
+- **Newton, Rerun, Viser:** Newton’s ``set_visible_worlds`` selects which worlds are rendered.
+- **Omniverse (Kit):** non-included ``/World/envs/env_*`` prims are set **invisible**; in OV this is
+  cosmetic (no performance guarantee). Stronger Kit-side filtering is not implemented yet.
+
+``--viz_env_selection_max_visible`` overrides ``env_selection_max_visible`` when ``env_selection_mode`` is ``none``.
+
 .. _visualization-common-modes:
 
 .. list-table:: Common modes
@@ -331,7 +345,7 @@ server, allowing you to view and interact with the scene from any browser.
 - Browser-based visualization accessible at ``http://localhost:8080`` by default
 - Optional public share URL for remote viewing
 - Recording to ``.viser`` format for replay
-- Environment filtering to control which environments are rendered
+- Env selection to control which environments are rendered
 
 **Launch with Viser:**
 
@@ -350,7 +364,7 @@ server, allowing you to view and interact with the scene from any browser.
         open_browser=True,
         label="Isaac Lab Simulation",
         share=False,
-        max_worlds=64,
+        env_selection_max_visible=64,
     )
 
 **Configuration options:**
@@ -361,7 +375,7 @@ server, allowing you to view and interact with the scene from any browser.
 - ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
 - ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
 - ``verbose`` (bool, default ``True``): Print viewer server startup information.
-- ``max_worlds`` (int or None, default ``None``): Maximum number of environments rendered.
+- ``env_selection_max_visible`` (int or None, default ``None``): Inherited from :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg`; cap when ``env_selection_mode`` is ``none`` (see ``--viz_env_selection_max_visible``).
 
 .. note::
 
@@ -391,12 +405,6 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 .. code-block:: bash
 
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun --num_envs 512
-
-
-.. note::
-
-    A future feature will support visualizing only a subset of environments, which will improve visualization performance
-    and reduce resource usage while maintaining full-scale training in the background.
 
 
 **Rerun Visualizer FPS Control**
