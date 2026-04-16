@@ -34,9 +34,7 @@ class Test_UV_Env_Heavy(UV_Mixin):
 
             # Install assets, tasks, rl[all], physx, newton, contrib
             result = self.run_in_uv_env(
-                [str(self.cli_script), "-i", "assets,tasks,rl[all],physx,newton,contrib"],
-                cwd=isaaclab_root,
-                check=False,
+                [str(self.cli_script), "-i", "assets,tasks,rl[all],physx,newton,contrib"], cwd=isaaclab_root
             )
             assert result.returncode == 0, f"isaaclab -i failed:\n{result.stdout}\n{result.stderr}"
 
@@ -55,7 +53,6 @@ class Test_UV_Env_Heavy(UV_Mixin):
                     "5",
                 ],
                 cwd=isaaclab_root,
-                check=False,
             )
             output = result.stdout + result.stderr
             assert result.returncode == 0, f"Training failed (rc={result.returncode}):\n{output}"
