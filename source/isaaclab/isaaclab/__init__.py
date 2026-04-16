@@ -6,6 +6,63 @@
 """Package containing the core framework."""
 
 import os
+import sys
+
+
+def _deprioritize_prebundle_paths():
+    """Move Isaac Sim ``pip_prebundle`` directories to the end of ``sys.path``.
+
+    Isaac Sim's ``setup_python_env.sh`` injects ``pip_prebundle`` directories
+    (e.g. ``omni.isaac.ml_archive/pip_prebundle``) onto ``PYTHONPATH``.  These
+    contain older copies of packages like torch, warp, and nvidia-cudnn that
+    shadow the versions installed by Isaac Lab, causing CUDA runtime errors.
+
+    Rather than removing these paths entirely (which would break packages like
+    ``sympy`` that only exist in the prebundle), this function moves them to
+    the **end** of ``sys.path`` so that pip-installed packages in
+    ``site-packages`` take priority.
+
+    The ``PYTHONPATH`` environment variable is also rewritten so that child
+    processes inherit the corrected ordering.
+    """
+    # Extensions whose prebundled packages conflict with Isaac Lab deps.
+    _CONFLICTING_EXTS = (
+        "omni.isaac.ml_archive",
+    )
+
+    def _is_conflicting(path: str) -> bool:
+        norm = path.replace("\\", "/").lower()
+        return "pip_prebundle" in norm and any(ext.lower() in norm for ext in _CONFLICTING_EXTS)
+
+    # Partition: keep non-conflicting in place, collect conflicting.
+    clean = []
+    demoted = []
+    for p in sys.path:
+        if _is_conflicting(p):
+            demoted.append(p)
+        else:
+            clean.append(p)
+
+    if not demoted:
+        return
+
+    # Rebuild sys.path: originals first, then demoted at the very end.
+    sys.path[:] = clean + demoted
+
+    # Rewrite PYTHONPATH with the same ordering for subprocesses.
+    if "PYTHONPATH" in os.environ:
+        parts = os.environ["PYTHONPATH"].split(os.pathsep)
+        env_clean = []
+        env_demoted = []
+        for p in parts:
+            if _is_conflicting(p):
+                env_demoted.append(p)
+            else:
+                env_clean.append(p)
+        os.environ["PYTHONPATH"] = os.pathsep.join(env_clean + env_demoted)
+
+
+_deprioritize_prebundle_paths()
 
 # Conveniences to other module directories via relative paths.
 ISAACLAB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
