@@ -89,6 +89,7 @@ Changed
   :class:`~isaaclab.sensors.camera.CameraData` instance and iterates output types internally.
   Custom renderer implementations must replace ``write_output(render_data, output_name, output_data)``
   with ``read_output(render_data, camera_data)``.
+
 Deprecated
 ^^^^^^^^^^
 
@@ -102,17 +103,6 @@ Removed
 
 * Removed :attr:`~isaaclab.sensors.camera.Camera.render_product_paths`. Render products are
   now managed internally by the renderer backend and are not part of the public API.
-
-
-4.5.34 (2026-04-13)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Changed :class:`~isaaclab.sensors.imu.Imu` and
-  :class:`~isaaclab.sensors.imu.ImuData` factory type annotations to include
-  the Newton IMU backend types.
 
 
 4.5.33 (2026-04-13)
