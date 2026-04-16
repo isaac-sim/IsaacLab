@@ -14,7 +14,7 @@ from utils import UV_Mixin
 
 
 class Test_UV_Env_Heavy(UV_Mixin):
-    """Heavy uv-based installation and training tests."""
+    """Test ./isaaclab.x -u, then run heavy training."""
 
     @classmethod
     def setup_class(cls):
