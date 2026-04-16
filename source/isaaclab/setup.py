@@ -29,7 +29,7 @@ INSTALL_REQUIRES = [
     "gymnasium==1.2.1",
     # procedural-generation
     "trimesh",
-    "pyglet>=2.1.6",
+    "pyglet>=2.1.6,<3",
     "mujoco==3.5.0",
     "mujoco-warp==3.5.0.2",
     # image processing
@@ -64,6 +64,7 @@ SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64,arm64'"
 SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
+    f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]

@@ -1,0 +1,120 @@
+[isaaclab]
+# pyproject.toml
+pyproject.description = "Isaac Lab"
+pyproject.keywords = ["nvidia", "omniverse", "isaacsim", "isaaclab"]
+pyproject.dependencies.all = [
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab/setup.py
+    # ================================================================================
+    # generic
+    "numpy>=2",
+    "torch>=2.10",
+    "onnx>=1.18.0",  # 1.16.2 throws access violation on Windows
+    "prettytable==3.3.0",
+    "toml",
+    # devices
+    "hidapi==0.14.0.post2",
+    # reinforcement learning
+    "gymnasium==1.2.0",
+    # procedural-generation
+    "trimesh",
+    "pyglet>=2.1.6",
+    # image processing
+    "transformers==4.57.6",
+    "einops",  # needed for transformers, doesn't always auto-install
+    "warp-lang==1.12.0",
+    "matplotlib>=3.10.3",
+    # make sure this is consistent with isaac sim version
+    "pillow==12.1.1",
+    "botocore",
+    # livestream
+    "starlette==0.49.1",  # TODO: update starlette once Isaac Lab be released with Isaac Sim 6.0.0
+    "omniverseclient",
+    # testing
+    "pytest",
+    "pytest-mock",
+    "junitparser",
+    "flatdict==4.0.0",
+    "flaky",
+    "packaging",
+    # visualizers
+    "imgui-bundle==1.92.4",
+    "rerun-sdk>=0.29.0",
+    "viser>=1.0.16",
+    "typing_extensions==4.12.2",
+    "lazy_loader>=0.4",
+    "pin ; platform_system == 'Linux'",
+    "pin-pink>=2.3.6 ; platform_system == 'Linux'",
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_rl/setup.py
+    # ================================================================================
+    # generic
+    "numpy>=2",
+    "torch>=2.10",
+    "torchvision>=0.25.0",  # ensure compatibility with torch 2.10
+    "protobuf>=4.25.8,!=5.26.0",
+    # configuration management
+    "hydra-core",
+    # data collection
+    "h5py",
+    # basic logger
+    "tensorboard",
+    # video recording
+    "moviepy",
+    "packaging<24",
+    "tqdm==4.67.1",
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/setup.py
+    # ================================================================================
+    # generic
+    "numpy>=2",
+    "torch>=2.10",
+    "torchvision>=0.25.0",  # ensure compatibility with torch 2.10
+    "protobuf>=4.25.8,!=5.26.0",
+    # basic logger
+    "tensorboard",
+    "numba>=0.63.1",
+]
+pyproject.optional-dependencies.all = [
+    # Isaac Sim
+    { "isaacsim" = ["isaacsim[all,extscache]==6.0.0.*"] },
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_newton/setup.py
+    # ================================================================================
+    { "newton" = [
+        "warp-lang==1.12.0",
+        "mujoco==3.5.0",
+        "mujoco-warp==3.5.0.2",
+        "newton==1.0.0",
+        "PyOpenGL-accelerate==3.1.10"
+    ] },
+    # ================================================================================
+    # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_rl/setup.py
+    # ================================================================================
+    # RL libraries
+    { "sb3" = ["stable-baselines3>=2.6", "tqdm", "rich"] },
+    { "skrl" = ["skrl>=1.4.3"] },
+    # { "rl-games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
+    # { "rl_games" = ["rl-games==1.6.1"] },  # TODO: re-enable when rl-games Python package supports Python 3.11
+    { "rsl-rl" = ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"] },
+    { "rsl_rl" = ["rsl-rl-lib==3.1.2", "onnxscript>=0.5"] },
+    # RL libraries (all)
+    { "all" = [
+        "stable-baselines3>=2.6",
+        "tqdm",
+        "rich",
+        "skrl>=1.4.3",
+        # "rl-games==1.6.1",  # TODO: re-enable when rl-games Python package supports Python 3.11
+        "rsl-rl-lib==3.1.2",
+        "onnxscript>=0.5",
+    ] },
+]
+# inventory (relative to the `source_folder` config)
+inventory.includes.all = [
+    # Isaac Lab
+    "apps",
+    "source",
+    # python package/module
+    [ "../source/python_packages/isaaclab/__init__.py", "." ],
+    [ "../source/python_packages/isaaclab/__main__.py", "." ],
+]
