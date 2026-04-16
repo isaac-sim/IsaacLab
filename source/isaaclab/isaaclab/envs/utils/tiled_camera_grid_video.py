@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tiled-camera grid video: RGB tiles from :class:`~isaaclab.sensors.camera.TiledCamera`.
+"""Tiled-camera grid video: RGB tiles from :class:`~isaaclab.sensors.camera.Camera`.
 
 Used by :mod:`isaaclab_physx.video_recording.isaacsim_tiled_camera_video` and
 :mod:`isaaclab_newton.video_recording.newton_tiled_camera_video` factories so Kit and Newton backends
@@ -36,14 +36,14 @@ def _tiled_camera_has_rgb_cfg(sensor) -> bool:
 
 
 class TiledCameraGridVideoCapture:
-    """Capture a square grid of per-environment RGB frames from a TiledCamera sensor.
+    """Capture a square grid of per-environment RGB frames from a Camera sensor.
 
     When ``preferred_renderer_types`` is set (Kit vs Newton tiled video), only cameras whose
     ``renderer_cfg.renderer_type`` matches are considered—then optional fallback spawns (e.g. RTX
-    ``VideoCamera`` prims) are used instead of an observation :class:`~isaaclab.sensors.camera.TiledCamera`
+    ``VideoCamera`` prims) are used instead of an observation :class:`~isaaclab.sensors.camera.Camera`
     that uses a different backend (e.g. Newton Warp under PhysX).
 
-    When ``preferred_renderer_types`` is ``None``, priority is: (1) first scene TiledCamera with
+    When ``preferred_renderer_types`` is ``None``, priority is: (1) first scene Camera with
     rgb/rgba in ``data_types``; (2) optional fallback camera spawned at construction time.
     """
 
@@ -64,10 +64,10 @@ class TiledCameraGridVideoCapture:
 
     @staticmethod
     def _spawn_fallback_cameras(camera_cfg: object, scene: InteractiveScene):
-        """Spawn one video camera prim per environment and return a single TiledCamera."""
+        """Spawn one video camera prim per environment and return a single Camera."""
         import torch
 
-        from isaaclab.sensors.camera import TiledCamera
+        from isaaclab.sensors.camera import Camera
         from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
         n_total_envs = scene.num_envs
@@ -92,20 +92,20 @@ class TiledCameraGridVideoCapture:
             )
 
         tiled_cfg = camera_cfg.replace(prim_path="/World/envs/env_.*/VideoCamera", spawn=None)
-        return TiledCamera(tiled_cfg)
+        return Camera(tiled_cfg)
 
     def _find_video_camera(self):
         if hasattr(self, "_video_camera"):
             return self._video_camera
 
-        from isaaclab.sensors.camera import TiledCamera
+        from isaaclab.sensors.camera import Camera
 
         pref = self._preferred_renderer_types
         camera = None
 
         if pref is None:
             for sensor in self._scene.sensors.values():
-                if isinstance(sensor, TiledCamera):
+                if isinstance(sensor, Camera):
                     output = sensor.data.output
                     if "rgb" in output or "rgba" in output:
                         camera = sensor
@@ -120,7 +120,7 @@ class TiledCameraGridVideoCapture:
         else:
             candidates: list = []
             for sensor in self._scene.sensors.values():
-                if isinstance(sensor, TiledCamera) and _tiled_camera_has_rgb_cfg(sensor):
+                if isinstance(sensor, Camera) and _tiled_camera_has_rgb_cfg(sensor):
                     candidates.append(sensor)
             if self._fallback_tiled_camera is not None and _tiled_camera_has_rgb_cfg(self._fallback_tiled_camera):
                 candidates.append(self._fallback_tiled_camera)
@@ -138,9 +138,9 @@ class TiledCameraGridVideoCapture:
 
             if camera is None:
                 raise RuntimeError(
-                    "Cannot record video in tiled mode: no TiledCamera with RGB whose renderer matches "
+                    "Cannot record video in tiled mode: no Camera with RGB whose renderer matches "
                     f"{sorted(pref)} (Isaac Sim / OV RTX vs Newton Warp). "
-                    "Enable a fallback recording camera (default VideoCamera prims) or add a TiledCamera "
+                    "Enable a fallback recording camera (default VideoCamera prims) or add a Camera "
                     "with the matching renderer_cfg for this video backend."
                 )
             if camera is self._fallback_tiled_camera:
@@ -168,8 +168,8 @@ class TiledCameraGridVideoCapture:
         video_camera = self._find_video_camera()
         if video_camera is None:
             raise RuntimeError(
-                "Cannot record video in tiled mode: no TiledCamera sensor with RGB output was found "
-                "in the scene. Add a TiledCamera sensor or switch to perspective mode (--video=perspective)."
+                "Cannot record video in tiled mode: no Camera sensor with RGB output was found "
+                "in the scene. Add a Camera sensor or switch to perspective mode (--video=perspective)."
             )
         if video_camera is self._fallback_tiled_camera:
             self._fallback_tiled_camera.update(dt=0.0, force_recompute=True)

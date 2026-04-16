@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 @configclass
 class NewtonTiledCameraVideoCfg:
-    """Settings for tiled RGB recording via TiledCamera (Newton / Newton Warp setups)."""
+    """Settings for tiled RGB recording via Camera (Newton / Newton Warp setups)."""
 
     class_type: type[Any] | str = (
         "isaaclab.envs.utils.tiled_camera_grid_video:TiledCameraGridVideoCapture"
@@ -28,7 +28,7 @@ class NewtonTiledCameraVideoCfg:
     """Max environments per frame (``-1`` = all). Tiles fill a square grid with padding."""
 
     fallback_camera_cfg: object | None = None
-    """Spawned when no observation TiledCamera exists; ``None`` disables fallback spawn."""
+    """Spawned when no observation Camera exists; ``None`` disables fallback spawn."""
 
     preferred_renderer_types: tuple[str, ...] = ("newton_warp",)
-    """Tiled video uses only TiledCameras with Newton Warp renderer (matches Newton GL backend)."""
+    """Tiled video uses only Cameras with Newton Warp renderer (matches Newton GL backend)."""
