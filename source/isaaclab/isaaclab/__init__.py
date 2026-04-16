@@ -28,6 +28,7 @@ def _deprioritize_prebundle_paths():
     # Extensions whose prebundled packages conflict with Isaac Lab deps.
     _CONFLICTING_EXTS = (
         "omni.isaac.ml_archive",
+        "isaacsim.pip.newton",
     )
 
     def _is_conflicting(path: str) -> bool:
