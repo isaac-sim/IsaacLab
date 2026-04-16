@@ -28,8 +28,6 @@ def set_kit_renderer_camera_view(
     try:
         import isaacsim.core.utils.viewports as isaacsim_viewports
 
-        isaacsim_viewports.set_camera_view(
-            eye=list(eye), target=list(target), camera_prim_path=str(camera_prim_path)
-        )
+        isaacsim_viewports.set_camera_view(eye=list(eye), target=list(target), camera_prim_path=str(camera_prim_path))
     except Exception as exc:
         logger.debug("[kit_viewport] Renderer camera update skipped: %s", exc)
