@@ -24,7 +24,7 @@ from isaaclab.managers.manager_term_cfg import ObservationTermCfg
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
-    from isaaclab.sensors import Camera, Imu, RayCaster, RayCasterCamera, TiledCamera
+    from isaaclab.sensors import Camera, Imu, Pva, RayCaster, RayCasterCamera, TiledCamera
 
 from isaaclab.envs.utils.io_descriptors import (
     generic_io_descriptor,
@@ -319,62 +319,57 @@ def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> tor
     return body_incoming_joint_wrench_b.view(env.num_envs, -1)
 
 
-def imu_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """Imu sensor orientation in the simulation world frame.
+def pva_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("pva")) -> torch.Tensor:
+    """PVA sensor orientation in the simulation world frame.
 
     Args:
         env: The environment.
-        asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("imu").
+        asset_cfg: The SceneEntity associated with a PVA sensor. Defaults to SceneEntityCfg("pva").
 
     Returns:
         Orientation in the world frame in (x, y, z, w) quaternion form. Shape is (num_envs, 4).
     """
-    # extract the used quantities (to enable type-hinting)
-    asset: Imu = env.scene[asset_cfg.name]
-    # return the orientation quaternion
+    asset: Pva = env.scene[asset_cfg.name]
     return wp.to_torch(asset.data.quat_w)
 
 
-def imu_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """Imu sensor orientation w.r.t the env.scene.origin.
+def pva_projected_gravity(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("pva")) -> torch.Tensor:
+    """PVA sensor projected gravity in the sensor frame.
 
     Args:
         env: The environment.
-        asset_cfg: The SceneEntity associated with an Imu sensor.
+        asset_cfg: The SceneEntity associated with a PVA sensor. Defaults to SceneEntityCfg("pva").
 
     Returns:
-        Gravity projected on imu_frame, shape of torch.tensor is (num_env,3).
+        Gravity projected on sensor frame, shape of torch.tensor is (num_env, 3).
     """
-
-    asset: Imu = env.scene[asset_cfg.name]
+    asset: Pva = env.scene[asset_cfg.name]
     return wp.to_torch(asset.data.projected_gravity_b)
 
 
 def imu_ang_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """Imu sensor angular velocity w.r.t. environment origin expressed in the sensor frame.
+    """IMU sensor angular velocity w.r.t. environment origin expressed in the sensor frame [rad/s].
 
     Args:
         env: The environment.
         asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("imu").
 
     Returns:
-        The angular velocity (rad/s) in the sensor frame. Shape is (num_envs, 3).
+        The angular velocity [rad/s] in the sensor frame. Shape is (num_envs, 3).
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Imu = env.scene[asset_cfg.name]
-    # return the angular velocity
     return wp.to_torch(asset.data.ang_vel_b)
 
 
 def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("imu")) -> torch.Tensor:
-    """Imu sensor linear acceleration w.r.t. the environment origin expressed in sensor frame.
+    """IMU sensor linear acceleration w.r.t. the environment origin expressed in sensor frame [m/s^2].
 
     Args:
         env: The environment.
         asset_cfg: The SceneEntity associated with an IMU sensor. Defaults to SceneEntityCfg("imu").
 
     Returns:
-        The linear acceleration (m/s^2) in the sensor frame. Shape is (num_envs, 3).
+        The linear acceleration [m/s^2] in the sensor frame. Shape is (num_envs, 3).
     """
     asset: Imu = env.scene[asset_cfg.name]
     return wp.to_torch(asset.data.lin_acc_b)

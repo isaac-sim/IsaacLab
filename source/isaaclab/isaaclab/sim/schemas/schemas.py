@@ -685,6 +685,16 @@ def modify_joint_drive_properties(
     # convert to dict
     cfg = cfg.to_dict()
 
+    # ensure_drives_exist: if both stiffness and damping are zero on the authored drive,
+    # set a minimal stiffness so that backends like Newton recognise the drive as active.
+    ensure_drives = cfg.pop("ensure_drives_exist", False)
+    if ensure_drives and cfg["stiffness"] is None and cfg["damping"] is None:
+        # read the current values from the drive
+        cur_stiffness = usd_drive_api.GetStiffnessAttr().Get()
+        cur_damping = usd_drive_api.GetDampingAttr().Get()
+        if (cur_stiffness is None or cur_stiffness == 0.0) and (cur_damping is None or cur_damping == 0.0):
+            cfg["stiffness"] = 1e-3
+
     # check if linear drive
     is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)
     # convert values for angular drives from radians to degrees units

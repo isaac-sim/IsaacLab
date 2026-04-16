@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+0.5.13 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` to expose Newton
+  collision pipeline parameters via :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg`.
+* Added :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.tolerance` for solver convergence control.
+
+Fixed
+^^^^^
+
+* Fixed truthiness check on hydroelastic config dict in collision pipeline
+  initialization. An explicit ``is not None`` check is now used so that
+  :class:`~isaaclab_newton.physics.newton_collision_cfg.HydroelasticSDFCfg`
+  with all-default values is no longer silently skipped.
+
+
+0.5.12 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``set_friction_index/mask`` and ``set_restitution_index/mask`` methods to
+  Newton assets for native material property randomization.
+
+
+0.5.11 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformer` sensor
+  wrapping Newton's ``SensorFrameTransform``. Supports per-env source/target site
+  registration, wildcard body matching, and zero-copy transform views.
+
+
 0.5.10 (2026-04-05)
 ~~~~~~~~~~~~~~~~~~~
 

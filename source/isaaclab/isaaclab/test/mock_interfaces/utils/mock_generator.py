@@ -13,7 +13,7 @@ import torch
 
 if TYPE_CHECKING:
     from ..assets import MockArticulation
-    from ..sensors import MockContactSensor, MockFrameTransformer, MockImu
+    from ..sensors import MockContactSensor, MockFrameTransformer, MockImu, MockPva
 
 
 class MockArticulationBuilder:
@@ -223,9 +223,9 @@ class MockSensorBuilder:
         """Initialize the builder.
 
         Args:
-            sensor_type: Type of sensor ("contact", "imu", or "frame_transformer").
+            sensor_type: Type of sensor ("contact", "imu", "pva", or "frame_transformer").
         """
-        if sensor_type not in ("contact", "imu", "frame_transformer"):
+        if sensor_type not in ("contact", "imu", "pva", "frame_transformer"):
             raise ValueError(f"Unknown sensor type: {sensor_type}")
         self._sensor_type = sensor_type
         self._num_instances = 1
@@ -311,7 +311,7 @@ class MockSensorBuilder:
         self._target_frame_names = frame_names
         return self
 
-    def build(self) -> MockContactSensor | MockImu | MockFrameTransformer:
+    def build(self) -> MockContactSensor | MockImu | MockPva | MockFrameTransformer:
         """Build the mock sensor instance.
 
         Returns:
@@ -333,6 +333,13 @@ class MockSensorBuilder:
             from ..sensors import MockImu
 
             return MockImu(
+                num_instances=self._num_instances,
+                device=self._device,
+            )
+        elif self._sensor_type == "pva":
+            from ..sensors import MockPva
+
+            return MockPva(
                 num_instances=self._num_instances,
                 device=self._device,
             )

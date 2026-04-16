@@ -138,7 +138,7 @@ def test_camera_init(setup_simulation):
     assert camera.data.quat_w_opengl.shape == (1, 4)
     assert camera.data.intrinsic_matrices.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width)
-    assert camera.data.info == [{camera_cfg.data_types[0]: None}]
+    assert camera.data.info == {camera_cfg.data_types[0]: None}
     # Simulate physics
     for _ in range(10):
         # perform rendering

@@ -217,6 +217,7 @@ def raycast_static_meshes_kernel(
 
 @wp.kernel(enable_backward=False)
 def raycast_dynamic_meshes_kernel(
+    env_mask: wp.array(dtype=wp.bool),
     mesh: wp.array2d(dtype=wp.uint64),
     ray_starts: wp.array2d(dtype=wp.vec3),
     ray_directions: wp.array2d(dtype=wp.vec3),
@@ -248,6 +249,7 @@ def raycast_dynamic_meshes_kernel(
         and the second dimension (N, num_rays) being the number of rays. For Meshes, W is the number of meshes.
 
     Args:
+        env_mask: Boolean mask selecting which environments to process. Shape is (B,).
         mesh: The input mesh. The ray-casting is performed against this mesh on the device specified by the
             `mesh`'s `device` attribute.
         ray_starts: The input ray start positions. Shape is (B, N, 3).
@@ -270,6 +272,8 @@ def raycast_dynamic_meshes_kernel(
     """
     # get the thread id
     tid_mesh_id, tid_env, tid_ray = wp.tid()
+    if not env_mask[tid_env]:
+        return
 
     mesh_pose = wp.transform(mesh_positions[tid_env, tid_mesh_id], mesh_rotations[tid_env, tid_mesh_id])
     mesh_pose_inv = wp.transform_inverse(mesh_pose)

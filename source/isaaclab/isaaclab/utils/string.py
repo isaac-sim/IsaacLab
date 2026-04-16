@@ -248,7 +248,11 @@ Regex operations.
 
 
 def resolve_matching_names(
-    keys: str | Sequence[str], list_of_strings: Sequence[str], preserve_order: bool = False
+    keys: str | Sequence[str],
+    list_of_strings: Sequence[str],
+    preserve_order: bool = False,
+    *,
+    raise_when_no_match: bool = True,
 ) -> tuple[list[int], list[str]]:
     """Match a list of query regular expressions against a list of strings and return the matched indices and names.
 
@@ -274,13 +278,15 @@ def resolve_matching_names(
         keys: A regular expression or a list of regular expressions to match the strings in the list.
         list_of_strings: A list of strings to match.
         preserve_order: Whether to preserve the order of the query keys in the returned values. Defaults to False.
+        raise_when_no_match: Whether to raise a ``ValueError`` when not all regular expressions are matched.
+            Defaults to True. When False, returns empty lists instead of raising.
 
     Returns:
         A tuple of lists containing the matched indices and names.
 
     Raises:
         ValueError: When multiple matches are found for a string in the list.
-        ValueError: When not all regular expressions are matched.
+        ValueError: When not all regular expressions are matched and :attr:`raise_when_no_match` is True.
     """
     # resolve name keys
     if isinstance(keys, str):
@@ -330,6 +336,8 @@ def resolve_matching_names(
         names_list = names_list_reorder
     # check that all regular expressions are matched
     if not all(keys_match_found):
+        if not raise_when_no_match:
+            return [], []
         # make this print nicely aligned for debugging
         msg = "\n"
         for key, value in zip(keys, keys_match_found):

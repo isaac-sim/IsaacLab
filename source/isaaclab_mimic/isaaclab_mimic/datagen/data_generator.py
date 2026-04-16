@@ -6,6 +6,7 @@
 """Base class for data generator."""
 
 import asyncio
+import contextlib
 import copy
 import logging
 from typing import Any
@@ -31,6 +32,16 @@ from isaaclab_mimic.datagen.selection_strategy import make_selection_strategy
 from isaaclab_mimic.datagen.waypoint import MultiWaypoint, Waypoint, WaypointSequence, WaypointTrajectory
 
 from .datagen_info_pool import DataGenInfoPool
+
+
+@contextlib.asynccontextmanager
+async def _optional_lock(lock):
+    """Async context manager that acquires the lock only if it is not None."""
+    if lock is not None:
+        async with lock:
+            yield
+    else:
+        yield
 
 
 def transform_source_data_segment_using_delta_object_pose(
@@ -664,10 +675,7 @@ class DataGenerator:
         for subtask_constraint in self.env_cfg.task_constraint_configs:
             runtime_subtask_constraints_dict.update(subtask_constraint.generate_runtime_subtask_constraints())
 
-        # save generated data in these variables
-        generated_states = []
-        generated_obs = []
-        generated_actions = []
+        # Track if the generated trajectory was successful
         generated_success = False
 
         # some eef-specific state variables used during generation
@@ -694,7 +702,8 @@ class DataGenerator:
 
         # While loop that runs per time step
         while True:
-            async with self.src_demo_datagen_info_pool.asyncio_lock:
+            await asyncio.sleep(0)
+            async with _optional_lock(self.src_demo_datagen_info_pool.asyncio_lock):
                 if len(self.src_demo_datagen_info_pool.datagen_infos) > prev_src_demo_datagen_info_pool_size:
                     # src_demo_datagen_info_pool at this point may be updated with new demos,
                     # So we need to update subtask boundaries again
@@ -871,20 +880,18 @@ class DataGenerator:
                 eef_waypoint_dict[eef_name] = waypoint
             multi_waypoint = MultiWaypoint(eef_waypoint_dict)
 
+            await asyncio.sleep(0)
+
             # Execute the next waypoints for all eefs
-            exec_results = await multi_waypoint.execute(
+            exec_success = await multi_waypoint.execute(
                 env=self.env,
                 success_term=success_term,
                 env_id=env_id,
                 env_action_queue=env_action_queue,
             )
 
-            # Update execution state buffers
-            if len(exec_results["states"]) > 0:
-                generated_states.extend(exec_results["states"])
-                generated_obs.extend(exec_results["observations"])
-                generated_actions.extend(exec_results["actions"])
-                generated_success = generated_success or exec_results["success"]
+            # Update success state
+            generated_success = generated_success or exec_success
 
             # Get the navigation state
             if self.env_cfg.datagen_config.use_navigation_controller:
@@ -983,10 +990,6 @@ class DataGenerator:
             if all(eef_subtasks_done.values()):
                 break
 
-        # Merge numpy arrays
-        if len(generated_actions) > 0:
-            generated_actions = torch.cat(generated_actions, dim=0)
-
         # Set success to the recorded episode data and export to file
         self.env.recorder_manager.set_success_to_episodes(
             env_id_tensor, torch.tensor([[generated_success]], dtype=torch.bool, device=self.env.device)
@@ -996,9 +999,6 @@ class DataGenerator:
 
         results = dict(
             initial_state=new_initial_state,
-            states=generated_states,
-            observations=generated_obs,
-            actions=generated_actions,
             success=generated_success,
         )
         return results
