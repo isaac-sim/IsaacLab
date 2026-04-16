@@ -7,13 +7,11 @@ name: Installation Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches:
-      - main
-      - develop
   push:
     branches:
       - main
       - develop
+      - release/**
   workflow_dispatch:
     inputs:
       base_image:
