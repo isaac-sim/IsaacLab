@@ -14,9 +14,9 @@ __version__ = version("isaaclab")
 # nested source tree are importable as isaaclab.app, isaaclab.envs, etc.
 __path__.append(os.path.join(os.path.dirname(__file__), "source", "isaaclab", "isaaclab"))
 
-# copied exactly from gitlab tool for backwards compatibility
-# guards are added in case isaacsim and carb are not installed
-# will be removed in the future if IS works w/o this trick
+# TODO(myurasov-nv): bootstrap_kernel() is ported from the internal GitLab wheel builder
+# for backwards compatibility. It is not called currently, but may be needed if Isaac Sim
+# requires explicit kernel bootstrapping before use. Remove once confirmed unnecessary.
 def bootstrap_kernel():
     # Isaac Lab path
     isaaclab_path = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
