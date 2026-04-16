@@ -331,7 +331,7 @@ server, allowing you to view and interact with the scene from any browser.
 - Browser-based visualization accessible at ``http://localhost:8080`` by default
 - Optional public share URL for remote viewing
 - Recording to ``.viser`` format for replay
-- Env selection to control which environments are rendered
+- Environment filtering to control which environments are rendered
 
 **Launch with Viser:**
 
@@ -350,7 +350,7 @@ server, allowing you to view and interact with the scene from any browser.
         open_browser=True,
         label="Isaac Lab Simulation",
         share=False,
-        env_selection_max_visible=64,
+        max_worlds=64,
     )
 
 **Configuration options:**
@@ -361,7 +361,7 @@ server, allowing you to view and interact with the scene from any browser.
 - ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
 - ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
 - ``verbose`` (bool, default ``True``): Print viewer server startup information.
-- ``env_selection_max_visible`` (int or None, default ``None``): Inherited from :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg`; cap when ``env_selection_mode`` is ``none`` (see ``--viz_env_selection_max_visible``).
+- ``max_worlds`` (int or None, default ``None``): Maximum number of environments rendered.
 
 .. note::
 
