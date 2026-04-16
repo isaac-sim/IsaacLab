@@ -13,6 +13,7 @@ from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
 )
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -64,12 +65,18 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # Cassie Newton-only armature for biped stability on rough terrain; PhysX unchanged
+        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton=0.02)
+
+
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 
         # Cassie uses "pelvis" as base body — disable mass randomization for bipeds
         self.events.add_base_mass = None
         self.events.base_com = None
         self.events.base_external_force_torque.params["asset_cfg"].body_names = ".*pelvis"
+        # Cassie has precise initial pose — don't scale joint defaults randomly on reset
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
         # actions
         self.actions.joint_pos.scale = 0.5
