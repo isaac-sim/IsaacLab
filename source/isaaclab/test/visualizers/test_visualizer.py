@@ -61,10 +61,10 @@ class _DummyVisualizer(BaseVisualizer):
 
 def _make_cfg(**kwargs):
     cfg = {
-        "env_filter_mode": "none",
-        "env_filter_ids": [0, 2, 4],
-        "env_filter_random_n": 2,
-        "env_filter_seed": 7,
+        "env_selection_mode": "none",
+        "env_selection_ids": [0, 2, 4],
+        "env_selection_random_count": 2,
+        "env_selection_random_seed": 7,
     }
     cfg.update(kwargs)
     return SimpleNamespace(**cfg)
@@ -83,19 +83,19 @@ class _FakeProvider:
 
 
 def test_compute_visualized_env_ids_none_mode():
-    viz = _DummyVisualizer(_make_cfg(env_filter_mode="none"))
+    viz = _DummyVisualizer(_make_cfg(env_selection_mode="none"))
     viz._scene_data_provider = _FakeProvider(num_envs=8)
     assert viz._compute_visualized_env_ids() is None
 
 
 def test_compute_visualized_env_ids_from_ids_filters_out_of_range():
-    viz = _DummyVisualizer(_make_cfg(env_filter_mode="env_ids", env_filter_ids=[-1, 0, 3, 99]))
+    viz = _DummyVisualizer(_make_cfg(env_selection_mode="env_ids", env_selection_ids=[-1, 0, 3, 99]))
     viz._scene_data_provider = _FakeProvider(num_envs=4)
     assert viz._compute_visualized_env_ids() == [0, 3]
 
 
 def test_compute_visualized_env_ids_random_n_is_deterministic():
-    cfg = _make_cfg(env_filter_mode="random_n", env_filter_random_n=3, env_filter_seed=123)
+    cfg = _make_cfg(env_selection_mode="random_n", env_selection_random_count=3, env_selection_random_seed=123)
     viz_a = _DummyVisualizer(cfg)
     viz_b = _DummyVisualizer(cfg)
     viz_a._scene_data_provider = _FakeProvider(num_envs=10)

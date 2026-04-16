@@ -43,25 +43,36 @@ def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
 
     launcher = AppLauncher.__new__(AppLauncher)
-    launcher._set_visualizer_settings({"visualizer": ["viser", "rerun"], "visualizer_max_worlds": 0})
+    launcher._set_visualizer_settings({"visualizer": ["viser", "rerun"], "viz_env_selection_max_visible": 0})
 
     assert settings.values == {
         "/isaaclab/visualizer/types": "viser rerun",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": 0,
+        "/isaaclab/visualizer/cli_override/viz_env_selection_max_visible": True,
+        "/isaaclab/visualizer/env_selection_max_visible": 0,
+        "/isaaclab/visualizer/cli_override/viz_env_selection_mode": False,
+        "/isaaclab/visualizer/env_selection_mode": "",
+        "/isaaclab/visualizer/cli_override/viz_env_selection_ids": False,
+        "/isaaclab/visualizer/env_selection_ids": "",
+        "/isaaclab/visualizer/cli_override/viz_env_selection_random_count": False,
+        "/isaaclab/visualizer/env_selection_random_count": -1,
+        "/isaaclab/visualizer/cli_override/viz_env_selection_random_seed": False,
+        "/isaaclab/visualizer/env_selection_random_seed": -1,
     }
 
 
-def test_set_visualizer_settings_rejects_negative_max_worlds(monkeypatch: pytest.MonkeyPatch):
+def test_set_visualizer_settings_rejects_negative_viz_env_selection_max_visible(
+    monkeypatch: pytest.MonkeyPatch,
+):
     def _unexpected_settings_manager():
         raise AssertionError("settings manager should not be queried for invalid values")
 
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", _unexpected_settings_manager)
 
     launcher = AppLauncher.__new__(AppLauncher)
-    with pytest.raises(ValueError, match="Invalid value for --visualizer_max_worlds: -5"):
-        launcher._set_visualizer_settings({"visualizer": ["viser"], "visualizer_max_worlds": -5})
+    with pytest.raises(ValueError, match="Invalid value for --viz_env_selection_max_visible: -5"):
+        launcher._set_visualizer_settings({"visualizer": ["viser"], "viz_env_selection_max_visible": -5})
 
 
 def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch: pytest.MonkeyPatch):
@@ -71,7 +82,7 @@ def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch:
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", _raise_settings_error)
 
     launcher = AppLauncher.__new__(AppLauncher)
-    launcher._set_visualizer_settings({"visualizer": ["viser"], "visualizer_max_worlds": 3})
+    launcher._set_visualizer_settings({"visualizer": ["viser"], "viz_env_selection_max_visible": 3})
 
 
 def test_parse_visualizer_csv_accepts_comma_delimited_values():

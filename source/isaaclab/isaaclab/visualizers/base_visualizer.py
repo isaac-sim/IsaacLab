@@ -146,28 +146,27 @@ class BaseVisualizer(ABC):
         """
         if self._scene_data_provider is None:
             return None
-        filter_mode = getattr(self.cfg, "env_filter_mode", "none")
-        if filter_mode == "none":
+        cfg = self.cfg
+        if cfg.env_selection_mode == "none":
             return None
 
         num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
         if num_envs <= 0:
-            logger.debug("[Visualizer] num_envs is 0 or missing from provider metadata; env filtering disabled.")
+            logger.debug("[Visualizer] num_envs is 0 or missing from provider metadata; env selection disabled.")
             return None
-        if filter_mode == "env_ids":
-            env_ids_cfg = getattr(self.cfg, "env_filter_ids", None)
-            if env_ids_cfg is not None and len(env_ids_cfg) > 0:
-                return [i for i in env_ids_cfg if 0 <= i < num_envs]
+        if cfg.env_selection_mode == "env_ids":
+            if len(cfg.env_selection_ids) > 0:
+                return [i for i in cfg.env_selection_ids if 0 <= i < num_envs]
             return None
-        if filter_mode == "random_n":
-            count = int(getattr(self.cfg, "env_filter_random_n", 0))
+        if cfg.env_selection_mode == "random_n":
+            count = int(cfg.env_selection_random_count)
             if count <= 0:
                 return None
             count = min(count, num_envs)
-            seed = int(getattr(self.cfg, "env_filter_seed", 0))
+            seed = int(cfg.env_selection_random_seed)
             rng = random.Random(seed)
             return sorted(rng.sample(range(num_envs), count))
-        logger.warning("[Visualizer] Unknown env_filter_mode='%s'; defaulting to all envs.", filter_mode)
+        logger.warning("[Visualizer] Unknown env_selection_mode='%s'; defaulting to all envs.", cfg.env_selection_mode)
         return None
 
     def get_rendering_dt(self) -> float | None:

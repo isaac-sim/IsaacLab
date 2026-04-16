@@ -16,6 +16,8 @@ from pxr import UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
+
 from .kit_visualizer_cfg import KitVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -73,12 +75,20 @@ class KitVisualizer(BaseVisualizer):
         self._setup_viewport()
 
         self._env_ids = self._compute_visualized_env_ids()
-        if self._env_ids:
+        num_envs_meta = int(metadata.get("num_envs", 0))
+        self._resolved_visible_env_ids = resolve_visible_env_indices(
+            self._env_ids, self.cfg.env_selection_max_visible, num_envs_meta
+        )
+        if self._resolved_visible_env_ids is not None:
             logger.warning(
-                "[KitVisualizer] env_filter_ids filtering is cosmetic only (no perf gain) in OV; hiding other envs."
+                "[KitVisualizer] Partial visualization is cosmetic only in OV (no perf guarantee); hiding other envs."
             )
-            self._apply_env_visibility(usd_stage, metadata)
-        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+            self._apply_env_visibility(usd_stage, metadata, self._resolved_visible_env_ids)
+        num_visualized_envs = (
+            len(self._resolved_visible_env_ids)
+            if self._resolved_visible_env_ids is not None
+            else num_envs_meta
+        )
         self._log_initialization_table(
             logger=logger,
             title="KitVisualizer Configuration",
@@ -86,6 +96,7 @@ class KitVisualizer(BaseVisualizer):
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
                 ("cam_source", self.cfg.cam_source),
+                ("env_selection_max_visible", self.cfg.env_selection_max_visible),
                 ("num_visualized_envs", num_visualized_envs),
                 ("create_viewport", self.cfg.create_viewport),
                 ("headless", self._runtime_headless),
@@ -352,14 +363,12 @@ class KitVisualizer(BaseVisualizer):
         self._viewport_api.set_active_camera(camera_path)
         return True
 
-    def _apply_env_visibility(self, usd_stage, metadata: dict) -> None:
-        """Hide non-selected environments for cosmetic env filtering."""
-        if not self._env_ids:
-            return
+    def _apply_env_visibility(self, usd_stage, metadata: dict, visible_env_ids: list[int]) -> None:
+        """Hide environments not listed in ``visible_env_ids`` (cosmetic partial visualization)."""
         num_envs = int(metadata.get("num_envs", 0))
         if num_envs <= 0:
             return
-        visible = set(self._env_ids)
+        visible = set(visible_env_ids)
         for env_id in range(num_envs):
             if env_id in visible:
                 continue

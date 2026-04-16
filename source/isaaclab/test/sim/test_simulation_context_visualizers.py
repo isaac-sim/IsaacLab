@@ -224,15 +224,17 @@ def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: p
 
 
 @pytest.mark.parametrize(
-    ("cfg_max_worlds", "expected_max_worlds"),
+    ("cfg_env_selection_max_visible", "expected_visible"),
     [
         (None, None),
-        (0, 0),
-        (3, 3),
+        (0, []),
+        (3, [0, 1, 2]),
     ],
 )
-def test_viser_visualizer_create_viewer_forwards_max_worlds(
-    monkeypatch: pytest.MonkeyPatch, cfg_max_worlds: int | None, expected_max_worlds: int | None
+def test_viser_visualizer_create_viewer_applies_visible_worlds(
+    monkeypatch: pytest.MonkeyPatch,
+    cfg_env_selection_max_visible: int | None,
+    expected_visible: list[int] | None,
 ):
     captured = {}
 
@@ -256,8 +258,11 @@ def test_viser_visualizer_create_viewer_forwards_max_worlds(
                 "metadata": metadata,
             }
 
-        def set_model(self, model: Any, max_worlds: int | None) -> None:
-            captured["set_model"] = {"model": model, "max_worlds": max_worlds}
+        def set_model(self, model: Any) -> None:
+            captured["set_model"] = model
+
+        def set_visible_worlds(self, worlds) -> None:
+            captured["visible_worlds"] = worlds
 
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
@@ -270,25 +275,29 @@ def test_viser_visualizer_create_viewer_forwards_max_worlds(
     )
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
 
-    cfg = ViserVisualizerCfg(max_worlds=cfg_max_worlds, open_browser=False)
+    cfg = ViserVisualizerCfg(env_selection_max_visible=cfg_env_selection_max_visible, open_browser=False)
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer._model = "dummy-model"
+    visualizer._env_ids = None  # normally set by initialize() -> _compute_visualized_env_ids()
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
-    assert captured["set_model"] == {"model": "dummy-model", "max_worlds": expected_max_worlds}
+    assert captured["set_model"] == "dummy-model"
+    assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
 
 
 @pytest.mark.parametrize(
-    ("cfg_max_worlds", "expected_max_worlds"),
+    ("cfg_env_selection_max_visible", "expected_visible"),
     [
         (None, None),
-        (0, 0),
-        (3, 3),
+        (0, []),
+        (3, [0, 1, 2]),
     ],
 )
-def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
-    monkeypatch: pytest.MonkeyPatch, cfg_max_worlds: int | None, expected_max_worlds: int | None
+def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
+    monkeypatch: pytest.MonkeyPatch,
+    cfg_env_selection_max_visible: int | None,
+    expected_visible: list[int] | None,
 ):
     captured = {}
 
@@ -316,8 +325,11 @@ def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
                 "record_to_rrd": record_to_rrd,
             }
 
-        def set_model(self, model: Any, max_worlds: int | None = None) -> None:
-            captured["set_model"] = {"model": model, "max_worlds": max_worlds}
+        def set_model(self, model: Any) -> None:
+            captured["set_model"] = model
+
+        def set_visible_worlds(self, worlds) -> None:
+            captured["visible_worlds"] = worlds
 
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
@@ -347,11 +359,12 @@ def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
     )
     monkeypatch.setattr(rerun_visualizer.RerunVisualizer, "_apply_camera_pose", lambda self, pose: None)
 
-    cfg = RerunVisualizerCfg(open_browser=False, max_worlds=cfg_max_worlds)
+    cfg = RerunVisualizerCfg(open_browser=False, env_selection_max_visible=cfg_env_selection_max_visible)
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
     visualizer.initialize(cast(Any, _DummyRerunSceneDataProvider()))
 
-    assert captured["set_model"] == {"model": "dummy-model", "max_worlds": expected_max_worlds}
+    assert captured["set_model"] == "dummy-model"
+    assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
 
 
@@ -456,7 +469,7 @@ def test_explicit_unknown_visualizer_type_raises():
         "/isaaclab/visualizer/types": "bogus_viz",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/env_selection_max_visible": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -470,7 +483,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
         "/isaaclab/visualizer/types": "rerun",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/env_selection_max_visible": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -497,7 +510,7 @@ def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPat
         "/isaaclab/visualizer/types": "newton",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/env_selection_max_visible": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
@@ -516,7 +529,7 @@ def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch
         "/isaaclab/visualizer/types": "newton",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/env_selection_max_visible": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
@@ -534,7 +547,7 @@ def test_explicit_partial_valid_types_raises_for_invalid():
         "/isaaclab/visualizer/types": "newton,bogus_viz",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/env_selection_max_visible": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -548,7 +561,7 @@ def test_non_explicit_unknown_type_silently_skipped(caplog):
         "/isaaclab/visualizer/types": "bogus_viz",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/env_selection_max_visible": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -564,7 +577,7 @@ def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyP
         "/isaaclab/visualizer/types": "",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/env_selection_max_visible": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 

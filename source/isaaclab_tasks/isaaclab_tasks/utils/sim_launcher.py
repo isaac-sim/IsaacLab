@@ -211,18 +211,22 @@ def launch_simulation(
             app_launcher = AppLauncher(launcher_args)
             close_fn = app_launcher.app.close
     elif visualizer_types:
-        # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
-        # selection in SettingsManager (works in standalone mode via plain dict) so that
-        # SimulationContext._get_cli_visualizer_types() can find it.
-        from isaaclab.app.settings_manager import get_settings_manager
+        # Newton path without Kit: AppLauncher is skipped — persist the same visualizer CLI
+        # settings (types, env_selection_*, viz_env_selection_*) that AppLauncher would write.
+        from isaaclab.app.app_launcher import sync_visualizer_cli_settings_to_carb
 
-        disable_all = "none" in visualizer_types
-        active_types = [] if disable_all else sorted(visualizer_types)
-        visualizer_str = " ".join(active_types)
-        settings = get_settings_manager()
-        settings.set_string("/isaaclab/visualizer/types", visualizer_str)
-        settings.set_bool("/isaaclab/visualizer/explicit", True)
-        settings.set_bool("/isaaclab/visualizer/disable_all", disable_all)
+        if isinstance(launcher_args, argparse.Namespace):
+            sync_visualizer_cli_settings_to_carb(
+                vars(launcher_args),
+                cli_explicit=True,
+                cli_disable_all=("none" in visualizer_types),
+            )
+        elif isinstance(launcher_args, dict):
+            sync_visualizer_cli_settings_to_carb(
+                launcher_args,
+                cli_explicit=True,
+                cli_disable_all=("none" in visualizer_types),
+            )
 
     try:
         yield

@@ -136,10 +136,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._device = getattr(self._simulation_context, "device", "cuda:0")
         self._newton_model = None
         self._newton_state = None
-        self._filtered_newton_model = None
-        self._filtered_newton_state = None
-        self._filtered_env_ids_key: tuple[int, ...] | None = None
-        self._filtered_body_indices: list[int] = []
         self._rigid_body_paths: list[str] = []
         # Paths used to create PhysX views. May include articulation roots for coverage.
         self._rigid_body_view_paths: list[str] = []
@@ -247,10 +243,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._xform_mask_buf = None
         self._env_id_to_body_indices = {}
         self._num_envs_at_last_newton_build = int(artifact.num_envs)
-        self._filtered_newton_model = None
-        self._filtered_newton_state = None
-        self._filtered_env_ids_key = None
-        self._filtered_body_indices = []
         return True
 
     def _build_newton_model_from_usd(self) -> None:
@@ -293,11 +285,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._xform_mask_buf = None
             self._env_id_to_body_indices = {}
             self._num_envs_at_last_newton_build = self.get_num_envs()
-            # Invalidate any filtered model when full model changes.
-            self._filtered_newton_model = None
-            self._filtered_newton_state = None
-            self._filtered_env_ids_key = None
-            self._filtered_body_indices = []
         except ModuleNotFoundError as exc:
             self._last_newton_model_build_source = "error"
             logger.error(
@@ -326,61 +313,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                 num_envs,
                 elapsed_ms,
             )
-
-    def _build_filtered_newton_model(self, env_ids: list[int]) -> None:
-        """Build Newton model/state for a subset of environments.
-
-        Args:
-            env_ids: Environment ids to include in the subset model.
-        """
-        # TODO: Deprecate this USD-traversal fallback once cloner/prebuilt coverage
-        # is complete for full and partial visualization model-build paths.
-        try:
-            from newton import ModelBuilder
-
-            # Newton model building from USD with partial visualization does not currently use cloner,
-            # and falls back to slower USD-stage traversal.
-            builder = ModelBuilder(up_axis=self._up_axis)
-            builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
-            for env_id in env_ids:
-                builder.begin_world()
-                builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
-                builder.end_world()
-
-            self._filtered_newton_model = builder.finalize(device=self._device)
-            self._filtered_newton_state = self._filtered_newton_model.state()
-
-            replace_newton_shape_colors(self._filtered_newton_model, self._stage)
-
-            full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
-            filtered_paths = self._model_body_paths(self._filtered_newton_model)
-            self._filtered_body_indices = []
-            missing = []
-            for path in filtered_paths:
-                idx = full_index_by_path.get(path)
-                if idx is None:
-                    missing.append(path)
-                else:
-                    self._filtered_body_indices.append(idx)
-            if missing:
-                logger.warning(
-                    "[PhysxSceneDataProvider] Filtered model contains %d bodies not in full model.",
-                    len(missing),
-                )
-        except ModuleNotFoundError as exc:
-            logger.error(
-                "[PhysxSceneDataProvider] Newton module not available. "
-                "Install the Newton backend to use newton/rerun/viser visualizers."
-            )
-            logger.debug(f"[PhysxSceneDataProvider] Newton import error: {exc}")
-            self._filtered_newton_model = None
-            self._filtered_newton_state = None
-            self._filtered_body_indices = []
-        except Exception as exc:
-            logger.error(f"[PhysxSceneDataProvider] Failed to build filtered Newton model from USD: {exc}")
-            self._filtered_newton_model = None
-            self._filtered_newton_state = None
-            self._filtered_body_indices = []
 
     def _build_env_id_to_body_indices(self) -> None:
         """Build mapping env_id -> list of body indices from rigid_body_paths."""
@@ -752,30 +684,20 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return self._newton_model if self._needs_newton_sync else None
 
     def get_newton_model_for_env_ids(self, env_ids: list[int] | None) -> Any | None:
-        """Return Newton model for selected environments.
+        """Return the full Newton model (``env_ids`` is ignored).
 
-        Args:
-            env_ids: Optional environment ids. ``None`` returns full model.
-
-        Returns:
-            Full or filtered Newton model, or ``None`` when unavailable.
+        Newton viewers select visible worlds via ``ViewerBase.set_visible_worlds`` using the full
+        model and full state; partial USD builds are no longer used.
         """
-        if not self._needs_newton_sync:
-            return None
-        if env_ids is None:
-            return self._newton_model
-        env_ids_key = tuple(sorted(env_ids))
-        if self._filtered_newton_model is None or self._filtered_env_ids_key != env_ids_key:
-            self._filtered_env_ids_key = env_ids_key
-            self._build_filtered_newton_model(list(env_ids_key))
-        return self._filtered_newton_model
+        del env_ids
+        return self.get_newton_model()
 
     def get_newton_state(self, env_ids: list[int] | None = None) -> Any | None:
         """Return Newton state when sync is enabled.
 
         If env_ids is None, returns the full state. If env_ids is provided, returns a
         state-like object whose body_q contains only the bodies for those envs (same order
-        as in the full model, for use with e.g. max_worlds=len(env_ids)).
+        as in the full model).
         """
         if not self._needs_newton_sync or self._newton_state is None:
             return None
@@ -783,19 +705,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             return self._newton_state
         if not self._env_id_to_body_indices:
             return self._create_empty_subset_state()
-        env_ids_key = tuple(sorted(env_ids))
-        if self._filtered_newton_model is not None and self._filtered_env_ids_key == env_ids_key:
-            if not self._filtered_body_indices:
-                return self._create_empty_subset_state()
-            try:
-                import warp as wp
-
-                body_q_t = wp.to_torch(self._newton_state.body_q)
-                subset = body_q_t[self._filtered_body_indices].clone()
-                self._filtered_newton_state.body_q = wp.from_torch(subset, dtype=wp.transformf)
-                return self._filtered_newton_state
-            except Exception:
-                return self._newton_state
         body_indices = []
         for eid in env_ids:
             body_indices.extend(self._env_id_to_body_indices.get(eid, []))

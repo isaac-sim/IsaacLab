@@ -16,6 +16,8 @@ from newton.viewer import ViewerGL
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds
+
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -281,16 +283,11 @@ class NewtonVisualizer(BaseVisualizer):
 
         self._scene_data_provider = scene_data_provider
         metadata = scene_data_provider.get_metadata()
+        num_envs = int(metadata.get("num_envs", 0))
         self._env_ids = self._compute_visualized_env_ids()
-        if self._env_ids:
-            get_filtered_model = getattr(scene_data_provider, "get_newton_model_for_env_ids", None)
-            if callable(get_filtered_model):
-                self._model = get_filtered_model(self._env_ids)
-            else:
-                self._model = scene_data_provider.get_newton_model()
-        else:
-            self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state(self._env_ids)
+        # Full model + ViewerBase.set_visible_worlds() (Newton PR #2267); avoids cloning a reduced model.
+        self._model = scene_data_provider.get_newton_model()
+        self._state = scene_data_provider.get_newton_state(None)
 
         # Use pyglet's EGL headless backend when requested. Must run before the first
         # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.
@@ -308,8 +305,13 @@ class NewtonVisualizer(BaseVisualizer):
         )
 
         if self._viewer is not None:
-            max_worlds = self.cfg.max_worlds
-            self._viewer.set_model(self._model, max_worlds=max_worlds)
+            self._viewer.set_model(self._model)
+            apply_viewer_visible_worlds(
+                self._viewer,
+                env_ids=self._env_ids,
+                env_selection_max_visible=self.cfg.env_selection_max_visible,
+                num_envs=num_envs,
+            )
             self._viewer.set_world_offsets((0.0, 0.0, 0.0))
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
@@ -365,13 +367,13 @@ class NewtonVisualizer(BaseVisualizer):
 
         if self._viewer is None:
             if self._scene_data_provider is not None:
-                self._state = self._scene_data_provider.get_newton_state(self._env_ids)
+                self._state = self._scene_data_provider.get_newton_state(None)
             return
 
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = self._scene_data_provider.get_newton_state(self._env_ids)
+        self._state = self._scene_data_provider.get_newton_state(None)
 
         contacts = None
         if self._viewer.show_contacts:

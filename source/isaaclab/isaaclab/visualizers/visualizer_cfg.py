@@ -46,21 +46,21 @@ class VisualizerCfg:
     cam_prim_path: str = "/World/envs/env_0/Camera"
     """Absolute USD path to a camera prim when cam_source='prim_path'."""
 
-    env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
-    """Env filter mode: 'none', 'env_ids', or 'random_n'."""
+    env_selection_max_visible: int | None = 4
+    """When ``env_selection_mode`` is ``none``, optional cap on how many envs are shown (``0..num_envs-1``)."""
 
-    env_filter_random_n: int = 64
-    """If env_filter_mode='random_n', number of envs to sample."""
+    env_selection_mode: Literal["none", "env_ids", "random_n"] = "none"
+    """How env indices are chosen for viewers: ``none`` (use :attr:`env_selection_max_visible` only), ``env_ids``, or ``random_n``."""
 
-    env_filter_seed: int = 0
-    """Seed for deterministic env sampling."""
-
-    env_filter_ids: list[int] = [i for i in range(0, 64, 4)]
-    """If env_filter_mode='env_ids', only these env indices are shown.
-
-    This improves performance, particularly for large-scale training, by reducing scene updates sent to visualizers.
-    Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
+    env_selection_ids: list[int] = [i for i in range(0, 64, 4)]
+    """When ``env_selection_mode`` is ``env_ids``, only these env indices are shown.
     """
+
+    env_selection_random_count: int = 64
+    """When ``env_selection_mode`` is ``random_n``, number of env indices to sample."""
+
+    env_selection_random_seed: int = 0
+    """Seed for deterministic sampling when ``env_selection_mode`` is ``random_n``."""
 
     def get_visualizer_type(self) -> str | None:
         """Get the visualizer type identifier.
