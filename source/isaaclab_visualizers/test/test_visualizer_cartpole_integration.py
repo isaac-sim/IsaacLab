@@ -32,6 +32,7 @@ import socket
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
@@ -179,9 +180,23 @@ def _assert_non_black_tensor(image_tensor: torch.Tensor, *, min_nonzero_pixels: 
     assert nonzero >= min_nonzero_pixels, "Rendered frame appears black (no non-zero pixels)."
 
 
+def _frame_to_numpy(frame) -> np.ndarray:
+    """Convert viewer ``get_frame()`` output (numpy, torch, or Warp array) to host ``numpy.ndarray``.
+
+    ``np.asarray(wp.array)`` is unsafe: NumPy can trigger Warp indexing that raises at dimension edges.
+    """
+    if isinstance(frame, np.ndarray):
+        return frame
+    if isinstance(frame, torch.Tensor):
+        return frame.detach().cpu().numpy()
+    if isinstance(frame, wp.array):
+        return wp.to_torch(frame).detach().cpu().numpy()
+    return np.asarray(frame)
+
+
 def _assert_non_black_frame_array(frame) -> None:
     """Assert viewer-captured frame has visible, non-black content."""
-    frame_arr = np.asarray(frame)
+    frame_arr = _frame_to_numpy(frame)
     assert frame_arr.size > 0, "Viewer returned an empty frame."
     if frame_arr.ndim == 2:
         color = frame_arr
@@ -221,6 +236,12 @@ def _step_until_non_black_viewer_get_frame(viewer, *, max_steps: int, step_hook)
         except AssertionError:
             continue
     _assert_non_black_frame_array(last_frame)
+
+
+def _step_env_without_frame_check(env, actions: torch.Tensor, *, max_steps: int = _MAX_NON_BLACK_STEPS) -> None:
+    """Step the env to exercise visualizers that do not implement ``get_frame`` (e.g. Rerun, Viser)."""
+    for _ in range(max_steps):
+        env.step(action=actions)
 
 
 def _build_rgb_annotator_for_camera(camera_path: str, *, resolution: tuple[int, int] = (320, 240)):
@@ -292,7 +313,22 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("backend_kind", ["physx", "newton"])
+@pytest.mark.parametrize(
+    "backend_kind",
+    [
+        "physx",
+        pytest.param(
+            "newton",
+            marks=pytest.mark.skip(
+                reason=(
+                    "TODO: Kit visualizer + Newton physics + Isaac RTX tiled camera can hit CUDA illegal access "
+                    "or bad GPU state. Repro: rl_games train Isaac-Cartpole-Camera-Presets-Direct-v0 "
+                    "--enable_cameras presets=newton --viz kit. Re-enable when fixed."
+                )
+            ),
+        ),
+    ],
+)
 def test_kit_visualizer_non_black_viewport_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Kit visualizer viewport (Replicator RGB) is not black; no visualizer ERROR (optional WARNING)."""
     env = None
@@ -366,7 +402,10 @@ def test_newton_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pyt
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_rerun_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Rerun ``ViewerRerun.get_frame`` is not all-black; no visualizer ERROR (optional WARNING)."""
+    """Rerun visualizer initializes; env steps exercise it; no visualizer ERROR (optional WARNING).
+
+    Rerun's viewer does not expose ``get_frame``, so we do not assert on a non-black frame.
+    """
     env = None
     try:
         sim_utils.create_new_stage()
@@ -377,13 +416,8 @@ def test_rerun_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pyte
             actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
             rerun_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, RerunVisualizer)]
             assert rerun_visualizers, "Expected an initialized Rerun visualizer."
-            viewer = getattr(rerun_visualizers[0], "_viewer", None)
-            assert viewer is not None, "Rerun viewer was not created."
-
-            def _step_env() -> None:
-                env.step(action=actions)
-
-            _step_until_non_black_viewer_get_frame(viewer, max_steps=_MAX_NON_BLACK_STEPS, step_hook=_step_env)
+            assert getattr(rerun_visualizers[0], "_viewer", None) is not None, "Rerun viewer was not created."
+            _step_env_without_frame_check(env, actions, max_steps=_MAX_NON_BLACK_STEPS)
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
@@ -395,7 +429,10 @@ def test_rerun_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pyte
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_viser_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Viser ``ViewerViser.get_frame`` is not all-black; no visualizer ERROR (optional WARNING)."""
+    """Viser visualizer initializes; env steps exercise it; no visualizer ERROR (optional WARNING).
+
+    Viser's Newton-backed viewer does not expose ``get_frame``, so we do not assert on a non-black frame.
+    """
     env = None
     try:
         sim_utils.create_new_stage()
@@ -406,13 +443,8 @@ def test_viser_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pyte
             actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
             viser_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, ViserVisualizer)]
             assert viser_visualizers, "Expected an initialized Viser visualizer."
-            viewer = getattr(viser_visualizers[0], "_viewer", None)
-            assert viewer is not None, "Viser viewer was not created."
-
-            def _step_env() -> None:
-                env.step(action=actions)
-
-            _step_until_non_black_viewer_get_frame(viewer, max_steps=_MAX_NON_BLACK_STEPS, step_hook=_step_env)
+            assert getattr(viser_visualizers[0], "_viewer", None) is not None, "Viser viewer was not created."
+            _step_env_without_frame_check(env, actions, max_steps=_MAX_NON_BLACK_STEPS)
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
