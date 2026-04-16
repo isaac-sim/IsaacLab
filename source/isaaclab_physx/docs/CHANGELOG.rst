@@ -1,6 +1,57 @@
 Changelog
 ---------
 
+0.5.17 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.schemas.DeformableBodyPropertiesCfg` with
+  namespace-aware property routing. Properties are organized into
+  ``omniphysics:``, ``physxDeformableBody:``, and ``physxCollision:`` prefixed
+  parent classes, allowing correct USD attribute mapping for the updated PhysX
+  deformable body schema.
+* Added :func:`~isaaclab_physx.sim.schemas.define_deformable_body_properties` and
+  :func:`~isaaclab_physx.sim.schemas.modify_deformable_body_properties` to
+  ``isaaclab_physx.sim.schemas``, supporting both surface and volume deformable
+  types via the ``deformable_type`` parameter.
+* Added :class:`~isaaclab_physx.sim.spawners.materials.DeformableBodyMaterialCfg`
+  and :class:`~isaaclab_physx.sim.spawners.materials.SurfaceDeformableBodyMaterialCfg`
+  with namespace-aware property routing for ``omniphysics:`` and
+  ``physxDeformableBody:`` material attributes.
+* Added :class:`~isaaclab_physx.sim.spawners.spawner_cfg.DeformableObjectSpawnerCfg`
+  for configuring deformable body properties and materials when spawning.
+* Added surface deformable body support to
+  :class:`~isaaclab_physx.assets.DeformableObject`. The asset now detects whether
+  the deformable is a surface or volume type based on the applied material API
+  and creates the appropriate PhysX tensor view
+  (``create_surface_deformable_body_view`` vs ``create_volume_deformable_body_view``).
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_physx.assets.DeformableObject.root_view` return type
+  from ``physx.SoftBodyView`` to ``physx.DeformableBodyView`` to align with the
+  updated PhysX API.
+* Changed :attr:`~isaaclab_physx.assets.DeformableObject.material_physx_view`
+  return type from ``physx.SoftBodyMaterialView`` to
+  ``physx.DeformableMaterialView``.
+* Changed deformable body root prim discovery to check for
+  ``OmniPhysicsDeformableBodyAPI`` instead of ``PhysxDeformableBodyAPI``.
+* Changed material prim discovery to check for ``OmniPhysicsDeformableMaterialAPI``
+  instead of ``PhysxDeformableBodyMaterialAPI``.
+* Changed PhysX view API calls to use updated method names:
+  ``get_simulation_nodal_positions``, ``set_simulation_nodal_positions``,
+  ``set_simulation_nodal_velocities``, ``get_simulation_nodal_kinematic_targets``,
+  ``set_simulation_nodal_kinematic_targets``.
+* Changed property accessors to use updated PhysX view attributes:
+  ``max_simulation_elements_per_body``, ``max_collision_elements_per_body``,
+  ``max_simulation_nodes_per_body``, ``max_collision_nodes_per_body``.
+* Changed kinematic target operations to raise ``ValueError`` when called on
+  surface deformable bodies, which do not support kinematic targets.
+
+
 0.5.16 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 
