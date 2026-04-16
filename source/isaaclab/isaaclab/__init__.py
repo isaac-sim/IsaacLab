@@ -9,35 +9,23 @@ import os
 import sys
 
 
-def _filter_prebundle_paths():
-    """Remove Isaac Sim ``pip_prebundle`` directories from ``sys.path``.
+def _deprioritize_prebundle_paths():
+    """Move Isaac Sim ``pip_prebundle`` directories to the end of ``sys.path``.
 
     Isaac Sim's ``setup_python_env.sh`` injects ``pip_prebundle`` directories
     (e.g. ``omni.isaac.ml_archive/pip_prebundle``) onto ``PYTHONPATH``.  These
     contain older copies of packages like torch, warp, and nvidia-cudnn that
     shadow the versions installed by Isaac Lab, causing CUDA runtime errors.
 
-    This function strips those entries from ``sys.path`` (and ``PYTHONPATH`` in
-    the environment so child processes also stay clean) early — before any
-    ``import torch`` can resolve to the wrong package.
+    Rather than removing these paths entirely (which would break packages like
+    ``sympy`` that only exist in the prebundle), this function moves them to
+    the **end** of ``sys.path`` so that pip-installed packages in
+    ``site-packages`` take priority.
 
-    Only paths that include *both* ``pip_prebundle`` and one of the known
-    conflicting extensions are removed.  Other ``pip_prebundle`` paths (e.g.
-    ``isaacsim.robot_motion.lula``) are left alone since they don't conflict.
-
-    The removed prebundle dirs also carry NVIDIA shared libraries
-    (``libcudart``, ``libcudnn``, …) that torch loads via ``ctypes.CDLL``.
-    To keep those discoverable after the ``sys.path`` entry is gone, the
-    function appends their ``nvidia/*/lib`` directories to
-    ``LD_LIBRARY_PATH``.
+    The ``PYTHONPATH`` environment variable is also rewritten so that child
+    processes inherit the corrected ordering.
     """
-    import glob
-
     # Extensions whose prebundled packages conflict with Isaac Lab deps.
-    # Only ml_archive is listed because it prebundles an older torch + nvidia
-    # CUDA libs that shadow the versions installed by Isaac Lab.  Other
-    # pip_prebundle directories (core_archive, pip_archive, etc.) contain
-    # packages the runtime genuinely needs and must stay on the path.
     _CONFLICTING_EXTS = (
         "omni.isaac.ml_archive",
     )
@@ -46,35 +34,35 @@ def _filter_prebundle_paths():
         norm = path.replace("\\", "/").lower()
         return "pip_prebundle" in norm and any(ext.lower() in norm for ext in _CONFLICTING_EXTS)
 
-    # Collect the paths we are about to remove so we can salvage their
-    # nvidia shared-library directories afterwards.
-    removed_paths = [p for p in sys.path if _is_conflicting(p)]
+    # Partition: keep non-conflicting in place, collect conflicting.
+    clean = []
+    demoted = []
+    for p in sys.path:
+        if _is_conflicting(p):
+            demoted.append(p)
+        else:
+            clean.append(p)
 
-    if not removed_paths:
+    if not demoted:
         return
 
-    # Filter sys.path in-place.
-    sys.path[:] = [p for p in sys.path if not _is_conflicting(p)]
+    # Rebuild sys.path: originals first, then demoted at the very end.
+    sys.path[:] = clean + demoted
 
-    # Filter PYTHONPATH so subprocesses inherit the clean version.
+    # Rewrite PYTHONPATH with the same ordering for subprocesses.
     if "PYTHONPATH" in os.environ:
         parts = os.environ["PYTHONPATH"].split(os.pathsep)
-        os.environ["PYTHONPATH"] = os.pathsep.join(p for p in parts if not _is_conflicting(p))
-
-    # Preserve NVIDIA shared libraries (libcudart, libcudnn, …) that torch
-    # loads at runtime via ctypes.  These live under <prebundle>/nvidia/*/lib.
-    ld_path = os.environ.get("LD_LIBRARY_PATH", "")
-    ld_dirs = ld_path.split(os.pathsep) if ld_path else []
-    ld_dirs_set = set(ld_dirs)
-    for prebundle_dir in removed_paths:
-        for lib_dir in glob.glob(os.path.join(prebundle_dir, "nvidia", "*", "lib")):
-            if os.path.isdir(lib_dir) and lib_dir not in ld_dirs_set:
-                ld_dirs.append(lib_dir)
-                ld_dirs_set.add(lib_dir)
-    os.environ["LD_LIBRARY_PATH"] = os.pathsep.join(ld_dirs)
+        env_clean = []
+        env_demoted = []
+        for p in parts:
+            if _is_conflicting(p):
+                env_demoted.append(p)
+            else:
+                env_clean.append(p)
+        os.environ["PYTHONPATH"] = os.pathsep.join(env_clean + env_demoted)
 
 
-_filter_prebundle_paths()
+_deprioritize_prebundle_paths()
 
 # Conveniences to other module directories via relative paths.
 ISAACLAB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
