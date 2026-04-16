@@ -735,8 +735,6 @@ class SimulationContext:
                     continue
                 if viz.is_rendering_paused():
                     # Keep non-Kit visualizer event loops responsive while rendering is paused.
-                    # KitVisualizer pumps app.update() and had historical pause/unpause issues
-                    # with zero-dt stepping, so skip it.
                     if not viz.pumps_app_update():
                         viz.step(0.0)
                     continue
