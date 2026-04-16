@@ -53,6 +53,7 @@ try:
         return decorator
 
 except ImportError:
+
     def _nvtx_range(message: str, color: str | None = None):
         def decorator(fn):
             return fn
