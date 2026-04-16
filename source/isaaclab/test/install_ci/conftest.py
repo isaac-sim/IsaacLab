@@ -117,4 +117,3 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             for arg in mark.args:
                 if isinstance(arg, str):
                     item.add_marker(arg)
-
