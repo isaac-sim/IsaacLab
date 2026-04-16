@@ -18,7 +18,7 @@ import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.sim.utils.newton_model_utils import (
-    UNBOUND_SHAPE_LINEAR_GRAY,
+    _DEFAULT_FALLBACK_GRAY,
     _linear_to_srgb,
     _linear_to_srgb_float,
     _omnipbr_linear_diffuse_from_material,
@@ -79,7 +79,7 @@ def test_replace_default_shape_colors_unbound_display_and_gray():
 
     after = wp.to_torch(shape_color)
     exp_a = _linear_to_srgb((0.2, 0.4, 0.6))
-    exp_b = _linear_to_srgb(UNBOUND_SHAPE_LINEAR_GRAY)
+    exp_b = _linear_to_srgb(_DEFAULT_FALLBACK_GRAY)
     assert after[0, 0].item() == pytest.approx(exp_a[0])
     assert after[0, 1].item() == pytest.approx(exp_a[1])
     assert after[0, 2].item() == pytest.approx(exp_a[2])
@@ -137,3 +137,45 @@ def test_replace_default_shape_colors_omnipbr_binding():
     assert after[0].item() == pytest.approx(exp[0])
     assert after[1].item() == pytest.approx(exp[1])
     assert after[2].item() == pytest.approx(exp[2])
+
+
+def test_replace_default_shape_colors_isaac_lab_env_labels_deduplicated():
+    """``/World/envs/env_<i>/...`` labels share one USD resolution via ``env_0`` canonical path."""
+    stage = Usd.Stage.CreateInMemory()
+    mesh = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/obj")
+    assert mesh is not None
+    pv = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+        "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.constant, 1
+    )
+    assert pv is not None
+    pv.Set([Gf.Vec3f(0.1, 0.2, 0.3)])
+
+    n = 2
+    shape_color = wp.zeros(n, dtype=wp.vec3, device="cpu")
+    model = SimpleNamespace(
+        shape_label=["/World/envs/env_0/obj", "/World/envs/env_12/obj"],
+        shape_color=shape_color,
+    )
+
+    assert replace_default_shape_colors(model, stage) == 2
+    after = wp.to_torch(shape_color)
+    exp = _linear_to_srgb((0.1, 0.2, 0.3))
+    for row in range(2):
+        assert after[row, 0].item() == pytest.approx(exp[0])
+        assert after[row, 1].item() == pytest.approx(exp[1])
+        assert after[row, 2].item() == pytest.approx(exp[2])
+
+
+def test_replace_default_shape_colors_skips_guide_shapes():
+    """Guide-purpose shapes keep Newton's default color."""
+    stage = Usd.Stage.CreateInMemory()
+    mesh = UsdGeom.Mesh.Define(stage, "/World/GuideMesh")
+    assert mesh is not None
+    UsdGeom.Imageable(mesh).GetPurposeAttr().Set(UsdGeom.Tokens.guide)
+
+    shape_color = wp.zeros(1, dtype=wp.vec3, device="cpu")
+    before = wp.to_torch(shape_color).clone()
+    model = SimpleNamespace(shape_label=["/World/GuideMesh"], shape_color=shape_color)
+
+    assert replace_default_shape_colors(model, stage) == 0
+    assert torch.allclose(wp.to_torch(shape_color), before)
