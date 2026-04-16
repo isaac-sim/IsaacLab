@@ -15,6 +15,10 @@ so only those namespaces count (not Omniverse, PhysX, or unrelated warnings).
 
 Set :data:`ASSERT_VISUALIZER_WARNINGS` to ``True`` locally or in CI if you want tests to
 fail on WARNING-level records from those loggers; by default only ERROR+ fails.
+
+For Kit/Newton motion-check debugging, set env ``ISAACLAB_VIZ_CARTPOLE_DEBUG_DIR`` or
+:data:`VIZ_CARTPOLE_DEBUG_OUTPUT_DIR` to a directory path to write
+``viz_<viz>_physics_<phys>_frame_<n>.png`` for the early/late compared frames and ``_frame_delta.png``.
 """
 
 from __future__ import annotations
@@ -27,7 +31,9 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import contextlib
 import copy
 import logging
+import os
 import socket
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -49,11 +55,66 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import Cartp
 ASSERT_VISUALIZER_WARNINGS = False
 
 _MAX_NON_BLACK_STEPS = 8
+"""Steps for tiled camera / Rerun / Viser smoke tests (early exit ok when non-black)."""
+
+_CARTPOLE_INTEGRATION_NUM_ENVS = 1
+"""Vectorized env count for cartpole + visualizer integration tests."""
+
+_CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (3.0, 3.0, 3.0)
+"""Passed to :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses (``eye``)."""
+
+_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (-4.0, -4.0, 0.0)
+"""Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
+
+# Resolution overrides for this test module (cartpole preset defaults: tiled camera 100×100; Kit helper was 320×240).
+_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (600, 600)
+"""Kit: Replicator ``render_product`` (width, height) for viewport RGB used in motion/debug PNGs."""
+
+_CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (600, 600)
+"""Newton: ``NewtonVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
+
+_CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (600, 600)
+"""Tiled camera per-env tile width/height (preset default is 100×100); keeps ``observation_space`` consistent."""
+
+_VIS_FRAME_TEST_STEPS = 60
+"""Steps for Kit / Newton frame capture: no early exit."""
+
+# Motion check compares the 2nd vs last captured frame (e.g. 2nd vs 60th when *_STEPS* is 60).
+_MOTION_FRAME_EARLY_IDX = 1
+"""0-based index of the *early* frame (2nd capture)."""
+
+_MOTION_FRAME_LATE_IDX = _VIS_FRAME_TEST_STEPS - 1
+"""0-based index of the *late* frame (e.g. 60th capture when :data:`_VIS_FRAME_TEST_STEPS` is 60)."""
+
+# Early vs late frame motion: void background stays similar; only count *strongly* differing pixels.
+_FRAME_MOTION_CHANNEL_DIFF_THRESHOLD = 50
+"""A pixel counts as differing if max(|ΔR|, |ΔG|, |ΔB|) >= this (0–255 space)."""
+
+_FRAME_MOTION_MIN_DIFFERING_PIXELS = 100
+"""Minimum number of such pixels between early and late frames (stale/frozen viz should be near zero)."""
+
+# When True, print differing-pixel stats for the motion check (use ``pytest -s`` to see stdout).
+REPORT_FRAME_MOTION_PIXEL_COUNT = True
+
+# Debug PNGs for the motion check: set to a directory path, or set env ``ISAACLAB_VIZ_CARTPOLE_DEBUG_DIR``.
+# Writes ``viz_<viz>_physics_<phys>_frame_<n>.png`` for the two compared frames (e.g. 2 and 60) and
+# ``viz_<viz>_physics_<phys>_frame_delta.png`` (per-pixel max |ΔR|,|ΔG|,|ΔB|, grayscale 0–255).
+VIZ_CARTPOLE_DEBUG_OUTPUT_DIR: str = ""
+
 _VIS_LOGGER_PREFIXES = (
     "isaaclab.visualizers",
     "isaaclab_visualizers",
     "isaaclab.sim.simulation_context",
 )
+
+
+def _cartpole_debug_output_root() -> Path | None:
+    """Directory to write motion debug PNGs, or None if disabled."""
+    env = os.environ.get("ISAACLAB_VIZ_CARTPOLE_DEBUG_DIR", "").strip()
+    raw = env or (VIZ_CARTPOLE_DEBUG_OUTPUT_DIR or "").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser().resolve()
 
 
 def _logger_name_matches_visualizer_scope(logger_name: str) -> bool:
@@ -107,16 +168,28 @@ def _allocate_rerun_test_ports(host: str = "127.0.0.1") -> tuple[int, int]:
     return web_port, grpc_port
 
 
+def _cartpole_integration_visualizer_camera_kwargs() -> dict[str, tuple[float, float, float]]:
+    """Eye/lookat for all :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses in these tests."""
+    return {
+        "eye": _CARTPOLE_INTEGRATION_VISUALIZER_EYE,
+        "lookat": _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT,
+    }
+
+
 def _get_visualizer_cfg(visualizer_kind: str):
     """Return (visualizer_cfg, expected_visualizer_cls) for the given visualizer kind."""
+    cam = _cartpole_integration_visualizer_camera_kwargs()
     if visualizer_kind == "newton":
         __import__("newton")
-        return NewtonVisualizerCfg(headless=True), NewtonVisualizer
+        nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
+        return NewtonVisualizerCfg(
+            headless=True, window_width=nw, window_height=nh, **cam
+        ), NewtonVisualizer
     if visualizer_kind == "viser":
         __import__("newton")
         __import__("viser")
         port = _find_free_tcp_port(host="127.0.0.1")
-        return ViserVisualizerCfg(open_browser=False, port=port), ViserVisualizer
+        return ViserVisualizerCfg(open_browser=False, port=port, **cam), ViserVisualizer
     if visualizer_kind == "rerun":
         __import__("newton")
         __import__("rerun")
@@ -127,10 +200,11 @@ def _get_visualizer_cfg(visualizer_kind: str):
                 open_browser=False,
                 web_port=web_port,
                 grpc_port=grpc_port,
+                **cam,
             ),
             RerunVisualizer,
         )
-    return KitVisualizerCfg(), KitVisualizer
+    return KitVisualizerCfg(**cam), KitVisualizer
 
 
 def _get_physics_cfg(backend_kind: str):
@@ -207,6 +281,139 @@ def _assert_non_black_frame_array(frame) -> None:
     assert np.count_nonzero(finite) > 0, "Viewer frame appears fully black."
 
 
+def _frame_rgb_255_space(frame) -> np.ndarray:
+    """Return HxWx3 float in ~0–255 space for per-channel differencing."""
+    arr = _frame_to_numpy(frame)
+    if arr.ndim == 2:
+        rgb = np.stack([arr, arr, arr], axis=-1)
+    else:
+        rgb = arr[..., :3]
+    rgb = np.asarray(rgb, dtype=np.float64)
+    # Normalized HDR buffers: scale so threshold matches (0,255) semantics.
+    if rgb.size > 0 and float(np.nanmax(rgb)) <= 1.0 + 1e-6:
+        rgb = rgb * 255.0
+    return rgb
+
+
+def _frame_to_uint8_rgb_hwc(frame) -> np.ndarray:
+    """RGB uint8 HxWx3 for PNG export."""
+    rgb = _frame_rgb_255_space(frame)
+    return np.clip(rgb, 0, 255).astype(np.uint8)
+
+
+def _save_cartpole_motion_debug_pngs(
+    viz: str,
+    physics: str,
+    frame_early: object,
+    frame_late: object,
+    *,
+    early_frame_1_based: int,
+    late_frame_1_based: int,
+) -> None:
+    """Write early/late RGB PNGs and grayscale delta under the debug root (same pair as the motion assert)."""
+    root = _cartpole_debug_output_root()
+    if root is None:
+        return
+    root.mkdir(parents=True, exist_ok=True)
+    prefix = f"viz_{viz}_physics_{physics}"
+    rgb_a = _frame_to_uint8_rgb_hwc(frame_early)
+    rgb_b = _frame_to_uint8_rgb_hwc(frame_late)
+    a_f = _frame_rgb_255_space(frame_early)
+    b_f = _frame_rgb_255_space(frame_late)
+    assert a_f.shape == b_f.shape, "Debug save: frame shape mismatch."
+    per_pixel_max = np.max(np.abs(a_f - b_f), axis=-1)
+    delta_u8 = np.clip(per_pixel_max, 0, 255).astype(np.uint8)
+
+    from PIL import Image
+
+    Image.fromarray(rgb_a).save(root / f"{prefix}_frame_{early_frame_1_based}.png")
+    Image.fromarray(rgb_b).save(root / f"{prefix}_frame_{late_frame_1_based}.png")
+    Image.fromarray(delta_u8, mode="L").save(root / f"{prefix}_frame_delta.png")
+    if REPORT_FRAME_MOTION_PIXEL_COUNT:
+        print(
+            f"[cartpole viz motion] wrote debug PNGs to {root} "
+            f"({prefix}_frame_{early_frame_1_based}.png, _frame_{late_frame_1_based}.png, _frame_delta.png)"
+        )
+
+
+def _export_cartpole_motion_debug_pngs_if_enabled(viz: str, physics: str, frames: list) -> None:
+    """Write motion debug PNGs as soon as frames exist (before non-black / motion asserts).
+
+    Ensures outputs like ``viz_newton_physics_newton_*.png`` are produced even when a later
+    assertion fails (e.g. last frame black for one physics backend).
+    """
+    if _cartpole_debug_output_root() is None or not viz or not physics:
+        return
+    if len(frames) <= _MOTION_FRAME_LATE_IDX:
+        return
+    _save_cartpole_motion_debug_pngs(
+        viz,
+        physics,
+        frames[_MOTION_FRAME_EARLY_IDX],
+        frames[_MOTION_FRAME_LATE_IDX],
+        early_frame_1_based=_MOTION_FRAME_EARLY_IDX + 1,
+        late_frame_1_based=_MOTION_FRAME_LATE_IDX + 1,
+    )
+
+
+def _count_significantly_differing_pixels(
+    frame_a,
+    frame_b,
+    *,
+    channel_diff_threshold: float = _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD,
+) -> int:
+    """Count pixels where max(|ΔR|, |ΔG|, |ΔB|) >= *channel_diff_threshold* (0–255 space)."""
+    a = _frame_rgb_255_space(frame_a)
+    b = _frame_rgb_255_space(frame_b)
+    assert a.shape == b.shape, f"Frame shape mismatch for motion check: {a.shape} vs {b.shape}."
+    per_pixel_max = np.max(np.abs(a - b), axis=-1)
+    return int(np.count_nonzero(per_pixel_max >= channel_diff_threshold))
+
+
+def _assert_early_and_late_motion_frames_differ(
+    frames: list,
+    *,
+    channel_diff_threshold: float = _FRAME_MOTION_CHANNEL_DIFF_THRESHOLD,
+    min_differing_pixels: int = _FRAME_MOTION_MIN_DIFFERING_PIXELS,
+) -> None:
+    """Fail if early vs late frames lack enough strongly differing pixels (stale/frozen bodies).
+
+    Compares :data:`_MOTION_FRAME_EARLY_IDX` vs :data:`_MOTION_FRAME_LATE_IDX` (e.g. 2nd vs 60th capture).
+
+    Voids/background stay near-identical; we only count pixels that change by at least
+    *channel_diff_threshold* on some channel (0–255).
+
+    Debug PNGs are written earlier by :func:`_export_cartpole_motion_debug_pngs_if_enabled` so
+    failed assertions still leave images on disk.
+    """
+    assert len(frames) >= _VIS_FRAME_TEST_STEPS, (
+        f"Need at least {_VIS_FRAME_TEST_STEPS} frames for motion check, got {len(frames)}."
+    )
+    i_early = _MOTION_FRAME_EARLY_IDX
+    i_late = _MOTION_FRAME_LATE_IDX
+    early_1 = i_early + 1
+    late_1 = i_late + 1
+    n_diff = _count_significantly_differing_pixels(
+        frames[i_early], frames[i_late], channel_diff_threshold=channel_diff_threshold
+    )
+    if REPORT_FRAME_MOTION_PIXEL_COUNT:
+        rgb = _frame_rgb_255_space(frames[i_early])
+        h, w = int(rgb.shape[0]), int(rgb.shape[1])
+        n_pix = h * w
+        pct = 100.0 * n_diff / n_pix if n_pix else 0.0
+        print(
+            f"[cartpole viz motion] frame[{i_early}] vs frame[{i_late}] "
+            f"(capture #{early_1} vs #{late_1}): "
+            f"{n_diff} pixels exceed per-channel diff >= {channel_diff_threshold:g} "
+            f"(min required {min_differing_pixels}; frame {h}x{w}={n_pix}px, {pct:.4f}% of image)"
+        )
+    assert n_diff >= min_differing_pixels, (
+        f"Viewport captures #{early_1} and #{late_1} have too few strongly differing pixels "
+        f"({n_diff} < {min_differing_pixels}; threshold per channel={channel_diff_threshold} in 0–255 space). "
+        "Possible frozen or stale robot visualization."
+    )
+
+
 def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int = _MAX_NON_BLACK_STEPS) -> None:
     """Step env until the env's tiled camera RGB tensor is non-black, bounded by *max_steps*."""
     last_rgb = None
@@ -224,18 +431,21 @@ def _step_until_non_black_camera(env, actions: torch.Tensor, *, max_steps: int =
     _assert_non_black_tensor(last_rgb)
 
 
-def _step_until_non_black_viewer_get_frame(viewer, *, max_steps: int, step_hook) -> None:
-    """Call *step_hook* each iteration until *viewer*.``get_frame()`` is non-black within *max_steps*."""
-    last_frame = None
-    for _ in range(max_steps):
+def _run_newton_viewer_frame_motion_test(
+    viewer,
+    *,
+    step_hook,
+    physics_kind: str,
+    viz_kind: str = "newton",
+) -> None:
+    """Exactly ``_VIS_FRAME_TEST_STEPS`` sim steps; last frame non-black; early vs late motion check."""
+    frames: list = []
+    for _ in range(_VIS_FRAME_TEST_STEPS):
         step_hook()
-        last_frame = viewer.get_frame()
-        try:
-            _assert_non_black_frame_array(last_frame)
-            return
-        except AssertionError:
-            continue
-    _assert_non_black_frame_array(last_frame)
+        frames.append(viewer.get_frame())
+    _export_cartpole_motion_debug_pngs_if_enabled(viz_kind, physics_kind, frames)
+    _assert_non_black_frame_array(frames[-1])
+    _assert_early_and_late_motion_frames_differ(frames)
 
 
 def _step_env_without_frame_check(env, actions: torch.Tensor, *, max_steps: int = _MAX_NON_BLACK_STEPS) -> None:
@@ -244,10 +454,16 @@ def _step_env_without_frame_check(env, actions: torch.Tensor, *, max_steps: int 
         env.step(action=actions)
 
 
-def _build_rgb_annotator_for_camera(camera_path: str, *, resolution: tuple[int, int] = (320, 240)):
+def _build_rgb_annotator_for_camera(
+    camera_path: str,
+    *,
+    resolution: tuple[int, int] | None = None,
+):
     """Create CPU RGB annotator attached to a camera render product."""
     import omni.replicator.core as rep
 
+    if resolution is None:
+        resolution = _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION
     render_product = rep.create.render_product(camera_path, resolution=resolution)
     annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
     annotator.attach([render_product])
@@ -262,10 +478,14 @@ def _annotator_rgb_to_numpy(rgb_data) -> np.ndarray:
     return rgb_array[:, :, :3]
 
 
-def _step_until_non_black_kit_viewport(
-    env, kit_visualizer: KitVisualizer, *, max_steps: int = _MAX_NON_BLACK_STEPS
+def _run_kit_viewport_frame_motion_test(
+    env,
+    kit_visualizer: KitVisualizer,
+    *,
+    physics_kind: str,
+    viz_kind: str = "kit",
 ) -> None:
-    """Step env until Kit viewport camera render product is non-black, bounded by max_steps."""
+    """Exactly ``_VIS_FRAME_TEST_STEPS`` env steps; last Replicator frame non-black; early vs late motion check."""
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
     assert camera_path, "Kit visualizer does not expose a controlled viewport camera path."
 
@@ -274,18 +494,14 @@ def _step_until_non_black_kit_viewport(
     try:
         annotator, render_product = _build_rgb_annotator_for_camera(camera_path)
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        last_frame = None
-        for _ in range(max_steps):
+        frames: list = []
+        for _ in range(_VIS_FRAME_TEST_STEPS):
             env.step(action=actions)
             rgb_data = annotator.get_data()
-            frame = _annotator_rgb_to_numpy(rgb_data)
-            last_frame = frame
-            try:
-                _assert_non_black_frame_array(frame)
-                return
-            except AssertionError:
-                continue
-        _assert_non_black_frame_array(last_frame)
+            frames.append(_annotator_rgb_to_numpy(rgb_data))
+        _export_cartpole_motion_debug_pngs_if_enabled(viz_kind, physics_kind, frames)
+        _assert_non_black_frame_array(frames[-1])
+        _assert_early_and_late_motion_frames_differ(frames)
     finally:
         if annotator is not None and render_product is not None:
             with contextlib.suppress(Exception):
@@ -304,7 +520,14 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
             f"Available attributes: {sorted(vars(env_cfg_root).keys())}"
         )
     env_cfg = copy.deepcopy(env_cfg)
-    env_cfg.scene.num_envs = 1
+    env_cfg.scene.num_envs = _CARTPOLE_INTEGRATION_NUM_ENVS
+    env_cfg.viewer.eye = _CARTPOLE_INTEGRATION_VISUALIZER_EYE
+    env_cfg.viewer.lookat = _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT
+    tw, th = _CARTPOLE_TILED_CAMERA_INTEGRATION_WH
+    env_cfg.tiled_camera.width = tw
+    env_cfg.tiled_camera.height = th
+    if isinstance(env_cfg.observation_space, list) and len(env_cfg.observation_space) >= 3:
+        env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None
     env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
     visualizer_cfg, _ = _get_visualizer_cfg(visualizer_kind)
@@ -330,7 +553,7 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
     ],
 )
 def test_kit_visualizer_non_black_viewport_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Kit visualizer viewport (Replicator RGB) is not black; no visualizer ERROR (optional WARNING)."""
+    """Kit viewport: full motion steps, last frame non-black; 2nd vs last capture differ; clean logs."""
     env = None
     try:
         sim_utils.create_new_stage()
@@ -340,7 +563,9 @@ def test_kit_visualizer_non_black_viewport_frame(backend_kind: str, caplog: pyte
             env.reset()
             kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
             assert kit_visualizers, "Expected an initialized Kit visualizer."
-            _step_until_non_black_kit_viewport(env, kit_visualizers[0], max_steps=_MAX_NON_BLACK_STEPS)
+            _run_kit_viewport_frame_motion_test(
+                env, kit_visualizers[0], physics_kind=backend_kind
+            )
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
@@ -373,7 +598,7 @@ def test_cartpole_tiled_camera_rgb_non_black(backend_kind: str, caplog: pytest.L
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_newton_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Newton GL ``get_frame`` is not all-black; no visualizer ERROR (optional WARNING)."""
+    """Newton GL ``get_frame``: full motion steps, last frame non-black; 2nd vs last capture differ; clean logs."""
     env = None
     try:
         sim_utils.create_new_stage()
@@ -390,7 +615,9 @@ def test_newton_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pyt
             def _step_env() -> None:
                 env.step(action=actions)
 
-            _step_until_non_black_viewer_get_frame(viewer, max_steps=_MAX_NON_BLACK_STEPS, step_hook=_step_env)
+            _run_newton_viewer_frame_motion_test(
+                viewer, step_hook=_step_env, physics_kind=backend_kind
+            )
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
