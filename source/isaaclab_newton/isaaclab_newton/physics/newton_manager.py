@@ -30,6 +30,7 @@ from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuild
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
+from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
@@ -102,6 +103,9 @@ class NewtonManager(PhysicsManager):
     _collision_cfg: NewtonCollisionPipelineCfg | None = None
     _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
     _newton_frame_transform_sensors: list = []  # List of SensorFrameTransform
+    _newton_imu_sensors: list = []  # List of NewtonSensorIMU
+    _pending_extended_state_attributes: set[str] = set()
+    _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
     _fk_dirty: bool = False
 
@@ -391,6 +395,7 @@ class NewtonManager(PhysicsManager):
         cls._collision_cfg = None
         cls._newton_contact_sensors = {}
         cls._newton_frame_transform_sensors = []
+        cls._newton_imu_sensors = []
         cls._report_contacts = False
         cls._fk_dirty = False
         cls._graph = None
@@ -402,6 +407,8 @@ class NewtonManager(PhysicsManager):
         cls._model_changes = set()
         cls._cl_pending_sites = {}
         cls._cl_site_index_map = {}
+        cls._pending_extended_state_attributes = set()
+        cls._pending_extended_contact_attributes = set()
         cls._views = []
 
     @classmethod
@@ -457,6 +464,32 @@ class NewtonManager(PhysicsManager):
         label = f"ft_{len(cls._cl_pending_sites)}"
         cls._cl_pending_sites[key] = (label, xform)
         return label
+
+    @classmethod
+    def request_extended_state_attribute(cls, attr: str) -> None:
+        """Request an extended state attribute (e.g. ``"body_qdd"``).
+
+        Sensors call this during ``__init__``, before model finalization.
+        Attributes are forwarded to the builder in :meth:`start_simulation`
+        so that subsequent ``model.state()`` calls allocate them.
+
+        Args:
+            attr: State attribute name (must be in ``State.EXTENDED_ATTRIBUTES``).
+        """
+        cls._pending_extended_state_attributes.add(attr)
+
+    @classmethod
+    def request_extended_contact_attribute(cls, attr: str) -> None:
+        """Request an extended contact attribute (e.g. ``"force"``).
+
+        Sensors call this during ``__init__``, before model finalization.
+        Attributes are forwarded to the model in :meth:`start_simulation`
+        so that subsequent ``Contacts`` creation includes them.
+
+        Args:
+            attr: Contact attribute name.
+        """
+        cls._pending_extended_contact_attributes.add(attr)
 
     @classmethod
     def _cl_inject_sites(
@@ -598,11 +631,18 @@ class NewtonManager(PhysicsManager):
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
+        # Forward pending extended attribute requests to builder and clear them
+        if cls._pending_extended_state_attributes:
+            cls._builder.request_state_attributes(*cls._pending_extended_state_attributes)
+            cls._pending_extended_state_attributes = set()
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
             cls._model = cls._builder.finalize(device=device)
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
+        if cls._pending_extended_contact_attributes:
+            cls._model.request_contact_attributes(*cls._pending_extended_contact_attributes)
+            cls._pending_extended_contact_attributes = set()
         cls._state_0 = cls._model.state()
         cls._state_1 = cls._model.state()
         cls._control = cls._model.control()
@@ -1010,6 +1050,11 @@ class NewtonManager(PhysicsManager):
             for sensor in cls._newton_frame_transform_sensors:
                 sensor.update(cls._state_0)
 
+        # Update IMU sensors
+        if cls._newton_imu_sensors:
+            for sensor in cls._newton_imu_sensors:
+                sensor.update(cls._state_0)
+
         # Populate contacts for contact sensors
         if cls._report_contacts:
             eval_contacts = contacts if contacts is not None else cls._contacts
@@ -1182,4 +1227,29 @@ class NewtonManager(PhysicsManager):
         idx = len(cls._newton_frame_transform_sensors)
         cls._newton_frame_transform_sensors.append(sensor)
         logger.info(f"Added frame transform sensor (index={idx}, shapes={len(shapes)})")
+        return idx
+
+    @classmethod
+    def add_imu_sensor(cls, sites: list[int]) -> int:
+        """Add an IMU sensor for measuring acceleration and angular velocity at sites.
+
+        Creates a ``newton.sensors.SensorIMU`` from pre-resolved site indices,
+        appends it to the internal list, and returns its index.
+
+        Args:
+            sites: Ordered list of site indices (one per environment).
+
+        Returns:
+            Index of the newly created sensor in the internal IMU sensor list.
+        """
+        if cls._model is None:
+            raise RuntimeError("add_imu_sensor called before model finalization (start_simulation).")
+        sensor = NewtonSensorIMU(
+            cls._model,
+            sites=sites,
+            request_state_attributes=False,  # Already requested via NewtonManager
+        )
+        idx = len(cls._newton_imu_sensors)
+        cls._newton_imu_sensors.append(sensor)
+        logger.info(f"Added IMU sensor (index={idx}, sites={len(sites)})")
         return idx
