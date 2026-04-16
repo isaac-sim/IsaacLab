@@ -182,9 +182,7 @@ def _get_visualizer_cfg(visualizer_kind: str):
     if visualizer_kind == "newton":
         __import__("newton")
         nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
-        return NewtonVisualizerCfg(
-            headless=True, window_width=nw, window_height=nh, **cam
-        ), NewtonVisualizer
+        return NewtonVisualizerCfg(headless=True, window_width=nw, window_height=nh, **cam), NewtonVisualizer
     if visualizer_kind == "viser":
         __import__("newton")
         __import__("viser")
@@ -563,9 +561,7 @@ def test_kit_visualizer_non_black_viewport_frame(backend_kind: str, caplog: pyte
             env.reset()
             kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
             assert kit_visualizers, "Expected an initialized Kit visualizer."
-            _run_kit_viewport_frame_motion_test(
-                env, kit_visualizers[0], physics_kind=backend_kind
-            )
+            _run_kit_viewport_frame_motion_test(env, kit_visualizers[0], physics_kind=backend_kind)
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
@@ -615,9 +611,7 @@ def test_newton_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pyt
             def _step_env() -> None:
                 env.step(action=actions)
 
-            _run_newton_viewer_frame_motion_test(
-                viewer, step_hook=_step_env, physics_kind=backend_kind
-            )
+            _run_newton_viewer_frame_motion_test(viewer, step_hook=_step_env, physics_kind=backend_kind)
         _assert_no_visualizer_log_issues(caplog)
     finally:
         if env is not None:
