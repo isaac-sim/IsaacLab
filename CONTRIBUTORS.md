@@ -56,6 +56,7 @@ Guidelines for modifications:
 * Ashwin Varghese Kuruttukulam
 * Bikram Pandit
 * Bingjie Tang
+* Bocheng Zou
 * Brayden Zhang
 * Brian Bingham
 * Brian McCann
