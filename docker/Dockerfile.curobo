@@ -148,22 +148,10 @@ RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* &&
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    DEBUG=1 ${ISAACLAB_PATH}/isaaclab.sh --install
+    ${ISAACLAB_PATH}/isaaclab.sh --install
 
 # HACK: Uninstall quadprog as it causes issues with some reinforcement learning frameworks
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
-
-# HACK: Expose pin/pinocchio from IsaacSim's private extension prebundle
-ENV PYTHONPATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle:${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib/python3.12/site-packages:${PYTHONPATH}"
-ENV LD_LIBRARY_PATH="${ISAACSIM_ROOT_PATH}/exts/isaacsim.robot_motion.pink/pip_prebundle/cmeel.prefix/lib:${LD_LIBRARY_PATH}"
-
-# HACK: nvidia-srl-usd-to-urdf was previously bundled in the Isaac Sim image but has
-# been removed. Install with --no-deps to avoid lxml<5 conflict with dex-retargeting.
-# Then symlink nvidia.srl into the ml_archive nvidia namespace so Python can find it
-# (the deprecated ml_archive prebundle shadows site-packages for the nvidia namespace).
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-deps nvidia-srl-usd-to-urdf \
-    && ln -s ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/nvidia/srl \
-       ${ISAACSIM_ROOT_PATH}/extsDeprecated/omni.isaac.ml_archive/pip_prebundle/nvidia/srl
 
 # Install cuRobo from source (pinned commit); needs CUDA env and Torch
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \

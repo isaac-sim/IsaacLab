@@ -5,6 +5,21 @@
 
 name: Installation Tests
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/**'
+      - 'VERSION'
+      - 'tools/**'
+      - 'source/**'
+      - '**/pyproject.toml'
+      - '**/environment.yaml'
+      - '.github/workflows/install-ci.yml'
+  push:
+    branches:
+      - main
+      - develop
+      - release/**
   workflow_dispatch:
     inputs:
       base_image:
@@ -19,16 +34,16 @@ permissions:
   contents: read
 jobs:
   install-tests:
-    name: Installation Tests (${{ inputs.base_image }})
+    name: Installation Tests
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6  # v6
       - name: Run installation tests
         env:
-          BASE_IMAGE: ${{ inputs.base_image }}
-          TEST_FILTER: ${{ inputs.test_filter }}
+          BASE_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.base_image || 'ubuntu:24.04' }}
+          TEST_FILTER: ${{ github.event_name == 'workflow_dispatch' && inputs.test_filter || '' }}
         run: |
           RUNNER_ARGS="--base-image $BASE_IMAGE"
           RUNNER_ARGS="$RUNNER_ARGS --results-dir ${{ github.workspace }}/results"

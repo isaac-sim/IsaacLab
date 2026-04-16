@@ -168,7 +168,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
         str(dockerfile),
         "-t",
         image_tag,
-        "--progress=quiet",
+        "--progress=plain",
     ]
 
     if args.no_cache:

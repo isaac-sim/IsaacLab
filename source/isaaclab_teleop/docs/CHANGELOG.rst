@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+0.3.5 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``cloudxr_env_file`` and ``auto_launch_cloudxr`` parameters to
+  :func:`~isaaclab_teleop.create_isaac_teleop_device`,
+  :class:`~isaaclab_teleop.IsaacTeleopDevice`, and
+  :class:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle` for
+  auto-launching the CloudXR runtime and WSS proxy during session startup.
+  When a ``.env`` file path is provided via ``--cloudxr_env``, users no
+  longer need to run ``python -m isaacteleop.cloudxr`` in a separate
+  terminal.
+* Added device-specific CloudXR ``.env`` profiles:
+  :data:`~isaaclab_teleop.CLOUDXR_JS_ENV` (Quest/Pico, ``auto-webrtc``) and
+  :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV` (Apple Vision Pro, ``auto-native``).
+* Added ``dex-retargeting==0.5.0`` as a required dependency on Linux x86_64.
+
+Changed
+^^^^^^^
+
+* Made ``isaacteleop[retargeters,ui,cloudxr]~=1.2.0`` a required dependency of
+  ``isaaclab_teleop`` (previously an optional extra via
+  ``isaaclab_teleop[teleop]``).
+
+
 0.3.4 (2026-03-17)
 ~~~~~~~~~~~~~~~~~~~
 
