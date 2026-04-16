@@ -7,7 +7,7 @@ Changelog
 Changed
 ~~~~~~~
 
-* Changed the way the python interpreter is called from `isaaclab.sh` to allow error codes to bubble up to the process level.
+* Changed the way the python interpreter is called from ``isaaclab.sh`` to allow error codes to bubble up to the process level.
 
 
 4.6.1 (2026-04-14)
