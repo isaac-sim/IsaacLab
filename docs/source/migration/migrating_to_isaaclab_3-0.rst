@@ -165,6 +165,27 @@ If you need to import Newton implementations directly (e.g., for type hints or s
    from isaaclab_newton.assets import RigidObject as NewtonRigidObject
 
 
+Deformable Object API Changes
+------------------------------
+
+Isaac Lab 3.0 updates the deformable body API to align with the current Omni Physics 110.0
+release. The old soft body API has been deprecated and replaced by two distinct deformable
+types: **volume deformables** (3D FEM tetrahedral meshes) and **surface deformables** (2D
+triangle cloth meshes). The deformable type is determined by the physics material assigned:
+
+- :class:`~isaaclab_physx.sim.DeformableBodyMaterialCfg` for volume deformables.
+- :class:`~isaaclab_physx.sim.SurfaceDeformableBodyMaterialCfg` for surface deformables.
+
+All deformable-related classes have moved from ``isaaclab`` to ``isaaclab_physx``, as shown
+in the import table above. Several properties on
+:class:`~isaaclab_physx.sim.DeformableBodyPropertiesCfg` have been removed or added to match
+the new Omni Physics schema.
+
+For a comprehensive guide covering the full deformable API migration — including removed and
+added properties, material changes, code examples for both volume and surface deformables, and
+current limitations — see :ref:`migrating-deformables`.
+
+
 .. _imu-to-pva-migration:
 
 IMU Sensor Renamed to PVA; New Lightweight IMU Sensor

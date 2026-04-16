@@ -9,8 +9,11 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
 
+# deformables only supported on PhysX backend
+from isaaclab_physx.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg
+
 from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg
+from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg
 from isaaclab.utils import configclass
 
 
@@ -140,3 +143,18 @@ class MeshConeCfg(MeshCfg):
     """Height of the v (in m)."""
     axis: Literal["X", "Y", "Z"] = "Z"
     """Axis of the cone. Defaults to "Z"."""
+
+
+@configclass
+class MeshSquareCfg(MeshCfg):
+    """Configuration parameters for a 2D square mesh prim.
+
+    See :meth:`spawn_mesh_square` for more information.
+    """
+
+    func: Callable | str = "{DIR}.meshes:spawn_mesh_square"
+
+    size: float = MISSING
+    """Edge length of the square (in m)."""
+    resolution: tuple[int, int] = (5, 5)
+    """Resolution of the square (in elements/edges per side)."""
