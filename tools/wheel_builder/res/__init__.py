@@ -38,4 +38,5 @@ def main():
 
 
 if __name__ == "__main__":
+    bootstrap_kernel()
     main()
