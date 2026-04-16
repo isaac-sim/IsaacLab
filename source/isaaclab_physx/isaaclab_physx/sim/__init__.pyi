@@ -27,4 +27,26 @@ from .spawners import (
     spawn_deformable_body_material,
     DeformableBodyMaterialCfg,
     SurfaceDeformableBodyMaterialCfg,
+__all__ = [
+    "define_deformable_body_properties",
+    "modify_deformable_body_properties",
+    "DeformableBodyPropertiesCfg",
+    "DeformableObjectSpawnerCfg",
+    "spawn_deformable_body_material",
+    "DeformableBodyMaterialCfg",
+    "SurfaceDeformableBodyMaterialCfg",
+    "views",
+]
+
+from .schemas import (
+    define_deformable_body_properties,
+    modify_deformable_body_properties,
+    DeformableBodyPropertiesCfg
 )
+from .spawners import (
+    DeformableObjectSpawnerCfg,
+    spawn_deformable_body_material,
+    DeformableBodyMaterialCfg,
+    SurfaceDeformableBodyMaterialCfg,
+)
+from . import views
