@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.14 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.Imu` sensor wrapping Newton's
+  ``SensorIMU``, providing angular velocity and linear acceleration in the
+  sensor's body frame.
+
+
 0.5.13 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 
