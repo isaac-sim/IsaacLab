@@ -26,11 +26,12 @@ def _filter_prebundle_paths():
     ``isaacsim.robot_motion.lula``) are left alone since they don't conflict.
     """
     # Extensions whose prebundled packages conflict with Isaac Lab deps.
+    # Only ml_archive is listed because it prebundles an older torch + nvidia
+    # CUDA libs that shadow the versions installed by Isaac Lab.  Other
+    # pip_prebundle directories (core_archive, pip_archive, etc.) contain
+    # packages the runtime genuinely needs and must stay on the path.
     _CONFLICTING_EXTS = (
         "omni.isaac.ml_archive",
-        "omni.isaac.core_archive",
-        "omni.kit.pip_archive",
-        "isaacsim.pip.newton",
     )
 
     def _is_conflicting(path: str) -> bool:
