@@ -9,7 +9,7 @@ import re
 import sys
 import textwrap
 
-import toml
+import tomllib
 
 VSCODE_SETTINGS_TEMPLATE = """
 {
@@ -42,7 +42,8 @@ def generate_vscode_settings():
         cprint(f"  |-- Parsing extension config ({ext_path})")
         config_path = os.path.join(ext_path, "config", "extension.toml")
         try:
-            config = toml.load(config_path)
+            with open(config_path, "rb") as f:
+                config = tomllib.load(f)
         except Exception as e:
             cprint(f"  |     |-- [Warning] {e}")
             return
