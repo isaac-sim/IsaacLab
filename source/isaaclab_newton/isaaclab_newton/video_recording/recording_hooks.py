@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 def recording_followup_after_visualizers(sim: SimulationContext) -> None:
     """Newton extension hook: recording pipeline after visualizers have stepped.
 
-    Called from :func:`isaaclab.sim.recording_hooks.run_recording_hooks_after_visualizers`.
+    Called from :func:`isaaclab.envs.utils.recording_hooks.run_recording_hooks_after_visualizers`.
     Wire **Newton GL** / Newton-specific video capture here (e.g. perspective video,
     frame sync with ``NewtonVisualizer``). Stay lightweight and no-op when Newton
     recording is inactive.

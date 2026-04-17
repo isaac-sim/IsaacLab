@@ -296,7 +296,7 @@ def test_render_pumps_app_update_without_visualizer():
 
     Originally ``SimulationContext.render()`` called ``omni.kit.app.get_app().update()`` when
     no visualizer had ``pumps_app_update()`` (see PR #5056). The same contract is now implemented
-    from :func:`~isaaclab.sim.recording_hooks.run_recording_hooks_after_visualizers`, which calls
+    from :func:`~isaaclab.envs.utils.recording_hooks.run_recording_hooks_after_visualizers`, which calls
     :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.pump_kit_app_for_headless_video_render_if_needed`
     when ``/isaaclab/video/enabled`` is set (as with ``--video``), which in turn calls
     ``ensure_isaac_rtx_render_update()`` (guarded by ``is_rendering`` and the no-pumping-visualizer check).

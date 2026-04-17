@@ -281,7 +281,7 @@ class PhysicsManager(ABC):
         """Hook after visualizers have stepped during :meth:`~isaaclab.sim.SimulationContext.render`.
 
         Use for physics-backend sync (e.g. fabric) if needed. Recording pipelines (Kit/RTX,
-        Newton GL video, etc.) run from :mod:`isaaclab.sim.recording_hooks` so they are not
+        Newton GL video, etc.) run from :mod:`isaaclab.envs.utils.recording_hooks` so they are not
         tied to a specific physics manager. Default is a no-op.
         """
         pass

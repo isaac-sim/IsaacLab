@@ -21,6 +21,7 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
+from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
@@ -31,7 +32,6 @@ from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
-from .recording_hooks import run_recording_hooks_after_visualizers
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
@@ -702,7 +702,7 @@ class SimulationContext:
         Calls update_visualizers() so visualizers run at the render cadence (not at
         every physics step). Camera sensors drive their configured renderer when
         fetching data. Recording-related follow-up (Kit/RTX headless video, Newton GL
-        video, etc.) runs in :mod:`isaaclab.sim.recording_hooks` so it is not tied to a
+        video, etc.) runs in :mod:`isaaclab.envs.utils.recording_hooks` so it is not tied to a
         specific :class:`~isaaclab.physics.PhysicsManager` subclass.
         """
         self.physics_manager.pre_render()
