@@ -292,23 +292,20 @@ class NewtonVisualizer(BaseVisualizer):
             self._model = scene_data_provider.get_newton_model()
         self._state = scene_data_provider.get_newton_state(self._env_ids)
 
-        try:
-            self._viewer = NewtonViewerGL(
-                width=self.cfg.window_width,
-                height=self.cfg.window_height,
-                headless=self.cfg.headless,
-                metadata=metadata,
-                update_frequency=self.cfg.update_frequency,
-            )
-        except Exception as exc:
-            if not self.cfg.headless:
-                raise
-            self._viewer = None
-            self._headless_no_viewer = True
-            logger.info(
-                "[NewtonVisualizer] Headless fallback enabled (ViewerGL unavailable in this environment): %s",
-                exc,
-            )
+        # Use pyglet's EGL headless backend when requested. Must run before the first
+        # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.
+        if self.cfg.headless:
+            import pyglet
+
+            pyglet.options["headless"] = True
+
+        self._viewer = NewtonViewerGL(
+            width=self.cfg.window_width,
+            height=self.cfg.window_height,
+            headless=self.cfg.headless,
+            metadata=metadata,
+            update_frequency=self.cfg.update_frequency,
+        )
 
         if self._viewer is not None:
             max_worlds = self.cfg.max_worlds

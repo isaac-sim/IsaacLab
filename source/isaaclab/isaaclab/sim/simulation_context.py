@@ -605,6 +605,7 @@ class SimulationContext:
             eye, target = pending
             for viz in self._visualizers:
                 viz.set_camera_view(eye, target)
+            self._pending_camera_view = None
 
         if not self._visualizers and self._scene_data_provider is not None:
             close_provider = getattr(self._scene_data_provider, "close", None)

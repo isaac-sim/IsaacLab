@@ -19,6 +19,12 @@ fail on WARNING-level records from those loggers; by default only ERROR+ fails.
 
 from __future__ import annotations
 
+# Pyglet must use HeadlessWindow (EGL) before ``pyglet.window`` is imported so Newton
+# ViewerGL can construct without an X11 display (matches ``headless=True`` on NewtonVisualizerCfg).
+import pyglet
+
+pyglet.options["headless"] = True
+
 from isaaclab.app import AppLauncher
 
 # launch Kit app

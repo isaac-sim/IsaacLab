@@ -111,8 +111,8 @@ class KitVisualizer(BaseVisualizer):
 
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
-                # Keep app pumping for viewport/UI updates only.
-                # Simulation stepping is owned by SimulationContext.
+                # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
+                # Disable playSimulations around app.update() so Kit does not advance its own physics here.
                 settings = get_settings_manager()
                 settings.set_bool("/app/player/playSimulations", False)
                 app.update()
