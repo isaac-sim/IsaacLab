@@ -9,11 +9,20 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
 from .xr_cfg import XrCfg
+
+_CLOUDXR_ENV_DIR = Path(__file__).resolve().parent
+
+CLOUDXR_AVP_ENV: str = str(_CLOUDXR_ENV_DIR / "avp-cloudxr.env")
+"""Absolute path to the Apple Vision Pro CloudXR ``.env`` profile (``auto-native``)."""
+
+CLOUDXR_JS_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxrjs-cloudxr.env")
+"""Absolute path to the CloudXR JS (Quest/Pico) ``.env`` profile (``auto-webrtc``)."""
 
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner

@@ -21,9 +21,9 @@ class BaseImu(SensorBase):
     """The Inertial Measurement Unit (IMU) sensor.
 
     This sensor models a real IMU that measures angular velocity (gyroscope) and
-    linear acceleration (accelerometer) in the sensor's body frame. Unlike the PVA
-    sensor, it does not provide pose, linear velocity, angular acceleration, or
-    projected gravity.
+    proper linear acceleration (accelerometer) in the sensor's body frame. Unlike the
+    PVA sensor, it does not provide pose, linear velocity, angular acceleration,
+    or projected gravity.
 
     The sensor can be attached to any prim path with a rigid ancestor in its tree.
     If the provided path is not a rigid body, the closest rigid-body ancestor is used

@@ -593,6 +593,87 @@ Key ``IsaacTeleopCfg`` fields:
    would break pre-built pipeline graphs.
 
 
+.. _isaac-teleop-cloudxr-profiles:
+
+CloudXR Environment Profiles
+-----------------------------
+
+Isaac Lab ships two ``.env`` profiles that configure the CloudXR runtime for different XR devices.
+These are bundled inside the ``isaaclab_teleop`` package and can be referenced via constants:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 25 25 20
+
+   * - Constant
+     - File
+     - ``NV_DEVICE_PROFILE``
+     - ``NV_CXR_ENABLE_PUSH_DEVICES``
+   * - :data:`~isaaclab_teleop.CLOUDXR_JS_ENV`
+     - ``cloudxrjs-cloudxr.env``
+     - ``auto-webrtc``
+     - ``0``
+   * - :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV`
+     - ``avp-cloudxr.env``
+     - ``auto-native``
+     - ``0``
+
+Both profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
+tracking (the most common setup). For external push-device peripherals such as Manus gloves, set
+this to ``1`` in a custom profile (see below).
+
+Override at launch time
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``--cloudxr_env`` flag on ``teleop_se3_agent.py`` and ``record_demos.py`` selects which
+``.env`` profile to use. The default is ``cloudxrjs`` (Quest/Pico). Use the ``avp`` shorthand
+for Apple Vision Pro, or pass a full file path for a custom profile:
+
+.. code-block:: bash
+
+   # Use the AVP profile
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit --xr \
+       --cloudxr_env avp
+
+Create a custom profile
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Copy a shipped profile and edit it:
+
+.. code-block:: bash
+
+   # Start from the Quest/Pico profile
+   cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/my-cloudxr.env
+
+Edit ``~/my-cloudxr.env`` to change any values (e.g. ``NV_CXR_ENABLE_PUSH_DEVICES=1`` for
+Manus gloves), then pass it via ``--cloudxr_env ~/my-cloudxr.env``.
+
+Disable auto-launch
+~~~~~~~~~~~~~~~~~~~
+
+If you prefer to run the CloudXR runtime manually in a separate terminal
+(``python -m isaacteleop.cloudxr``), you can disable auto-launch in several ways:
+
+* **CLI flag**: ``--no-auto_launch_cloudxr`` on the teleop script.
+* **Disable CloudXR entirely**: ``--cloudxr_env none``.
+* **Environment variable**: ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` overrides the CLI flag at runtime.
+
+.. code-block:: bash
+
+   # Disable via CLI flag
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit --xr \
+       --no-auto_launch_cloudxr
+
+   # Or disable via environment variable
+   ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit --xr
+
+
 .. _isaac-teleop-xr-anchor:
 
 Configure the XR Anchor

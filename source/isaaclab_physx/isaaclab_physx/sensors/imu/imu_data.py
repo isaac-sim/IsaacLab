@@ -23,7 +23,9 @@ class ImuData(BaseImuData):
 
     @property
     def lin_acc_b(self) -> wp.array:
-        """IMU frame linear acceleration relative to the world expressed in IMU frame [m/s^2].
+        """Linear acceleration (proper) in the IMU frame [m/s^2].
+
+        Zero in freefall, +g upward at rest.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """

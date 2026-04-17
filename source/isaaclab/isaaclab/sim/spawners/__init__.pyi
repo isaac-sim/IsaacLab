@@ -6,7 +6,6 @@
 __all__ = [
     "SpawnerCfg",
     "RigidObjectSpawnerCfg",
-    "DeformableObjectSpawnerCfg",
     "spawn_from_mjcf",
     "spawn_from_urdf",
     "spawn_from_usd",
@@ -24,9 +23,7 @@ __all__ = [
     "DomeLightCfg",
     "LightCfg",
     "SphereLightCfg",
-    "spawn_deformable_body_material",
     "spawn_rigid_body_material",
-    "DeformableBodyMaterialCfg",
     "PhysicsMaterialCfg",
     "RigidBodyMaterialCfg",
     "spawn_from_mdl_file",
@@ -40,12 +37,14 @@ __all__ = [
     "spawn_mesh_cuboid",
     "spawn_mesh_cylinder",
     "spawn_mesh_sphere",
+    "spawn_mesh_square",
     "MeshCapsuleCfg",
     "MeshCfg",
     "MeshConeCfg",
     "MeshCuboidCfg",
     "MeshCylinderCfg",
     "MeshSphereCfg",
+    "MeshSquareCfg",
     "spawn_camera",
     "FisheyeCameraCfg",
     "PinholeCameraCfg",
@@ -66,7 +65,7 @@ __all__ = [
     "MultiUsdFileCfg",
 ]
 
-from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg
+from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg
 from .from_files import (
     spawn_from_mjcf,
     spawn_from_urdf,
@@ -89,9 +88,7 @@ from .lights import (
     SphereLightCfg,
 )
 from .materials import (
-    spawn_deformable_body_material,
     spawn_rigid_body_material,
-    DeformableBodyMaterialCfg,
     PhysicsMaterialCfg,
     RigidBodyMaterialCfg,
     spawn_from_mdl_file,
@@ -107,11 +104,13 @@ from .meshes import (
     spawn_mesh_cuboid,
     spawn_mesh_cylinder,
     spawn_mesh_sphere,
+    spawn_mesh_square,
     MeshCapsuleCfg,
     MeshCfg,
     MeshConeCfg,
     MeshCuboidCfg,
     MeshCylinderCfg,
+    MeshSquareCfg,
     MeshSphereCfg,
 )
 from .sensors import spawn_camera, FisheyeCameraCfg, PinholeCameraCfg

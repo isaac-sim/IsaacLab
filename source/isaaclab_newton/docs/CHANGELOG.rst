@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.5.15 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.pva.Pva` sensor wrapping Newton's
+  body state (``body_q``, ``body_qd``, ``body_qdd``) to provide world-frame
+  pose and body-frame velocities/accelerations.
+
+
+0.5.14 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.Imu` sensor wrapping Newton's
+  ``SensorIMU``, providing angular velocity and linear acceleration in the
+  sensor's body frame.
+
+
 0.5.13 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -34,7 +34,7 @@ class DeformableObjectData:
     is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
     """
 
-    def __init__(self, root_view: physx.SoftBodyView, device: str):
+    def __init__(self, root_view: physx.DeformableBodyView, device: str):
         """Initializes the deformable object data.
 
         Args:
@@ -46,13 +46,13 @@ class DeformableObjectData:
         # Set the root deformable body view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
-        self._root_view: physx.SoftBodyView = weakref.proxy(root_view)
+        self._root_view: physx.DeformableBodyView = weakref.proxy(root_view)
 
         # Store dimensions
         self._num_instances = root_view.count
-        self._max_sim_vertices = root_view.max_sim_vertices_per_body
-        self._max_sim_elements = root_view.max_sim_elements_per_body
-        self._max_collision_elements = root_view.max_elements_per_body
+        self._max_sim_vertices = root_view.max_simulation_nodes_per_body
+        self._max_sim_elements = root_view.max_simulation_elements_per_body
+        self._max_collision_elements = root_view.max_collision_elements_per_body
 
         # Set initial time stamp
         self._sim_timestamp = 0.0
@@ -62,25 +62,6 @@ class DeformableObjectData:
         self._nodal_pos_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
         self._nodal_vel_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
         self._nodal_state_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, vec6f)
-        # -- mesh element-wise rotations
-        self._sim_element_quat_w = TimestampedBuffer((self._num_instances, self._max_sim_elements), device, wp.quatf)
-        self._collision_element_quat_w = TimestampedBuffer(
-            (self._num_instances, self._max_collision_elements), device, wp.quatf
-        )
-        # -- mesh element-wise deformation gradients
-        self._sim_element_deform_gradient_w = TimestampedBuffer(
-            (self._num_instances, self._max_sim_elements, 3, 3), device, wp.float32
-        )
-        self._collision_element_deform_gradient_w = TimestampedBuffer(
-            (self._num_instances, self._max_collision_elements, 3, 3), device, wp.float32
-        )
-        # -- mesh element-wise stresses
-        self._sim_element_stress_w = TimestampedBuffer(
-            (self._num_instances, self._max_sim_elements, 3, 3), device, wp.float32
-        )
-        self._collision_element_stress_w = TimestampedBuffer(
-            (self._num_instances, self._max_collision_elements, 3, 3), device, wp.float32
-        )
         # -- derived: root pos/vel
         self._root_pos_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
         self._root_vel_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
@@ -125,9 +106,9 @@ class DeformableObjectData:
     def nodal_pos_w(self) -> wp.array:
         """Nodal positions in simulation world frame. Shape is (num_instances, max_sim_vertices_per_body) vec3f."""
         if self._nodal_pos_w.timestamp < self._sim_timestamp:
-            # get_sim_nodal_positions() returns (N, V, 3) float32 — view as (N, V) vec3f
+            # get_simulation_nodal_positions() returns (N, V, 3) float32 — view as (N, V) vec3f
             self._nodal_pos_w.data = (
-                self._root_view.get_sim_nodal_positions()
+                self._root_view.get_simulation_nodal_positions()
                 .view(wp.vec3f)
                 .reshape((self._num_instances, self._max_sim_vertices))
             )
@@ -139,7 +120,7 @@ class DeformableObjectData:
         """Nodal velocities in simulation world frame. Shape is (num_instances, max_sim_vertices_per_body) vec3f."""
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
             self._nodal_vel_w.data = (
-                self._root_view.get_sim_nodal_velocities()
+                self._root_view.get_simulation_nodal_velocities()
                 .view(wp.vec3f)
                 .reshape((self._num_instances, self._max_sim_vertices))
             )
@@ -161,88 +142,6 @@ class DeformableObjectData:
             )
             self._nodal_state_w.timestamp = self._sim_timestamp
         return self._nodal_state_w.data
-
-    @property
-    def sim_element_quat_w(self) -> wp.array:
-        """Simulation mesh element-wise rotations as quaternions for the deformable bodies in simulation world frame.
-        Shape is (num_instances, max_sim_elements_per_body, 4).
-
-        The rotations are stored as quaternions in the order (x, y, z, w).
-        """
-        if self._sim_element_quat_w.timestamp < self._sim_timestamp:
-            self._sim_element_quat_w.data = (
-                self._root_view.get_sim_element_rotations()
-                .reshape((self._num_instances, self._max_sim_elements, 4))
-                .view(wp.quatf)
-            )
-            self._sim_element_quat_w.timestamp = self._sim_timestamp
-        return self._sim_element_quat_w.data
-
-    @property
-    def collision_element_quat_w(self) -> wp.array:
-        """Collision mesh element-wise rotations as quaternions for the deformable bodies in simulation world frame.
-        Shape is (num_instances, max_collision_elements_per_body, 4).
-
-        The rotations are stored as quaternions in the order (x, y, z, w).
-        """
-        if self._collision_element_quat_w.timestamp < self._sim_timestamp:
-            self._collision_element_quat_w.data = (
-                self._root_view.get_element_rotations()
-                .reshape((self._num_instances, self._max_collision_elements, 4))
-                .view(wp.quatf)
-            )
-            self._collision_element_quat_w.timestamp = self._sim_timestamp
-        return self._collision_element_quat_w.data
-
-    @property
-    def sim_element_deform_gradient_w(self) -> wp.array:
-        """Simulation mesh element-wise second-order deformation gradient tensors for the deformable bodies
-        in simulation world frame. Shape is (num_instances, max_sim_elements_per_body, 3, 3).
-        """
-        if self._sim_element_deform_gradient_w.timestamp < self._sim_timestamp:
-            self._sim_element_deform_gradient_w.data = self._root_view.get_sim_element_deformation_gradients().reshape(
-                (self._num_instances, self._max_sim_elements, 3, 3)
-            )
-            self._sim_element_deform_gradient_w.timestamp = self._sim_timestamp
-        return self._sim_element_deform_gradient_w.data
-
-    @property
-    def collision_element_deform_gradient_w(self) -> wp.array:
-        """Collision mesh element-wise second-order deformation gradient tensors for the deformable bodies
-        in simulation world frame. Shape is (num_instances, max_collision_elements_per_body, 3, 3).
-        """
-        if self._collision_element_deform_gradient_w.timestamp < self._sim_timestamp:
-            self._collision_element_deform_gradient_w.data = (
-                self._root_view.get_element_deformation_gradients().reshape(
-                    (self._num_instances, self._max_collision_elements, 3, 3)
-                )
-            )
-            self._collision_element_deform_gradient_w.timestamp = self._sim_timestamp
-        return self._collision_element_deform_gradient_w.data
-
-    @property
-    def sim_element_stress_w(self) -> wp.array:
-        """Simulation mesh element-wise second-order Cauchy stress tensors for the deformable bodies
-        in simulation world frame. Shape is (num_instances, max_sim_elements_per_body, 3, 3).
-        """
-        if self._sim_element_stress_w.timestamp < self._sim_timestamp:
-            self._sim_element_stress_w.data = self._root_view.get_sim_element_stresses().reshape(
-                (self._num_instances, self._max_sim_elements, 3, 3)
-            )
-            self._sim_element_stress_w.timestamp = self._sim_timestamp
-        return self._sim_element_stress_w.data
-
-    @property
-    def collision_element_stress_w(self) -> wp.array:
-        """Collision mesh element-wise second-order Cauchy stress tensors for the deformable bodies
-        in simulation world frame. Shape is (num_instances, max_collision_elements_per_body, 3, 3).
-        """
-        if self._collision_element_stress_w.timestamp < self._sim_timestamp:
-            self._collision_element_stress_w.data = self._root_view.get_element_stresses().reshape(
-                (self._num_instances, self._max_collision_elements, 3, 3)
-            )
-            self._collision_element_stress_w.timestamp = self._sim_timestamp
-        return self._collision_element_stress_w.data
 
     ##
     # Derived properties.

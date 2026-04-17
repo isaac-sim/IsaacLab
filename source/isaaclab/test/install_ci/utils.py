@@ -40,7 +40,7 @@ def run_cmd(
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
     timeout: int = 600,
-    check: bool = True,
+    err_on_err: bool = False,
     stream: bool | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a command, merging *env* into the current environment.
@@ -50,7 +50,7 @@ def run_cmd(
         cwd: Working directory for the subprocess.
         env: Extra environment variables merged into the current environment.
         timeout: Timeout in seconds.
-        check: Raise CalledProcessError on non-zero exit.
+        err_on_err: Raise CalledProcessError on non-zero exit.
         stream: When True, stream stdout/stderr to the console in
             real time instead of capturing them.  Defaults to True when
             pytest is invoked with ``-s`` (``--capture=no``).
@@ -100,7 +100,7 @@ def run_cmd(
             stdout="".join(lines),
             stderr="",
         )
-        if check and result.returncode != 0:
+        if err_on_err and result.returncode != 0:
             raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
         return result
     return subprocess.run(
@@ -110,7 +110,7 @@ def run_cmd(
         capture_output=True,
         text=True,
         timeout=timeout,
-        check=check,
+        check=err_on_err,
     )
 
 
@@ -142,7 +142,7 @@ class UV_Mixin:
         if self.env_path.exists():
             shutil.rmtree(self.env_path)
 
-        result = run_cmd([str(self.cli_script), "-u", env_name], cwd=isaaclab_root, check=False)
+        result = run_cmd([str(self.cli_script), "-u", env_name], cwd=isaaclab_root, err_on_err=False)
         assert result.returncode == 0, f"uv env creation failed:\n{result.stdout}\n{result.stderr}"
         assert self.env_path.exists(), f"Expected env directory {self.env_path} was not created"
 
