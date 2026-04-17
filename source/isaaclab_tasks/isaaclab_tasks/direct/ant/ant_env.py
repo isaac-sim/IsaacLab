@@ -26,7 +26,7 @@ class AntEnvCfg(DirectRLEnvCfg):
     episode_length_s = 15.0
     decimation = 2
     action_scale = 0.5
-    action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(8,))  # bounded space (needed for random exploration)
+    action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(8,))  # bounded space (needed for off-policy exploration)
     observation_space = 36
     state_space = 0
 
