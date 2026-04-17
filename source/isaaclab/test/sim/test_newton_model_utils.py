@@ -18,11 +18,12 @@ import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.sim.utils.newton_model_utils import (
-    _DEFAULT_FALLBACK_GRAY,
+    _ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV,
+    _UNBOUND_DEFAULT_FALLBACK_GRAY,
     _linear_to_srgb,
     _linear_to_srgb_float,
     _omnipbr_linear_diffuse_from_material,
-    replace_default_shape_colors,
+    replace_newton_shape_colors,
 )
 
 
@@ -58,7 +59,7 @@ def test_omnipbr_linear_diffuse_from_material_returns_linear_diffuse_times_tint(
     assert out == pytest.approx((0.2, 0.2, 0.2), rel=1e-5)
 
 
-def test_replace_default_shape_colors_unbound_display_and_gray():
+def test_replace_newton_shape_colors_unbound_display_and_gray():
     """No material: ``displayColor`` or unbound gray as linear RGB, then sRGB OETF into ``shape_color``."""
     stage = Usd.Stage.CreateInMemory()
     mesh_a = UsdGeom.Mesh.Define(stage, "/World/A")
@@ -74,12 +75,12 @@ def test_replace_default_shape_colors_unbound_display_and_gray():
     shape_color = wp.zeros(n, dtype=wp.vec3, device="cpu")
     model = SimpleNamespace(shape_label=["/World/A", "/World/B"], shape_color=shape_color)
 
-    count = replace_default_shape_colors(model, stage)
+    count = replace_newton_shape_colors(model, stage)
     assert count == 2
 
     after = wp.to_torch(shape_color)
     exp_a = _linear_to_srgb((0.2, 0.4, 0.6))
-    exp_b = _linear_to_srgb(_DEFAULT_FALLBACK_GRAY)
+    exp_b = _linear_to_srgb(_UNBOUND_DEFAULT_FALLBACK_GRAY)
     assert after[0, 0].item() == pytest.approx(exp_a[0])
     assert after[0, 1].item() == pytest.approx(exp_a[1])
     assert after[0, 2].item() == pytest.approx(exp_a[2])
@@ -88,7 +89,7 @@ def test_replace_default_shape_colors_unbound_display_and_gray():
     assert after[1, 2].item() == pytest.approx(exp_b[2])
 
 
-def test_replace_default_shape_colors_skips_non_omnipbr_material():
+def test_replace_newton_shape_colors_skips_non_omnipbr_material():
     """Bound material that is not OmniPBR leaves the row unchanged."""
     stage = Usd.Stage.CreateInMemory()
     mesh = UsdGeom.Mesh.Define(stage, "/World/Mesh")
@@ -108,11 +109,11 @@ def test_replace_default_shape_colors_skips_non_omnipbr_material():
     before = wp.to_torch(shape_color).clone()
     model = SimpleNamespace(shape_label=["/World/Mesh"], shape_color=shape_color)
 
-    assert replace_default_shape_colors(model, stage) == 0
+    assert replace_newton_shape_colors(model, stage) == 0
     assert torch.allclose(wp.to_torch(shape_color), before)
 
 
-def test_replace_default_shape_colors_omnipbr_binding():
+def test_replace_newton_shape_colors_omnipbr_binding():
     """Bound OmniPBR: diffuse × tint then sRGB OETF."""
     stage = Usd.Stage.CreateInMemory()
     mesh = UsdGeom.Mesh.Define(stage, "/World/Mesh")
@@ -131,7 +132,7 @@ def test_replace_default_shape_colors_omnipbr_binding():
     shape_color = wp.zeros(1, dtype=wp.vec3, device="cpu")
     model = SimpleNamespace(shape_label=["/World/Mesh"], shape_color=shape_color)
 
-    assert replace_default_shape_colors(model, stage) == 1
+    assert replace_newton_shape_colors(model, stage) == 1
     exp = _linear_to_srgb((1.0, 0.0, 0.0))
     after = wp.to_torch(shape_color)[0]
     assert after[0].item() == pytest.approx(exp[0])
@@ -139,8 +140,54 @@ def test_replace_default_shape_colors_omnipbr_binding():
     assert after[2].item() == pytest.approx(exp[2])
 
 
-def test_replace_default_shape_colors_isaac_lab_env_labels_deduplicated():
-    """``/World/envs/env_<i>/...`` labels share one USD resolution via ``env_0`` canonical path."""
+def test_replace_newton_shape_colors_respects_stronger_than_descendants_binding():
+    """Parent stronger-than-descendants binding overrides direct child binding."""
+    stage = Usd.Stage.CreateInMemory()
+    parent = UsdGeom.Xform.Define(stage, "/World/Parent")
+    mesh = UsdGeom.Mesh.Define(stage, "/World/Parent/Mesh")
+    assert parent is not None and mesh is not None
+
+    child_mat = UsdShade.Material.Define(stage, "/World/ChildMat")
+    child_shader = UsdShade.Shader.Define(stage, "/World/ChildMat/OmniPBRShader")
+    assert child_mat is not None and child_shader is not None
+    child_shader.GetPrim().CreateAttribute("info:mdl:sourceAsset", Sdf.ValueTypeNames.Asset).Set(
+        Sdf.AssetPath("OmniPBR.mdl")
+    )
+    child_shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(1.0, 0.0, 0.0))
+    child_shader.CreateInput("diffuse_tint", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(1.0, 1.0, 1.0))
+
+    parent_mat = UsdShade.Material.Define(stage, "/World/ParentMat")
+    parent_shader = UsdShade.Shader.Define(stage, "/World/ParentMat/OmniPBRShader")
+    assert parent_mat is not None and parent_shader is not None
+    parent_shader.GetPrim().CreateAttribute("info:mdl:sourceAsset", Sdf.ValueTypeNames.Asset).Set(
+        Sdf.AssetPath("OmniPBR.mdl")
+    )
+    parent_shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0.0, 1.0, 0.0))
+    parent_shader.CreateInput("diffuse_tint", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(1.0, 1.0, 1.0))
+
+    mesh_prim = mesh.GetPrim()
+    parent_prim = parent.GetPrim()
+    UsdShade.MaterialBindingAPI.Apply(mesh_prim)
+    UsdShade.MaterialBindingAPI.Apply(parent_prim)
+    UsdShade.MaterialBindingAPI(mesh_prim).Bind(UsdShade.Material(child_mat.GetPrim()))
+    UsdShade.MaterialBindingAPI(parent_prim).Bind(
+        UsdShade.Material(parent_mat.GetPrim()),
+        bindingStrength=UsdShade.Tokens.strongerThanDescendants,
+    )
+
+    shape_color = wp.zeros(1, dtype=wp.vec3, device="cpu")
+    model = SimpleNamespace(shape_label=["/World/Parent/Mesh"], shape_color=shape_color)
+
+    assert replace_newton_shape_colors(model, stage) == 1
+    exp = _linear_to_srgb((0.0, 1.0, 0.0))
+    after = wp.to_torch(shape_color)[0]
+    assert after[0].item() == pytest.approx(exp[0])
+    assert after[1].item() == pytest.approx(exp[1])
+    assert after[2].item() == pytest.approx(exp[2])
+
+
+def test_replace_newton_shape_colors_isaac_lab_env_labels_deduplicated():
+    """Multiple Newton rows pointing at the same USD path share one color resolution (per-key cache)."""
     stage = Usd.Stage.CreateInMemory()
     mesh = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/obj")
     assert mesh is not None
@@ -153,11 +200,11 @@ def test_replace_default_shape_colors_isaac_lab_env_labels_deduplicated():
     n = 2
     shape_color = wp.zeros(n, dtype=wp.vec3, device="cpu")
     model = SimpleNamespace(
-        shape_label=["/World/envs/env_0/obj", "/World/envs/env_12/obj"],
+        shape_label=["/World/envs/env_0/obj", "/World/envs/env_0/obj"],
         shape_color=shape_color,
     )
 
-    assert replace_default_shape_colors(model, stage) == 2
+    assert replace_newton_shape_colors(model, stage) == 2
     after = wp.to_torch(shape_color)
     exp = _linear_to_srgb((0.1, 0.2, 0.3))
     for row in range(2):
@@ -166,7 +213,7 @@ def test_replace_default_shape_colors_isaac_lab_env_labels_deduplicated():
         assert after[row, 2].item() == pytest.approx(exp[2])
 
 
-def test_replace_default_shape_colors_skips_guide_shapes():
+def test_replace_newton_shape_colors_skips_guide_shapes():
     """Guide-purpose shapes keep Newton's default color."""
     stage = Usd.Stage.CreateInMemory()
     mesh = UsdGeom.Mesh.Define(stage, "/World/GuideMesh")
@@ -177,5 +224,26 @@ def test_replace_default_shape_colors_skips_guide_shapes():
     before = wp.to_torch(shape_color).clone()
     model = SimpleNamespace(shape_label=["/World/GuideMesh"], shape_color=shape_color)
 
-    assert replace_default_shape_colors(model, stage) == 0
+    assert replace_newton_shape_colors(model, stage) == 0
+    assert torch.allclose(wp.to_torch(shape_color), before)
+
+
+def test_replace_newton_shape_colors_can_be_disabled_by_env_var(monkeypatch: pytest.MonkeyPatch):
+    """Disabled workaround leaves shape colors unchanged and reports no updates."""
+    monkeypatch.setenv(_ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV, "0")
+
+    stage = Usd.Stage.CreateInMemory()
+    mesh = UsdGeom.Mesh.Define(stage, "/World/A")
+    assert mesh is not None
+    pv = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+        "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.constant, 1
+    )
+    assert pv is not None
+    pv.Set([Gf.Vec3f(0.2, 0.4, 0.6)])
+
+    shape_color = wp.zeros(1, dtype=wp.vec3, device="cpu")
+    before = wp.to_torch(shape_color).clone()
+    model = SimpleNamespace(shape_label=["/World/A"], shape_color=shape_color)
+
+    assert replace_newton_shape_colors(model, stage) == 0
     assert torch.allclose(wp.to_torch(shape_color), before)

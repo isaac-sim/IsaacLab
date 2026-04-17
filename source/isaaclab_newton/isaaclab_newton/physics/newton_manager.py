@@ -34,7 +34,7 @@ from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.sim.utils.newton_model_utils import replace_default_shape_colors
+from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
@@ -641,7 +641,7 @@ class NewtonManager(PhysicsManager):
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
-            replace_default_shape_colors(cls._model)
+            replace_newton_shape_colors(cls._model)
 
         if cls._pending_extended_contact_attributes:
             cls._model.request_contact_attributes(*cls._pending_extended_contact_attributes)
