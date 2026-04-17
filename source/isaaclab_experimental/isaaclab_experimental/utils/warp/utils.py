@@ -196,7 +196,6 @@ class WarpCapturable:
         return True
 
 
-
 @wp.kernel
 def zero_masked_2d(mask: wp.array(dtype=wp.bool), values: wp.array(dtype=wp.float32, ndim=2)):
     """Zero out rows of a 2D float32 array where mask is True."""
