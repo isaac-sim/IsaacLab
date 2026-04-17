@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+4.6.6 (2026-04-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the way the python interpreter is called from ``isaaclab.sh`` to allow
+  error codes to bubble up to the process level.
+
+
 4.6.5 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~
 
