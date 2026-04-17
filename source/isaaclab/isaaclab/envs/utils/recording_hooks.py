@@ -19,14 +19,15 @@ from typing import Any
 def run_recording_hooks_after_visualizers(sim: Any) -> None:
     """Run recording-related work after :meth:`~isaaclab.sim.SimulationContext.render` steps visualizers.
 
-    Dispatches to Isaac Sim (Kit/RTX) and Newton follow-ups. Optional extensions are
-    imported inside each helper so minimal installs still work.
+    Isaac Sim / RTX follow-up is loaded lazily so minimal installs still work.
+    Newton GL video is handled by :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`
+    (e.g. :class:`~isaaclab_newton.video_recording.newton_gl_perspective_video.NewtonGlPerspectiveVideo`),
+    not here.
 
     Args:
         sim: Active :class:`~isaaclab.sim.SimulationContext` instance.
     """
     _recording_followup_isaac_sim(sim)
-    _recording_followup_newton(sim)
 
 
 def _recording_followup_isaac_sim(sim: Any) -> None:
@@ -47,18 +48,3 @@ def _recording_followup_isaac_sim(sim: Any) -> None:
     except ImportError:
         return
     pump_kit_app_for_headless_video_render_if_needed(sim)
-
-
-def _recording_followup_newton(sim: Any) -> None:
-    """Newton: recording pipeline after visualizers (e.g. Newton GL video).
-
-    Implementation lives under :mod:`isaaclab_newton.video_recording` so Newton-specific
-    capture stays out of core :mod:`isaaclab.envs.utils`.
-    """
-    try:
-        from isaaclab_newton.video_recording.recording_hooks import (
-            recording_followup_after_visualizers,
-        )
-    except ImportError:
-        return
-    recording_followup_after_visualizers(sim)

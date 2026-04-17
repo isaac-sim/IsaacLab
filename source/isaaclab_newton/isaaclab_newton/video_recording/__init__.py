@@ -5,6 +5,7 @@
 
 """Newton GL perspective video recording."""
 
-from .recording_hooks import recording_followup_after_visualizers
+from .newton_gl_perspective_video import NewtonGlPerspectiveVideo
+from .newton_gl_perspective_video_cfg import NewtonGlPerspectiveVideoCfg
 
-__all__ = ["recording_followup_after_visualizers"]
+__all__ = ["NewtonGlPerspectiveVideo", "NewtonGlPerspectiveVideoCfg"]
