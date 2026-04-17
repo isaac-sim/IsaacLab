@@ -175,4 +175,4 @@ Summary
 See also
 --------
 
-* :doc:`visualization` - interactive visualizers
+* :doc:`/features/visualization` - interactive visualizers
