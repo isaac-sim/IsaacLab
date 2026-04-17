@@ -36,7 +36,9 @@ class ContactSensorData(BaseContactSensorData):
             outputs=[self._pose_w],
             device=self._device,
         )
-        return TorchArray(self._pose_w)
+        if self._pose_w_ta is None:
+            self._pose_w_ta = TorchArray(self._pose_w)
+        return self._pose_w_ta
 
     @property
     def pos_w(self) -> TorchArray | None:
@@ -49,7 +51,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._pos_w is None:
             return None
-        return TorchArray(self._pos_w)
+        if self._pos_w_ta is None:
+            self._pos_w_ta = TorchArray(self._pos_w)
+        return self._pos_w_ta
 
     @property
     def quat_w(self) -> TorchArray | None:
@@ -62,7 +66,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._quat_w is None:
             return None
-        return TorchArray(self._quat_w)
+        if self._quat_w_ta is None:
+            self._quat_w_ta = TorchArray(self._quat_w)
+        return self._quat_w_ta
 
     @property
     def net_forces_w(self) -> TorchArray | None:
@@ -73,7 +79,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._net_forces_w is None:
             return None
-        return TorchArray(self._net_forces_w)
+        if self._net_forces_w_ta is None:
+            self._net_forces_w_ta = TorchArray(self._net_forces_w)
+        return self._net_forces_w_ta
 
     @property
     def net_forces_w_history(self) -> TorchArray | None:
@@ -84,7 +92,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._net_forces_w_history is None:
             return None
-        return TorchArray(self._net_forces_w_history)
+        if self._net_forces_w_history_ta is None:
+            self._net_forces_w_history_ta = TorchArray(self._net_forces_w_history)
+        return self._net_forces_w_history_ta
 
     @property
     def force_matrix_w(self) -> TorchArray | None:
@@ -97,7 +107,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._force_matrix_w is None:
             return None
-        return TorchArray(self._force_matrix_w)
+        if self._force_matrix_w_ta is None:
+            self._force_matrix_w_ta = TorchArray(self._force_matrix_w)
+        return self._force_matrix_w_ta
 
     @property
     def force_matrix_w_history(self) -> TorchArray | None:
@@ -110,7 +122,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._force_matrix_w_history is None:
             return None
-        return TorchArray(self._force_matrix_w_history)
+        if self._force_matrix_w_history_ta is None:
+            self._force_matrix_w_history_ta = TorchArray(self._force_matrix_w_history)
+        return self._force_matrix_w_history_ta
 
     @property
     def contact_pos_w(self) -> TorchArray | None:
@@ -123,7 +137,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._contact_pos_w is None:
             return None
-        return TorchArray(self._contact_pos_w)
+        if self._contact_pos_w_ta is None:
+            self._contact_pos_w_ta = TorchArray(self._contact_pos_w)
+        return self._contact_pos_w_ta
 
     @property
     def friction_forces_w(self) -> TorchArray | None:
@@ -136,7 +152,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._friction_forces_w is None:
             return None
-        return TorchArray(self._friction_forces_w)
+        if self._friction_forces_w_ta is None:
+            self._friction_forces_w_ta = TorchArray(self._friction_forces_w)
+        return self._friction_forces_w_ta
 
     @property
     def last_air_time(self) -> TorchArray | None:
@@ -148,7 +166,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._last_air_time is None:
             return None
-        return TorchArray(self._last_air_time)
+        if self._last_air_time_ta is None:
+            self._last_air_time_ta = TorchArray(self._last_air_time)
+        return self._last_air_time_ta
 
     @property
     def current_air_time(self) -> TorchArray | None:
@@ -160,7 +180,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._current_air_time is None:
             return None
-        return TorchArray(self._current_air_time)
+        if self._current_air_time_ta is None:
+            self._current_air_time_ta = TorchArray(self._current_air_time)
+        return self._current_air_time_ta
 
     @property
     def last_contact_time(self) -> TorchArray | None:
@@ -172,7 +194,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._last_contact_time is None:
             return None
-        return TorchArray(self._last_contact_time)
+        if self._last_contact_time_ta is None:
+            self._last_contact_time_ta = TorchArray(self._last_contact_time)
+        return self._last_contact_time_ta
 
     @property
     def current_contact_time(self) -> TorchArray | None:
@@ -184,7 +208,9 @@ class ContactSensorData(BaseContactSensorData):
         """
         if self._current_contact_time is None:
             return None
-        return TorchArray(self._current_contact_time)
+        if self._current_contact_time_ta is None:
+            self._current_contact_time_ta = TorchArray(self._current_contact_time)
+        return self._current_contact_time_ta
 
     def create_buffers(
         self,
@@ -273,3 +299,18 @@ class ContactSensorData(BaseContactSensorData):
             )
         else:
             self._friction_forces_w = None
+
+        # -- Pinned TorchArray cache (one per read property, lazily created on first access)
+        self._pose_w_ta: TorchArray | None = None
+        self._pos_w_ta: TorchArray | None = None
+        self._quat_w_ta: TorchArray | None = None
+        self._net_forces_w_ta: TorchArray | None = None
+        self._net_forces_w_history_ta: TorchArray | None = None
+        self._force_matrix_w_ta: TorchArray | None = None
+        self._force_matrix_w_history_ta: TorchArray | None = None
+        self._contact_pos_w_ta: TorchArray | None = None
+        self._friction_forces_w_ta: TorchArray | None = None
+        self._last_air_time_ta: TorchArray | None = None
+        self._current_air_time_ta: TorchArray | None = None
+        self._last_contact_time_ta: TorchArray | None = None
+        self._current_contact_time_ta: TorchArray | None = None

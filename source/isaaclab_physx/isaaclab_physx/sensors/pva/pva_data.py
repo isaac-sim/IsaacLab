@@ -34,7 +34,9 @@ class PvaData(BasePvaData):
             outputs=[self._pose_w],
             device=self._device,
         )
-        return TorchArray(self._pose_w)
+        if self._pose_w_ta is None:
+            self._pose_w_ta = TorchArray(self._pose_w)
+        return self._pose_w_ta
 
     @property
     def pos_w(self) -> TorchArray:
@@ -42,7 +44,9 @@ class PvaData(BasePvaData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return TorchArray(self._pos_w)
+        if self._pos_w_ta is None:
+            self._pos_w_ta = TorchArray(self._pos_w)
+        return self._pos_w_ta
 
     @property
     def quat_w(self) -> TorchArray:
@@ -51,7 +55,9 @@ class PvaData(BasePvaData):
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
         The orientation is provided in (x, y, z, w) format.
         """
-        return TorchArray(self._quat_w)
+        if self._quat_w_ta is None:
+            self._quat_w_ta = TorchArray(self._quat_w)
+        return self._quat_w_ta
 
     @property
     def projected_gravity_b(self) -> TorchArray:
@@ -59,7 +65,9 @@ class PvaData(BasePvaData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return TorchArray(self._projected_gravity_b)
+        if self._projected_gravity_b_ta is None:
+            self._projected_gravity_b_ta = TorchArray(self._projected_gravity_b)
+        return self._projected_gravity_b_ta
 
     @property
     def lin_vel_b(self) -> TorchArray:
@@ -67,7 +75,9 @@ class PvaData(BasePvaData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return TorchArray(self._lin_vel_b)
+        if self._lin_vel_b_ta is None:
+            self._lin_vel_b_ta = TorchArray(self._lin_vel_b)
+        return self._lin_vel_b_ta
 
     @property
     def ang_vel_b(self) -> TorchArray:
@@ -75,7 +85,9 @@ class PvaData(BasePvaData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return TorchArray(self._ang_vel_b)
+        if self._ang_vel_b_ta is None:
+            self._ang_vel_b_ta = TorchArray(self._ang_vel_b)
+        return self._ang_vel_b_ta
 
     @property
     def lin_acc_b(self) -> TorchArray:
@@ -83,7 +95,9 @@ class PvaData(BasePvaData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return TorchArray(self._lin_acc_b)
+        if self._lin_acc_b_ta is None:
+            self._lin_acc_b_ta = TorchArray(self._lin_acc_b)
+        return self._lin_acc_b_ta
 
     @property
     def ang_acc_b(self) -> TorchArray:
@@ -91,7 +105,9 @@ class PvaData(BasePvaData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return TorchArray(self._ang_acc_b)
+        if self._ang_acc_b_ta is None:
+            self._ang_acc_b_ta = TorchArray(self._ang_acc_b)
+        return self._ang_acc_b_ta
 
     def create_buffers(self, num_envs: int, device: str) -> None:
         """Create internal buffers for sensor data.
@@ -117,3 +133,13 @@ class PvaData(BasePvaData):
         self._ang_vel_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
         self._lin_acc_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
         self._ang_acc_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+
+        # -- Pinned TorchArray cache (one per read property, lazily created on first access)
+        self._pose_w_ta: TorchArray | None = None
+        self._pos_w_ta: TorchArray | None = None
+        self._quat_w_ta: TorchArray | None = None
+        self._projected_gravity_b_ta: TorchArray | None = None
+        self._lin_vel_b_ta: TorchArray | None = None
+        self._ang_vel_b_ta: TorchArray | None = None
+        self._lin_acc_b_ta: TorchArray | None = None
+        self._ang_acc_b_ta: TorchArray | None = None

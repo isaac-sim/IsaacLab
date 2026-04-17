@@ -35,7 +35,9 @@ class FrameTransformerData(BaseFrameTransformerData):
             outputs=[self._target_pose_source],
             device=self._device,
         )
-        return TorchArray(self._target_pose_source)
+        if self._target_pose_source_ta is None:
+            self._target_pose_source_ta = TorchArray(self._target_pose_source)
+        return self._target_pose_source_ta
 
     @property
     def target_pos_source(self) -> TorchArray:
@@ -44,7 +46,9 @@ class FrameTransformerData(BaseFrameTransformerData):
         Shape is (num_instances, num_target_frames), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_target_frames, 3).
         """
-        return TorchArray(self._target_pos_source)
+        if self._target_pos_source_ta is None:
+            self._target_pos_source_ta = TorchArray(self._target_pos_source)
+        return self._target_pos_source_ta
 
     @property
     def target_quat_source(self) -> TorchArray:
@@ -53,7 +57,9 @@ class FrameTransformerData(BaseFrameTransformerData):
         Shape is (num_instances, num_target_frames), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_target_frames, 4). The orientation is provided in (x, y, z, w) format.
         """
-        return TorchArray(self._target_quat_source)
+        if self._target_quat_source_ta is None:
+            self._target_quat_source_ta = TorchArray(self._target_quat_source)
+        return self._target_quat_source_ta
 
     @property
     def target_pose_w(self) -> TorchArray:
@@ -69,7 +75,9 @@ class FrameTransformerData(BaseFrameTransformerData):
             outputs=[self._target_pose_w],
             device=self._device,
         )
-        return TorchArray(self._target_pose_w)
+        if self._target_pose_w_ta is None:
+            self._target_pose_w_ta = TorchArray(self._target_pose_w)
+        return self._target_pose_w_ta
 
     @property
     def target_pos_w(self) -> TorchArray:
@@ -78,7 +86,9 @@ class FrameTransformerData(BaseFrameTransformerData):
         Shape is (num_instances, num_target_frames), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_target_frames, 3).
         """
-        return TorchArray(self._target_pos_w)
+        if self._target_pos_w_ta is None:
+            self._target_pos_w_ta = TorchArray(self._target_pos_w)
+        return self._target_pos_w_ta
 
     @property
     def target_quat_w(self) -> TorchArray:
@@ -87,7 +97,9 @@ class FrameTransformerData(BaseFrameTransformerData):
         Shape is (num_instances, num_target_frames), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_target_frames, 4). The orientation is provided in (x, y, z, w) format.
         """
-        return TorchArray(self._target_quat_w)
+        if self._target_quat_w_ta is None:
+            self._target_quat_w_ta = TorchArray(self._target_quat_w)
+        return self._target_quat_w_ta
 
     @property
     def source_pose_w(self) -> TorchArray:
@@ -103,7 +115,9 @@ class FrameTransformerData(BaseFrameTransformerData):
             outputs=[self._source_pose_w],
             device=self._device,
         )
-        return TorchArray(self._source_pose_w)
+        if self._source_pose_w_ta is None:
+            self._source_pose_w_ta = TorchArray(self._source_pose_w)
+        return self._source_pose_w_ta
 
     @property
     def source_pos_w(self) -> TorchArray:
@@ -111,7 +125,9 @@ class FrameTransformerData(BaseFrameTransformerData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return TorchArray(self._source_pos_w)
+        if self._source_pos_w_ta is None:
+            self._source_pos_w_ta = TorchArray(self._source_pos_w)
+        return self._source_pos_w_ta
 
     @property
     def source_quat_w(self) -> TorchArray:
@@ -120,7 +136,9 @@ class FrameTransformerData(BaseFrameTransformerData):
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
         The orientation is provided in (x, y, z, w) format.
         """
-        return TorchArray(self._source_quat_w)
+        if self._source_quat_w_ta is None:
+            self._source_quat_w_ta = TorchArray(self._source_quat_w)
+        return self._source_quat_w_ta
 
     def create_buffers(
         self,
@@ -156,3 +174,14 @@ class FrameTransformerData(BaseFrameTransformerData):
         wp.to_torch(self._source_quat_w)[:, 3] = 1.0
         wp.to_torch(self._target_quat_w)[:, :, 3] = 1.0
         wp.to_torch(self._target_quat_source)[:, :, 3] = 1.0
+
+        # -- Pinned TorchArray cache (one per read property, lazily created on first access)
+        self._target_pose_source_ta: TorchArray | None = None
+        self._target_pos_source_ta: TorchArray | None = None
+        self._target_quat_source_ta: TorchArray | None = None
+        self._target_pose_w_ta: TorchArray | None = None
+        self._target_pos_w_ta: TorchArray | None = None
+        self._target_quat_w_ta: TorchArray | None = None
+        self._source_pose_w_ta: TorchArray | None = None
+        self._source_pos_w_ta: TorchArray | None = None
+        self._source_quat_w_ta: TorchArray | None = None

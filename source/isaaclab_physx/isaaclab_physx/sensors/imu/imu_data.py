@@ -20,7 +20,9 @@ class ImuData(BaseImuData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return TorchArray(self._ang_vel_b)
+        if self._ang_vel_b_ta is None:
+            self._ang_vel_b_ta = TorchArray(self._ang_vel_b)
+        return self._ang_vel_b_ta
 
     @property
     def lin_acc_b(self) -> TorchArray:
@@ -28,7 +30,9 @@ class ImuData(BaseImuData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
-        return TorchArray(self._lin_acc_b)
+        if self._lin_acc_b_ta is None:
+            self._lin_acc_b_ta = TorchArray(self._lin_acc_b)
+        return self._lin_acc_b_ta
 
     def create_buffers(self, num_envs: int, device: str) -> None:
         """Create internal buffers for sensor data.
@@ -41,3 +45,7 @@ class ImuData(BaseImuData):
         self._device = device
         self._ang_vel_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
         self._lin_acc_b = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+
+        # -- Pinned TorchArray cache (one per read property, lazily created on first access)
+        self._ang_vel_b_ta: TorchArray | None = None
+        self._lin_acc_b_ta: TorchArray | None = None

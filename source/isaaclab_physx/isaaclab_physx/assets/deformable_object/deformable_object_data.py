@@ -86,6 +86,19 @@ class DeformableObjectData:
         self._root_pos_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
         self._root_vel_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
 
+        # -- Pinned TorchArray cache (one per read property, lazily created on first access)
+        self._nodal_pos_w_ta: TorchArray | None = None
+        self._nodal_vel_w_ta: TorchArray | None = None
+        self._nodal_state_w_ta: TorchArray | None = None
+        self._sim_element_quat_w_ta: TorchArray | None = None
+        self._collision_element_quat_w_ta: TorchArray | None = None
+        self._sim_element_deform_gradient_w_ta: TorchArray | None = None
+        self._collision_element_deform_gradient_w_ta: TorchArray | None = None
+        self._sim_element_stress_w_ta: TorchArray | None = None
+        self._collision_element_stress_w_ta: TorchArray | None = None
+        self._root_pos_w_ta: TorchArray | None = None
+        self._root_vel_w_ta: TorchArray | None = None
+
     def update(self, dt: float):
         """Updates the data for the deformable object.
 
@@ -133,7 +146,9 @@ class DeformableObjectData:
                 .reshape((self._num_instances, self._max_sim_vertices))
             )
             self._nodal_pos_w.timestamp = self._sim_timestamp
-        return TorchArray(self._nodal_pos_w.data)
+        if self._nodal_pos_w_ta is None:
+            self._nodal_pos_w_ta = TorchArray(self._nodal_pos_w.data)
+        return self._nodal_pos_w_ta
 
     @property
     def nodal_vel_w(self) -> TorchArray:
@@ -145,7 +160,9 @@ class DeformableObjectData:
                 .reshape((self._num_instances, self._max_sim_vertices))
             )
             self._nodal_vel_w.timestamp = self._sim_timestamp
-        return TorchArray(self._nodal_vel_w.data)
+        if self._nodal_vel_w_ta is None:
+            self._nodal_vel_w_ta = TorchArray(self._nodal_vel_w.data)
+        return self._nodal_vel_w_ta
 
     @property
     def nodal_state_w(self) -> TorchArray:
@@ -161,7 +178,9 @@ class DeformableObjectData:
                 device=self.device,
             )
             self._nodal_state_w.timestamp = self._sim_timestamp
-        return TorchArray(self._nodal_state_w.data)
+        if self._nodal_state_w_ta is None:
+            self._nodal_state_w_ta = TorchArray(self._nodal_state_w.data)
+        return self._nodal_state_w_ta
 
     @property
     def sim_element_quat_w(self) -> TorchArray:
@@ -177,7 +196,9 @@ class DeformableObjectData:
                 .view(wp.quatf)
             )
             self._sim_element_quat_w.timestamp = self._sim_timestamp
-        return TorchArray(self._sim_element_quat_w.data)
+        if self._sim_element_quat_w_ta is None:
+            self._sim_element_quat_w_ta = TorchArray(self._sim_element_quat_w.data)
+        return self._sim_element_quat_w_ta
 
     @property
     def collision_element_quat_w(self) -> TorchArray:
@@ -193,7 +214,9 @@ class DeformableObjectData:
                 .view(wp.quatf)
             )
             self._collision_element_quat_w.timestamp = self._sim_timestamp
-        return TorchArray(self._collision_element_quat_w.data)
+        if self._collision_element_quat_w_ta is None:
+            self._collision_element_quat_w_ta = TorchArray(self._collision_element_quat_w.data)
+        return self._collision_element_quat_w_ta
 
     @property
     def sim_element_deform_gradient_w(self) -> TorchArray:
@@ -205,7 +228,9 @@ class DeformableObjectData:
                 (self._num_instances, self._max_sim_elements, 3, 3)
             )
             self._sim_element_deform_gradient_w.timestamp = self._sim_timestamp
-        return TorchArray(self._sim_element_deform_gradient_w.data)
+        if self._sim_element_deform_gradient_w_ta is None:
+            self._sim_element_deform_gradient_w_ta = TorchArray(self._sim_element_deform_gradient_w.data)
+        return self._sim_element_deform_gradient_w_ta
 
     @property
     def collision_element_deform_gradient_w(self) -> TorchArray:
@@ -219,7 +244,9 @@ class DeformableObjectData:
                 )
             )
             self._collision_element_deform_gradient_w.timestamp = self._sim_timestamp
-        return TorchArray(self._collision_element_deform_gradient_w.data)
+        if self._collision_element_deform_gradient_w_ta is None:
+            self._collision_element_deform_gradient_w_ta = TorchArray(self._collision_element_deform_gradient_w.data)
+        return self._collision_element_deform_gradient_w_ta
 
     @property
     def sim_element_stress_w(self) -> TorchArray:
@@ -231,7 +258,9 @@ class DeformableObjectData:
                 (self._num_instances, self._max_sim_elements, 3, 3)
             )
             self._sim_element_stress_w.timestamp = self._sim_timestamp
-        return TorchArray(self._sim_element_stress_w.data)
+        if self._sim_element_stress_w_ta is None:
+            self._sim_element_stress_w_ta = TorchArray(self._sim_element_stress_w.data)
+        return self._sim_element_stress_w_ta
 
     @property
     def collision_element_stress_w(self) -> TorchArray:
@@ -243,7 +272,9 @@ class DeformableObjectData:
                 (self._num_instances, self._max_collision_elements, 3, 3)
             )
             self._collision_element_stress_w.timestamp = self._sim_timestamp
-        return TorchArray(self._collision_element_stress_w.data)
+        if self._collision_element_stress_w_ta is None:
+            self._collision_element_stress_w_ta = TorchArray(self._collision_element_stress_w.data)
+        return self._collision_element_stress_w_ta
 
     ##
     # Derived properties.
@@ -265,7 +296,9 @@ class DeformableObjectData:
                 device=self.device,
             )
             self._root_pos_w.timestamp = self._sim_timestamp
-        return TorchArray(self._root_pos_w.data)
+        if self._root_pos_w_ta is None:
+            self._root_pos_w_ta = TorchArray(self._root_pos_w.data)
+        return self._root_pos_w_ta
 
     @property
     def root_vel_w(self) -> TorchArray:
@@ -283,4 +316,6 @@ class DeformableObjectData:
                 device=self.device,
             )
             self._root_vel_w.timestamp = self._sim_timestamp
-        return TorchArray(self._root_vel_w.data)
+        if self._root_vel_w_ta is None:
+            self._root_vel_w_ta = TorchArray(self._root_vel_w.data)
+        return self._root_vel_w_ta

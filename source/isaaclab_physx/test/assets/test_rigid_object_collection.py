@@ -740,7 +740,7 @@ def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled):
     sim.reset()
 
     # Check if gravity vector is set correctly
-    gravity_vec = wp.to_torch(object_collection.data.GRAVITY_VEC_W)
+    gravity_vec = object_collection.data.GRAVITY_VEC_W.torch
     assert gravity_vec[0, 0, 0] == gravity_dir[0]
     assert gravity_vec[0, 0, 1] == gravity_dir[1]
     assert gravity_vec[0, 0, 2] == gravity_dir[2]
