@@ -1,0 +1,58 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Build PIP Wheel
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/**'
+      - 'VERSION'
+      - 'source/**'
+      - 'tools/wheel_builder/**'
+      - '.github/workflows/wheel.yml'
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-wheel:
+    name: Build Wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+
+      - name: Build wheel
+        run: bash tools/wheel_builder/build.sh
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ github.event_name == 'pull_request' && format('isaaclab-wheel-pr-{0}-{1}', github.event.pull_request.number, github.sha) || format('isaaclab-wheel-{0}-{1}', github.ref_name, github.sha) }}
+          path: tools/wheel_builder/build/dist/isaaclab-*.whl
+          if-no-files-found: error
+          retention-days: 30

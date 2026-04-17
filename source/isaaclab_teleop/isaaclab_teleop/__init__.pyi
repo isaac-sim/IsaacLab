@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "CLOUDXR_AVP_ENV",
+    "CLOUDXR_JS_ENV",
     "IsaacTeleopCfg",
     "IsaacTeleopDevice",
     "create_isaac_teleop_device",
@@ -13,7 +15,7 @@ __all__ = [
     "remove_camera_configs",
 ]
 
-from .isaac_teleop_cfg import IsaacTeleopCfg
+from .isaac_teleop_cfg import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, IsaacTeleopCfg
 from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs
