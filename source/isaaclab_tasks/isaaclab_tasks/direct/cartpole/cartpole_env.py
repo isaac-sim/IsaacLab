@@ -12,10 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
@@ -28,6 +25,7 @@ class CartpoleEnv(DirectRLEnv):
     def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
+        self.cartpole = self.scene["robot"]
         self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
         self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
@@ -36,19 +34,8 @@ class CartpoleEnv(DirectRLEnv):
         self.joint_vel = wp.to_torch(self.cartpole.data.joint_vel)
 
     def _setup_scene(self):
-        self.cartpole = Articulation(self.cfg.robot_cfg)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # clone and replicate
-        self.scene.clone_environments(copy_from_source=False)
-        # we need to explicitly filter collisions for CPU simulation
-        if self.device == "cpu":
-            self.scene.filter_collisions(global_prim_paths=[])
-        # add articulation to scene
-        self.scene.articulations["cartpole"] = self.cartpole
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
+        """Scene is set up from the scene config."""
+        pass
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = self.action_scale * actions.clone()

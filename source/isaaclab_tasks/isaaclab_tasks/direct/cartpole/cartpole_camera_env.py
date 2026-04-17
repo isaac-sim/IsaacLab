@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sensors import TiledCamera, save_images_to_file
 from isaaclab.utils.math import sample_uniform
@@ -54,6 +52,10 @@ class CartpoleCameraEnv(DirectRLEnv):
     ):
         super().__init__(cfg, render_mode, **kwargs)
 
+        self._cartpole = self.scene["robot"]
+        self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
+        self.scene.sensors["tiled_camera"] = self._tiled_camera
+
         self._cart_dof_idx, _ = self._cartpole.find_joints(self.cfg.cart_dof_name)
         self._pole_dof_idx, _ = self._cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
@@ -72,22 +74,8 @@ class CartpoleCameraEnv(DirectRLEnv):
         super().close()
 
     def _setup_scene(self):
-        """Setup the scene with the cartpole and camera."""
-        self._cartpole = Articulation(self.cfg.robot_cfg)
-        self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
-
-        # clone and replicate
-        self.scene.clone_environments(copy_from_source=False)
-        if self.device == "cpu":
-            # we need to explicitly filter collisions for CPU simulation
-            self.scene.filter_collisions(global_prim_paths=[])
-
-        # add articulation and sensors to scene
-        self.scene.articulations["cartpole"] = self._cartpole
-        self.scene.sensors["tiled_camera"] = self._tiled_camera
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
+        """Scene is set up from the scene config. Camera is added in __init__."""
+        pass
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = self.action_scale * actions.clone()

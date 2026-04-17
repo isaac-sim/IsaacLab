@@ -9,7 +9,7 @@ from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import TiledCameraCfg
@@ -56,6 +56,17 @@ class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
 
 
 @configclass
+class CartpolePresetsSceneCfg(InteractiveSceneCfg):
+    """Configuration for the cartpole camera presets scene."""
+
+    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    dome_light = AssetBaseCfg(
+        prim_path="/World/DomeLight",
+        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
+    )
+
+
+@configclass
 class CartpoleCameraPresetsEnvCfg(PresetCfg):
     @configclass
     class BaseCartpoleCameraEnvCfg(DirectRLEnvCfg):
@@ -68,7 +79,6 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
         sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PhysicsCfg())
 
         # robot
-        robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
         cart_dof_name = "slider_to_cart"
         pole_dof_name = "cart_to_pole"
 
@@ -85,7 +95,7 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
         viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
 
         # scene
-        scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+        scene: CartpolePresetsSceneCfg = CartpolePresetsSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
 
         # reset
         max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]

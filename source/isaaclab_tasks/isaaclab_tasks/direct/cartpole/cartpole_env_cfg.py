@@ -8,7 +8,8 @@ from __future__ import annotations
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.assets import ArticulationCfg
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
@@ -38,6 +39,21 @@ class CartpolePhysicsCfg(PresetCfg):
 
 
 @configclass
+class CartpoleSceneCfg(InteractiveSceneCfg):
+    """Configuration for the cartpole scene."""
+
+    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    ground = AssetBaseCfg(
+        prim_path="/World/ground",
+        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+    )
+    dome_light = AssetBaseCfg(
+        prim_path="/World/DomeLight",
+        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
+    )
+
+
+@configclass
 class CartpoleEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 2
@@ -51,12 +67,11 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=CartpolePhysicsCfg())
 
     # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+    scene: CartpoleSceneCfg = CartpoleSceneCfg(
         num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
     )
 
