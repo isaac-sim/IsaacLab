@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import warnings
 from types import SimpleNamespace
 
 import pytest
@@ -18,11 +19,12 @@ import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.sim.utils.newton_model_utils import (
-    _ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV,
     _UNBOUND_DEFAULT_FALLBACK_GRAY,
-    _omnipbr_linear_diffuse_from_material,
+    _get_omnipbr_albedo,
     replace_newton_shape_colors,
 )
+
+_ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV = "ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS"
 
 
 def _reference_linear_to_srgb_float(c: float) -> float:
@@ -61,7 +63,7 @@ def test_linear_to_srgb_triple():
     assert s[2] == pytest.approx(0.0)
 
 
-def test_omnipbr_linear_diffuse_from_material_returns_linear_diffuse_times_tint():
+def test_get_omnipbr_albedo_returns_linear_diffuse_times_tint():
     """OmniPBR helper returns linear RGB (diffuse × tint); scatter kernel applies sRGB OETF."""
     stage = Usd.Stage.CreateInMemory()
     mat = UsdShade.Material.Define(stage, "/World/Mat")
@@ -72,7 +74,7 @@ def test_omnipbr_linear_diffuse_from_material_returns_linear_diffuse_times_tint(
     shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0.2, 0.2, 0.2))
     shader.CreateInput("diffuse_tint", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(1.0, 1.0, 1.0))
 
-    out = _omnipbr_linear_diffuse_from_material(sp)
+    out = _get_omnipbr_albedo(sp)
     assert out == pytest.approx((0.2, 0.2, 0.2), rel=1e-5)
 
 
@@ -245,6 +247,15 @@ def test_replace_newton_shape_colors_skips_guide_shapes():
     assert torch.allclose(wp.to_torch(shape_color), before)
 
 
+def test_replace_newton_shape_colors_emits_future_warning_when_active(monkeypatch: pytest.MonkeyPatch):
+    """Enabling the workaround issues a single :exc:`FutureWarning` before validation short-circuits."""
+    monkeypatch.delenv(_ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV, raising=False)
+
+    model = SimpleNamespace(shape_label=None, shape_color=None)
+    with pytest.warns(FutureWarning, match="Newton shape color replacement is enabled"):
+        replace_newton_shape_colors(model, stage=None)
+
+
 def test_replace_newton_shape_colors_can_be_disabled_by_env_var(monkeypatch: pytest.MonkeyPatch):
     """Disabled workaround leaves shape colors unchanged and reports no updates."""
     monkeypatch.setenv(_ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV, "0")
@@ -262,5 +273,8 @@ def test_replace_newton_shape_colors_can_be_disabled_by_env_var(monkeypatch: pyt
     before = wp.to_torch(shape_color).clone()
     model = SimpleNamespace(shape_label=["/World/A"], shape_color=shape_color)
 
-    assert replace_newton_shape_colors(model, stage) == 0
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        assert replace_newton_shape_colors(model, stage) == 0
+    assert not any(issubclass(w.category, FutureWarning) for w in recorded)
     assert torch.allclose(wp.to_torch(shape_color), before)

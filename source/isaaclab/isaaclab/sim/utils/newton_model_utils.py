@@ -3,12 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""DO NOT USE ANY FUNCTION IN THIS FILE."""
+"""DO NOT USE ANY FUNCTION IN THIS FILE.
+
+This module exists only while Isaac Lab and Isaac Sim content still relies on NVIDIA-specific MDL and OmniPBR
+materials; after migration to neutral USD materials that Newton can consume directly, this module is expected
+to be deprecated and removed.
+"""
 
 from __future__ import annotations
 
 import logging
 import os
+import warnings
 from typing import Any
 
 import numpy as np
@@ -250,6 +256,10 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
         Set ``ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS`` to ``0``, ``false``, ``off``, or ``no`` to skip this pass
         entirely (returns ``0``).
 
+        This pass exists only while Isaac Lab and Isaac Sim content still relies on NVIDIA-specific MDL and OmniPBR
+        materials; after migration to neutral USD materials that Newton can consume directly, this path is expected to
+        be deprecated and removed.
+
         Wall time for USD resolution and the GPU scatter is measured with :class:`~isaaclab.utils.timer.Timer`, which
         may print a timing summary when the timer is enabled.
     """
@@ -257,6 +267,12 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
     if env_val is not None and env_val.strip().lower() in ["false", "0", "off", "no"]:
         logger.debug("Newton shape color replacement is disabled")
         return
+
+    warnings.warn(
+        "Newton shape color replacement is enabled; this workaround will be deprecated in a future release.",
+        FutureWarning,
+        stacklevel=2,
+    )
 
     # Use duck typing to avoid introducing hard dependencies on newton.
     shape_labels = getattr(model, "shape_label", None)
