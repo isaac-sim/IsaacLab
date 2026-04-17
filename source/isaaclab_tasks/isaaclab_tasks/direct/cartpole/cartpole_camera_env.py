@@ -53,8 +53,6 @@ class CartpoleCameraEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         self._cartpole = self.scene["robot"]
-        self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
-        self.scene.sensors["tiled_camera"] = self._tiled_camera
 
         self._cart_dof_idx, _ = self._cartpole.find_joints(self.cfg.cart_dof_name)
         self._pole_dof_idx, _ = self._cartpole.find_joints(self.cfg.pole_dof_name)
@@ -74,8 +72,13 @@ class CartpoleCameraEnv(DirectRLEnv):
         super().close()
 
     def _setup_scene(self):
-        """Scene is set up from the scene config. Camera is added in __init__."""
-        pass
+        """Scene is set up from the scene config. Camera is added here.
+
+        The TiledCamera must be created before ``sim.reset()`` fires
+        ``PHYSICS_READY`` so it can register its initialization callback.
+        """
+        self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
+        self.scene.sensors["tiled_camera"] = self._tiled_camera
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = self.action_scale * actions.clone()
