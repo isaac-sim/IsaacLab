@@ -19,11 +19,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test"
 import pytest
 import torch
 import warp as wp
+from frame_view_contract_utils import *  # noqa: F401, F403 — import all contract tests
+from frame_view_contract_utils import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
-from test_frame_view_contract import *  # noqa: F401, F403 — import all contract tests
-from test_frame_view_contract import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
 
 from pxr import Gf
 

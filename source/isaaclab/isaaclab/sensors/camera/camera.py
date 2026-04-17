@@ -120,34 +120,6 @@ class Camera(SensorBase):
         settings = get_settings_manager()
         settings.set_bool("/isaaclab/render/rtx_sensors", True)
 
-        # This is only introduced in isaac sim 6.0
-        if has_kit():
-            isaac_sim_version = get_isaac_sim_version()
-            if isaac_sim_version.major >= 6:
-                # Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested
-                needs_color_render = "rgb" in self.cfg.data_types or "rgba" in self.cfg.data_types
-                if not needs_color_render:
-                    settings.set_bool("/rtx/sdg/force/disableColorRender", True)
-
-                # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-                if settings.get("/isaaclab/has_gui"):
-                    settings.set_bool("/rtx/sdg/force/disableColorRender", False)
-            else:
-                if "albedo" in self.cfg.data_types:
-                    logger.warning(
-                        "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
-                    )
-                if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
-                    logger.warning(
-                        "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
-                        " will be ignored."
-                    )
-
-        # Set simple shading mode (if requested) before rendering
-        simple_shading_mode = self._resolve_simple_shading_mode()
-        if simple_shading_mode is not None:
-            settings.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
-
         # Compute camera orientation (convention conversion) and spawn
         rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
         rot_offset = convert_camera_frame_orientation_convention(

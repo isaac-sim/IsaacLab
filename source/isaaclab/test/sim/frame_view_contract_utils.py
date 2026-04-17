@@ -7,7 +7,7 @@
 
 This module defines the invariants that **every** FrameView backend
 (USD, Fabric, Newton) must satisfy.  Backend test files import these tests
-via ``from test_frame_view_contract import *`` and provide a
+via ``from frame_view_contract_utils import *`` and provide a
 ``view_factory`` pytest fixture that builds the backend-specific scene.
 
 The factory signature is::
