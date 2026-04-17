@@ -307,6 +307,13 @@ class IsaacRtxRenderer(BaseRenderer):
                 device=sensor.device,
             )
 
+            # Synchronize warp's CUDA stream before any torch operations read
+            # the output buffer.  The reshape kernel runs on warp's stream;
+            # torch depth-clipping below runs on torch's stream.  Without this
+            # barrier the two streams race, corrupting the CUDA context on
+            # newer Isaac Sim nightly images (>= 04/14).
+            wp.synchronize()
+
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in cfg.data_types:
                 output_data["rgb"] = output_data["rgba"][..., :3]
