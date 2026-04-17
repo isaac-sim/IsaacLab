@@ -316,7 +316,12 @@ class Camera(SensorBase):
         # convert torch tensors to warp arrays for the view
         pos_wp = wp.from_torch(positions.contiguous()) if positions is not None else None
         ori_wp = wp.from_torch(orientations.contiguous()) if orientations is not None else None
-        idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+        if env_ids is not None:
+            if not isinstance(env_ids, torch.Tensor):
+                env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+            idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
+        else:
+            idx_wp = None
         self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
 
     def set_world_poses_from_view(
@@ -340,7 +345,9 @@ class Camera(SensorBase):
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view
         orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
-        idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+        if not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+        idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
         self._view.set_world_poses(wp.from_torch(eyes.contiguous()), wp.from_torch(orientations.contiguous()), idx_wp)
 
     """
@@ -593,6 +600,8 @@ class Camera(SensorBase):
             raise RuntimeError("Camera prim is None. Please call 'sim.play()' first.")
 
         # get the poses from the view (returns wp.array, convert to torch)
+        if env_ids is not None and not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
         pos_wp, quat_wp = self._view.get_world_poses(indices)
         self._data.pos_w[env_ids] = wp.to_torch(pos_wp)
