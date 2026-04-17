@@ -14,10 +14,6 @@ def imu_copy_kernel(
     out_lin_acc_b: wp.array(dtype=wp.vec3f),
     out_ang_vel_b: wp.array(dtype=wp.vec3f),
 ):
-    """Copy Newton SensorIMU outputs into owned IsaacLab buffers.
-
-    Launch with dim=num_envs. Sensor indices map 1:1 to environment indices.
-    """
     idx = wp.tid()
     if not env_mask[idx]:
         return
@@ -31,10 +27,6 @@ def imu_reset_kernel(
     out_lin_acc_b: wp.array(dtype=wp.vec3f),
     out_ang_vel_b: wp.array(dtype=wp.vec3f),
 ):
-    """Zero out IMU data for reset environments.
-
-    Launch with dim=num_envs.
-    """
     idx = wp.tid()
     if not env_mask[idx]:
         return

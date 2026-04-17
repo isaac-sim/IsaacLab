@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.18 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flaky first-frame textured rendering by replacing the event-based RTX
+  streaming subscription with a synchronous
+  ``UsdContext.get_stage_streaming_status()`` query in
+  :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.ensure_isaac_rtx_render_update`.
+
+
 0.5.17 (2026-04-14)
 ~~~~~~~~~~~~~~~~~~~
 

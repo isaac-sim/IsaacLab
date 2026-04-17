@@ -98,17 +98,33 @@ class IsaacTeleopDevice:
                     env.step(action.repeat(num_envs, 1))
     """
 
-    def __init__(self, cfg: IsaacTeleopCfg):
+    def __init__(
+        self,
+        cfg: IsaacTeleopCfg,
+        cloudxr_env_file: str | None = None,
+        auto_launch_cloudxr: bool = True,
+    ):
         """Initialize the IsaacTeleop device.
 
         Args:
             cfg: Configuration object for IsaacTeleop settings.
+            cloudxr_env_file: Optional path to a CloudXR ``.env`` file.
+                When provided and *auto_launch_cloudxr* is ``True``, the
+                CloudXR runtime is launched automatically during session
+                start.  When ``None``, no CloudXR runtime is launched.
+            auto_launch_cloudxr: Whether to auto-launch the CloudXR runtime
+                when *cloudxr_env_file* is set.  Ignored when
+                *cloudxr_env_file* is ``None``.
         """
         self._cfg = cfg
 
         # Compose the three collaborators
         self._anchor_manager = XrAnchorManager(cfg.xr_cfg)
-        self._session_lifecycle = TeleopSessionLifecycle(cfg)
+        self._session_lifecycle = TeleopSessionLifecycle(
+            cfg,
+            cloudxr_env_file=cloudxr_env_file,
+            auto_launch_cloudxr=auto_launch_cloudxr,
+        )
         self._command_handler = CommandHandler(
             xr_core=self._anchor_manager.xr_core,
             on_reset=self._anchor_manager.reset,
@@ -350,6 +366,8 @@ def create_isaac_teleop_device(
     cfg: IsaacTeleopCfg,
     sim_device: str | None = None,
     callbacks: dict[str, Callable] | None = None,
+    cloudxr_env_file: str | None = None,
+    auto_launch_cloudxr: bool = True,
 ) -> IsaacTeleopDevice:
     """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
 
@@ -371,6 +389,14 @@ def create_isaac_teleop_device(
             are placed on the requested torch device (e.g. ``"cuda:0"``).
         callbacks: Optional mapping of command keys (e.g. ``"START"``, ``"STOP"``,
             ``"RESET"``) to callables registered on the device.
+        cloudxr_env_file: Optional path to a CloudXR ``.env`` file.  When
+            provided and *auto_launch_cloudxr* is ``True``, the CloudXR
+            runtime and WSS proxy are launched automatically during session
+            start.  When ``None``, no CloudXR runtime is launched.
+        auto_launch_cloudxr: Whether to auto-launch the CloudXR runtime
+            when *cloudxr_env_file* is set.  Set to ``False`` to skip the
+            launch (e.g. when running the runtime externally).  Ignored
+            when *cloudxr_env_file* is ``None``.
 
     Returns:
         A fully configured :class:`IsaacTeleopDevice` ready for use in a
@@ -382,7 +408,11 @@ def create_isaac_teleop_device(
         cfg.sim_device = sim_device
 
     logger.info("Using IsaacTeleop stack for teleoperation")
-    device = IsaacTeleopDevice(cfg)
+    device = IsaacTeleopDevice(
+        cfg,
+        cloudxr_env_file=cloudxr_env_file,
+        auto_launch_cloudxr=auto_launch_cloudxr,
+    )
 
     if callbacks is not None:
         for key, func in callbacks.items():

@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+4.6.5 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flaky ``test_first_frame_is_textured_camera`` by removing warmup-step
+  workaround and relying on the renderer's streaming wait instead.
+
+
+4.6.4 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton viewer compatibility by restricting ``pyglet`` to ``<3``.
+
+
 4.6.3 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -24,6 +43,8 @@ Added
 * Added physics material support to
   :func:`~isaaclab.sim.spawners.from_files.spawn_from_usd` for deformable bodies
   loaded from USD files.
+* Added wheel builder installation CI tests that verify the isaaclab wheel
+  builds, installs, and imports correctly in a clean uv environment.
 
 Changed
 ^^^^^^^
