@@ -4,3 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Newton GL perspective video recording."""
+
+from .recording_hooks import recording_followup_after_visualizers
+
+__all__ = ["recording_followup_after_visualizers"]

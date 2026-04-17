@@ -280,8 +280,9 @@ class PhysicsManager(ABC):
     def after_visualizers_render(cls) -> None:
         """Hook after visualizers have stepped during :meth:`~isaaclab.sim.SimulationContext.render`.
 
-        Kit/RTX-specific work (e.g. pumping the Omniverse app loop for headless video)
-        belongs in backend overrides. Default is a no-op.
+        Use for physics-backend sync (e.g. fabric) if needed. Recording pipelines (Kit/RTX,
+        Newton GL video, etc.) run from :mod:`isaaclab.sim.recording_hooks` so they are not
+        tied to a specific physics manager. Default is a no-op.
         """
         pass
 

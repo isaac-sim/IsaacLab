@@ -31,6 +31,7 @@ from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from .recording_hooks import run_recording_hooks_after_visualizers
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
@@ -349,10 +350,6 @@ class SimulationContext:
     def has_active_visualizers(self) -> bool:
         """Return whether any visualizer path is active for rendering/camera control."""
         return bool(self.get_setting("/isaaclab/visualizer/types"))
-
-    def can_render_rgb_array(self) -> bool:
-        """Return whether rgb-array rendering is currently available."""
-        return self.has_gui or self.has_offscreen_render or self.has_active_visualizers()
 
     @property
     def is_rendering(self) -> bool:
@@ -704,12 +701,14 @@ class SimulationContext:
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
         every physics step). Camera sensors drive their configured renderer when
-        fetching data. Backend-specific render follow-up (e.g. Kit app pump for
-        headless video) runs in :meth:`~isaaclab.physics.PhysicsManager.after_visualizers_render`.
+        fetching data. Recording-related follow-up (Kit/RTX headless video, Newton GL
+        video, etc.) runs in :mod:`isaaclab.sim.recording_hooks` so it is not tied to a
+        specific :class:`~isaaclab.physics.PhysicsManager` subclass.
         """
         self.physics_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt())
         self.physics_manager.after_visualizers_render()
+        run_recording_hooks_after_visualizers(self)
         self._render_generation += 1
 
         # Call render callbacks

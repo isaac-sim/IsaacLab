@@ -249,18 +249,6 @@ class PhysxManager(PhysicsManager):
             cls._update_fabric(0.0, 0.0)
 
     @classmethod
-    def after_visualizers_render(cls) -> None:
-        """Pump Kit for headless rgb-array rendering when no visualizer owns ``app.update()``."""
-        sim = PhysicsManager._sim
-        if sim is None:
-            return
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
-            pump_kit_app_for_headless_video_render_if_needed,
-        )
-
-        pump_kit_app_for_headless_video_render_if_needed(sim)
-
-    @classmethod
     def step(cls) -> None:
         """Step the physics simulation."""
         sim = PhysicsManager._sim
