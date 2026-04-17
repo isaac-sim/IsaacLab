@@ -57,3 +57,30 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DexsuiteKukaAllegroPPORunnerCfg",
     },
 )
+
+
+# ResNet18 Feature-Based Environments (framework-agnostic, frozen ResNet)
+gym.register(
+    id="Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-ResNet-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.dexsuite_kuka_allegro_vision_env_cfg:DexsuiteKukaAllegroLiftSingleCameraResNetEnvCfg"
+        ),
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_resnet_cfg:DexsuiteKukaAllegroPPOResNetRunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-ResNet-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.dexsuite_kuka_allegro_vision_env_cfg:DexsuiteKukaAllegroLiftSingleCameraResNetEnvCfg_PLAY"
+        ),
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_resnet_cfg:DexsuiteKukaAllegroPPOResNetRunnerCfg",
+    },
+)

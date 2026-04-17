@@ -11,6 +11,15 @@ Added
   split ``test_rendering_*`` modules (cartpole, Dexsuite Kuka Allegro lift, shadow hand) with ``*_kitless`` variants,
   and Newton + OVRTX golden images. Newton + ``ovrtx_renderer`` test cases remain skipped on GitHub Actions temporarily
   until they can run on GitHub Actions.
+* Added ``Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-ResNet-v0`` and
+  ``Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-ResNet-Play-v0`` task
+  registrations using frozen ResNet18 feature extraction at the observation
+  level.
+* Added vision environment configs with single-camera and dual-camera
+  presets for DexSuite Kuka Allegro manipulation tasks
+  (:class:`~isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_vision_env_cfg.DexsuiteKukaAllegroLiftSingleCameraResNetEnvCfg`).
+* Added :class:`~isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.agents.rsl_rl_resnet_cfg.DexsuiteKukaAllegroPPOResNetRunnerCfg`
+  RSL-RL runner config for the new ResNet feature-based DexSuite tasks.
 
 
 1.5.31 (2026-04-29)
