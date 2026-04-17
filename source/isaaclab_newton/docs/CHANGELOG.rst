@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.15 (2026-04-16)
+0.5.16 (2026-04-17)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -15,6 +15,17 @@ Changed
 
 * Renamed :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView` to
   :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`. Old name is kept as a deprecated alias.
+
+
+0.5.15 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.pva.Pva` sensor wrapping Newton's
+  body state (``body_q``, ``body_qd``, ``body_qdd``) to provide world-frame
+  pose and body-frame velocities/accelerations.
 
 
 0.5.14 (2026-04-14)
