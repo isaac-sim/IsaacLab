@@ -137,7 +137,7 @@ class NewtonManager(PhysicsManager):
     _report_contacts: bool = False
     # Per-world reset masks (allocated in start_simulation, consumed in step)
     _world_reset_mask: wp.array | None = None  # (num_envs,) wp.int32 — for SolverKamino.reset(world_mask=...)
-    _fk_reset_mask: wp.array | None = None     # (articulation_count,) wp.bool — for eval_fk(mask=...)
+    _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
 
     # CUDA graphing
     _graph = None
