@@ -20,32 +20,49 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 from isaaclab.sim.utils.newton_model_utils import (
     _ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV,
     _UNBOUND_DEFAULT_FALLBACK_GRAY,
-    _linear_to_srgb,
-    _linear_to_srgb_float,
     _omnipbr_linear_diffuse_from_material,
     replace_newton_shape_colors,
 )
 
 
+def _reference_linear_to_srgb_float(c: float) -> float:
+    """Host reference for the sRGB OETF (must match ``_linear_channel_to_srgb_warp`` in the scatter kernel)."""
+    if c <= 0.0:
+        return 0.0
+    if c >= 1.0:
+        return 1.0
+    if c <= 0.0031308:
+        return 12.92 * c
+    return 1.055 * (c ** (1.0 / 2.4)) - 0.055
+
+
+def _reference_linear_to_srgb(rgb: tuple[float, float, float]) -> tuple[float, float, float]:
+    return (
+        _reference_linear_to_srgb_float(rgb[0]),
+        _reference_linear_to_srgb_float(rgb[1]),
+        _reference_linear_to_srgb_float(rgb[2]),
+    )
+
+
 def test_linear_to_srgb_float_endpoints():
-    assert _linear_to_srgb_float(0.0) == 0.0
-    assert _linear_to_srgb_float(1.0) == 1.0
+    assert _reference_linear_to_srgb_float(0.0) == 0.0
+    assert _reference_linear_to_srgb_float(1.0) == 1.0
 
 
 def test_linear_to_srgb_float_mid():
     # ~0.214 linear -> 0.5 sRGB
-    assert _linear_to_srgb_float(0.21404114048) == pytest.approx(0.5, rel=1e-5)
+    assert _reference_linear_to_srgb_float(0.21404114048) == pytest.approx(0.5, rel=1e-5)
 
 
 def test_linear_to_srgb_triple():
-    s = _linear_to_srgb((1.0, 0.21404114048, 0.0))
+    s = _reference_linear_to_srgb((1.0, 0.21404114048, 0.0))
     assert s[0] == pytest.approx(1.0)
     assert s[1] == pytest.approx(0.5, rel=1e-5)
     assert s[2] == pytest.approx(0.0)
 
 
 def test_omnipbr_linear_diffuse_from_material_returns_linear_diffuse_times_tint():
-    """OmniPBR helper returns linear RGB (diffuse × tint); callers apply :func:`_linear_to_srgb`."""
+    """OmniPBR helper returns linear RGB (diffuse × tint); scatter kernel applies sRGB OETF."""
     stage = Usd.Stage.CreateInMemory()
     mat = UsdShade.Material.Define(stage, "/World/Mat")
     shader = UsdShade.Shader.Define(stage, "/World/Mat/OmniPBRShader")
@@ -79,8 +96,8 @@ def test_replace_newton_shape_colors_unbound_display_and_gray():
     assert count == 2
 
     after = wp.to_torch(shape_color)
-    exp_a = _linear_to_srgb((0.2, 0.4, 0.6))
-    exp_b = _linear_to_srgb(_UNBOUND_DEFAULT_FALLBACK_GRAY)
+    exp_a = _reference_linear_to_srgb((0.2, 0.4, 0.6))
+    exp_b = _reference_linear_to_srgb(_UNBOUND_DEFAULT_FALLBACK_GRAY)
     assert after[0, 0].item() == pytest.approx(exp_a[0])
     assert after[0, 1].item() == pytest.approx(exp_a[1])
     assert after[0, 2].item() == pytest.approx(exp_a[2])
@@ -133,7 +150,7 @@ def test_replace_newton_shape_colors_omnipbr_binding():
     model = SimpleNamespace(shape_label=["/World/Mesh"], shape_color=shape_color)
 
     assert replace_newton_shape_colors(model, stage) == 1
-    exp = _linear_to_srgb((1.0, 0.0, 0.0))
+    exp = _reference_linear_to_srgb((1.0, 0.0, 0.0))
     after = wp.to_torch(shape_color)[0]
     assert after[0].item() == pytest.approx(exp[0])
     assert after[1].item() == pytest.approx(exp[1])
@@ -179,7 +196,7 @@ def test_replace_newton_shape_colors_respects_stronger_than_descendants_binding(
     model = SimpleNamespace(shape_label=["/World/Parent/Mesh"], shape_color=shape_color)
 
     assert replace_newton_shape_colors(model, stage) == 1
-    exp = _linear_to_srgb((0.0, 1.0, 0.0))
+    exp = _reference_linear_to_srgb((0.0, 1.0, 0.0))
     after = wp.to_torch(shape_color)[0]
     assert after[0].item() == pytest.approx(exp[0])
     assert after[1].item() == pytest.approx(exp[1])
@@ -206,7 +223,7 @@ def test_replace_newton_shape_colors_isaac_lab_env_labels_deduplicated():
 
     assert replace_newton_shape_colors(model, stage) == 2
     after = wp.to_torch(shape_color)
-    exp = _linear_to_srgb((0.1, 0.2, 0.3))
+    exp = _reference_linear_to_srgb((0.1, 0.2, 0.3))
     for row in range(2):
         assert after[row, 0].item() == pytest.approx(exp[0])
         assert after[row, 1].item() == pytest.approx(exp[1])

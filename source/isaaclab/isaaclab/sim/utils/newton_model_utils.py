@@ -14,13 +14,9 @@ from typing import Any
 import numpy as np
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom, UsdShade
+from pxr import Usd, UsdGeom, UsdShade
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-# Environment variable to enable/disable replacement of the shape colors in the Newton model.
-_ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV = "ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS"
 
 # MDL OmniPBR default when ``diffuse_color_constant`` is not authored (typical MDL default).
 _OMNIPBR_DEFAULT_DIFFUSE_COLOR_CONSTANT = (0.2, 0.2, 0.2)
@@ -32,30 +28,39 @@ _OMNIPBR_DEFAULT_DIFFUSE_TINT = (1.0, 1.0, 1.0)
 _UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
 
 
+@wp.func
+def _linear_channel_to_srgb_warp(c: float) -> float:
+    """Per-channel sRGB OETF on device: linear ``[0, 1]`` to sRGB-encoded ``[0, 1]``."""
+    if c <= 0.0:
+        return 0.0
+    if c <= 0.0031308:
+        return 12.92 * c
+    if c >= 1.0:
+        return 1.0
+    return 1.055 * wp.pow(c, 1.0 / 2.4) - 0.055
+
+
+@wp.func
+def _linear_rgb_to_srgb_warp(linear_rgb: wp.vec3) -> wp.vec3:
+    """Apply sRGB OETF per channel: linear RGB ``[0, 1]`` to sRGB-encoded ``[0, 1]``."""
+    return wp.vec3(
+        _linear_channel_to_srgb_warp(linear_rgb[0]),
+        _linear_channel_to_srgb_warp(linear_rgb[1]),
+        _linear_channel_to_srgb_warp(linear_rgb[2]),
+    )
+
+
 @wp.kernel
 def _scatter_shape_color_rows_kernel(
     shape_colors: wp.array(dtype=wp.vec3),  # type: ignore
     row_indices: wp.array(dtype=wp.int32),  # type: ignore
     row_colors: wp.array(dtype=wp.vec3),  # type: ignore
 ):
-    """Write per-row RGB updates into ``shape_colors``."""
+    """Write per-row sRGB colors into ``shape_colors``."""
     tid = wp.tid()
-    row = row_indices[tid]
-    shape_colors[row] = row_colors[tid]
-
-
-def _newton_shape_color_replacement_enabled() -> bool:
-    """Return whether to replace the shape colors in the Newton model.
-
-    The shape colors in the Newton model is replaced with colors defined in the USD stage. The replacement is enabled by
-    default. To disable the replacement, set the environment variable ``ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS`` to one of
-    the following values: false, 0, off, no.
-
-    Returns:
-        True if the replacement is enabled, False otherwise.
-    """
-    value = os.getenv(_ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV)
-    return value is None or value.strip().lower() not in {"false", "0", "off", "no"}
+    index = row_indices[tid]
+    color = row_colors[tid]
+    shape_colors[index] = _linear_rgb_to_srgb_warp(color)
 
 
 def _canonical_prim_lookup_key(prim: Usd.Prim) -> str:
@@ -68,26 +73,6 @@ def _canonical_prim_lookup_key(prim: Usd.Prim) -> str:
             return proto.GetPath().pathString
 
     return prim.GetPath().pathString
-
-
-def _linear_to_srgb_float(c: float) -> float:
-    """Apply sRGB OETF: linear channel ``[0, 1]`` to sRGB-encoded ``[0, 1]``."""
-    if c <= 0.0:
-        return 0.0
-    if c >= 1.0:
-        return 1.0
-    if c <= 0.0031308:
-        return 12.92 * c
-    return 1.055 * (c ** (1.0 / 2.4)) - 0.055
-
-
-def _linear_to_srgb(rgb: tuple[float, float, float] | Gf.Vec3f | Gf.Vec3d) -> tuple[float, float, float]:
-    """Convert linear RGB ``[0, 1]`` to sRGB triple ``[0, 1]`` (per-channel OETF)."""
-    return (
-        _linear_to_srgb_float(float(rgb[0])),
-        _linear_to_srgb_float(float(rgb[1])),
-        _linear_to_srgb_float(float(rgb[2])),
-    )
 
 
 def _asset_path_to_str(ap: Any) -> str:
@@ -169,8 +154,8 @@ def _get_surface_shader(material_prim: Usd.Prim) -> Usd.Prim:
     return shader_prim
 
 
-def _omnipbr_linear_diffuse_from_material(shader_prim: Usd.Prim) -> tuple[float, float, float]:
-    """Return linear RGB from OmniPBR diffuse × tint."""
+def _get_omnipbr_albedo(shader_prim: Usd.Prim) -> tuple[float, float, float]:
+    """Return albedo (linear RGB) from OmniPBR."""
     surface_shader = UsdShade.Shader(shader_prim)
 
     constant = _get_input_value(surface_shader, "diffuse_color_constant")
@@ -212,10 +197,10 @@ def _resolve_shape_color(
     prim_path: str,
     material_color_cache: dict[str, tuple[float, float, float] | None],
 ) -> tuple[float, float, float] | None:
-    """Resolve replacement sRGB for one prim path.
+    """Resolve replacement linear RGB for one prim path (sRGB encoding is applied in the scatter kernel).
 
     Returns:
-        Color to write into ``shape_color``, or ``None`` to leave the row unchanged.
+        Linear RGB to pass to :func:`_scatter_shape_color_rows_kernel`, or ``None`` to leave the row unchanged.
     """
     shape_prim = stage.GetPrimAtPath(prim_path)
     if not shape_prim.IsValid():
@@ -229,20 +214,17 @@ def _resolve_shape_color(
     material_prim = _get_bound_material_prim(shape_prim)
     if not material_prim.IsValid():
         display_color = _get_primvar_display_color(shape_prim)
-        return _linear_to_srgb(display_color or _UNBOUND_DEFAULT_FALLBACK_GRAY)
+        return display_color or _UNBOUND_DEFAULT_FALLBACK_GRAY
 
     material_key = _canonical_prim_lookup_key(material_prim)
     if material_key in material_color_cache:
         return material_color_cache[material_key]
 
     shader_prim = _get_surface_shader(material_prim)
-    if shader_prim.IsValid() and _is_omnipbr(shader_prim):
-        linear_color = _omnipbr_linear_diffuse_from_material(shader_prim)
-        color = _linear_to_srgb(linear_color)
-    else:
-        color = None
+    color = _get_omnipbr_albedo(shader_prim) if shader_prim.IsValid() and _is_omnipbr(shader_prim) else None
 
     material_color_cache[material_key] = color
+
     return color
 
 
@@ -252,10 +234,10 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
     Newton assigns a per-shape palette to ``shape_color``. This overwrites those rows so rendering matches authored USD
     data where supported:
 
-    - **No bound material**: use authored ``primvars:displayColor`` (treated as linear RGB and encoded to sRGB), or a
-      neutral 18% linear gray if ``displayColor`` is not authored.
+    - **No bound material**: use authored ``primvars:displayColor`` (treated as linear RGB), or a neutral 18% linear
+      gray if ``displayColor`` is not authored; linear values are encoded to sRGB in the scatter kernel.
     - **OmniPBR**: use ``diffuse_color_constant`` times ``diffuse_tint`` (linear RGB, with MDL defaults when inputs are
-      not authored), then encode to sRGB.
+      not authored), encoded to sRGB in the scatter kernel.
     - **Other materials**: leave the existing Newton color for that shape.
     - **Guide purpose** prims (``UsdGeom.Tokens.guide``): leave unchanged so guide visualization stays on the palette.
 
@@ -266,11 +248,14 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
 
     Note:
         Set ``ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS`` to ``0``, ``false``, ``off``, or ``no`` to skip this pass
-        entirely (returns ``0``). Wall time for USD resolution and the GPU scatter is measured with
-        :class:`~isaaclab.utils.timer.Timer`, which may print a timing summary when the timer is enabled.
+        entirely (returns ``0``).
+
+        Wall time for USD resolution and the GPU scatter is measured with :class:`~isaaclab.utils.timer.Timer`, which
+        may print a timing summary when the timer is enabled.
     """
-    if not _newton_shape_color_replacement_enabled():
-        logger.debug("Newton shape color replacement is disabled by %s", _ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS_ENV)
+    env_val = os.getenv("ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS")
+    if env_val is not None and env_val.strip().lower() in ["false", "0", "off", "no"]:
+        logger.debug("Newton shape color replacement is disabled")
         return
 
     # Use duck typing to avoid introducing hard dependencies on newton.
@@ -296,7 +281,7 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
 
     from isaaclab.utils.timer import Timer
 
-    with Timer(f"Time to replace newton shape colors for {num_shapes} shapes"):
+    with Timer(f"[INFO]: Time taken for replace_newton_shape_colors for {num_shapes} shapes", enable=False):
         if stage is None:
             from .stage import get_current_stage
 
