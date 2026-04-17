@@ -20,9 +20,9 @@ if TYPE_CHECKING:
 class BasePva(SensorBase):
     """The Pose Velocity Acceleration (PVA) sensor.
 
-    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame
-    linear acceleration and angular velocity, along with world-frame pose and body-frame linear and angular
-    accelerations/velocities.
+    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces world-frame
+    pose, body-frame velocities, body-frame coordinate accelerations, and projected gravity. This differs
+    from the :class:`~isaaclab.sensors.imu.BaseImu` sensor, which reports proper acceleration.
 
     If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.
     The fixed transform from that ancestor to the target prim is computed once during initialization and
@@ -30,9 +30,9 @@ class BasePva(SensorBase):
 
     .. note::
 
-        We are computing the accelerations using numerical differentiation from the velocities. Consequently, the
-        PVA sensor accuracy depends on the chosen physx timestep. For a sufficient accuracy, we recommend to keep the
-        timestep at least as 200Hz.
+        Depending on the backend, accelerations may be computed via numerical differentiation of velocities
+        or read directly from the solver. For numerical backends, accuracy depends on the physics timestep;
+        we recommend at least 200 Hz.
 
     .. note::
 

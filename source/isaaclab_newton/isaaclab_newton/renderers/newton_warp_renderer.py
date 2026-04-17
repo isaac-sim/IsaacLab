@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import weakref
 from dataclasses import dataclass
@@ -28,6 +29,36 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
 
 logger = logging.getLogger(__name__)
+
+try:
+    import nvtx
+
+    _nvtx_domain = nvtx.Domain("NewtonWarpRenderer")
+
+    def _nvtx_range(message: str, color: str | None = None):
+        """Decorator that wraps a function in a Domain.push_range/pop_range pair."""
+        attrs = _nvtx_domain.get_event_attributes(message=message, color=color)
+
+        def decorator(fn):
+            @functools.wraps(fn)
+            def wrapper(*args, **kwargs):
+                _nvtx_domain.push_range(attrs)
+                try:
+                    return fn(*args, **kwargs)
+                finally:
+                    _nvtx_domain.pop_range()
+
+            return wrapper
+
+        return decorator
+
+except ImportError:
+
+    def _nvtx_range(message: str, color: str | None = None):
+        def decorator(fn):
+            return fn
+
+        return decorator
 
 
 class RenderData:
@@ -199,6 +230,7 @@ class NewtonWarpRenderer(BaseRenderer):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.set_outputs(output_data)
 
+    @_nvtx_range("update_transforms", color="blue")
     def update_transforms(self):
         """Sync Newton scene state before rendering.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
@@ -211,6 +243,7 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         render_data.update(positions, orientations, intrinsics)
 
+    @_nvtx_range("render", color="green")
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
         self.newton_sensor.update(
@@ -224,6 +257,7 @@ class NewtonWarpRenderer(BaseRenderer):
             shape_index_image=render_data.outputs.instance_segmentation_image,
         )
 
+    @_nvtx_range("read_output", color="orange")
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
         """Copy rendered outputs to the camera data buffers.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
