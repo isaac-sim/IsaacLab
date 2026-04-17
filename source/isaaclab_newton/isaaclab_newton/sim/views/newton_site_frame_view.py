@@ -659,6 +659,11 @@ class NewtonSiteFrameView(BaseFrameView):
         return WORLD_BODY_INDEX, _gf_matrix_to_xform7(prim_world_tf)
 
     @property
+    def prims(self) -> list:
+        """List of USD prims being managed by this view."""
+        return self._prims
+
+    @property
     def count(self) -> int:
         """Number of prims in this view."""
         return len(self._prims)
