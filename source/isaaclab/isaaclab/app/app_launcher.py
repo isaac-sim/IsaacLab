@@ -212,6 +212,36 @@ class AppLauncher:
 
         _deprioritize_prebundle_paths()
 
+        # Verify that warp (if loaded) came from the pip-installed copy and not from
+        # a bundled extension such as omni.warp.core or Kit's own Python packages.
+        # Kit's extension system can add extension directories and kit/python/lib paths
+        # to sys.path during startup; the pre-import in isaaclab/__init__.py normally
+        # prevents this, but log a warning so CI failures are easier to diagnose.
+        import sys
+
+        warp_mod = sys.modules.get("warp")
+        if warp_mod is not None:
+            warp_file = getattr(warp_mod, "__file__", "") or ""
+            warp_norm = warp_file.replace("\\", "/").lower()
+            _suspicious = (
+                "omni.warp" in warp_norm
+                or ("extscache" in warp_norm and "warp" in warp_norm)
+                or ("kit/python/lib" in warp_norm and "site-packages" in warp_norm)
+            )
+            if _suspicious:
+                import warnings
+
+                warnings.warn(
+                    f"[IsaacLab] warp was imported from a non-pip-installed path: "
+                    f"{warp_file!r}.  A Kit-bundled or extscache copy of warp is "
+                    f"shadowing the pip-installed warp-lang, which can cause Warp kernel "
+                    f"lookup failures (e.g. 'Failed to find forward kernel ... from module "
+                    f"isaaclab.sensors.kernels').  Expected warp to be loaded from "
+                    f"pip-installed site-packages.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+
         # Hide the stop button in the toolbar
         self._hide_stop_button()
         # Set settings from the given rendering mode

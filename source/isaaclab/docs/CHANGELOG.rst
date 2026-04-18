@@ -1,6 +1,37 @@
 Changelog
 ---------
 
+4.6.11 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``RuntimeError: Failed to find forward kernel 'update_outdated_envs_kernel'``
+  caused by the nightly Isaac Sim Docker (>= 04/14) shipping warp 1.13.x inside
+  ``kit/python/lib/python3.12/site-packages``.  Because ``setup_python_env.sh``
+  places that directory on ``PYTHONPATH`` ahead of pip's ``site-packages``, warp 1.13.x
+  was imported instead of pip-installed warp 1.12.0, despite the ``_pin_warp_import``
+  pre-import added previously.  Warp 1.13.x deprecates ``warp.types.array`` and changes its
+  semantics; ``omni.replicator.core`` accesses this symbol during rendering, triggering
+  a CUDA illegal-memory-access (error 700) that poisons the CUDA context and causes
+  all subsequent warp kernel lookups (including
+  ``update_outdated_envs_kernel_<hash>_cuda_kernel_forward``) to return NULL.
+  Extended ``_deprioritize_prebundle_paths()`` to also demote
+  ``kit/python/lib/*/site-packages`` paths, ensuring pip-installed ``warp-lang``
+  always takes priority.  Also added an explicit ``strip_hash=False`` option to the
+  ``isaaclab.sensors.kernels`` warp module as a defensive safety net, and broadened
+  the post-startup diagnostic warning in :class:`~isaaclab.app.AppLauncher` to cover
+  Kit Python paths.
+* Fixed a Warp kernel lookup failure (``Failed to find forward kernel … for device 'cuda:0'``)
+  caused by Kit's extension scanner adding ``omni.warp.core``'s directory to ``sys.path``
+  during ``SimulationApp`` startup, before the second ``_deprioritize_prebundle_paths()``
+  call in :class:`~isaaclab.app.AppLauncher` could run.  The fix pre-imports ``warp`` in
+  :mod:`isaaclab` ``__init__`` immediately after the path-demotion step, locking
+  ``sys.modules['warp']`` to the pip-installed version before Kit starts.  A post-startup
+  warning is also emitted when the wrong ``warp`` is detected.
+
+
 4.6.10 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

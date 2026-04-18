@@ -45,6 +45,15 @@ def _deprioritize_prebundle_paths():
         norm = path.replace("\\", "/").lower()
         if "pip_prebundle" in norm:
             return True
+        # Kit ships its own Python interpreter and installs packages into
+        # kit/python/lib/python3.X/site-packages.  When a newer or differently-
+        # configured version of a package (e.g. warp) is installed there, it
+        # takes precedence over pip-installed packages and can cause runtime
+        # failures.  Demote these site-packages to the end of sys.path while
+        # leaving the Kit stdlib path (kit/python/lib/python3.X without
+        # site-packages) in place so Kit's standard-library extras still work.
+        if "kit/python/lib" in norm and "site-packages" in norm:
+            return True
         for frag in _CONFLICTING_EXT_FRAGMENTS:
             if frag.lower() in norm:
                 return True
@@ -79,6 +88,62 @@ def _deprioritize_prebundle_paths():
 
 
 _deprioritize_prebundle_paths()
+
+
+def _pin_warp_import():
+    """Import ``warp`` now to lock ``sys.modules['warp']`` to the pip-installed version.
+
+    Kit's extension system may add ``omni.warp.core``'s directory or Kit's own
+    ``kit/python/lib/python3.X/site-packages`` to ``sys.path`` during
+    ``SimulationApp`` startup — even when that extension is excluded from the kit
+    file — because Kit scans extension directories as part of its registry process.
+    Any extension that imports ``warp`` during that window (e.g.
+    ``omni.replicator.core``) would set ``sys.modules['warp']`` to the bundled copy
+    before our second ``_deprioritize_prebundle_paths()`` call in ``AppLauncher``
+    has a chance to run.
+
+    By importing ``warp`` here — after ``_deprioritize_prebundle_paths()`` has
+    already demoted the pip_prebundle, ``omni.warp.core``, and ``kit/python/lib``
+    site-packages paths — we ensure the pip-installed ``warp-lang`` is the one
+    cached in ``sys.modules``.  Subsequent ``import warp`` calls from Kit extensions
+    all return that cached module, so there is only ever one Warp runtime in the
+    process.
+
+    Failure to import (e.g. warp not yet installed during initial setup) is
+    silently ignored; the import will succeed once the user has run
+    ``./isaaclab.sh --install``.
+    """
+    try:
+        import warp as _warp  # noqa: F401
+    except ImportError:
+        return
+
+    # Warn if warp was resolved from a non-pip location that could introduce
+    # version mismatches (Kit-bundled or extscache copies).
+    import warnings
+
+    _warp_file = getattr(_warp, "__file__", "") or ""
+    _warp_norm = _warp_file.replace("\\", "/").lower()
+    _suspicious = (
+        "omni.warp" in _warp_norm
+        or ("extscache" in _warp_norm and "warp" in _warp_norm)
+        or ("kit/python/lib" in _warp_norm and "site-packages" in _warp_norm)
+    )
+    if _suspicious:
+        warnings.warn(
+            f"[IsaacLab] warp was imported from a non-pip-installed location: "
+            f"{_warp_file!r}.  A Kit-bundled or extscache copy of warp may be "
+            f"shadowing the pip-installed warp-lang, which can cause Warp kernel "
+            f"lookup failures (e.g. 'Failed to find forward kernel ... from module "
+            f"isaaclab.sensors.kernels').  Check that pip-installed packages "
+            f"(site-packages) appear before kit/python/lib/*/site-packages and "
+            f"extscache directories in sys.path.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+
+_pin_warp_import()
 
 # Conveniences to other module directories via relative paths.
 ISAACLAB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
