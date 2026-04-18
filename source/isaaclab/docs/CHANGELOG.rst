@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+4.6.12 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``RuntimeError: Failed to find forward kernel 'update_outdated_envs_kernel'``
+  (continued from 4.6.11).  The path-demotion fix correctly moved
+  ``kit/python/lib/python3.12/site-packages`` to the end of ``sys.path``, but since
+  ``warp-lang`` was not a pip requirement, there was no pip-managed warp to prefer
+  over the kit-shipped warp 1.13.x — the demoted warp 1.13.x was still the only
+  warp available.  Added ``warp-lang>=1.0.0,<1.13`` to pip requirements so that
+  ``./isaaclab.sh --install`` pip-installs a compatible warp into the same
+  ``site-packages`` directory, overwriting the incompatible 1.13.x.  Also replaced
+  the path-based warning in ``_pin_warp_import`` and
+  :class:`~isaaclab.app.AppLauncher` with a version-based check (``>= 1.13``),
+  which correctly identifies the incompatibility regardless of install location.
+
+
 4.6.11 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -91,7 +91,7 @@ _deprioritize_prebundle_paths()
 
 
 def _pin_warp_import():
-    """Import ``warp`` now to lock ``sys.modules['warp']`` to the pip-installed version.
+    """Import ``warp`` now to lock ``sys.modules['warp']`` to the correct version.
 
     Kit's extension system may add ``omni.warp.core``'s directory or Kit's own
     ``kit/python/lib/python3.X/site-packages`` to ``sys.path`` during
@@ -104,7 +104,7 @@ def _pin_warp_import():
 
     By importing ``warp`` here — after ``_deprioritize_prebundle_paths()`` has
     already demoted the pip_prebundle, ``omni.warp.core``, and ``kit/python/lib``
-    site-packages paths — we ensure the pip-installed ``warp-lang`` is the one
+    site-packages paths — we ensure the pip-managed ``warp-lang`` is the one
     cached in ``sys.modules``.  Subsequent ``import warp`` calls from Kit extensions
     all return that cached module, so there is only ever one Warp runtime in the
     process.
@@ -118,29 +118,31 @@ def _pin_warp_import():
     except ImportError:
         return
 
-    # Warn if warp was resolved from a non-pip location that could introduce
-    # version mismatches (Kit-bundled or extscache copies).
+    # Warn if the loaded warp version is incompatible with omni.replicator.core.
+    # Warp >= 1.13 deprecates warp.types.array with changed semantics; when
+    # omni.replicator.core (which uses that symbol) is loaded with warp >= 1.13,
+    # it triggers CUDA error 700 (illegal memory access) that poisons the CUDA
+    # context and causes all subsequent warp kernel lookups to fail.
+    # Run './isaaclab.sh --install' to install a compatible warp-lang version.
     import warnings
 
-    _warp_file = getattr(_warp, "__file__", "") or ""
-    _warp_norm = _warp_file.replace("\\", "/").lower()
-    _suspicious = (
-        "omni.warp" in _warp_norm
-        or ("extscache" in _warp_norm and "warp" in _warp_norm)
-        or ("kit/python/lib" in _warp_norm and "site-packages" in _warp_norm)
-    )
-    if _suspicious:
-        warnings.warn(
-            f"[IsaacLab] warp was imported from a non-pip-installed location: "
-            f"{_warp_file!r}.  A Kit-bundled or extscache copy of warp may be "
-            f"shadowing the pip-installed warp-lang, which can cause Warp kernel "
-            f"lookup failures (e.g. 'Failed to find forward kernel ... from module "
-            f"isaaclab.sensors.kernels').  Check that pip-installed packages "
-            f"(site-packages) appear before kit/python/lib/*/site-packages and "
-            f"extscache directories in sys.path.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
+    _warp_version = getattr(_warp, "version", None)
+    if _warp_version is not None:
+        try:
+            _parts = [int(x) for x in str(_warp_version).split(".")[:2]]
+            if len(_parts) >= 2 and (_parts[0], _parts[1]) >= (1, 13):
+                warnings.warn(
+                    f"[IsaacLab] warp {_warp_version} is incompatible with "
+                    f"omni.replicator.core.  Warp >= 1.13 deprecates "
+                    f"``warp.types.array`` with changed semantics, which causes "
+                    f"CUDA error 700 (illegal memory access) during rendering and "
+                    f"makes all subsequent warp kernel lookups fail.  Run "
+                    f"'./isaaclab.sh --install' to install warp-lang<1.13.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+        except (ValueError, AttributeError):
+            pass
 
 
 _pin_warp_import()

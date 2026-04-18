@@ -212,35 +212,35 @@ class AppLauncher:
 
         _deprioritize_prebundle_paths()
 
-        # Verify that warp (if loaded) came from the pip-installed copy and not from
-        # a bundled extension such as omni.warp.core or Kit's own Python packages.
-        # Kit's extension system can add extension directories and kit/python/lib paths
-        # to sys.path during startup; the pre-import in isaaclab/__init__.py normally
-        # prevents this, but log a warning so CI failures are easier to diagnose.
+        # Verify that warp (if loaded) is a compatible version.  Warp >= 1.13
+        # deprecates warp.types.array with changed semantics; omni.replicator.core
+        # accesses this symbol during rendering and with warp >= 1.13 causes CUDA
+        # error 700 that poisons the context and makes all kernel lookups fail.
+        # The pre-import in isaaclab/__init__.py normally catches this, but log
+        # a warning here too so CI failures are easier to diagnose.
         import sys
 
         warp_mod = sys.modules.get("warp")
         if warp_mod is not None:
-            warp_file = getattr(warp_mod, "__file__", "") or ""
-            warp_norm = warp_file.replace("\\", "/").lower()
-            _suspicious = (
-                "omni.warp" in warp_norm
-                or ("extscache" in warp_norm and "warp" in warp_norm)
-                or ("kit/python/lib" in warp_norm and "site-packages" in warp_norm)
-            )
-            if _suspicious:
-                import warnings
+            warp_version = getattr(warp_mod, "version", None)
+            if warp_version is not None:
+                try:
+                    _parts = [int(x) for x in str(warp_version).split(".")[:2]]
+                    if len(_parts) >= 2 and (_parts[0], _parts[1]) >= (1, 13):
+                        import warnings
 
-                warnings.warn(
-                    f"[IsaacLab] warp was imported from a non-pip-installed path: "
-                    f"{warp_file!r}.  A Kit-bundled or extscache copy of warp is "
-                    f"shadowing the pip-installed warp-lang, which can cause Warp kernel "
-                    f"lookup failures (e.g. 'Failed to find forward kernel ... from module "
-                    f"isaaclab.sensors.kernels').  Expected warp to be loaded from "
-                    f"pip-installed site-packages.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
+                        warnings.warn(
+                            f"[IsaacLab] warp {warp_version} is incompatible with "
+                            f"omni.replicator.core.  Warp >= 1.13 deprecates "
+                            f"``warp.types.array`` with changed semantics, which causes "
+                            f"CUDA error 700 during rendering and makes all warp kernel "
+                            f"lookups fail.  Run './isaaclab.sh --install' to install "
+                            f"warp-lang<1.13.",
+                            RuntimeWarning,
+                            stacklevel=2,
+                        )
+                except (ValueError, AttributeError):
+                    pass
 
         # Hide the stop button in the toolbar
         self._hide_stop_button()
