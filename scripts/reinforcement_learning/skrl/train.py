@@ -51,8 +51,10 @@ parser.add_argument(
     "--algorithm",
     type=str,
     default="PPO",
-    choices=["AMP", "DDPG", "IPPO", "MAPPO", "PPO", "SAC", "TD3"],
-    help="The RL algorithm used for training the skrl agent.",
+    help=(
+        "Name of the RL algorithm to use (e.g. AMP, DDPG, IPPO, MAPPO, PPO, SAC, TD3, etc.) "
+        "when several algorithms exist for the same task. For a more specific selection, use the argument --agent."
+    ),
 )
 parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
