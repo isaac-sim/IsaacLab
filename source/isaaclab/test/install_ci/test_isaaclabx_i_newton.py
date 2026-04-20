@@ -10,7 +10,7 @@ from __future__ import annotations
 import shutil
 
 import pytest
-from utils import UV_Mixin
+from utils import UV_Mixin, find_isaaclab_root
 
 
 class Test_Install_Newton(UV_Mixin):
@@ -18,8 +18,19 @@ class Test_Install_Newton(UV_Mixin):
 
     @classmethod
     def setup_class(cls):
+        # check if uv is available
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
+
+        # check if isaacsim is importable or "_isaac_sim" link is present
+        try:
+            import isaacsim  # noqa: F401
+        except ImportError:
+            print('[DEBUG] Module isaacsim is not importable')
+            isaac_sim_link = find_isaaclab_root() / "_isaac_sim"
+            if not isaac_sim_link.exists():
+                print(f'[DEBUG] Link "{isaac_sim_link}" does not exist')
+                pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
     @pytest.mark.uv
     @pytest.mark.slow
