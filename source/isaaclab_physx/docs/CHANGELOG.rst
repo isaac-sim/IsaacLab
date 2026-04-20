@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.5.19 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added fused :meth:`~isaaclab_physx.assets.Articulation.write_joint_state_to_sim_index`
+  that writes joint position and velocity in a single kernel launch instead of two.
+* Added single-slot ``data_ptr()`` caches to ``_resolve_env_ids``,
+  ``_resolve_joint_ids``, and ``_resolve_body_ids`` to eliminate redundant
+  ``wp.from_torch`` wrapper allocations.
+* Cached ``.view(wp.float32)`` results in root pose/velocity writers and wrench
+  composer views in ``write_data_to_sim`` to avoid per-call wrapper allocations.
+* Pre-allocated pinned CPU buffers for all joint property and body property writers,
+  replacing per-call ``wp.clone(device="cpu")`` allocations with ``wp.copy`` into
+  reusable pinned memory.
+
 0.5.18 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~
 

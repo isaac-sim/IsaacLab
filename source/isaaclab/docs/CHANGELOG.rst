@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+4.6.7 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks` configuration option
+  to skip shape/dtype validation in setter and writer methods, reducing per-call overhead
+  in production workloads.
+
 4.6.6 (2026-04-17)
 ~~~~~~~~~~~~~~~~~~~
 

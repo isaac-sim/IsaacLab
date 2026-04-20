@@ -928,6 +928,66 @@ class Articulation(BaseArticulation):
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
 
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ):
+        """Write joint positions and velocities in a single fused kernel launch.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+        self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data_index,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk()
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_pose_b is not None:
+            self.data._body_com_pose_b.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
+
     def write_joint_state_to_sim_mask(
         self,
         *,
@@ -3711,11 +3771,11 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
         if isinstance(env_ids, torch.Tensor):
+            if env_ids.dtype == torch.int64:
+                env_ids = env_ids.to(torch.int32)
             ptr = env_ids.data_ptr()
             if self._cached_env_ids_ptr == ptr:
                 return self._cached_env_ids_wp
-            if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
             result = wp.from_torch(env_ids, dtype=wp.int32)
             self._cached_env_ids_ptr = ptr
             self._cached_env_ids_wp = result
@@ -3912,48 +3972,11 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
-        :meth:`write_joint_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_state_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
+            " use 'write_joint_state_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
-        self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
-        self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        wp.launch(
-            articulation_kernels.write_joint_state_data_index,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[
-                position,
-                velocity,
-                env_ids,
-                joint_ids,
-            ],
-            outputs=[
-                self.data.joint_pos,
-                self.data.joint_vel,
-                self.data._previous_joint_vel,
-                self.data.joint_acc,
-            ],
-            device=self.device,
-        )
-        # Invalidate FK timestamp so body poses are recomputed on next access.
-        self.data._fk_timestamp = -1.0
-        SimulationManager.invalidate_fk()
-        if self.data._body_link_vel_w is not None:
-            self.data._body_link_vel_w.timestamp = -1.0
-        if self.data._body_com_pose_b is not None:
-            self.data._body_com_pose_b.timestamp = -1.0
-        if self.data._body_com_pose_w is not None:
-            self.data._body_com_pose_w.timestamp = -1.0
-        if self.data._body_state_w is not None:
-            self.data._body_state_w.timestamp = -1.0
-        if self.data._body_link_state_w is not None:
-            self.data._body_link_state_w.timestamp = -1.0
-        if self.data._body_com_state_w is not None:
-            self.data._body_com_state_w.timestamp = -1.0
+        self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)

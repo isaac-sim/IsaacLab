@@ -3768,7 +3768,7 @@ class Articulation(BaseArticulation):
 
         # Cached .view(wp.float32) wrappers for structured warp arrays.
         # These avoid per-call wp.array metadata allocation in writers.
-        # Recreated in _create_simulation_bindings after sim reset.
+        # Reset to None each time _create_buffers runs (during initialization).
         self._root_link_pose_w_f32: wp.array | None = None
         self._root_com_vel_w_f32: wp.array | None = None
         self._root_link_vel_w_f32: wp.array | None = None
@@ -4436,11 +4436,11 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
         if isinstance(env_ids, torch.Tensor):
+            if env_ids.dtype == torch.int64:
+                env_ids = env_ids.to(torch.int32)
             ptr = env_ids.data_ptr()
             if self._cached_env_ids_ptr == ptr:
                 return self._cached_env_ids_wp
-            if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
             result = wp.from_torch(env_ids, dtype=wp.int32)
             self._cached_env_ids_ptr = ptr
             self._cached_env_ids_wp = result
