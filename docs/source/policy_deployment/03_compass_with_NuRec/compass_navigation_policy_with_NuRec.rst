@@ -5,6 +5,31 @@ This tutorial shows you how to train and deploy COMPASS navigation policies usin
 COMPASS (Cross-embodiment Mobility Policy via Residual RL and Skill Synthesis) is a novel framework for cross-embodiment mobility.
 For more details about the project, please visit the `COMPASS Repository`_.
 
+Workflow Overview
+-----------------
+
+The following provides a high-level overview of the complete workflow:
+
+1. **Create workspace**: Create the ``compass-nurec`` workspace directory
+2. **Install Isaac Sim & Isaac Lab** (Terminal 1): Follow installation steps for Isaac Sim 6.0 and Isaac Lab 3.0
+3. **Install COMPASS Repository** (Terminal 2): Clone and set up the COMPASS repository
+4. **Test setup**: Verify installation using ``play.py``
+5. **Authenticate with Hugging Face**: Generate access token and run ``hf auth login --token <token>``
+6. **Download assets** (can be done in parallel):
+
+   - Download X-Mobility checkpoint: ``hf download nvidia/X-Mobility x_mobility-nav2-semantic_action_path.ckpt``
+   - Download COMPASS USD assets: ``hf download nvidia/COMPASS compass_usds.zip``
+   - Download NuRec Real2Sim assets: ``hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset --revision v0.1``
+
+7. **Prepare assets**:
+
+   - Extract and place ``usd/`` folder into ``compass/rl_env/exts/mobility_es/mobility_es/``
+   - Place environment files (e.g., ``nova_carter-galileo/``) in the appropriate location
+8. **Train Residual RL Policy**: Run training with ``run.py`` and ``train_config_real2sim.gin``
+9. **Evaluate Trained Policy**: Run evaluation with ``run.py`` and ``eval_config_real2sim.gin``
+10. **Export to ONNX / TensorRT**: Convert the trained model for deployment
+11. **ROS2 Deployment / Sim-to-Real Transfer**: Deploy the policy for real-world use
+
 Setup
 -----
 
@@ -148,19 +173,61 @@ Run the following command from the ``COMPASS`` directory to verify the setup:
 Downloading Assets & Checkpoints
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Authentication
+^^^^^^^^^^^^^^
+
+Before downloading assets, you need to authenticate with Hugging Face. Follow the `Hugging Face security tokens documentation`_ to generate a Hugging Face access token.
+
+Once you have generated your access token, authenticate using:
+
+.. code-block:: bash
+
+    hf auth login --token <generated access token>
+
 **1. Pre-trained X-Mobility checkpoint**
 
-Download the checkpoint from:
+Download the checkpoint using the Hugging Face CLI:
+
+.. code-block:: bash
+
+    hf download nvidia/X-Mobility x_mobility-nav2-semantic_action_path.ckpt --local-dir <compass-nurec>/X-Mobility
+
+Alternatively, you can download it manually from:
 https://huggingface.co/nvidia/X-Mobility/blob/main/x_mobility-nav2-semantic_action_path.ckpt
 
 **2. COMPASS USD Assets**
 
-Download the pre-packaged COMPASS USD assets:
+Download the pre-packaged COMPASS USD assets using the Hugging Face CLI:
+
+.. code-block:: bash
+
+    hf download nvidia/COMPASS compass_usds.zip --local-dir <compass-nurec>/COMPASS
+
+Alternatively, you can download it manually from:
 https://huggingface.co/nvidia/COMPASS/blob/main/compass_usds.zip
+
+Extract the downloaded ``compass_usds.zip`` file. Then move/copy the ``usd`` folder from the extracted location:
+
+.. code-block:: bash
+
+    <download_path>/compass_usds/groot_mobility_rl_es_usds/usd
+
+into the COMPASS extension directory:
+
+.. code-block:: bash
+
+    # Ensure that you are in COMPASS root directory
+    compass/rl_env/exts/mobility_es/mobility_es/
 
 **3. NuRec Real2Sim Assets**
 
-Download the NuRec Real2Sim assets from the `PhysicalAI-Robotics-NuRec dataset`_ on Hugging Face:
+Download the NuRec Real2Sim assets from the `PhysicalAI-Robotics-NuRec dataset`_ on Hugging Face using the Hugging Face CLI:
+
+.. code-block:: bash
+
+    hf download nvidia/PhysicalAI-Robotics-NuRec --repo-type dataset --revision v0.1 --local-dir <compass-nurec>/PhysicalAI-Robotics-NuRec
+
+Alternatively, you can download them manually from the `PhysicalAI-Robotics-NuRec dataset`_ on Hugging Face:
 
 .. note::
 
@@ -171,21 +238,35 @@ The dataset provides several environments. For COMPASS, download the environment
 
 .. code-block:: bash
 
-    .. Ensure that you are in COMPASS root directory
+    # Ensure that you are in COMPASS root directory
     compass/rl_env/exts/mobility_es/mobility_es/usd/<environment_name>/
 
-For example, for the Galileo environment:
+For example, for the Galileo environment (nova_carter-galileo):
 
 .. code-block:: bash
 
     compass/rl_env/exts/mobility_es/mobility_es/usd/nova_carter-galileo/
-    ├── stage.usdz
+    ├── stage_volume.usdz
+    ├── stage_particle.usdz
     ├── occupancy_map.yaml
-    └── occupancy_map.png
+    ├── occupancy_map.png
+    └── 3dgrt
+        ├── last.usdz
+        ├── real2sim_galileo.usd
+        └── omap
+            ├── occupancy_map.yaml
+            └── occupancy_map.png
 
 .. note::
 
-   The following environments are available in the dataset:
+   The ``nova_carter-galileo`` environment provides two USDZ variants, both compatible with COMPASS:
+
+   - ``stage_volume.usdz`` — volumetric mesh-based representation (replaces the previous ``stage.usdz``)
+   - ``stage_particle.usdz`` — particle USD format representation
+
+.. note::
+
+   The following are the available COMPASS compatible scenes from the NuRec dataset:
 
    .. list-table::
       :header-rows: 1
@@ -205,6 +286,15 @@ For example, for the Galileo environment:
         - Yes
       * - ``hand_hold-endeavor-livingroom``
         - Living room in NVIDIA Endeavor building
+        - Yes
+      * - ``hand_hold-endeavor-andoria``
+        - Meeting room in NVIDIA Endeavor building
+        - Yes
+      * - ``hand_hold-endeavor-wormhole``
+        - Conference room in NVIDIA Endeavor building
+        - Yes
+      * - ``hand_hold-voyager-babyboom-2``
+        - Conference room in NVIDIA Voyager building
         - Yes
 
 Training the Policy
@@ -239,10 +329,14 @@ Execute the following command from the ``COMPASS`` directory (Terminal 2) to tra
         --video_interval 1 \
         --visualizer kit \
         --enable_cameras \
-        --headless \
         --precompute_valid_poses
 
+.. note::
+
+   To run in headless mode, either omit the ``--visualizer kit`` flag or specify ``--visualizer None``.
+
 Where:
+
 - ``<output_dir>``: Directory where training outputs and checkpoints will be saved
 - ``<path/to/x_mobility_ckpt>``: Path to the downloaded X-Mobility checkpoint
 - ``<embodiment_type>``: One of ``h1``, ``spot``, ``carter``, ``g1``, or ``digit``
@@ -292,12 +386,16 @@ Execute the following command from the ``COMPASS`` directory to evaluate the tra
         --environment nova_carter-galileo \
         --num_envs <num_envs> \
         --video \
-        --video_interval 1
+        --video_interval 1 \
         --enable_cameras \
-        --visualizer kit \
-        --headless
+        --visualizer kit
+
+.. note::
+
+   To run in headless mode, either omit the ``--visualizer kit`` flag or specify ``--visualizer None``.
 
 Where:
+
 - ``<path/to/residual_policy_ckpt>``: Path to the trained residual policy checkpoint (e.g., ``<output_dir>/checkpoints/model_1000.pt``)
 - ``--video``: Enable video recording during evaluation
 - ``--video_interval``: Record video every N iterations
@@ -311,27 +409,31 @@ Model Export
 Export to ONNX or JIT
 ~~~~~~~~~~~~~~~~~~~~~
 
-Export the trained residual RL specialist policy to ONNX or JIT formats for deployment:
+Export the trained residual RL specialist policy to ONNX or JIT formats for deployment.
 
 .. code-block:: bash
 
-    python3 onnx_conversion.py \
-        -b <path/to/x_mobility_ckpt> \
-        -r <path/to/residual_policy_ckpt> \
+    # <output_dir>: training output directory, <path/to/COMPASS>: root of the cloned COMPASS repo
+    cd <output_dir>/
+    python3 <path/to/COMPASS>/onnx_conversion.py \
+        -b <x_mobility_ckpt> \
+        -r <residual_policy_ckpt> \
         -e <embodiment_type> \
-        -o <path/to/output_onnx_file> \
-        -j <path/to/output_jit_file>
+        -o <output.onnx> \
+        -j <output.jit>
 
 Convert ONNX to TensorRT
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For optimized inference, convert the ONNX model to TensorRT:
+For optimized inference, convert the ONNX model to TensorRT.
 
 .. code-block:: bash
 
-    python3 trt_conversion.py \
-        -o <path/to/onnx_file> \
-        -t <path/to/trt_engine_file>
+    # <output_dir>: training output directory, <path/to/COMPASS>: root of the cloned COMPASS repo
+    cd <output_dir>/
+    python3 <path/to/COMPASS>/trt_conversion.py \
+        -o <model.onnx> \
+        -t <output.engine>
 
 Deployment
 ----------
@@ -343,6 +445,7 @@ The trained COMPASS policy can be deployed using the ROS2 deployment framework.
 Refer to the `COMPASS ROS2 Deployment Guide`_ for detailed instructions on deploying the policy in simulation or on real robots.
 
 The ROS2 deployment supports:
+
 - Isaac Sim integration for simulation testing
 - Zero-shot sim-to-real transfer for real robot deployment
 - Object navigation integration with object localization modules
@@ -354,6 +457,7 @@ COMPASS policies trained on NuRec Real2Sim environments are designed for zero-sh
 The Real2Sim assets provide a bridge between simulation and reality, enabling policies trained in simulation to work directly on real robots.
 
 For sim-to-real deployment:
+
 1. Export the trained policy to ONNX or TensorRT format (see Model Export section)
 2. Use the ROS2 deployment framework to run inference on the real robot
 3. Integrate with visual SLAM (e.g., cuVSLAM) for robot state estimation
@@ -393,6 +497,7 @@ For NuRec Real2Sim environments:
 .. _Isaac Lab Installation Guide: https://isaac-sim.github.io/IsaacLab/v2.0.0/source/setup/installation/index.html
 .. _Isaac Sim Installation Guide: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html
 .. _Isaac Sim pip Installation Guide: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_python.html
+.. _Hugging Face security tokens documentation: https://huggingface.co/docs/hub/security-tokens
 .. _COMPASS Repository: https://github.com/NVlabs/COMPASS
 .. _COMPASS ROS2 Deployment Guide: https://github.com/NVlabs/COMPASS/tree/main/ros2_deployment
-.. _PhysicalAI-Robotics-NuRec dataset: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec
+.. _PhysicalAI-Robotics-NuRec dataset: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/v0.1
