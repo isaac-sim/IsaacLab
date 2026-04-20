@@ -29,5 +29,7 @@ def set_kit_renderer_camera_view(
         import isaacsim.core.utils.viewports as isaacsim_viewports
 
         isaacsim_viewports.set_camera_view(eye=list(eye), target=list(target), camera_prim_path=str(camera_prim_path))
+    except (ImportError, ModuleNotFoundError) as exc:
+        logger.debug("[kit_viewport] Renderer camera update skipped (no Kit): %s", exc)
     except Exception as exc:
-        logger.debug("[kit_viewport] Renderer camera update skipped: %s", exc)
+        logger.warning("[kit_viewport] Renderer camera update failed: %s", exc)

@@ -218,11 +218,17 @@ class ViewportCameraController:
         cam_eye = viewer_origin + self.default_cam_eye
         cam_target = viewer_origin + self.default_cam_lookat
 
-        # set the renderer viewport camera view (does not broadcast to visualizers)
-        # Kit-specific helper lives in isaaclab_physx
-        from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view
+        eye_t = (float(cam_eye[0]), float(cam_eye[1]), float(cam_eye[2]))
+        target_t = (float(cam_target[0]), float(cam_target[1]), float(cam_target[2]))
+        self._env.sim.set_camera_view(eye=eye_t, target=target_t)
 
-        set_kit_renderer_camera_view(eye=cam_eye, target=cam_target, camera_prim_path=self.cfg.cam_prim_path)
+        # Renderer viewport camera (Isaac RTX / Kit); optional — pure-Newton installs have no isaaclab_physx.
+        try:
+            from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view
+
+            set_kit_renderer_camera_view(eye=cam_eye, target=cam_target, camera_prim_path=self.cfg.cam_prim_path)
+        except (ImportError, ModuleNotFoundError):
+            pass
 
     """
     Private Functions

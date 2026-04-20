@@ -136,7 +136,10 @@ def pump_kit_app_for_headless_video_render_if_needed(sim: Any) -> None:
         return
     try:
         ensure_isaac_rtx_render_update()
-    except (ImportError, AttributeError) as exc:
+    except (ImportError, AttributeError, ModuleNotFoundError) as exc:
         logger.debug("[isaac_rtx] Skipping Kit app-loop pump in render() (non-Kit env): %s", exc)
     except Exception as exc:
-        logger.warning("[isaac_rtx] Kit app-loop pump failed in render(): %s", exc)
+        logger.warning(
+            "[isaac_rtx] Kit app-loop pump failed in render() — video frames may be stale or black: %s",
+            exc,
+        )

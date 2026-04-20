@@ -104,11 +104,8 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
     sim_cfg = SimulationCfg(
         visualizer_cfgs=[
             KitVisualizerCfg(
-                viewport_name="Visualizer Viewport",
-                create_viewport=True,
-                dock_position="SAME",
-                window_width=1280,
-                window_height=720,
+                # Omit create_viewport (default False) to use the active viewport; set
+                # create_viewport=True and optionally viewport_name to add a dedicated window.
                 eye=(0.0, 0.0, 20.0), # high top down view
                 lookat=(0.0, 0.0, 0.0),
             ),
@@ -193,20 +190,18 @@ Omniverse Visualizer
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
     visualizer_cfg = KitVisualizerCfg(
-        # Viewport settings
-        viewport_name="Visualizer Viewport",      # Viewport window name
-        create_viewport=True,                     # Create new viewport vs. use existing
-        dock_position="SAME",                     # Docking: 'LEFT', 'RIGHT', 'BOTTOM', 'SAME'
-        window_width=1280,                        # Viewport width in pixels
-        window_height=720,                        # Viewport height in pixels
+        # Viewport: default is create_viewport=False (use active viewport).
+        # Set create_viewport=True to create a docked window; viewport_name=None uses the default name.
+        create_viewport=False,
+        dock_position="SAME",
+        window_width=1280,
+        window_height=720,
 
-        # Camera settings
-        eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
-        lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
+        eye=(8.0, 8.0, 3.0),
+        lookat=(0.0, 0.0, 0.0),
 
-        # Feature toggles
-        enable_markers=True,                      # Enable visualization markers
-        enable_live_plots=True,                   # Enable live plots (auto-expands frames)
+        enable_markers=True,
+        enable_live_plots=True,
     )
 
 

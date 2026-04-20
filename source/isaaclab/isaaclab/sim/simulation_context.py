@@ -735,6 +735,8 @@ class SimulationContext:
                     continue
                 if viz.is_rendering_paused():
                     # Keep non-Kit visualizer event loops responsive while rendering is paused.
+                    # Newton/Rerun/Viser need step(0.0) so GL/UI can process input (e.g. Resume).
+                    # Kit is skipped: step() would call app.update(), which must not run during pause.
                     if not viz.pumps_app_update():
                         viz.step(0.0)
                     continue
