@@ -47,6 +47,14 @@ def main():
     # ── Create deploy env ─────────────────────────────────────────
     env = DirectDeploymentEnv(env_cfg, args_cli.leapp_model)
 
+    if getattr(args_cli, "headless", False):
+        print(
+            "[WARN]: Running deploy without a viewport. This happens when headless mode is active, "
+            "including the default case where no visualizer was selected. The policy may be "
+            "stepping normally, but no viewport will appear unless you specify the "
+            "`--visualizer` field."
+        )
+
     print(f"[INFO]: Deploying task '{task_name}' with LEAPP model: {args_cli.leapp_model}")
     print(f"[INFO]: Num envs: {env.num_envs}, decimation: {env.cfg.decimation}, step_dt: {env.step_dt:.4f}s")
 
