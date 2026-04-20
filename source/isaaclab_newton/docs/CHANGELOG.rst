@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+0.5.16 (2026-04-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed incorrect attribute name ``contact_margin`` on Newton
+  ``ShapeConfig`` in
+  :meth:`~isaaclab_newton.physics.NewtonManager.create_builder`. The
+  field was renamed to ``gap`` in Newton PR #1732. The typo created a
+  dead attribute so the intended 1 cm default shape gap was never applied.
+
+
+0.5.15 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.pva.Pva` sensor wrapping Newton's
+  body state (``body_q``, ``body_qd``, ``body_qdd``) to provide world-frame
+  pose and body-frame velocities/accelerations.
+
+
 0.5.14 (2026-04-14)
 ~~~~~~~~~~~~~~~~~~~
 

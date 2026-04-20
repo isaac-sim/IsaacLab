@@ -426,10 +426,10 @@ class NewtonManager(PhysicsManager):
             **kwargs: Forwarded to :class:`ModelBuilder`.
 
         Returns:
-            New builder with up-axis and contact margin defaults applied.
+            New builder with up-axis and gap defaults applied.
         """
         builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
-        builder.default_shape_cfg.contact_margin = 0.01
+        builder.default_shape_cfg.gap = 0.01
         return builder
 
     @classmethod
