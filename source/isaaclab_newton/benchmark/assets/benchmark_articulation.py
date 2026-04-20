@@ -37,9 +37,7 @@ parser.add_argument("--warmup_steps", type=int, default=10, help="Number of warm
 parser.add_argument("--num_instances", type=int, default=4096, help="Number of instances")
 parser.add_argument("--num_bodies", type=int, default=12, help="Number of bodies")
 parser.add_argument("--num_joints", type=int, default=11, help="Number of joints")
-parser.add_argument(
-    "--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor, warp_mask)"
-)
+parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor, warp_mask)")
 parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
 parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
 
@@ -60,7 +58,6 @@ import warnings
 import numpy as np
 import torch
 import warp as wp
-
 from isaaclab_newton.test.mock_interfaces import (
     MockNewtonArticulationView,
     MockWrenchComposer,
@@ -154,9 +151,7 @@ def create_test_articulation(
     # Set up other required attributes
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
-    object.__setattr__(
-        articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
-    )
+    object.__setattr__(articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
     object.__setattr__(
         articulation, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
     )
@@ -183,6 +178,14 @@ def create_test_articulation(
         "_joint_effort_target_sim",
         wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
     )
+
+    # Single-slot caches for _resolve_* methods
+    object.__setattr__(articulation, "_cached_env_ids_ptr", -1)
+    object.__setattr__(articulation, "_cached_env_ids_wp", None)
+    object.__setattr__(articulation, "_cached_joint_ids_ptr", -1)
+    object.__setattr__(articulation, "_cached_joint_ids_wp", None)
+    object.__setattr__(articulation, "_cached_body_ids_ptr", -1)
+    object.__setattr__(articulation, "_cached_body_ids_wp", None)
 
     return articulation, mock_view
 
@@ -1176,8 +1179,8 @@ def _make_fill_ratio_generator(base_gen_fn, fill_ratio):
         inputs = {}
         for key, val in base_inputs.items():
             if key == "env_ids":
-                inputs[key] = torch.randperm(config.num_instances, device=config.device)[:n].sort().values.to(
-                    torch.int32
+                inputs[key] = (
+                    torch.randperm(config.num_instances, device=config.device)[:n].sort().values.to(torch.int32)
                 )
             elif isinstance(val, torch.Tensor) and val.dim() >= 1 and val.shape[0] == config.num_instances:
                 inputs[key] = val[:n]
@@ -1250,12 +1253,15 @@ def main():
     )
 
     # Patch the NewtonManager for both articulation and articulation_data modules
-    with create_mock_newton_manager(
-        "isaaclab_newton.assets.articulation.articulation_data.SimulationManager",
-        gravity=(0.0, 0.0, -9.81),
-    ), create_mock_newton_manager(
-        "isaaclab_newton.assets.articulation.articulation.SimulationManager",
-        gravity=(0.0, 0.0, -9.81),
+    with (
+        create_mock_newton_manager(
+            "isaaclab_newton.assets.articulation.articulation_data.SimulationManager",
+            gravity=(0.0, 0.0, -9.81),
+        ),
+        create_mock_newton_manager(
+            "isaaclab_newton.assets.articulation.articulation.SimulationManager",
+            gravity=(0.0, 0.0, -9.81),
+        ),
     ):
         # Create the test articulation
         articulation, _ = create_test_articulation(

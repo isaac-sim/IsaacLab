@@ -138,20 +138,53 @@ def create_test_articulation(
     # Set up other required attributes
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
-    object.__setattr__(articulation, "_ALL_INDICES", torch.arange(num_instances, dtype=torch.int32, device=device))
-    object.__setattr__(articulation, "_ALL_BODY_INDICES", torch.arange(num_bodies, dtype=torch.int32, device=device))
-    object.__setattr__(articulation, "_ALL_JOINT_INDICES", torch.arange(num_joints, dtype=torch.int32, device=device))
+
+    # Use warp arrays for _ALL_* indices (matching real _create_buffers)
+    import numpy as np
+
+    all_indices_wp = wp.array(np.arange(num_instances, dtype=np.int32), device=device)
+    all_joint_indices_wp = wp.array(np.arange(num_joints, dtype=np.int32), device=device)
+    all_body_indices_wp = wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
+    object.__setattr__(articulation, "_ALL_INDICES", all_indices_wp)
+    object.__setattr__(articulation, "_ALL_JOINT_INDICES", all_joint_indices_wp)
+    object.__setattr__(articulation, "_ALL_BODY_INDICES", all_body_indices_wp)
 
     # Warp arrays for set_external_force_and_torque
-    all_indices = torch.arange(num_instances, dtype=torch.int32, device=device)
-    all_body_indices = torch.arange(num_bodies, dtype=torch.int32, device=device)
-    object.__setattr__(articulation, "_ALL_INDICES_WP", wp.from_torch(all_indices, dtype=wp.int32))
-    object.__setattr__(articulation, "_ALL_BODY_INDICES_WP", wp.from_torch(all_body_indices, dtype=wp.int32))
+    object.__setattr__(articulation, "_ALL_INDICES_WP", all_indices_wp)
+    object.__setattr__(articulation, "_ALL_BODY_INDICES_WP", all_body_indices_wp)
 
     # Initialize joint targets
     object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
     object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
     object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
+
+    # Single-slot caches for _resolve_* methods
+    object.__setattr__(articulation, "_cached_env_ids_ptr", -1)
+    object.__setattr__(articulation, "_cached_env_ids_wp", None)
+    object.__setattr__(articulation, "_cached_joint_ids_ptr", -1)
+    object.__setattr__(articulation, "_cached_joint_ids_wp", None)
+    object.__setattr__(articulation, "_cached_body_ids_ptr", -1)
+    object.__setattr__(articulation, "_cached_body_ids_wp", None)
+
+    # Cached .view() wrappers
+    object.__setattr__(articulation, "_root_link_pose_w_f32", None)
+    object.__setattr__(articulation, "_root_com_vel_w_f32", None)
+    object.__setattr__(articulation, "_root_link_vel_w_f32", None)
+
+    # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
+    N, J, B = num_instances, num_joints, num_bodies
+    object.__setattr__(articulation, "_cpu_env_ids_all", wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True))
+    wp.copy(articulation._cpu_env_ids_all, all_indices_wp)
+    object.__setattr__(articulation, "_cpu_joint_stiffness", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_joint_damping", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_joint_pos_limits", wp.zeros((N, J, 2), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_joint_vel_limits", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_joint_effort_limits", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_joint_armature", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_joint_friction_props", wp.zeros((N, J, 3), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_body_mass", wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True))
 
     return articulation, mock_view, None
 
