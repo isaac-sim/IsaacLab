@@ -256,6 +256,36 @@ def log_convergence(
     )
 
 
+def log_success(benchmark, tracker):
+    """Log success-metric results to the benchmark backend.
+
+    Always logs the tag, tail mean, converged-at-iter, and pass/fail whenever the tracker holds
+    data (useful for historical comparison across runs). No-op when the tracker is ``None`` or
+    never recorded anything.
+
+    Args:
+        benchmark: Benchmark instance.
+        tracker: :class:`SuccessRateTracker` from early_stop (or ``None`` if no tracker ran).
+    """
+    if tracker is None or not tracker.history:
+        return
+
+    converged = tracker.converged
+    benchmark.add_measurement("train", SingleMeasurement(name="Success Tag", value=tracker.metric_key, unit="string"))
+    benchmark.add_measurement(
+        "train", SingleMeasurement(name="Success Rate (tail mean)", value=round(tracker.tail_mean, 4), unit="float")
+    )
+    benchmark.add_measurement(
+        "train",
+        SingleMeasurement(
+            name="Success Converged At Iter",
+            value=tracker.current_iteration if converged else -1,
+            unit="int",
+        ),
+    )
+    benchmark.add_measurement("train", SingleMeasurement(name="Success Passed", value=int(converged), unit="bool"))
+
+
 def parse_cprofile_stats(
     profile: cProfile.Profile,
     isaaclab_prefixes: list[str],

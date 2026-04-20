@@ -157,6 +157,16 @@ class EventCfg:
         },
     )
 
+    log_success_rate = EventTerm(
+        func=mdp.log_pole_upright_success_rate,
+        mode="interval",
+        interval_range_s=(0.0, 0.0),
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
+            "threshold": 0.5,
+        },
+    )
+
 
 @configclass
 class RewardsCfg:
