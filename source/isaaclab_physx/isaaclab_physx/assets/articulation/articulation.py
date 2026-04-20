@@ -382,7 +382,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -406,7 +406,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -431,7 +431,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -488,7 +488,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -517,7 +517,7 @@ class Articulation(BaseArticulation):
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -581,7 +581,7 @@ class Articulation(BaseArticulation):
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -611,7 +611,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -638,7 +638,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -666,7 +666,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -722,7 +722,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -753,7 +753,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -815,7 +815,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -843,7 +843,7 @@ class Articulation(BaseArticulation):
         """Write joint positions and velocities in a single fused kernel launch.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -907,7 +907,7 @@ class Articulation(BaseArticulation):
         """Write joint positions and velocities over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -937,7 +937,7 @@ class Articulation(BaseArticulation):
         """Write joint positions over selected environment indices into the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -994,7 +994,7 @@ class Articulation(BaseArticulation):
         """Write joint positions over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1022,7 +1022,7 @@ class Articulation(BaseArticulation):
         """Write joint velocities to the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1071,7 +1071,7 @@ class Articulation(BaseArticulation):
         """Write joint velocities over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1103,7 +1103,7 @@ class Articulation(BaseArticulation):
         """Write joint stiffness over selected environment indices into the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1167,7 +1167,7 @@ class Articulation(BaseArticulation):
         """Write joint stiffness over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -4342,7 +4342,7 @@ class Articulation(BaseArticulation):
         """Get the CPU environment indices.
 
         For the full-index case (all environments), returns the pre-allocated
-        pinned CPU buffer. For partial indices, clones to CPU (infrequent path).
+        pinned CPU buffer. For partial indices (e.g. during partial resets), clones to CPU.
 
         Args:
             env_ids: Environment indices.
@@ -4378,31 +4378,31 @@ class Articulation(BaseArticulation):
         return env_ids
 
     def _get_root_link_pose_w_f32(self) -> wp.array:
-        """Get a cached float32 view of root_link_pose_w for PhysX TensorAPI."""
+        """Get a cached float32 view of root_link_pose_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
         if self._root_link_pose_w_f32 is None:
             self._root_link_pose_w_f32 = self.data._root_link_pose_w.data.view(wp.float32)
         return self._root_link_pose_w_f32
 
     def _get_root_com_vel_w_f32(self) -> wp.array:
-        """Get a cached float32 view of root_com_vel_w for PhysX TensorAPI."""
+        """Get a cached float32 view of root_com_vel_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
         if self._root_com_vel_w_f32 is None:
             self._root_com_vel_w_f32 = self.data._root_com_vel_w.data.view(wp.float32)
         return self._root_com_vel_w_f32
 
     def _get_root_link_vel_w_f32(self) -> wp.array:
-        """Get a cached float32 view of root_link_vel_w for PhysX TensorAPI."""
+        """Get a cached float32 view of root_link_vel_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
         if self._root_link_vel_w_f32 is None:
             self._root_link_vel_w_f32 = self.data._root_link_vel_w.data.view(wp.float32)
         return self._root_link_vel_w_f32
 
     def _get_inst_wrench_force_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of instantaneous wrench force."""
+        """Get a cached flattened float32 view of instantaneous wrench force. Invalidated in ``_create_buffers``."""
         if self._inst_wrench_force_f32 is None:
             self._inst_wrench_force_f32 = self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32)
         return self._inst_wrench_force_f32
 
     def _get_inst_wrench_torque_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of instantaneous wrench torque."""
+        """Get a cached flattened float32 view of instantaneous wrench torque. Invalidated in ``_create_buffers``."""
         if self._inst_wrench_torque_f32 is None:
             self._inst_wrench_torque_f32 = self._instantaneous_wrench_composer.composed_torque.flatten().view(
                 wp.float32
@@ -4410,13 +4410,13 @@ class Articulation(BaseArticulation):
         return self._inst_wrench_torque_f32
 
     def _get_perm_wrench_force_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of permanent wrench force."""
+        """Get a cached flattened float32 view of permanent wrench force. Invalidated in ``_create_buffers``."""
         if self._perm_wrench_force_f32 is None:
             self._perm_wrench_force_f32 = self._permanent_wrench_composer.composed_force.flatten().view(wp.float32)
         return self._perm_wrench_force_f32
 
     def _get_perm_wrench_torque_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of permanent wrench torque."""
+        """Get a cached flattened float32 view of permanent wrench torque. Invalidated in ``_create_buffers``."""
         if self._perm_wrench_torque_f32 is None:
             self._perm_wrench_torque_f32 = self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32)
         return self._perm_wrench_torque_f32

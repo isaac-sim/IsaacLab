@@ -81,7 +81,9 @@ class AssetBaseCfg:
 
     When ``True``, :meth:`~AssetBase.assert_shape_and_dtype` and
     :meth:`~AssetBase.assert_shape_and_dtype_mask` become no-ops,
-    eliminating ~5-10 us of overhead per call.
+    eliminating per-call assertion overhead.
+
+    When ``False``, shape checks are always enabled, even under ``python -O``.
 
     When ``None`` (the default), shape checks follow Python's ``__debug__``
     flag — enabled in normal mode, disabled with ``python -O``.

@@ -107,7 +107,7 @@ def write_joint_state_data(
     vel_data: wp.array2d(dtype=wp.float32),
     env_ids: wp.array(dtype=wp.int32),
     joint_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
+    full_data: bool,
     joint_pos: wp.array2d(dtype=wp.float32),
     joint_vel: wp.array2d(dtype=wp.float32),
     prev_joint_vel: wp.array2d(dtype=wp.float32),
@@ -116,18 +116,21 @@ def write_joint_state_data(
     """Write joint position and velocity data in a single kernel launch.
 
     Args:
-        pos_data: Input joint positions. Shape depends on from_mask.
-        vel_data: Input joint velocities. Shape depends on from_mask.
+        pos_data: Input joint positions. Shape is (num_envs, num_joints) if full_data,
+            otherwise (num_selected_envs, num_selected_joints).
+        vel_data: Input joint velocities. Shape is (num_envs, num_joints) if full_data,
+            otherwise (num_selected_envs, num_selected_joints).
         env_ids: Environment indices. Shape is (num_selected_envs,).
         joint_ids: Joint indices. Shape is (num_selected_joints,).
-        from_mask: If True, use env_ids/joint_ids to index into data.
+        full_data: If True, data has full (num_envs, num_joints) shape and env_ids/joint_ids
+            index into it. If False, data is pre-sliced and indexed by thread position.
         joint_pos: Output joint positions. Shape is (num_envs, num_joints).
         joint_vel: Output joint velocities. Shape is (num_envs, num_joints).
         prev_joint_vel: Output previous joint velocities. Shape is (num_envs, num_joints).
         joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
     """
     i, j = wp.tid()
-    if from_mask:
+    if full_data:
         p = pos_data[env_ids[i], joint_ids[j]]
         v = vel_data[env_ids[i], joint_ids[j]]
     else:
