@@ -351,7 +351,7 @@ class RigidObject(BaseRigidObject):
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -432,7 +432,7 @@ class RigidObject(BaseRigidObject):
         self.data._root_link_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -518,7 +518,7 @@ class RigidObject(BaseRigidObject):
         self.data._root_com_state_w.timestamp = -1.0
         self.data._root_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_velocities(self._get_root_com_vel_w_f32(), indices=env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -609,7 +609,7 @@ class RigidObject(BaseRigidObject):
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_velocities(self._get_root_com_vel_w_f32(), indices=env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -694,11 +694,9 @@ class RigidObject(BaseRigidObject):
         )
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
-        self.root_view.set_masses(wp.clone(self.data._body_mass, device="cpu"), indices=cpu_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        wp.copy(self._cpu_body_mass, self.data._body_mass)
+        self.root_view.set_masses(self._cpu_body_mass, indices=cpu_env_ids)
 
     def set_masses_mask(
         self,
@@ -781,7 +779,8 @@ class RigidObject(BaseRigidObject):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_coms(wp.clone(self.data._body_com_pose_b.data, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data)
+        self.root_view.set_coms(self._cpu_body_coms, indices=cpu_env_ids)
 
     def set_coms_mask(
         self,
@@ -863,11 +862,9 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        if isinstance(env_ids, wp.array):
-            cpu_env_ids = wp.clone(env_ids, device="cpu")
-        else:
-            cpu_env_ids = wp.clone(wp.from_torch(env_ids, dtype=wp.int32), device="cpu")
-        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu").flatten(), indices=cpu_env_ids)
+        cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        wp.copy(self._cpu_body_inertia, self.data._body_inertia)
+        self.root_view.set_inertias(self._cpu_body_inertia.flatten(), indices=cpu_env_ids)
 
     def set_inertias_mask(
         self,
@@ -1056,17 +1053,59 @@ class RigidObject(BaseRigidObject):
         return body_ids
 
     def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
-        """Get the CPU environment indices.
+        """Get CPU environment indices. Uses pre-allocated pinned buffer for full-index case.
 
         Args:
             env_ids: Environment indices.
 
         Returns:
-            A warp array of environment indices.
+            A warp array of environment indices on CPU.
         """
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids, dtype=wp.int32)
+        # Fast path: if these are all indices, use pre-allocated pinned buffer
+        if env_ids.ptr == self._ALL_INDICES.ptr:
+            return self._cpu_env_ids_all
+        # Slow path: partial indices (reset), clone to CPU
         return wp.clone(env_ids, device="cpu")
+
+    def _get_root_link_pose_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_link_pose_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
+        if self._root_link_pose_w_f32 is None:
+            self._root_link_pose_w_f32 = self.data._root_link_pose_w.data.view(wp.float32)
+        return self._root_link_pose_w_f32
+
+    def _get_root_com_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_com_vel_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
+        if self._root_com_vel_w_f32 is None:
+            self._root_com_vel_w_f32 = self.data._root_com_vel_w.data.view(wp.float32)
+        return self._root_com_vel_w_f32
+
+    def _get_inst_wrench_force_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of instantaneous wrench force. Invalidated in ``_create_buffers``."""
+        if self._inst_wrench_force_f32 is None:
+            self._inst_wrench_force_f32 = self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32)
+        return self._inst_wrench_force_f32
+
+    def _get_inst_wrench_torque_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of instantaneous wrench torque. Invalidated in ``_create_buffers``."""
+        if self._inst_wrench_torque_f32 is None:
+            self._inst_wrench_torque_f32 = self._instantaneous_wrench_composer.composed_torque.flatten().view(
+                wp.float32
+            )
+        return self._inst_wrench_torque_f32
+
+    def _get_perm_wrench_force_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of permanent wrench force. Invalidated in ``_create_buffers``."""
+        if self._perm_wrench_force_f32 is None:
+            self._perm_wrench_force_f32 = self._permanent_wrench_composer.composed_force.flatten().view(wp.float32)
+        return self._perm_wrench_force_f32
+
+    def _get_perm_wrench_torque_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of permanent wrench torque. Invalidated in ``_create_buffers``."""
+        if self._perm_wrench_torque_f32 is None:
+            self._perm_wrench_torque_f32 = self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32)
+        return self._perm_wrench_torque_f32
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices to a warp array or tensor.
