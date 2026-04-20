@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.16 (2026-04-17)
+0.5.17 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -15,6 +15,19 @@ Changed
 
 * Renamed :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView` to
   :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`. Old name is kept as a deprecated alias.
+
+
+0.5.16 (2026-04-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed incorrect attribute name ``contact_margin`` on Newton
+  ``ShapeConfig`` in
+  :meth:`~isaaclab_newton.physics.NewtonManager.create_builder`. The
+  field was renamed to ``gap`` in Newton PR #1732. The typo created a
+  dead attribute so the intended 1 cm default shape gap was never applied.
 
 
 0.5.15 (2026-04-16)

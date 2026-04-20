@@ -143,9 +143,9 @@ def cli() -> None:
 
     elif args.python is not None:
         if args.python:
-            run_python_command(args.python[0], args.python[1:])
+            run_python_command(args.python[0], args.python[1:], check=True)
         else:
-            run_python_command("-i", [])
+            run_python_command("-i", [], check=True)
 
     elif args.sim is not None:
         command_run_isaacsim(args.sim)
