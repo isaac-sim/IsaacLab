@@ -301,8 +301,8 @@ class SimulationContext:
             physics_scene_paths = [
                 prim.GetPath().pathString for prim in self.stage.Traverse() if prim.GetTypeName() == "PhysicsScene"
             ]
-            for physics_scene_path in physics_scene_paths:
-                sim_utils.delete_prim(physics_scene_path, stage=self.stage)
+            for path in physics_scene_paths:
+                sim_utils.delete_prim(path, stage=self.stage)
 
             # Create a new physics scene
             if self.stage.GetPrimAtPath(cfg.physics_prim_path).IsValid():
