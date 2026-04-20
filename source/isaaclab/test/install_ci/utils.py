@@ -146,6 +146,9 @@ class UV_Mixin:
         assert result.returncode == 0, f"uv env creation failed:\n{result.stdout}\n{result.stderr}"
         assert self.env_path.exists(), f"Expected env directory {self.env_path} was not created"
 
+        # Prevent the venv from being tracked by git.
+        (self.env_path / ".gitignore").write_text("*\n")
+
         self.python = (self.env_path / "Scripts" / "python.exe") if _IS_WINDOWS else (self.env_path / "bin" / "python")
         assert self.python.exists(), f"Python executable not found at {self.python}"
 
