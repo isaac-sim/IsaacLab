@@ -53,6 +53,9 @@ class AssetBase(ABC):
     :meth:`_debug_vis_callback` methods.
     """
 
+    _check_shapes: bool = __debug__
+    """Class-level default for shape validation. Overridden per-instance in ``__init__``."""
+
     def __init__(self, cfg: AssetBaseCfg):
         """Initialize the asset base.
 
@@ -67,9 +70,9 @@ class AssetBase(ABC):
         # store inputs
         self.cfg = cfg.copy()
         # Resolve shape-check flag once: True means checks are active.
-        # None → follow __debug__; True → force disable; False → force enable.
+        # cfg.disable_shape_checks: None -> follow __debug__; True -> force disable checks; False -> force enable checks.
         if self.cfg.disable_shape_checks is None:
-            self._check_shapes: bool = __debug__
+            self._check_shapes = __debug__
         else:
             self._check_shapes = not self.cfg.disable_shape_checks
         # flag for whether the asset is initialized
