@@ -22,12 +22,12 @@ class Test_Install_Newton(UV_Mixin):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
-        # check if isaacsim is importable 
+        # check if isaacsim is importable
         # or "_isaac_sim" link is present
         try:
             import isaacsim  # noqa: F401
         except ImportError:
-            print('[DEBUG] Module isaacsim is not importable')
+            print("[DEBUG] Module isaacsim is not importable")
             isaac_sim_link = find_isaaclab_root() / "_isaac_sim"
             if not isaac_sim_link.exists():
                 print(f'[DEBUG] Link "{isaac_sim_link}" does not exist')
@@ -51,7 +51,7 @@ class Test_Install_Newton(UV_Mixin):
             # Run isaaclab_newton test suite
             test_dir = str(isaaclab_root / "source" / "isaaclab_newton" / "test")
             result = self.run_in_uv_env(
-                ["python", "-m", "pytest", test_dir, "-v", "--tb=short"],
+                ["python", "-m", "pytest", test_dir, "-sv", "--tb=short"],
                 cwd=isaaclab_root,
             )
             output = result.stdout + result.stderr
