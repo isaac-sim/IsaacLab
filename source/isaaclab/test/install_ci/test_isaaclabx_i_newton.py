@@ -22,7 +22,8 @@ class Test_Install_Newton(UV_Mixin):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
-        # check if isaacsim is importable or "_isaac_sim" link is present
+        # check if isaacsim is importable 
+        # or "_isaac_sim" link is present
         try:
             import isaacsim  # noqa: F401
         except ImportError:
