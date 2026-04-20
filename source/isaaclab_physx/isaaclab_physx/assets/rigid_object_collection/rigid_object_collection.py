@@ -434,8 +434,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             outputs=[
                 self.data.body_link_pose_w,
-                None,  # self.data._body_link_state_w.data,
-                None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
@@ -530,9 +528,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             outputs=[
                 self.data.body_com_pose_w,
                 self.data.body_link_pose_w,
-                None,  # self.data._body_com_state_w.data,
-                None,  # self.data._body_link_state_w.data,
-                None,  # self.data._body_state_w.data,
             ],
             device=self.device,
         )
@@ -630,8 +625,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             outputs=[
                 self.data.body_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._body_state_w.data,
-                None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
@@ -739,9 +732,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 self.data.body_link_vel_w,
                 self.data.body_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._body_link_state_w.data,
-                None,  # self.data._body_state_w.data,
-                None,  # self.data._body_com_state_w.data,
             ],
             device=self.device,
         )
