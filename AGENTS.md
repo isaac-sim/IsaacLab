@@ -1,5 +1,46 @@
 # IsaacLab Guidelines
 
+## Installation (agentic setup)
+
+Isaac Lab can run **without Isaac Sim** using the Newton physics backend.
+This is the fastest path to a working environment.
+
+Follow the steps in `docs/source/setup/quick_installation.rst` to install.
+The short version: install uv, clone the repo, run `./isaaclab.sh -u` to
+create the environment, activate it, then `./isaaclab.sh -i` to install.
+
+### Verify
+
+```bash
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+  --task Isaac-Cartpole-Direct-v0 --num_envs 1024 --max_iterations 50 \
+  presets=newton
+```
+
+**Expected:** mean reward climbs to ~290, episode length reaches ~295
+(max 300). Training completes in <60s. First run is slower (~90s) due
+to one-time Warp kernel compilation and CUDA graph capture.
+
+### Common automation mistakes
+
+| Mistake | Consequence | Correct approach |
+|---------|------------|------------------|
+| `uv pip install torch` before `--install` | Wrong CUDA build tag | Let `./isaaclab.sh --install` handle PyTorch |
+| `uv venv env_isaaclab` manually | Missing Python version pin and activation hooks | Use `./isaaclab.sh -u` |
+| Cherry-picking submodules (`--install newton,tasks`) | `ModuleNotFoundError` from implicit cross-deps | Use `--install` (installs all submodules) |
+| Writing a custom test script | Misses Hydra config resolution, fragile | Use the existing `rsl_rl/train.py` |
+| Omitting `presets=newton` | `No module named 'omni.physics'` | Required when Isaac Sim is not installed |
+| `pip3 install uv` | Stale version | Use official installer: `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+
+### Adding Isaac Sim (optional)
+
+Only needed for PhysX, RTX rendering, cameras, or ROS integration:
+
+```bash
+export OMNI_KIT_ACCEPT_EULA=y   # required — process hangs without it
+./isaaclab.sh --install isaacsim
+```
+
 ## Breaking API changes
 
 - **Breaking changes require a deprecation first.** Do not remove or rename public API symbols without deprecating them in a prior release.

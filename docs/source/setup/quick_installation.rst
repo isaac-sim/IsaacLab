@@ -14,9 +14,11 @@ Quick Installation
    git clone https://github.com/isaac-sim/IsaacLab.git
    cd IsaacLab
 
-   # Create environment and install
-   uv venv .venv --python 3.12
-   source .venv/bin/activate
+   # Create environment (pins Python 3.12, adds activation hooks)
+   ./isaaclab.sh -u
+   source env_isaaclab/bin/activate
+
+   # Install all submodules + RL frameworks
    ./isaaclab.sh -i
 
    # Run training (Newton backend, 16 envs)
