@@ -845,17 +845,14 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         is_global: bool = False,
     ) -> None:
-        """Deprecated, same as :meth:`permanent_wrench_composer.set_forces_and_torques`."""
+        """Deprecated. Resets target environments, then adds forces and torques via the permanent wrench composer."""
         warnings.warn(
-            "The function 'set_external_force_and_torque' will be deprecated in a future release. Please"
-            " use 'permanent_wrench_composer.set_forces_and_torques' instead.",
+            "The function 'set_external_force_and_torque' is deprecated. Please use"
+            " 'permanent_wrench_composer.reset' followed by 'permanent_wrench_composer.add_forces_and_torques'"
+            " instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        # Zero forces should deactivate the composer (matches legacy has_external_wrench = False)
-        if not (forces is not None and forces.any()) and not (torques is not None and torques.any()):
-            self.permanent_wrench_composer.reset()
-            return
         # Reset only target env_ids then add (not set which clears all envs globally)
         self.permanent_wrench_composer.reset(env_ids=env_ids)
         self.permanent_wrench_composer.add_forces_and_torques(

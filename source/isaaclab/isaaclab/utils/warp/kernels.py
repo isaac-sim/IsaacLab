@@ -320,7 +320,17 @@ def set_forces_to_dual_buffers_index(
     local_torque_b: wp.array2d(dtype=wp.vec3f),
     is_global: bool,
 ):
-    """Sets forces/torques into global or local buffers using index selection (= overwrites)."""
+    """Set forces/torques into dual buffers using index selection (overwrites).
+
+    Dispatched with ``dim=(len(env_ids), len(body_ids))``.
+
+    When ``is_global`` is True, forces/torques are written to the world-frame buffers.
+    Forces with ``positions`` go to ``global_force_w`` with torque ``cross(P, F)`` accumulated
+    into ``global_torque_w``; forces without positions go to ``global_force_at_com_w``.
+    When ``is_global`` is False, values go to ``local_force_b`` / ``local_torque_b``.
+
+    Any of ``forces``, ``torques``, or ``positions`` may be ``None`` (null array).
+    """
     tid_env, tid_body = wp.tid()
     ei = env_ids[tid_env]
     bi = body_ids[tid_body]
@@ -367,7 +377,11 @@ def add_forces_to_dual_buffers_index(
     local_torque_b: wp.array2d(dtype=wp.vec3f),
     is_global: bool,
 ):
-    """Adds forces/torques into global or local buffers using index selection (+= accumulates)."""
+    """Add forces/torques into dual buffers using index selection (accumulates).
+
+    Same routing logic as :func:`set_forces_to_dual_buffers_index` but uses ``+=`` instead of ``=``.
+    Dispatched with ``dim=(len(env_ids), len(body_ids))``.
+    """
     tid_env, tid_body = wp.tid()
     ei = env_ids[tid_env]
     bi = body_ids[tid_body]
@@ -408,7 +422,12 @@ def set_forces_to_dual_buffers_mask(
     local_torque_b: wp.array2d(dtype=wp.vec3f),
     is_global: bool,
 ):
-    """Sets forces/torques into global or local buffers using mask selection (= overwrites)."""
+    """Set forces/torques into dual buffers using mask selection (overwrites).
+
+    Same routing logic as :func:`set_forces_to_dual_buffers_index` but threads are gated by
+    ``env_mask[tid_env] and body_mask[tid_body]``, and indices are direct (no indirection array).
+    Dispatched with ``dim=(num_envs, num_bodies)``.
+    """
     tid_env, tid_body = wp.tid()
 
     if env_mask[tid_env] and body_mask[tid_body]:
@@ -458,7 +477,12 @@ def add_forces_to_dual_buffers_mask(
     local_torque_b: wp.array2d(dtype=wp.vec3f),
     is_global: bool,
 ):
-    """Adds forces/torques into global or local buffers using mask selection (+= accumulates)."""
+    """Add forces/torques into dual buffers using mask selection (accumulates).
+
+    Same routing logic as :func:`add_forces_to_dual_buffers_index` but threads are gated by
+    ``env_mask[tid_env] and body_mask[tid_body]``.
+    Dispatched with ``dim=(num_envs, num_bodies)``.
+    """
     tid_env, tid_body = wp.tid()
 
     if env_mask[tid_env] and body_mask[tid_body]:
@@ -499,7 +523,12 @@ def add_raw_wrench_buffers(
     dst_lf: wp.array2d(dtype=wp.vec3f),
     dst_lt: wp.array2d(dtype=wp.vec3f),
 ):
-    """Element-wise adds source wrench buffers into destination buffers."""
+    """Element-wise add all five source wrench buffers into destination buffers.
+
+    Dispatched with ``dim=(num_envs, num_bodies)``. Each ``src_*`` / ``dst_*`` pair corresponds
+    to one of the five input buffers (global_force_w, global_torque_w, global_force_at_com_w,
+    local_force_b, local_torque_b).
+    """
     tid_env, tid_body = wp.tid()
     dst_gf[tid_env, tid_body] = dst_gf[tid_env, tid_body] + src_gf[tid_env, tid_body]
     dst_gt[tid_env, tid_body] = dst_gt[tid_env, tid_body] + src_gt[tid_env, tid_body]
@@ -520,11 +549,14 @@ def compose_wrench_to_body_frame(
     out_force_b: wp.array2d(dtype=wp.vec3f),
     out_torque_b: wp.array2d(dtype=wp.vec3f),
 ):
-    """Composes global and local wrench buffers into a single body-frame output.
+    """Compose global and local wrench buffers into a single body-frame output.
 
-    Global torques are stored about the world origin (cross(P, F)). This kernel
-    corrects them to be about the body's CoM by subtracting cross(com_pos_w, F),
-    then rotates into body frame and adds local-frame values.
+    Global torques store the moment of positional forces about the world origin: ``cross(P, F)``.
+    This kernel corrects to be about the body's CoM via ``cross(P, F) - cross(com_pos_w, F) =
+    cross(P - com_pos_w, F)``, then rotates both force and torque into the body frame using
+    ``quat_rotate_inv(link_quat_w, ...)``, and adds local-frame values.
+
+    Dispatched with ``dim=(num_envs, num_bodies)``.
     """
     tid_env, tid_body = wp.tid()
     total_force_w = global_force_w[tid_env, tid_body] + global_force_at_com_w[tid_env, tid_body]
@@ -550,7 +582,10 @@ def reset_wrench_composer_index(
     out_force_b: wp.array2d(dtype=wp.vec3f),
     out_torque_b: wp.array2d(dtype=wp.vec3f),
 ):
-    """Zero all 7 wrench composer buffers at the specified environment indices."""
+    """Zero all 7 wrench composer buffers at the specified environment indices.
+
+    Dispatched with ``dim=(len(env_ids), num_bodies)``.
+    """
     tid_env, tid_body = wp.tid()
     ei = env_ids[tid_env]
     z = wp.vec3f(0.0)
@@ -574,7 +609,10 @@ def reset_wrench_composer_mask(
     out_force_b: wp.array2d(dtype=wp.vec3f),
     out_torque_b: wp.array2d(dtype=wp.vec3f),
 ):
-    """Zero all 7 wrench composer buffers for environments matching the mask."""
+    """Zero all 7 wrench composer buffers for environments matching the mask.
+
+    Dispatched with ``dim=(num_envs, num_bodies)``.
+    """
     tid_env, tid_body = wp.tid()
     if env_mask[tid_env]:
         z = wp.vec3f(0.0)

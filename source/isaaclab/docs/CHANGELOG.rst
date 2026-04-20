@@ -1,8 +1,14 @@
 Changelog
 ---------
 
-4.5.33 (2026-04-14)
+4.5.33 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.add_raw_buffers_from` to merge one composer's raw
+  input buffers into another.
 
 Changed
 ^^^^^^^
@@ -11,8 +17,6 @@ Changed
   global (world-frame) and local (body-frame) buffers. A new
   :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.compose_to_body_frame` method rotates global forces/torques
   into the body frame at apply time using the current body orientation, then sums with local forces/torques.
-* Added :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.add_raw_buffers_from` to merge one composer's buffers
-  into another.
 
 Deprecated
 ^^^^^^^^^^
@@ -31,6 +35,8 @@ Fixed
   with ``slice(None)``.
 * Fixed :class:`~isaaclab.utils.wrench_composer.WrenchComposer` producing spurious torque when global forces are
   applied without explicit positions.
+* Fixed ``set_external_force_and_torque`` wiping forces from non-resetting environments during partial
+  episode resets by using ``reset(env_ids)`` + ``add_forces_and_torques`` instead of ``set_forces_and_torques``.
 
 
 4.5.32 (2026-04-13)
