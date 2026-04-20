@@ -80,7 +80,6 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "bug: bug-regression tests (use bug id as argument)")
     config.addinivalue_line("markers", "gpu: tests that require a GPU")
     config.addinivalue_line("markers", "docker_only: tests that only run inside Docker")
-    config.addinivalue_line("markers", "needs_network: tests that require network access")
     config.addinivalue_line("markers", "slow: tests that take a long time")
     config.addinivalue_line("markers", "uv: tests that require the uv package manager")
 
