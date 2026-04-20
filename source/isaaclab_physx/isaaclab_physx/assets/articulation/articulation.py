@@ -246,8 +246,8 @@ class Articulation(BaseArticulation):
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._instantaneous_wrench_composer.composed_torque.flatten().view(wp.float32),
+                    force_data=self._get_inst_wrench_force_f32(),
+                    torque_data=self._get_inst_wrench_torque_f32(),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -255,8 +255,8 @@ class Articulation(BaseArticulation):
             else:
                 # Apply permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32),
+                    force_data=self._get_perm_wrench_force_f32(),
+                    torque_data=self._get_perm_wrench_torque_f32(),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -3704,6 +3704,11 @@ class Articulation(BaseArticulation):
         self._root_link_pose_w_f32: wp.array | None = None
         self._root_com_vel_w_f32: wp.array | None = None
         self._root_link_vel_w_f32: wp.array | None = None
+        # Cached wrench views for write_data_to_sim
+        self._inst_wrench_force_f32: wp.array | None = None
+        self._inst_wrench_torque_f32: wp.array | None = None
+        self._perm_wrench_force_f32: wp.array | None = None
+        self._perm_wrench_torque_f32: wp.array | None = None
 
         # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes.
         # PhysX requires CPU arrays for "model" property updates (stiffness, damping, etc.).
@@ -4321,6 +4326,32 @@ class Articulation(BaseArticulation):
         if self._root_link_vel_w_f32 is None:
             self._root_link_vel_w_f32 = self.data._root_link_vel_w.data.view(wp.float32)
         return self._root_link_vel_w_f32
+
+    def _get_inst_wrench_force_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of instantaneous wrench force."""
+        if self._inst_wrench_force_f32 is None:
+            self._inst_wrench_force_f32 = self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32)
+        return self._inst_wrench_force_f32
+
+    def _get_inst_wrench_torque_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of instantaneous wrench torque."""
+        if self._inst_wrench_torque_f32 is None:
+            self._inst_wrench_torque_f32 = self._instantaneous_wrench_composer.composed_torque.flatten().view(
+                wp.float32
+            )
+        return self._inst_wrench_torque_f32
+
+    def _get_perm_wrench_force_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of permanent wrench force."""
+        if self._perm_wrench_force_f32 is None:
+            self._perm_wrench_force_f32 = self._permanent_wrench_composer.composed_force.flatten().view(wp.float32)
+        return self._perm_wrench_force_f32
+
+    def _get_perm_wrench_torque_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of permanent wrench torque."""
+        if self._perm_wrench_torque_f32 is None:
+            self._perm_wrench_torque_f32 = self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32)
+        return self._perm_wrench_torque_f32
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp array.
