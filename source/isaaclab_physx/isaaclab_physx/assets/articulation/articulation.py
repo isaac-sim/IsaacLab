@@ -1086,7 +1086,8 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_stiffnesses(wp.clone(self.data._joint_stiffness, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_stiffness, self.data._joint_stiffness)
+        self.root_view.set_dof_stiffnesses(self._cpu_joint_stiffness, indices=cpu_env_ids)
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1180,7 +1181,8 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_damping, self.data._joint_damping)
+        self.root_view.set_dof_dampings(self._cpu_joint_damping, indices=cpu_env_ids)
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -1280,7 +1282,8 @@ class Articulation(BaseArticulation):
                 logger.info(violation_message)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_limits(wp.clone(self.data._joint_pos_limits, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_pos_limits, self.data._joint_pos_limits)
+        self.root_view.set_dof_limits(self._cpu_joint_pos_limits, indices=cpu_env_ids)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1384,7 +1387,8 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_max_velocities(wp.clone(self.data._joint_vel_limits, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_vel_limits, self.data._joint_vel_limits)
+        self.root_view.set_dof_max_velocities(self._cpu_joint_vel_limits, indices=cpu_env_ids)
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1485,7 +1489,8 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_max_forces(wp.clone(self.data._joint_effort_limits, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_effort_limits, self.data._joint_effort_limits)
+        self.root_view.set_dof_max_forces(self._cpu_joint_effort_limits, indices=cpu_env_ids)
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1584,7 +1589,8 @@ class Articulation(BaseArticulation):
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_armatures(wp.clone(self.data._joint_armature, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_armature, self.data._joint_armature)
+        self.root_view.set_dof_armatures(self._cpu_joint_armature, indices=cpu_env_ids)
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -1723,7 +1729,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_friction_props, friction_props)
+        self.root_view.set_dof_friction_properties(self._cpu_joint_friction_props, indices=cpu_env_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -1840,7 +1847,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_friction_props, friction_props)
+        self.root_view.set_dof_friction_properties(self._cpu_joint_friction_props, indices=cpu_env_ids)
 
     def write_joint_dynamic_friction_coefficient_to_sim_mask(
         self,
@@ -1940,7 +1948,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_friction_props, friction_props)
+        self.root_view.set_dof_friction_properties(self._cpu_joint_friction_props, indices=cpu_env_ids)
 
     def write_joint_viscous_friction_coefficient_to_sim_mask(
         self,
@@ -2027,7 +2036,8 @@ class Articulation(BaseArticulation):
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_masses(wp.clone(self.data._body_mass, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_body_mass, self.data._body_mass)
+        self.root_view.set_masses(self._cpu_body_mass, indices=cpu_env_ids)
 
     def set_masses_mask(
         self,
@@ -2106,12 +2116,11 @@ class Articulation(BaseArticulation):
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from wp.transformf to flat (N, M, 7) array for PhysX
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        body_com_flat = (
-            wp.clone(self.data._body_com_pose_b.data, device="cpu")
-            .view(wp.float32)
-            .reshape((self.num_instances, self.num_bodies, 7))
+        wp.copy(
+            self._cpu_body_coms,
+            self.data._body_com_pose_b.data.view(wp.float32).reshape((self.num_instances, self.num_bodies, 7)),
         )
-        self.root_view.set_coms(body_com_flat, indices=cpu_env_ids)
+        self.root_view.set_coms(self._cpu_body_coms, indices=cpu_env_ids)
 
     def set_coms_mask(
         self,
@@ -2189,7 +2198,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_body_inertia, self.data._body_inertia)
+        self.root_view.set_inertias(self._cpu_body_inertia, indices=cpu_env_ids)
 
     def set_inertias_mask(
         self,
@@ -3695,6 +3705,23 @@ class Articulation(BaseArticulation):
         self._root_com_vel_w_f32: wp.array | None = None
         self._root_link_vel_w_f32: wp.array | None = None
 
+        # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes.
+        # PhysX requires CPU arrays for "model" property updates (stiffness, damping, etc.).
+        # Pinned memory enables DMA fast path and avoids per-call malloc.
+        N, J, B = self.num_instances, self.num_joints, self.num_bodies
+        self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        self._cpu_joint_stiffness = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_damping = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_pos_limits = wp.zeros((N, J, 2), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_vel_limits = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_effort_limits = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_armature = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_friction_props = wp.zeros((N, J, 3), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_coms = wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_inertia = wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
+
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
@@ -4239,17 +4266,23 @@ class Articulation(BaseArticulation):
             )
 
     def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
-        """
-        Get the CPU environment indices.
+        """Get the CPU environment indices.
+
+        For the full-index case (all environments), returns the pre-allocated
+        pinned CPU buffer. For partial indices, clones to CPU (infrequent path).
 
         Args:
             env_ids: Environment indices.
 
         Returns:
-            A warp array of environment indices.
+            A warp array of environment indices on CPU.
         """
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids, dtype=wp.int32)
+        # Fast path: if these are all indices, use pre-allocated pinned buffer
+        if env_ids.ptr == self._ALL_INDICES.ptr:
+            return self._cpu_env_ids_all
+        # Slow path: partial indices (reset), clone to CPU
         return wp.clone(env_ids, device="cpu")
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
