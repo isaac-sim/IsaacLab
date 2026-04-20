@@ -50,16 +50,8 @@ def _expected_omnipbr_linear_albedo(
     diffuse_color_constant: tuple[float, float, float] | None,
     diffuse_tint: tuple[float, float, float] | None,
 ) -> tuple[float, float, float]:
-    cd = (
-        diffuse_color_constant
-        if diffuse_color_constant is not None
-        else _OMNIPBR_DEFAULTS["diffuse_color_constant"]
-    )
-    td = (
-        diffuse_tint
-        if diffuse_tint is not None
-        else _OMNIPBR_DEFAULTS["diffuse_tint"]
-    )
+    cd = diffuse_color_constant or _OMNIPBR_DEFAULTS["diffuse_color_constant"]
+    td = diffuse_tint or _OMNIPBR_DEFAULTS["diffuse_tint"]
     return (cd[0] * td[0], cd[1] * td[1], cd[2] * td[2])
 
 
@@ -80,20 +72,18 @@ def _make_omnipbr_test_shader(
     """
     UsdShade.Material.Define(stage, material_prim_path)
     shader = UsdShade.Shader.Define(stage, f"{material_prim_path}/OmniPBRShader")
-    assert shader is not None
+    assert shader.GetPrim().IsValid()
     shader_prim = shader.GetPrim()
     mdl_asset_attr = shader_prim.CreateAttribute("info:mdl:sourceAsset", Sdf.ValueTypeNames.Asset)
-    assert mdl_asset_attr is not None
+    assert mdl_asset_attr.IsValid()
     mdl_asset_attr.Set(Sdf.AssetPath("OmniPBR.mdl"))
     return shader
 
 
-def _define_mesh_and_bind_material(
-    stage: Usd.Stage, mesh_path: str, material: UsdShade.Material
-) -> UsdGeom.Mesh:
+def _define_mesh_and_bind_material(stage: Usd.Stage, mesh_path: str, material: UsdShade.Material) -> UsdGeom.Mesh:
     """Define a mesh at ``mesh_path`` and bind ``material`` via :class:`UsdShade.MaterialBindingAPI`."""
     mesh = UsdGeom.Mesh.Define(stage, mesh_path)
-    assert mesh is not None
+    assert mesh.GetPrim().IsValid()
     mesh_prim = mesh.GetPrim()
     UsdShade.MaterialBindingAPI.Apply(mesh_prim)
     UsdShade.MaterialBindingAPI(mesh_prim).Bind(material)
@@ -103,10 +93,10 @@ def _define_mesh_and_bind_material(
 def _make_preview_surface_bound_mesh_stage() -> tuple[Usd.Stage, str]:
     """In-memory stage with ``/World/Mesh`` bound to ``UsdPreviewSurface``."""
     stage = Usd.Stage.CreateInMemory()
-    assert stage is not None
+
     mat = UsdShade.Material.Define(stage, "/World/Mat")
     shader = UsdShade.Shader.Define(stage, "/World/Mat/PreviewSurface")
-    assert mat is not None and shader is not None
+    assert mat.GetPrim().IsValid() and shader.GetPrim().IsValid()
     shader.CreateIdAttr("UsdPreviewSurface")
     shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(1.0, 0.0, 0.0))
     mat.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
@@ -120,19 +110,17 @@ def _make_mesh_bound_to_omnipbr_test_material(
 ) -> tuple[Usd.Stage, UsdShade.Shader, str]:
     """Reuse :func:`_make_omnipbr_test_shader`, author inputs, add ``/World/Mesh`` bound to ``/World/Mat``."""
     stage = Usd.Stage.CreateInMemory()
-    assert stage is not None
+
     shader = _make_omnipbr_test_shader(stage, "/World/Mat")
     if diffuse_color_constant is not None:
         diffuse_inp = shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f)
-        assert diffuse_inp is not None
         diffuse_inp.Set(Gf.Vec3f(*diffuse_color_constant))
     if diffuse_tint is not None:
         tint_inp = shader.CreateInput("diffuse_tint", Sdf.ValueTypeNames.Color3f)
-        assert tint_inp is not None
         tint_inp.Set(Gf.Vec3f(*diffuse_tint))
 
     mat_prim = stage.GetPrimAtPath("/World/Mat")
-    assert mat_prim is not None and mat_prim.IsValid()
+    assert mat_prim.IsValid()
     mat = UsdShade.Material(mat_prim)
     _define_mesh_and_bind_material(stage, "/World/Mesh", mat)
     return stage, shader, "/World/Mesh"
@@ -147,6 +135,7 @@ def _reference_linear_to_srgb(rgb: tuple[float, float, float]) -> tuple[float, f
     Returns:
         Encoded RGB in ``[0, 1]`` as three floats.
     """
+
     def linear_to_srgb(c: float) -> float:
         if c <= 0.0:
             return 0.0
@@ -164,7 +153,7 @@ def _run_scatter_shape_color_rows_kernel(
     linear_colors: list[tuple[float, float, float]],
     device: str,
 ) -> torch.Tensor:
-    """Launch :func:`_scatter_shape_color_rows_kernel` on ``device``; return ``shape_colors`` as ``[out_len, 3]`` float."""
+    """Launch :func:`_scatter_shape_color_rows_kernel` on ``device``."""
     num_colors = len(linear_colors)
     row_indices = list(range(num_colors))
 
@@ -189,9 +178,7 @@ def _run_scatter_shape_color_rows_kernel(
     ],
 )
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_scatter_shape_color_rows_kernel(
-    device: str, linear_rgb: tuple[float, float, float]
-):
+def test_scatter_shape_color_rows_kernel(device: str, linear_rgb: tuple[float, float, float]):
     """Packed RGB per case; the two parametrized cases jointly cover every ``_linear_channel_to_srgb_warp`` branch."""
     after = _run_scatter_shape_color_rows_kernel([linear_rgb], device=device)
     exp = _reference_linear_to_srgb(linear_rgb)
@@ -209,39 +196,36 @@ def test_get_omnipbr_albedo(
     Unauthored inputs use ``_OMNIPBR_DEFAULTS`` in ``newton_model_utils``.
     """
     stage = Usd.Stage.CreateInMemory()
-    assert stage is not None
+
     shader = _make_omnipbr_test_shader(stage, "/World/Mat")
     if diffuse_color_constant is not None:
         diffuse_inp = shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f)
-        assert diffuse_inp is not None
         diffuse_inp.Set(Gf.Vec3f(*diffuse_color_constant))
     if diffuse_tint is not None:
         tint_inp = shader.CreateInput("diffuse_tint", Sdf.ValueTypeNames.Color3f)
-        assert tint_inp is not None
         tint_inp.Set(Gf.Vec3f(*diffuse_tint))
 
     expected_albedo = _expected_omnipbr_linear_albedo(diffuse_color_constant, diffuse_tint)
 
     shader_prim = shader.GetPrim()
-    assert shader_prim is not None and shader_prim.IsValid()
+    assert shader_prim.IsValid()
     assert _get_omnipbr_albedo(shader_prim) == pytest.approx(expected_albedo, rel=1e-5)
 
 
 def test_resolve_shape_color_invalid_prim():
     """Invalid prim path yields ``None`` (no replacement)."""
     stage = Usd.Stage.CreateInMemory()
-    assert stage is not None
     assert _resolve_shape_color(stage, "/World/Missing", {}) is None
 
 
 def test_resolve_shape_color_guide_purpose():
     """Guide-purpose geometry is left on Newton's palette (no resolved replacement)."""
     stage = Usd.Stage.CreateInMemory()
-    assert stage is not None
+
     mesh = UsdGeom.Mesh.Define(stage, "/World/GuideMesh")
-    assert mesh is not None
+    assert mesh.GetPrim().IsValid()
     purpose_attr = UsdGeom.Imageable(mesh).GetPurposeAttr()
-    assert purpose_attr is not None
+    assert purpose_attr.IsValid()
     purpose_attr.Set(UsdGeom.Tokens.guide)
 
     assert _resolve_shape_color(stage, "/World/GuideMesh", {}) is None
@@ -250,9 +234,9 @@ def test_resolve_shape_color_guide_purpose():
 def test_resolve_shape_color_no_material_binding():
     """Unbound mesh without ``displayColor``: neutral linear gray fallback."""
     stage = Usd.Stage.CreateInMemory()
-    assert stage is not None
+
     mesh = UsdGeom.Mesh.Define(stage, "/World/Mesh")
-    assert mesh is not None
+    assert mesh.GetPrim().IsValid()
 
     # Default fallback gray should be returned when there is no material binding and no display color.
     material_color_cache: dict[str, tuple[float, float, float] | None] = {}
@@ -263,7 +247,6 @@ def test_resolve_shape_color_no_material_binding():
     pv = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
         "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.constant, 1
     )
-    assert pv is not None
 
     # Set an arbitrary color.
     display_color = (0.11, 0.55, 0.9)
@@ -279,10 +262,8 @@ def test_resolve_shape_color_omnipbr_binding(
     diffuse_color_constant: tuple[float, float, float] | None,
     diffuse_tint: tuple[float, float, float] | None,
 ):
-    """Bound OmniPBR mesh: :func:`_resolve_shape_color` matches diffuse × tint (same cases as ``test_get_omnipbr_albedo``)."""
-    stage, _shader, mesh_path = _make_mesh_bound_to_omnipbr_test_material(
-        diffuse_color_constant, diffuse_tint
-    )
+    """Bound OmniPBR mesh: :func:`_resolve_shape_color` matches diffuse × tint."""
+    stage, _shader, mesh_path = _make_mesh_bound_to_omnipbr_test_material(diffuse_color_constant, diffuse_tint)
     expected_albedo = _expected_omnipbr_linear_albedo(diffuse_color_constant, diffuse_tint)
 
     out = _resolve_shape_color(stage, mesh_path, {})
@@ -304,9 +285,7 @@ def test_replace_newton_shape_colors_warning():
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_replace_newton_shape_colors_env_var_switch(
-    monkeypatch: pytest.MonkeyPatch, device: str
-):
+def test_replace_newton_shape_colors_env_var_switch(monkeypatch: pytest.MonkeyPatch, device: str):
     """Setting ``ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS`` to ``0`` disables the workaround."""
     monkeypatch.setenv("ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS", "0")
 
@@ -314,11 +293,10 @@ def test_replace_newton_shape_colors_env_var_switch(
     # the prim's color in the model would be synced with the display color primvar.
     stage = Usd.Stage.CreateInMemory()
     mesh = UsdGeom.Mesh.Define(stage, "/World/A")
-    assert mesh is not None
+    assert mesh.GetPrim().IsValid()
     pv = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
         "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.constant, 1
     )
-    assert pv is not None
     pv.Set([Gf.Vec3f(0.2, 0.4, 0.6)])
 
     shape_color = wp.zeros(1, dtype=wp.vec3, device=device)
@@ -357,9 +335,9 @@ def test_replace_newton_shape_colors_guide_purpose(device: str):
     """Guide-purpose mesh leaves ``shape_color`` unchanged."""
     stage = Usd.Stage.CreateInMemory()
     mesh = UsdGeom.Mesh.Define(stage, "/World/GuideMesh")
-    assert mesh is not None
+    assert mesh.GetPrim().IsValid()
     purpose_attr = UsdGeom.Imageable(mesh).GetPurposeAttr()
-    assert purpose_attr is not None
+    assert purpose_attr.IsValid()
     purpose_attr.Set(UsdGeom.Tokens.guide)
 
     shape_color = wp.array([(0.1, 0.2, 0.3)], dtype=wp.vec3, device=device)
@@ -410,18 +388,14 @@ def test_replace_newton_shape_colors_omnipbr_binding(
     diffuse_tint: tuple[float, float, float] | None,
 ):
     """Bound OmniPBR: diffuse × tint then sRGB OETF."""
-    stage, _shader, mesh_path = _make_mesh_bound_to_omnipbr_test_material(
-        diffuse_color_constant, diffuse_tint
-    )
+    stage, _shader, mesh_path = _make_mesh_bound_to_omnipbr_test_material(diffuse_color_constant, diffuse_tint)
 
     shape_color = wp.zeros(1, dtype=wp.vec3, device=device)
     model = SimpleNamespace(shape_label=[mesh_path], shape_color=shape_color)
 
     assert _replace_newton_shape_colors_wrapper(model, stage) == 1
 
-    exp = _reference_linear_to_srgb(
-        _expected_omnipbr_linear_albedo(diffuse_color_constant, diffuse_tint)
-    )
+    exp = _reference_linear_to_srgb(_expected_omnipbr_linear_albedo(diffuse_color_constant, diffuse_tint))
     after = wp.to_torch(shape_color)[0]
     torch.testing.assert_close(
         after,
@@ -456,10 +430,10 @@ def test_replace_newton_shape_colors_respects_binding_strength(device: str):
     #   +-- RedMat ........................ OmniPBRShader .. diffuse (1, 0, 0)
     #
     stage = Usd.Stage.CreateInMemory()
-    assert stage is not None
+
     parent = UsdGeom.Xform.Define(stage, "/World/Parent")
     mesh = UsdGeom.Mesh.Define(stage, "/World/Parent/Mesh")
-    assert parent is not None and mesh is not None
+    assert parent.GetPrim().IsValid() and mesh.GetPrim().IsValid()
 
     # Parent material is green
     green_shader = _make_omnipbr_test_shader(stage, "/World/GreenMat")
@@ -500,9 +474,11 @@ def test_replace_newton_shape_colors_respects_binding_strength(device: str):
 def test_replace_newton_shape_colors_instanced(device: str):
     """Instance-proxy labels deduplicate via canonical prototype paths in the per-key cache."""
     stage = Usd.Stage.CreateInMemory()
-    assert stage is not None
+
     prototype = UsdGeom.Xform.Define(stage, "/World/Prototype")
+    assert prototype.GetPrim().IsValid()
     mesh = UsdGeom.Mesh.Define(stage, "/World/Prototype/Mesh")
+    assert mesh.GetPrim().IsValid()
     UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
         "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.constant, 1
     ).Set([Gf.Vec3f(0.1, 0.2, 0.3)])
