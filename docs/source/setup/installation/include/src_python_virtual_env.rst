@@ -62,7 +62,7 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
 
             .. warning::
                Windows support for UV is currently unavailable. Please check
-               `issue #3483 <https://github.com/isaac-sim/IsaacLab/issues/3438>`_ to track progress.
+               `issue #3438 <https://github.com/isaac-sim/IsaacLab/issues/3438>`_ to track progress.
 
    .. tab-item::  Conda Environment
 
