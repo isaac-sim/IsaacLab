@@ -3680,6 +3680,14 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
+        # Single-slot caches for _resolve_* methods (keyed on tensor.data_ptr())
+        self._cached_env_ids_ptr: int = -1
+        self._cached_env_ids_wp: wp.array | None = None
+        self._cached_joint_ids_ptr: int = -1
+        self._cached_joint_ids_wp: wp.array | None = None
+        self._cached_body_ids_ptr: int = -1
+        self._cached_body_ids_wp: wp.array | None = None
+
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
@@ -4259,8 +4267,8 @@ class Articulation(BaseArticulation):
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp array.
 
-        .. note::
-            We need to convert torch tensors to warp arrays since the TensorAPI views only support warp arrays.
+        Uses a single-slot cache to avoid repeated ``wp.from_torch`` wrapper
+        allocations when the same tensor is passed across steps.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
@@ -4271,10 +4279,15 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
         if isinstance(env_ids, torch.Tensor):
-            # Convert int64 to int32 if needed, as warp expects int32
+            ptr = env_ids.data_ptr()
+            if self._cached_env_ids_ptr == ptr:
+                return self._cached_env_ids_wp
             if env_ids.dtype == torch.int64:
                 env_ids = env_ids.to(torch.int32)
-            return wp.from_torch(env_ids, dtype=wp.int32)
+            result = wp.from_torch(env_ids, dtype=wp.int32)
+            self._cached_env_ids_ptr = ptr
+            self._cached_env_ids_wp = result
+            return result
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
@@ -4299,8 +4312,8 @@ class Articulation(BaseArticulation):
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
 
-        .. note::
-            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
+        Uses a single-slot cache to avoid repeated ``wp.from_torch`` wrapper
+        allocations when the same tensor is passed across steps.
 
         Args:
             joint_ids: Joint indices. If None, then all indices are used.
@@ -4312,6 +4325,14 @@ class Articulation(BaseArticulation):
             return wp.array(joint_ids, dtype=wp.int32, device=self.device)
         if (joint_ids is None) or (joint_ids == slice(None)):
             return self._ALL_JOINT_INDICES
+        if isinstance(joint_ids, torch.Tensor):
+            ptr = joint_ids.data_ptr()
+            if self._cached_joint_ids_ptr == ptr:
+                return self._cached_joint_ids_wp
+            result = wp.from_torch(joint_ids, dtype=wp.int32)
+            self._cached_joint_ids_ptr = ptr
+            self._cached_joint_ids_wp = result
+            return result
         return joint_ids
 
     def _resolve_body_mask(self, body_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -4334,6 +4355,9 @@ class Articulation(BaseArticulation):
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
 
+        Uses a single-slot cache to avoid repeated ``wp.from_torch`` wrapper
+        allocations when the same tensor is passed across steps.
+
         Args:
             body_ids: Body indices. If None, then all indices are used.
 
@@ -4344,6 +4368,14 @@ class Articulation(BaseArticulation):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
+        if isinstance(body_ids, torch.Tensor):
+            ptr = body_ids.data_ptr()
+            if self._cached_body_ids_ptr == ptr:
+                return self._cached_body_ids_wp
+            result = wp.from_torch(body_ids, dtype=wp.int32)
+            self._cached_body_ids_ptr = ptr
+            self._cached_body_ids_wp = result
+            return result
         return body_ids
 
     def _resolve_fixed_tendon_mask(self, fixed_tendon_mask: wp.array | None) -> torch.Tensor | wp.array:
