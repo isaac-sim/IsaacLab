@@ -24,6 +24,10 @@
     "license": null
   },
   {
+    "package": "isaaclab_tasks_experimental",
+    "license": null
+  },
+  {
     "package": "isaaclab_teleop",
     "license": null
   },
@@ -188,6 +192,11 @@
     "license": null
   },
   {
+    "package": "osqp",
+    "license": "UNKNOWN",
+    "comment": "Apache 2.0"
+  },
+  {
     "package": "warp-lang",
     "license": null
   },
@@ -321,7 +330,7 @@
   },
   {
     "package": "usd-core",
-    "license": "Other/Proprietary License",
+    "license": "LicenseRef-TOST-1.0",
     "comment": "TOST / OSRB"
   },
   {
@@ -421,7 +430,7 @@
   },
   {
     "package": "aiohappyeyeballs",
-    "license": "Other/Proprietary License; Python Software Foundation License",
+    "license": "Python Software Foundation License",
     "comment": "PSFL / OSRB"
   },
   {
@@ -461,7 +470,7 @@
   },
   {
     "package": "typing_extensions",
-    "license": "Python Software Foundation License",
+    "license": "PSF-2.0",
     "comment": "PSF-2.0 / OSRB"
   },
   {

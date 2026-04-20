@@ -44,8 +44,12 @@ For more information about the workflow design patterns, see the `Task Design Wo
 
 from .direct_rl_env_warp import DirectRLEnvWarp  # noqa: F401
 from .interactive_scene_warp import InteractiveSceneWarp  # noqa: F401
+from .manager_based_env_warp import ManagerBasedEnvWarp  # noqa: F401
+from .manager_based_rl_env_warp import ManagerBasedRLEnvWarp  # noqa: F401
 
 __all__ = [
     "DirectRLEnvWarp",
     "InteractiveSceneWarp",
+    "ManagerBasedEnvWarp",
+    "ManagerBasedRLEnvWarp",
 ]

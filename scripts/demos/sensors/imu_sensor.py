@@ -42,7 +42,7 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 @configclass
 class ImuSensorSceneCfg(InteractiveSceneCfg):
-    """Design the scene with sensors on the robot."""
+    """Design the scene with IMU sensors on the robot."""
 
     # ground plane
     ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
@@ -55,9 +55,9 @@ class ImuSensorSceneCfg(InteractiveSceneCfg):
     # robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-    imu_RF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", debug_vis=True)
+    imu_RF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT")
 
-    imu_LF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT", gravity_bias=(0, 0, 0), debug_vis=True)
+    imu_LF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/RF_FOOT")
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
@@ -73,9 +73,6 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # reset counter
             count = 0
             # reset the scene entities
-            # root state
-            # we offset the root state by the origin since the states are written in simulation world frame
-            # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
             root_pose = wp.to_torch(scene["robot"].data.default_root_pose).clone()
             root_pose[:, :3] += scene.env_origins
             scene["robot"].write_root_link_pose_to_sim_index(root_pose=root_pose)
@@ -93,11 +90,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             scene.reset()
             print("[INFO]: Resetting robot state...")
         # Apply default actions to the robot
-        # -- generate actions/commands
         targets = wp.to_torch(scene["robot"].data.default_joint_pos)
-        # -- apply action to the robot
         scene["robot"].set_joint_position_target_index(target=targets)
-        # -- write data to sim
         scene.write_data_to_sim()
         # perform step
         sim.step()
@@ -110,16 +104,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # print information from the sensors
         print("-------------------------------")
         print(scene["imu_LF"])
-        print("Received linear velocity: ", scene["imu_LF"].data.lin_vel_b)
         print("Received angular velocity: ", scene["imu_LF"].data.ang_vel_b)
         print("Received linear acceleration: ", scene["imu_LF"].data.lin_acc_b)
-        print("Received angular acceleration: ", scene["imu_LF"].data.ang_acc_b)
         print("-------------------------------")
         print(scene["imu_RF"])
-        print("Received linear velocity: ", scene["imu_RF"].data.lin_vel_b)
         print("Received angular velocity: ", scene["imu_RF"].data.ang_vel_b)
         print("Received linear acceleration: ", scene["imu_RF"].data.lin_acc_b)
-        print("Received angular acceleration: ", scene["imu_RF"].data.ang_acc_b)
 
 
 def main():

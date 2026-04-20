@@ -29,9 +29,9 @@ INSTALL_REQUIRES = [
     "gymnasium==1.2.1",
     # procedural-generation
     "trimesh",
-    "pyglet>=2.1.6",
-    "mujoco>=3.5",
-    "mujoco-warp>=3.5",
+    "pyglet>=2.1.6,<3",
+    "mujoco==3.5.0",
+    "mujoco-warp==3.5.0.2",
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
@@ -64,10 +64,9 @@ SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64,arm64'"
 SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
+    f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
-    # required by isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1_t2_dex_retargeting_utils
-    f"dex-retargeting==0.5.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS})",
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
@@ -130,16 +129,13 @@ setup(
     license="BSD-3-Clause",
     include_package_data=True,
     package_data={"": ["*.pyi"]},
-    python_requires=">=3.10",
+    python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,
     dependency_links=PYTORCH_INDEX_URL,
     packages=["isaaclab"],
     classifiers=[
-        "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
-        "Isaac Sim :: 5.0.0",
-        "Isaac Sim :: 5.1.0",
         "Isaac Sim :: 6.0.0",
     ],
     zip_safe=False,

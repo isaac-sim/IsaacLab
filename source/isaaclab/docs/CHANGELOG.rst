@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.5.33 (2026-04-20)
+4.6.7 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -37,6 +37,181 @@ Fixed
   applied without explicit positions.
 * Fixed ``set_external_force_and_torque`` wiping forces from non-resetting environments during partial
   episode resets by using ``reset(env_ids)`` + ``add_forces_and_torques`` instead of ``set_forces_and_torques``.
+
+
+4.6.6 (2026-04-17)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the way the python interpreter is called from ``isaaclab.sh`` to allow
+  error codes to bubble up to the process level.
+
+
+4.6.5 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flaky ``test_first_frame_is_textured_camera`` by removing warmup-step
+  workaround and relying on the renderer's streaming wait instead.
+
+
+4.6.4 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton viewer compatibility by restricting ``pyglet`` to ``<3``.
+
+
+4.6.3 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.sensors.imu.Imu` and
+  :class:`~isaaclab.sensors.imu.ImuData` factory type annotations to include
+  the Newton IMU backend types.
+
+
+4.6.2 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sim.spawners.meshes.MeshSquareCfg` and
+  :func:`~isaaclab.sim.spawners.meshes.spawn_mesh_square` for spawning 2D triangle
+  mesh grids, used as surface deformable bodies (cloth).
+* Added physics material support to
+  :func:`~isaaclab.sim.spawners.from_files.spawn_from_usd` for deformable bodies
+  loaded from USD files.
+* Added wheel builder installation CI tests that verify the isaaclab wheel
+  builds, installs, and imports correctly in a clean uv environment.
+
+Changed
+^^^^^^^
+
+* Moved :class:`DeformableBodyPropertiesCfg`, :class:`DeformableBodyMaterialCfg`,
+  and :class:`DeformableObjectSpawnerCfg` from ``isaaclab`` to ``isaaclab_physx``.
+  These are PhysX-specific and are now imported from
+  ``isaaclab_physx.sim.schemas``, ``isaaclab_physx.sim.spawners.materials``, and
+  ``isaaclab_physx.sim.spawners.spawner_cfg`` respectively.
+* Changed deformable body property and material application in mesh and USD spawners
+  to use ``isaaclab_physx.sim.schemas`` instead of ``isaaclab.sim.schemas``.
+* Changed :func:`~isaaclab.sim.spawners.from_files.spawn_from_usd` to call
+  ``define_deformable_body_properties`` when the deformable body API is not yet
+  present on the prim, instead of always calling ``modify_deformable_body_properties``.
+
+Removed
+^^^^^^^
+
+* Removed :func:`define_deformable_body_properties` and
+  :func:`modify_deformable_body_properties` from ``isaaclab.sim.schemas``. Use
+  ``isaaclab_physx.sim.schemas`` instead.
+* Removed :class:`DeformableBodyPropertiesCfg` from ``isaaclab.sim.schemas``. Use
+  :class:`isaaclab_physx.sim.schemas.DeformableBodyPropertiesCfg` instead.
+* Removed :class:`DeformableBodyMaterialCfg` and
+  :func:`spawn_deformable_body_material` from ``isaaclab.sim.spawners.materials``.
+  Use ``isaaclab_physx.sim.spawners.materials`` instead.
+* Removed :class:`DeformableObjectSpawnerCfg` from ``isaaclab.sim.spawners``. Use
+  ``isaaclab_physx.sim.spawners.spawner_cfg.DeformableObjectSpawnerCfg`` instead.
+
+
+4.6.1 (2026-04-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
+  flag to :class:`~isaaclab.sim.schemas.JointDrivePropertiesCfg`. When enabled,
+  joints with zero stiffness and damping receive a minimal stiffness so that
+  backends like Newton recognise the drive as active.
+
+
+4.6.0 (2026-04-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Unified :class:`~isaaclab.sensors.camera.Camera` and :class:`~isaaclab.sensors.camera.TiledCamera`
+  into a single implementation. :class:`Camera` now delegates all rendering to the
+  :class:`~isaaclab.renderers.Renderer` abstraction (same approach :class:`TiledCamera` used).
+  The public API is unchanged for :class:`Camera` users.
+* **Breaking:** :attr:`~isaaclab.sensors.camera.CameraData.info` is now a flat
+  ``dict[str, Any]`` keyed by data type (e.g. ``camera.data.info["semantic_segmentation"]``).
+  The metadata is shared across all cameras and identical to what the underlying renderer returns.
+
+  - **Camera users (old):** replace ``camera.data.info[cam_idx][data_type]`` with
+    ``camera.data.info[data_type]``.
+  - **TiledCamera users (old):** access pattern ``camera.data.info[data_type]`` is unchanged.
+
+* **Breaking:** :meth:`~isaaclab.renderers.BaseRenderer.write_output` has been replaced by
+  :meth:`~isaaclab.renderers.BaseRenderer.read_output`. The new method receives the full
+  :class:`~isaaclab.sensors.camera.CameraData` instance and iterates output types internally.
+  Custom renderer implementations must replace ``write_output(render_data, output_name, output_data)``
+  with ``read_output(render_data, camera_data)``.
+
+Deprecated
+^^^^^^^^^^
+
+* :class:`~isaaclab.sensors.camera.TiledCamera` is deprecated. Use
+  :class:`~isaaclab.sensors.camera.Camera` directly — it now supports all renderer backends.
+* :class:`~isaaclab.sensors.camera.TiledCameraCfg` is deprecated. Use
+  :class:`~isaaclab.sensors.camera.CameraCfg` directly.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`~isaaclab.sensors.camera.Camera.render_product_paths`. Render products are
+  now managed internally by the renderer backend and are not part of the public API.
+
+
+4.5.33 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sensors.Pva` (Pose Velocity Acceleration) sensor,
+  renamed from the former ``Imu`` to better reflect its full output: pose,
+  velocity, and acceleration.
+* Added :class:`~isaaclab.sensors.Imu` sensor that models a real inertial
+  measurement unit, providing only angular velocity (gyroscope) and linear
+  acceleration (accelerometer) in the sensor's body frame.
+* Added :func:`~isaaclab.envs.mdp.observations.pva_orientation` and
+  :func:`~isaaclab.envs.mdp.observations.pva_projected_gravity` observation
+  functions for the PVA sensor.
+
+Changed
+^^^^^^^
+
+* Changed ``isaaclab.sensors.Imu`` to refer to a new lightweight IMU sensor
+  that only provides angular velocity and linear acceleration. The old
+  ``Imu``, ``ImuCfg``, ``ImuData``, ``BaseImu``, and ``BaseImuData`` names
+  now refer to this new sensor. For the original full-featured sensor, use
+  :class:`~isaaclab.sensors.Pva`, :class:`~isaaclab.sensors.PvaCfg`, etc.
+
+Removed
+^^^^^^^
+
+* Removed ``gravity_bias`` configuration parameter from
+  :class:`~isaaclab.sensors.PvaCfg`. The PVA sensor now always reports raw
+  kinematic acceleration without gravity contribution.
+* Removed ``gravity_bias`` and ``visualizer_cfg`` configuration parameters from
+  :class:`~isaaclab.sensors.ImuCfg`. The IMU sensor now unconditionally includes
+  gravity in its accelerometer readings, matching real hardware behavior. The
+  gravity vector is queried from the simulation automatically.
+* Removed ``imu_orientation`` and ``imu_projected_gravity`` observation
+  functions. Use :func:`~isaaclab.envs.mdp.observations.pva_orientation` and
+  :func:`~isaaclab.envs.mdp.observations.pva_projected_gravity` instead.
 
 
 4.5.32 (2026-04-13)
@@ -83,6 +258,7 @@ Changed
 
 Added
 ^^^^^
+
 * Added :func:`~isaaclab.utils.warp.math_ops.transform_to_vec_quat` utility for
   zero-copy splitting of ``wp.transformf`` arrays into ``vec3f`` and ``quatf`` views.
 

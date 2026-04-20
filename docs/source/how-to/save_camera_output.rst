@@ -21,6 +21,10 @@ directory.
 Saving using Replicator Basic Writer
 ------------------------------------
 
+.. note::
+   The BasicWriter is part of the Omniverse Replicator ecosystem and is specific to the default
+   Isaac RTX renderer backend. Other renderer backends may require different save workflows.
+
 To save camera outputs, we use the basic write class from Omniverse Replicator. This class allows us to save the
 images in a numpy format. For more information on the basic writer, please check the
 `documentation <https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/writer_examples.html>`_.
@@ -32,18 +36,11 @@ images in a numpy format. For more information on the basic writer, please check
 
 While stepping the simulator, the images can be saved to the defined folder. Since the BasicWriter only supports
 saving data using NumPy format, we first need to convert the PyTorch sensors to NumPy arrays before packing
-them in a dictionary.
+them in a dictionary and writing with the BasicWriter.
 
 .. literalinclude:: ../../../scripts/tutorials/04_sensors/run_usd_camera.py
    :language: python
    :start-at: # Save images from camera at camera_index
-   :end-at: single_cam_info = camera.data.info[camera_index]
-
-After this step, we can save the images using the BasicWriter.
-
-.. literalinclude:: ../../../scripts/tutorials/04_sensors/run_usd_camera.py
-   :language: python
-   :start-at: # Pack data back into replicator format to save them using its writer
    :end-at: rep_writer.write(rep_output)
 
 

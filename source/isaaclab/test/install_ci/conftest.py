@@ -93,3 +93,27 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     """Print a newline after the PASSED/FAILED/SKIPPED result."""
     if report.when == "call" or (report.when == "setup" and report.skipped):
         sys.stdout.write("\n")
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Dynamically map marker arguments from `@pytest.mark.bug("...")` to standalone markers.
+
+    This allows filtering by bug ID natively in pytest: `-m "nvbugs_5968136"`
+    instead of the (unsupported natively) `-m "bug('nvbugs_5968136')"`.
+    """
+    known_bugs = set()
+    for item in items:
+        for mark in item.iter_markers(name="bug"):
+            for arg in mark.args:
+                if isinstance(arg, str):
+                    known_bugs.add(arg)
+
+    for bug in known_bugs:
+        config.addinivalue_line("markers", f"{bug}: dynamically generated bug marker")
+
+    for item in items:
+        for mark in item.iter_markers(name="bug"):
+            for arg in mark.args:
+                if isinstance(arg, str):
+                    item.add_marker(arg)

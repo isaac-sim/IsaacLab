@@ -113,10 +113,18 @@ The following sensor classes also remain in the ``isaaclab`` package with unchan
 
 - :class:`~isaaclab.sensors.ContactSensor`, :class:`~isaaclab.sensors.ContactSensorCfg`, :class:`~isaaclab.sensors.ContactSensorData`
 - :class:`~isaaclab.sensors.Imu`, :class:`~isaaclab.sensors.ImuCfg`, :class:`~isaaclab.sensors.ImuData`
+- :class:`~isaaclab.sensors.Pva`, :class:`~isaaclab.sensors.PvaCfg`, :class:`~isaaclab.sensors.PvaData`
 - :class:`~isaaclab.sensors.FrameTransformer`, :class:`~isaaclab.sensors.FrameTransformerCfg`, :class:`~isaaclab.sensors.FrameTransformerData`
 
 These sensor classes now use factory patterns that automatically instantiate the appropriate backend
 implementation (PhysX by default), maintaining full backward compatibility.
+
+.. note::
+
+   The ``Imu`` sensor in Isaac Lab 3.0 is **not** the same as the ``Imu`` sensor in 2.x.
+   The old ``Imu`` (full state sensor) has been renamed to :class:`~isaaclab.sensors.Pva`.
+   The new :class:`~isaaclab.sensors.Imu` is a lightweight sensor that only provides angular velocity
+   and linear acceleration. See :ref:`imu-to-pva-migration` below for details.
 
 If you need to import the PhysX sensor implementations directly (e.g., for type hints or subclassing),
 you can import from ``isaaclab_physx.sensors``:
@@ -126,6 +134,7 @@ you can import from ``isaaclab_physx.sensors``:
    # Direct PhysX implementation imports
    from isaaclab_physx.sensors import ContactSensor, ContactSensorData
    from isaaclab_physx.sensors import Imu, ImuData
+   from isaaclab_physx.sensors import Pva, PvaData
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
 
 
@@ -156,11 +165,102 @@ If you need to import Newton implementations directly (e.g., for type hints or s
    from isaaclab_newton.assets import RigidObject as NewtonRigidObject
 
 
+Deformable Object API Changes
+------------------------------
+
+Isaac Lab 3.0 updates the deformable body API to align with the current Omni Physics 110.0
+release. The old soft body API has been deprecated and replaced by two distinct deformable
+types: **volume deformables** (3D FEM tetrahedral meshes) and **surface deformables** (2D
+triangle cloth meshes). The deformable type is determined by the physics material assigned:
+
+- :class:`~isaaclab_physx.sim.DeformableBodyMaterialCfg` for volume deformables.
+- :class:`~isaaclab_physx.sim.SurfaceDeformableBodyMaterialCfg` for surface deformables.
+
+All deformable-related classes have moved from ``isaaclab`` to ``isaaclab_physx``, as shown
+in the import table above. Several properties on
+:class:`~isaaclab_physx.sim.DeformableBodyPropertiesCfg` have been removed or added to match
+the new Omni Physics schema.
+
+For a comprehensive guide covering the full deformable API migration — including removed and
+added properties, material changes, code examples for both volume and surface deformables, and
+current limitations — see :ref:`migrating-deformables`.
+
+
+.. _imu-to-pva-migration:
+
+IMU Sensor Renamed to PVA; New Lightweight IMU Sensor
+-----------------------------------------------------
+
+The old ``Imu`` sensor has been renamed to **PVA** (Pose Velocity Acceleration) because it provided
+full pose, velocity, and acceleration data — far more than a real inertial measurement unit measures.
+A new lightweight **IMU** sensor has been introduced that only provides the two physical quantities
+a real IMU measures: angular velocity (gyroscope) and linear acceleration (accelerometer).
+
+If you were using the old ``Imu`` sensor, you need to decide which new sensor to use:
+
+- Use :class:`~isaaclab.sensors.Pva` / :class:`~isaaclab.sensors.PvaCfg` if you need full state
+  data (pose, linear velocity, angular velocity, linear and angular acceleration, projected gravity).
+- Use :class:`~isaaclab.sensors.Imu` / :class:`~isaaclab.sensors.ImuCfg` if you only need angular
+  velocity and linear acceleration (as a real IMU provides).
+
+**Import changes:**
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x) — the old IMU provided full state
+   from isaaclab.sensors import Imu, ImuCfg, ImuData
+
+   # After (Isaac Lab 3.x) — use PVA for the same full-state sensor
+   from isaaclab.sensors import Pva, PvaCfg, PvaData
+
+   # Or use the new lightweight IMU for angular velocity + linear acceleration only
+   from isaaclab.sensors import Imu, ImuCfg, ImuData
+
+**Configuration changes:**
+
+The ``gravity_bias`` configuration parameter has been removed from both sensors:
+
+- **PVA** reports raw kinematic acceleration (no gravity contribution), as the acceleration
+  is derived from finite differencing of velocities which do not include gravity.
+- **IMU** unconditionally includes gravity in its accelerometer readings, matching the behavior
+  of a real accelerometer. The gravity vector is automatically queried from the simulation.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   imu_cfg = ImuCfg(
+       prim_path="{ENV_REGEX_NS}/Robot/base",
+       gravity_bias=(0.0, 0.0, 9.81),  # had to be configured manually
+   )
+
+   # After (Isaac Lab 3.x) — PVA (no gravity in acceleration)
+   pva_cfg = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/base")
+
+   # After (Isaac Lab 3.x) — IMU (gravity always included automatically)
+   imu_cfg = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/base")
+
+**Observation function changes:**
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   from isaaclab.envs.mdp import imu_orientation, imu_projected_gravity
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.envs.mdp import pva_orientation, pva_projected_gravity
+
+**Data property changes:**
+
+The new ``ImuData`` only provides ``ang_vel_b`` and ``lin_acc_b``. If you were accessing other
+properties (``pos_w``, ``quat_w``, ``lin_vel_b``, ``ang_acc_b``, ``projected_gravity_b``), switch
+to :class:`~isaaclab.sensors.PvaData` which provides all of them.
+
+
 Sensor Pose Properties Deprecation
 ----------------------------------
 
 The ``pose_w``, ``pos_w``, and ``quat_w`` properties on :class:`~isaaclab.sensors.ContactSensorData`
-and :class:`~isaaclab.sensors.ImuData` are deprecated and will be removed in a future release.
+are deprecated and will be removed in a future release.
 
 If you need to track sensor poses in world frame, please use a dedicated sensor such as
 :class:`~isaaclab.sensors.FrameTransformer` instead.
@@ -787,7 +887,7 @@ All ``.data.*`` properties on asset and sensor classes now return ``wp.array`` i
 :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
 :class:`~isaaclab_physx.assets.DeformableObject`) and all sensor classes
 (:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
-:class:`~isaaclab_physx.sensors.FrameTransformer`).
+:class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
 
 To convert back to ``torch.Tensor`` for use with PyTorch operations, wrap the property
 access with ``wp.to_torch()``:
@@ -850,6 +950,8 @@ Common patterns that need updating:
    * - :class:`~isaaclab_physx.sensors.ContactSensor`
      - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.Imu`
+     - ``isaaclab_physx``
+   * - :class:`~isaaclab_physx.sensors.Pva`
      - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.FrameTransformer`
      - ``isaaclab_physx``

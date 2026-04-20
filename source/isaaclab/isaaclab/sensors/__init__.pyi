@@ -31,6 +31,11 @@ __all__ = [
     "Imu",
     "ImuCfg",
     "ImuData",
+    "BasePva",
+    "BasePvaData",
+    "Pva",
+    "PvaCfg",
+    "PvaData",
     "MultiMeshRayCaster",
     "MultiMeshRayCasterCamera",
     "MultiMeshRayCasterCameraCfg",
@@ -74,6 +79,7 @@ from .frame_transformer import (
     FrameTransformerData,
 )
 from .imu import BaseImu, BaseImuData, Imu, ImuCfg, ImuData
+from .pva import BasePva, BasePvaData, Pva, PvaCfg, PvaData
 from .ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,

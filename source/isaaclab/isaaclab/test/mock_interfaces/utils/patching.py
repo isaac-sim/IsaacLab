@@ -81,7 +81,7 @@ def patch_sensor(
 
     Args:
         target: The target to patch (e.g., "my_module.ContactSensor").
-        sensor_type: Type of sensor ("contact", "imu", or "frame_transformer").
+        sensor_type: Type of sensor ("contact", "imu", "pva", or "frame_transformer").
         num_instances: Number of sensor instances.
         device: Device for tensor allocation.
         **kwargs: Additional keyword arguments for the mock sensor.
@@ -113,6 +113,15 @@ def patch_sensor(
 
         def create_mock(*args: Any, **create_kwargs: Any) -> MockImu:
             return MockImu(
+                num_instances=create_kwargs.get("num_instances", num_instances),
+                device=create_kwargs.get("device", device),
+            )
+
+    elif sensor_type == "pva":
+        from ..sensors import MockPva
+
+        def create_mock(*args: Any, **create_kwargs: Any) -> MockPva:
+            return MockPva(
                 num_instances=create_kwargs.get("num_instances", num_instances),
                 device=create_kwargs.get("device", device),
             )
@@ -202,7 +211,7 @@ def mock_sensor(
     The mock sensor is passed as the first argument to the decorated function.
 
     Args:
-        sensor_type: Type of sensor ("contact", "imu", or "frame_transformer").
+        sensor_type: Type of sensor ("contact", "imu", "pva", or "frame_transformer").
         num_instances: Number of sensor instances.
         device: Device for tensor allocation.
         **kwargs: Additional keyword arguments for the mock sensor.
@@ -236,6 +245,13 @@ def mock_sensor(
                 from ..sensors import MockImu
 
                 mock = MockImu(
+                    num_instances=num_instances,
+                    device=device,
+                )
+            elif sensor_type == "pva":
+                from ..sensors import MockPva
+
+                mock = MockPva(
                     num_instances=num_instances,
                     device=device,
                 )
