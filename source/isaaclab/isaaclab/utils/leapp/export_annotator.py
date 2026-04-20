@@ -58,6 +58,9 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
+VARIABLE_IMPEDANCE_MODES = frozenset({"variable", "variable_kp"})
+
+
 # ══════════════════════════════════════════════════════════════════
 # ExportPatcher
 # ══════════════════════════════════════════════════════════════════
@@ -139,23 +142,32 @@ class ExportPatcher:
         """
         num_envs = unwrapped.num_envs
         device = unwrapped.device
+        _zero_reward = torch.zeros(num_envs, device=device)
+        _no_termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
+
+        def _noop_curriculum(env_ids=None):
+            return None
+
+        def _zero_reward_compute(dt):
+            return _zero_reward
+
+        def _no_termination_compute():
+            return _no_termination
+
+        def _noop(*args, **kwargs):
+            return None
 
         if hasattr(unwrapped, "curriculum_manager"):
-            unwrapped.curriculum_manager.compute = lambda env_ids=None: None
+            unwrapped.curriculum_manager.compute = _noop_curriculum
 
         if hasattr(unwrapped, "reward_manager"):
-            _zero_reward = torch.zeros(num_envs, device=device)
-            unwrapped.reward_manager.compute = lambda dt: _zero_reward
+            unwrapped.reward_manager.compute = _zero_reward_compute
 
         if hasattr(unwrapped, "termination_manager"):
-            _no_termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
-            unwrapped.termination_manager.compute = lambda: _no_termination
+            unwrapped.termination_manager.compute = _no_termination_compute
 
         if hasattr(unwrapped, "recorder_manager"):
             rm = unwrapped.recorder_manager
-
-            def _noop(*args, **kwargs):
-                return None
 
             rm.record_pre_step = _noop
             rm.record_post_step = _noop
@@ -415,7 +427,7 @@ class ExportPatcher:
         tensors: list[TensorSemantics] = []
         for term_name, term in action_manager._terms.items():
             osc = getattr(term, "_osc", None)
-            if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in ["variable", "variable_kp"]:
+            if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in VARIABLE_IMPEDANCE_MODES:
                 asset = getattr(term, "_asset", None)
                 real_asset = getattr(asset, "_real_asset", asset)
                 joint_ids = getattr(term, "_joint_ids", None)
@@ -490,7 +502,7 @@ class ExportPatcher:
             if skip_terms and term_name in skip_terms:
                 continue
             osc = getattr(term, "_osc", None)
-            if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in ["variable", "variable_kp"]:
+            if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in VARIABLE_IMPEDANCE_MODES:
                 continue
             asset = getattr(term, "_asset", None)
             real_asset = getattr(asset, "_real_asset", asset)

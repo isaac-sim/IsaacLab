@@ -21,7 +21,11 @@ from typing import Any, cast
 
 import torch
 import yaml
-from leapp import InferenceManager
+
+try:
+    from leapp import InferenceManager
+except ImportError as e:
+    raise ImportError("LEAPP package is required for policy deployment testing.Install with: pip install leapp") from e
 
 from isaaclab.managers import CommandManager, EventManager
 from isaaclab.scene import InteractiveScene

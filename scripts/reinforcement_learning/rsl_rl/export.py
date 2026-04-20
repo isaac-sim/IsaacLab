@@ -15,9 +15,13 @@ import sys
 import time
 from collections.abc import Mapping
 
-import leapp
 import torch
-from leapp import annotate
+
+try:
+    import leapp
+    from leapp import annotate
+except ImportError as e:
+    raise ImportError("LEAPP package is required for policy export. Install with: pip install leapp") from e
 
 # Disable TorchScript before importing task/environment modules so any
 # @torch.jit.script helpers resolve to plain Python functions during export.

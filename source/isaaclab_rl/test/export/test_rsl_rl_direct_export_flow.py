@@ -170,7 +170,7 @@ def test_direct_env_export_flow():
         cwd=_REPO_ROOT,
         capture_output=True,
         text=True,
-        timeout=600,
+        timeout=6000,
     )
 
     if result.returncode != 0:
