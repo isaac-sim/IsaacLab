@@ -475,7 +475,7 @@ class Articulation(BaseArticulation):
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -567,7 +567,7 @@ class Articulation(BaseArticulation):
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -706,7 +706,7 @@ class Articulation(BaseArticulation):
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_velocities(self._get_root_com_vel_w_f32(), indices=env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -799,7 +799,7 @@ class Articulation(BaseArticulation):
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_velocities(self._get_root_link_vel_w_f32(), indices=env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -3688,6 +3688,13 @@ class Articulation(BaseArticulation):
         self._cached_body_ids_ptr: int = -1
         self._cached_body_ids_wp: wp.array | None = None
 
+        # Cached .view(wp.float32) wrappers for structured warp arrays.
+        # These avoid per-call wp.array metadata allocation in writers.
+        # Recreated in _create_simulation_bindings after sim reset.
+        self._root_link_pose_w_f32: wp.array | None = None
+        self._root_com_vel_w_f32: wp.array | None = None
+        self._root_link_vel_w_f32: wp.array | None = None
+
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
@@ -4263,6 +4270,24 @@ class Articulation(BaseArticulation):
         else:
             env_ids = self._ALL_INDICES
         return env_ids
+
+    def _get_root_link_pose_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_link_pose_w for PhysX TensorAPI."""
+        if self._root_link_pose_w_f32 is None:
+            self._root_link_pose_w_f32 = self.data._root_link_pose_w.data.view(wp.float32)
+        return self._root_link_pose_w_f32
+
+    def _get_root_com_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_com_vel_w for PhysX TensorAPI."""
+        if self._root_com_vel_w_f32 is None:
+            self._root_com_vel_w_f32 = self.data._root_com_vel_w.data.view(wp.float32)
+        return self._root_com_vel_w_f32
+
+    def _get_root_link_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_link_vel_w for PhysX TensorAPI."""
+        if self._root_link_vel_w_f32 is None:
+            self._root_link_vel_w_f32 = self.data._root_link_vel_w.data.view(wp.float32)
+        return self._root_link_vel_w_f32
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp array.
