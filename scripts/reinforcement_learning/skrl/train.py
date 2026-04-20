@@ -161,10 +161,6 @@ def main():
         agent_cfg["agent"]["experiment"]["experiment_name"] = log_dir
         log_dir = os.path.join(log_root_path, log_dir)
 
-        # dump the configuration into log-directory
-        dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
-        dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
-
         # get checkpoint path (to resume training)
         resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None
 
@@ -182,6 +178,11 @@ def main():
 
         # create isaac environment
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+
+        # dump the configuration into log-directory (after gym.make so
+        # resolved values from __post_init__ and env setup are captured)
+        dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
+        dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg) and algorithm in ["ppo"]:

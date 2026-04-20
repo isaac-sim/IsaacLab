@@ -33,6 +33,7 @@ from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
 from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
+from isaaclab.utils.io import dump_yaml
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -269,6 +270,10 @@ class DirectRLEnvWarp(DirectRLEnv):
         # set the framerate of the gym video recorder wrapper so that the playback speed of the produced
         # video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
+
+        # dump the fully-resolved env config so users have a single source of
+        # truth for what values the environment is actually using
+        self._dump_resolved_cfg()
 
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
@@ -679,6 +684,22 @@ class DirectRLEnvWarp(DirectRLEnv):
     """
     Helper functions.
     """
+
+    def _dump_resolved_cfg(self):
+        """Dump the fully-resolved env config to ``<log_dir>/params/resolved_env.yaml``.
+
+        This runs after all ``__post_init__`` hooks, preset resolution, and
+        any training-script mutations, giving users a single source of truth
+        for the values the environment actually uses.
+        """
+        if self.cfg.log_dir is None:
+            return
+        resolved_path = os.path.join(self.cfg.log_dir, "params", "resolved_env.yaml")
+        try:
+            dump_yaml(resolved_path, self.cfg)
+            logger.info("Resolved env config written to %s", resolved_path)
+        except Exception:
+            logger.warning("Failed to dump resolved env config to %s", resolved_path, exc_info=True)
 
     def _configure_gym_env_spaces(self):
         """Configure the action and observation spaces for the Gym environment."""

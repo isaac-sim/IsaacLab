@@ -6,6 +6,7 @@
 """Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
 
 import inspect
+import logging
 import re
 import types
 from collections.abc import Callable
@@ -16,10 +17,12 @@ from typing import Any, ClassVar
 from .dict import class_to_dict, update_class_from_dict
 from .string import ResolvableString
 
+_logger = logging.getLogger(__name__)
+
 _CALLABLE_STR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_\\.]*:[A-Za-z_][A-Za-z0-9_]*$")
 _CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
 
-_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
+_CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate", "post_init_diff"]
 """List of class methods added at runtime to dataclass."""
 
 """
@@ -110,6 +113,7 @@ def configclass(cls, **kwargs):
     setattr(cls, "replace", _replace_class_with_kwargs)
     setattr(cls, "copy", _copy_class)
     setattr(cls, "validate", _validate)
+    setattr(cls, "post_init_diff", _post_init_diff)
     # wrap around dataclass
     cls = dataclass(cls, **kwargs)
     # return wrapped class
@@ -478,6 +482,7 @@ def _custom_post_init(obj):
     proxy type i.e. a read only proxy for mapping objects. The error is thrown when using hierarchical data-classes
     for configuration.
     """
+    _logger.debug("Running _custom_post_init for %s", type(obj).__name__)
     for key in dir(obj):
         # skip dunder members
         if key.startswith("__"):
@@ -493,20 +498,30 @@ def _custom_post_init(obj):
 
 
 def _combined_function(f1: Callable, f2: Callable) -> Callable:
-    """Combine two functions into one.
+    """Combine a user ``__post_init__`` with the configclass deep-copy hook.
+
+    Before *f1* (the user hook) runs, a shallow snapshot of every scalar/tuple
+    field is taken.  After both hooks finish, the snapshot is stored on the
+    object so that :meth:`post_init_diff` can report which fields were silently
+    changed by ``__post_init__``.
 
     Args:
-        f1: The first function.
-        f2: The second function.
+        f1: The user-defined ``__post_init__``.
+        f2: The configclass ``_custom_post_init`` (deep-copy + ResolvableString wrapping).
 
     Returns:
         The combined function.
     """
 
     def _combined(*args, **kwargs):
-        # call both functions
+        obj = args[0]
+        # Snapshot scalar / tuple field values before the user hook runs.
+        before = _snapshot_fields(obj)
+        _logger.debug("Running __post_init__ for %s", type(obj).__name__)
         f1(*args, **kwargs)
         f2(*args, **kwargs)
+        after = _snapshot_fields(obj)
+        obj.__post_init_field_diff__ = _compute_field_diff(before, after)
 
     return _combined
 
@@ -590,6 +605,53 @@ def _return_f(f: Any) -> Callable[[], Any]:
             return deepcopy(f)
 
     return _wrap
+
+
+"""
+Post-init diff helpers.
+"""
+
+
+def _snapshot_fields(obj: object, prefix: str = "") -> dict[str, Any]:
+    """Capture a flat ``{dotted.path: value}`` snapshot of scalar and tuple fields.
+
+    Nested configclass objects are walked recursively so that changes at any
+    depth are captured.
+    """
+    snap: dict[str, Any] = {}
+    for key in list(getattr(obj, "__dataclass_fields__", {})):
+        value = getattr(obj, key, MISSING)
+        if value is MISSING:
+            continue
+        full_key = f"{prefix}{key}"
+        if hasattr(value, "__dataclass_fields__"):
+            snap.update(_snapshot_fields(value, prefix=f"{full_key}."))
+        elif isinstance(value, (int, float, bool, str, type(None), tuple)):
+            snap[full_key] = value
+    return snap
+
+
+def _compute_field_diff(before: dict[str, Any], after: dict[str, Any]) -> dict[str, tuple[Any, Any]]:
+    """Return ``{field: (old_value, new_value)}`` for fields that changed."""
+    diff: dict[str, tuple[Any, Any]] = {}
+    for key in before:
+        if key in after and before[key] != after[key]:
+            diff[key] = (before[key], after[key])
+    return diff
+
+
+def _post_init_diff(obj: object) -> dict[str, tuple[Any, Any]]:
+    """Return fields changed by ``__post_init__`` as ``{field: (before, after)}``.
+
+    Only scalar and tuple fields are tracked (mutable containers like lists and
+    dicts are excluded because their identity changes during deep-copy).
+
+    Returns:
+        A dictionary mapping dotted field paths to ``(old_value, new_value)``
+        tuples.  Empty when no ``__post_init__`` was defined or no scalar
+        fields were modified.
+    """
+    return getattr(obj, "__post_init_field_diff__", {})
 
 
 def resolve_cfg_presets(cfg: object) -> object:

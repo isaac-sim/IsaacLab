@@ -113,9 +113,6 @@ def main():
         print(f"[INFO] Logging experiment in directory: {log_root_path}")
         print(f"Exact experiment name requested from command line: {run_info}")
         log_dir = os.path.join(log_root_path, run_info)
-        # dump the configuration into log-directory
-        dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
-        dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
         # save command used to run the script
         command = " ".join(sys.orig_argv)
@@ -141,6 +138,11 @@ def main():
 
         # create isaac environment
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+
+        # dump the configuration into log-directory (after gym.make so
+        # resolved values from __post_init__ and env setup are captured)
+        dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
+        dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):

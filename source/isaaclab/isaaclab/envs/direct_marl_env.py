@@ -28,6 +28,7 @@ from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.configclass import resolve_cfg_presets
+from isaaclab.utils.io import dump_yaml
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -248,6 +249,11 @@ class DirectMARLEnv(gym.Env):
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
+
+        # dump the fully-resolved env config so users have a single source of
+        # truth for what values the environment is actually using
+        self._dump_resolved_cfg()
+
         # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
@@ -603,6 +609,24 @@ class DirectMARLEnv(gym.Env):
     """
     Helper functions.
     """
+
+    def _dump_resolved_cfg(self):
+        """Dump the fully-resolved env config to ``<log_dir>/params/resolved_env.yaml``.
+
+        This runs after all ``__post_init__`` hooks, preset resolution, and
+        any training-script mutations, giving users a single source of truth
+        for the values the environment actually uses.
+        """
+        import os
+
+        if self.cfg.log_dir is None:
+            return
+        resolved_path = os.path.join(self.cfg.log_dir, "params", "resolved_env.yaml")
+        try:
+            dump_yaml(resolved_path, self.cfg)
+            logger.info("Resolved env config written to %s", resolved_path)
+        except Exception:
+            logger.warning("Failed to dump resolved env config to %s", resolved_path, exc_info=True)
 
     def _configure_env_spaces(self):
         """Configure the spaces for the environment."""

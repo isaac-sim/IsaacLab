@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.0.3 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added automatic dump of the fully-resolved env config to
+  ``<log_dir>/params/resolved_env.yaml`` from
+  :class:`~isaaclab_experimental.envs.ManagerBasedEnvWarp` and
+  :class:`~isaaclab_experimental.envs.DirectRLEnvWarp` at the end of
+  ``__init__``, matching the stable env base classes.
+
+
 0.0.2 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~
 
