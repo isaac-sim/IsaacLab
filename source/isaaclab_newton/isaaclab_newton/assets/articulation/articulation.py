@@ -3772,7 +3772,8 @@ class Articulation(BaseArticulation):
             return self._ALL_INDICES
         if isinstance(env_ids, torch.Tensor):
             if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
+                # int64→int32 conversion creates a temporary tensor; skip cache.
+                return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
             ptr = env_ids.data_ptr()
             if self._cached_env_ids_ptr == ptr:
                 return self._cached_env_ids_wp
