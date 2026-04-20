@@ -296,7 +296,7 @@ class TestTorchArrayDeprecationBridge:
         assert ta[1:].tolist() == [20.0, 30.0]
 
     def test_getitem_nd(self):
-        """Test ND indexing via __getitem__ with structured types."""
+        """Test multi-dimensional indexing via __getitem__ with structured types."""
         from isaaclab.utils.warp.torch_array import TorchArray
 
         TorchArray._deprecation_warned = True

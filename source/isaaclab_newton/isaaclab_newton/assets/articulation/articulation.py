@@ -482,7 +482,7 @@ class Articulation(BaseArticulation):
                 env_ids,
             ],
             outputs=[
-                self.data.root_link_pose_w.warp,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
             ],
@@ -538,7 +538,7 @@ class Articulation(BaseArticulation):
                 env_mask,
             ],
             outputs=[
-                self.data.root_link_pose_w.warp,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
             ],
@@ -595,12 +595,12 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pos_b.warp,
+                self.data.body_com_pos_b,
                 env_ids,
             ],
             outputs=[
-                self.data.root_com_pose_w.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.root_com_pose_w,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
@@ -656,12 +656,12 @@ class Articulation(BaseArticulation):
             dim=root_pose.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pos_b.warp,
+                self.data.body_com_pos_b,
                 env_mask,
             ],
             outputs=[
-                self.data.root_com_pose_w.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.root_com_pose_w,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
@@ -776,8 +776,8 @@ class Articulation(BaseArticulation):
                 self.data._num_bodies,
             ],
             outputs=[
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
@@ -824,8 +824,8 @@ class Articulation(BaseArticulation):
                 self.data._num_bodies,
             ],
             outputs=[
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
@@ -871,15 +871,15 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pos_b.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.body_com_pos_b,
+                self.data.root_link_pose_w,
                 env_ids,
                 self.data._num_bodies,
             ],
             outputs=[
-                self.data.root_link_vel_w.warp,
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_link_vel_w,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
@@ -925,15 +925,15 @@ class Articulation(BaseArticulation):
             dim=root_velocity.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pos_b.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.body_com_pos_b,
+                self.data.root_link_pose_w,
                 env_mask,
                 self.data._num_bodies,
             ],
             outputs=[
-                self.data.root_link_vel_w.warp,
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_link_vel_w,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
@@ -1010,7 +1010,7 @@ class Articulation(BaseArticulation):
                 joint_ids,
             ],
             outputs=[
-                self.data.joint_pos.warp,
+                self.data.joint_pos,
             ],
             device=self.device,
         )
@@ -1065,7 +1065,7 @@ class Articulation(BaseArticulation):
                 joint_mask,
             ],
             outputs=[
-                self.data.joint_pos.warp,
+                self.data.joint_pos,
             ],
             device=self.device,
         )
@@ -1122,9 +1122,9 @@ class Articulation(BaseArticulation):
                 joint_ids,
             ],
             outputs=[
-                self.data.joint_vel.warp,
+                self.data.joint_vel,
                 self.data._previous_joint_vel,
-                self.data.joint_acc.warp,
+                self.data.joint_acc,
             ],
             device=self.device,
         )
@@ -1162,9 +1162,9 @@ class Articulation(BaseArticulation):
                 joint_mask,
             ],
             outputs=[
-                self.data.joint_vel.warp,
+                self.data.joint_vel,
                 self.data._previous_joint_vel,
-                self.data.joint_acc.warp,
+                self.data.joint_acc,
             ],
             device=self.device,
         )
@@ -1208,7 +1208,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_stiffness.warp,
+                    self.data.joint_stiffness,
                 ],
                 device=self.device,
             )
@@ -1223,7 +1223,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_stiffness.warp,
+                    self.data.joint_stiffness,
                 ],
                 device=self.device,
             )
@@ -1263,7 +1263,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_stiffness.warp,
+                    self.data.joint_stiffness,
                 ],
                 device=self.device,
             )
@@ -1278,7 +1278,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_stiffness.warp,
+                    self.data.joint_stiffness,
                 ],
                 device=self.device,
             )
@@ -1321,7 +1321,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_damping.warp,
+                    self.data.joint_damping,
                 ],
                 device=self.device,
             )
@@ -1336,7 +1336,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_damping.warp,
+                    self.data.joint_damping,
                 ],
                 device=self.device,
             )
@@ -1376,7 +1376,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_damping.warp,
+                    self.data.joint_damping,
                 ],
                 device=self.device,
             )
@@ -1391,7 +1391,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_damping.warp,
+                    self.data.joint_damping,
                 ],
                 device=self.device,
             )
@@ -1564,7 +1564,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_vel_limits.warp,
+                    self.data.joint_vel_limits,
                 ],
                 device=self.device,
             )
@@ -1579,7 +1579,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_vel_limits.warp,
+                    self.data.joint_vel_limits,
                 ],
                 device=self.device,
             )
@@ -1623,7 +1623,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_vel_limits.warp,
+                    self.data.joint_vel_limits,
                 ],
                 device=self.device,
             )
@@ -1638,7 +1638,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_vel_limits.warp,
+                    self.data.joint_vel_limits,
                 ],
                 device=self.device,
             )
@@ -1684,7 +1684,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_effort_limits.warp,
+                    self.data.joint_effort_limits,
                 ],
                 device=self.device,
             )
@@ -1699,7 +1699,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_effort_limits.warp,
+                    self.data.joint_effort_limits,
                 ],
                 device=self.device,
             )
@@ -1742,7 +1742,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_effort_limits.warp,
+                    self.data.joint_effort_limits,
                 ],
                 device=self.device,
             )
@@ -1757,7 +1757,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_effort_limits.warp,
+                    self.data.joint_effort_limits,
                 ],
                 device=self.device,
             )
@@ -1802,7 +1802,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_armature.warp,
+                    self.data.joint_armature,
                 ],
                 device=self.device,
             )
@@ -1817,7 +1817,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_armature.warp,
+                    self.data.joint_armature,
                 ],
                 device=self.device,
             )
@@ -1861,7 +1861,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_armature.warp,
+                    self.data.joint_armature,
                 ],
                 device=self.device,
             )
@@ -1876,7 +1876,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_armature.warp,
+                    self.data.joint_armature,
                 ],
                 device=self.device,
             )
@@ -1919,7 +1919,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_friction_coeff.warp,
+                    self.data.joint_friction_coeff,
                 ],
                 device=self.device,
             )
@@ -1936,7 +1936,7 @@ class Articulation(BaseArticulation):
                     joint_ids,
                 ],
                 outputs=[
-                    self.data.joint_friction_coeff.warp,
+                    self.data.joint_friction_coeff,
                 ],
                 device=self.device,
             )
@@ -1977,7 +1977,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_friction_coeff.warp,
+                    self.data.joint_friction_coeff,
                 ],
                 device=self.device,
             )
@@ -1994,7 +1994,7 @@ class Articulation(BaseArticulation):
                     joint_mask,
                 ],
                 outputs=[
-                    self.data.joint_friction_coeff.warp,
+                    self.data.joint_friction_coeff,
                 ],
                 device=self.device,
             )
@@ -2040,7 +2040,7 @@ class Articulation(BaseArticulation):
                 body_ids,
             ],
             outputs=[
-                self.data.body_mass.warp,
+                self.data.body_mass,
             ],
             device=self.device,
         )
@@ -2081,7 +2081,7 @@ class Articulation(BaseArticulation):
                 body_mask,
             ],
             outputs=[
-                self.data.body_mass.warp,
+                self.data.body_mass,
             ],
             device=self.device,
         )
@@ -2129,7 +2129,7 @@ class Articulation(BaseArticulation):
                 body_ids,
             ],
             outputs=[
-                self.data.body_com_pos_b.warp,
+                self.data.body_com_pos_b,
             ],
             device=self.device,
         )
@@ -2177,7 +2177,7 @@ class Articulation(BaseArticulation):
                 body_mask,
             ],
             outputs=[
-                self.data.body_com_pos_b.warp,
+                self.data.body_com_pos_b,
             ],
             device=self.device,
         )
@@ -2220,7 +2220,7 @@ class Articulation(BaseArticulation):
                 body_ids,
             ],
             outputs=[
-                self.data.body_inertia.warp,
+                self.data.body_inertia,
             ],
             device=self.device,
         )
@@ -2261,7 +2261,7 @@ class Articulation(BaseArticulation):
                 body_mask,
             ],
             outputs=[
-                self.data.body_inertia.warp,
+                self.data.body_inertia,
             ],
             device=self.device,
         )
@@ -3260,11 +3260,11 @@ class Articulation(BaseArticulation):
             articulation_kernels.update_soft_joint_pos_limits,
             dim=(self.num_instances, self.num_joints),
             inputs=[
-                self.data.joint_pos_limits.warp,
+                self.data.joint_pos_limits,
                 self.cfg.soft_joint_pos_limit_factor,
             ],
             outputs=[
-                self.data.soft_joint_pos_limits.warp,
+                self.data.soft_joint_pos_limits,
             ],
             device=self.device,
         )
@@ -3292,7 +3292,7 @@ class Articulation(BaseArticulation):
                 wp.array(pos_idx_list, dtype=wp.int32, device=self.device),
             ],
             outputs=[
-                self.data.default_joint_pos.warp,
+                self.data.default_joint_pos,
             ],
             device=self.device,
         )
@@ -3304,7 +3304,7 @@ class Articulation(BaseArticulation):
                 wp.array(vel_idx_list, dtype=wp.int32, device=self.device),
             ],
             outputs=[
-                self.data.default_joint_vel.warp,
+                self.data.default_joint_vel,
             ],
             device=self.device,
         )
@@ -3536,10 +3536,10 @@ class Articulation(BaseArticulation):
                     joint_indices,
                 ],
                 outputs=[
-                    self._data.computed_torque.warp,
-                    self._data.applied_torque.warp,
-                    self._data.gear_ratio.warp,
-                    self._data.soft_joint_vel_limits.warp,
+                    self._data.computed_torque,
+                    self._data.applied_torque,
+                    self._data.gear_ratio,
+                    self._data.soft_joint_vel_limits,
                 ],
                 device=self.device,
             )

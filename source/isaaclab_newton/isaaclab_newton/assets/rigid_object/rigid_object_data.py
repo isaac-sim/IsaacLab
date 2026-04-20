@@ -202,9 +202,9 @@ class RigidObjectData(BaseRigidObjectData):
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
                 inputs=[
-                    self.root_com_vel_w.warp,
-                    self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
+                    self.root_com_vel_w,
+                    self.root_link_pose_w,
+                    self.body_com_pos_b,
                 ],
                 outputs=[
                     self._root_link_vel_w.data,
@@ -229,8 +229,8 @@ class RigidObjectData(BaseRigidObjectData):
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
                 inputs=[
-                    self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
+                    self.root_link_pose_w,
+                    self.body_com_pos_b,
                 ],
                 outputs=[
                     self._root_com_pose_w.data,
@@ -372,7 +372,7 @@ class RigidObjectData(BaseRigidObjectData):
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, 1),
                 inputs=[
-                    self.body_com_pos_b.warp,
+                    self.body_com_pos_b,
                 ],
                 outputs=[
                     self._body_com_pose_b.data,
@@ -396,7 +396,7 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w.warp],
+                inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
                 outputs=[self._projected_gravity_b.data],
                 device=self.device,
             )
@@ -417,7 +417,7 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 shared_kernels.root_heading_w,
                 dim=self._num_instances,
-                inputs=[self.FORWARD_VEC_B, self.root_link_quat_w.warp],
+                inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
                 device=self.device,
             )
@@ -441,7 +441,7 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_link_lin_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_lin_vel_w, self.root_link_quat_w],
                 outputs=[self._root_link_lin_vel_b.data],
                 device=self.device,
             )
@@ -465,7 +465,7 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_link_ang_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_link_ang_vel_w, self.root_link_quat_w],
                 outputs=[self._root_link_ang_vel_b.data],
                 device=self.device,
             )
@@ -489,7 +489,7 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_com_lin_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_com_lin_vel_w, self.root_link_quat_w],
                 outputs=[self._root_com_lin_vel_b.data],
                 device=self.device,
             )
@@ -513,7 +513,7 @@ class RigidObjectData(BaseRigidObjectData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_1D_kernel,
                 dim=self._num_instances,
-                inputs=[self.root_com_ang_vel_w.warp, self.root_link_quat_w.warp],
+                inputs=[self.root_com_ang_vel_w, self.root_link_quat_w],
                 outputs=[self._root_com_ang_vel_b.data],
                 device=self.device,
             )
@@ -607,9 +607,7 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
-        self._root_com_lin_vel_w = self._get_top_from_spatial_vector(
-            self._root_com_lin_vel_w, self.root_com_vel_w.warp
-        )
+        self._root_com_lin_vel_w = self._get_top_from_spatial_vector(self._root_com_lin_vel_w, self.root_com_vel_w.warp)
         if self._root_com_lin_vel_w_ta is None:
             self._root_com_lin_vel_w_ta = TorchArray(self._root_com_lin_vel_w)
         return self._root_com_lin_vel_w_ta
@@ -711,9 +709,7 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
-        self._body_com_lin_vel_w = self._get_top_from_spatial_vector(
-            self._body_com_lin_vel_w, self.body_com_vel_w.warp
-        )
+        self._body_com_lin_vel_w = self._get_top_from_spatial_vector(self._body_com_lin_vel_w, self.body_com_vel_w.warp)
         if self._body_com_lin_vel_w_ta is None:
             self._body_com_lin_vel_w_ta = TorchArray(self._body_com_lin_vel_w)
         return self._body_com_lin_vel_w_ta
@@ -739,9 +735,7 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the linear acceleration of the rigid bodies' center of mass frame.
         """
-        self._body_com_lin_acc_w = self._get_top_from_spatial_vector(
-            self._body_com_lin_acc_w, self.body_com_acc_w.warp
-        )
+        self._body_com_lin_acc_w = self._get_top_from_spatial_vector(self._body_com_lin_acc_w, self.body_com_acc_w.warp)
         if self._body_com_lin_acc_w_ta is None:
             self._body_com_lin_acc_w_ta = TorchArray(self._body_com_lin_acc_w)
         return self._body_com_lin_acc_w_ta
@@ -1240,8 +1234,8 @@ class RigidObjectData(BaseRigidObjectData):
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_com_vel_w.warp,
+                    self.root_link_pose_w,
+                    self.root_com_vel_w,
                 ],
                 outputs=[
                     self._root_state_w.data,
@@ -1271,8 +1265,8 @@ class RigidObjectData(BaseRigidObjectData):
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_link_vel_w.warp,
+                    self.root_link_pose_w,
+                    self.root_link_vel_w,
                 ],
                 outputs=[
                     self._root_link_state_w.data,
@@ -1302,8 +1296,8 @@ class RigidObjectData(BaseRigidObjectData):
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
-                    self.root_com_pose_w.warp,
-                    self.root_com_vel_w.warp,
+                    self.root_com_pose_w,
+                    self.root_com_vel_w,
                 ],
                 outputs=[
                     self._root_com_state_w.data,
@@ -1364,8 +1358,8 @@ class RigidObjectData(BaseRigidObjectData):
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_com_vel_w.warp,
+                    self.root_link_pose_w,
+                    self.root_com_vel_w,
                 ],
                 outputs=[
                     self._root_state_w.data,
@@ -1397,8 +1391,8 @@ class RigidObjectData(BaseRigidObjectData):
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_link_vel_w.warp,
+                    self.root_link_pose_w,
+                    self.root_link_vel_w,
                 ],
                 outputs=[
                     self._root_link_state_w.data,
@@ -1429,8 +1423,8 @@ class RigidObjectData(BaseRigidObjectData):
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
                 inputs=[
-                    self.root_com_pose_w.warp,
-                    self.root_com_vel_w.warp,
+                    self.root_com_pose_w,
+                    self.root_com_vel_w,
                 ],
                 outputs=[
                     self._root_com_state_w.data,

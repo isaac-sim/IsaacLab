@@ -339,7 +339,7 @@ class RigidObject(BaseRigidObject):
                 env_ids,
             ],
             outputs=[
-                self.data.root_link_pose_w.warp,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
             ],
@@ -385,7 +385,7 @@ class RigidObject(BaseRigidObject):
                 env_mask,
             ],
             outputs=[
-                self.data.root_link_pose_w.warp,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
             ],
@@ -431,12 +431,12 @@ class RigidObject(BaseRigidObject):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pos_b.warp,
+                self.data.body_com_pos_b,
                 env_ids,
             ],
             outputs=[
-                self.data.root_com_pose_w.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.root_com_pose_w,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
@@ -482,12 +482,12 @@ class RigidObject(BaseRigidObject):
             dim=root_pose.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pos_b.warp,
+                self.data.body_com_pos_b,
                 env_mask,
             ],
             outputs=[
-                self.data.root_com_pose_w.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.root_com_pose_w,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
@@ -541,8 +541,8 @@ class RigidObject(BaseRigidObject):
                 1,
             ],
             outputs=[
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
@@ -590,8 +590,8 @@ class RigidObject(BaseRigidObject):
                 1,
             ],
             outputs=[
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
@@ -638,15 +638,15 @@ class RigidObject(BaseRigidObject):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pos_b.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.body_com_pos_b,
+                self.data.root_link_pose_w,
                 env_ids,
                 1,
             ],
             outputs=[
-                self.data.root_link_vel_w.warp,
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_link_vel_w,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
@@ -693,15 +693,15 @@ class RigidObject(BaseRigidObject):
             dim=root_velocity.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pos_b.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.body_com_pos_b,
+                self.data.root_link_pose_w,
                 env_mask,
                 1,
             ],
             outputs=[
-                self.data.root_link_vel_w.warp,
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_link_vel_w,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
@@ -754,7 +754,7 @@ class RigidObject(BaseRigidObject):
                 body_ids,
             ],
             outputs=[
-                self.data.body_mass.warp,
+                self.data.body_mass,
             ],
             device=self.device,
         )
@@ -797,7 +797,7 @@ class RigidObject(BaseRigidObject):
                 body_mask,
             ],
             outputs=[
-                self.data.body_mass.warp,
+                self.data.body_mass,
             ],
             device=self.device,
         )
@@ -844,7 +844,7 @@ class RigidObject(BaseRigidObject):
                 body_ids,
             ],
             outputs=[
-                self.data.body_com_pos_b.warp,
+                self.data.body_com_pos_b,
             ],
             device=self.device,
         )
@@ -892,7 +892,7 @@ class RigidObject(BaseRigidObject):
                 body_mask,
             ],
             outputs=[
-                self.data.body_com_pos_b.warp,
+                self.data.body_com_pos_b,
             ],
             device=self.device,
         )
@@ -934,7 +934,7 @@ class RigidObject(BaseRigidObject):
                 body_ids,
             ],
             outputs=[
-                self.data.body_inertia.warp,
+                self.data.body_inertia,
             ],
             device=self.device,
         )
@@ -977,7 +977,7 @@ class RigidObject(BaseRigidObject):
                 body_mask,
             ],
             outputs=[
-                self.data.body_inertia.warp,
+                self.data.body_inertia,
             ],
             device=self.device,
         )

@@ -121,6 +121,34 @@ class TorchArray:
         return f"TorchArray(shape={self.shape}, dtype={self.dtype}, device={self.device})"
 
     # ------------------------------------------------------------------
+    # Warp kernel interop
+    # ------------------------------------------------------------------
+
+    @property
+    def __cuda_array_interface__(self):
+        """Delegate the CUDA array interface to the underlying warp array.
+
+        This allows a ``TorchArray`` to be passed directly as an argument to
+        :func:`warp.launch` without explicitly accessing ``.warp``.
+
+        Raises:
+            AttributeError: If the underlying warp array is not on a CUDA device.
+        """
+        return self._warp.__cuda_array_interface__
+
+    @property
+    def __array_interface__(self):
+        """Delegate the NumPy array interface to the underlying warp array.
+
+        This allows a ``TorchArray`` to be passed directly as an argument to
+        :func:`warp.launch` on CPU without explicitly accessing ``.warp``.
+
+        Raises:
+            AttributeError: If the underlying warp array is not on a CPU device.
+        """
+        return self._warp.__array_interface__
+
+    # ------------------------------------------------------------------
     # Indexing (deprecation bridge — delegates to .torch)
     # ------------------------------------------------------------------
 
@@ -128,7 +156,7 @@ class TorchArray:
         """Index into the torch view of this array.
 
         Supports all torch indexing: ``int``, ``slice``, ``tuple``,
-        boolean masks, and fancy indexing (ND).
+        boolean masks, and fancy indexing (multi-dimensional).
         """
         self._warn_implicit()
         return self.torch[key]
@@ -137,7 +165,7 @@ class TorchArray:
         """Write through the torch view into the shared warp memory.
 
         Supports all torch indexing: ``int``, ``slice``, ``tuple``,
-        boolean masks, and fancy indexing (ND).
+        boolean masks, and fancy indexing (multi-dimensional).
         """
         self._warn_implicit()
         self.torch[key] = value
