@@ -33,9 +33,9 @@ from pxr import UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster import (
     MultiMeshRayCaster,
-    MultiMeshRayCasterCfg,
     MultiMeshRayCasterCamera,
     MultiMeshRayCasterCameraCfg,
+    MultiMeshRayCasterCfg,
     RayCaster,
     RayCasterCfg,
     patterns,
@@ -190,9 +190,7 @@ def sim_ground_camera():
         prim_path="/World/Camera",
         mesh_prim_paths=[_GROUND_PATH],
         update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
-            pos=(0.0, 0.0, 5.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
-        ),
+        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 5.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         debug_vis=False,
         pattern_cfg=patterns.PinholeCameraPatternCfg(
             focal_length=24.0,

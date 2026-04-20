@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -15,6 +16,7 @@ import numpy as np
 import torch
 
 if TYPE_CHECKING:
+    from isaacteleop.cloudxr import CloudXRLauncher
     from isaacteleop.oxr import OpenXRSessionHandles
     from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
     from isaacteleop.teleop_session_manager import TeleopSession
@@ -90,20 +92,37 @@ class TeleopSessionLifecycle:
     _CONTROLLER_RIGHT_KEY = "_controller_right"
     """Internal pipeline output key for the right controller ``TensorGroup``."""
 
-    def __init__(self, cfg: IsaacTeleopCfg):
+    def __init__(
+        self,
+        cfg: IsaacTeleopCfg,
+        cloudxr_env_file: str | None = None,
+        auto_launch_cloudxr: bool = True,
+    ):
         """Initialize the session lifecycle manager.
 
         Args:
             cfg: Configuration for IsaacTeleop settings.
+            cloudxr_env_file: Optional path to a CloudXR ``.env`` file.
+                When provided, the CloudXR runtime is launched automatically
+                during :meth:`start` (unless *auto_launch_cloudxr* is
+                ``False``).  When ``None``, no CloudXR runtime is launched.
+            auto_launch_cloudxr: Whether to auto-launch the CloudXR runtime
+                when *cloudxr_env_file* is set.  Ignored when
+                *cloudxr_env_file* is ``None``.
         """
         self._cfg = cfg
         self._device = torch.device(cfg.sim_device)
+        self._cloudxr_env_file = cloudxr_env_file
+        self._auto_launch_cloudxr = auto_launch_cloudxr
 
         # Session state (populated during start)
         self._session: TeleopSession | None = None
         self._pipeline = None
         self._last_right_controller = None
         self._session_start_deferred_logged = False
+
+        # CloudXR runtime launcher (created in start if configured, stopped in stop)
+        self._cloudxr_launcher: CloudXRLauncher | None = None
 
         # Retargeting tuning UI (created in start, closed in stop)
         self._retargeting_ui_ctx: MultiRetargeterTuningUIImGui | None = None
@@ -180,6 +199,9 @@ class TeleopSessionLifecycle:
     def start(self) -> None:
         """Build the pipeline and attempt to start the session.
 
+        If a CloudXR env file was provided and auto-launch is enabled,
+        the CloudXR runtime and WSS proxy are launched first.
+
         Builds the retargeting pipeline, wraps it with a parallel
         ``ControllersSource`` for button-state access, attempts to acquire
         OpenXR handles, and opens the retargeting tuning UI if retargeters
@@ -189,6 +211,9 @@ class TeleopSessionLifecycle:
         "Start AR"), session creation is deferred and will be retried on each
         :meth:`step` call.
         """
+        if self._cloudxr_env_file is not None:
+            self._ensure_cloudxr_runtime()
+
         from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
         from isaacteleop.retargeting_engine.interface import OutputCombiner
 
@@ -245,6 +270,16 @@ class TeleopSessionLifecycle:
                 logger.debug(f"Suppressed error during IsaacTeleop session cleanup: {e}")
             self._session = None
             self._pipeline = None
+
+        if self._cloudxr_launcher is not None:
+            try:
+                self._cloudxr_launcher.stop()
+            except RuntimeError:
+                logger.warning("CloudXR runtime process could not be terminated; handle retained for atexit cleanup")
+            else:
+                self._cloudxr_launcher = None
+                logger.info("CloudXR runtime stopped")
+
         logger.info("IsaacTeleop session ended")
 
     def _on_request_required_extensions(self) -> list[str]:
@@ -506,6 +541,44 @@ class TeleopSessionLifecycle:
                 )
 
         return external_inputs if external_inputs else None
+
+    # ------------------------------------------------------------------
+    # CloudXR runtime auto-launch
+    # ------------------------------------------------------------------
+
+    def _ensure_cloudxr_runtime(self) -> None:
+        """Launch the CloudXR runtime and WSS proxy if configured.
+
+        Uses :class:`~isaacteleop.cloudxr.CloudXRLauncher` to set up the
+        environment, spawn the native runtime process, and start the WSS
+        TLS proxy in a background thread.  The launcher is stored in
+        ``self._cloudxr_launcher`` and shut down in :meth:`stop`.
+
+        Auto-launch is skipped when ``auto_launch_cloudxr`` is ``False``
+        or the ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` environment variable is
+        set (the env var takes precedence).
+        """
+        if self._cloudxr_launcher is not None:
+            return
+
+        if os.environ.get("ISAACLAB_CXR_SKIP_AUTOLAUNCH", "").strip() == "1":
+            logger.info("CloudXR auto-launch skipped (ISAACLAB_CXR_SKIP_AUTOLAUNCH=1)")
+            return
+
+        if not self._auto_launch_cloudxr:
+            logger.info("CloudXR auto-launch disabled (auto_launch_cloudxr=False)")
+            return
+
+        from pathlib import Path
+
+        from isaacteleop.cloudxr import CloudXRLauncher as _CloudXRLauncher
+
+        self._cloudxr_launcher = _CloudXRLauncher(
+            install_dir=str(Path.home() / ".cloudxr"),
+            env_config=self._cloudxr_env_file,
+            accept_eula=False,
+        )
+        logger.info("CloudXR runtime auto-launched")
 
     # ------------------------------------------------------------------
     # OpenXR handle acquisition

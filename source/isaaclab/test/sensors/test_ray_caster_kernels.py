@@ -547,8 +547,8 @@ class TestQuatYawOnly:
         """At pitch = +/-pi/2, atan2 is near-degenerate but should produce a
         finite, unit-norm, pure-yaw quaternion (only z and w components).
         """
-        q_down = _euler_to_quat_xyzw(0, math.pi / 2, 0)   # pitch = +pi/2
-        q_up = _euler_to_quat_xyzw(0, -math.pi / 2, 0)    # pitch = -pi/2
+        q_down = _euler_to_quat_xyzw(0, math.pi / 2, 0)  # pitch = +pi/2
+        q_up = _euler_to_quat_xyzw(0, -math.pi / 2, 0)  # pitch = -pi/2
 
         q_in_np = np.array([list(q_down), list(q_up)], dtype=np.float32)
         q_in = wp.array(q_in_np, dtype=wp.quatf, device=DEVICE)

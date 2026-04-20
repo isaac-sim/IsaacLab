@@ -166,19 +166,29 @@ def _make_inputs(
     mask_t = torch.ones(num_envs, dtype=torch.bool, device=TORCH_DEVICE)
     env_mask = wp.from_torch(mask_t)
 
-    op = torch.tensor([[offset_pos[0], offset_pos[1], offset_pos[2]]] * num_envs, dtype=torch.float32, device=TORCH_DEVICE)
+    op = torch.tensor(
+        [[offset_pos[0], offset_pos[1], offset_pos[2]]] * num_envs, dtype=torch.float32, device=TORCH_DEVICE
+    )
     offset_pos_wp = wp.from_torch(op.contiguous(), dtype=wp.vec3f)
 
-    oq = torch.tensor([[offset_quat[0], offset_quat[1], offset_quat[2], offset_quat[3]]] * num_envs, dtype=torch.float32, device=TORCH_DEVICE)
+    oq = torch.tensor(
+        [[offset_quat[0], offset_quat[1], offset_quat[2], offset_quat[3]]] * num_envs,
+        dtype=torch.float32,
+        device=TORCH_DEVICE,
+    )
     offset_quat_wp = wp.from_torch(oq.contiguous(), dtype=wp.quatf)
 
     d = torch.tensor([[drift[0], drift[1], drift[2]]] * num_envs, dtype=torch.float32, device=TORCH_DEVICE)
     drift_wp = wp.from_torch(d.contiguous(), dtype=wp.vec3f)
 
-    rcd = torch.tensor([[ray_cast_drift[0], ray_cast_drift[1], ray_cast_drift[2]]] * num_envs, dtype=torch.float32, device=TORCH_DEVICE)
+    rcd = torch.tensor(
+        [[ray_cast_drift[0], ray_cast_drift[1], ray_cast_drift[2]]] * num_envs, dtype=torch.float32, device=TORCH_DEVICE
+    )
     rcd_wp = wp.from_torch(rcd.contiguous(), dtype=wp.vec3f)
 
-    rs = torch.tensor([[[ray_start[0], ray_start[1], ray_start[2]]]] * num_envs, dtype=torch.float32, device=TORCH_DEVICE)
+    rs = torch.tensor(
+        [[[ray_start[0], ray_start[1], ray_start[2]]]] * num_envs, dtype=torch.float32, device=TORCH_DEVICE
+    )
     rs_wp = wp.from_torch(rs.contiguous(), dtype=wp.vec3f)
 
     rd = torch.tensor([[[ray_dir[0], ray_dir[1], ray_dir[2]]]] * num_envs, dtype=torch.float32, device=TORCH_DEVICE)
@@ -489,7 +499,9 @@ class TestUpdateRayCasterKernel:
         # All modes: pos_w should be (0, 0, 4.5) = view_pos + drift
         for mode_name in ["world", "yaw", "base"]:
             np.testing.assert_allclose(
-                results[mode_name][0][0], [0, 0, 4.5], atol=ATOL,
+                results[mode_name][0][0],
+                [0, 0, 4.5],
+                atol=ATOL,
                 err_msg=f"{mode_name} mode: pos_w should include drift",
             )
             # ray_start_w Z should also reflect the drifted position
