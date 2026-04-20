@@ -71,19 +71,19 @@ Training Performance
 --------------------
 
 We performed training with each RL library on the same ``Isaac-Humanoid-v0`` environment
-with ``--headless`` on a single NVIDIA GeForce RTX 4090 and logged the total training time
+with ``--headless`` on a single NVIDIA GeForce RTX 5090 and logged the total training time
 for 65.5M steps (4096 environments x 32 rollout steps x 500 iterations).
 
 +--------------------+-----------------+
 | RL Library         | Time in seconds |
 +====================+=================+
-| RL-Games           | 201             |
+| RL-Games           | 212             |
 +--------------------+-----------------+
-| SKRL               | 201             |
+| SKRL               | 210             |
 +--------------------+-----------------+
-| RSL RL             | 198             |
+| RSL RL             | 233             |
 +--------------------+-----------------+
-| Stable-Baselines3  | 287             |
+| Stable-Baselines3  | 306             |
 +--------------------+-----------------+
 
 Training commands (check for the *'Training time: XXX seconds'* line in the terminal output):
