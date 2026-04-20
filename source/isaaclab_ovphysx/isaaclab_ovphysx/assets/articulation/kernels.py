@@ -43,6 +43,31 @@ def _scatter_rows_partial(
     dst[ids[i], j] = src[i, j]
 
 
+@wp.func
+def compute_soft_joint_pos_limits_func(
+    joint_pos_limits: wp.vec2f,
+    soft_limit_factor: wp.float32,
+):
+    """Compute soft joint position limits from hard limits."""
+    joint_pos_mean = (joint_pos_limits[0] + joint_pos_limits[1]) / 2.0
+    joint_pos_range = joint_pos_limits[1] - joint_pos_limits[0]
+    return wp.vec2f(
+        joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor,
+        joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor,
+    )
+
+
+@wp.kernel
+def update_soft_joint_pos_limits(
+    joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    soft_limit_factor: wp.float32,
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+):
+    """Update soft joint position limits from hard limits and a scale factor."""
+    i, j = wp.tid()
+    soft_joint_pos_limits[i, j] = compute_soft_joint_pos_limits_func(joint_pos_limits[i, j], soft_limit_factor)
+
+
 """
 Data-layer kernels (used by ArticulationData).
 """

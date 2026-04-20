@@ -19,16 +19,17 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsManager
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
+from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .articulation_data import ArticulationData
-from .kernels import _body_wrench_to_world, _scatter_rows_partial
+from .kernels import _body_wrench_to_world, _scatter_rows_partial, update_soft_joint_pos_limits
 
 if TYPE_CHECKING:
     from isaaclab.actuators import ActuatorBase
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-    from isaaclab.utils.wrench_composer import WrenchComposer
 
 logger = logging.getLogger(__name__)
 
@@ -1105,7 +1106,13 @@ class Articulation(BaseArticulation):
     Operations - Tendons.
     """
 
-    def set_fixed_tendon_stiffness_index(self, *, stiffness, fixed_tendon_ids=None, env_ids=None):
+    def set_fixed_tendon_stiffness_index(
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set fixed tendon stiffness into internal buffers using indices.
 
         This function does not apply the tendon stiffness to the simulation. It only fills the buffers with
@@ -1123,7 +1130,13 @@ class Articulation(BaseArticulation):
         if self._data._fixed_tendon_stiffness is not None:
             self._set_target_into_buffer(self._data._fixed_tendon_stiffness, stiffness, env_ids, fixed_tendon_ids)
 
-    def set_fixed_tendon_stiffness_mask(self, *, stiffness, fixed_tendon_mask=None, env_mask=None):
+    def set_fixed_tendon_stiffness_mask(
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set fixed tendon stiffness into internal buffers using masks.
 
         Args:
@@ -1137,7 +1150,13 @@ class Articulation(BaseArticulation):
                 self._data._fixed_tendon_stiffness, stiffness, env_mask, fixed_tendon_mask
             )
 
-    def set_fixed_tendon_damping_index(self, *, damping, fixed_tendon_ids=None, env_ids=None):
+    def set_fixed_tendon_damping_index(
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set fixed tendon damping into internal buffers using indices.
 
         Args:
@@ -1151,7 +1170,13 @@ class Articulation(BaseArticulation):
         if self._data._fixed_tendon_damping is not None:
             self._set_target_into_buffer(self._data._fixed_tendon_damping, damping, env_ids, fixed_tendon_ids)
 
-    def set_fixed_tendon_damping_mask(self, *, damping, fixed_tendon_mask=None, env_mask=None):
+    def set_fixed_tendon_damping_mask(
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set fixed tendon damping into internal buffers using masks.
 
         Args:
@@ -1163,7 +1188,13 @@ class Articulation(BaseArticulation):
         if self._data._fixed_tendon_damping is not None:
             self._set_target_into_buffer_mask(self._data._fixed_tendon_damping, damping, env_mask, fixed_tendon_mask)
 
-    def set_fixed_tendon_limit_stiffness_index(self, *, limit_stiffness, fixed_tendon_ids=None, env_ids=None):
+    def set_fixed_tendon_limit_stiffness_index(
+        self,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set fixed tendon limit stiffness into internal buffers using indices.
 
         Args:
@@ -1179,7 +1210,13 @@ class Articulation(BaseArticulation):
                 self._data._fixed_tendon_limit_stiffness, limit_stiffness, env_ids, fixed_tendon_ids
             )
 
-    def set_fixed_tendon_limit_stiffness_mask(self, *, limit_stiffness, fixed_tendon_mask=None, env_mask=None):
+    def set_fixed_tendon_limit_stiffness_mask(
+        self,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set fixed tendon limit stiffness into internal buffers using masks.
 
         Args:
@@ -1193,7 +1230,13 @@ class Articulation(BaseArticulation):
                 self._data._fixed_tendon_limit_stiffness, limit_stiffness, env_mask, fixed_tendon_mask
             )
 
-    def set_fixed_tendon_position_limit_index(self, *, limit, fixed_tendon_ids=None, env_ids=None):
+    def set_fixed_tendon_position_limit_index(
+        self,
+        *,
+        limit: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set fixed tendon position limits into internal buffers using indices.
 
         Args:
@@ -1208,7 +1251,13 @@ class Articulation(BaseArticulation):
         if self._data._fixed_tendon_pos_limits is not None:
             self._set_target_into_buffer(self._data._fixed_tendon_pos_limits, limit, env_ids, fixed_tendon_ids)
 
-    def set_fixed_tendon_position_limit_mask(self, *, limit, fixed_tendon_mask=None, env_mask=None):
+    def set_fixed_tendon_position_limit_mask(
+        self,
+        *,
+        limit: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set fixed tendon position limits into internal buffers using masks.
 
         Args:
@@ -1221,7 +1270,13 @@ class Articulation(BaseArticulation):
         if self._data._fixed_tendon_pos_limits is not None:
             self._set_target_into_buffer_mask(self._data._fixed_tendon_pos_limits, limit, env_mask, fixed_tendon_mask)
 
-    def set_fixed_tendon_rest_length_index(self, *, rest_length, fixed_tendon_ids=None, env_ids=None):
+    def set_fixed_tendon_rest_length_index(
+        self,
+        *,
+        rest_length: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set fixed tendon rest length into internal buffers using indices.
 
         Args:
@@ -1235,7 +1290,13 @@ class Articulation(BaseArticulation):
         if self._data._fixed_tendon_rest_length is not None:
             self._set_target_into_buffer(self._data._fixed_tendon_rest_length, rest_length, env_ids, fixed_tendon_ids)
 
-    def set_fixed_tendon_rest_length_mask(self, *, rest_length, fixed_tendon_mask=None, env_mask=None):
+    def set_fixed_tendon_rest_length_mask(
+        self,
+        *,
+        rest_length: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set fixed tendon rest length into internal buffers using masks.
 
         Args:
@@ -1249,7 +1310,13 @@ class Articulation(BaseArticulation):
                 self._data._fixed_tendon_rest_length, rest_length, env_mask, fixed_tendon_mask
             )
 
-    def set_fixed_tendon_offset_index(self, *, offset, fixed_tendon_ids=None, env_ids=None):
+    def set_fixed_tendon_offset_index(
+        self,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set fixed tendon offset into internal buffers using indices.
 
         Args:
@@ -1263,7 +1330,13 @@ class Articulation(BaseArticulation):
         if self._data._fixed_tendon_offset is not None:
             self._set_target_into_buffer(self._data._fixed_tendon_offset, offset, env_ids, fixed_tendon_ids)
 
-    def set_fixed_tendon_offset_mask(self, *, offset, fixed_tendon_mask=None, env_mask=None):
+    def set_fixed_tendon_offset_mask(
+        self,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set fixed tendon offset into internal buffers using masks.
 
         Args:
@@ -1275,7 +1348,12 @@ class Articulation(BaseArticulation):
         if self._data._fixed_tendon_offset is not None:
             self._set_target_into_buffer_mask(self._data._fixed_tendon_offset, offset, env_mask, fixed_tendon_mask)
 
-    def write_fixed_tendon_properties_to_sim_index(self, *, fixed_tendon_ids=None, env_ids=None):
+    def write_fixed_tendon_properties_to_sim_index(
+        self,
+        *,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Write fixed tendon properties into the simulation using indices.
 
         Args:
@@ -1296,7 +1374,12 @@ class Articulation(BaseArticulation):
             if buf is not None:
                 self._write_flat_tensor(tt, buf, env_ids, fixed_tendon_ids)
 
-    def write_fixed_tendon_properties_to_sim_mask(self, *, fixed_tendon_mask=None, env_mask=None):
+    def write_fixed_tendon_properties_to_sim_mask(
+        self,
+        *,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Write fixed tendon properties into the simulation using masks.
 
         Args:
@@ -1316,7 +1399,13 @@ class Articulation(BaseArticulation):
             if buf is not None:
                 self._write_flat_tensor_mask(tt, buf, env_mask, fixed_tendon_mask)
 
-    def set_spatial_tendon_stiffness_index(self, *, stiffness, spatial_tendon_ids=None, env_ids=None):
+    def set_spatial_tendon_stiffness_index(
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set spatial tendon stiffness into internal buffers using indices.
 
         Args:
@@ -1330,7 +1419,13 @@ class Articulation(BaseArticulation):
         if self._data._spatial_tendon_stiffness is not None:
             self._set_target_into_buffer(self._data._spatial_tendon_stiffness, stiffness, env_ids, spatial_tendon_ids)
 
-    def set_spatial_tendon_stiffness_mask(self, *, stiffness, spatial_tendon_mask=None, env_mask=None):
+    def set_spatial_tendon_stiffness_mask(
+        self,
+        *,
+        stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set spatial tendon stiffness into internal buffers using masks.
 
         Args:
@@ -1344,7 +1439,13 @@ class Articulation(BaseArticulation):
                 self._data._spatial_tendon_stiffness, stiffness, env_mask, spatial_tendon_mask
             )
 
-    def set_spatial_tendon_damping_index(self, *, damping, spatial_tendon_ids=None, env_ids=None):
+    def set_spatial_tendon_damping_index(
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set spatial tendon damping into internal buffers using indices.
 
         Args:
@@ -1358,7 +1459,13 @@ class Articulation(BaseArticulation):
         if self._data._spatial_tendon_damping is not None:
             self._set_target_into_buffer(self._data._spatial_tendon_damping, damping, env_ids, spatial_tendon_ids)
 
-    def set_spatial_tendon_damping_mask(self, *, damping, spatial_tendon_mask=None, env_mask=None):
+    def set_spatial_tendon_damping_mask(
+        self,
+        *,
+        damping: float | torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set spatial tendon damping into internal buffers using masks.
 
         Args:
@@ -1372,7 +1479,13 @@ class Articulation(BaseArticulation):
                 self._data._spatial_tendon_damping, damping, env_mask, spatial_tendon_mask
             )
 
-    def set_spatial_tendon_limit_stiffness_index(self, *, limit_stiffness, spatial_tendon_ids=None, env_ids=None):
+    def set_spatial_tendon_limit_stiffness_index(
+        self,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set spatial tendon limit stiffness into internal buffers using indices.
 
         Args:
@@ -1388,7 +1501,13 @@ class Articulation(BaseArticulation):
                 self._data._spatial_tendon_limit_stiffness, limit_stiffness, env_ids, spatial_tendon_ids
             )
 
-    def set_spatial_tendon_limit_stiffness_mask(self, *, limit_stiffness, spatial_tendon_mask=None, env_mask=None):
+    def set_spatial_tendon_limit_stiffness_mask(
+        self,
+        *,
+        limit_stiffness: float | torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set spatial tendon limit stiffness into internal buffers using masks.
 
         Args:
@@ -1402,7 +1521,13 @@ class Articulation(BaseArticulation):
                 self._data._spatial_tendon_limit_stiffness, limit_stiffness, env_mask, spatial_tendon_mask
             )
 
-    def set_spatial_tendon_offset_index(self, *, offset, spatial_tendon_ids=None, env_ids=None):
+    def set_spatial_tendon_offset_index(
+        self,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Set spatial tendon offset into internal buffers using indices.
 
         Args:
@@ -1416,7 +1541,13 @@ class Articulation(BaseArticulation):
         if self._data._spatial_tendon_offset is not None:
             self._set_target_into_buffer(self._data._spatial_tendon_offset, offset, env_ids, spatial_tendon_ids)
 
-    def set_spatial_tendon_offset_mask(self, *, offset, spatial_tendon_mask=None, env_mask=None):
+    def set_spatial_tendon_offset_mask(
+        self,
+        *,
+        offset: float | torch.Tensor | wp.array,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Set spatial tendon offset into internal buffers using masks.
 
         Args:
@@ -1428,7 +1559,12 @@ class Articulation(BaseArticulation):
         if self._data._spatial_tendon_offset is not None:
             self._set_target_into_buffer_mask(self._data._spatial_tendon_offset, offset, env_mask, spatial_tendon_mask)
 
-    def write_spatial_tendon_properties_to_sim_index(self, *, spatial_tendon_ids=None, env_ids=None):
+    def write_spatial_tendon_properties_to_sim_index(
+        self,
+        *,
+        spatial_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
         """Write spatial tendon properties into the simulation using indices.
 
         Args:
@@ -1447,7 +1583,12 @@ class Articulation(BaseArticulation):
             if buf is not None:
                 self._write_flat_tensor(tt, buf, env_ids, spatial_tendon_ids)
 
-    def write_spatial_tendon_properties_to_sim_mask(self, *, spatial_tendon_mask=None, env_mask=None):
+    def write_spatial_tendon_properties_to_sim_mask(
+        self,
+        *,
+        spatial_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Write spatial tendon properties into the simulation using masks.
 
         Args:
@@ -1516,8 +1657,6 @@ class Articulation(BaseArticulation):
     """
 
     def _initialize_impl(self) -> None:
-        from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxManager
-
         physx_instance = OvPhysxManager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
@@ -1563,7 +1702,8 @@ class Articulation(BaseArticulation):
                 f"Multiple articulation roots found under '{first_prim_path}': {root_prims}."
                 " There must be exactly one articulation root per prim path."
             )
-        root_relative = root_prims[0].GetPath().pathString[len(first_prim_path) :]
+        self._articulation_root_path = root_prims[0].GetPath().pathString
+        root_relative = self._articulation_root_path[len(first_prim_path) :]
         if root_relative:
             # e.g. first_prim_path=/World/envs/env_0/Robot, root_relative=/torso
             # pattern becomes /World/envs/env_*/Robot/torso
@@ -1660,8 +1800,6 @@ class Articulation(BaseArticulation):
 
         self._ALL_INDICES = wp.array(np.arange(self._num_instances, dtype=np.int32), device=self._device)
 
-        from isaaclab.utils.wrench_composer import WrenchComposer
-
         self._instantaneous_wrench_composer = WrenchComposer(self)
         self._permanent_wrench_composer = WrenchComposer(self)
         self._wrench_buf = wp.zeros((self._num_instances, self._num_bodies, 9), dtype=wp.float32, device=self._device)
@@ -1695,18 +1833,14 @@ class Articulation(BaseArticulation):
         self._resolve_joint_values(cfg.init_state.joint_pos, self._data._default_joint_pos)
         self._resolve_joint_values(cfg.init_state.joint_vel, self._data._default_joint_vel)
 
-        # Soft joint position limits.
-        # Joints without explicit USD limits report +/-FLT_MAX.  Clamp to a
-        # large but finite range to avoid overflow in the midpoint / half-range
-        # computation.
-        factor = cfg.soft_joint_pos_limit_factor
-        _LIMIT_CLAMP = 1e6
-        lim_np = self._data.joint_pos_limits.numpy().reshape(N, D, 2)
-        lim_np = np.clip(lim_np, -_LIMIT_CLAMP, _LIMIT_CLAMP)
-        mid = 0.5 * (lim_np[..., 0] + lim_np[..., 1])
-        half = 0.5 * (lim_np[..., 1] - lim_np[..., 0])
-        soft = np.stack([mid - factor * half, mid + factor * half], axis=-1)
-        self._data._soft_joint_pos_limits = wp.from_numpy(soft, dtype=wp.vec2f, device=dev)
+        # Keep soft-limit computation on-device, matching the PhysX/Newton path.
+        wp.launch(
+            update_soft_joint_pos_limits,
+            dim=(N, D),
+            inputs=[self._data.joint_pos_limits, cfg.soft_joint_pos_limit_factor],
+            outputs=[self._data._soft_joint_pos_limits],
+            device=dev,
+        )
 
     def _invalidate_initialize_callback(self, event) -> None:
         self._is_initialized = False
@@ -1765,10 +1899,10 @@ class Articulation(BaseArticulation):
     def _process_tendons(self) -> None:
         """Discover tendon counts from binding metadata and names from USD.
 
-        Tendon counts come from the ovphysx binding (fixed_tendon_count /
-        spatial_tendon_count). Tendon names come from walking the exported
-        USD stage and checking for PhysxTendon applied schemas on joints,
-        following the same logic as the PhysX backend.
+        Tendon counts come from the ovphysx binding metadata. Tendon names are
+        recovered from the exported USD articulation subtree because ovphysx
+        exposes joint names/counts, but not the per-joint USD paths that the
+        PhysX backend can query directly.
         """
         self._fixed_tendon_names = []
         self._spatial_tendon_names = []
@@ -1778,18 +1912,35 @@ class Articulation(BaseArticulation):
         self._num_spatial_tendons = getattr(sample, "spatial_tendon_count", 0)
 
         if self._num_fixed_tendons > 0 or self._num_spatial_tendons > 0:
-            from isaaclab_ovphysx.physics.ovphysx_manager import OvPhysxManager
-
             stage_path = OvPhysxManager._stage_path
             if stage_path is not None:
                 try:
                     from pxr import Usd, UsdPhysics
 
+                    from isaaclab.sim.utils.queries import get_all_matching_child_prims
+
                     stage = Usd.Stage.Open(stage_path)
-                    for prim in stage.Traverse():
-                        if not prim.HasAPI(UsdPhysics.Joint):
+                    articulation_root_path = getattr(self, "_articulation_root_path", None)
+                    if articulation_root_path is None:
+                        joint_prims = stage.Traverse()
+                    else:
+                        joint_prims = get_all_matching_child_prims(
+                            articulation_root_path,
+                            predicate=lambda p: p.IsA(UsdPhysics.Joint),
+                            stage=stage,
+                            traverse_instance_prims=False,
+                        )
+                    for prim in joint_prims:
+                        if not prim.IsA(UsdPhysics.Joint):
                             continue
-                        schemas_str = str(prim.GetAppliedSchemas())
+                        schema_names = list(prim.GetAppliedSchemas())
+                        metadata = prim.GetMetadata("apiSchemas")
+                        if metadata is not None:
+                            for field in ("prependedItems", "appendedItems", "explicitItems"):
+                                items = getattr(metadata, field, None)
+                                if items:
+                                    schema_names.extend(str(item) for item in items)
+                        schemas_str = " ".join(schema_names)
                         name = prim.GetPath().name
                         if "PhysxTendonAxisRootAPI" in schemas_str:
                             self._fixed_tendon_names.append(name)
