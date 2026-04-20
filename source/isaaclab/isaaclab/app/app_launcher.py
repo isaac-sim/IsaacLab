@@ -40,12 +40,11 @@ def sync_visualizer_cli_settings_to_carb(
     cli_explicit: bool | None = None,
     cli_disable_all: bool | None = None,
 ) -> None:
-    """Persist visualizer CLI flags (selection, env selection overrides) to carb settings.
+    """Persist visualizer CLI flags (selection, ``--viz_env_selection_max_visible``) to carb settings.
 
-    Optional Newton viewer arguments use :data:`argparse.SUPPRESS` defaults so only options the user
-    actually passed appear in *launcher_args*. We record ``cli_override/*`` booleans and only those
-    fields override :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` in
-    :meth:`SimulationContext._apply_visualizer_cli_overrides`.
+    Optional arguments use :data:`argparse.SUPPRESS` defaults so only options the user actually passed
+    appear in *launcher_args*. We record ``cli_override/viz_env_selection_max_visible`` and
+    ``/isaaclab/visualizer/env_selection_max_visible`` for :meth:`SimulationContext._apply_visualizer_cli_overrides`.
 
     Used by :class:`AppLauncher` and by standalone Newton/Rerun/Viser flows that skip Kit
     (see :mod:`isaaclab_tasks.utils.sim_launcher`).
@@ -55,17 +54,7 @@ def sync_visualizer_cli_settings_to_carb(
     if "viz_env_selection_max_visible" in launcher_args:
         v = launcher_args["viz_env_selection_max_visible"]
         if v is not None and int(v) < 0:
-            raise ValueError(
-                f"Invalid value for --viz_env_selection_max_visible: {v}. Expected non-negative int."
-            )
-
-    if "viz_env_selection_mode" in launcher_args:
-        mode_arg = launcher_args["viz_env_selection_mode"]
-        if mode_arg is not None and mode_arg not in ("none", "env_ids", "random_n"):
-            raise ValueError(
-                f"Invalid value for --viz_env_selection_mode: {mode_arg!r}. "
-                "Expected 'none', 'env_ids', or 'random_n'."
-            )
+            raise ValueError(f"Invalid value for --viz_env_selection_max_visible: {v}. Expected non-negative int.")
 
     if cli_explicit is None:
         cli_explicit = bool(launcher_args.get("visualizer_explicit", False))
@@ -90,53 +79,6 @@ def sync_visualizer_cli_settings_to_carb(
             )
         else:
             settings.set_int("/isaaclab/visualizer/env_selection_max_visible", -1)
-
-        settings.set_bool(
-            "/isaaclab/visualizer/cli_override/viz_env_selection_mode",
-            "viz_env_selection_mode" in launcher_args,
-        )
-        if "viz_env_selection_mode" in launcher_args:
-            settings.set_string(
-                "/isaaclab/visualizer/env_selection_mode", str(launcher_args["viz_env_selection_mode"])
-            )
-        else:
-            settings.set_string("/isaaclab/visualizer/env_selection_mode", "")
-
-        settings.set_bool(
-            "/isaaclab/visualizer/cli_override/viz_env_selection_ids",
-            "viz_env_selection_ids" in launcher_args,
-        )
-        if "viz_env_selection_ids" in launcher_args:
-            settings.set_string(
-                "/isaaclab/visualizer/env_selection_ids",
-                str(launcher_args["viz_env_selection_ids"]).strip(),
-            )
-        else:
-            settings.set_string("/isaaclab/visualizer/env_selection_ids", "")
-
-        settings.set_bool(
-            "/isaaclab/visualizer/cli_override/viz_env_selection_random_count",
-            "viz_env_selection_random_count" in launcher_args,
-        )
-        if "viz_env_selection_random_count" in launcher_args:
-            settings.set_int(
-                "/isaaclab/visualizer/env_selection_random_count",
-                int(launcher_args["viz_env_selection_random_count"]),
-            )
-        else:
-            settings.set_int("/isaaclab/visualizer/env_selection_random_count", -1)
-
-        settings.set_bool(
-            "/isaaclab/visualizer/cli_override/viz_env_selection_random_seed",
-            "viz_env_selection_random_seed" in launcher_args,
-        )
-        if "viz_env_selection_random_seed" in launcher_args:
-            settings.set_int(
-                "/isaaclab/visualizer/env_selection_random_seed",
-                int(launcher_args["viz_env_selection_random_seed"]),
-            )
-        else:
-            settings.set_int("/isaaclab/visualizer/env_selection_random_seed", -1)
 
 
 # Suppress noisy debug-level logs from third-party libraries
@@ -435,11 +377,10 @@ class AppLauncher:
           - Multiple visualizers can be specified as a comma-delimited list:
             ``--viz rerun,newton,viser``.
 
-        * ``viz_env_selection_max_visible`` (int | None): Optional global cap on how many envs each visualizer shows when
-          ``env_selection_mode`` is ``none`` (newton, rerun, viser, kit). If omitted, each visualizer uses its config default.
-
-        * ``viz_env_selection_mode`` / ``viz_env_selection_ids`` / ``viz_env_selection_random_count`` / ``viz_env_selection_random_seed``:
-          Optional global overrides for :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` env selection.
+        * ``viz_env_selection_max_visible`` (int | None): Optional global cap on how many envs each visualizer
+          shows when ``env_selection_mode`` is ``none`` (newton, rerun, viser, kit). If omitted, each visualizer
+          uses its config default.
+          Other ``VisualizerCfg`` env-selection fields are set only in Python config, not via AppLauncher CLI.
 
         .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
 
@@ -599,33 +540,6 @@ class AppLauncher:
                 "when ``env_selection_mode`` is ``none``. If omitted, task/visualizer config values are kept."
             ),
         )
-        arg_group.add_argument(
-            "--viz_env_selection_mode",
-            type=str,
-            default=argparse.SUPPRESS,
-            help=(
-                "When set, overrides ``env_selection_mode`` on visualizer configs "
-                "(none | env_ids | random_n). If omitted, task/visualizer config values are kept."
-            ),
-        )
-        arg_group.add_argument(
-            "--viz_env_selection_ids",
-            type=str,
-            default=argparse.SUPPRESS,
-            help="When set, overrides ``env_selection_ids`` (comma-separated, e.g. 0,2,5).",
-        )
-        arg_group.add_argument(
-            "--viz_env_selection_random_count",
-            type=int,
-            default=argparse.SUPPRESS,
-            help="When set, overrides ``env_selection_random_count``.",
-        )
-        arg_group.add_argument(
-            "--viz_env_selection_random_seed",
-            type=int,
-            default=argparse.SUPPRESS,
-            help="When set, overrides ``env_selection_random_seed``.",
-        )
         # special flag for backwards compatibility
 
         # Corresponding to the beginning of the function,
@@ -647,10 +561,6 @@ class AppLauncher:
         "experience": ([str], ""),
         "rendering_mode": ([str], "balanced"),
         "viz_env_selection_max_visible": ([int, type(None)], None),
-        "viz_env_selection_mode": ([str, type(None)], None),
-        "viz_env_selection_ids": ([str, type(None)], None),
-        "viz_env_selection_random_count": ([int, type(None)], None),
-        "viz_env_selection_random_seed": ([int, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
 

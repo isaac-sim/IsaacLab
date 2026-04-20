@@ -40,7 +40,7 @@ def apply_viewer_visible_worlds(
     Args:
         viewer: Newton viewer (ViewerGL, ViewerRerun, ViewerViser, etc.).
         env_ids: Explicit env indices from ``env_selection_*`` config, or ``None`` when showing all
-            unless :attr:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg.env_selection_max_visible` limits the count.
+            unless ``env_selection_max_visible`` limits the count (see ``VisualizerCfg``).
         env_selection_max_visible: Optional cap on the number of worlds (``0..num_envs-1``) when ``env_ids`` is
             ``None``.
         num_envs: Total environment count from scene metadata.

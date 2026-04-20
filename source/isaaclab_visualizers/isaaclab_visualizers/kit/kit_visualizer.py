@@ -85,9 +85,7 @@ class KitVisualizer(BaseVisualizer):
             )
             self._apply_env_visibility(usd_stage, metadata, self._resolved_visible_env_ids)
         num_visualized_envs = (
-            len(self._resolved_visible_env_ids)
-            if self._resolved_visible_env_ids is not None
-            else num_envs_meta
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs_meta
         )
         self._log_initialization_table(
             logger=logger,

@@ -142,14 +142,17 @@ For the migration-focused summary and deprecation context, see
 Partial visualization
 ~~~~~~~~~~~~~~~~~~~~~
 
-:attr:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg.env_selection_mode` and related fields control which env
-indices each **viewer** uses. ``env_selection_max_visible`` applies when the mode is ``none`` (cap indices ``0..N-1``).
-``env_selection_random_count`` applies only when the mode is ``random_n``; it does not duplicate
-``env_selection_max_visible``.
+Partial visualization can be used to visualize a subset of envs to improve performance.
 
-**CLI vs config:** If you pass matching ``--viz_env_selection_*`` flags, Isaac Lab applies them **after** resolving
-``SimulationCfg.visualizer_cfgs``, and those values **take precedence** over the same fields on each
-:class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` for that run.
+``VisualizerCfg.env_selection_mode`` and related fields control which env indices each **viewer** uses.
+``VisualizerCfg.env_selection_max_visible`` applies when the mode is ``none`` (cap indices ``0..N-1``).
+``VisualizerCfg.env_selection_random_count`` applies only when the mode is ``random_n``; it does not duplicate
+``VisualizerCfg.env_selection_max_visible`` (used in ``none`` mode).
+
+**CLI vs config (cap):** The only CLI flag that maps to ``env_selection_max_visible`` is
+``--viz_env_selection_max_visible``. When you pass it, Isaac Lab applies it **after** resolving
+``SimulationCfg.visualizer_cfgs``, and it **takes precedence** over ``VisualizerCfg.env_selection_max_visible`` for
+that run.
 
 - **Newton, Rerun, Viser:** Newton ``set_visible_worlds`` limits which worlds the viewer draws.
 - **Kit (Omniverse):** Non-selected ``/World/envs/env_*`` prims are hidden via USD visibility. **This is not a reliable

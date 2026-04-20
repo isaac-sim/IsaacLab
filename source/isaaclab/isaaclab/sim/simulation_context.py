@@ -447,7 +447,7 @@ class SimulationContext:
         return False
 
     def _get_cli_visualizer_env_selection_max_visible_override(self) -> tuple[bool, int | None]:
-        """Return CLI override for ``env_selection_max_visible`` when the user passed ``--viz_env_selection_max_visible``."""
+        """CLI override for ``env_selection_max_visible`` when ``--viz_env_selection_max_visible`` is set."""
         if not self._cli_visualizer_field_overridden("viz_env_selection_max_visible"):
             return False, None
         value = self.get_setting("/isaaclab/visualizer/env_selection_max_visible")
@@ -464,21 +464,6 @@ class SimulationContext:
             return False, None
         return True, max_visible
 
-    def _parse_cli_env_selection_ids_setting(self) -> list[int]:
-        ids_raw = self.get_setting("/isaaclab/visualizer/env_selection_ids")
-        if ids_raw is None or not str(ids_raw).strip():
-            return []
-        parts = [p.strip() for p in str(ids_raw).split(",") if p.strip()]
-        parsed: list[int] = []
-        for p in parts:
-            try:
-                parsed.append(int(p))
-            except ValueError:
-                logger.warning(
-                    "[SimulationContext] Invalid env id in /isaaclab/visualizer/env_selection_ids: %r", p
-                )
-        return parsed
-
     def _apply_visualizer_cli_overrides(self, visualizer_cfgs: list[Any]) -> None:
         """Apply CLI visualizer overrides to resolved configs (only fields the user set on the CLI)."""
         has_max, max_visible_override = self._get_cli_visualizer_env_selection_max_visible_override()
@@ -486,34 +471,6 @@ class SimulationContext:
             for cfg in visualizer_cfgs:
                 if hasattr(cfg, "env_selection_max_visible"):
                     cfg.env_selection_max_visible = max_visible_override
-
-        for cfg in visualizer_cfgs:
-            if not hasattr(cfg, "env_selection_mode"):
-                continue
-            if self._cli_visualizer_field_overridden("viz_env_selection_mode"):
-                mode = self.get_setting("/isaaclab/visualizer/env_selection_mode")
-                if mode is not None and str(mode).strip():
-                    cfg.env_selection_mode = str(mode).strip()
-            if self._cli_visualizer_field_overridden("viz_env_selection_ids"):
-                cfg.env_selection_ids = list(self._parse_cli_env_selection_ids_setting())
-            if self._cli_visualizer_field_overridden("viz_env_selection_random_count"):
-                rn = self.get_setting("/isaaclab/visualizer/env_selection_random_count")
-                if rn is not None:
-                    try:
-                        cfg.env_selection_random_count = int(rn)
-                    except (TypeError, ValueError):
-                        logger.warning(
-                            "[SimulationContext] Invalid /isaaclab/visualizer/env_selection_random_count: %r", rn
-                        )
-            if self._cli_visualizer_field_overridden("viz_env_selection_random_seed"):
-                seed = self.get_setting("/isaaclab/visualizer/env_selection_random_seed")
-                if seed is not None:
-                    try:
-                        cfg.env_selection_random_seed = int(seed)
-                    except (TypeError, ValueError):
-                        logger.warning(
-                            "[SimulationContext] Invalid /isaaclab/visualizer/env_selection_random_seed: %r", seed
-                        )
 
     def _is_cli_visualizer_explicit(self) -> bool:
         """Return ``True`` when visualizers were explicitly provided via CLI."""

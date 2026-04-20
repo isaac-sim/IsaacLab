@@ -51,14 +51,6 @@ def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/cli_override/viz_env_selection_max_visible": True,
         "/isaaclab/visualizer/env_selection_max_visible": 0,
-        "/isaaclab/visualizer/cli_override/viz_env_selection_mode": False,
-        "/isaaclab/visualizer/env_selection_mode": "",
-        "/isaaclab/visualizer/cli_override/viz_env_selection_ids": False,
-        "/isaaclab/visualizer/env_selection_ids": "",
-        "/isaaclab/visualizer/cli_override/viz_env_selection_random_count": False,
-        "/isaaclab/visualizer/env_selection_random_count": -1,
-        "/isaaclab/visualizer/cli_override/viz_env_selection_random_seed": False,
-        "/isaaclab/visualizer/env_selection_random_seed": -1,
     }
 
 
