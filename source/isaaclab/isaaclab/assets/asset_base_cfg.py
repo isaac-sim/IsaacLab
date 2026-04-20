@@ -75,3 +75,14 @@ class AssetBaseCfg:
 
     debug_vis: bool = False
     """Whether to enable debug visualization for the asset. Defaults to ``False``."""
+
+    disable_shape_checks: bool | None = None
+    """Disable shape/dtype validation in setter and writer methods.
+
+    When ``True``, :meth:`~AssetBase.assert_shape_and_dtype` and
+    :meth:`~AssetBase.assert_shape_and_dtype_mask` become no-ops,
+    eliminating ~5-10 us of overhead per call.
+
+    When ``None`` (the default), shape checks follow Python's ``__debug__``
+    flag — enabled in normal mode, disabled with ``python -O``.
+    """

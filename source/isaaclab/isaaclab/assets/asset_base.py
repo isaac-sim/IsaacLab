@@ -66,6 +66,12 @@ class AssetBase(ABC):
         cfg.validate()
         # store inputs
         self.cfg = cfg.copy()
+        # Resolve shape-check flag once: True means checks are active.
+        # None → follow __debug__; True → force disable; False → force enable.
+        if self.cfg.disable_shape_checks is None:
+            self._check_shapes: bool = __debug__
+        else:
+            self._check_shapes = not self.cfg.disable_shape_checks
         # flag for whether the asset is initialized
         self._is_initialized = False
         # get stage handle
@@ -257,13 +263,16 @@ class AssetBase(ABC):
     ) -> None:
         """Assert the shape and dtype of a tensor or warp array.
 
+        Controlled by :attr:`AssetBaseCfg.disable_shape_checks`. When checks are
+        disabled this method is a no-op.
+
         Args:
             tensor: The tensor or warp array to assert the shape of. Floats are skipped.
             shape: The expected leading dimensions (e.g. ``(num_envs, num_joints)``).
             dtype: The expected warp dtype.
             name: Optional parameter name for error messages.
         """
-        if __debug__:
+        if self._check_shapes:
             cls = type(self).__name__
             prefix = f"{cls}: '{name}' " if name else f"{cls}: "
             if isinstance(tensor, (int, float)):
@@ -294,6 +303,9 @@ class AssetBase(ABC):
         ``(mask_0.shape[0], mask_1.shape[0], ...)`` (i.e. the *total* size of each dimension, not the
         number of selected entries).
 
+        Controlled by :attr:`AssetBaseCfg.disable_shape_checks`. When checks are
+        disabled this method is a no-op.
+
         Args:
             tensor: The tensor or warp array to assert the shape of. Floats are skipped.
             masks: Tuple of mask arrays whose ``shape[0]`` dimensions form the expected leading shape.
@@ -301,7 +313,7 @@ class AssetBase(ABC):
             name: Optional parameter name for error messages.
             trailing_dims: Extra trailing dimensions to append (e.g. ``(9,)`` for inertias with ``wp.float32``).
         """
-        if __debug__:
+        if self._check_shapes:
             shape = (*tuple(m.shape[0] for m in masks), *trailing_dims)
             self.assert_shape_and_dtype(tensor, shape, dtype, name)
 

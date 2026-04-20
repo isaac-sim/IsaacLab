@@ -40,6 +40,7 @@ parser.add_argument("--num_joints", type=int, default=11, help="Number of joints
 parser.add_argument("--mode", type=str, default="all", help="Benchmark mode (all, torch_list, torch_tensor, warp_mask)")
 parser.add_argument("--output_dir", type=str, default=".", help="Output directory for results")
 parser.add_argument("--backend", type=str, default="json", choices=["json", "osmo", "omniperf"], help="Metrics backend")
+parser.add_argument("--no_shape_checks", action="store_true", help="Disable shape/dtype assertions")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -135,6 +136,7 @@ def create_test_articulation(
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
+    object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
 
     # Create ArticulationData instance (NewtonManager already mocked at call site)
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
