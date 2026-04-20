@@ -259,7 +259,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._last_newton_model_build_source = (
                 "usd_fallback_forced" if self._force_usd_fallback_for_newton_model_build else "usd_fallback"
             )
-
+            
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
@@ -292,7 +292,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._filtered_body_indices = []
         except ModuleNotFoundError as exc:
             self._last_newton_model_build_source = "error"
-            logger.warning(
+            logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
                 "Install the Newton backend to use newton/rerun/viser visualizers."
             )
@@ -357,7 +357,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                     len(missing),
                 )
         except ModuleNotFoundError as exc:
-            logger.warning(
+            logger.error(
                 "[PhysxSceneDataProvider] Newton module not available. "
                 "Install the Newton backend to use newton/rerun/viser visualizers."
             )
