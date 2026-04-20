@@ -46,6 +46,8 @@ class KitVisualizer(BaseVisualizer):
         self._step_counter = 0
         self._hidden_env_visibilities: dict[str, str] = {}
         self._runtime_headless = bool(cfg.headless)
+        # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
+        self._controlled_camera_path: str | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -226,9 +228,12 @@ class KitVisualizer(BaseVisualizer):
                     "using eye/lookat from cfg instead."
                 )
             self._apply_cfg_camera_pose_if_configured()
+            self._refresh_controlled_camera_path()
             return
 
-        effective_viewport_name = self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
+        effective_viewport_name = (
+            self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
+        )
 
         if self.cfg.create_viewport:
             if not str(effective_viewport_name).strip():
@@ -260,6 +265,7 @@ class KitVisualizer(BaseVisualizer):
         if self._viewport_window is None:
             logger.warning("[KitVisualizer] No active viewport window found.")
             self._viewport_api = None
+            self._refresh_controlled_camera_path()
             return
         self._viewport_api = self._viewport_window.viewport_api
         if self.cfg.cam_source == "prim_path":
@@ -270,6 +276,15 @@ class KitVisualizer(BaseVisualizer):
                 )
         else:
             self._apply_cfg_camera_pose_if_configured()
+        self._refresh_controlled_camera_path()
+
+    def _refresh_controlled_camera_path(self) -> None:
+        """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""
+        if self._viewport_api is not None:
+            path = self._viewport_api.get_active_camera()
+            self._controlled_camera_path = path if path else "/OmniverseKit_Persp"
+        else:
+            self._controlled_camera_path = "/OmniverseKit_Persp"
 
     async def _dock_viewport_async(self, viewport_name: str, dock_position) -> None:
         """Dock a created viewport window relative to main viewport."""
