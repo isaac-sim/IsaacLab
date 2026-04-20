@@ -351,7 +351,7 @@ class DeformableBodyPropertiesCfg:
     self_collision_filter_distance: float | None = None
     """Penetration value that needs to get exceeded before contacts for self collision are generated.
 
-    This parameter must be greater than of equal to twice the :attr:`rest_offset` value.
+    This parameter must be greater than or equal to twice the :attr:`rest_offset` value.
 
     This value has an effect only if :attr:`self_collision` is enabled.
     """
@@ -360,7 +360,7 @@ class DeformableBodyPropertiesCfg:
     """Threshold vertex velocity (in m/s) under which sleep damping is applied in addition to velocity damping."""
 
     sleep_damping: float | None = None
-    """Coefficient for the additional damping term if fertex velocity drops below setting threshold."""
+    """Coefficient for the additional damping term if vertex velocity drops below setting threshold."""
 
     sleep_threshold: float | None = None
     """The velocity threshold (in m/s) under which the vertex becomes a candidate for sleeping in the next step."""
@@ -416,8 +416,8 @@ class DeformableBodyPropertiesCfg:
     collision_simplification_force_conforming: bool = True
     """Whether or not the simplification should force the output mesh to conform to the input mesh. Defaults to True.
 
-    The flag indicates that the tretrahedralizer used to generate the collision mesh should produce tetrahedra
-    that conform to the triangle mesh. If False, the simplifier uses the output from the tretrahedralizer used.
+    The flag indicates that the tetrahedralizer used to generate the collision mesh should produce tetrahedra
+    that conform to the triangle mesh. If False, the simplifier uses the output from the tetrahedralizer used.
 
     This parameter is ignored if :attr:`collision_simplification` is False.
     """

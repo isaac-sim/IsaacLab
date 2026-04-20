@@ -69,6 +69,9 @@ def update_ray_caster_kernel(
         offset_quat: Per-env quaternion offset from view to sensor. Shape is (num_envs,).
         drift: Per-env position drift [m]. Shape is (num_envs,).
         ray_cast_drift: Per-env ray cast drift [m]. Shape is (num_envs,).
+            After rotation by the alignment quaternion, only the x and y components
+            are applied to the ray start position; the z component of the sensor
+            position is preserved.
         ray_starts_local: Per-env local ray start positions [m]. Shape is (num_envs, num_rays).
         ray_directions_local: Per-env local ray directions (unit vectors). Shape is (num_envs, num_rays).
         alignment_mode: 0=world, 1=yaw, 2=base.

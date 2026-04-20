@@ -28,7 +28,7 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
         if the input prim path is a regex pattern. This is done to support spawning multiple assets
-        from a single and cloning the USD prim at the given path expression.
+        from a single prim and cloning the USD prim at the given path expression.
 
     Args:
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
@@ -87,7 +87,7 @@ def spawn_deformable_body_material(prim_path: str, cfg: physics_materials_cfg.De
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
         if the input prim path is a regex pattern. This is done to support spawning multiple assets
-        from a single and cloning the USD prim at the given path expression.
+        from a single prim and cloning the USD prim at the given path expression.
 
     Args:
         prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,

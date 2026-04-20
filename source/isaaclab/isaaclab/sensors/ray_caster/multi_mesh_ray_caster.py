@@ -18,7 +18,7 @@ import omni.physics.tensors.impl.api as physx
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.views import XformPrimView
-from isaaclab.utils.math import matrix_from_quat, quat_mul
+from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
 from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
 from isaaclab.utils.warp import convert_to_warp_mesh
 from isaaclab.utils.warp import kernels as warp_kernels
@@ -42,8 +42,8 @@ class MultiMeshRayCaster(RayCaster):
     a set of meshes with a given ray pattern.
 
     The meshes are parsed from the list of primitive paths provided in the configuration. These are then
-    converted to warp meshes and stored in the :attr:`meshes` list. The ray-caster then ray-casts against
-    these warp meshes using the ray pattern provided in the configuration.
+    converted to warp meshes and stored in the :attr:`meshes` dictionary. The ray-caster then ray-casts
+    against these warp meshes using the ray pattern provided in the configuration.
 
     Compared to the default RayCaster, the MultiMeshRayCaster provides additional functionality and flexibility as
     an extension of the default RayCaster with the following enhancements:
@@ -53,6 +53,15 @@ class MultiMeshRayCaster(RayCaster):
     - Dynamic mesh tracking : Keeps track of specified meshes, enabling raycasting against moving parts
       (e.g., robot links, articulated bodies, or dynamic obstacles).
     - Memory-efficient caching : Avoids redundant memory usage by reusing mesh data across environments.
+
+    .. warning::
+        **Known limitation (multi-mesh closest-hit resolution):** When two meshes produce a
+        hit at the exact same distance for a given ray, the ``atomic_min`` + equality-check
+        pattern in the raycasting kernel is not fully thread-safe. The hit *position* is always
+        correct, but auxiliary outputs (normals, face IDs, mesh IDs) may originate from
+        different meshes for the affected ray. This requires an exact floating-point tie and is
+        rare in practice. See `warp#1058 <https://github.com/NVIDIA/warp/issues/1058>`_ for
+        upstream progress on a thread-safe ``atomic_min`` return value.
 
     Example usage to raycast against the visual meshes of a robot (e.g. ANYmal):
 
@@ -77,7 +86,10 @@ class MultiMeshRayCaster(RayCaster):
     cfg: MultiMeshRayCasterCfg
     """The configuration parameters."""
 
-    mesh_offsets: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
+    mesh_offsets: ClassVar[dict[str, tuple[torch.Tensor, torch.Tensor]]] = {}
+    """Per-mesh position and orientation offsets relative to their physics views, shared across instances.
+
+    Keys are prim path expressions; values are ``(pos_offset, ori_offset)`` tuples."""
 
     mesh_views: ClassVar[dict[str, XformPrimView | physx.ArticulationView | physx.RigidBodyView]] = {}
     """A dictionary to store mesh views for raycasting, shared across all instances.
@@ -349,8 +361,12 @@ class MultiMeshRayCaster(RayCaster):
 
             if target_cfg.prim_expr in MultiMeshRayCaster.mesh_offsets:
                 pos_offset, ori_offset = MultiMeshRayCaster.mesh_offsets[target_cfg.prim_expr]
-                pos_w -= pos_offset
-                ori_w = quat_mul(ori_offset.expand(ori_w.shape[0], -1), ori_w)
+                pos_w, ori_w = combine_frame_transforms(
+                    pos_w,
+                    ori_w,
+                    pos_offset.expand(pos_w.shape[0], -1),
+                    ori_offset.expand(ori_w.shape[0], -1),
+                )
 
             count = view.count
             if count != 1:
@@ -385,7 +401,7 @@ class MultiMeshRayCaster(RayCaster):
 
         # Ray-cast against all meshes; closest hit wins via atomic_min on ray_distance
         wp.launch(
-            warp_kernels.raycast_dynamic_meshes_masked_kernel,
+            warp_kernels.raycast_dynamic_meshes_kernel,
             dim=(n_meshes, self._num_envs, self.num_rays),
             inputs=[
                 env_mask,

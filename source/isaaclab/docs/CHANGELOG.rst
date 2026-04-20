@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.6.2 (2026-04-14)
+4.6.2 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -32,6 +32,14 @@ Changed
      hits = sensor.data.ray_hits_w          # torch.Tensor (old)
      # After
      hits = wp.to_torch(sensor.data.ray_hits_w)  # torch.Tensor (zero-copy view)
+
+Fixed
+^^^^^
+
+* Fixed frame composition in :meth:`~isaaclab.sensors.MultiMeshRayCaster._update_mesh_transforms`
+  which used simple subtraction instead of proper frame decomposition when applying mesh offsets.
+  With non-identity orientation offsets, tracked mesh positions were incorrect, causing raycasts to
+  miss or hit wrong surfaces. The method now uses :func:`~isaaclab.utils.math.combine_frame_transforms`.
 
 
 4.6.1 (2026-04-14)

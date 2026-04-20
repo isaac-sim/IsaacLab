@@ -46,8 +46,8 @@ class RayCaster(SensorBase):
     a set of meshes with a given ray pattern.
 
     The meshes are parsed from the list of primitive paths provided in the configuration. These are then
-    converted to warp meshes and stored in the `warp_meshes` list. The ray-caster then ray-casts against
-    these warp meshes using the ray pattern provided in the configuration.
+    converted to warp meshes and stored in the :attr:`meshes` dictionary. The ray-caster then ray-casts
+    against these warp meshes using the ray pattern provided in the configuration.
 
     .. note::
         Currently, only static meshes are supported. Extending the warp mesh to support dynamic meshes
@@ -388,7 +388,7 @@ class RayCaster(SensorBase):
 
     def _obtain_trackable_prim_view(
         self, target_prim_path: str
-    ) -> tuple[XformPrimView | any, tuple[torch.Tensor, torch.Tensor]]:
+    ) -> tuple[XformPrimView | physx.ArticulationView | physx.RigidBodyView, tuple[torch.Tensor, torch.Tensor]]:
         """Obtain a prim view that can be used to track the pose of the target prim.
 
         The target prim path is a regex expression that matches one or more mesh prims. While we can track its

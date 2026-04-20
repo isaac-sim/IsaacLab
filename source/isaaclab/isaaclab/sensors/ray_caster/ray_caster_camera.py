@@ -152,10 +152,13 @@ class RayCasterCamera(RayCaster):
         self.ray_starts[env_ids], self.ray_directions[env_ids] = self.cfg.pattern_cfg.func(
             self.cfg.pattern_cfg, self._data.intrinsic_matrices[env_ids], self._device
         )
-        # Refresh warp views of local ray buffers; .contiguous() produces a copy so views must be recreated.
+        # Refresh warp views of local ray buffers; .contiguous() may produce a copy so we store
+        # the contiguous tensors explicitly to prevent GC while the warp views are alive.
         if hasattr(self, "_ray_starts_local"):
-            self._ray_starts_local = wp.from_torch(self.ray_starts.contiguous(), dtype=wp.vec3f)
-            self._ray_directions_local = wp.from_torch(self.ray_directions.contiguous(), dtype=wp.vec3f)
+            self._ray_starts_contiguous = self.ray_starts.contiguous()
+            self._ray_directions_contiguous = self.ray_directions.contiguous()
+            self._ray_starts_local = wp.from_torch(self._ray_starts_contiguous, dtype=wp.vec3f)
+            self._ray_directions_local = wp.from_torch(self._ray_directions_contiguous, dtype=wp.vec3f)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timestamps
@@ -192,7 +195,7 @@ class RayCasterCamera(RayCaster):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`isaaclab.utils.maths.convert_camera_frame_orientation_convention` for more details
+        See :meth:`isaaclab.utils.math.convert_camera_frame_orientation_convention` for more details
         on the conventions.
 
         Args:
@@ -237,7 +240,7 @@ class RayCasterCamera(RayCaster):
         """Set the poses of the camera from the eye position and look-at target position.
 
         Args:
-            eyes: The positions of the camera's eye. Shape is N, 3).
+            eyes: The positions of the camera's eye. Shape is (N, 3).
             targets: The target locations to look at. Shape is (N, 3).
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
@@ -291,13 +294,19 @@ class RayCasterCamera(RayCaster):
 
         # Warp views for ray_starts and ray_directions (from torch tensors returned by pattern_cfg.func)
         # These are (num_envs, num_rays, 3) torch tensors; wrap as warp vec3f arrays.
-        self._ray_starts_local = wp.from_torch(self.ray_starts.contiguous(), dtype=wp.vec3f)
-        self._ray_directions_local = wp.from_torch(self.ray_directions.contiguous(), dtype=wp.vec3f)
+        # Store contiguous tensors explicitly so they are not garbage-collected while the
+        # warp views are alive (mirrors the pattern in RayCaster._initialize_impl).
+        self._ray_starts_contiguous = self.ray_starts.contiguous()
+        self._ray_directions_contiguous = self.ray_directions.contiguous()
+        self._ray_starts_local = wp.from_torch(self._ray_starts_contiguous, dtype=wp.vec3f)
+        self._ray_directions_local = wp.from_torch(self._ray_directions_contiguous, dtype=wp.vec3f)
 
         # Wrap the torch drift buffers (created in _create_buffers) as warp arrays (zero-copy).
         # Cameras do not apply positional drift, so these remain zero.
-        self._drift = wp.from_torch(self.drift.contiguous(), dtype=wp.vec3f)
-        self._ray_cast_drift = wp.from_torch(self.ray_cast_drift.contiguous(), dtype=wp.vec3f)
+        self._drift_contiguous = self.drift.contiguous()
+        self._ray_cast_drift_contiguous = self.ray_cast_drift.contiguous()
+        self._drift = wp.from_torch(self._drift_contiguous, dtype=wp.vec3f)
+        self._ray_cast_drift = wp.from_torch(self._ray_cast_drift_contiguous, dtype=wp.vec3f)
 
         # Warp buffers for camera pose outputs
         self._pos_w_wp = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
