@@ -170,8 +170,9 @@ Installing dependencies
             When using a conda environment,
             the preload is set up via the conda activation hook.
 
--  If you want to use ``rl_games`` for training and inferencing, install
-   its Python 3.11+ enabled fork:
+-  If you want to use ``rl_games`` for training and inferencing **and did not
+   install the** ``rl`` **extra above**, install its Python 3.11+ enabled fork
+   manually:
 
    .. code-block:: none
 
