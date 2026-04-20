@@ -951,9 +951,42 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        # set into simulation
-        self.write_joint_position_to_sim_mask(position, env_mask=env_mask, joint_mask=joint_mask)
-        self.write_joint_velocity_to_sim_mask(velocity, env_mask=env_mask, joint_mask=joint_mask)
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
+        self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
+        self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data_mask,
+            dim=(env_mask.shape[0], joint_mask.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_mask,
+                joint_mask,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk()
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_pose_b is not None:
+            self.data._body_com_pose_b.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_joint_position_to_sim_index(
         self,
@@ -3887,6 +3920,40 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
-        # set into simulation
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+        self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data_index,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk()
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_pose_b is not None:
+            self.data._body_com_pose_b.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0

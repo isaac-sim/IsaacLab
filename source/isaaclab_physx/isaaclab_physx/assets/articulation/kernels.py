@@ -102,6 +102,44 @@ def write_joint_vel_data(
 
 
 @wp.kernel
+def write_joint_state_data(
+    pos_data: wp.array2d(dtype=wp.float32),
+    vel_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    from_mask: bool,
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint position and velocity data in a single kernel launch.
+
+    Args:
+        pos_data: Input joint positions. Shape depends on from_mask.
+        vel_data: Input joint velocities. Shape depends on from_mask.
+        env_ids: Environment indices. Shape is (num_selected_envs,).
+        joint_ids: Joint indices. Shape is (num_selected_joints,).
+        from_mask: If True, use env_ids/joint_ids to index into data.
+        joint_pos: Output joint positions. Shape is (num_envs, num_joints).
+        joint_vel: Output joint velocities. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output previous joint velocities. Shape is (num_envs, num_joints).
+        joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    if from_mask:
+        p = pos_data[env_ids[i], joint_ids[j]]
+        v = vel_data[env_ids[i], joint_ids[j]]
+    else:
+        p = pos_data[i, j]
+        v = vel_data[i, j]
+    joint_pos[env_ids[i], joint_ids[j]] = p
+    joint_vel[env_ids[i], joint_ids[j]] = v
+    prev_joint_vel[env_ids[i], joint_ids[j]] = v
+    joint_acc[env_ids[i], joint_ids[j]] = 0.0
+
+
+@wp.kernel
 def write_joint_limit_data_to_buffer(
     in_data: wp.array2d(dtype=wp.vec2f),
     soft_limit_factor: wp.float32,

@@ -831,6 +831,71 @@ class Articulation(BaseArticulation):
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids, full_data=True)
 
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        """Write joint positions and velocities in a single fused kernel launch.
+
+        .. note::
+            This method expect partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        if full_data:
+            self.assert_shape_and_dtype(position, (self.num_instances, self.num_joints), wp.float32, "position")
+            self.assert_shape_and_dtype(velocity, (self.num_instances, self.num_joints), wp.float32, "velocity")
+        else:
+            self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+            self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate buffers
+        self.data._body_com_vel_w.timestamp = -1.0
+        self.data._body_link_vel_w.timestamp = -1.0
+        self.data._body_com_pose_b.timestamp = -1.0
+        self.data._body_com_pose_w.timestamp = -1.0
+        self.data._body_link_pose_w.timestamp = -1.0
+        self.data._body_state_w.timestamp = -1.0
+        self.data._body_link_state_w.timestamp = -1.0
+        self.data._body_com_state_w.timestamp = -1.0
+        # set into simulation
+        self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
+        self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
+
     def write_joint_state_to_sim_mask(
         self,
         *,
@@ -854,9 +919,12 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        # set into simulation
-        self.write_joint_position_to_sim_mask(position=position, env_mask=env_mask, joint_mask=joint_mask)
-        self.write_joint_velocity_to_sim_mask(velocity=velocity, env_mask=env_mask, joint_mask=joint_mask)
+        # resolve masks to indices (PhysX only supports index-based TensorAPI)
+        env_ids = self._resolve_env_mask(env_mask)
+        joint_ids = self._resolve_joint_mask(joint_mask)
+        self.write_joint_state_to_sim_index(
+            position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+        )
 
     def write_joint_position_to_sim_index(
         self,
@@ -4677,14 +4745,11 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
-        :meth:`write_joint_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_state_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
+            " use 'write_joint_state_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        # set into simulation
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
