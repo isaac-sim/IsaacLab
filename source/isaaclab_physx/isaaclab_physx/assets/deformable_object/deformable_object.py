@@ -398,7 +398,7 @@ class DeformableObject(AssetBase):
             write_nodal_vec4f_to_buffer,
             dim=(env_ids.shape[0], self.max_sim_vertices_per_body),
             inputs=[targets, env_ids, full_data],
-            outputs=[self._data.nodal_kinematic_target.warp],
+            outputs=[self._data.nodal_kinematic_target],
             device=self.device,
         )
         # set into simulation

@@ -223,7 +223,7 @@ class Pva(BasePva):
                 self._coms_buffer,
                 self._offset_pos_b,
                 self._offset_quat_b,
-                self.GRAVITY_VEC_W.warp,
+                self.GRAVITY_VEC_W,
                 self._prev_lin_vel_w,
                 self._prev_ang_vel_w,
                 1.0 / self._dt,

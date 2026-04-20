@@ -341,7 +341,7 @@ class RigidObject(BaseRigidObject):
                 full_data,
             ],
             outputs=[
-                self.data.root_link_pose_w.warp,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
             ],
@@ -419,13 +419,13 @@ class RigidObject(BaseRigidObject):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pose_b.warp,
+                self.data.body_com_pose_b,
                 env_ids,
                 full_data,
             ],
             outputs=[
-                self.data.root_com_pose_w.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.root_com_pose_w,
+                self.data.root_link_pose_w,
                 None,  # self.data._root_com_state_w.data,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
@@ -512,8 +512,8 @@ class RigidObject(BaseRigidObject):
                 full_data,
             ],
             outputs=[
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
             ],
@@ -598,16 +598,16 @@ class RigidObject(BaseRigidObject):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b.warp,
-                self.data.root_link_pose_w.warp,
+                self.data.body_com_pose_b,
+                self.data.root_link_pose_w,
                 env_ids,
                 1,  # num_bodies is always 1 for RigidObject
                 full_data,
             ],
             outputs=[
-                self.data.root_link_vel_w.warp,
-                self.data.root_com_vel_w.warp,
-                self.data.body_com_acc_w.warp,
+                self.data.root_link_vel_w,
+                self.data.root_com_vel_w,
+                self.data.body_com_acc_w,
                 None,  # self.data._root_link_state_w.data,
                 None,  # self.data._root_state_w.data,
                 None,  # self.data._root_com_state_w.data,
