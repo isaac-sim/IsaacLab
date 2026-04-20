@@ -26,7 +26,7 @@ This is a cross-cutting concern that touches every other OVPhysX spec.
 ### Pattern to Follow
 
 From the existing `test_articulation_iface.py` OVPhysX integration:
-1. Add `"ovphysx"` to `@pytest.mark.parametrize("backend", [...])` 
+1. Add `"ovphysx"` to `@pytest.mark.parametrize("backend", [...])`
 2. Create mock bindings in the test fixture that match the OVPhysX backend
 3. Mock bindings must produce data with correct shapes and dtypes
 4. Test fixture creates the asset using the mock, not a real ovphysx instance
