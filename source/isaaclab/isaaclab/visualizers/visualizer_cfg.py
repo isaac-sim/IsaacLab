@@ -47,7 +47,11 @@ class VisualizerCfg:
     """Absolute USD path to a camera prim when cam_source='prim_path'."""
 
     env_selection_max_visible: int | None = 4
-    """When ``env_selection_mode`` is ``none``, optional cap on how many envs are shown (``0..num_envs-1``)."""
+    """When ``env_selection_mode`` is ``none``, optional cap on how many envs are shown (indices ``0..min(cap,num_envs)-1``).
+
+    Not used when ``env_selection_mode`` is ``env_ids`` or ``random_n`` (those modes use :attr:`env_selection_ids` or
+    :attr:`env_selection_random_count` instead).
+    """
 
     env_selection_mode: Literal["none", "env_ids", "random_n"] = "none"
     """How env indices are chosen for viewers: ``none`` (use :attr:`env_selection_max_visible` only), ``env_ids``, or ``random_n``."""
@@ -57,7 +61,10 @@ class VisualizerCfg:
     """
 
     env_selection_random_count: int = 64
-    """When ``env_selection_mode`` is ``random_n``, number of env indices to sample."""
+    """When ``env_selection_mode`` is ``random_n``, how many env indices to sample (with :attr:`env_selection_random_seed`).
+
+    Unrelated to :attr:`env_selection_max_visible`, which applies only when ``env_selection_mode`` is ``none``.
+    """
 
     env_selection_random_seed: int = 0
     """Seed for deterministic sampling when ``env_selection_mode`` is ``random_n``."""

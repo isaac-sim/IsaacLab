@@ -139,6 +139,22 @@ The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visu
 For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
+Partial visualization
+~~~~~~~~~~~~~~~~~~~~~
+
+:attr:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg.env_selection_mode` and related fields control which env
+indices each **viewer** uses. ``env_selection_max_visible`` applies when the mode is ``none`` (cap indices ``0..N-1``).
+``env_selection_random_count`` applies only when the mode is ``random_n``; it does not duplicate
+``env_selection_max_visible``.
+
+**CLI vs config:** If you pass matching ``--viz_env_selection_*`` flags, Isaac Lab applies them **after** resolving
+``SimulationCfg.visualizer_cfgs``, and those values **take precedence** over the same fields on each
+:class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` for that run.
+
+- **Newton, Rerun, Viser:** Newton ``set_visible_worlds`` limits which worlds the viewer draws.
+- **Kit (Omniverse):** Non-selected ``/World/envs/env_*`` prims are hidden via USD visibility. **This is not a reliable
+  performance optimization** in Kit today; it is primarily cosmetic.
+
 .. _visualization-common-modes:
 
 .. list-table:: Common modes

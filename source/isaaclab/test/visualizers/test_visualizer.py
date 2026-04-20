@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from types import SimpleNamespace
 
 import pytest
@@ -62,12 +63,16 @@ class _DummyVisualizer(BaseVisualizer):
 def _make_cfg(**kwargs):
     cfg = {
         "env_selection_mode": "none",
+        "env_selection_max_visible": None,
         "env_selection_ids": [0, 2, 4],
         "env_selection_random_count": 2,
         "env_selection_random_seed": 7,
     }
     cfg.update(kwargs)
     return SimpleNamespace(**cfg)
+
+
+_HAS_ISAACLAB_VIZ = importlib.util.find_spec("isaaclab_visualizers") is not None
 
 
 class _FakeProvider:
@@ -101,6 +106,38 @@ def test_compute_visualized_env_ids_random_n_is_deterministic():
     viz_a._scene_data_provider = _FakeProvider(num_envs=10)
     viz_b._scene_data_provider = _FakeProvider(num_envs=10)
     assert viz_a._compute_visualized_env_ids() == viz_b._compute_visualized_env_ids()
+
+
+@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
+def test_partial_visualization_none_mode_uses_resolver_cap_not_random_count():
+    """Mode ``none``: :meth:`_compute_visualized_env_ids` is None; cap comes from ``resolve_visible_env_indices``."""
+    from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
+
+    cfg = _make_cfg(env_selection_mode="none", env_selection_max_visible=3, env_selection_random_count=99)
+    viz = _DummyVisualizer(cfg)
+    viz._scene_data_provider = _FakeProvider(num_envs=10)
+    assert viz._compute_visualized_env_ids() is None
+    assert resolve_visible_env_indices(None, cfg.env_selection_max_visible, 10) == [0, 1, 2]
+    # random_count is ignored in this mode (would only apply if mode were random_n).
+    assert resolve_visible_env_indices(None, 3, 10) == [0, 1, 2]
+
+
+@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
+def test_partial_visualization_random_n_uses_compute_ids_resolver_ignores_cap():
+    """Mode ``random_n``: explicit indices from base visualizer; ``env_selection_max_visible`` does not apply."""
+    from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
+
+    cfg = _make_cfg(
+        env_selection_mode="random_n",
+        env_selection_random_count=3,
+        env_selection_random_seed=0,
+        env_selection_max_visible=1,
+    )
+    viz = _DummyVisualizer(cfg)
+    viz._scene_data_provider = _FakeProvider(num_envs=10)
+    ids = viz._compute_visualized_env_ids()
+    assert ids is not None and len(ids) == 3
+    assert resolve_visible_env_indices(ids, cfg.env_selection_max_visible, 10) == list(ids)
 
 
 def test_resolve_camera_pose_from_usd_path_uses_provider_transforms():

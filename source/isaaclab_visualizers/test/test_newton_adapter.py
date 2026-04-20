@@ -15,6 +15,7 @@ def test_resolve_visible_env_indices_env_ids_win():
 
 
 def test_resolve_visible_env_indices_cap_when_no_filter():
+    # When _compute_visualized_env_ids is None (e.g. mode ``none``), cap is env_selection_max_visible, not random_count.
     assert resolve_visible_env_indices(None, 3, 10) == [0, 1, 2]
 
 
