@@ -1447,6 +1447,52 @@ def test_lazy_composition_tracks_dirty_flag(device: str):
     assert np.allclose(composer.out_force_b.numpy(), expected, atol=1e-4, rtol=1e-5)
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_compose_is_idempotent(device: str):
+    """Calling compose_to_body_frame twice without intervening writes produces the same result."""
+    rng = np.random.default_rng(seed=456)
+    num_envs, num_bodies = 4, 3
+
+    # Non-trivial link pose so the rotation path is exercised
+    link_pos_np = rng.uniform(-2, 2, (num_envs, num_bodies, 3)).astype(np.float32)
+    link_quat_np = rng.standard_normal((num_envs, num_bodies, 4)).astype(np.float32)
+    link_quat_np /= np.linalg.norm(link_quat_np, axis=-1, keepdims=True)
+
+    mock_asset = create_mock_asset(
+        num_envs,
+        num_bodies,
+        device,
+        link_pos=torch.from_numpy(link_pos_np),
+        link_quat=torch.from_numpy(link_quat_np),
+    )
+    composer = WrenchComposer(mock_asset)
+
+    # Add global forces with positions (exercises cross-product torque path)
+    forces_np = rng.uniform(-5, 5, (num_envs, num_bodies, 3)).astype(np.float32)
+    positions_np = rng.uniform(-1, 1, (num_envs, num_bodies, 3)).astype(np.float32)
+    torques_np = rng.uniform(-3, 3, (num_envs, num_bodies, 3)).astype(np.float32)
+
+    composer.add_forces_and_torques_index(
+        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+        torques=wp.from_numpy(torques_np, dtype=wp.vec3f, device=device),
+        positions=wp.from_numpy(positions_np, dtype=wp.vec3f, device=device),
+        is_global=True,
+    )
+
+    # First compose
+    composer.compose_to_body_frame()
+    force_first = composer.out_force_b.numpy().copy()
+    torque_first = composer.out_torque_b.numpy().copy()
+
+    # Second compose (no writes in between)
+    composer.compose_to_body_frame()
+    force_second = composer.out_force_b.numpy()
+    torque_second = composer.out_torque_b.numpy()
+
+    np.testing.assert_array_equal(force_first, force_second)
+    np.testing.assert_array_equal(torque_first, torque_second)
+
+
 # ============================================================================
 # CoM Offset from Link Origin Tests
 # ============================================================================
