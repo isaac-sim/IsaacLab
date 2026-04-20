@@ -1140,6 +1140,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
 
+        # Single-slot caches for _resolve_* methods (keyed on tensor.data_ptr())
+        self._cached_env_ids_ptr: int = -1
+        self._cached_env_ids_wp: wp.array | None = None
+        self._cached_body_ids_ptr: int = -1
+        self._cached_body_ids_wp: wp.array | None = None
+
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
         self._permanent_wrench_composer = WrenchComposer(self)
@@ -1172,27 +1178,62 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.data.default_body_vel = wp.array(default_body_vels, dtype=wp.spatial_vectorf, device=self.device)
 
     def _resolve_env_ids(self, env_ids) -> wp.array:
-        """Resolve environment indices to a warp array."""
-        if isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
+        """Resolve environment indices to a warp array.
+
+        Uses a single-slot cache to avoid repeated ``wp.from_torch`` wrapper
+        allocations when the same tensor is passed across steps.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of environment indices.
+        """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_ENV_INDICES
         if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            if env_ids.dtype == torch.int64:
+                # int64→int32 conversion creates a temporary tensor; skip cache.
+                return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            ptr = env_ids.data_ptr()
+            if self._cached_env_ids_ptr == ptr:
+                return self._cached_env_ids_wp
+            result = wp.from_torch(env_ids, dtype=wp.int32)
+            self._cached_env_ids_ptr = ptr
+            self._cached_env_ids_wp = result
+            return result
+        if isinstance(env_ids, list):
+            return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
 
     def _resolve_body_ids(self, body_ids) -> wp.array:
-        """Resolve body indices to a warp array."""
-        if body_ids is None or (body_ids == slice(None)):
+        """Resolve body indices to a warp array.
+
+        Uses a single-slot cache to avoid repeated ``wp.from_torch`` wrapper
+        allocations when the same tensor is passed across steps.
+
+        Args:
+            body_ids: Body indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of body indices.
+        """
+        if isinstance(body_ids, list):
+            return wp.array(body_ids, dtype=wp.int32, device=self.device)
+        if (body_ids is None) or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
         if isinstance(body_ids, slice):
             return wp.from_torch(
                 torch.arange(self.num_bodies, dtype=torch.int32, device=self.device)[body_ids], dtype=wp.int32
             )
-        if isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if isinstance(body_ids, torch.Tensor):
-            return wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
+            ptr = body_ids.data_ptr()
+            if self._cached_body_ids_ptr == ptr:
+                return self._cached_body_ids_wp
+            result = wp.from_torch(body_ids, dtype=wp.int32)
+            self._cached_body_ids_ptr = ptr
+            self._cached_body_ids_wp = result
+            return result
         return body_ids
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array | torch.Tensor:

@@ -527,13 +527,32 @@ class DeformableObject(AssetBase):
     """
 
     def _resolve_env_ids(self, env_ids):
-        """Resolve environment indices to a warp int32 array."""
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
+        """Resolve environment indices to a warp array.
+
+        Uses a single-slot cache to avoid repeated ``wp.from_torch`` wrapper
+        allocations when the same tensor is passed across steps.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of environment indices.
+        """
+        if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
-        elif isinstance(env_ids, list):
+        if isinstance(env_ids, torch.Tensor):
+            if env_ids.dtype == torch.int64:
+                # int64→int32 conversion creates a temporary tensor; skip cache.
+                return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            ptr = env_ids.data_ptr()
+            if self._cached_env_ids_ptr == ptr:
+                return self._cached_env_ids_wp
+            result = wp.from_torch(env_ids, dtype=wp.int32)
+            self._cached_env_ids_ptr = ptr
+            self._cached_env_ids_wp = result
+            return result
+        if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        elif isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
         return env_ids
 
     def _initialize_impl(self):
@@ -688,6 +707,10 @@ class DeformableObject(AssetBase):
         """Create buffers for storing data."""
         # constants
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
+
+        # Single-slot caches for _resolve_* methods (keyed on tensor.data_ptr())
+        self._cached_env_ids_ptr: int = -1
+        self._cached_env_ids_wp: wp.array | None = None
 
         # default state
         # we use the initial nodal positions at spawn time as the default state

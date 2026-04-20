@@ -159,8 +159,8 @@ class RigidObject(BaseRigidObject):
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._instantaneous_wrench_composer.composed_torque.flatten().view(wp.float32),
+                    force_data=self._get_inst_wrench_force_f32(),
+                    torque_data=self._get_inst_wrench_torque_f32(),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -168,8 +168,8 @@ class RigidObject(BaseRigidObject):
             else:
                 # Apply permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32),
+                    force_data=self._get_perm_wrench_force_f32(),
+                    torque_data=self._get_perm_wrench_torque_f32(),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -982,6 +982,33 @@ class RigidObject(BaseRigidObject):
         # set information about rigid body into data
         self._data.body_names = self.body_names
 
+        # Single-slot caches for _resolve_* methods (keyed on tensor.data_ptr())
+        self._cached_env_ids_ptr: int = -1
+        self._cached_env_ids_wp: wp.array | None = None
+        self._cached_body_ids_ptr: int = -1
+        self._cached_body_ids_wp: wp.array | None = None
+
+        # Cached .view(wp.float32) wrappers for structured warp arrays.
+        # These avoid per-call wp.array metadata allocation in writers.
+        # Reset to None each time _create_buffers runs (during initialization).
+        self._root_link_pose_w_f32: wp.array | None = None
+        self._root_com_vel_w_f32: wp.array | None = None
+        # Cached wrench views for write_data_to_sim
+        self._inst_wrench_force_f32: wp.array | None = None
+        self._inst_wrench_torque_f32: wp.array | None = None
+        self._perm_wrench_force_f32: wp.array | None = None
+        self._perm_wrench_torque_f32: wp.array | None = None
+
+        # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes.
+        # PhysX requires CPU arrays for "model" property updates (masses, coms, inertias).
+        # Pinned memory enables DMA fast path and avoids per-call malloc.
+        N, B = self.num_instances, self.num_bodies
+        self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_coms = wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_inertia = wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
+
     def _process_cfg(self) -> None:
         """Post processing of configuration parameters."""
         # default state
@@ -1044,8 +1071,8 @@ class RigidObject(BaseRigidObject):
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve environment indices to a warp array or tensor.
 
-        .. note::
-            We need to convert torch tensors to warp arrays since the TensorAPI views only support warp arrays.
+        Uses a single-slot cache to avoid repeated ``wp.from_torch`` wrapper
+        allocations when the same tensor is passed across steps.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
@@ -1055,17 +1082,26 @@ class RigidObject(BaseRigidObject):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
-        elif isinstance(env_ids, list):
-            return wp.array(env_ids, dtype=wp.int32, device=self.device)
         if isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            if env_ids.dtype == torch.int64:
+                # int64→int32 conversion creates a temporary tensor; skip cache.
+                return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            ptr = env_ids.data_ptr()
+            if self._cached_env_ids_ptr == ptr:
+                return self._cached_env_ids_wp
+            result = wp.from_torch(env_ids, dtype=wp.int32)
+            self._cached_env_ids_ptr = ptr
+            self._cached_env_ids_wp = result
+            return result
+        if isinstance(env_ids, list):
+            return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a warp array or tensor.
 
-        .. note::
-            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
+        Uses a single-slot cache to avoid repeated ``wp.from_torch`` wrapper
+        allocations when the same tensor is passed across steps.
 
         Args:
             body_ids: Body indices. If None, then all indices are used.
@@ -1073,10 +1109,18 @@ class RigidObject(BaseRigidObject):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
+        if isinstance(body_ids, list):
+            return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
-        elif isinstance(body_ids, list):
-            return wp.array(body_ids, dtype=wp.int32, device=self.device)
+        if isinstance(body_ids, torch.Tensor):
+            ptr = body_ids.data_ptr()
+            if self._cached_body_ids_ptr == ptr:
+                return self._cached_body_ids_wp
+            result = wp.from_torch(body_ids, dtype=wp.int32)
+            self._cached_body_ids_ptr = ptr
+            self._cached_body_ids_wp = result
+            return result
         return body_ids
 
     """
