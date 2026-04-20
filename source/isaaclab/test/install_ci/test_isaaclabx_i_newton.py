@@ -23,6 +23,8 @@ class Test_Install_Newton(UV_Mixin):
 
     @pytest.mark.uv
     @pytest.mark.slow
+    @pytest.mark.gpu
+    @pytest.mark.native
     @pytest.mark.timeout(600)
     def test_install_newton_and_run_tests(self, isaaclab_root):
         """Install newton extension and run the isaaclab_newton test suite."""
