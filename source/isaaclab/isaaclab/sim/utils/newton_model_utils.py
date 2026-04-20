@@ -22,13 +22,15 @@ import warp as wp
 
 from pxr import Usd, UsdGeom, UsdShade
 
+__all__ = ["replace_newton_shape_colors"]
+
 logger = logging.getLogger(__name__)
 
-# MDL OmniPBR default when ``diffuse_color_constant`` is not authored (typical MDL default).
-_OMNIPBR_DEFAULT_DIFFUSE_COLOR_CONSTANT = (0.2, 0.2, 0.2)
-
-# MDL OmniPBR default when ``diffuse_tint`` is not authored (typical MDL default).
-_OMNIPBR_DEFAULT_DIFFUSE_TINT = (1.0, 1.0, 1.0)
+# MDL OmniPBR defaults when inputs are not authored (typical MDL defaults). Keys match shader input names.
+_OMNIPBR_DEFAULTS: dict[str, tuple[float, float, float]] = {
+    "diffuse_color_constant": (0.2, 0.2, 0.2),
+    "diffuse_tint": (1.0, 1.0, 1.0),
+}
 
 # Neutral linear RGB when a shape has no material binding and no ``displayColor`` override.
 _UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
@@ -70,7 +72,7 @@ def _scatter_shape_color_rows_kernel(
 
 
 def _canonical_prim_lookup_key(prim: Usd.Prim) -> str:
-    """Pick a single USD path for lookup, to maxmize cache hits."""
+    """Pick a single USD path for lookup, to maximize cache hits."""
     assert prim.IsValid()
 
     if prim.IsInstanceProxy():
@@ -81,28 +83,24 @@ def _canonical_prim_lookup_key(prim: Usd.Prim) -> str:
     return prim.GetPath().pathString
 
 
-def _asset_path_to_str(ap: Any) -> str:
-    if ap is None:
+def _asset_path_to_str(asset_path: Any) -> str:
+    """Stringify an asset path."""
+    if asset_path is None:
         return ""
-    if hasattr(ap, "path"):
-        return str(ap.path)
-    return str(ap)
+    return str(asset_path.path) if hasattr(asset_path, "path") else str(asset_path)
 
 
-def _is_omnipbr(shader_prim: Usd.Prim) -> bool:
-    """Return True if the shader prim references the OmniPBR MDL module."""
-    for attr_name in ("info:mdl:sourceAsset", "inputs:mdl:sourceAsset"):
-        attr = shader_prim.GetAttribute(attr_name)
-        if attr and attr.HasAuthoredValue():
-            s = _asset_path_to_str(attr.Get())
-            if "OmniPBR" in s:
-                return True
-    for attr_name in ("info:id", "info:sourceAsset"):
-        attr = shader_prim.GetAttribute(attr_name)
-        if attr and attr.HasAuthoredValue():
-            s = str(attr.Get())
-            if "OmniPBR" in s:
-                return True
+def _is_omnipbr_shader(shader_prim: Usd.Prim) -> bool:
+    """Return True if the shader prim references the OmniPBR MDL module (MDL-in-USD metadata)."""
+    if shader_prim.IsValid():
+        attr = shader_prim.GetAttribute("info:mdl:sourceAsset")
+        if attr and attr.HasAuthoredValue() and _asset_path_to_str(attr.Get()).endswith("OmniPBR.mdl"):
+            return True
+
+        attr = shader_prim.GetAttribute("info:mdl:sourceAsset:subIdentifier")
+        if attr and attr.HasAuthoredValue() and str(attr.Get()) == "OmniPBR":
+            return True
+
     return False
 
 
@@ -160,19 +158,18 @@ def _get_surface_shader(material_prim: Usd.Prim) -> Usd.Prim:
     return shader_prim
 
 
+def _get_omnipbr_input(shader: UsdShade.Shader, input_name: str) -> tuple[float, float, float]:
+    """Return authored linear RGB for ``input_name`` if it exists, else the MDL OmniPBR default."""
+    value = _get_input_value(shader, input_name)
+    return value or _OMNIPBR_DEFAULTS[input_name]
+
+
 def _get_omnipbr_albedo(shader_prim: Usd.Prim) -> tuple[float, float, float]:
-    """Return albedo (linear RGB) from OmniPBR."""
+    """Return diffuse albedo as linear RGB (``diffuse_color_constant`` × ``diffuse_tint``)."""
     surface_shader = UsdShade.Shader(shader_prim)
-
-    constant = _get_input_value(surface_shader, "diffuse_color_constant")
-    if constant is None:
-        constant = _OMNIPBR_DEFAULT_DIFFUSE_COLOR_CONSTANT
-
-    tint = _get_input_value(surface_shader, "diffuse_tint")
-    if tint is None:
-        tint = _OMNIPBR_DEFAULT_DIFFUSE_TINT
-
-    return (constant[0] * tint[0], constant[1] * tint[1], constant[2] * tint[2])
+    c0, c1, c2 = _get_omnipbr_input(surface_shader, "diffuse_color_constant")
+    t0, t1, t2 = _get_omnipbr_input(surface_shader, "diffuse_tint")
+    return (c0 * t0, c1 * t1, c2 * t2)
 
 
 def _coerce_color(value: Any) -> tuple[float, float, float] | None:
@@ -226,15 +223,15 @@ def _resolve_shape_color(
     if material_key in material_color_cache:
         return material_color_cache[material_key]
 
+    # We only overwrite color if the material is OmniPBR. Otherwise, we leave the existing color unchanged.
     shader_prim = _get_surface_shader(material_prim)
-    color = _get_omnipbr_albedo(shader_prim) if shader_prim.IsValid() and _is_omnipbr(shader_prim) else None
+    material_color = _get_omnipbr_albedo(shader_prim) if _is_omnipbr_shader(shader_prim) else None
 
-    material_color_cache[material_key] = color
+    material_color_cache[material_key] = material_color
+    return material_color
 
-    return color
 
-
-def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
+def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None) -> int:
     """Align Newton visualization colors with the USD stage.
 
     Newton assigns a per-shape palette to ``shape_color``. This overwrites those rows so rendering matches authored USD
@@ -252,6 +249,9 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
             ``wp.vec3``), typically a finalized Newton model.
         stage: USD stage to read from. If ``None``, uses :func:`~isaaclab.sim.utils.stage.get_current_stage`.
 
+    Returns:
+        Number of shapes that had their colors replaced.
+
     Note:
         Set ``ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS`` to ``0``, ``false``, ``off``, or ``no`` to skip this pass
         entirely (returns ``0``).
@@ -266,7 +266,7 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
     env_val = os.getenv("ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS")
     if env_val is not None and env_val.strip().lower() in ["false", "0", "off", "no"]:
         logger.debug("Newton shape color replacement is disabled")
-        return
+        return 0
 
     warnings.warn(
         "Newton shape color replacement is enabled; this workaround will be deprecated in a future release.",
@@ -280,22 +280,24 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
 
     if not isinstance(shape_labels, list):
         logger.debug("shape_label must be a list, got %s", type(shape_labels))
-        return
+        return 0
 
     if not isinstance(shape_colors, wp.array):
         logger.debug("shape_color must be a Warp array, got %s", type(shape_colors))
-        return
+        return 0
 
     num_shapes = len(shape_labels)
     if num_shapes == 0:
         logger.debug("Found empty list of shape labels")
-        return
+        return 0
 
     if num_shapes != len(shape_colors):
         logger.debug("Mismatching length of shape_labels and shape_colors: %d != %d", num_shapes, len(shape_colors))
-        return
+        return 0
 
     from isaaclab.utils.timer import Timer
+
+    num_color_updates = 0
 
     with Timer(f"[INFO]: Time taken for replace_newton_shape_colors for {num_shapes} shapes", enable=False):
         if stage is None:
@@ -326,10 +328,9 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
         # - Colors are the new values to write into the slots
         indices_np = np.empty(num_shapes, dtype=np.int32)
         colors_np = np.empty((num_shapes, 3), dtype=np.float32)
-        num_color_updates = 0
 
-        for i in range(num_shapes):
-            if rgb := resolved_color_cache.get(shape_keys[i]):
+        for i, shape_key in enumerate(shape_keys):
+            if rgb := resolved_color_cache.get(shape_key):
                 indices_np[num_color_updates] = i
                 colors_np[num_color_updates] = rgb
                 num_color_updates += 1
@@ -347,3 +348,5 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None):
             )
 
         logger.debug("Replaced colors for %d / %d shapes", num_color_updates, num_shapes)
+
+    return num_color_updates
