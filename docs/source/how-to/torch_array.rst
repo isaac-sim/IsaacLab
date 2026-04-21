@@ -124,3 +124,4 @@ API Reference
 .. autoclass:: TorchArray
    :members:
    :undoc-members:
+   :no-index:
