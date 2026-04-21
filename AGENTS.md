@@ -64,7 +64,7 @@ We use a wrapped python call within `./isaaclab.sh`.
 
 ### Pre-commit (lint/format hooks)
 
-**CRITICAL: Always run pre-commit hooks BEFORE committing, not after.**
+**CRITICAL: Always run pre-commit hooks BEFORE committing and BEFORE pushing.**
 
 Proper workflow:
 1. Make your code changes
@@ -73,15 +73,17 @@ Proper workflow:
 4. Stage the modified files with `git add`
 5. Run `./isaaclab.sh -f` again to ensure all checks pass
 6. Only then create your commit with `git commit`
+7. Verify pre-commit still passes before pushing — never push commits that haven't been checked
 
 ```bash
 # Run pre-commit checks on all files
 ./isaaclab.sh -f
 ```
 
-**Common mistake to avoid:**
+**Common mistakes to avoid:**
 - Don't commit first and then run pre-commit (requires amending commits)
-- Do run pre-commit before committing (clean workflow)
+- Don't push before running pre-commit (pushes broken code to the remote)
+- Do run pre-commit before committing and before pushing (clean workflow)
 
 **When reviewing code** (e.g. via a code-reviewer agent), always run `./isaaclab.sh -f` as part of the review to catch formatting or lint issues early.
 
