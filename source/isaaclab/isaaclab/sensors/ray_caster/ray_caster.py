@@ -57,10 +57,12 @@ class RayCaster(SensorBase):
     cfg: RayCasterCfg
     """The configuration parameters."""
 
-    meshes: ClassVar[dict[str, wp.Mesh]] = {}
+    meshes: ClassVar[dict[tuple[str, str], wp.Mesh]] = {}
     """A dictionary to store warp meshes for raycasting, shared across all instances.
 
-    The keys correspond to the prim path for the meshes, and values are the corresponding warp Mesh objects."""
+    The keys are ``(prim_path, device)`` tuples and values are the corresponding warp Mesh objects.
+    Including the device in the key prevents a mesh created on one device (e.g. CPU) from being
+    reused by a kernel running on a different device (e.g. CUDA)."""
     _instance_count: ClassVar[int] = 0
     """A counter to track the number of RayCaster instances, used to manage class variable lifecycle."""
 
@@ -188,7 +190,8 @@ class RayCaster(SensorBase):
 
         # read prims to ray-cast
         for mesh_prim_path in self.cfg.mesh_prim_paths:
-            if mesh_prim_path in RayCaster.meshes:
+            mesh_key = (mesh_prim_path, self._device)
+            if mesh_key in RayCaster.meshes:
                 continue
 
             mesh_prim = sim_utils.get_first_matching_child_prim(
@@ -208,17 +211,17 @@ class RayCaster(SensorBase):
                 points = np.matmul(points, transform_matrix[:3, :3].T)
                 points += transform_matrix[:3, 3]
                 indices = np.asarray(mesh_prim.GetFaceVertexIndicesAttr().Get())
-                wp_mesh = convert_to_warp_mesh(points, indices, device=self.device)
+                wp_mesh = convert_to_warp_mesh(points, indices, device=self._device)
                 logger.info(
                     f"Read mesh prim: {mesh_prim.GetPath()} with {len(points)} vertices and {len(indices)} faces."
                 )
             else:
                 mesh = make_plane(size=(2e6, 2e6), height=0.0, center_zero=True)
-                wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self.device)
+                wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self._device)
                 logger.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
-            RayCaster.meshes[mesh_prim_path] = wp_mesh
+            RayCaster.meshes[mesh_key] = wp_mesh
 
-        if all([mesh_prim_path not in RayCaster.meshes for mesh_prim_path in self.cfg.mesh_prim_paths]):
+        if all((mesh_prim_path, self._device) not in RayCaster.meshes for mesh_prim_path in self.cfg.mesh_prim_paths):
             raise RuntimeError(
                 f"No meshes found for ray-casting! Please check the mesh prim paths: {self.cfg.mesh_prim_paths}"
             )
@@ -337,7 +340,7 @@ class RayCaster(SensorBase):
             raycast_mesh_masked_kernel,
             dim=(self._num_envs, self.num_rays),
             inputs=[
-                RayCaster.meshes[self.cfg.mesh_prim_paths[0]].id,
+                RayCaster.meshes[(self.cfg.mesh_prim_paths[0], self._device)].id,
                 env_mask,
                 self._ray_starts_w,
                 self._ray_directions_w,

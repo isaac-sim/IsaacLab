@@ -189,12 +189,14 @@ class MultiMeshRayCaster(RayCaster):
                     # Note, this check may fail, if the prim path is not following the env_.* pattern
                     # Which (worst case) leads to parsing the mesh and skipping registering it at a later stage
                     curr_prim_base_path = re.sub(r"env_\d+", "env_0", str(target_prim.GetPath()))
-                    if curr_prim_base_path in MultiMeshRayCaster.meshes:
-                        MultiMeshRayCaster.meshes[str(target_prim.GetPath())] = MultiMeshRayCaster.meshes[
-                            curr_prim_base_path
-                        ]
-                if str(target_prim.GetPath()) in MultiMeshRayCaster.meshes:
-                    wp_mesh_ids.append(MultiMeshRayCaster.meshes[str(target_prim.GetPath())].id)
+                    base_key = (curr_prim_base_path, self._device)
+                    if base_key in MultiMeshRayCaster.meshes:
+                        MultiMeshRayCaster.meshes[(str(target_prim.GetPath()), self._device)] = (
+                            MultiMeshRayCaster.meshes[base_key]
+                        )
+                prim_key = (str(target_prim.GetPath()), self._device)
+                if prim_key in MultiMeshRayCaster.meshes:
+                    wp_mesh_ids.append(MultiMeshRayCaster.meshes[prim_key].id)
                     loaded_vertices.append(None)
                     continue
 
@@ -254,8 +256,8 @@ class MultiMeshRayCaster(RayCaster):
                     wp_mesh_ids.append(wp_mesh_ids[registered_idx])
                 else:
                     loaded_vertices.append(trimesh_mesh.vertices)
-                    wp_mesh = convert_to_warp_mesh(trimesh_mesh.vertices, trimesh_mesh.faces, device=self.device)
-                    MultiMeshRayCaster.meshes[str(target_prim.GetPath())] = wp_mesh
+                    wp_mesh = convert_to_warp_mesh(trimesh_mesh.vertices, trimesh_mesh.faces, device=self._device)
+                    MultiMeshRayCaster.meshes[(str(target_prim.GetPath()), self._device)] = wp_mesh
                     wp_mesh_ids.append(wp_mesh.id)
 
                 if registered_idx != -1:

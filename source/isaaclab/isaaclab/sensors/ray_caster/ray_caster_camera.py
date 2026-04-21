@@ -410,7 +410,7 @@ class RayCasterCamera(RayCaster):
             raycast_mesh_masked_kernel,
             dim=(self._num_envs, self.num_rays),
             inputs=[
-                RayCaster.meshes[self.cfg.mesh_prim_paths[0]].id,
+                RayCaster.meshes[(self.cfg.mesh_prim_paths[0], self._device)].id,
                 env_mask,
                 self._ray_starts_w,
                 self._ray_directions_w,
