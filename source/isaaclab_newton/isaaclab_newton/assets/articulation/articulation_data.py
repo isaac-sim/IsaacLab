@@ -75,8 +75,8 @@ class ArticulationData(BaseArticulationData):
         forward_vec = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_view.count, 1)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir, dtype=wp.vec3f)
-        self.FORWARD_VEC_B = wp.from_torch(forward_vec, dtype=wp.vec3f)
+        self.GRAVITY_VEC_W = TorchArray(wp.from_torch(gravity_dir, dtype=wp.vec3f))
+        self.FORWARD_VEC_B = TorchArray(wp.from_torch(forward_vec, dtype=wp.vec3f))
 
         self._create_simulation_bindings()
         self._create_buffers()

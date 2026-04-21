@@ -63,6 +63,22 @@ class TestTorchArrayBasic:
         arr_np = arr.numpy()
         assert arr_np[0] == 42.0
 
+    def test_rebind_invalidates_cache(self, device):
+        """Test that rebind() updates the warp array and invalidates the cached torch tensor."""
+        from isaaclab.utils.warp.torch_array import TorchArray
+
+        arr1 = wp.zeros(10, dtype=wp.float32, device=device)
+        ta = TorchArray(arr1)
+        t1 = ta.torch  # cache created
+
+        arr2 = wp.ones(10, dtype=wp.float32, device=device)
+        ta.rebind(arr2)  # invalidate cache
+
+        t2 = ta.torch  # should be a new tensor from arr2
+        assert t1 is not t2
+        assert t2[0].item() == 1.0
+        assert ta.warp is arr2
+
 
 class TestTorchArrayStructuredTypes:
     """Tests for TorchArray with structured warp types (vec3f, quatf, etc)."""
@@ -240,50 +256,80 @@ class TestTorchArrayDeprecationBridge:
             expected = torch.full((5,), 3.0, device=device)
             torch.testing.assert_close(result, expected)
 
-    def test_radd_works(self):
-        """Test scalar + TorchArray works."""
+    @pytest.mark.parametrize(
+        "op, scalar, expected",
+        [
+            ("+", 1.0, [2.0, 3.0]),
+            ("-", 1.0, [0.0, 1.0]),
+            ("*", 2.0, [2.0, 4.0]),
+            ("/", 2.0, [0.5, 1.0]),
+            ("**", 2.0, [1.0, 4.0]),
+        ],
+    )
+    def test_binary_operators(self, op, scalar, expected):
+        """Test forward binary operators: +, -, *, /, **."""
         from isaaclab.utils.warp.torch_array import TorchArray
 
         TorchArray._deprecation_warned = True
         ta = TorchArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))
-        result = 1.0 + ta
-        assert torch.allclose(result, torch.tensor([2.0, 3.0]))
+        result = eval(f"ta {op} scalar")  # noqa: S307
+        assert torch.allclose(result, torch.tensor(expected))
 
-    def test_sub_works(self):
-        """Test TorchArray - value works."""
+    @pytest.mark.parametrize(
+        "op, scalar, expected",
+        [
+            ("+", 1.0, [2.0, 3.0]),
+            ("-", 1.0, [0.0, -1.0]),
+            ("*", 2.0, [2.0, 4.0]),
+            ("/", 2.0, [2.0, 1.0]),
+            ("**", 2.0, [2.0, 4.0]),
+        ],
+    )
+    def test_reflected_operators(self, op, scalar, expected):
+        """Test reflected binary operators: scalar op TorchArray."""
         from isaaclab.utils.warp.torch_array import TorchArray
 
         TorchArray._deprecation_warned = True
-        ta = TorchArray(wp.array([3.0, 4.0], dtype=wp.float32, device="cpu"))
-        result = ta - 1.0
-        assert torch.allclose(result, torch.tensor([2.0, 3.0]))
+        ta = TorchArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))
+        result = eval(f"scalar {op} ta")  # noqa: S307
+        assert torch.allclose(result, torch.tensor(expected))
 
-    def test_mul_works(self):
-        """Test TorchArray * value works."""
+    @pytest.mark.parametrize(
+        "op, values, expected",
+        [
+            ("-", [1.0, -2.0], [-1.0, 2.0]),
+            ("+", [1.0, -2.0], [1.0, -2.0]),
+            ("abs", [-1.0, 2.0], [1.0, 2.0]),
+        ],
+    )
+    def test_unary_operators(self, op, values, expected):
+        """Test unary operators: -, +, abs."""
         from isaaclab.utils.warp.torch_array import TorchArray
 
         TorchArray._deprecation_warned = True
-        ta = TorchArray(wp.array([2.0, 3.0], dtype=wp.float32, device="cpu"))
-        result = ta * 2.0
-        assert torch.allclose(result, torch.tensor([4.0, 6.0]))
+        ta = TorchArray(wp.array(values, dtype=wp.float32, device="cpu"))
+        result = eval(f"{op}(ta)" if op == "abs" else f"{op}ta")  # noqa: S307
+        assert torch.allclose(result, torch.tensor(expected))
 
-    def test_neg_works(self):
-        """Test -TorchArray works."""
-        from isaaclab.utils.warp.torch_array import TorchArray
-
-        TorchArray._deprecation_warned = True
-        ta = TorchArray(wp.array([1.0, -2.0], dtype=wp.float32, device="cpu"))
-        result = -ta
-        assert torch.allclose(result, torch.tensor([-1.0, 2.0]))
-
-    def test_comparison_works(self):
-        """Test comparison operators."""
+    @pytest.mark.parametrize(
+        "op, expected",
+        [
+            ("==", [False, True, False]),
+            ("!=", [True, False, True]),
+            ("<", [True, False, False]),
+            ("<=", [True, True, False]),
+            (">", [False, False, True]),
+            (">=", [False, True, True]),
+        ],
+    )
+    def test_comparison_operators(self, op, expected):
+        """Test comparison operators: ==, !=, <, <=, >, >=."""
         from isaaclab.utils.warp.torch_array import TorchArray
 
         TorchArray._deprecation_warned = True
         ta = TorchArray(wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"))
-        result = ta > 1.5
-        assert result.tolist() == [False, True, True]
+        result = eval(f"ta {op} 2.0")  # noqa: S307
+        assert result.tolist() == expected
 
     def test_getitem_1d(self):
         """Test 1D indexing via __getitem__."""

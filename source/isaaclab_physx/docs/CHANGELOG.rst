@@ -7,8 +7,16 @@ Changelog
 Changed
 ^^^^^^^
 
-* :class:`~isaaclab_physx.assets.articulation.ArticulationData` properties now
-  return :class:`~isaaclab.utils.warp.TorchArray` instead of raw ``wp.array``.
+* Properties on the following data classes now return
+  :class:`~isaaclab.utils.warp.TorchArray` instead of raw ``wp.array``:
+  :class:`~isaaclab_physx.assets.articulation.ArticulationData`,
+  :class:`~isaaclab_physx.assets.rigid_object.RigidObjectData`,
+  :class:`~isaaclab_physx.assets.rigid_object_collection.RigidObjectCollectionData`,
+  :class:`~isaaclab_physx.assets.deformable_object.DeformableObjectData`,
+  :class:`~isaaclab_physx.sensors.contact_sensor.ContactSensorData`,
+  :class:`~isaaclab_physx.sensors.frame_transformer.FrameTransformerData`,
+  :class:`~isaaclab_physx.sensors.imu.ImuData`, and
+  :class:`~isaaclab_physx.sensors.pva.PvaData`.
 
 
 0.5.19 (2026-04-20)

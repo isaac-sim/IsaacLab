@@ -14,8 +14,15 @@ Added
 Changed
 ^^^^^^^
 
-* All :class:`~isaaclab.assets.articulation.BaseArticulationData` properties now
-  return :class:`~isaaclab.utils.warp.TorchArray` instead of raw ``wp.array``.
+* All properties on the following base data classes now return
+  :class:`~isaaclab.utils.warp.TorchArray` instead of raw ``wp.array``:
+  :class:`~isaaclab.assets.articulation.BaseArticulationData`,
+  :class:`~isaaclab.assets.rigid_object.BaseRigidObjectData`,
+  :class:`~isaaclab.assets.rigid_object_collection.BaseRigidObjectCollectionData`,
+  :class:`~isaaclab.sensors.contact_sensor.BaseContactSensorData`,
+  :class:`~isaaclab.sensors.frame_transformer.BaseFrameTransformerData`,
+  :class:`~isaaclab.sensors.imu.BaseImuData`, and
+  :class:`~isaaclab.sensors.pva.BasePvaData`.
   Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view, or ``.warp`` for
   the underlying ``wp.array``. Implicit torch operations (arithmetic,
   ``torch.*`` functions) work during the deprecation period but emit a warning.

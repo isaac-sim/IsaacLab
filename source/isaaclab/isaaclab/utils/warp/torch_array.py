@@ -214,13 +214,7 @@ class TorchArray:
     # ------------------------------------------------------------------
 
     def _binop(self, other, op: str) -> torch.Tensor:
-        """Helper for binary operations."""
-        self._warn_implicit()
-        other_val = other.torch if isinstance(other, TorchArray) else other
-        return getattr(self.torch, op)(other_val)
-
-    def _rbinop(self, other, op: str) -> torch.Tensor:
-        """Helper for reflected binary operations."""
+        """Helper for binary and reflected binary operations."""
         self._warn_implicit()
         other_val = other.torch if isinstance(other, TorchArray) else other
         return getattr(self.torch, op)(other_val)
@@ -229,31 +223,31 @@ class TorchArray:
         return self._binop(other, "__add__")
 
     def __radd__(self, other) -> torch.Tensor:
-        return self._rbinop(other, "__radd__")
+        return self._binop(other, "__radd__")
 
     def __sub__(self, other) -> torch.Tensor:
         return self._binop(other, "__sub__")
 
     def __rsub__(self, other) -> torch.Tensor:
-        return self._rbinop(other, "__rsub__")
+        return self._binop(other, "__rsub__")
 
     def __mul__(self, other) -> torch.Tensor:
         return self._binop(other, "__mul__")
 
     def __rmul__(self, other) -> torch.Tensor:
-        return self._rbinop(other, "__rmul__")
+        return self._binop(other, "__rmul__")
 
     def __truediv__(self, other) -> torch.Tensor:
         return self._binop(other, "__truediv__")
 
     def __rtruediv__(self, other) -> torch.Tensor:
-        return self._rbinop(other, "__rtruediv__")
+        return self._binop(other, "__rtruediv__")
 
     def __pow__(self, other) -> torch.Tensor:
         return self._binop(other, "__pow__")
 
     def __rpow__(self, other) -> torch.Tensor:
-        return self._rbinop(other, "__rpow__")
+        return self._binop(other, "__rpow__")
 
     def __neg__(self) -> torch.Tensor:
         self._warn_implicit()

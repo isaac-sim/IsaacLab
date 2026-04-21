@@ -76,10 +76,14 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         gravity_dir = normalize(gravity_dir.unsqueeze(0)).squeeze(0)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir.repeat(self.num_instances, self.num_bodies, 1), dtype=wp.vec3f)
-        self.FORWARD_VEC_B = wp.from_torch(
-            torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, self.num_bodies, 1),
-            dtype=wp.vec3f,
+        self.GRAVITY_VEC_W = TorchArray(
+            wp.from_torch(gravity_dir.repeat(self.num_instances, self.num_bodies, 1), dtype=wp.vec3f)
+        )
+        self.FORWARD_VEC_B = TorchArray(
+            wp.from_torch(
+                torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self.num_instances, self.num_bodies, 1),
+                dtype=wp.vec3f,
+            )
         )
 
         self._create_simulation_bindings()
