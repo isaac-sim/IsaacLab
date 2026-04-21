@@ -9,7 +9,11 @@ Changed
 
 * Replaced private ``_find_names`` (fnmatch + regex) with the standard
   :func:`~isaaclab.utils.string.resolve_matching_names` for all finder
-  methods, unifying name-resolution behavior across backends.
+  methods, unifying name-resolution behavior across backends. Fnmatch-style
+  glob patterns (e.g. ``joint_*``) are no longer supported; use regex
+  equivalents (e.g. ``joint_.*``). ``find_fixed_tendons`` and
+  ``find_spatial_tendons`` now raise ``ValueError`` on empty tendon lists,
+  matching the PhysX backend.
 
 Fixed
 ^^^^^

@@ -258,7 +258,8 @@ def _resolve_matching_names_impl(
     """Cached implementation of :func:`resolve_matching_names`.
 
     All arguments are hashable so that ``functools.cache`` can store results.
-    Returns tuples (immutable) so the cached data cannot be mutated by callers.
+    Returns tuples (immutable) to protect the cached data from mutation;
+    the public wrapper converts these back to fresh lists for each caller.
     """
     # find matching patterns
     index_list = []
@@ -378,9 +379,9 @@ def resolve_matching_names_values(
     the matched indices, names, and values.
 
     Note:
-        Unlike :func:`resolve_matching_names`, this function is not cached. All callers use it
-        during initialization only (e.g. action/actuator config resolution), never in the step
-        loop, so caching would add complexity without a measurable benefit.
+        Unlike :func:`resolve_matching_names`, this function is not cached. Current callers
+        use it during initialization only (e.g. action/actuator config resolution), so caching
+        would add complexity without a measurable benefit.
 
     If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
     of the provided list of strings. This means that the ordering is dictated by the order of the target strings
