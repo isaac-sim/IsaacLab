@@ -70,7 +70,8 @@ class AssetBase(ABC):
         # store inputs
         self.cfg = cfg.copy()
         # Resolve shape-check flag once: True means checks are active.
-        # cfg.disable_shape_checks: None -> follow __debug__; True -> force disable checks; False -> force enable checks.
+        # cfg.disable_shape_checks: None -> follow __debug__
+        # True -> force disable checks; False -> force enable checks.
         if self.cfg.disable_shape_checks is None:
             self._check_shapes = __debug__
         else:

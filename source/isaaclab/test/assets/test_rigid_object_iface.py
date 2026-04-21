@@ -112,6 +112,28 @@ def create_physx_rigid_object(
     object.__setattr__(rigid_object, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
     object.__setattr__(rigid_object, "_ALL_BODY_INDICES", wp.array(np.array([0], dtype=np.int32), device=device))
 
+    # Single-slot caches for _resolve_* methods
+    object.__setattr__(rigid_object, "_cached_env_ids_ptr", -1)
+    object.__setattr__(rigid_object, "_cached_env_ids_wp", None)
+    object.__setattr__(rigid_object, "_cached_body_ids_ptr", -1)
+    object.__setattr__(rigid_object, "_cached_body_ids_wp", None)
+
+    # Cached .view(wp.float32) wrappers
+    object.__setattr__(rigid_object, "_root_link_pose_w_f32", None)
+    object.__setattr__(rigid_object, "_root_com_vel_w_f32", None)
+    object.__setattr__(rigid_object, "_inst_wrench_force_f32", None)
+    object.__setattr__(rigid_object, "_inst_wrench_torque_f32", None)
+    object.__setattr__(rigid_object, "_perm_wrench_force_f32", None)
+    object.__setattr__(rigid_object, "_perm_wrench_torque_f32", None)
+
+    # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
+    N, B = num_instances, 1  # rigid object has 1 body
+    cpu_env_ids = wp.array(np.arange(N, dtype=np.int32), device="cpu")
+    object.__setattr__(rigid_object, "_cpu_env_ids_all", cpu_env_ids)
+    object.__setattr__(rigid_object, "_cpu_body_mass", wp.zeros((N, B), dtype=wp.float32, device="cpu"))
+    object.__setattr__(rigid_object, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu"))
+    object.__setattr__(rigid_object, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu"))
+
     return rigid_object, mock_view
 
 
@@ -186,6 +208,12 @@ def create_newton_rigid_object(
     # Newton uses wp.bool masks
     object.__setattr__(rigid_object, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
     object.__setattr__(rigid_object, "_ALL_BODY_MASK", wp.ones((1,), dtype=wp.bool, device=device))
+
+    # Single-slot caches for _resolve_* methods
+    object.__setattr__(rigid_object, "_cached_env_ids_ptr", -1)
+    object.__setattr__(rigid_object, "_cached_env_ids_wp", None)
+    object.__setattr__(rigid_object, "_cached_body_ids_ptr", -1)
+    object.__setattr__(rigid_object, "_cached_body_ids_wp", None)
 
     return rigid_object, mock_view
 

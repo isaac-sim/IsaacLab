@@ -124,6 +124,12 @@ def create_physx_rigid_object_collection(
     )
     object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
 
+    # Single-slot caches for _resolve_* methods
+    object.__setattr__(collection, "_cached_env_ids_ptr", -1)
+    object.__setattr__(collection, "_cached_env_ids_wp", None)
+    object.__setattr__(collection, "_cached_body_ids_ptr", -1)
+    object.__setattr__(collection, "_cached_body_ids_wp", None)
+
     return collection, mock_view
 
 
@@ -205,6 +211,12 @@ def create_newton_rigid_object_collection(
     object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
     object.__setattr__(collection, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
     object.__setattr__(collection, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
+
+    # Single-slot caches for _resolve_* methods
+    object.__setattr__(collection, "_cached_env_ids_ptr", -1)
+    object.__setattr__(collection, "_cached_env_ids_wp", None)
+    object.__setattr__(collection, "_cached_body_ids_ptr", -1)
+    object.__setattr__(collection, "_cached_body_ids_wp", None)
 
     return collection, mock_view
 

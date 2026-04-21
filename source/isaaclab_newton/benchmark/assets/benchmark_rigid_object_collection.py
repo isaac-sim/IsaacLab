@@ -142,10 +142,10 @@ def create_test_collection(
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
     # Set up other required attributes
-    object.__setattr__(collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
     object.__setattr__(
-        collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
+        collection, "_ALL_ENV_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
     )
+    object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
     object.__setattr__(collection, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
     object.__setattr__(collection, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
 
@@ -283,9 +283,7 @@ def gen_set_coms_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
 # --- Set Inertias ---
 def gen_set_inertias_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
-        "inertias": torch.rand(
-            config.num_instances, config.num_bodies, 9, device=config.device, dtype=torch.float32
-        ),
+        "inertias": torch.rand(config.num_instances, config.num_bodies, 9, device=config.device, dtype=torch.float32),
         "env_ids": list(range(config.num_instances)),
         "body_ids": list(range(config.num_bodies)),
     }
@@ -293,9 +291,7 @@ def gen_set_inertias_torch_list(config: MethodBenchmarkRunnerConfig) -> dict:
 
 def gen_set_inertias_torch_tensor(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
-        "inertias": torch.rand(
-            config.num_instances, config.num_bodies, 9, device=config.device, dtype=torch.float32
-        ),
+        "inertias": torch.rand(config.num_instances, config.num_bodies, 9, device=config.device, dtype=torch.float32),
         "env_ids": make_tensor_env_ids(config.num_instances, config.device),
         "body_ids": make_tensor_body_ids(config.num_bodies, config.device),
     }
@@ -388,9 +384,7 @@ def gen_set_coms_warp_mask(config: MethodBenchmarkRunnerConfig) -> dict:
 # --- Set Inertias (mask) ---
 def gen_set_inertias_warp_mask(config: MethodBenchmarkRunnerConfig) -> dict:
     return {
-        "inertias": torch.rand(
-            config.num_instances, config.num_bodies, 9, device=config.device, dtype=torch.float32
-        ),
+        "inertias": torch.rand(config.num_instances, config.num_bodies, 9, device=config.device, dtype=torch.float32),
         "body_mask": _body_mask(config),
         "env_mask": _env_mask(config),
     }
