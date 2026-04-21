@@ -770,7 +770,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     Helpers.
     """
 
-    def _reshape_view_to_data_2d(self, data: wp.array) -> TorchArray:
+    def _reshape_view_to_data_2d(self, data: wp.array) -> wp.array:
         """Reshapes and arranges the data from the physics view to (num_instances, num_bodies, data_size).
 
         Args:
@@ -794,7 +794,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
         return wp.clone(strided_view, self.device)
 
-    def _reshape_view_to_data_3d(self, data: wp.array, data_dim: int) -> TorchArray:
+    def _reshape_view_to_data_3d(self, data: wp.array, data_dim: int) -> wp.array:
         """Reshapes and arranges 2D view data to (num_instances, num_bodies, data_dim).
 
         Args:

@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.5.23 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all data property accesses from ``wp.to_torch(data.property)`` to
+  ``data.property.torch`` to match the new :class:`~isaaclab.utils.warp.TorchArray`
+  return type introduced in ``isaaclab`` 4.6.8.
+
+
 1.5.22 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~~
 

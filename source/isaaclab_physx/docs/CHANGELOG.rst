@@ -17,6 +17,9 @@ Changed
   :class:`~isaaclab_physx.sensors.frame_transformer.FrameTransformerData`,
   :class:`~isaaclab_physx.sensors.imu.ImuData`, and
   :class:`~isaaclab_physx.sensors.pva.PvaData`.
+  Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view, or ``.warp`` for
+  the underlying ``wp.array``. Implicit torch operations (arithmetic,
+  ``torch.*`` functions) work during the deprecation period but emit a warning.
 
 
 0.5.19 (2026-04-20)
