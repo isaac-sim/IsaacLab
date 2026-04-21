@@ -49,7 +49,6 @@ def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
         "/isaaclab/visualizer/types": "viser rerun",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/cli_override/max_visible_envs": True,
         "/isaaclab/visualizer/max_visible_envs": 0,
     }
 

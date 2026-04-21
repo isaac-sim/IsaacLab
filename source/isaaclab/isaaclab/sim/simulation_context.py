@@ -430,47 +430,23 @@ class SimulationContext:
         # App launcher writes this as a single string; accept comma and/or whitespace separators.
         return [value for chunk in requested.split(",") for value in chunk.split() if value]
 
-    def _cli_visualizer_field_overridden(self, field: str) -> bool:
-        """Return True when the user passed the matching CLI flag (see ``cli_override/*`` settings)."""
-        v = self.get_setting(f"/isaaclab/visualizer/cli_override/{field}")
-        if v is not None:
-            return bool(v)
-        # Legacy: before cli_override existed, a non-negative max_visible_envs int implied CLI intent.
-        if field == "max_visible_envs":
-            raw = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-            if raw is None:
-                return False
-            try:
-                return int(raw) >= 0
-            except (TypeError, ValueError):
-                return False
-        return False
-
-    def _get_cli_max_visible_envs_override(self) -> tuple[bool, int | None]:
-        """CLI override for ``max_visible_envs`` when ``--max_visible_envs`` is set."""
-        if not self._cli_visualizer_field_overridden("max_visible_envs"):
-            return False, None
-        value = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-        if value is None:
-            return False, None
-        try:
-            max_visible = int(value)
-        except (TypeError, ValueError):
-            logger.warning(
-                "[SimulationContext] Invalid /isaaclab/visualizer/max_visible_envs setting: %r", value
-            )
-            return False, None
-        if max_visible < 0:
-            return False, None
-        return True, max_visible
-
     def _apply_visualizer_cli_overrides(self, visualizer_cfgs: list[Any]) -> None:
-        """Apply CLI visualizer overrides to resolved configs (only fields the user set on the CLI)."""
-        has_max, max_visible_override = self._get_cli_max_visible_envs_override()
-        if has_max:
-            for cfg in visualizer_cfgs:
-                if hasattr(cfg, "max_visible_envs"):
-                    cfg.max_visible_envs = max_visible_override
+        """Apply ``--max_visible_envs`` to every resolved visualizer cfg when set in settings.
+
+        AppLauncher stores ``/isaaclab/visualizer/max_visible_envs`` as ``-1`` when the flag was
+        omitted; any non-negative int overrides :attr:`VisualizerCfg.max_visible_envs` on each cfg.
+        """
+        raw = self.get_setting("/isaaclab/visualizer/max_visible_envs")
+        try:
+            max_visible = int(raw) if raw is not None else -1
+        except (TypeError, ValueError):
+            logger.warning("[SimulationContext] Invalid /isaaclab/visualizer/max_visible_envs: %r", raw)
+            return
+        if max_visible < 0:
+            return
+        for cfg in visualizer_cfgs:
+            if hasattr(cfg, "max_visible_envs"):
+                cfg.max_visible_envs = max_visible
 
     def _is_cli_visualizer_explicit(self) -> bool:
         """Return ``True`` when visualizers were explicitly provided via CLI."""

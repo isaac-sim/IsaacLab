@@ -215,17 +215,14 @@ def launch_simulation(
         # settings (types, max_visible_envs CLI override) that AppLauncher would write.
         from isaaclab.app.app_launcher import sync_visualizer_cli_settings_to_carb
 
+        disable_all = "none" in visualizer_types
         if isinstance(launcher_args, argparse.Namespace):
             sync_visualizer_cli_settings_to_carb(
-                vars(launcher_args),
-                cli_explicit=True,
-                cli_disable_all=("none" in visualizer_types),
+                {**vars(launcher_args), "visualizer_explicit": True, "visualizer_disable_all": disable_all}
             )
         elif isinstance(launcher_args, dict):
             sync_visualizer_cli_settings_to_carb(
-                launcher_args,
-                cli_explicit=True,
-                cli_disable_all=("none" in visualizer_types),
+                {**launcher_args, "visualizer_explicit": True, "visualizer_disable_all": disable_all}
             )
 
     try:

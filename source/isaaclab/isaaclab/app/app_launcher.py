@@ -34,20 +34,14 @@ from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_
 logger = logging.getLogger(__name__)
 
 
-def sync_visualizer_cli_settings_to_carb(
-    launcher_args: dict,
-    *,
-    cli_explicit: bool | None = None,
-    cli_disable_all: bool | None = None,
-) -> None:
-    """Persist visualizer CLI flags (selection, ``--max_visible_envs``) to carb settings.
+def sync_visualizer_cli_settings_to_carb(launcher_args: dict) -> None:
+    """Write visualizer CLI selection and ``--max_visible_envs`` to carb settings.
 
-    Optional arguments use :data:`argparse.SUPPRESS` defaults so only options the user actually passed
-    appear in *launcher_args*. We record ``cli_override/max_visible_envs`` and
-    ``/isaaclab/visualizer/max_visible_envs`` for :meth:`SimulationContext._apply_visualizer_cli_overrides`.
+    Callers may set ``visualizer_explicit`` / ``visualizer_disable_all`` when those values
+    were resolved elsewhere (e.g. :class:`AppLauncher` strips flags from *launcher_args*).
+    Otherwise ``disable_all`` is inferred from ``"none"`` in ``visualizer``.
 
-    Used by :class:`AppLauncher` and by standalone Newton/Rerun/Viser flows that skip Kit
-    (see :mod:`isaaclab_tasks.utils.sim_launcher`).
+    Also used when Kit is skipped (see :mod:`isaaclab_tasks.utils.sim_launcher`).
     """
     visualizers = launcher_args.get("visualizer")
 
@@ -56,9 +50,10 @@ def sync_visualizer_cli_settings_to_carb(
         if v is not None and int(v) < 0:
             raise ValueError(f"Invalid value for --max_visible_envs: {v}. Expected non-negative int.")
 
-    if cli_explicit is None:
-        cli_explicit = bool(launcher_args.get("visualizer_explicit", False))
-    if cli_disable_all is None:
+    cli_explicit = bool(launcher_args.get("visualizer_explicit", False))
+    if "visualizer_disable_all" in launcher_args:
+        cli_disable_all = bool(launcher_args["visualizer_disable_all"])
+    else:
         cli_disable_all = bool(cli_explicit) and visualizers is not None and "none" in visualizers
 
     with contextlib.suppress(Exception):
@@ -68,15 +63,9 @@ def sync_visualizer_cli_settings_to_carb(
         settings.set_bool("/isaaclab/visualizer/explicit", cli_explicit)
         settings.set_bool("/isaaclab/visualizer/disable_all", cli_disable_all)
 
-        settings.set_bool(
-            "/isaaclab/visualizer/cli_override/max_visible_envs",
-            "max_visible_envs" in launcher_args,
-        )
+        # Sentinel: ``-1`` means ``--max_visible_envs`` was not passed (see ``SimulationContext``).
         if "max_visible_envs" in launcher_args:
-            settings.set_int(
-                "/isaaclab/visualizer/max_visible_envs",
-                int(launcher_args["max_visible_envs"]),
-            )
+            settings.set_int("/isaaclab/visualizer/max_visible_envs", int(launcher_args["max_visible_envs"]))
         else:
             settings.set_int("/isaaclab/visualizer/max_visible_envs", -1)
 
@@ -1197,50 +1186,15 @@ class AppLauncher:
         settings.set_float("/isaaclab/anim_recording/start_time", start_time)
         settings.set_float("/isaaclab/anim_recording/stop_time", stop_time)
 
-    def _warn_if_max_visible_envs_unused(self, launcher_args: dict) -> None:
-        """Log when ``--max_visible_envs`` cannot affect any running visualizer for this process."""
-        if "max_visible_envs" not in launcher_args:
-            return
-
-        disable_all = getattr(self, "_cli_visualizer_disable_all", False)
-        explicit = getattr(self, "_cli_visualizer_explicit", False)
-        cfg_has_any = getattr(self, "_cfg_has_any_visualizers", False)
-        cli_types = getattr(self, "_cli_visualizer_types", [])
-
-        if disable_all:
-            logger.warning(
-                "[AppLauncher] --max_visible_envs was set but all visualizers are disabled "
-                "(for example ``--viz none`` or deprecated ``--headless`` with ``--viz``); "
-                "the value is not applied."
-            )
-            return
-
-        if explicit:
-            if cli_types:
-                return
-            logger.warning(
-                "[AppLauncher] --max_visible_envs was set but no visualizers are selected on the CLI; "
-                "the value is not applied unless ``SimulationCfg.visualizer_cfgs`` configures visualizers."
-            )
-            return
-
-        if cfg_has_any:
-            return
-
-        logger.warning(
-            "[AppLauncher] --max_visible_envs was set but no visualizers are configured for this run "
-            "(pass ``--viz <names>`` and/or set ``SimulationCfg.visualizer_cfgs``); "
-            "the value is not applied."
-        )
-
     def _set_visualizer_settings(self, launcher_args: dict) -> None:
-        """Store visualizer selection and Newton viewer CLI overrides in settings."""
+        """Persist visualizer CLI flags and ``max_visible_envs`` override for :class:`SimulationContext`."""
         sync_visualizer_cli_settings_to_carb(
-            launcher_args,
-            cli_explicit=getattr(self, "_cli_visualizer_explicit", False),
-            cli_disable_all=getattr(self, "_cli_visualizer_disable_all", False),
+            {
+                **launcher_args,
+                "visualizer_explicit": getattr(self, "_cli_visualizer_explicit", False),
+                "visualizer_disable_all": getattr(self, "_cli_visualizer_disable_all", False),
+            }
         )
-        self._warn_if_max_visible_envs_unused(launcher_args)
 
     def _interrupt_signal_handle_callback(self, signal, frame):
         """Handle the interrupt signal from the keyboard."""
