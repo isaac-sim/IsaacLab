@@ -14,12 +14,9 @@ Changed
   equivalents (e.g. ``joint_.*``). ``find_fixed_tendons`` and
   ``find_spatial_tendons`` now raise ``ValueError`` on empty tendon lists,
   matching the PhysX backend.
-
-Fixed
-^^^^^
-
-* Fixed ``find_joints`` type hint for ``joint_subset`` from ``list[int]``
-  to ``list[str]`` to match the ``BaseArticulation`` interface.
+* Changed ``find_joints`` ``joint_subset`` parameter from ``list[int]``
+  (indices) to ``list[str]`` (names) to match the ``BaseArticulation``
+  interface. Callers passing indices should convert to names first.
 
 
 0.1.0 (2026-04-20)
