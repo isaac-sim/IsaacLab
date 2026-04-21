@@ -382,6 +382,62 @@ BENCHMARKS = [
 ]
 
 
+# =============================================================================
+# Fill-Ratio Benchmarks (5%, 95%, 100% of env_ids filled)
+# =============================================================================
+
+FILL_RATIOS = {"5pct": 0.05, "95pct": 0.95, "100pct": 1.0}
+
+
+def _make_fill_ratio_generator(base_gen_fn, fill_ratio):
+    """Create a generator that subsets env_ids to a given fill ratio.
+
+    Only env_ids are subsetted — body_ids remain full-range.
+    Data tensors keyed on env count are sliced to match.
+    """
+
+    def generator(config):
+        n = max(1, int(config.num_instances * fill_ratio))
+        base_inputs = base_gen_fn(config)
+        inputs = {}
+        for key, val in base_inputs.items():
+            if key == "env_ids":
+                inputs[key] = (
+                    torch.randperm(config.num_instances, device=config.device)[:n].sort().values.to(torch.int32)
+                )
+            elif isinstance(val, torch.Tensor) and val.dim() >= 1 and val.shape[0] == config.num_instances:
+                inputs[key] = val[:n]
+            else:
+                inputs[key] = val
+        return inputs
+
+    return generator
+
+
+def _build_fill_benchmarks():
+    """Auto-generate fill-ratio benchmark definitions from existing generators."""
+    fill_benchmarks = []
+    for bm in BENCHMARKS:
+        generators = {}
+        if "torch_tensor" in bm.input_generators:
+            base_gen = bm.input_generators["torch_tensor"]
+            for suffix, ratio in FILL_RATIOS.items():
+                generators[f"tensor_{suffix}"] = _make_fill_ratio_generator(base_gen, ratio)
+        if generators:
+            fill_benchmarks.append(
+                MethodBenchmarkDefinition(
+                    name=bm.name,
+                    method_name=bm.method_name,
+                    input_generators=generators,
+                    category=f"{bm.category}_fill",
+                )
+            )
+    return fill_benchmarks
+
+
+FILL_BENCHMARKS = _build_fill_benchmarks()
+
+
 def main():
     """Main entry point for the benchmarking script."""
     config = MethodBenchmarkRunnerConfig(
@@ -415,6 +471,12 @@ def main():
     )
 
     runner.run_benchmarks(BENCHMARKS, collection)
+
+    print("\n" + "=" * 80)
+    print("Fill-Ratio Benchmarks (env_ids at 5%, 95%, 100% fill)")
+    print("=" * 80)
+
+    runner.run_benchmarks(FILL_BENCHMARKS, collection)
     runner.finalize()
 
     # Close the simulation app
