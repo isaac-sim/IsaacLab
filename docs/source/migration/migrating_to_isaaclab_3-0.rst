@@ -1498,6 +1498,39 @@ Deprecated retargeters have been moved to ``isaaclab_teleop.deprecated.openxr.re
 compatibility. These will be removed in a future release.
 
 
+.. _torcharray-migration:
+
+Data Properties Return ``TorchArray`` Instead of ``wp.array``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All asset and sensor data class properties now return :class:`~isaaclab.utils.warp.TorchArray`
+instead of raw ``warp.array``. ``TorchArray`` is a lightweight wrapper with explicit ``.torch``
+and ``.warp`` accessors:
+
+.. code-block:: python
+
+   # BEFORE (2.x) — raw warp arrays, manual conversion
+   joint_pos_torch = wp.to_torch(robot.data.joint_pos)
+   joint_pos_warp = robot.data.joint_pos
+
+   # AFTER (3.0) — explicit accessors
+   joint_pos_torch = robot.data.joint_pos.torch   # cached zero-copy torch.Tensor
+   joint_pos_warp = robot.data.joint_pos.warp     # the underlying warp.array
+
+**What to change:**
+
+1. Replace ``wp.to_torch(data.property)`` with ``data.property.torch``.
+2. If you pass data properties to ``wp.launch()``, no change is needed — ``TorchArray`` implements
+   ``__cuda_array_interface__`` and works transparently with warp kernels.
+3. If you access warp-specific attributes (``ptr``, ``strides``), use ``.warp`` first.
+
+**Deprecation bridge:** During the transition, implicit torch operations on ``TorchArray``
+(arithmetic, indexing, ``torch.*`` functions) still work but emit a one-time
+``DeprecationWarning``. This bridge will be removed in a future release.
+
+For a complete guide, see :doc:`/source/how-to/torch_array`.
+
+
 Need Help?
 ~~~~~~~~~~
 
