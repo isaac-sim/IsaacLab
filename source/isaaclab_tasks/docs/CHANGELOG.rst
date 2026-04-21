@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.5.23 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refreshed Newton Warp renderer golden images for Dexsuite Kuka-Allegro environment case in
+  ``test_rendering_correctness`` because Newton Warp renderer honors visibility of prims now.
+
 1.5.22 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~~
 

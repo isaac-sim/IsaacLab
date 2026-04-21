@@ -83,9 +83,9 @@ pyproject.optional-dependencies.all = [
     # ================================================================================
     { "newton" = [
         "warp-lang==1.12.0",
-        "mujoco==3.5.0",
-        "mujoco-warp==3.5.0.2",
-        "newton==1.0.0",
+        "mujoco==3.6.0",
+        "mujoco-warp==3.6.0",
+        "newton @ git+https://github.com/newton-physics/newton.git@a27277ed49d6f307b8a1e4c394be7e1d14965a62",
         "PyOpenGL-accelerate==3.1.10"
     ] },
     # ================================================================================
