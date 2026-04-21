@@ -66,6 +66,9 @@ _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
 #              "img_result_path": str | None, "img_golden_path": str | None}
 _COMPARISON_SCORES: list[dict] = []
 
+# Environment seed.
+_ENV_SEED = 42
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -521,15 +524,16 @@ def _validate_camera_outputs(
     golden_image_dir = os.path.join(_GOLDEN_IMAGES_DIRECTORY, test_name)
     os.makedirs(golden_image_dir, exist_ok=True)
 
+    failed_data_types = {}
+
     for data_type, tensor in camera_outputs.items():
         # Replace inf/nan with zero so they do not break comparison; ensure the tensor has at least one non-zero value.
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
         max_val = corrected.max()
-        assert max_val > 0, (
-            f"[{test_name}] Camera output '{data_type}' has no non-zero pixels. "
-            f"Shape: {corrected.shape}, dtype: {corrected.dtype}."
-        )
+        if max_val <= 0:
+            failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
+            continue
 
         # convert tensors to a tiled image.
         normalized = _normalize_tensor(corrected, data_type)
@@ -543,16 +547,15 @@ def _validate_camera_outputs(
         # first run creates baseline and fails; second run validates.
         golden_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}.png")
         if not os.path.exists(golden_path):
+            failed_data_types[data_type] = f"Golden image not found at {golden_path}."
             result_image.save(golden_path)
-            pytest.fail(
-                f"[{test_name}] Golden image not found at {golden_path}. Saved result image to {golden_path}. "
-                "Please run the test again to validate the consistency of rendering outputs."
-            )
+            continue
 
         try:
             golden_image = Image.open(golden_path)
         except Exception as e:
-            pytest.fail(f"Error opening golden image: {e}")
+            failed_data_types[data_type] = f"Error opening golden image: {e}"
+            continue
 
         # validate the consistency of rendering outputs.
         succeeded, error_message, diff_pct, ssim_score = _compare_images(
@@ -579,12 +582,16 @@ def _validate_camera_outputs(
 
         _COMPARISON_SCORES.append(entry)
 
-        assert succeeded, (
-            f"[{test_name}] Camera output does not match the golden image "
-            f"(physics={physics_backend}, renderer={renderer}, data_type={data_type}).\n"
-            f"Mismatch details: {error_message}\n"
-            f"Images were written to {_COMPARISON_IMAGES_DIR}."
-        )
+        if not succeeded:
+            failed_data_types[data_type] = error_message
+
+    if failed_data_types:
+        reason = f"{test_name} (physics={physics_backend}, renderer={renderer}) failed for the following data types:\n"
+        for data_type, error_message in failed_data_types.items():
+            reason += f"- {data_type}: {error_message}\n"
+        reason += f"Comparison images were written to {_COMPARISON_IMAGES_DIR}."
+
+        pytest.fail(reason)
 
 
 def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
@@ -636,7 +643,7 @@ def shadow_hand_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
+    env_cfg.seed = _ENV_SEED
 
     if data_type == "depth":
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
@@ -645,7 +652,7 @@ def shadow_hand_env(request):
     env = None
     try:
         env = ShadowHandVisionEnv(env_cfg)
-        env.reset()
+        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -684,12 +691,12 @@ def cartpole_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
+    env_cfg.seed = _ENV_SEED
 
     env = None
     try:
         env = CartpoleCameraEnv(env_cfg)
-        env.reset()
+        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -725,10 +732,6 @@ def dexsuite_kuka_allegro_lift_env(request):
 
     physics_backend, renderer, data_type = request.param
 
-    if renderer == "newton_renderer" and data_type == "rgb":
-        # TODO: re-enable the test case once the issue is resolved.
-        pytest.skip("Newton Warp produces inconsistent RGB colors run-to-run; skipping test.")
-
     # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64.
     override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
 
@@ -736,12 +739,12 @@ def dexsuite_kuka_allegro_lift_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
+    env_cfg.seed = _ENV_SEED
 
     env = None
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.reset()
+        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -784,7 +787,7 @@ def test_registered_tasks(task_id):
     env = None
     try:
         env_cfg = parse_env_cfg(task_id, num_envs=4)
-        env_cfg.seed = 42
+        env_cfg.seed = _ENV_SEED
 
         env = gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped
@@ -792,7 +795,7 @@ def test_registered_tasks(task_id):
         if sim is not None:
             sim._app_control_on_stop_handle = None
 
-        env.reset()
+        env.reset(seed=_ENV_SEED)
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)

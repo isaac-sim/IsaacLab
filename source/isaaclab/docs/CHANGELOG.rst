@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+4.6.7 (2026-04-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_shape_colors`
+  to align Newton ``shape_color`` with authored USD where OmniPBR inputs or
+  ``primvars:displayColor`` apply. Set ``ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS``
+  to ``0``, ``false``, ``off``, or ``no`` to disable the pass; the function emits
+  a ``FutureWarning`` because this path is temporary until neutral USD materials
+  replace OmniPBR in content.
+* Added ``test_newton_model_utils`` tests for the Newton shape color pass.
+
+Fixed
+^^^^^
+
+* Fixed nondeterministic environment replication when cloning from a template by
+  sorting prototype roots before building the clone plan in
+  :func:`~isaaclab.cloner.cloner_utils.clone_from_template`, keeping downstream
+  order stable across simulation and visualization backends.
+
+
 4.6.6 (2026-04-17)
 ~~~~~~~~~~~~~~~~~~~
 
