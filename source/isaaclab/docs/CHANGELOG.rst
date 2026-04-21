@@ -147,7 +147,6 @@ Removed
   Use ``isaaclab_physx.sim.spawners.materials`` instead.
 * Removed :class:`DeformableObjectSpawnerCfg` from ``isaaclab.sim.spawners``. Use
   ``isaaclab_physx.sim.spawners.spawner_cfg.DeformableObjectSpawnerCfg`` instead.
->>>>>>> origin/develop
 
 
 4.6.1 (2026-04-14)
