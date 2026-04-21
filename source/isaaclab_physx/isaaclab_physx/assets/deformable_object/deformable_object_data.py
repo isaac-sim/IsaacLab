@@ -121,6 +121,9 @@ class DeformableObjectData:
                 .reshape((self._num_instances, self._max_sim_vertices))
             )
             self._nodal_pos_w.timestamp = self._sim_timestamp
+            # Rebind TorchArray since .data was replaced with a new wp.array
+            if self._nodal_pos_w_ta is not None:
+                self._nodal_pos_w_ta.rebind(self._nodal_pos_w.data)
         if self._nodal_pos_w_ta is None:
             self._nodal_pos_w_ta = TorchArray(self._nodal_pos_w.data)
         return self._nodal_pos_w_ta
@@ -135,6 +138,9 @@ class DeformableObjectData:
                 .reshape((self._num_instances, self._max_sim_vertices))
             )
             self._nodal_vel_w.timestamp = self._sim_timestamp
+            # Rebind TorchArray since .data was replaced with a new wp.array
+            if self._nodal_vel_w_ta is not None:
+                self._nodal_vel_w_ta.rebind(self._nodal_vel_w.data)
         if self._nodal_vel_w_ta is None:
             self._nodal_vel_w_ta = TorchArray(self._nodal_vel_w.data)
         return self._nodal_vel_w_ta

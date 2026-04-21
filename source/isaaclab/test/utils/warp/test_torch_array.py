@@ -79,6 +79,62 @@ class TestTorchArrayBasic:
         assert t2[0].item() == 1.0
         assert ta.warp is arr2
 
+    def test_rebind_stale_reference(self, device):
+        """Test that a held .torch reference becomes stale after rebind()."""
+        from isaaclab.utils.warp.torch_array import TorchArray
+
+        arr1 = wp.zeros(10, dtype=wp.float32, device=device)
+        ta = TorchArray(arr1)
+        stale_ref = ta.torch  # hold a reference
+
+        arr2 = wp.ones(10, dtype=wp.float32, device=device)
+        ta.rebind(arr2)
+
+        fresh_ref = ta.torch
+        # The stale reference should NOT be the same object as the fresh one
+        assert stale_ref is not fresh_ref
+        # The stale reference still points to the OLD data (zeros)
+        assert stale_ref[0].item() == 0.0
+        # The fresh reference points to the NEW data (ones)
+        assert fresh_ref[0].item() == 1.0
+
+    def test_cuda_array_interface(self):
+        """Test that __cuda_array_interface__ delegates to the underlying warp array."""
+        from isaaclab.utils.warp.torch_array import TorchArray
+
+        arr = wp.zeros(10, dtype=wp.float32, device="cuda:0")
+        ta = TorchArray(arr)
+        cai = ta.__cuda_array_interface__
+        assert isinstance(cai, dict)
+        assert "data" in cai
+        assert "shape" in cai
+        assert cai["shape"] == arr.__cuda_array_interface__["shape"]
+
+    def test_cuda_array_interface_not_on_cpu(self):
+        """Test that __cuda_array_interface__ raises AttributeError on CPU arrays."""
+        from isaaclab.utils.warp.torch_array import TorchArray
+
+        arr = wp.zeros(10, dtype=wp.float32, device="cpu")
+        ta = TorchArray(arr)
+        with pytest.raises(AttributeError):
+            _ = ta.__cuda_array_interface__
+
+    def test_wp_launch_accepts_torch_array(self):
+        """Test that wp.launch() can consume a TorchArray via __cuda_array_interface__."""
+        from isaaclab.utils.warp.torch_array import TorchArray
+
+        @wp.kernel
+        def _add_one(src: wp.array(dtype=wp.float32), dst: wp.array(dtype=wp.float32)):
+            i = wp.tid()
+            dst[i] = src[i] + 1.0
+
+        src = TorchArray(wp.zeros(5, dtype=wp.float32, device="cuda:0"))
+        dst = TorchArray(wp.zeros(5, dtype=wp.float32, device="cuda:0"))
+        wp.launch(_add_one, dim=5, inputs=[src], outputs=[dst], device="cuda:0")
+        wp.synchronize_device("cuda:0")
+        assert dst.torch[0].item() == 1.0
+        assert dst.torch[4].item() == 1.0
+
 
 class TestTorchArrayStructuredTypes:
     """Tests for TorchArray with structured warp types (vec3f, quatf, etc)."""
@@ -293,6 +349,17 @@ class TestTorchArrayDeprecationBridge:
         ta = TorchArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))
         result = eval(f"scalar {op} ta")  # noqa: S307
         assert torch.allclose(result, torch.tensor(expected))
+
+    def test_torch_array_op_torch_array(self):
+        """Test binary operations between two TorchArray instances."""
+        from isaaclab.utils.warp.torch_array import TorchArray
+
+        TorchArray._deprecation_warned = True
+        ta1 = TorchArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))
+        ta2 = TorchArray(wp.array([3.0, 4.0], dtype=wp.float32, device="cpu"))
+        assert torch.allclose(ta1 + ta2, torch.tensor([4.0, 6.0]))
+        assert torch.allclose(ta1 * ta2, torch.tensor([3.0, 8.0]))
+        assert torch.allclose(ta2 - ta1, torch.tensor([2.0, 2.0]))
 
     @pytest.mark.parametrize(
         "op, values, expected",

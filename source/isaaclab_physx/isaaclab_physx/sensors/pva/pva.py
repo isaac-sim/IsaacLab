@@ -277,19 +277,17 @@ class Pva(BasePva):
             return
         # get marker location
         # -- base state (convert warp -> torch for visualization)
-        base_pos_w = wp.to_torch(self._data.pos_w).clone()
+        base_pos_w = self._data.pos_w.torch.clone()
         base_pos_w[:, 2] += 0.5
         # -- resolve the scales
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
-        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(
-            wp.to_torch(self._data.lin_acc_b).shape[0], 1
-        )
+        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.torch.shape[0], 1)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # arrow-direction
-        pos_w_torch = wp.to_torch(self._data.pos_w)
-        quat_w_torch = wp.to_torch(self._data.quat_w)
-        lin_acc_b_torch = wp.to_torch(self._data.lin_acc_b)
+        pos_w_torch = self._data.pos_w.torch
+        quat_w_torch = self._data.quat_w.torch
+        lin_acc_b_torch = self._data.lin_acc_b.torch
         quat_opengl = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(
                 pos_w_torch,
