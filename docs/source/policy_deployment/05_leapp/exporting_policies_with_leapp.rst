@@ -67,7 +67,7 @@ Use the RSL-RL export script to export a trained checkpoint:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/export.py \
+   ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
        --task <TASK_NAME> \
        --checkpoint <PATH_TO_CHECKPOINT>
 
@@ -75,9 +75,9 @@ For example, to export a UR10 reach policy:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/export.py \
+   ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
        --task Isaac-Reach-UR10-v0 \
-       --checkpoint logs/rsl_rl/ur10_reach/2026-03-22_22-35-55/model_4999.pt
+       --checkpoint logs/rsl_rl/ur10_reach/< date timestamp >/model_4999.pt
 
 By default, the export artifacts are saved in the same directory as the checkpoint. The
 exported graph is named after the task.
@@ -242,10 +242,11 @@ simulation without the training infrastructure. This is the Isaac Lab deployment
 LEAPP-exported policies and is useful for validating that the packaged policy still behaves
 correctly when driven through the deployment stack instead of the training stack.
 
-.. admonition:: TODO
-   :class: warning
-
-   A full tutorial on ``DirectDeploymentEnv`` usage will be added in a follow-up guide.
+For direct deployment policies, see the
+:doc:`direct deployment LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_deployment_policies_with_leapp>`.
+That guide shows how to add LEAPP annotations to a direct RL environment so it can be
+exported with ``scripts/reinforcement_learning/leapp/rsl_rl/export.py``. Direct
+deployment policies are not currently supported by ``scripts/reinforcement_learning/leapp/deploy.py``.
 
 .. admonition:: TODO
    :class: warning

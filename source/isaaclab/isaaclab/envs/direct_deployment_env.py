@@ -94,7 +94,18 @@ def _resolve_joint_ids(element_names: list | None, entity: Any) -> list[int] | N
     joint_names = element_names[0]
     if not isinstance(joint_names, list) or not joint_names:
         return None
-    if joint_names == list(entity.joint_names):
+    entity_joint_names = list(entity.joint_names)
+    # Only resolve indices when the leading element-name axis actually refers
+    # to a subset of this articulation's joints. Other tensors can use axis
+    # labels like ["x", "y", "z"] or body names in the first axis.
+    matching_joint_names = [name for name in joint_names if name in entity_joint_names]
+    if not matching_joint_names:
+        return None
+    if len(matching_joint_names) != len(joint_names):
+        raise ValueError(
+            f"LEAPP element names mix joint and non-joint labels for an articulation-backed tensor: {joint_names}"
+        )
+    if joint_names == entity_joint_names:
         return None
     joint_ids, _ = entity.find_joints(joint_names, preserve_order=True)
     return joint_ids

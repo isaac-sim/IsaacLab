@@ -17,7 +17,7 @@ environment code. During export, LEAPP traces the annotated tensors and builds a
 intermediate representation of the full policy pipeline. These annotations remain
 dormant during normal environment execution and only add a small amount of
 overhead until export time. They are activated by
-``scripts/reinforcement_learning/rsl_rl/export.py`` when you run the export flow.
+``scripts/reinforcement_learning/leapp/rsl_rl/export.py`` when you run the export flow.
 
 This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as the example.
 The script is based on the existing ANYmal-C direct environment at
@@ -28,7 +28,7 @@ with:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/export.py \
+   ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
        --task <TASK_NAME> \
        --checkpoint <PATH_TO_CHECKPOINT> \
        --export_save_path <EXPORT_PATH>
@@ -38,6 +38,12 @@ The ``--task`` argument is the registered task name, such as
 points to the trained RSL-RL checkpoint to export. The optional
 ``--export_save_path`` argument selects the output directory for the exported
 artifacts. If you omit it, the export is written next to the checkpoint.
+
+.. warning::
+
+   This tutorial covers exporting direct deployment policies only. Direct deployment
+   policies are not currently supported by
+   ``scripts/reinforcement_learning/leapp/deploy.py``.
 
 For more information on the export arguments, see the
 :doc:`manager-based LEAPP export guide </source/policy_deployment/04_leapp/exporting_policies_with_leapp>`.

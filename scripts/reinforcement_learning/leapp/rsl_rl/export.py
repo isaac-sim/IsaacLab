@@ -14,6 +14,7 @@ import importlib.metadata as metadata
 import sys
 import time
 from collections.abc import Mapping
+from pathlib import Path
 
 import torch
 
@@ -30,6 +31,9 @@ torch.jit._state.disable()
 from isaaclab.app import AppLauncher
 
 # local imports
+_RSL_RL_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "rsl_rl"
+if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_RSL_RL_SCRIPTS_DIR))
 import cli_args  # isort: skip
 
 
