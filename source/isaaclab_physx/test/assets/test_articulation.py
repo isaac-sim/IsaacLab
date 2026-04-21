@@ -844,8 +844,8 @@ def test_external_force_buffer(sim, num_articulations, device):
 
         # check if the articulation's force and torque buffers are correctly updated
         for i in range(num_articulations):
-            assert wp.to_torch(articulation.permanent_wrench_composer.composed_force)[i, 0, 0].item() == force
-            assert wp.to_torch(articulation.permanent_wrench_composer.composed_torque)[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.composed_force.torch[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.composed_torque.torch[i, 0, 0].item() == force
 
         # Check if the instantaneous wrench is correctly added to the permanent wrench
         articulation.instantaneous_wrench_composer.add_forces_and_torques_index(
@@ -895,9 +895,7 @@ def test_external_force_on_single_body(sim, num_articulations, device):
     for _ in range(5):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
-        articulation.write_root_velocity_to_sim_index(
-            root_velocity=articulation.data.default_root_vel.torch.clone()
-        )
+        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
         joint_pos, joint_vel = (
             articulation.data.default_joint_pos.torch,
@@ -914,9 +912,7 @@ def test_external_force_on_single_body(sim, num_articulations, device):
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(
-                target=articulation.data.default_joint_pos.torch.clone()
-            )
+            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -969,9 +965,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         root_pose[0, 0] = 2.5  # space them apart by 2.5m
 
         articulation.write_root_pose_to_sim_index(root_pose=root_pose)
-        articulation.write_root_velocity_to_sim_index(
-            root_velocity=articulation.data.default_root_vel.torch.clone()
-        )
+        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
         joint_pos, joint_vel = (
             articulation.data.default_joint_pos.torch,
@@ -1013,9 +1007,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(
-                target=articulation.data.default_joint_pos.torch.clone()
-            )
+            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1057,9 +1049,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
     for _ in range(5):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
-        articulation.write_root_velocity_to_sim_index(
-            root_velocity=articulation.data.default_root_vel.torch.clone()
-        )
+        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
         joint_pos, joint_vel = (
             articulation.data.default_joint_pos.torch,
@@ -1076,9 +1066,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device):
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(
-                target=articulation.data.default_joint_pos.torch.clone()
-            )
+            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1130,9 +1118,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     for i in range(5):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
-        articulation.write_root_velocity_to_sim_index(
-            root_velocity=articulation.data.default_root_vel.torch.clone()
-        )
+        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
         joint_pos, joint_vel = (
             articulation.data.default_joint_pos.torch,
@@ -1174,9 +1160,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(
-                target=articulation.data.default_joint_pos.torch.clone()
-            )
+            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1575,10 +1559,10 @@ def test_reset(sim, num_articulations, device):
     # Reset should zero external forces and torques
     assert not articulation._instantaneous_wrench_composer.active
     assert not articulation._permanent_wrench_composer.active
-    assert torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_force)) == 0
-    assert torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_torque)) == 0
-    assert torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_force)) == 0
-    assert torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_torque)) == 0
+    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch) == 0
+    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == 0
+    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == 0
+    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == 0
 
     if num_articulations > 1:
         num_bodies = articulation.num_bodies
@@ -1594,18 +1578,18 @@ def test_reset(sim, num_articulations, device):
         assert articulation._instantaneous_wrench_composer.active
         assert articulation._permanent_wrench_composer.active
         assert (
-            torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_force))
+            torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch)
             == num_bodies * 3
         )
         assert (
-            torch.count_nonzero(wp.to_torch(articulation._instantaneous_wrench_composer.composed_torque))
+            torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch)
             == num_bodies * 3
         )
         assert (
-            torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_force)) == num_bodies * 3
+            torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == num_bodies * 3
         )
         assert (
-            torch.count_nonzero(wp.to_torch(articulation._permanent_wrench_composer.composed_torque)) == num_bodies * 3
+            torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == num_bodies * 3
         )
 
 

@@ -196,10 +196,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
                     force_data=self.reshape_data_to_view_2d(
-                        self._instantaneous_wrench_composer.composed_force, device=self.device
+                        self._instantaneous_wrench_composer.composed_force.warp, device=self.device
                     ).view(wp.float32),
                     torque_data=self.reshape_data_to_view_2d(
-                        self._instantaneous_wrench_composer.composed_torque, device=self.device
+                        self._instantaneous_wrench_composer.composed_torque.warp, device=self.device
                     ).view(wp.float32),
                     position_data=None,
                     indices=self._env_body_ids_to_view_ids(
@@ -211,10 +211,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 # Apply permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
                     force_data=self.reshape_data_to_view_2d(
-                        self._permanent_wrench_composer.composed_force, device=self.device
+                        self._permanent_wrench_composer.composed_force.warp, device=self.device
                     ).view(wp.float32),
                     torque_data=self.reshape_data_to_view_2d(
-                        self._permanent_wrench_composer.composed_torque, device=self.device
+                        self._permanent_wrench_composer.composed_torque.warp, device=self.device
                     ).view(wp.float32),
                     position_data=None,
                     indices=self._env_body_ids_to_view_ids(

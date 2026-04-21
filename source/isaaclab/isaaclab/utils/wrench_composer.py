@@ -12,6 +12,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import TorchArray
 from isaaclab.utils.warp.kernels import (
     add_forces_and_torques_at_position_index,
     add_forces_and_torques_at_position_mask,
@@ -68,6 +69,10 @@ class WrenchComposer:
         self._temp_forces_wp = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._temp_torques_wp = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
 
+        # TorchArray caches for public properties
+        self._composed_force_b_ta = TorchArray(self._composed_force_b)
+        self._composed_torque_b_ta = TorchArray(self._composed_torque_b)
+
         # Flag to check if the link poses have been updated.
         self._link_poses_updated = False
 
@@ -77,28 +82,28 @@ class WrenchComposer:
         return self._active
 
     @property
-    def composed_force(self) -> wp.array:
-        """Composed force at the body's link frame.
+    def composed_force(self) -> TorchArray:
+        """Composed force at the body's link frame [N].
+
+        Shape is (num_envs, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_envs, num_bodies, 3).
 
         .. note:: If some of the forces are applied in the global frame, the composed force will be in the link frame
         of the body.
-
-        Returns:
-            wp.array: Composed force at the body's link frame. (num_envs, num_bodies, 3)
         """
-        return self._composed_force_b
+        return self._composed_force_b_ta
 
     @property
-    def composed_torque(self) -> wp.array:
-        """Composed torque at the body's link frame.
+    def composed_torque(self) -> TorchArray:
+        """Composed torque at the body's link frame [N*m].
+
+        Shape is (num_envs, num_bodies), dtype = wp.vec3f. In torch this resolves to
+        (num_envs, num_bodies, 3).
 
         .. note:: If some of the torques are applied in the global frame, the composed torque will be in the link frame
         of the body.
-
-        Returns:
-            wp.array: Composed torque at the body's link frame. (num_envs, num_bodies, 3)
         """
-        return self._composed_torque_b
+        return self._composed_torque_b_ta
 
     def add_forces_and_torques_index(
         self,

@@ -246,8 +246,8 @@ class Articulation(BaseArticulation):
                 )
                 # Apply both instantaneous and permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._instantaneous_wrench_composer.composed_torque.flatten().view(wp.float32),
+                    force_data=self._instantaneous_wrench_composer.composed_force.warp.flatten().view(wp.float32),
+                    torque_data=self._instantaneous_wrench_composer.composed_torque.warp.flatten().view(wp.float32),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -255,8 +255,8 @@ class Articulation(BaseArticulation):
             else:
                 # Apply permanent wrench to the simulation
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.composed_force.flatten().view(wp.float32),
-                    torque_data=self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32),
+                    force_data=self._permanent_wrench_composer.composed_force.warp.flatten().view(wp.float32),
+                    torque_data=self._permanent_wrench_composer.composed_torque.warp.flatten().view(wp.float32),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
