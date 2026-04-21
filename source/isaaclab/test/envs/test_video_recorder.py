@@ -7,7 +7,7 @@
 import math
 import sys
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -335,7 +335,7 @@ def test_sync_newton_camera_uses_cached_visualizer():
     recorder._live_visualizer = newton_viz
 
     other_viz = _make_newton_visualizer(pos=(99.0, 99.0, 99.0))
-    # replace sim.visualizers with a second Newton visualizer 
+    # replace sim.visualizers with a second Newton visualizer
     # if the cache is bypassed the recorder would use this one instead.
     recorder._scene.sim.visualizers = [other_viz]
     recorder._sync_newton_camera()
