@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import warnings
+from dataclasses import MISSING, fields
 from typing import Dict, Literal, TypeVar  # noqa: UP035
 
 import gymnasium as gym
@@ -17,9 +19,28 @@ from isaaclab.utils import configclass
 ##
 
 
+def _viewer_cfg_value_matches_default(current: object, default: object) -> bool:
+    """Return True if ``current`` matches the dataclass field default (including list/tuple equivalence)."""
+    if current == default:
+        return True
+    if isinstance(current, (list, tuple)) and isinstance(default, (list, tuple)):
+        if len(current) != len(default):
+            return False
+        return all(a == b for a, b in zip(current, default, strict=True))
+    return False
+
+
 @configclass
 class ViewerCfg:
-    """Configuration of the scene viewport camera."""
+    """Configuration of the scene viewport camera.
+
+    Note:
+        Overriding non-default fields is deprecated. In a future release, Isaac Sim viewport camera
+        configuration will be expressed only through ``KitVisualizerCfg`` under
+        ``SimulationCfg.visualizer_cfgs``; use ``NewtonVisualizerCfg`` for the Newton viewer.
+        Those visualizer configs replace the viewport camera pose, resolution, prim path, and
+        frame-origin behavior that this class used to configure.
+    """
 
     eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Initial camera position (in m). Default is (7.5, 7.5, 7.5)."""
@@ -66,6 +87,35 @@ class ViewerCfg:
 
     This quantity is only effective if :attr:`origin` is set to "asset_body".
     """
+
+    def __post_init__(self) -> None:
+        # Dataclasses do not record which arguments were passed explicitly vs defaulted, and
+        # warning only on ``**kwargs`` would miss positional arguments. Comparing each field to
+        # its declared default catches any non-default effective configuration (including
+        # ``replace()`` and ``from_dict``), while keeping ``ViewerCfg()`` silent.
+        differing: list[str] = []
+        for f in fields(self):
+            if not f.init:
+                continue
+            if f.default is not MISSING:
+                default_val = f.default
+            elif f.default_factory is not MISSING:
+                default_val = f.default_factory()
+            else:
+                continue
+            if not _viewer_cfg_value_matches_default(getattr(self, f.name), default_val):
+                differing.append(f.name)
+        if differing:
+            warnings.warn(
+                "ViewerCfg is deprecated when overriding default viewport camera fields "
+                f"({', '.join(sorted(differing))}). In a future release, Isaac Sim viewport camera "
+                "settings will be configured only through ``SimulationCfg.visualizer_cfgs`` using "
+                "``KitVisualizerCfg`` (viewport camera pose, resolution, prim path, and "
+                "frame-origin options). For the Newton viewer, use ``NewtonVisualizerCfg``. "
+                "Migrate overrides out of ``ViewerCfg`` accordingly.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
 
 
 ##

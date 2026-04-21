@@ -188,7 +188,8 @@ class RerunVisualizer(BaseVisualizer):
         self._viewer.set_model(self._model, max_worlds=self.cfg.max_worlds)
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-        self._apply_camera_pose(self._resolve_initial_camera_pose())
+        initial_pose = self._resolve_initial_camera_pose()
+        self._apply_camera_pose(initial_pose)
         self._viewer.up_axis = 2
         self._viewer.scaling = 1.0
         self._viewer._paused = False
@@ -198,9 +199,9 @@ class RerunVisualizer(BaseVisualizer):
             logger=logger,
             title="RerunVisualizer Configuration",
             rows=[
-                ("camera_position", self.cfg.camera_position),
-                ("camera_target", self.cfg.camera_target),
-                ("camera_source", self.cfg.camera_source),
+                ("eye", self.cfg.eye),
+                ("lookat", self.cfg.lookat),
+                ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("endpoint", f"http://{viewer_host}:{web_port}"),
                 ("viewer_url", viewer_url),
@@ -227,7 +228,7 @@ class RerunVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
 
-        if self.cfg.camera_source == "usd_path":
+        if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
         self._state = self._scene_data_provider.get_newton_state(self._env_ids)
@@ -275,11 +276,15 @@ class RerunVisualizer(BaseVisualizer):
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
         """Resolve initial camera pose from config or USD camera path."""
-        if self.cfg.camera_source == "usd_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
+        if self.cfg.cam_source == "prim_path":
+            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
             if pose is not None:
                 return pose
-        return self.cfg.camera_position, self.cfg.camera_target
+            raise RuntimeError(
+                "[RerunVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
+                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
+            )
+        return self._resolve_cfg_camera_pose("RerunVisualizer")
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply camera pose to rerun's 3D view controls.
@@ -307,7 +312,7 @@ class RerunVisualizer(BaseVisualizer):
 
     def _update_camera_from_usd_path(self) -> None:
         """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
+        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
         if pose is None:
             return
         if self._last_camera_pose == pose:
