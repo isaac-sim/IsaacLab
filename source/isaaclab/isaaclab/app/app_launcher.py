@@ -524,8 +524,7 @@ class AppLauncher:
             type=int,
             default=argparse.SUPPRESS,
             help=(
-                "When set, overrides ``max_visible_envs``: contiguous count when ``visible_env_indices`` is unset, "
-                "or max length of an explicit index list (truncates from the end). If omitted, config values apply."
+                "When set, caps the nums of envs shown in the launched visualizers to improve performance."
             ),
         )
         # special flag for backwards compatibility
