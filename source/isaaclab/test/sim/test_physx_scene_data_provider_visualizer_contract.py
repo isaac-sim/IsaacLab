@@ -79,6 +79,7 @@ def test_try_use_prebuilt_artifact_populates_provider_state():
     provider._filtered_newton_state = "old-filtered-state"
     provider._filtered_env_ids_key = (0,)
     provider._filtered_body_indices = [0]
+    provider._stage = None
 
     assert provider._try_use_prebuilt_newton_artifact() is True
     assert provider._newton_model == "prebuilt-model"
