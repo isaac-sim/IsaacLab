@@ -274,12 +274,14 @@ class ContactSensorData(BaseContactSensorData):
             self._last_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._current_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._first_transition = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._first_transition_ta = TorchArray(self._first_transition)
         else:
             self._last_air_time = None
             self._current_air_time = None
             self._last_contact_time = None
             self._current_contact_time = None
             self._first_transition = None
+            self._first_transition_ta = None
 
         # Track contact points if requested - filled with NaN
         if track_contact_points:

@@ -56,7 +56,15 @@ class TorchArray:
 
         Args:
             wp_array: The warp array to wrap.
+
+        Raises:
+            TypeError: If ``wp_array`` is not a :class:`warp.array`.
         """
+        if not isinstance(wp_array, wp.array):
+            raise TypeError(
+                f"TorchArray expects a warp.array, got {type(wp_array).__name__}."
+                " If you have a TorchArray, use it directly instead of wrapping it again."
+            )
         self._warp = wp_array
         self._torch_cache: torch.Tensor | None = None
 

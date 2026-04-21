@@ -233,7 +233,7 @@ class ContactSensor(BaseContactSensor):
             outputs=[self._data._first_transition],
             device=self._device,
         )
-        return TorchArray(self._data._first_transition)
+        return self._data._first_transition_ta
 
     def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> TorchArray:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
@@ -278,7 +278,7 @@ class ContactSensor(BaseContactSensor):
             outputs=[self._data._first_transition],
             device=self._device,
         )
-        return TorchArray(self._data._first_transition)
+        return self._data._first_transition_ta
 
     """
     Implementation.
