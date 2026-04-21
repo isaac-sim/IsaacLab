@@ -369,6 +369,16 @@ def resolve_matching_names(
     return list(idx), list(names)
 
 
+def clear_resolve_matching_names_cache() -> None:
+    """Discard all cached results from :func:`resolve_matching_names`.
+
+    Call this when the simulation scene is torn down so that cached
+    name-resolution entries from destroyed assets do not accumulate
+    across scene rebuilds in long-lived processes.
+    """
+    _resolve_matching_names_impl.cache_clear()
+
+
 def resolve_matching_names_values(
     data: dict[str, Any],
     list_of_strings: Sequence[str],
