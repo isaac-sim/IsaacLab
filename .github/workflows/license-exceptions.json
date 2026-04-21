@@ -492,5 +492,10 @@
     "package": "omniverseclient",
     "license": "NVIDIA Proprietary Software, https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/",
     "comment": "NVIDIA"
+  },
+  {
+    "package": "ovphysx",
+    "license": "LicenseRef-NVIDIA-Omniverse",
+    "comment": "NVIDIA"
   }
 ]
