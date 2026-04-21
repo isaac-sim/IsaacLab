@@ -64,6 +64,8 @@ def _make_cfg(**kwargs):
     cfg = {
         "max_visible_envs": None,
         "visible_env_indices": None,
+        # Default off in tests: contiguous cap-only path matches historical assertions.
+        "randomly_sample_visible_envs": False,
     }
     cfg.update(kwargs)
     return SimpleNamespace(**cfg)
@@ -111,6 +113,28 @@ def test_partial_visualization_cap_only_uses_resolver():
     assert viz._compute_visualized_env_ids() is None
     assert resolve_visible_env_indices(None, cfg.max_visible_envs, 10) == [0, 1, 2]
     assert resolve_visible_env_indices(None, 3, 10) == [0, 1, 2]
+
+
+@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
+def test_compute_visualized_env_ids_random_cap_only_sorted_once():
+    """Cap-only random mode returns a sorted sample; explicit indices ignore the flag."""
+    cfg = _make_cfg(max_visible_envs=3, visible_env_indices=None, randomly_sample_visible_envs=True)
+    viz = _DummyVisualizer(cfg)
+    viz._scene_data_provider = _FakeProvider(num_envs=10)
+    sampled = viz._compute_visualized_env_ids()
+    assert sampled is not None and len(sampled) == 3
+    assert sampled == sorted(sampled)
+    assert len(set(sampled)) == 3
+    assert all(0 <= i < 10 for i in sampled)
+
+    cfg_explicit = _make_cfg(
+        visible_env_indices=[1, 5],
+        max_visible_envs=1,
+        randomly_sample_visible_envs=True,
+    )
+    viz2 = _DummyVisualizer(cfg_explicit)
+    viz2._scene_data_provider = _FakeProvider(num_envs=10)
+    assert viz2._compute_visualized_env_ids() == [1, 5]
 
 
 @pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")

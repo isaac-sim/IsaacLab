@@ -16,7 +16,8 @@ def resolve_visible_env_indices(
     """Resolve which env indices stay visible (same rules as :func:`apply_viewer_visible_worlds`).
 
     * Cap-only path (``env_ids`` is ``None``): contiguous ``0 .. min(cap, num_envs) - 1`` when ``max_visible_envs``
-      is set; otherwise ``None`` (viewer shows all worlds).
+      is set; otherwise ``None`` (viewer shows all worlds). (Random cap-only selection is applied earlier by
+      turning it into explicit ``env_ids``.)
     * Explicit path (``env_ids`` is a list): if ``max_visible_envs`` is set, keep only the first *cap* indices
       (truncate from the end); if ``None``, use the full list.
 
@@ -32,16 +33,6 @@ def resolve_visible_env_indices(
         n = min(int(max_visible_envs), num_envs)
         return list(range(n))
     return None
-
-    cap = max(0, int(max_visible_envs))
-    if cap == 0:
-        return []
-
-    if num_envs > 0:
-        return list(range(min(cap, num_envs)))
-
-    # num_envs not reported yet (e.g. env prims not discovered); still cap so we do not return None below.
-    return list(range(cap))
 
 
 def apply_viewer_visible_worlds(

@@ -46,7 +46,7 @@ class VisualizerCfg:
     cam_prim_path: str = "/World/envs/env_0/Camera"
     """Absolute USD path to a camera prim when cam_source='prim_path'."""
 
-    max_visible_envs: int | None = 4
+    max_visible_envs: int | None = None
     """Upper bound on how many envs are shown.
 
     * If visible_env_indices is not None, then this field will apply also
@@ -55,6 +55,12 @@ class VisualizerCfg:
 
     visible_env_indices: list[int] | None = None
     """env indices to visualize in order (out-of-range indices are dropped)."""
+
+    randomly_sample_visible_envs: bool = True
+    """If ``max_visible_envs`` is provided, the selected visible envs are randomly sampled.
+    
+    * Note  ``visible_env_indices`` overrides this field.
+    """
 
     def get_visualizer_type(self) -> str | None:
         """Get the visualizer type identifier.

@@ -275,7 +275,11 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     )
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
 
-    cfg = ViserVisualizerCfg(max_visible_envs=cfg_max_visible_envs, open_browser=False)
+    cfg = ViserVisualizerCfg(
+        max_visible_envs=cfg_max_visible_envs,
+        open_browser=False,
+        randomly_sample_visible_envs=False,
+    )
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer._model = "dummy-model"
     visualizer._env_ids = None  # normally set by initialize() -> _compute_visualized_env_ids()
@@ -359,7 +363,11 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     )
     monkeypatch.setattr(rerun_visualizer.RerunVisualizer, "_apply_camera_pose", lambda self, pose: None)
 
-    cfg = RerunVisualizerCfg(open_browser=False, max_visible_envs=cfg_max_visible_envs)
+    cfg = RerunVisualizerCfg(
+        open_browser=False,
+        max_visible_envs=cfg_max_visible_envs,
+        randomly_sample_visible_envs=False,
+    )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
     visualizer.initialize(cast(Any, _DummyRerunSceneDataProvider()))
 

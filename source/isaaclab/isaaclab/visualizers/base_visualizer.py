@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
@@ -150,8 +151,20 @@ class BaseVisualizer(ABC):
         if num_envs <= 0:
             logger.debug("[Visualizer] num_envs is 0 or missing from provider metadata; env selection disabled.")
             return None
+        # Explicit list wins; never combine with random cap-only mode.
         if cfg.visible_env_indices is not None:
             return [i for i in cfg.visible_env_indices if 0 <= i < num_envs]
+
+        max_visible = getattr(cfg, "max_visible_envs", None)
+        # Random subset only for cap-only mode: needs a cap and no explicit indices (see VisualizerCfg).
+        if (
+            max_visible is not None
+            and getattr(cfg, "randomly_sample_visible_envs", True)
+            and int(max_visible) >= 0
+        ):
+            k = min(int(max_visible), num_envs)
+            # k == 0: sample(range(n), 0) is []; contiguous resolver used the same convention.
+            return sorted(random.sample(range(num_envs), k))
         return None
 
     def get_rendering_dt(self) -> float | None:
