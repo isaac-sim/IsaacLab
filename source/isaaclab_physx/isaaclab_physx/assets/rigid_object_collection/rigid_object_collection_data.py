@@ -714,6 +714,16 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # _reshape_view_to_data only handles single-element dtypes, so we use _reshape_view_to_data_3d.
         self._body_inertia = self._reshape_view_to_data_3d(self._root_view.get_inertias(), 9)
 
+        # Initialize TorchArray wrappers
+        self._pin_torch_arrays()
+
+    def _pin_torch_arrays(self) -> None:
+        """Create pinned TorchArray wrappers for all data buffers.
+
+        This is called once from :meth:`_create_buffers` during initialization.
+        PhysX tensor API buffers have stable GPU pointers across simulation steps,
+        so no rebinding is needed (unlike Newton).
+        """
         # -- Pinned TorchArray cache (one per read property, lazily created on first access)
         # Defaults
         self._default_body_pose_ta: TorchArray | None = None

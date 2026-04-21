@@ -1494,6 +1494,16 @@ class ArticulationData(BaseArticulationData):
         self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
         self._default_root_state = None
 
+        # Initialize TorchArray wrappers
+        self._pin_torch_arrays()
+
+    def _pin_torch_arrays(self) -> None:
+        """Create pinned TorchArray wrappers for all data buffers.
+
+        This is called once from :meth:`_create_buffers` during initialization.
+        PhysX tensor API buffers have stable GPU pointers across simulation steps,
+        so no rebinding is needed (unlike Newton).
+        """
         # -- Pinned TorchArray cache (one per read property, lazily created on first access)
         # Defaults
         self._default_root_pose_ta: TorchArray | None = None
