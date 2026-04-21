@@ -6,7 +6,8 @@ Changelog
 
 Changed
 ^^^^^^^
-* Updated SKRL wrapper to support the new version of SKRL 2.0.
+
+* Updated skrl wrapper to support the new version of skrl 2.0.
 
 0.5.0 (2026-3-04)
 ~~~~~~~~~~~~~~~~~~
