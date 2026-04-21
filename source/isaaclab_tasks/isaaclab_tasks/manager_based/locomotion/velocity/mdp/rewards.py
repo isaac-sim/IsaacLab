@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.envs import mdp
 from isaaclab.managers import SceneEntityCfg

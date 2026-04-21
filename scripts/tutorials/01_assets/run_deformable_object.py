@@ -149,9 +149,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
 
         # print the root positions every second
         if count % int(1.0 / sim_dt) == 0:
-            print(
-                f"Time {sim_time:.2f}s: \tRoot position (in world): {cube_object.data.root_pos_w.torch[:, :3]}"
-            )
+            print(f"Time {sim_time:.2f}s: \tRoot position (in world): {cube_object.data.root_pos_w.torch[:, :3]}")
 
 
 def main():

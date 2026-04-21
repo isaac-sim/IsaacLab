@@ -85,9 +85,7 @@ class UniformPose2dCommand(CommandTerm):
         self.metrics["error_pos_2d"] = torch.linalg.norm(
             self.pos_command_w[:, :2] - self.robot.data.root_pos_w.torch[:, :2], dim=1
         )
-        self.metrics["error_heading"] = torch.abs(
-            wrap_to_pi(self.heading_command_w - self.robot.data.heading_w.torch)
-        )
+        self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - self.robot.data.heading_w.torch))
 
     def _resample_command(self, env_ids: Sequence[int]):
         # obtain env origins for the environments

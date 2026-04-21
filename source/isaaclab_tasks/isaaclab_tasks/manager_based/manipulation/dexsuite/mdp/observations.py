@@ -35,9 +35,7 @@ def object_pos_b(
     """
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
-    return quat_apply_inverse(
-        robot.data.root_quat_w.torch, object.data.root_pos_w.torch - robot.data.root_pos_w.torch
-    )
+    return quat_apply_inverse(robot.data.root_quat_w.torch, object.data.root_pos_w.torch - robot.data.root_pos_w.torch)
 
 
 def object_quat_b(
@@ -87,12 +85,8 @@ def body_state_b(
     body_ang_vel_w = body_asset.data.body_ang_vel_w.torch[:, body_asset_cfg.body_ids].view(-1, 3)
     num_bodies = int(body_pos_w.shape[0] / env.num_envs)
     # get world pose of base frame
-    root_pos_w = (
-        base_asset.data.root_link_pos_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
-    )
-    root_quat_w = (
-        base_asset.data.root_link_quat_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
-    )
+    root_pos_w = base_asset.data.root_link_pos_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
+    root_quat_w = base_asset.data.root_link_quat_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
     # transform from world body pose to local body pose
     body_pos_b, body_quat_b = subtract_frame_transforms(root_pos_w, root_quat_w, body_pos_w, body_quat_w)
     body_lin_vel_b = quat_apply_inverse(root_quat_w, body_lin_vel_w)
@@ -198,9 +192,7 @@ def fingers_contact_force_b(
         Tensor of shape ``(num_envs, 3 * num_sensors)`` with forces stacked horizontally as
         ``[fx, fy, fz]`` per sensor.
     """
-    force_w = [
-        env.scene.sensors[name].data.force_matrix_w.torch.view(env.num_envs, 3) for name in contact_sensor_names
-    ]
+    force_w = [env.scene.sensors[name].data.force_matrix_w.torch.view(env.num_envs, 3) for name in contact_sensor_names]
     force_w = torch.stack(force_w, dim=1)
     robot: Articulation = env.scene[asset_cfg.name]
     root_link_quat_w = robot.data.root_link_quat_w.torch

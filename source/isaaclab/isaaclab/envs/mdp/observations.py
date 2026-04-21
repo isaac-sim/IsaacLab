@@ -217,8 +217,7 @@ def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return (
-        asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
-        - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+        asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
     )
 
 
@@ -265,8 +264,7 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return (
-        asset.data.joint_vel.torch[:, asset_cfg.joint_ids]
-        - asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids]
+        asset.data.joint_vel.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids]
     )
 
 

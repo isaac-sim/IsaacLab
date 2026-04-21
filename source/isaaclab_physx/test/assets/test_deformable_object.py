@@ -149,7 +149,6 @@ def test_initialization(sim, num_cubes, material_path):
     assert cube_object.data.root_vel_w.torch.shape == (num_cubes, 3)
 
 
-
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.isaacsim_ci
 def test_initialization_surface_deformable(sim, num_cubes):

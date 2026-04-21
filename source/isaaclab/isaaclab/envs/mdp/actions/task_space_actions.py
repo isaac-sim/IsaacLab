@@ -733,9 +733,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._contact_sensor.update(self._sim_dt)
             self._ee_force_w[:] = self._contact_sensor.data.net_forces_w.torch[:, 0, :]  # type: ignore
             # Rotate forces and torques into root frame
-            self._ee_force_b[:] = math_utils.quat_apply_inverse(
-                self._asset.data.root_quat_w.torch, self._ee_force_w
-            )
+            self._ee_force_b[:] = math_utils.quat_apply_inverse(self._asset.data.root_quat_w.torch, self._ee_force_w)
 
     def _compute_joint_states(self):
         """Computes the joint states for operational space control."""

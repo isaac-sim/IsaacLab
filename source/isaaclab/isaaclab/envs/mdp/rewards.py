@@ -183,8 +183,7 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scene
     asset: Articulation = env.scene[asset_cfg.name]
     # compute out of limits constraints
     angle = (
-        asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
-        - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+        asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
     )
     return torch.sum(torch.abs(angle), dim=1)
 
@@ -320,9 +319,7 @@ def track_lin_vel_xy_exp(
     asset: RigidObject = env.scene[asset_cfg.name]
     # compute the error
     lin_vel_error = torch.sum(
-        torch.square(
-            env.command_manager.get_command(command_name)[:, :2] - asset.data.root_lin_vel_b.torch[:, :2]
-        ),
+        torch.square(env.command_manager.get_command(command_name)[:, :2] - asset.data.root_lin_vel_b.torch[:, :2]),
         dim=1,
     )
     return torch.exp(-lin_vel_error / std**2)

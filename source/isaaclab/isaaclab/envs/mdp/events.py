@@ -1268,12 +1268,8 @@ class randomize_joint_parameters(ManagerTermBase):
 
         # cache dynamic/viscous friction (PhysX only - Newton only has static friction)
         if self._backend == "physx":
-            self.default_dynamic_joint_friction_coeff = (
-                self.asset.data.joint_dynamic_friction_coeff.torch
-            ).clone()
-            self.default_viscous_joint_friction_coeff = (
-                self.asset.data.joint_viscous_friction_coeff.torch
-            ).clone()
+            self.default_dynamic_joint_friction_coeff = (self.asset.data.joint_dynamic_friction_coeff.torch).clone()
+            self.default_viscous_joint_friction_coeff = (self.asset.data.joint_viscous_friction_coeff.torch).clone()
 
         # check for valid operation
         if cfg.params["operation"] == "scale":

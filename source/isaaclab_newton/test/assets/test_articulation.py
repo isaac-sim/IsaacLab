@@ -1036,9 +1036,7 @@ def test_external_force_on_single_body(sim, num_articulations, device, articulat
     for _ in range(5):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
-        articulation.write_root_velocity_to_sim_index(
-            root_velocity=articulation.data.default_root_vel.torch.clone()
-        )
+        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
         joint_pos, joint_vel = (
             articulation.data.default_joint_pos.torch,
@@ -1055,9 +1053,7 @@ def test_external_force_on_single_body(sim, num_articulations, device, articulat
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(
-                target=articulation.data.default_joint_pos.torch.clone()
-            )
+            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1111,9 +1107,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         root_pose[0, 0] = 2.5  # space them apart by 2.5m
 
         articulation.write_root_pose_to_sim_index(root_pose=root_pose)
-        articulation.write_root_velocity_to_sim_index(
-            root_velocity=articulation.data.default_root_vel.torch.clone()
-        )
+        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
         joint_pos, joint_vel = (
             articulation.data.default_joint_pos.torch,
@@ -1155,9 +1149,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(
-                target=articulation.data.default_joint_pos.torch.clone()
-            )
+            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1200,9 +1192,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, artic
     for _ in range(5):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
-        articulation.write_root_velocity_to_sim_index(
-            root_velocity=articulation.data.default_root_vel.torch.clone()
-        )
+        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
         joint_pos, joint_vel = (
             articulation.data.default_joint_pos.torch,
@@ -1219,9 +1209,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, artic
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(
-                target=articulation.data.default_joint_pos.torch.clone()
-            )
+            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()
@@ -1274,9 +1262,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     for i in range(5):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
-        articulation.write_root_velocity_to_sim_index(
-            root_velocity=articulation.data.default_root_vel.torch.clone()
-        )
+        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
         joint_pos, joint_vel = (
             articulation.data.default_joint_pos.torch,
@@ -1318,9 +1304,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
         # perform simulation
         for _ in range(100):
             # apply action to the articulation
-            articulation.set_joint_position_target_index(
-                target=articulation.data.default_joint_pos.torch.clone()
-            )
+            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
             articulation.write_data_to_sim()
             # perform step
             sim.step()

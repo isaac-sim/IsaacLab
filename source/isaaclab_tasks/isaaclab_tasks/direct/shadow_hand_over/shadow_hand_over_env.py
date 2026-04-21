@@ -334,14 +334,10 @@ class ShadowHandOverEnv(DirectMARLEnv):
 
         dof_pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
         rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
-        dof_pos = (
-            self.right_hand.data.default_joint_pos.torch[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
-        )
+        dof_pos = self.right_hand.data.default_joint_pos.torch[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
-        dof_vel = (
-            self.right_hand.data.default_joint_vel.torch[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
-        )
+        dof_vel = self.right_hand.data.default_joint_vel.torch[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
 
         self.right_hand_prev_targets[env_ids] = dof_pos
         self.right_hand_curr_targets[env_ids] = dof_pos
@@ -357,14 +353,10 @@ class ShadowHandOverEnv(DirectMARLEnv):
 
         dof_pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
         rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
-        dof_pos = (
-            self.left_hand.data.default_joint_pos.torch[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
-        )
+        dof_pos = self.left_hand.data.default_joint_pos.torch[env_ids] + self.cfg.reset_dof_pos_noise * rand_delta
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
-        dof_vel = (
-            self.left_hand.data.default_joint_vel.torch[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
-        )
+        dof_vel = self.left_hand.data.default_joint_vel.torch[env_ids] + self.cfg.reset_dof_vel_noise * dof_vel_noise
 
         self.left_hand_prev_targets[env_ids] = dof_pos
         self.left_hand_curr_targets[env_ids] = dof_pos

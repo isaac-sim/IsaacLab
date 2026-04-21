@@ -54,12 +54,8 @@ class FrankaCabinetEnv(DirectRLEnv):
         self.dt = self.cfg.sim.dt * self.cfg.decimation
 
         # create auxiliary variables for computing applied action, observations and rewards
-        self.robot_dof_lower_limits = self._robot.data.soft_joint_pos_limits.torch[0, :, 0].to(
-            device=self.device
-        )
-        self.robot_dof_upper_limits = self._robot.data.soft_joint_pos_limits.torch[0, :, 1].to(
-            device=self.device
-        )
+        self.robot_dof_lower_limits = self._robot.data.soft_joint_pos_limits.torch[0, :, 0].to(device=self.device)
+        self.robot_dof_upper_limits = self._robot.data.soft_joint_pos_limits.torch[0, :, 1].to(device=self.device)
 
         self.robot_dof_speed_scales = torch.ones_like(self.robot_dof_lower_limits)
         self.robot_dof_speed_scales[self._robot.find_joints("panda_finger_joint1")[0]] = 0.1

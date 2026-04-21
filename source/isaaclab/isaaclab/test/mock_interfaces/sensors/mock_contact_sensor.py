@@ -93,7 +93,9 @@ class MockContactSensorData(BaseContactSensorData):
     def pos_w(self) -> TorchArray | None:
         """Position of sensor origins in world frame. Shape: (N, B, 3)."""
         if self._pos_w is None:
-            self._pos_w = wp.zeros(shape=(self._num_instances, self._num_bodies, 3), dtype=wp.float32, device=self.device)
+            self._pos_w = wp.zeros(
+                shape=(self._num_instances, self._num_bodies, 3), dtype=wp.float32, device=self.device
+            )
             self._pos_w_ta = None
         if self._pos_w_ta is None:
             self._pos_w_ta = TorchArray(self._pos_w)
@@ -124,7 +126,9 @@ class MockContactSensorData(BaseContactSensorData):
     def net_forces_w(self) -> TorchArray:
         """Net normal contact forces in world frame. Shape: (N, B, 3)."""
         if self._net_forces_w is None:
-            self._net_forces_w = wp.zeros(shape=(self._num_instances, self._num_bodies, 3), dtype=wp.float32, device=self.device)
+            self._net_forces_w = wp.zeros(
+                shape=(self._num_instances, self._num_bodies, 3), dtype=wp.float32, device=self.device
+            )
             self._net_forces_w_ta = None
         if self._net_forces_w_ta is None:
             self._net_forces_w_ta = TorchArray(self._net_forces_w)
@@ -214,7 +218,9 @@ class MockContactSensorData(BaseContactSensorData):
     def last_air_time(self) -> TorchArray:
         """Time in air before last contact. Shape: (N, B)."""
         if self._last_air_time is None:
-            self._last_air_time = wp.zeros(shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
+            self._last_air_time = wp.zeros(
+                shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device
+            )
             self._last_air_time_ta = None
         if self._last_air_time_ta is None:
             self._last_air_time_ta = TorchArray(self._last_air_time)
@@ -224,7 +230,9 @@ class MockContactSensorData(BaseContactSensorData):
     def current_air_time(self) -> TorchArray:
         """Current time in air. Shape: (N, B)."""
         if self._current_air_time is None:
-            self._current_air_time = wp.zeros(shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
+            self._current_air_time = wp.zeros(
+                shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device
+            )
             self._current_air_time_ta = None
         if self._current_air_time_ta is None:
             self._current_air_time_ta = TorchArray(self._current_air_time)
@@ -234,7 +242,9 @@ class MockContactSensorData(BaseContactSensorData):
     def last_contact_time(self) -> TorchArray:
         """Time in contact before last detach. Shape: (N, B)."""
         if self._last_contact_time is None:
-            self._last_contact_time = wp.zeros(shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
+            self._last_contact_time = wp.zeros(
+                shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device
+            )
             self._last_contact_time_ta = None
         if self._last_contact_time_ta is None:
             self._last_contact_time_ta = TorchArray(self._last_contact_time)
@@ -244,7 +254,9 @@ class MockContactSensorData(BaseContactSensorData):
     def current_contact_time(self) -> TorchArray:
         """Current time in contact. Shape: (N, B)."""
         if self._current_contact_time is None:
-            self._current_contact_time = wp.zeros(shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
+            self._current_contact_time = wp.zeros(
+                shape=(self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device
+            )
             self._current_contact_time_ta = None
         if self._current_contact_time_ta is None:
             self._current_contact_time_ta = TorchArray(self._current_contact_time)

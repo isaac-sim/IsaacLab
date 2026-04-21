@@ -269,7 +269,9 @@ class MockArticulationData(BaseArticulationData):
     def joint_pos_target(self) -> TorchArray:
         """Joint position targets. Shape: (N, num_joints)."""
         if self._joint_pos_target is None:
-            self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._joint_pos_target = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
             self._joint_pos_target_ta = None
         if self._joint_pos_target_ta is None:
             self._joint_pos_target_ta = TorchArray(self._joint_pos_target)
@@ -279,7 +281,9 @@ class MockArticulationData(BaseArticulationData):
     def joint_vel_target(self) -> TorchArray:
         """Joint velocity targets. Shape: (N, num_joints)."""
         if self._joint_vel_target is None:
-            self._joint_vel_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._joint_vel_target = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
             self._joint_vel_target_ta = None
         if self._joint_vel_target_ta is None:
             self._joint_vel_target_ta = TorchArray(self._joint_vel_target)
@@ -301,7 +305,9 @@ class MockArticulationData(BaseArticulationData):
     def computed_torque(self) -> TorchArray:
         """Computed torques before clipping. Shape: (N, num_joints)."""
         if self._computed_torque is None:
-            self._computed_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._computed_torque = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
             self._computed_torque_ta = None
         if self._computed_torque_ta is None:
             self._computed_torque_ta = TorchArray(self._computed_torque)
@@ -311,7 +317,9 @@ class MockArticulationData(BaseArticulationData):
     def applied_torque(self) -> TorchArray:
         """Applied torques after clipping. Shape: (N, num_joints)."""
         if self._applied_torque is None:
-            self._applied_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._applied_torque = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
             self._applied_torque_ta = None
         if self._applied_torque_ta is None:
             self._applied_torque_ta = TorchArray(self._applied_torque)
@@ -323,7 +331,9 @@ class MockArticulationData(BaseArticulationData):
     def joint_stiffness(self) -> TorchArray:
         """Joint stiffness. Shape: (N, num_joints)."""
         if self._joint_stiffness is None:
-            self._joint_stiffness = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._joint_stiffness = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
             self._joint_stiffness_ta = None
         if self._joint_stiffness_ta is None:
             self._joint_stiffness_ta = TorchArray(self._joint_stiffness)
@@ -333,7 +343,9 @@ class MockArticulationData(BaseArticulationData):
     def joint_damping(self) -> TorchArray:
         """Joint damping. Shape: (N, num_joints)."""
         if self._joint_damping is None:
-            self._joint_damping = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._joint_damping = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
             self._joint_damping_ta = None
         if self._joint_damping_ta is None:
             self._joint_damping_ta = TorchArray(self._joint_damping)
@@ -343,7 +355,9 @@ class MockArticulationData(BaseArticulationData):
     def joint_armature(self) -> TorchArray:
         """Joint armature. Shape: (N, num_joints)."""
         if self._joint_armature is None:
-            self._joint_armature = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._joint_armature = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
             self._joint_armature_ta = None
         if self._joint_armature_ta is None:
             self._joint_armature_ta = TorchArray(self._joint_armature)
@@ -796,9 +810,7 @@ class MockArticulationData(BaseArticulationData):
     def body_mass(self) -> TorchArray:
         """Body masses. Shape: (N, num_bodies)."""
         if self._body_mass is None:
-            self._body_mass = wp.ones(
-                (self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device
-            )
+            self._body_mass = wp.ones((self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
             self._body_mass_ta = None
         if self._body_mass_ta is None:
             self._body_mass_ta = TorchArray(self._body_mass)

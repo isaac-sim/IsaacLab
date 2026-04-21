@@ -61,9 +61,7 @@ def object_goal_distance(
     command = env.command_manager.get_command(command_name)
     # compute the desired position in the world frame
     des_pos_b = command[:, :3]
-    des_pos_w, _ = combine_frame_transforms(
-        robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, des_pos_b
-    )
+    des_pos_w, _ = combine_frame_transforms(robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, des_pos_b)
     # distance of the end-effector to the object: (num_envs,)
     object_pos_w = object.data.root_pos_w.torch
     distance = torch.linalg.norm(des_pos_w - object_pos_w, dim=1)
