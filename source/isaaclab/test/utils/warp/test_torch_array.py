@@ -327,7 +327,7 @@ class TestTorchArrayDeprecationBridge:
         from isaaclab.utils.warp.torch_array import TorchArray
 
         TorchArray._deprecation_warned = True
-        ta = TorchArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))
+        ta = TorchArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))  # noqa: F841
         result = eval(f"ta {op} scalar")  # noqa: S307
         assert torch.allclose(result, torch.tensor(expected))
 
@@ -346,7 +346,7 @@ class TestTorchArrayDeprecationBridge:
         from isaaclab.utils.warp.torch_array import TorchArray
 
         TorchArray._deprecation_warned = True
-        ta = TorchArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))
+        ta = TorchArray(wp.array([1.0, 2.0], dtype=wp.float32, device="cpu"))  # noqa: F841
         result = eval(f"scalar {op} ta")  # noqa: S307
         assert torch.allclose(result, torch.tensor(expected))
 
@@ -374,7 +374,7 @@ class TestTorchArrayDeprecationBridge:
         from isaaclab.utils.warp.torch_array import TorchArray
 
         TorchArray._deprecation_warned = True
-        ta = TorchArray(wp.array(values, dtype=wp.float32, device="cpu"))
+        ta = TorchArray(wp.array(values, dtype=wp.float32, device="cpu"))  # noqa: F841
         result = eval(f"{op}(ta)" if op == "abs" else f"{op}ta")  # noqa: S307
         assert torch.allclose(result, torch.tensor(expected))
 
@@ -394,7 +394,7 @@ class TestTorchArrayDeprecationBridge:
         from isaaclab.utils.warp.torch_array import TorchArray
 
         TorchArray._deprecation_warned = True
-        ta = TorchArray(wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"))
+        ta = TorchArray(wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"))  # noqa: F841
         result = eval(f"ta {op} 2.0")  # noqa: S307
         assert result.tolist() == expected
 

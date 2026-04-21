@@ -44,6 +44,21 @@ class ArticulationData(BaseArticulationData):
 
     Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
     can be interpreted as the link frame.
+
+    .. note::
+        **Pull-to-refresh model.** PhysX state properties are *not* automatically updated each
+        simulation step. Each property getter pulls fresh data from the PhysX tensor API on first
+        access per timestamp, then caches the result until the next step. This differs from the
+        Newton backend, where buffers are refreshed automatically by the simulation.
+
+    .. note::
+        **TorchArray pointer stability.** Each :class:`TorchArray` wrapper is created once on the
+        first property access and reused thereafter. This is safe because the PhysX tensor API
+        returns views into stable, pre-allocated GPU buffers whose device pointer does not change
+        across simulation steps. The ``wp.array`` Python objects returned by getters like
+        ``get_root_transforms()`` are new wrappers each call, but they alias the same underlying
+        GPU memory. Sub-view properties (``root_pos_w``, ``root_quat_w``, etc.) similarly wrap
+        pointer offsets into these stable buffers and are therefore also safe to cache.
     """
 
     __backend_name__: str = "physx"

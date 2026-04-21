@@ -46,6 +46,16 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     The data is lazily updated, meaning that the data is only updated when it is accessed. This is useful
     when the data is expensive to compute or retrieve. The data is updated when the timestamp of the buffer
     is older than the current simulation timestamp. The timestamp is updated whenever the data is updated.
+
+    .. note::
+        **Pull-to-refresh model.** Properties pull fresh data from the PhysX tensor API on first
+        access per timestamp and cache the result. This differs from Newton, where buffers are
+        refreshed automatically by the simulation.
+
+    .. note::
+        **TorchArray pointer stability.** Each :class:`TorchArray` wrapper is created once and
+        reused because the PhysX tensor API returns views into stable, pre-allocated GPU buffers
+        whose device pointer does not change across simulation steps.
     """
 
     __backend_name__: str = "physx"

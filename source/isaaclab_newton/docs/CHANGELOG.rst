@@ -12,8 +12,10 @@ Changed
   :class:`~isaaclab_newton.assets.articulation.ArticulationData`,
   :class:`~isaaclab_newton.assets.rigid_object.RigidObjectData`,
   :class:`~isaaclab_newton.assets.rigid_object_collection.RigidObjectCollectionData`,
-  :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensorData`, and
-  :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformerData`.
+  :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensorData`,
+  :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformerData`,
+  :class:`~isaaclab_newton.sensors.imu.ImuData`, and
+  :class:`~isaaclab_newton.sensors.pva.PvaData`.
 
 
 0.5.17 (2026-04-20)
