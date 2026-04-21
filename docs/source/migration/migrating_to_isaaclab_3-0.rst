@@ -1518,16 +1518,37 @@ and ``.warp`` accessors:
    root_pos = robot.data.root_pos_w.torch    # cached zero-copy torch.Tensor
    joint_pos_warp = robot.data.joint_pos.warp  # the underlying warp.array
 
+**Automatic interop — in many cases, no changes are needed:**
+
+- **Warp kernels:** ``TorchArray`` implements ``__cuda_array_interface__``, so it can be passed
+  directly to ``wp.launch()`` without calling ``.warp``:
+
+  .. code-block:: python
+
+     # Just works — no .warp needed
+     wp.launch(my_kernel, inputs=[robot.data.joint_pos], ...)
+
+- **Torch functions:** ``TorchArray`` implements ``__torch_function__``, so ``torch.*`` operations
+  accept it directly. During the deprecation period this emits a one-time warning, but works:
+
+  .. code-block:: python
+
+     # Works (emits DeprecationWarning once, then silent)
+     mean_pos = torch.mean(robot.data.joint_pos, dim=1)
+     clipped = torch.clamp(robot.data.joint_pos, -3.14, 3.14)
+
 **What to change:**
 
-1. Append ``.torch`` to any data property access where you need a ``torch.Tensor``.
-2. If you pass data properties to ``wp.launch()``, no change is needed — ``TorchArray`` implements
-   ``__cuda_array_interface__`` and works transparently with warp kernels.
+1. Append ``.torch`` where you need an explicit ``torch.Tensor`` (e.g., for indexing, slicing,
+   or passing to non-torch libraries).
+2. Warp kernel calls need no changes — ``TorchArray`` works transparently.
 3. If you need the underlying ``warp.array`` (e.g., for ``ptr``, ``strides``), use ``.warp``.
 
-**Deprecation bridge:** During the transition, implicit torch operations on ``TorchArray``
-(arithmetic, indexing, ``torch.*`` functions) still work but emit a one-time
-``DeprecationWarning``. This bridge will be removed in a future release.
+.. note::
+
+   The ``__torch_function__`` deprecation bridge will be removed in a future release.
+   We recommend migrating to explicit ``.torch`` access now, but your code will not break
+   immediately.
 
 For a complete guide, see :doc:`/source/how-to/torch_array`.
 
