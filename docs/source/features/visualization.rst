@@ -139,19 +139,21 @@ The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visu
 For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
-Partial visualization
+Partial Visualization
 ~~~~~~~~~~~~~~~~~~~~~
 
-Partial visualization can be used to visualize a subset of envs to improve performance.
+Visualizers can be configured to visualize just a subset of environments to improve performance.
+This is called partial visualization.
 
-
-There are 2 fields exposed in the VisualizerCfg for specifying the envs to visualize:
+There are 2 fields exposed in the VisualizerCfg for selecting environments for partial visualization:
 - ``max_visible_envs`` caps how many envs are shown.
 - ``visible_env_indices`` explicitly selects the envs to visualize.
+- ``randomly_sample_visible_envs`` enables unifom sampling of the selected envs, if ``visible_env_indices`` is not provided.
 
 Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
 
-Note, currently the KitVisualizer just sets the non selected envs to invisible, which doesn't improve performance much.
+Note, in the current release, the KitVisualizer does not fully support partial visualization. The non-selected environments
+are made invisible which does not improve performance much. 
 
 .. _visualization-common-modes:
 
