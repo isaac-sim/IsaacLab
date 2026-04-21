@@ -7,7 +7,9 @@ Changelog
 Changed
 ^^^^^^^
 
-* Upgraded Newton to  ``a27277ed49d6f307b8a1e4c394be7e1d14965a62``.
+* Upgraded Newton from ``2684d75`` to ``a27277e``. Includes collision improvements, contact quality fixes,
+  hydroelastic contact optimization, and memory usage fixes in CollisionPipeline. For details see
+  ``Newton changelog <https://github.com/newton-physics/newton/blob/main/CHANGELOG.md>``.
 
 
 0.5.17 (2026-04-20)
