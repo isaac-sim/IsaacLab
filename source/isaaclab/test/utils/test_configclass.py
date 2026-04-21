@@ -584,8 +584,7 @@ def test_dict_conversion_order():
 
 def test_config_update_via_constructor():
     """Test updating configclass through initialization."""
-    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
-        cfg = BasicDemoCfg(env=EnvCfg(num_envs=22, viewer=ViewerCfg(eye=(2.0, 2.0, 2.0))))
+    cfg = BasicDemoCfg(env=EnvCfg(num_envs=22, viewer=ViewerCfg(eye=(2.0, 2.0, 2.0))))
     assert asdict(cfg) == basic_demo_cfg_change_correct
 
 

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Integration tests: Cartpole + visualizers, non-black frames, and log hygiene.
+"""Integration tests: cartpole env + per-backend visualizers (Kit Replicator, tiled camera, GL, Rerun, Viser).
 
 Visualizer packages use ``logging.getLogger(__name__)``, so loggers are named like
 ``isaaclab_visualizers.kit.kit_visualizer`` and ``isaaclab.visualizers.base_visualizer``.
@@ -463,8 +463,10 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
         ),
     ],
 )
-def test_kit_visualizer_non_black_viewport_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Kit viewport: full motion steps, last frame non-black; 2nd vs last capture differ; clean logs."""
+def test_cartpole_kit_visualizer_replicator_viewport_rgb_motion(
+    backend_kind: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Kit + cartpole: Replicator RGB on viewport camera; last frame non-black; early vs late frame differ; logs."""
     env = None
     try:
         sim_utils.create_new_stage()
@@ -485,8 +487,10 @@ def test_kit_visualizer_non_black_viewport_frame(backend_kind: str, caplog: pyte
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_cartpole_tiled_camera_rgb_non_black(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Tiled camera RGB is not all-black; no visualizer ERROR (optional WARNING)."""
+def test_cartpole_newton_visualizer_tiled_camera_rgb_non_black(
+    backend_kind: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Newton visualizer + cartpole: env tiled-camera RGB becomes non-black within a few steps; clean logs."""
     env = None
     try:
         sim_utils.create_new_stage()
@@ -506,8 +510,8 @@ def test_cartpole_tiled_camera_rgb_non_black(backend_kind: str, caplog: pytest.L
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_newton_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Newton GL ``get_frame``: full motion steps, last frame non-black; 2nd vs last capture differ; clean logs."""
+def test_cartpole_newton_visualizer_viewergl_rgb_motion(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Newton GL (``ViewerGL.get_frame``): full motion steps, last frame non-black; early vs late differ; logs."""
     env = None
     try:
         sim_utils.create_new_stage()
@@ -535,10 +539,10 @@ def test_newton_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pyt
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_rerun_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Rerun visualizer initializes; env steps exercise it; no visualizer ERROR (optional WARNING).
+def test_cartpole_rerun_visualizer_smoke_steps_and_logs(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Rerun + cartpole: visualizer and viewer initialize; env steps exercise the pipeline; clean logs.
 
-    Rerun's viewer does not expose ``get_frame``, so we do not assert on a non-black frame.
+    Rerun does not expose a per-frame RGB API like ``get_frame``, so we do not assert pixel content.
     """
     env = None
     try:
@@ -562,10 +566,10 @@ def test_rerun_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pyte
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_viser_visualizer_non_black_viewer_frame(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Viser visualizer initializes; env steps exercise it; no visualizer ERROR (optional WARNING).
+def test_cartpole_viser_visualizer_smoke_steps_and_logs(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+    """Viser + cartpole: visualizer and viewer initialize; env steps exercise the pipeline; clean logs.
 
-    Viser's Newton-backed viewer does not expose ``get_frame``, so we do not assert on a non-black frame.
+    No per-frame RGB assertion (Viser does not mirror the Newton ``get_frame`` path used elsewhere).
     """
     env = None
     try:
