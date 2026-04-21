@@ -230,9 +230,10 @@ class WrenchComposer:
         Args:
             forces: Forces [N]. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
             torques: Torques [N·m]. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
-            positions: The positions [m] at which forces act. If `is_global` is True, these are global positions expressed
-                in the world frame. If `is_global` is False, these are offsets from the body's CoM expressed in the
-                body frame. If None, forces are assumed to act at the body's CoM, independent of the `is_global` flag.
+            positions: The positions [m] at which forces act. If `is_global` is True, these are global
+                positions expressed in the world frame. If `is_global` is False, these are offsets from the
+                body's CoM expressed in the body frame. If None, forces are assumed to act at the body's
+                CoM, independent of the `is_global` flag.
                 Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
             body_ids: Body indices. Defaults to None (all bodies).
             env_ids: Environment indices. Defaults to None (all environments).
@@ -289,9 +290,10 @@ class WrenchComposer:
         Args:
             forces: Forces [N]. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
             torques: Torques [N·m]. Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
-            positions: The positions [m] at which forces act. If `is_global` is True, these are global positions expressed
-                in the world frame. If `is_global` is False, these are offsets from the body's CoM expressed in the
-                body frame. If None, forces are assumed to act at the body's CoM, independent of the `is_global` flag.
+            positions: The positions [m] at which forces act. If `is_global` is True, these are global
+                positions expressed in the world frame. If `is_global` is False, these are offsets from the
+                body's CoM expressed in the body frame. If None, forces are assumed to act at the body's
+                CoM, independent of the `is_global` flag.
                 Shape: (len(env_ids), len(body_ids), 3). Defaults to None.
             body_ids: Body indices. Defaults to None (all bodies).
             env_ids: Environment indices. Defaults to None (all environments).
@@ -349,9 +351,10 @@ class WrenchComposer:
         Args:
             forces: Forces [N]. Shape: (num_envs, num_bodies, 3). Defaults to None.
             torques: Torques [N·m]. Shape: (num_envs, num_bodies, 3). Defaults to None.
-            positions: The positions [m] at which forces act. If `is_global` is True, these are global positions expressed
-                in the world frame. If `is_global` is False, these are offsets from the body's CoM expressed in the
-                body frame. If None, forces are assumed to act at the body's CoM, independent of the `is_global` flag.
+            positions: The positions [m] at which forces act. If `is_global` is True, these are global
+                positions expressed in the world frame. If `is_global` is False, these are offsets from the
+                body's CoM expressed in the body frame. If None, forces are assumed to act at the body's
+                CoM, independent of the `is_global` flag.
                 Shape: (num_envs, num_bodies, 3). Defaults to None.
             body_mask: Body mask. Shape: (num_bodies,). Defaults to None (all bodies).
             env_mask: Environment mask. Shape: (num_envs,). Defaults to None (all environments).
@@ -410,9 +413,10 @@ class WrenchComposer:
         Args:
             forces: Forces [N]. Shape: (num_envs, num_bodies, 3). Defaults to None.
             torques: Torques [N·m]. Shape: (num_envs, num_bodies, 3). Defaults to None.
-            positions: The positions [m] at which forces act. If `is_global` is True, these are global positions expressed
-                in the world frame. If `is_global` is False, these are offsets from the body's CoM expressed in the
-                body frame. If None, forces are assumed to act at the body's CoM, independent of the `is_global` flag.
+            positions: The positions [m] at which forces act. If `is_global` is True, these are global
+                positions expressed in the world frame. If `is_global` is False, these are offsets from the
+                body's CoM expressed in the body frame. If None, forces are assumed to act at the body's
+                CoM, independent of the `is_global` flag.
                 Shape: (num_envs, num_bodies, 3). Defaults to None.
             body_mask: Body mask. Shape: (num_bodies,). Defaults to None (all bodies).
             env_mask: Environment mask. Shape: (num_envs,). Defaults to None (all environments).
