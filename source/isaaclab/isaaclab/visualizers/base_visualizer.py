@@ -157,11 +157,7 @@ class BaseVisualizer(ABC):
 
         max_visible = getattr(cfg, "max_visible_envs", None)
         # Random subset only for cap-only mode: needs a cap and no explicit indices (see VisualizerCfg).
-        if (
-            max_visible is not None
-            and getattr(cfg, "randomly_sample_visible_envs", True)
-            and int(max_visible) >= 0
-        ):
+        if max_visible is not None and getattr(cfg, "randomly_sample_visible_envs", True) and int(max_visible) >= 0:
             k = min(int(max_visible), num_envs)
             # k == 0: sample(range(n), 0) is []; contiguous resolver used the same convention.
             return sorted(random.sample(range(num_envs), k))

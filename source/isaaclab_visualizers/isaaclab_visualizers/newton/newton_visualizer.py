@@ -285,7 +285,6 @@ class NewtonVisualizer(BaseVisualizer):
         metadata = scene_data_provider.get_metadata()
         num_envs = int(metadata.get("num_envs", 0))
         self._env_ids = self._compute_visualized_env_ids()
-        # Full model + ViewerBase.set_visible_worlds() (Newton PR #2267); avoids cloning a reduced model.
         self._model = scene_data_provider.get_newton_model()
         self._state = scene_data_provider.get_newton_state()
 

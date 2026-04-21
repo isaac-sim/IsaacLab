@@ -366,10 +366,10 @@ class AppLauncher:
           - Multiple visualizers can be specified as a comma-delimited list:
             ``--viz rerun,newton,viser``.
 
-        * ``max_visible_envs`` (int | None): Optional global override for enabling partial visualizaiton by 
-          capping the number of environments show in the visualizers, which can improve performance. 
+        * ``max_visible_envs`` (int | None): Optional global override for enabling partial visualizaiton by
+          capping the number of environments show in the visualizers, which can improve performance.
           More partial visualization configuration fields are available in the VisualizerCfg class.
-        
+
         .. _`WebRTC`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
 
         Args:
@@ -523,9 +523,7 @@ class AppLauncher:
             "--max_visible_envs",
             type=int,
             default=argparse.SUPPRESS,
-            help=(
-                "When set, caps the nums of envs shown in the launched visualizers to improve performance."
-            ),
+            help=("When set, caps the nums of envs shown in the launched visualizers to improve performance."),
         )
         # special flag for backwards compatibility
 

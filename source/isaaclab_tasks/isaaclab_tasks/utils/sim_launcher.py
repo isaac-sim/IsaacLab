@@ -211,8 +211,9 @@ def launch_simulation(
             app_launcher = AppLauncher(launcher_args)
             close_fn = app_launcher.app.close
     elif visualizer_types:
-        # Newton path without Kit: AppLauncher is skipped — persist the same visualizer CLI
-        # settings (types, max_visible_envs CLI override) that AppLauncher would write.
+        # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
+        # selection in SettingsManager (works in standalone mode via plain dict) so that
+        # SimulationContext._get_cli_visualizer_types() can find it.
         from isaaclab.app.app_launcher import sync_visualizer_cli_settings_to_carb
 
         disable_all = "none" in visualizer_types

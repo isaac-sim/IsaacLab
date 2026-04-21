@@ -41,7 +41,12 @@ class VisualizerCfg:
     """Initial camera look-at point (x, y, z) in world coordinates."""
 
     cam_source: Literal["cfg", "prim_path"] = "cfg"
-    """Camera source mode: 'cfg' uses eye/lookat, 'prim_path' follows a camera prim."""
+    """Camera source mode: 'cfg' uses eye/lookat, 'prim_path' follows a camera prim.
+
+    For the Kit visualizer, ``cfg`` also means simulation-driven camera updates from
+    :class:`~isaaclab.envs.common.ViewerCfg` (e.g. via :class:`ViewportCameraController`) are not applied,
+    so set ``eye`` / ``lookat`` on the visualizer config for the dedicated viewport pose.
+    """
 
     cam_prim_path: str = "/World/envs/env_0/Camera"
     """Absolute USD path to a camera prim when cam_source='prim_path'."""
@@ -58,7 +63,7 @@ class VisualizerCfg:
 
     randomly_sample_visible_envs: bool = True
     """If ``max_visible_envs`` is provided, the selected visible envs are randomly sampled.
-    
+
     * Note  ``visible_env_indices`` overrides this field.
     """
 

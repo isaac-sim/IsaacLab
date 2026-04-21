@@ -49,23 +49,26 @@ PhysX Scene Data Provider
 -------------------------
 
 When PhysX is the active physics backend, the provider **loads the Newton model and state from
-the interactive scene** via :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`,
-then each frame it writes simulated body poses from PhysX into that Newton state for visualizers
-(Newton, Rerun, Viser) that need it.
+the interactive scene’s cloner prebuilt artifact** (see :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`),
+then syncs PhysX transforms into that state each frame. Newton-based visualizers (Newton, Rerun,
+Viser) require this model/state to render; there is no separate USD traversal build in the provider.
 
-The pose pipeline:
+The sync pipeline:
 
-1. Prefer PhysX ``RigidBodyView`` transforms (tensor API).
-2. For any body not covered by that view, read poses via ``XformPrimView`` on the USD stage.
-3. Merge and write poses into Newton ``body_q`` with Warp kernels.
+1. Reads transforms from PhysX ``RigidBodyView`` (fast tensor API)
+2. Falls back to ``XformPrimView`` for bodies not covered by the rigid body view
+3. Converts and writes merged poses into the Newton state via Warp kernels
 
 Newton Scene Data Provider
 --------------------------
 
-When Newton is the active physics backend, the provider returns the **NewtonManager** model and state handles.
+When Newton is the active physics backend, the provider **delegates directly to the Newton
+manager** — no building or syncing required. Newton already owns the authoritative model and
+state.
 
-When a Kit visualizer is active, the provider can **sync transforms to the USD stage** for Kit rendering.
-For Rerun or Viser without Kit, that USD sync is not needed and is skipped.
+The only additional work is **optional USD sync**: when an Omniverse Kit visualizer is active,
+the provider syncs Newton transforms to the USD stage so Kit can render them. For Newton-only
+or Rerun/Viser visualizers, this sync is skipped.
 
 Data Requirements
 -----------------

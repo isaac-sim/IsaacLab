@@ -183,8 +183,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             if model is None or state is None:
                 self._last_newton_model_build_source = "missing"
                 logger.error(
-                    "[PhysxSceneDataProvider] Prebuilt artifact is missing model or state;"
-                    " cannot sync PhysX to Newton."
+                    "[PhysxSceneDataProvider] Prebuilt artifact is missing model or state; cannot sync PhysX to Newton."
                 )
                 self._clear_newton_model_state()
                 return
