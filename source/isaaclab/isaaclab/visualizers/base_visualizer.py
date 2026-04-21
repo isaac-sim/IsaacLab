@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import random
 import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
@@ -147,26 +146,12 @@ class BaseVisualizer(ABC):
         if self._scene_data_provider is None:
             return None
         cfg = self.cfg
-        if cfg.env_selection_mode == "none":
-            return None
-
         num_envs = self._scene_data_provider.get_metadata().get("num_envs", 0)
         if num_envs <= 0:
             logger.debug("[Visualizer] num_envs is 0 or missing from provider metadata; env selection disabled.")
             return None
-        if cfg.env_selection_mode == "env_ids":
-            if len(cfg.env_selection_ids) > 0:
-                return [i for i in cfg.env_selection_ids if 0 <= i < num_envs]
-            return None
-        if cfg.env_selection_mode == "random_n":
-            count = int(cfg.env_selection_random_count)
-            if count <= 0:
-                return None
-            count = min(count, num_envs)
-            seed = int(cfg.env_selection_random_seed)
-            rng = random.Random(seed)
-            return sorted(rng.sample(range(num_envs), count))
-        logger.warning("[Visualizer] Unknown env_selection_mode='%s'; defaulting to all envs.", cfg.env_selection_mode)
+        if cfg.visible_env_indices is not None:
+            return [i for i in cfg.visible_env_indices if 0 <= i < num_envs]
         return None
 
     def get_rendering_dt(self) -> float | None:

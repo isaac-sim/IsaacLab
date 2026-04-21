@@ -77,7 +77,7 @@ class KitVisualizer(BaseVisualizer):
         self._env_ids = self._compute_visualized_env_ids()
         num_envs_meta = int(metadata.get("num_envs", 0))
         self._resolved_visible_env_ids = resolve_visible_env_indices(
-            self._env_ids, self.cfg.env_selection_max_visible, num_envs_meta
+            self._env_ids, self.cfg.max_visible_envs, num_envs_meta
         )
         if self._resolved_visible_env_ids is not None:
             logger.warning(
@@ -94,7 +94,7 @@ class KitVisualizer(BaseVisualizer):
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
                 ("cam_source", self.cfg.cam_source),
-                ("env_selection_max_visible", self.cfg.env_selection_max_visible),
+                ("max_visible_envs", self.cfg.max_visible_envs),
                 ("num_visualized_envs", num_visualized_envs),
                 ("create_viewport", self.cfg.create_viewport),
                 ("headless", self._runtime_headless),

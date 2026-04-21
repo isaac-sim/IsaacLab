@@ -20,7 +20,7 @@ from newton.viewer import ViewerRerun
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds
+from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
@@ -185,7 +185,7 @@ class RerunVisualizer(BaseVisualizer):
         apply_viewer_visible_worlds(
             self._viewer,
             env_ids=self._env_ids,
-            env_selection_max_visible=self.cfg.env_selection_max_visible,
+            max_visible_envs=self.cfg.max_visible_envs,
             num_envs=num_envs,
         )
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
@@ -196,7 +196,8 @@ class RerunVisualizer(BaseVisualizer):
         self._viewer.scaling = 1.0
         self._viewer._paused = False
 
-        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        _resolved = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        num_visualized_envs = len(_resolved) if _resolved is not None else num_envs
         self._log_initialization_table(
             logger=logger,
             title="RerunVisualizer Configuration",

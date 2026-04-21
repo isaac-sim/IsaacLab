@@ -43,18 +43,18 @@ def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
 
     launcher = AppLauncher.__new__(AppLauncher)
-    launcher._set_visualizer_settings({"visualizer": ["viser", "rerun"], "viz_env_selection_max_visible": 0})
+    launcher._set_visualizer_settings({"visualizer": ["viser", "rerun"], "max_visible_envs": 0})
 
     assert settings.values == {
         "/isaaclab/visualizer/types": "viser rerun",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/cli_override/viz_env_selection_max_visible": True,
-        "/isaaclab/visualizer/env_selection_max_visible": 0,
+        "/isaaclab/visualizer/cli_override/max_visible_envs": True,
+        "/isaaclab/visualizer/max_visible_envs": 0,
     }
 
 
-def test_set_visualizer_settings_rejects_negative_viz_env_selection_max_visible(
+def test_set_visualizer_settings_rejects_negative_max_visible_envs(
     monkeypatch: pytest.MonkeyPatch,
 ):
     def _unexpected_settings_manager():
@@ -63,8 +63,8 @@ def test_set_visualizer_settings_rejects_negative_viz_env_selection_max_visible(
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", _unexpected_settings_manager)
 
     launcher = AppLauncher.__new__(AppLauncher)
-    with pytest.raises(ValueError, match="Invalid value for --viz_env_selection_max_visible: -5"):
-        launcher._set_visualizer_settings({"visualizer": ["viser"], "viz_env_selection_max_visible": -5})
+    with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
+        launcher._set_visualizer_settings({"visualizer": ["viser"], "max_visible_envs": -5})
 
 
 def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch: pytest.MonkeyPatch):
@@ -74,7 +74,7 @@ def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch:
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", _raise_settings_error)
 
     launcher = AppLauncher.__new__(AppLauncher)
-    launcher._set_visualizer_settings({"visualizer": ["viser"], "viz_env_selection_max_visible": 3})
+    launcher._set_visualizer_settings({"visualizer": ["viser"], "max_visible_envs": 3})
 
 
 def test_parse_visualizer_csv_accepts_comma_delimited_values():

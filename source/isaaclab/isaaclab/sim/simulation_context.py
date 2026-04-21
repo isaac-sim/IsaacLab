@@ -435,9 +435,9 @@ class SimulationContext:
         v = self.get_setting(f"/isaaclab/visualizer/cli_override/{field}")
         if v is not None:
             return bool(v)
-        # Legacy: before cli_override existed, a non-negative env_selection_max_visible int implied CLI intent.
-        if field == "viz_env_selection_max_visible":
-            raw = self.get_setting("/isaaclab/visualizer/env_selection_max_visible")
+        # Legacy: before cli_override existed, a non-negative max_visible_envs int implied CLI intent.
+        if field == "max_visible_envs":
+            raw = self.get_setting("/isaaclab/visualizer/max_visible_envs")
             if raw is None:
                 return False
             try:
@@ -446,18 +446,18 @@ class SimulationContext:
                 return False
         return False
 
-    def _get_cli_visualizer_env_selection_max_visible_override(self) -> tuple[bool, int | None]:
-        """CLI override for ``env_selection_max_visible`` when ``--viz_env_selection_max_visible`` is set."""
-        if not self._cli_visualizer_field_overridden("viz_env_selection_max_visible"):
+    def _get_cli_max_visible_envs_override(self) -> tuple[bool, int | None]:
+        """CLI override for ``max_visible_envs`` when ``--max_visible_envs`` is set."""
+        if not self._cli_visualizer_field_overridden("max_visible_envs"):
             return False, None
-        value = self.get_setting("/isaaclab/visualizer/env_selection_max_visible")
+        value = self.get_setting("/isaaclab/visualizer/max_visible_envs")
         if value is None:
             return False, None
         try:
             max_visible = int(value)
         except (TypeError, ValueError):
             logger.warning(
-                "[SimulationContext] Invalid /isaaclab/visualizer/env_selection_max_visible setting: %r", value
+                "[SimulationContext] Invalid /isaaclab/visualizer/max_visible_envs setting: %r", value
             )
             return False, None
         if max_visible < 0:
@@ -466,11 +466,11 @@ class SimulationContext:
 
     def _apply_visualizer_cli_overrides(self, visualizer_cfgs: list[Any]) -> None:
         """Apply CLI visualizer overrides to resolved configs (only fields the user set on the CLI)."""
-        has_max, max_visible_override = self._get_cli_visualizer_env_selection_max_visible_override()
+        has_max, max_visible_override = self._get_cli_max_visible_envs_override()
         if has_max:
             for cfg in visualizer_cfgs:
-                if hasattr(cfg, "env_selection_max_visible"):
-                    cfg.env_selection_max_visible = max_visible_override
+                if hasattr(cfg, "max_visible_envs"):
+                    cfg.max_visible_envs = max_visible_override
 
     def _is_cli_visualizer_explicit(self) -> bool:
         """Return ``True`` when visualizers were explicitly provided via CLI."""

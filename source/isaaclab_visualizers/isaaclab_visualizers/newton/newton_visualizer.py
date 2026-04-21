@@ -16,7 +16,7 @@ from newton.viewer import ViewerGL
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds
+from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
@@ -309,7 +309,7 @@ class NewtonVisualizer(BaseVisualizer):
             apply_viewer_visible_worlds(
                 self._viewer,
                 env_ids=self._env_ids,
-                env_selection_max_visible=self.cfg.env_selection_max_visible,
+                max_visible_envs=self.cfg.max_visible_envs,
                 num_envs=num_envs,
             )
             self._viewer.set_world_offsets((0.0, 0.0, 0.0))
@@ -336,7 +336,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
             self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
-        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        _resolved = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        num_visualized_envs = len(_resolved) if _resolved is not None else num_envs
         self._log_initialization_table(
             logger=logger,
             title="NewtonVisualizer Configuration",

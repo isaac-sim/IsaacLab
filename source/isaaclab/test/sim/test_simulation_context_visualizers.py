@@ -224,7 +224,7 @@ def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: p
 
 
 @pytest.mark.parametrize(
-    ("cfg_env_selection_max_visible", "expected_visible"),
+    ("cfg_max_visible_envs", "expected_visible"),
     [
         (None, None),
         (0, []),
@@ -233,7 +233,7 @@ def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: p
 )
 def test_viser_visualizer_create_viewer_applies_visible_worlds(
     monkeypatch: pytest.MonkeyPatch,
-    cfg_env_selection_max_visible: int | None,
+    cfg_max_visible_envs: int | None,
     expected_visible: list[int] | None,
 ):
     captured = {}
@@ -275,7 +275,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     )
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
 
-    cfg = ViserVisualizerCfg(env_selection_max_visible=cfg_env_selection_max_visible, open_browser=False)
+    cfg = ViserVisualizerCfg(max_visible_envs=cfg_max_visible_envs, open_browser=False)
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer._model = "dummy-model"
     visualizer._env_ids = None  # normally set by initialize() -> _compute_visualized_env_ids()
@@ -287,7 +287,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
 
 
 @pytest.mark.parametrize(
-    ("cfg_env_selection_max_visible", "expected_visible"),
+    ("cfg_max_visible_envs", "expected_visible"),
     [
         (None, None),
         (0, []),
@@ -296,7 +296,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
 )
 def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     monkeypatch: pytest.MonkeyPatch,
-    cfg_env_selection_max_visible: int | None,
+    cfg_max_visible_envs: int | None,
     expected_visible: list[int] | None,
 ):
     captured = {}
@@ -359,7 +359,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     )
     monkeypatch.setattr(rerun_visualizer.RerunVisualizer, "_apply_camera_pose", lambda self, pose: None)
 
-    cfg = RerunVisualizerCfg(open_browser=False, env_selection_max_visible=cfg_env_selection_max_visible)
+    cfg = RerunVisualizerCfg(open_browser=False, max_visible_envs=cfg_max_visible_envs)
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
     visualizer.initialize(cast(Any, _DummyRerunSceneDataProvider()))
 
@@ -469,7 +469,7 @@ def test_explicit_unknown_visualizer_type_raises():
         "/isaaclab/visualizer/types": "bogus_viz",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/env_selection_max_visible": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -483,7 +483,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
         "/isaaclab/visualizer/types": "rerun",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/env_selection_max_visible": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -510,7 +510,7 @@ def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPat
         "/isaaclab/visualizer/types": "newton",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/env_selection_max_visible": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
@@ -529,7 +529,7 @@ def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch
         "/isaaclab/visualizer/types": "newton",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/env_selection_max_visible": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
@@ -547,7 +547,7 @@ def test_explicit_partial_valid_types_raises_for_invalid():
         "/isaaclab/visualizer/types": "newton,bogus_viz",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/env_selection_max_visible": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -561,7 +561,7 @@ def test_non_explicit_unknown_type_silently_skipped(caplog):
         "/isaaclab/visualizer/types": "bogus_viz",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/env_selection_max_visible": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -577,7 +577,7 @@ def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyP
         "/isaaclab/visualizer/types": "",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/env_selection_max_visible": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 

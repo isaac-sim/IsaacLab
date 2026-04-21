@@ -19,7 +19,7 @@ from newton.viewer import ViewerViser
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds
+from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .viser_visualizer_cfg import ViserVisualizerCfg
 
@@ -150,7 +150,9 @@ class ViserVisualizer(BaseVisualizer):
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
-        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        num_envs_meta = int(metadata.get("num_envs", 0))
+        _resolved = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs_meta)
+        num_visualized_envs = len(_resolved) if _resolved is not None else num_envs_meta
         viewer_url = _viser_web_viewer_url(self.cfg.port)
         self._log_initialization_table(
             logger=logger,
@@ -252,7 +254,7 @@ class ViserVisualizer(BaseVisualizer):
         apply_viewer_visible_worlds(
             self._viewer,
             env_ids=self._env_ids,
-            env_selection_max_visible=self.cfg.env_selection_max_visible,
+            max_visible_envs=self.cfg.max_visible_envs,
             num_envs=num_envs,
         )
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.

@@ -62,11 +62,8 @@ class _DummyVisualizer(BaseVisualizer):
 
 def _make_cfg(**kwargs):
     cfg = {
-        "env_selection_mode": "none",
-        "env_selection_max_visible": None,
-        "env_selection_ids": [0, 2, 4],
-        "env_selection_random_count": 2,
-        "env_selection_random_seed": 7,
+        "max_visible_envs": None,
+        "visible_env_indices": None,
     }
     cfg.update(kwargs)
     return SimpleNamespace(**cfg)
@@ -87,57 +84,46 @@ class _FakeProvider:
         return self._transforms
 
 
-def test_compute_visualized_env_ids_none_mode():
-    viz = _DummyVisualizer(_make_cfg(env_selection_mode="none"))
+def test_compute_visualized_env_ids_cap_only_returns_none():
+    """Cap-only path: :meth:`_compute_visualized_env_ids` is ``None``.
+
+    The cap is applied later by ``resolve_visible_env_indices``.
+    """
+    viz = _DummyVisualizer(_make_cfg(visible_env_indices=None))
     viz._scene_data_provider = _FakeProvider(num_envs=8)
     assert viz._compute_visualized_env_ids() is None
 
 
-def test_compute_visualized_env_ids_from_ids_filters_out_of_range():
-    viz = _DummyVisualizer(_make_cfg(env_selection_mode="env_ids", env_selection_ids=[-1, 0, 3, 99]))
+def test_compute_visualized_env_ids_from_visible_indices_filters_out_of_range():
+    viz = _DummyVisualizer(_make_cfg(visible_env_indices=[-1, 0, 3, 99]))
     viz._scene_data_provider = _FakeProvider(num_envs=4)
     assert viz._compute_visualized_env_ids() == [0, 3]
 
 
-def test_compute_visualized_env_ids_random_n_is_deterministic():
-    cfg = _make_cfg(env_selection_mode="random_n", env_selection_random_count=3, env_selection_random_seed=123)
-    viz_a = _DummyVisualizer(cfg)
-    viz_b = _DummyVisualizer(cfg)
-    viz_a._scene_data_provider = _FakeProvider(num_envs=10)
-    viz_b._scene_data_provider = _FakeProvider(num_envs=10)
-    assert viz_a._compute_visualized_env_ids() == viz_b._compute_visualized_env_ids()
-
-
 @pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_partial_visualization_none_mode_uses_resolver_cap_not_random_count():
-    """Mode ``none``: :meth:`_compute_visualized_env_ids` is None; cap comes from ``resolve_visible_env_indices``."""
+def test_partial_visualization_cap_only_uses_resolver():
+    """With ``visible_env_indices`` unset, :func:`resolve_visible_env_indices` applies ``max_visible_envs``."""
     from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
-    cfg = _make_cfg(env_selection_mode="none", env_selection_max_visible=3, env_selection_random_count=99)
+    cfg = _make_cfg(max_visible_envs=3, visible_env_indices=None)
     viz = _DummyVisualizer(cfg)
     viz._scene_data_provider = _FakeProvider(num_envs=10)
     assert viz._compute_visualized_env_ids() is None
-    assert resolve_visible_env_indices(None, cfg.env_selection_max_visible, 10) == [0, 1, 2]
-    # random_count is ignored in this mode (would only apply if mode were random_n).
+    assert resolve_visible_env_indices(None, cfg.max_visible_envs, 10) == [0, 1, 2]
     assert resolve_visible_env_indices(None, 3, 10) == [0, 1, 2]
 
 
 @pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_partial_visualization_random_n_uses_compute_ids_resolver_ignores_cap():
-    """Mode ``random_n``: explicit indices from base visualizer; ``env_selection_max_visible`` does not apply."""
+def test_explicit_visible_env_indices_truncated_by_max_visible_envs():
+    """Explicit indices from :meth:`_compute_visualized_env_ids`; ``max_visible_envs`` truncates from the end."""
     from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
-    cfg = _make_cfg(
-        env_selection_mode="random_n",
-        env_selection_random_count=3,
-        env_selection_random_seed=0,
-        env_selection_max_visible=1,
-    )
+    cfg = _make_cfg(visible_env_indices=[0, 2, 4], max_visible_envs=1)
     viz = _DummyVisualizer(cfg)
     viz._scene_data_provider = _FakeProvider(num_envs=10)
     ids = viz._compute_visualized_env_ids()
-    assert ids is not None and len(ids) == 3
-    assert resolve_visible_env_indices(ids, cfg.env_selection_max_visible, 10) == list(ids)
+    assert ids == [0, 2, 4]
+    assert resolve_visible_env_indices(ids, cfg.max_visible_envs, 10) == [0]
 
 
 def test_resolve_camera_pose_from_usd_path_uses_provider_transforms():

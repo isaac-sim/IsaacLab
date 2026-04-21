@@ -10,27 +10,45 @@ from __future__ import annotations
 
 def resolve_visible_env_indices(
     env_ids: list[int] | None,
-    env_selection_max_visible: int | None,
+    max_visible_envs: int | None,
     num_envs: int,
 ) -> list[int] | None:
     """Resolve which env indices stay visible (same rules as :func:`apply_viewer_visible_worlds`).
 
+    * Cap-only path (``env_ids`` is ``None``): contiguous ``0 .. min(cap, num_envs) - 1`` when ``max_visible_envs``
+      is set; otherwise ``None`` (viewer shows all worlds).
+    * Explicit path (``env_ids`` is a list): if ``max_visible_envs`` is set, keep only the first *cap* indices
+      (truncate from the end); if ``None``, use the full list.
+
     Returns:
-        Selected indices, or ``None`` when all environments should be visible.
+        Selected indices, or ``None`` when all environments should be visible (cap-only, no limit).
     """
     if env_ids is not None:
-        return list(env_ids)
-    if env_selection_max_visible is not None and num_envs > 0:
-        n = min(int(env_selection_max_visible), num_envs)
+        out = list(env_ids)
+        if max_visible_envs is not None:
+            out = out[: max(0, int(max_visible_envs))]
+        return out
+    if max_visible_envs is not None and num_envs > 0:
+        n = min(int(max_visible_envs), num_envs)
         return list(range(n))
     return None
+
+    cap = max(0, int(max_visible_envs))
+    if cap == 0:
+        return []
+
+    if num_envs > 0:
+        return list(range(min(cap, num_envs)))
+
+    # num_envs not reported yet (e.g. env prims not discovered); still cap so we do not return None below.
+    return list(range(cap))
 
 
 def apply_viewer_visible_worlds(
     viewer,
     *,
     env_ids: list[int] | None,
-    env_selection_max_visible: int | None,
+    max_visible_envs: int | None,
     num_envs: int,
 ) -> None:
     """Select which simulation worlds are visualized; no-op if the viewer does not support it.
@@ -39,15 +57,15 @@ def apply_viewer_visible_worlds(
 
     Args:
         viewer: Newton viewer (ViewerGL, ViewerRerun, ViewerViser, etc.).
-        env_ids: Explicit env indices from ``env_selection_*`` config, or ``None`` when showing all
-            unless ``env_selection_max_visible`` limits the count (see ``VisualizerCfg``).
-        env_selection_max_visible: Optional cap on the number of worlds (``0..num_envs-1``) when ``env_ids`` is
-            ``None``.
+        env_ids: Env indices from ``visible_env_indices`` (after validation), or ``None`` for the cap-only
+            contiguous path (see ``VisualizerCfg``).
+        max_visible_envs: When ``env_ids`` is ``None``, caps the contiguous count; otherwise truncates the list to
+            the first *N* indices.
         num_envs: Total environment count from scene metadata.
     """
     if not hasattr(viewer, "set_visible_worlds"):
         return
-    resolved = resolve_visible_env_indices(env_ids, env_selection_max_visible, num_envs)
+    resolved = resolve_visible_env_indices(env_ids, max_visible_envs, num_envs)
     if resolved is None:
         viewer.set_visible_worlds(None)
     else:
