@@ -760,3 +760,80 @@ def test_composer_vs_physx_payload_scenario(device):
             rtol=1e-4,
             atol=1e-4,
         )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_composer_vs_physx_permanent_global_force_at_position_long_run(device):
+    """Permanent global force at a world-frame offset, run long enough for significant body motion.
+
+    This test catches temporal drift bugs where the stored positional torque diverges from
+    what PhysX computes each step as the body moves. The force is large enough that the body
+    translates and rotates significantly over 100 steps, but not so large that it causes
+    numerical instability.
+    """
+    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_composer, cube_raw = generate_dual_cube_scene(
+            num_cubes=1, device=device, initial_rot=ROT_45_Z
+        )
+
+        sim.reset()
+
+        body_ids, _ = cube_composer.find_bodies(".*")
+
+        # Global force +Z at +1m Y offset from CoM — produces torque around X
+        forces = torch.zeros(1, len(body_ids), 3, device=device)
+        forces[..., 2] = FORCE_MAGNITUDE
+        torques = torch.zeros(1, len(body_ids), 3, device=device)
+
+        offset = torch.zeros(1, len(body_ids), 3, device=device)
+        offset[..., 1] = 1.0
+
+        pos_composer = wp.to_torch(cube_composer.data.body_com_pos_w)[:, body_ids, :3].clone() + offset
+        pos_raw = wp.to_torch(cube_raw.data.body_com_pos_w)[:, body_ids, :3].clone() + offset
+
+        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+            forces=forces,
+            torques=torques,
+            positions=pos_composer,
+            body_ids=body_ids,
+            is_global=True,
+        )
+
+        raw_forces = torch.zeros(1, 3, device=device)
+        raw_forces[:, 2] = FORCE_MAGNITUDE
+        raw_torques = torch.zeros(1, 3, device=device)
+        raw_positions = pos_raw.view(-1, 3)
+        raw_indices = cube_raw._ALL_INDICES
+
+        for _ in range(100):
+            cube_composer.write_data_to_sim()
+            cube_raw.write_data_to_sim()
+            cube_raw.root_view.apply_forces_and_torques_at_position(
+                force_data=wp.from_torch(raw_forces.contiguous(), dtype=wp.float32),
+                torque_data=wp.from_torch(raw_torques.contiguous(), dtype=wp.float32),
+                position_data=wp.from_torch(raw_positions.contiguous(), dtype=wp.float32),
+                indices=raw_indices,
+                is_global=True,
+            )
+            sim.step()
+            cube_composer.update(sim.cfg.dt)
+            cube_raw.update(sim.cfg.dt)
+
+        torch.testing.assert_close(
+            wp.to_torch(cube_composer.data.root_lin_vel_w),
+            wp.to_torch(cube_raw.data.root_lin_vel_w),
+            rtol=1e-3,
+            atol=1e-3,
+        )
+        torch.testing.assert_close(
+            wp.to_torch(cube_composer.data.root_ang_vel_w),
+            wp.to_torch(cube_raw.data.root_ang_vel_w),
+            rtol=1e-3,
+            atol=1e-3,
+        )
+
+        # Sanity: angular velocity should be nonzero
+        assert torch.abs(wp.to_torch(cube_composer.data.root_ang_vel_w)).max().item() > 0.1, (
+            "Expected nonzero angular velocity from positional torque over 100 steps"
+        )
