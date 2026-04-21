@@ -159,6 +159,7 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
         device="cpu",
         physics_clone_fn=_physics_clone_fn,
         visualizer_clone_fn=_visualizer_clone_fn,
+        clone_usd=True,
     )
     monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.usd_replicate", _usd_replicate)
 

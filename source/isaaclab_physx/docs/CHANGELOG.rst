@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.19 (2026-04-20)
+0.5.20 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -11,6 +11,19 @@ Changed
   :class:`~isaaclab_physx.assets.RigidObject`, and :class:`~isaaclab_physx.assets.RigidObjectCollection`
   to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
   applied to PhysX with ``is_global=False`` after body-frame composition.
+
+
+0.5.19 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton ``shape_color`` not reflecting the post-clone USD stage when the
+  PhysX scene data provider builds or reloads the Newton model by calling
+  :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_shape_colors` on
+  the artifact, per-environment, and filtered Newton models in
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`.
 
 
 0.5.18 (2026-04-16)

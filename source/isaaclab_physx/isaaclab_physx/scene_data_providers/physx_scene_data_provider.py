@@ -18,6 +18,7 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
+from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +218,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
         self._newton_model = model
         self._newton_state = state
+
+        # The Newton artifact was generated before all envs were cloned on the stage, so we update the shape colors
+        # in the Newton model here as the envs should have been cloned.
+        replace_newton_shape_colors(self._newton_model, self._stage)
+
         body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
         # Keep one-to-one alignment between `body_paths` and Newton `state.body_q`.
         # Articulation root prims are not body_q entries and must not be mixed here.
@@ -267,8 +273,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                 builder.begin_world()
                 builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
                 builder.end_world()
+
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
+
+            replace_newton_shape_colors(self._newton_model, self._stage)
 
             # Extract scene structure from Newton model (single source of truth)
             self._rigid_body_paths = self._model_body_paths(self._newton_model)
@@ -337,8 +346,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                 builder.begin_world()
                 builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
                 builder.end_world()
+
             self._filtered_newton_model = builder.finalize(device=self._device)
             self._filtered_newton_state = self._filtered_newton_model.state()
+
+            replace_newton_shape_colors(self._filtered_newton_model, self._stage)
 
             full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
             filtered_paths = self._model_body_paths(self._filtered_newton_model)
