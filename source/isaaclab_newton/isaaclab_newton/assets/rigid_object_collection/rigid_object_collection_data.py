@@ -637,31 +637,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
 
         # Re-pin TorchArray wrappers to the newly created sim bindings.
-        # After a full simulation reset the solver recreates its internal arrays, so
-        # any TorchArray that was wrapping the old pointer becomes stale.  We rebind
-        # them here.  On the very first call (from __init__) the TorchArrays do not
-        # exist yet — _create_buffers() will create them — so we guard with hasattr.
-        if hasattr(self, "_body_link_pose_w_ta"):
-            # Category 1: eagerly-pinned sim-bound TorchArrays
-            self._body_link_pose_w_ta.rebind(self._sim_bind_body_link_pose_w)
-            self._body_com_vel_w_ta.rebind(self._sim_bind_body_com_vel_w)
-            self._body_com_pos_b_ta.rebind(self._sim_bind_body_com_pos_b)
-            self._body_mass_ta.rebind(self._sim_bind_body_mass)
-            self._body_inertia_ta.rebind(self._body_inertia)
-            # Invalidate lazy sliced TorchArrays so they are re-created from the
-            # new sim bindings on next access.  Without this, contiguous strided
-            # views hold stale pointers into freed transform memory after sim reset.
-            self._body_link_pos_w_ta = None
-            self._body_link_quat_w_ta = None
-            self._body_link_lin_vel_w_ta = None
-            self._body_link_ang_vel_w_ta = None
-            self._body_com_pos_w_ta = None
-            self._body_com_quat_w_ta = None
-            self._body_com_lin_vel_w_ta = None
-            self._body_com_ang_vel_w_ta = None
-            self._body_com_lin_acc_w_ta = None
-            self._body_com_ang_acc_w_ta = None
-            self._body_com_quat_b_ta = None
+        self._pin_torch_arrays()
 
     def _create_buffers(self) -> None:
         """Create buffers for computing and caching derived quantities."""
@@ -708,45 +684,80 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # -- Initialize history for finite differencing
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
 
-        # -- Pinned TorchArray instances (Category 1: sim-bound and pre-allocated buffers)
-        # Newton wp.array pointers are stable, so a TorchArray wrapping them is valid forever.
-        self._body_link_pose_w_ta = TorchArray(self._sim_bind_body_link_pose_w)
-        self._body_com_vel_w_ta = TorchArray(self._sim_bind_body_com_vel_w)
-        self._body_com_pos_b_ta = TorchArray(self._sim_bind_body_com_pos_b)
-        self._body_mass_ta = TorchArray(self._sim_bind_body_mass)
-        self._body_inertia_ta = TorchArray(self._body_inertia)
-        self._default_body_pose_ta = TorchArray(self._default_body_pose)
-        self._default_body_vel_ta = TorchArray(self._default_body_vel)
+        # Pin all TorchArray wrappers to current buffers.
+        self._pin_torch_arrays()
 
-        # -- Pinned TorchArray instances (Category 2: TimestampedBuffer properties)
-        self._body_link_vel_w_ta = TorchArray(self._body_link_vel_w.data)
-        self._body_com_pose_w_ta = TorchArray(self._body_com_pose_w.data)
-        self._body_com_acc_w_ta = TorchArray(self._body_com_acc_w.data)
-        self._body_com_pose_b_ta = TorchArray(self._body_com_pose_b.data)
-        self._projected_gravity_b_ta = TorchArray(self._projected_gravity_b.data)
-        self._heading_w_ta = TorchArray(self._heading_w.data)
-        self._body_link_lin_vel_b_ta = TorchArray(self._body_link_lin_vel_b.data)
-        self._body_link_ang_vel_b_ta = TorchArray(self._body_link_ang_vel_b.data)
-        self._body_com_lin_vel_b_ta = TorchArray(self._body_com_lin_vel_b.data)
-        self._body_com_ang_vel_b_ta = TorchArray(self._body_com_ang_vel_b.data)
-        self._body_state_w_ta = TorchArray(self._body_state_w.data)
-        self._body_link_state_w_ta = TorchArray(self._body_link_state_w.data)
-        self._body_com_state_w_ta = TorchArray(self._body_com_state_w.data)
+    def _pin_torch_arrays(self) -> None:
+        """Create or rebind all pinned TorchArray wrappers.
 
-        # -- Pinned TorchArray instances (Category 3: lazy/sliced properties, pinned on first access)
-        self._body_link_pos_w_ta: TorchArray | None = None
-        self._body_link_quat_w_ta: TorchArray | None = None
-        self._body_link_lin_vel_w_ta: TorchArray | None = None
-        self._body_link_ang_vel_w_ta: TorchArray | None = None
-        self._body_com_pos_w_ta: TorchArray | None = None
-        self._body_com_quat_w_ta: TorchArray | None = None
-        self._body_com_lin_vel_w_ta: TorchArray | None = None
-        self._body_com_ang_vel_w_ta: TorchArray | None = None
-        self._body_com_lin_acc_w_ta: TorchArray | None = None
-        self._body_com_ang_acc_w_ta: TorchArray | None = None
-        self._body_com_quat_b_ta: TorchArray | None = None
-        # -- deprecated state properties (lazy)
-        self._default_body_state_ta: TorchArray | None = None
+        Called from :meth:`_create_buffers` on first initialization and from
+        :meth:`_create_simulation_bindings` after a full simulation reset when
+        the solver recreates its internal arrays.
+        """
+        is_rebind = hasattr(self, "_body_link_pose_w_ta")
+
+        if is_rebind:
+            # Rebind sim-bound TorchArrays to new solver arrays
+            self._body_link_pose_w_ta.rebind(self._sim_bind_body_link_pose_w)
+            self._body_com_vel_w_ta.rebind(self._sim_bind_body_com_vel_w)
+            self._body_com_pos_b_ta.rebind(self._sim_bind_body_com_pos_b)
+            self._body_mass_ta.rebind(self._sim_bind_body_mass)
+            self._body_inertia_ta.rebind(self._body_inertia)
+            # Invalidate lazy sliced TorchArrays so they are re-created from the
+            # new sim bindings on next access.  Without this, contiguous strided
+            # views hold stale pointers into freed transform memory after sim reset.
+            self._body_link_pos_w_ta = None
+            self._body_link_quat_w_ta = None
+            self._body_link_lin_vel_w_ta = None
+            self._body_link_ang_vel_w_ta = None
+            self._body_com_pos_w_ta = None
+            self._body_com_quat_w_ta = None
+            self._body_com_lin_vel_w_ta = None
+            self._body_com_ang_vel_w_ta = None
+            self._body_com_lin_acc_w_ta = None
+            self._body_com_ang_acc_w_ta = None
+            self._body_com_quat_b_ta = None
+        else:
+            # First-time creation: pin TorchArrays to current buffers
+            # Category 1: sim-bound and pre-allocated buffers
+            # Newton wp.array pointers are stable, so a TorchArray wrapping them is valid forever.
+            self._body_link_pose_w_ta = TorchArray(self._sim_bind_body_link_pose_w)
+            self._body_com_vel_w_ta = TorchArray(self._sim_bind_body_com_vel_w)
+            self._body_com_pos_b_ta = TorchArray(self._sim_bind_body_com_pos_b)
+            self._body_mass_ta = TorchArray(self._sim_bind_body_mass)
+            self._body_inertia_ta = TorchArray(self._body_inertia)
+            self._default_body_pose_ta = TorchArray(self._default_body_pose)
+            self._default_body_vel_ta = TorchArray(self._default_body_vel)
+
+            # Category 2: TimestampedBuffer properties
+            self._body_link_vel_w_ta = TorchArray(self._body_link_vel_w.data)
+            self._body_com_pose_w_ta = TorchArray(self._body_com_pose_w.data)
+            self._body_com_acc_w_ta = TorchArray(self._body_com_acc_w.data)
+            self._body_com_pose_b_ta = TorchArray(self._body_com_pose_b.data)
+            self._projected_gravity_b_ta = TorchArray(self._projected_gravity_b.data)
+            self._heading_w_ta = TorchArray(self._heading_w.data)
+            self._body_link_lin_vel_b_ta = TorchArray(self._body_link_lin_vel_b.data)
+            self._body_link_ang_vel_b_ta = TorchArray(self._body_link_ang_vel_b.data)
+            self._body_com_lin_vel_b_ta = TorchArray(self._body_com_lin_vel_b.data)
+            self._body_com_ang_vel_b_ta = TorchArray(self._body_com_ang_vel_b.data)
+            self._body_state_w_ta = TorchArray(self._body_state_w.data)
+            self._body_link_state_w_ta = TorchArray(self._body_link_state_w.data)
+            self._body_com_state_w_ta = TorchArray(self._body_com_state_w.data)
+
+            # Category 3: lazy/sliced properties, pinned on first access
+            self._body_link_pos_w_ta: TorchArray | None = None
+            self._body_link_quat_w_ta: TorchArray | None = None
+            self._body_link_lin_vel_w_ta: TorchArray | None = None
+            self._body_link_ang_vel_w_ta: TorchArray | None = None
+            self._body_com_pos_w_ta: TorchArray | None = None
+            self._body_com_quat_w_ta: TorchArray | None = None
+            self._body_com_lin_vel_w_ta: TorchArray | None = None
+            self._body_com_ang_vel_w_ta: TorchArray | None = None
+            self._body_com_lin_acc_w_ta: TorchArray | None = None
+            self._body_com_ang_acc_w_ta: TorchArray | None = None
+            self._body_com_quat_b_ta: TorchArray | None = None
+            # -- deprecated state properties (lazy)
+            self._default_body_state_ta: TorchArray | None = None
 
     """
     Helpers.
