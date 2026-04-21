@@ -443,7 +443,14 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
 @pytest.mark.parametrize(
     "backend_kind",
     [
-        "physx",
+        # xfail: Kit visualizer + PhysX only (Newton backend uses skip below — separate CUDA issue).
+        pytest.param(
+            "physx",
+            marks=pytest.mark.xfail(
+                reason=("Kit visualizer + PhysX: TODO remove xfail when stale Fabric transforms bug in Kit is fixed"),
+                strict=False,
+            ),
+        ),
         pytest.param(
             "newton",
             marks=pytest.mark.skip(
