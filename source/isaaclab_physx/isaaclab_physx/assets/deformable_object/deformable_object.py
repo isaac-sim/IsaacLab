@@ -266,7 +266,7 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_pos_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_simulation_nodal_positions(self._data._nodal_pos_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_positions(self._get_nodal_pos_w_f32(), indices=env_ids)
 
     def write_nodal_pos_to_sim_mask(
         self,
@@ -334,7 +334,7 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_vel_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_simulation_nodal_velocities(self._data._nodal_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_velocities(self._get_nodal_vel_w_f32(), indices=env_ids)
 
     def write_nodal_velocity_to_sim_mask(
         self,
@@ -526,6 +526,28 @@ class DeformableObject(AssetBase):
     Internal helper.
     """
 
+    def _get_nodal_pos_w_f32(self) -> wp.array:
+        """Get a cached float32 view of nodal_pos_w for PhysX TensorAPI.
+
+        Safe because ``DeformableObjectData`` copies into a stable pre-allocated
+        buffer via ``wp.copy`` (the pointer never changes).
+        Invalidated in ``_create_buffers``.
+        """
+        if self._nodal_pos_w_f32 is None:
+            self._nodal_pos_w_f32 = self._data._nodal_pos_w.data.view(wp.float32)
+        return self._nodal_pos_w_f32
+
+    def _get_nodal_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of nodal_vel_w for PhysX TensorAPI.
+
+        Safe because ``DeformableObjectData`` copies into a stable pre-allocated
+        buffer via ``wp.copy`` (the pointer never changes).
+        Invalidated in ``_create_buffers``.
+        """
+        if self._nodal_vel_w_f32 is None:
+            self._nodal_vel_w_f32 = self._data._nodal_vel_w.data.view(wp.float32)
+        return self._nodal_vel_w_f32
+
     def _resolve_env_ids(self, env_ids):
         """Resolve environment indices to a warp array.
 
@@ -711,6 +733,11 @@ class DeformableObject(AssetBase):
         # Single-slot caches for _resolve_* methods (keyed on tensor.data_ptr())
         self._cached_env_ids_ptr: int = -1
         self._cached_env_ids_wp: wp.array | None = None
+
+        # Cached .view(wp.float32) wrappers for structured warp arrays.
+        # Safe because DeformableObjectData uses wp.copy into stable buffers.
+        self._nodal_pos_w_f32: wp.array | None = None
+        self._nodal_vel_w_f32: wp.array | None = None
 
         # default state
         # we use the initial nodal positions at spawn time as the default state
