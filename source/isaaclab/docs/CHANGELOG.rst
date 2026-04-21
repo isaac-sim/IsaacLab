@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+4.6.8 (2026-04-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Pinned ``mujoco`` and ``mujoco-warp`` to ``3.6.0`` to align with the Newton library.
+
+
 4.6.7 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~
 
