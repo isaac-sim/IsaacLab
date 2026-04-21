@@ -11,7 +11,8 @@ Added
   ``<log_dir>/params/resolved_env.yaml`` from
   :class:`~isaaclab_experimental.envs.ManagerBasedEnvWarp` and
   :class:`~isaaclab_experimental.envs.DirectRLEnvWarp` at the end of
-  ``__init__``, matching the stable env base classes.
+  ``__init__`` via the shared :func:`~isaaclab.utils.io.dump_resolved_cfg`
+  utility, matching the stable env base classes.
 
 
 0.0.2 (2026-03-16)

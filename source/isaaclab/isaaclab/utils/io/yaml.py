@@ -5,6 +5,7 @@
 
 """Utilities for file I/O with yaml."""
 
+import logging
 import os
 
 import yaml
@@ -54,3 +55,30 @@ def dump_yaml(filename: str, data: dict | object, sort_keys: bool = False):
     # save data
     with open(filename, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=sort_keys)
+
+
+def dump_resolved_cfg(cfg: object, log_dir: str | None, logger: logging.Logger | None = None):
+    """Dump a fully-resolved config to ``<log_dir>/params/resolved_env.yaml``.
+
+    This is intended to be called at the end of environment ``__init__``
+    after all ``__post_init__`` hooks, preset resolution, and training-script
+    mutations have been applied, giving users a single source of truth for the
+    values the environment actually uses.
+
+    Args:
+        cfg: The config object to serialize (typically ``self.cfg``).
+        log_dir: The logging directory. When ``None``, the dump is silently
+            skipped.
+        logger: Optional logger for status messages. When ``None``, messages
+            are suppressed.
+    """
+    if log_dir is None:
+        return
+    resolved_path = os.path.join(log_dir, "params", "resolved_env.yaml")
+    try:
+        dump_yaml(resolved_path, cfg)
+        if logger is not None:
+            logger.info("Resolved env config written to %s", resolved_path)
+    except Exception:
+        if logger is not None:
+            logger.warning("Failed to dump resolved env config to %s", resolved_path, exc_info=True)

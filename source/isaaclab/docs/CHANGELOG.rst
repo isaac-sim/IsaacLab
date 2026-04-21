@@ -14,19 +14,16 @@ Added
   a ``FutureWarning`` because this path is temporary until neutral USD materials
   replace OmniPBR in content.
 * Added ``test_newton_model_utils`` tests for the Newton shape color pass.
-* Added :meth:`~isaaclab.utils.configclass.post_init_diff` method to all
-  ``@configclass`` instances, returning a dict of scalar fields changed by
-  ``__post_init__``.  Helps users discover silent config overrides.
 * Added debug-level logging of the ``__post_init__`` call chain in
   ``@configclass`` so that ``ISAACLAB_LOG_LEVEL=DEBUG`` reveals which classes
   modify fields during initialization.
-* Added automatic dump of the fully-resolved env config to
-  ``<log_dir>/params/resolved_env.yaml`` from
-  :class:`~isaaclab.envs.ManagerBasedEnv`,
+* Added :func:`~isaaclab.utils.io.dump_resolved_cfg` standalone utility for
+  writing ``<log_dir>/params/resolved_env.yaml``.  All env base classes
+  (:class:`~isaaclab.envs.ManagerBasedEnv`,
   :class:`~isaaclab.envs.DirectRLEnv`, and
-  :class:`~isaaclab.envs.DirectMARLEnv` at the end of ``__init__``.  This
-  gives users a single source of truth for the values the environment actually
-  uses.
+  :class:`~isaaclab.envs.DirectMARLEnv`) now call this at the end of
+  ``__init__``, giving users a single source of truth for the values the
+  environment actually uses.
 
 Changed
 ^^^^^^^
