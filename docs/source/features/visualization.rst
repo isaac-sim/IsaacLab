@@ -145,10 +145,10 @@ Partial Visualization
 To improve performance, visualizers can be configured to visualize just a subset of environments.
 This is called partial visualization.
 
-There are 2 fields exposed in the VisualizerCfg for selecting environments for partial visualization:
+There are 2 fields exposed in the ``VisualizerCfg`` for selecting environments for partial visualization:
+
 - ``max_visible_envs`` caps how many envs are shown.
 - ``visible_env_indices`` explicitly selects the envs to visualize.
-- ``randomly_sample_visible_envs`` enables unifom sampling of the selected envs, if ``visible_env_indices`` is not provided.
 
 Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
 
