@@ -922,50 +922,6 @@ class RigidObjectData(BaseRigidObjectData):
             self._body_mass_ta.rebind(self._sim_bind_body_mass)
             self._body_inertia_ta.rebind(self._sim_bind_body_inertia)
             self._body_com_pos_b_ta.rebind(self._sim_bind_body_com_pos_b)
-            # Invalidate lazy sliced TorchArrays AND their backing wp.arrays
-            # so they are re-created from the new sim bindings on next access.
-            # Without this, contiguous strided views hold stale pointers into
-            # freed transform memory after sim reset.
-            self._root_link_pos_w_ta = None
-            self._root_link_pos_w = None
-            self._root_link_quat_w_ta = None
-            self._root_link_quat_w = None
-            self._root_link_lin_vel_w_ta = None
-            self._root_link_lin_vel_w = None
-            self._root_link_ang_vel_w_ta = None
-            self._root_link_ang_vel_w = None
-            self._root_com_pos_w_ta = None
-            self._root_com_pos_w = None
-            self._root_com_quat_w_ta = None
-            self._root_com_quat_w = None
-            self._root_com_lin_vel_w_ta = None
-            self._root_com_lin_vel_w = None
-            self._root_com_ang_vel_w_ta = None
-            self._root_com_ang_vel_w = None
-            self._body_link_pos_w_ta = None
-            self._body_link_pos_w = None
-            self._body_link_quat_w_ta = None
-            self._body_link_quat_w = None
-            self._body_link_vel_w_ta = None
-            self._body_link_lin_vel_w_ta = None
-            self._body_link_lin_vel_w = None
-            self._body_link_ang_vel_w_ta = None
-            self._body_link_ang_vel_w = None
-            self._body_com_pose_w_ta = None
-            self._body_com_pos_w_ta = None
-            self._body_com_pos_w = None
-            self._body_com_quat_w_ta = None
-            self._body_com_quat_w = None
-            self._body_com_lin_vel_w_ta = None
-            self._body_com_lin_vel_w = None
-            self._body_com_ang_vel_w_ta = None
-            self._body_com_ang_vel_w = None
-            self._body_com_lin_acc_w_ta = None
-            self._body_com_lin_acc_w = None
-            self._body_com_ang_acc_w_ta = None
-            self._body_com_ang_acc_w = None
-            self._body_com_quat_b_ta = None
-            self._body_com_quat_b = None
         else:
             # First-time creation: pin TorchArrays to current buffers
             # Category 1: sim-bound and pre-allocated buffers
@@ -988,33 +944,11 @@ class RigidObjectData(BaseRigidObjectData):
             self._projected_gravity_b_ta = TorchArray(self._projected_gravity_b.data)
             self._heading_w_ta = TorchArray(self._heading_w.data)
 
-            # Category 3: lazy/sliced properties, pinned on first access
-            self._root_link_pos_w_ta: TorchArray | None = None
-            self._root_link_quat_w_ta: TorchArray | None = None
-            self._root_link_lin_vel_w_ta: TorchArray | None = None
-            self._root_link_ang_vel_w_ta: TorchArray | None = None
-            self._root_com_pos_w_ta: TorchArray | None = None
-            self._root_com_quat_w_ta: TorchArray | None = None
-            self._root_com_lin_vel_w_ta: TorchArray | None = None
-            self._root_com_ang_vel_w_ta: TorchArray | None = None
-            self._body_link_pos_w_ta: TorchArray | None = None
-            self._body_link_quat_w_ta: TorchArray | None = None
-            self._body_link_vel_w_ta: TorchArray | None = None
-            self._body_link_lin_vel_w_ta: TorchArray | None = None
-            self._body_link_ang_vel_w_ta: TorchArray | None = None
-            self._body_com_pose_w_ta: TorchArray | None = None
-            self._body_com_pos_w_ta: TorchArray | None = None
-            self._body_com_quat_w_ta: TorchArray | None = None
-            self._body_com_lin_vel_w_ta: TorchArray | None = None
-            self._body_com_ang_vel_w_ta: TorchArray | None = None
-            self._body_com_lin_acc_w_ta: TorchArray | None = None
-            self._body_com_ang_acc_w_ta: TorchArray | None = None
-            self._body_com_quat_b_ta: TorchArray | None = None
+            # -- deprecated state properties (lazy); type annotations declared once here
             self._root_link_lin_vel_b_ta: TorchArray | None = None
             self._root_link_ang_vel_b_ta: TorchArray | None = None
             self._root_com_lin_vel_b_ta: TorchArray | None = None
             self._root_com_ang_vel_b_ta: TorchArray | None = None
-            # -- deprecated state properties (lazy)
             self._root_state_w_ta: TorchArray | None = None
             self._root_link_state_w_ta: TorchArray | None = None
             self._root_com_state_w_ta: TorchArray | None = None
@@ -1022,6 +956,52 @@ class RigidObjectData(BaseRigidObjectData):
             self._body_state_w_ta: TorchArray | None = None
             self._body_link_state_w_ta: TorchArray | None = None
             self._body_com_state_w_ta: TorchArray | None = None
+
+        # Invalidate lazy sliced TorchArrays AND their backing wp.arrays so they are
+        # re-created from fresh data on next access.  On first init the backing fields
+        # are already None (set by _create_buffers), so the assignments below are
+        # harmless no-ops.  On rebind they reset stale pointers into freed transform
+        # memory after a sim reset.
+        self._root_link_pos_w_ta: TorchArray | None = None
+        self._root_link_pos_w = None
+        self._root_link_quat_w_ta: TorchArray | None = None
+        self._root_link_quat_w = None
+        self._root_link_lin_vel_w_ta: TorchArray | None = None
+        self._root_link_lin_vel_w = None
+        self._root_link_ang_vel_w_ta: TorchArray | None = None
+        self._root_link_ang_vel_w = None
+        self._root_com_pos_w_ta: TorchArray | None = None
+        self._root_com_pos_w = None
+        self._root_com_quat_w_ta: TorchArray | None = None
+        self._root_com_quat_w = None
+        self._root_com_lin_vel_w_ta: TorchArray | None = None
+        self._root_com_lin_vel_w = None
+        self._root_com_ang_vel_w_ta: TorchArray | None = None
+        self._root_com_ang_vel_w = None
+        self._body_link_pos_w_ta: TorchArray | None = None
+        self._body_link_pos_w = None
+        self._body_link_quat_w_ta: TorchArray | None = None
+        self._body_link_quat_w = None
+        self._body_link_vel_w_ta: TorchArray | None = None
+        self._body_link_lin_vel_w_ta: TorchArray | None = None
+        self._body_link_lin_vel_w = None
+        self._body_link_ang_vel_w_ta: TorchArray | None = None
+        self._body_link_ang_vel_w = None
+        self._body_com_pose_w_ta: TorchArray | None = None
+        self._body_com_pos_w_ta: TorchArray | None = None
+        self._body_com_pos_w = None
+        self._body_com_quat_w_ta: TorchArray | None = None
+        self._body_com_quat_w = None
+        self._body_com_lin_vel_w_ta: TorchArray | None = None
+        self._body_com_lin_vel_w = None
+        self._body_com_ang_vel_w_ta: TorchArray | None = None
+        self._body_com_ang_vel_w = None
+        self._body_com_lin_acc_w_ta: TorchArray | None = None
+        self._body_com_lin_acc_w = None
+        self._body_com_ang_acc_w_ta: TorchArray | None = None
+        self._body_com_ang_acc_w = None
+        self._body_com_quat_b_ta: TorchArray | None = None
+        self._body_com_quat_b = None
 
     """
     Internal helpers.
