@@ -14,7 +14,6 @@ script:
 * ``--video_length``: length of each recorded video (in steps)
 * ``--video_interval``: interval between each video recording (in steps)
 
-Make sure to also add the ``--enable_cameras`` argument when running headless.
 Note that enabling recording is equivalent to enabling rendering during training, which will slow down both startup and runtime performance.
 
 Example usage:
@@ -96,78 +95,53 @@ video), the recorder instantiates the backend-specific helper and passes through
    :lines: 70-114
 
 
-Step 1 - Manager-based RL (``ManagerBasedRLEnv``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Customising the camera view
+----------------------------
 
-The recorder is created inside :class:`~isaaclab.envs.manager_based_env.ManagerBasedEnv`, so
-``ManagerBasedRLEnv`` must set ``cfg.video_recorder`` before ``super().__init__``.
+When ``--video`` is passed, the recording camera uses the same
+position and look-at target as the interactive viewer. The defaults come from
+:class:`~isaaclab.envs.common.ViewerCfg`:
 
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/manager_based_rl_env.py
-   :language: python
-   :start-at:        # Forward render_mode and viewer camera to VideoRecorderCfg before super().__init__()
-   :end-at:            cfg.video_recorder.camera_target = tuple(float(x) for x in cfg.viewer.lookat)
+* ``eye = (7.5, 7.5, 7.5)`` — camera position in world space (metres)
+* ``lookat = (0.0, 0.0, 0.0)`` — camera look-at target in world space (metres)
+* Resolution ``1280x720``
 
+To change the recording angle, override the ``viewer`` field in your task's environment config.
+The RL base classes automatically copy ``eye`` and ``lookat`` into ``VideoRecorderCfg`` before
+recording starts (when ``origin_type`` is ``"world"``), so the video clip uses the same viewpoint
+as the interactive viewport:
 
-Step 2 - Direct RL (``DirectRLEnv``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. code-block:: python
 
-Direct environments build the scene first, then assign viewer fields to the recorder config and
-construct ``VideoRecorder`` before ``sim.reset()``.
+    from isaaclab.envs import ManagerBasedRLEnvCfg
+    from isaaclab.envs.common import ViewerCfg
+    from isaaclab.utils import configclass
 
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/direct_rl_env.py
-   :language: python
-   :start-at:        if self.cfg.video_recorder is not None:
-   :end-at:            self.video_recorder = None
-
-
-Step 3 - Direct MARL (``DirectMARLEnv``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The same pattern as direct RL.
-
-.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/direct_marl_env.py
-   :language: python
-   :start-at:        if self.cfg.video_recorder is not None:
-   :end-at:            self.video_recorder = None
-
-
-Step 4 - Kit perspective (PhysX simulation or Isaac RTX renderer)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The Isaac Lab PhysX helper points the Kit perspective prim at ``camera_position`` /
-``camera_target`` and attaches a Replicator RGB annotator.
-
-.. literalinclude:: ../../../source/isaaclab_physx/isaaclab_physx/video_recording/isaacsim_kit_perspective_video.py
-   :language: python
-   :lines: 26-44
-
-
-Step 5 - Newton GL (Newton physics with Newton Warp or OVRTX renderer)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The Newton helper obtains the Newton model from the simulation's scene data provider, creates a
-headless ``ViewerGL``, and sets the camera from ``camera_position`` / ``camera_target``
-(yaw/pitch derived from the view vector).
-
-.. literalinclude:: ../../../source/isaaclab_newton/isaaclab_newton/video_recording/newton_gl_perspective_video.py
-   :language: python
-   :lines: 30-68
+    @configclass
+    class MyTaskCfg(ManagerBasedRLEnvCfg):
+        viewer: ViewerCfg = ViewerCfg(
+            eye=(5.0, 5.0, 5.0),
+            lookat=(0.0, 0.0, 1.0),
+        )
 
 
 Summary
 -------
 
 .. list-table::
-   :widths: 28 36 36
+   :widths: 40 22 38
    :header-rows: 1
 
-   * - Stack example
+   * - Stack example (``presets=...``)
      - Video backend
      - Capture mechanism
-   * - PhysX simulation + Isaac RTX renderer (Kit / full Sim)
+   * - ``physx,...`` or ``isaac_rtx_renderer,...``
      - Kit (``"kit"``)
      - ``/OmniverseKit_Persp`` + Replicator RGB
-   * - Newton physics + Newton Warp or Newton physics + OVRTX
+   * - ``newton,...`` or ``newton_renderer,...`` (no Kit signals)
+     - Newton GL (``"newton_gl"``)
+     - ``newton.viewer.ViewerGL`` on the SDP Newton model
+   * - ``newton,...,ovrtx_renderer,...`` (OVRTX + Newton physics)
      - Newton GL (``"newton_gl"``)
      - ``newton.viewer.ViewerGL`` on the SDP Newton model
 
@@ -175,4 +149,4 @@ Summary
 See also
 --------
 
-* :doc:`/features/visualization` - interactive visualizers
+* :doc:`/source/features/visualization` - interactive visualizers
