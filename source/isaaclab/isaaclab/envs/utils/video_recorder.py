@@ -9,7 +9,9 @@ Backend resolution (``--video`` + ``--visualizer``):
 
 1. **Active visualizer** - ``"kit"`` uses the Kit camera; ``"newton"`` uses the Newton GL viewer.
    ``"viser"`` / ``"rerun"`` have no capture API and fall through to rule 2.
-2. **Physics/renderer stack** - PhysX or Isaac RTX uses the Kit camera; Newton physics or Newton Warp uses the Newton GL viewer.
+2. **Physics/renderer stack** -
+   - PhysX or Isaac RTX uses the Kit camera;
+   - Newton physics or Newton Warp uses the Newton GL viewer.
    Kit wins when both signals present.  Raises if nothing resolves.
 
 Camera sync when a visualizer drives the backend: construction copies ``camera_position`` /
@@ -60,9 +62,7 @@ def _resolve_video_backend(scene: InteractiveScene) -> tuple[_VideoBackend, str 
         for preferred in ("kit", "newton"):
             if preferred in visualizer_types:
                 backend = _VISUALIZER_TO_VIDEO_BACKEND[preferred]
-                logger.debug(
-                    "[VideoRecorder] Using '%s' backend from active '%s' visualizer.", backend, preferred
-                )
+                logger.debug("[VideoRecorder] Using '%s' backend from active '%s' visualizer.", backend, preferred)
                 return backend, preferred
         # only unsupported visualizer types (viser, rerun) are active.
         logger.warning(
@@ -127,8 +127,7 @@ def _sync_camera_from_visualizer(
         return
 
     logger.debug(
-        "[VideoRecorder] Could not find camera_position/target on '%s' visualizer cfg; "
-        "keeping existing camera values.",
+        "[VideoRecorder] Could not find camera_position/target on '%s' visualizer cfg; keeping existing camera values.",
         visualizer_type,
     )
 
