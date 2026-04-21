@@ -10,7 +10,6 @@ import re
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from functools import cache
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -20,7 +19,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 
 if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
@@ -64,7 +62,6 @@ class AssetBase(ABC):
         Raises:
             RuntimeError: If no prims found at input prim path or prim path expression.
         """
-        self._init_resolve_matching_names_caches()
         # check that the config is valid
         cfg.validate()
         # store inputs
@@ -307,72 +304,6 @@ class AssetBase(ABC):
         if __debug__:
             shape = (*tuple(m.shape[0] for m in masks), *trailing_dims)
             self.assert_shape_and_dtype(tensor, shape, dtype, name)
-
-    """
-    Resolve-matching-names caches.
-    """
-
-    def _init_resolve_matching_names_caches(self):
-        """Create per-instance cached closures for name-resolution helpers.
-
-        Each asset instance gets its own ``@cache``-wrapped closure so the
-        cache lifetime is tied to the instance.  When the instance is garbage-
-        collected the closures (and their internal cache dicts) are freed
-        automatically.
-        """
-
-        @cache
-        def _resolve_matching_names_impl(
-            keys: tuple[str, ...], names: tuple[str, ...], preserve_order: bool
-        ) -> tuple[list[int], list[str]]:
-            return resolve_matching_names(keys, list(names), preserve_order)
-
-        @cache
-        def _resolve_matching_names_values_impl(
-            data_keys: tuple[str, ...],
-            data_values: tuple,
-            names: tuple[str, ...],
-            preserve_order: bool,
-            strict: bool,
-        ) -> tuple[list[int], list[str], list[Any]]:
-            return resolve_matching_names_values(dict(zip(data_keys, data_values)), list(names), preserve_order, strict)
-
-        self.__resolve_matching_names_impl = _resolve_matching_names_impl
-        self.__resolve_matching_names_values_impl = _resolve_matching_names_values_impl
-
-    def _resolve_matching_names_cached(
-        self,
-        keys: str | Sequence[str],
-        list_of_strings: Sequence[str],
-        preserve_order: bool = False,
-    ) -> tuple[list[int], list[str]]:
-        """Cached version of :func:`~isaaclab.utils.string.resolve_matching_names`.
-
-        Accepts the same arguments as the original function. Results are cached
-        per instance; repeated calls with identical arguments return copies of
-        the cached result.
-        """
-        _keys = (keys,) if isinstance(keys, str) else tuple(keys)
-        idx, names = self.__resolve_matching_names_impl(_keys, tuple(list_of_strings), preserve_order)
-        return list(idx), list(names)
-
-    def _resolve_matching_names_values_cached(
-        self,
-        data: dict[str, Any],
-        list_of_strings: Sequence[str],
-        preserve_order: bool = False,
-        strict: bool = True,
-    ) -> tuple[list[int], list[str], list[Any]]:
-        """Cached version of :func:`~isaaclab.utils.string.resolve_matching_names_values`.
-
-        Accepts the same arguments as the original function. Results are cached
-        per instance; repeated calls with identical arguments return copies of
-        the cached result.
-        """
-        idx, names, vals = self.__resolve_matching_names_values_impl(
-            tuple(data.keys()), tuple(data.values()), tuple(list_of_strings), preserve_order, strict
-        )
-        return list(idx), list(names), list(vals)
 
     """
     Implementation specific.

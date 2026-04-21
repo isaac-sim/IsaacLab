@@ -1,32 +1,6 @@
 Changelog
 ---------
 
-0.5.22 (2026-04-22)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Cached articulation and rigid-object finder methods via per-instance
-  ``_resolve_matching_names_cached`` and ``_resolve_matching_names_values_cached``
-  closures defined in :class:`~isaaclab.assets.AssetBase`, avoiding repeated
-  regex resolution on every call. :class:`~isaaclab_physx.assets.RigidObject`
-  now also benefits from the cache.
-
-
-0.5.21 (2026-04-22)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Cached results of :meth:`~isaaclab_physx.assets.Articulation.find_joints` and
-  :meth:`~isaaclab_physx.assets.Articulation.find_bodies` to avoid repeated
-  regex resolution via :func:`~isaaclab.utils.string.resolve_matching_names`
-  on every call. The cache is per-instance and lives for the lifetime of the
-  articulation.
-
-
 0.5.20 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -18,6 +18,7 @@ from newton.solvers import SolverNotifyFlags
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -186,7 +187,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return self._resolve_matching_names_cached(name_keys, self.body_names, preserve_order)
+        return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     """
     Operations - Write to simulation.

@@ -71,7 +71,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             cfg: A configuration instance.
         """
         # Note: We never call the parent constructor as it tries to call its own spawning which we don't want.
-        self._init_resolve_matching_names_caches()
         # check that the config is valid
         cfg.validate()
         # store inputs

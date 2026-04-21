@@ -85,7 +85,6 @@ class SurfaceGripper(AssetBase):
             cfg: A configuration instance.
         """
         # copy the configuration
-        self._init_resolve_matching_names_caches()
         self._cfg = cfg.copy()
 
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported

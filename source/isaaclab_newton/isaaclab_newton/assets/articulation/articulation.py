@@ -27,6 +27,7 @@ from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
+from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -308,7 +309,7 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return self._resolve_matching_names_cached(name_keys, self.body_names, preserve_order)
+        return resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     def find_joints(
         self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
@@ -330,7 +331,7 @@ class Articulation(BaseArticulation):
         if joint_subset is None:
             joint_subset = self.joint_names
         # find joints
-        return self._resolve_matching_names_cached(name_keys, joint_subset, preserve_order)
+        return resolve_matching_names(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -354,7 +355,7 @@ class Articulation(BaseArticulation):
             # tendons follow the joint names they are attached to
             tendon_subsets = self.fixed_tendon_names
         # find tendons
-        return self._resolve_matching_names_cached(name_keys, tendon_subsets, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     def find_spatial_tendons(
         self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
@@ -376,7 +377,7 @@ class Articulation(BaseArticulation):
         if tendon_subsets is None:
             tendon_subsets = self.spatial_tendon_names
         # find tendons
-        return self._resolve_matching_names_cached(name_keys, tendon_subsets, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
     Operations - State Writers.
@@ -3264,12 +3265,8 @@ class Articulation(BaseArticulation):
         self.data.default_root_vel = wp.array(default_root_vel, dtype=wp.spatial_vectorf, device=self.device)
 
         # -- joint state
-        pos_idx_list, _, pos_val_list = self._resolve_matching_names_values_cached(
-            self.cfg.init_state.joint_pos, self.joint_names
-        )
-        vel_idx_list, _, vel_val_list = self._resolve_matching_names_values_cached(
-            self.cfg.init_state.joint_vel, self.joint_names
-        )
+        pos_idx_list, _, pos_val_list = resolve_matching_names_values(self.cfg.init_state.joint_pos, self.joint_names)
+        vel_idx_list, _, vel_val_list = resolve_matching_names_values(self.cfg.init_state.joint_vel, self.joint_names)
         wp.launch(
             articulation_kernels.update_default_joint_values,
             dim=(self.num_instances, len(pos_idx_list)),

@@ -131,7 +131,6 @@ def create_physx_articulation(
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
-    articulation._init_resolve_matching_names_caches()
 
     # We can't call the initialize method here, because we don't have a good mock for the actuators yet.
     # We need to set the _data attribute manually.
@@ -328,7 +327,6 @@ def create_newton_articulation(
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_data", data)
-    articulation._init_resolve_matching_names_caches()
 
     # Tendon names (Newton doesn't support tendons)
     object.__setattr__(articulation, "_fixed_tendon_names", [])
@@ -605,7 +603,7 @@ class TestArticulationFinders:
 
 
 # ---------------------------------------------------------------------------
-# Tests: Resolve-matching-names cache lifecycle
+# Tests: resolve_matching_names caching behavior
 # ---------------------------------------------------------------------------
 
 
@@ -613,56 +611,13 @@ _non_mock_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if 
 
 
 class TestResolveMatchingNamesCache:
-    """Test per-instance cache lifecycle: isolation, cleanup, and error propagation."""
-
-    @_non_mock_backends
-    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
-    @pytest.mark.parametrize("device", ["cpu"])
-    def test_cache_freed_on_instance_destruction(self, backend, num_instances, num_joints, num_bodies, device):
-        """Cache closures are freed when the articulation instance is destroyed.
-
-        Only runs on CPU: both the real and mock WrenchComposer store a
-        back-reference to the asset (``self._asset``), creating a reference
-        cycle.  CPython's cycle collector breaks these eventually, but on CUDA
-        the cycle includes C-extension warp arrays whose pointers aren't
-        always visible to a single ``gc.collect()`` pass, making the assertion
-        non-deterministic.  This is not a leak—just a timing issue for tests.
-        """
-        import gc
-        import weakref
-
-        art, view = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
-        art.find_bodies(".*")
-        cache_fn = art._AssetBase__resolve_matching_names_impl
-        assert cache_fn.cache_info().currsize > 0, "Cache should be populated after find_bodies call"
-        cache_ref = weakref.ref(cache_fn)
-        del cache_fn
-        assert cache_ref() is not None
-
-        del art, view
-        gc.collect()
-        assert cache_ref() is None, "Cache closure was not freed after instance destruction"
+    """Test that resolve_matching_names caching returns correct, isolated results."""
 
     @_non_mock_backends
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
     @_default_devices
-    def test_separate_instances_have_independent_caches(self, backend, num_instances, num_joints, num_bodies, device):
-        """Two articulation instances should not share cache state."""
-        art1, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
-        art2, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
-
-        idx1, names1 = art1.find_joints(".*")
-        idx2, names2 = art2.find_joints(".*")
-        assert idx1 == idx2
-        assert names1 == names2
-
-        assert art1._AssetBase__resolve_matching_names_impl is not art2._AssetBase__resolve_matching_names_impl
-
-    @_non_mock_backends
-    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
-    @_default_devices
-    def test_unmatched_regex_raises_through_cache(self, backend, num_instances, num_joints, num_bodies, device):
-        """ValueError from resolve_matching_names propagates through the cache."""
+    def test_unmatched_regex_raises(self, backend, num_instances, num_joints, num_bodies, device):
+        """ValueError from resolve_matching_names propagates correctly."""
         art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
         with pytest.raises(ValueError):
             art.find_bodies("nonexistent_body_xyz")
@@ -692,25 +647,8 @@ class TestResolveMatchingNamesCache:
     @_non_mock_backends
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
     @_default_devices
-    def test_resolve_matching_names_values_cached(self, backend, num_instances, num_joints, num_bodies, device):
-        """_resolve_matching_names_values_cached returns correct indices, names, and values."""
-        art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
-        data = {"joint_0": 1.0, "joint_1": 2.0}
-        idx, names, vals = art._resolve_matching_names_values_cached(data, art.joint_names)
-        assert names == ["joint_0", "joint_1"]
-        assert vals == [1.0, 2.0]
-        assert all(isinstance(i, int) for i in idx)
-
-        # Second call returns equal but independent lists
-        idx2, names2, vals2 = art._resolve_matching_names_values_cached(data, art.joint_names)
-        assert idx == idx2 and names == names2 and vals == vals2
-        assert idx is not idx2 and names is not names2 and vals is not vals2
-
-    @_non_mock_backends
-    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
-    @_default_devices
     def test_find_with_multiple_patterns(self, backend, num_instances, num_joints, num_bodies, device):
-        """Passing a list of regex patterns exercises the Sequence[str] -> tuple conversion."""
+        """Passing a list of regex patterns works correctly."""
         art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
         idx, names = art.find_joints(["joint_0", "joint_1"])
         assert "joint_0" in names
@@ -728,29 +666,6 @@ class TestResolveMatchingNamesCache:
 
         idx_rev, names_rev = art.find_joints(["joint_0", "joint_1"], preserve_order=True)
         assert names_rev == ["joint_0", "joint_1"]
-
-    @_non_mock_backends
-    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
-    @_default_devices
-    def test_cached_matches_uncached(self, backend, num_instances, num_joints, num_bodies, device):
-        """Cached wrappers produce identical results to the uncached functions."""
-        from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
-
-        art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
-
-        # resolve_matching_names
-        for keys in [".*", "joint_0", ["joint_0", "joint_1"]]:
-            for preserve_order in [False, True]:
-                expected = resolve_matching_names(keys, art.joint_names, preserve_order)
-                actual = art._resolve_matching_names_cached(keys, art.joint_names, preserve_order)
-                assert actual == expected, f"Mismatch for keys={keys!r}, preserve_order={preserve_order}"
-
-        # resolve_matching_names_values
-        data = {"joint_0": 1.0, "joint_1": 2.0}
-        for preserve_order in [False, True]:
-            expected = resolve_matching_names_values(data, art.joint_names, preserve_order)
-            actual = art._resolve_matching_names_values_cached(data, art.joint_names, preserve_order)
-            assert actual == expected, f"Values mismatch for preserve_order={preserve_order}"
 
 
 # ---------------------------------------------------------------------------

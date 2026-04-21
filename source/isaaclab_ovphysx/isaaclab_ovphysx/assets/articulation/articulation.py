@@ -18,6 +18,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsManager
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
@@ -186,7 +187,7 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return self._resolve_matching_names_cached(name_keys, self._body_names, preserve_order)
+        return resolve_matching_names(name_keys, self._body_names, preserve_order)
 
     def find_joints(
         self,
@@ -210,7 +211,7 @@ class Articulation(BaseArticulation):
         """
         if joint_subset is None:
             joint_subset = self._joint_names
-        return self._resolve_matching_names_cached(name_keys, joint_subset, preserve_order)
+        return resolve_matching_names(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
         self,
@@ -234,7 +235,7 @@ class Articulation(BaseArticulation):
         """
         if tendon_subsets is None:
             tendon_subsets = self.fixed_tendon_names
-        return self._resolve_matching_names_cached(name_keys, tendon_subsets, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     def find_spatial_tendons(
         self,
@@ -257,7 +258,7 @@ class Articulation(BaseArticulation):
         """
         if tendon_subsets is None:
             tendon_subsets = self.spatial_tendon_names
-        return self._resolve_matching_names_cached(name_keys, tendon_subsets, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
     Operations - State Writers.
