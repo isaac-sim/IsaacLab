@@ -128,7 +128,7 @@ class AnymalCEnv(DirectRLEnv):
         # action rate
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
         # feet air time
-        first_contact = wp.to_torch(self._contact_sensor.compute_first_contact(self.step_dt))[:, self._feet_ids]
+        first_contact = self._contact_sensor.compute_first_contact(self.step_dt).torch[:, self._feet_ids]
         last_air_time = self._contact_sensor.data.last_air_time.torch[:, self._feet_ids]
         air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
             torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1

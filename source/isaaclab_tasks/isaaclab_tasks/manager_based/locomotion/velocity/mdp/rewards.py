@@ -39,7 +39,7 @@ def feet_air_time(
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     # compute the reward
-    first_contact = wp.to_torch(contact_sensor.compute_first_contact(env.step_dt))[:, sensor_cfg.body_ids]
+    first_contact = contact_sensor.compute_first_contact(env.step_dt).torch[:, sensor_cfg.body_ids]
     last_air_time = contact_sensor.data.last_air_time.torch[:, sensor_cfg.body_ids]
     reward = torch.sum((last_air_time - threshold) * first_contact, dim=1)
     # no reward for zero command
@@ -79,8 +79,7 @@ def feet_slide(env, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = Scen
     # Penalize feet sliding
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     contacts = (
-        contact_sensor.data.net_forces_w_history.torch[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0]
-        > 1.0
+        contact_sensor.data.net_forces_w_history.torch[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0] > 1.0
     )
     asset = env.scene[asset_cfg.name]
 
@@ -97,9 +96,7 @@ def track_lin_vel_xy_yaw_frame_exp(
     """
     # extract the used quantities (to enable type-hinting)
     asset = env.scene[asset_cfg.name]
-    vel_yaw = quat_apply_inverse(
-        yaw_quat(asset.data.root_quat_w.torch), asset.data.root_lin_vel_w.torch[:, :3]
-    )
+    vel_yaw = quat_apply_inverse(yaw_quat(asset.data.root_quat_w.torch), asset.data.root_lin_vel_w.torch[:, :3])
     lin_vel_error = torch.sum(
         torch.square(env.command_manager.get_command(command_name)[:, :2] - vel_yaw[:, :2]), dim=1
     )
