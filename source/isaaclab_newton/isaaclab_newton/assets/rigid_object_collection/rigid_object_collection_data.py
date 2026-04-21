@@ -637,7 +637,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
 
         # Re-pin TorchArray wrappers to the newly created sim bindings.
-        self._pin_torch_arrays()
+        # On first init, _create_buffers() handles this after all buffers exist.
+        if hasattr(self, "_body_link_pose_w_ta"):
+            self._pin_torch_arrays()
 
     def _create_buffers(self) -> None:
         """Create buffers for computing and caching derived quantities."""
