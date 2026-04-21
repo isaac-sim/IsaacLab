@@ -773,9 +773,7 @@ def test_composer_vs_physx_permanent_global_force_at_position_long_run(device):
     """
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        cube_composer, cube_raw = generate_dual_cube_scene(
-            num_cubes=1, device=device, initial_rot=ROT_45_Z
-        )
+        cube_composer, cube_raw = generate_dual_cube_scene(num_cubes=1, device=device, initial_rot=ROT_45_Z)
 
         sim.reset()
 
