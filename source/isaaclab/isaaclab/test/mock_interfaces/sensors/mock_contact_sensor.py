@@ -510,7 +510,7 @@ class MockContactSensor:
         Returns:
             Boolean warp array of shape (N, B) indicating first contact.
         """
-        result = wp.to_torch(self._data.current_contact_time) < (dt + abs_tol)
+        result = self._data.current_contact_time.torch < (dt + abs_tol)
         return wp.from_torch(result)
 
     def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
@@ -523,7 +523,7 @@ class MockContactSensor:
         Returns:
             Boolean warp array of shape (N, B) indicating first air.
         """
-        result = wp.to_torch(self._data.current_air_time) < (dt + abs_tol)
+        result = self._data.current_air_time.torch < (dt + abs_tol)
         return wp.from_torch(result)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
