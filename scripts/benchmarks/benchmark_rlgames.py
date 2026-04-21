@@ -304,7 +304,7 @@ def main(
         )
 
         tracker = get_success_tracker(args_cli, observer.tracker, log_data)
-        log_success(benchmark, tracker)
+        log_success(benchmark, tracker, framework_iteration_count=observer.framework_iteration_count)
 
         benchmark._finalize_impl()
 

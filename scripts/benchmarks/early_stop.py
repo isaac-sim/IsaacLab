@@ -76,6 +76,14 @@ class SuccessRateTracker:
 
     @property
     def at_iteration_boundary(self) -> bool:
+        """Whether the tracker has seen exactly a full iteration's worth of steps.
+
+        Assumes :meth:`record_step` is called exactly once per env step. This holds for
+        all current framework integrations (rsl_rl's patched ``env.step`` and rl_games'
+        ``AlgoObserver.process_infos``) — both pair a single step with a single record.
+        Integrations that call :meth:`record_step` more or fewer times per env step will
+        break iteration accounting.
+        """
         return self.num_steps_per_env > 0 and self._step_count % self.num_steps_per_env == 0
 
     @property
@@ -163,6 +171,16 @@ class RslRlEarlyStopWrapper:
             self.runner.save(os.path.join(self.runner.logger.log_dir, f"model_{it}.pt"))
             self.runner.logger.stop_logging_writer()
 
+    @property
+    def framework_iteration_count(self) -> int:
+        """Number of training iterations the rsl_rl runner has recorded as completed.
+
+        Note: ``current_learning_iteration`` is set AFTER rollout + policy update, so mid-rollout
+        (including the instant our early-stop exception fires) this counter lags :attr:`tracker`
+        by 1 iteration.
+        """
+        return self.runner.current_learning_iteration + 1
+
 
 class RlGamesEarlyStopObserver:
     """``AlgoObserver`` that tracks a success metric during rl_games training.
@@ -230,6 +248,16 @@ class RlGamesEarlyStopObserver:
 
     def after_print_stats(self, frame, epoch_num, total_time):
         self._base.after_print_stats(frame, epoch_num, total_time)
+
+    @property
+    def framework_iteration_count(self) -> int | None:
+        """Number of training iterations the rl_games algo has recorded.
+
+        rl_games increments ``algo.epoch_num`` at the start of each iteration, so after iter N
+        completes this value equals N (matching :attr:`tracker`'s count exactly). Returns
+        ``None`` before :meth:`after_init` has attached to an algo.
+        """
+        return None if self.algo is None else self.algo.epoch_num
 
 
 def add_success_cli_args(parser: argparse.ArgumentParser) -> None:
