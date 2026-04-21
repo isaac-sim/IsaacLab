@@ -80,12 +80,7 @@ class TorchArray:
 
         Args:
             wp_array: The new warp array to wrap.
-
-        Raises:
-            TypeError: If ``wp_array`` is not a :class:`warp.array`.
         """
-        if not isinstance(wp_array, wp.array):
-            raise TypeError(f"rebind() expects a warp.array, got {type(wp_array).__name__}.")
         self._warp = wp_array
         self._torch_cache = None
 

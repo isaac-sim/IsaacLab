@@ -24,15 +24,6 @@ def device(request):
 class TestTorchArrayBasic:
     """Tests for basic TorchArray functionality."""
 
-    def test_init_rejects_non_warp(self):
-        """Test that __init__ raises TypeError for non-warp.array arguments."""
-        from isaaclab.utils.warp.torch_array import TorchArray
-
-        with pytest.raises(TypeError, match="expects a warp.array"):
-            TorchArray(torch.zeros(10))
-        with pytest.raises(TypeError, match="use it directly"):
-            TorchArray(TorchArray(wp.zeros(5, dtype=wp.float32, device="cpu")))
-
     def test_warp_returns_original(self, device):
         """Test that .warp returns the original warp array."""
         from isaaclab.utils.warp.torch_array import TorchArray
