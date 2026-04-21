@@ -287,7 +287,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._env_ids = self._compute_visualized_env_ids()
         # Full model + ViewerBase.set_visible_worlds() (Newton PR #2267); avoids cloning a reduced model.
         self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state(None)
+        self._state = scene_data_provider.get_newton_state()
 
         # Use pyglet's EGL headless backend when requested. Must run before the first
         # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.
@@ -368,13 +368,13 @@ class NewtonVisualizer(BaseVisualizer):
 
         if self._viewer is None:
             if self._scene_data_provider is not None:
-                self._state = self._scene_data_provider.get_newton_state(None)
+                self._state = self._scene_data_provider.get_newton_state()
             return
 
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = self._scene_data_provider.get_newton_state(None)
+        self._state = self._scene_data_provider.get_newton_state()
 
         contacts = None
         if self._viewer.show_contacts:

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from isaaclab_physx.scene_data_providers import PhysxSceneDataProvider
 
@@ -15,23 +16,21 @@ from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 
 
 def _make_provider():
-    provider = object.__new__(PhysxSceneDataProvider)
-    provider._force_usd_fallback_for_newton_model_build = False
-    return provider
+    return object.__new__(PhysxSceneDataProvider)
 
 
-def test_get_newton_model_for_env_ids_returns_full_model():
-    """Filtered partial USD models were removed; callers always receive the full Newton model."""
+def test_get_newton_model_returns_model_when_sync_enabled():
+    """Callers receive the full Newton model from :meth:`get_newton_model`."""
     provider = _make_provider()
     provider._needs_newton_sync = True
     provider._newton_model = "full-model"
 
-    assert provider.get_newton_model_for_env_ids(None) == "full-model"
-    assert provider.get_newton_model_for_env_ids([3, 1]) == "full-model"
+    assert provider.get_newton_model() == "full-model"
 
 
-def test_try_use_prebuilt_artifact_populates_provider_state():
-    """Provider should consume scene-time prebuilt artifact as fast path."""
+@patch("isaaclab_physx.scene_data_providers.physx_scene_data_provider.replace_newton_shape_colors", lambda m, s: None)
+def test_load_prebuilt_artifact_populates_provider_state():
+    """Loading the prebuilt artifact sets model, state, and rigid-body paths."""
     provider = _make_provider()
     artifact = VisualizerPrebuiltArtifacts(
         model="prebuilt-model",
@@ -41,6 +40,7 @@ def test_try_use_prebuilt_artifact_populates_provider_state():
         num_envs=4,
     )
     provider._simulation_context = SimpleNamespace(get_scene_data_visualizer_prebuilt_artifact=lambda: artifact)
+    provider._stage = None
 
     provider._xform_views = {"old": object()}
     provider._view_body_index_map = {"old": [1]}
@@ -50,14 +50,13 @@ def test_try_use_prebuilt_artifact_populates_provider_state():
     provider._orientations_buf = object()
     provider._covered_buf = object()
     provider._xform_mask_buf = object()
-    provider._env_id_to_body_indices = {0: [0]}
-
-    assert provider._try_use_prebuilt_newton_artifact() is True
+    provider._load_newton_model_from_prebuilt_artifact()
     assert provider._newton_model == "prebuilt-model"
     assert provider._newton_state == "prebuilt-state"
     assert provider._rigid_body_paths == ["/World/envs/env_0/A"]
     assert provider._rigid_body_view_paths == ["/World/envs/env_0/A", "/World/envs/env_0/Robot"]
     assert provider._num_envs_at_last_newton_build == 4
+    assert provider._last_newton_model_build_source == "prebuilt"
     assert provider._xform_views == {}
     assert provider._view_body_index_map == {}
     assert provider._view_order_tensors == {}
@@ -66,28 +65,13 @@ def test_try_use_prebuilt_artifact_populates_provider_state():
     assert provider._orientations_buf is None
     assert provider._covered_buf is None
     assert provider._xform_mask_buf is None
-    assert provider._env_id_to_body_indices == {}
 
 
-def test_try_use_prebuilt_artifact_respects_force_usd_fallback_flag():
-    """Force flag should disable prebuilt fast path even when artifact is available."""
+def test_load_prebuilt_artifact_missing_sets_error_state():
+    """When no artifact is registered, model/state stay unset."""
     provider = _make_provider()
-    provider._force_usd_fallback_for_newton_model_build = True
-    artifact = VisualizerPrebuiltArtifacts(
-        model="prebuilt-model",
-        state="prebuilt-state",
-        rigid_body_paths=["/World/envs/env_0/A"],
-        articulation_paths=["/World/envs/env_0/Robot"],
-        num_envs=4,
-    )
-    provider._simulation_context = SimpleNamespace(get_scene_data_visualizer_prebuilt_artifact=lambda: artifact)
-
-    assert provider._try_use_prebuilt_newton_artifact() is False
-
-
-def test_build_newton_model_from_usd_short_circuits_when_prebuilt_available():
-    """If prebuilt artifact is available, USD fallback should not run."""
-    provider = _make_provider()
-    provider._try_use_prebuilt_newton_artifact = lambda: True
-    provider._build_newton_model_from_usd()
-    assert provider._last_newton_model_build_source == "prebuilt"
+    provider._simulation_context = SimpleNamespace(get_scene_data_visualizer_prebuilt_artifact=lambda: None)
+    provider._load_newton_model_from_prebuilt_artifact()
+    assert provider._last_newton_model_build_source == "missing"
+    assert provider._newton_model is None
+    assert provider._newton_state is None

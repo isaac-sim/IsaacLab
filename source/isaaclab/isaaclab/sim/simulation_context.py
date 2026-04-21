@@ -296,8 +296,8 @@ class SimulationContext:
             UsdPhysics.SetStageKilogramsPerUnit(self.stage, 1.0)
 
             # Find and delete any existing physics scene.
-            # Collect paths first to avoid mutating the stage while traversing
-            # (iterator invalidation during deletion).
+            # Collect paths first to avoid mutating the stage while traversing,
+            # which can invalidate the USD iterator.
             physics_scene_paths = [
                 prim.GetPath().pathString for prim in self.stage.Traverse() if prim.GetTypeName() == "PhysicsScene"
             ]
@@ -751,14 +751,7 @@ class SimulationContext:
         self._visualizer_step_counter += 1
         if self._scene_data_provider is None:
             return
-        provider = self._scene_data_provider
-        env_ids_union: list[int] = []
-        for viz in self._visualizers:
-            ids = viz.get_visualized_env_ids()
-            if ids is not None:
-                env_ids_union.extend(ids)
-        env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
-        provider.update(env_ids)
+        self._scene_data_provider.update()
 
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""

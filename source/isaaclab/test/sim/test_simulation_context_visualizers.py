@@ -30,8 +30,8 @@ class _FakeProvider:
     def __init__(self):
         self.update_calls = []
 
-    def update(self, env_ids=None):
-        self.update_calls.append(env_ids)
+    def update(self):
+        self.update_calls.append(True)
 
 
 class _FakeVisualizer:
@@ -102,7 +102,7 @@ def _make_context(visualizers, provider=None):
     return ctx
 
 
-def test_update_scene_data_provider_unions_env_ids_and_forwards():
+def test_update_scene_data_provider_forwards_and_updates_provider():
     provider = _FakeProvider()
     viz_a = _FakeVisualizer(env_ids=[0, 2], requires_forward=True)
     viz_b = _FakeVisualizer(env_ids=[2, 3])
@@ -112,7 +112,7 @@ def test_update_scene_data_provider_unions_env_ids_and_forwards():
     ctx.update_scene_data_provider()
 
     assert ctx.physics_manager.forward_calls == 1
-    assert provider.update_calls == [[0, 2, 3]]
+    assert provider.update_calls == [True]
     assert ctx._visualizer_step_counter == 1
 
 
@@ -121,7 +121,7 @@ def test_update_scene_data_provider_force_forward_with_no_visualizers():
     ctx = _make_context([], provider=provider)
     ctx.update_scene_data_provider(force_require_forward=True)
     assert ctx.physics_manager.forward_calls == 1
-    assert provider.update_calls == [None]
+    assert provider.update_calls == [True]
 
 
 def test_update_visualizers_removes_closed_nonrunning_and_failed(caplog):
@@ -177,9 +177,9 @@ class _DummyViserSceneDataProvider:
     def get_newton_model(self):
         return "dummy-model"
 
-    def get_newton_state(self, env_ids: list[int] | None):
-        self.state_calls.append(env_ids)
-        return {"state_call": len(self.state_calls), "env_ids": env_ids}
+    def get_newton_state(self):
+        self.state_calls.append(None)
+        return {"state_call": len(self.state_calls)}
 
 
 class _DummyViserViewer:
@@ -348,8 +348,8 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         def get_newton_model(self):
             return "dummy-model"
 
-        def get_newton_state(self, env_ids: list[int] | None):
-            return {"env_ids": env_ids}
+        def get_newton_state(self):
+            return {"ok": True}
 
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(

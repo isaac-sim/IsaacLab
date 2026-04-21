@@ -26,10 +26,10 @@ class SceneDataRequirement:
 
 @dataclass(frozen=True)
 class VisualizerPrebuiltArtifacts:
-    """Prebuilt model/state payload shared from scene setup to providers.
+    """Newton model/state and rigid-body paths produced during scene clone setup.
 
-    This gets produced during clone-time visualizer prebuild and then read by
-    scene data providers as a fast path (instead of rebuilding from USD).
+    The PhysX scene data provider reads this from the simulation context when Newton
+    visualizers are active.
     """
 
     model: Any

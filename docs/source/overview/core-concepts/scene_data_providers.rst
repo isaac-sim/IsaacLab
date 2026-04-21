@@ -27,9 +27,9 @@ The system has three layers:
 
 1. **BaseSceneDataProvider** — abstract interface defining the contract:
 
-   - ``update(env_ids)`` — refresh cached scene data
+   - ``update()`` — refresh cached scene data (full Newton model/state sync when applicable)
    - ``get_newton_model()`` — return Newton model handle (if available)
-   - ``get_newton_state(env_ids)`` — return Newton state handle (if available)
+   - ``get_newton_state()`` — return Newton state handle (if available)
    - ``get_usd_stage()`` — return USD stage handle (if available)
    - ``get_transforms()`` — return body transforms
    - ``get_velocities()`` — return body velocities
@@ -48,26 +48,24 @@ The system has three layers:
 PhysX Scene Data Provider
 -------------------------
 
-When PhysX is the active physics backend, the provider **builds and maintains a Newton model
-from the USD stage**, then syncs PhysX transforms into it each frame. This is necessary because
-Newton-based visualizers (Newton, Rerun, Viser) require a Newton model/state to render.
+When PhysX is the active physics backend, the provider **loads the Newton model and state from
+the interactive scene** via :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`,
+then each frame it writes simulated body poses from PhysX into that Newton state for visualizers
+(Newton, Rerun, Viser) that need it.
 
-The sync pipeline:
+The pose pipeline:
 
-1. Reads transforms from PhysX ``RigidBodyView`` (fast tensor API)
-2. Falls back to ``XformPrimView`` for bodies not covered by the rigid body view
-3. Converts and writes merged poses into the Newton state via Warp kernels
+1. Prefer PhysX ``RigidBodyView`` transforms (tensor API).
+2. For any body not covered by that view, read poses via ``XformPrimView`` on the USD stage.
+3. Merge and write poses into Newton ``body_q`` with Warp kernels.
 
 Newton Scene Data Provider
 --------------------------
 
-When Newton is the active physics backend, the provider **delegates directly to the Newton
-manager** — no building or syncing required. Newton already owns the authoritative model and
-state.
+When Newton is the active physics backend, the provider returns the **NewtonManager** model and state handles.
 
-The only additional work is **optional USD sync**: when an Omniverse Kit visualizer is active,
-the provider syncs Newton transforms to the USD stage so Kit can render them. For Newton-only
-or Rerun/Viser visualizers, this sync is skipped.
+When a Kit visualizer is active, the provider can **sync transforms to the USD stage** for Kit rendering.
+For Rerun or Viser without Kit, that USD sync is not needed and is skipped.
 
 Data Requirements
 -----------------

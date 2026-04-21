@@ -150,7 +150,7 @@ class RerunVisualizer(BaseVisualizer):
         num_envs = int(metadata.get("num_envs", 0))
         self._env_ids = self._compute_visualized_env_ids()
         self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state(None)
+        self._state = scene_data_provider.get_newton_state()
 
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
@@ -234,7 +234,7 @@ class RerunVisualizer(BaseVisualizer):
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = self._scene_data_provider.get_newton_state(None)
+        self._state = self._scene_data_provider.get_newton_state()
 
         if not self._viewer.is_paused():
             self._viewer.begin_frame(self._sim_time)

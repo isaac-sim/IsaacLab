@@ -150,7 +150,7 @@ There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments f
 - ``max_visible_envs`` caps how many envs are shown.
 - ``visible_env_indices`` explicitly selects the envs to visualize.
 - ``randomly_sample_visible_envs`` (default ``True``): when ``visible_env_indices`` is unset and ``max_visible_envs`` is set,
-  pick that many env indices uniformly at random once at init (sorted).
+  pick that many env indices uniformly at random.
 
 .. note::
    ``max_visible_envs=None`` means no cap (every environment); random sampling does not run in that case.

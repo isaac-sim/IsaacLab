@@ -146,7 +146,7 @@ class ViserVisualizer(BaseVisualizer):
         metadata = scene_data_provider.get_metadata()
         self._env_ids = self._compute_visualized_env_ids()
         self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state(None)
+        self._state = scene_data_provider.get_newton_state()
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
@@ -182,7 +182,7 @@ class ViserVisualizer(BaseVisualizer):
             self._update_camera_from_usd_path()
         self._apply_pending_camera_pose()
 
-        self._state = self._scene_data_provider.get_newton_state(None)
+        self._state = self._scene_data_provider.get_newton_state()
         self._sim_time += dt
         self._viewer.begin_frame(self._sim_time)
         self._viewer.log_state(self._state)

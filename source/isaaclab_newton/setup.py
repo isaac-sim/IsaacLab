@@ -45,7 +45,6 @@ EXTRAS_REQUIRE = {
         "mujoco==3.5.0",
         "mujoco-warp==3.5.0.2",
         "PyOpenGL-accelerate==3.1.10",
-        # Includes PR #2267: ViewerBase.set_visible_worlds() for Rerun/Viser/GL world filtering.
         "newton @ git+https://github.com/newton-physics/newton.git@7e036f542437046f2dc14028e189cb8428afd191",
     ],
 }
