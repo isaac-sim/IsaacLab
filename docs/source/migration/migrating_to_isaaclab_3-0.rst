@@ -1509,20 +1509,21 @@ and ``.warp`` accessors:
 
 .. code-block:: python
 
-   # BEFORE (2.x) — raw warp arrays, manual conversion
-   joint_pos_torch = wp.to_torch(robot.data.joint_pos)
-   joint_pos_warp = robot.data.joint_pos
+   # BEFORE (2.x) — properties returned torch.Tensor directly
+   joint_pos = robot.data.joint_pos          # torch.Tensor
+   root_pos = robot.data.root_pos_w          # torch.Tensor
 
-   # AFTER (3.0) — explicit accessors
-   joint_pos_torch = robot.data.joint_pos.torch   # cached zero-copy torch.Tensor
-   joint_pos_warp = robot.data.joint_pos.warp     # the underlying warp.array
+   # AFTER (3.0) — properties return TorchArray, use .torch for the tensor
+   joint_pos = robot.data.joint_pos.torch    # cached zero-copy torch.Tensor
+   root_pos = robot.data.root_pos_w.torch    # cached zero-copy torch.Tensor
+   joint_pos_warp = robot.data.joint_pos.warp  # the underlying warp.array
 
 **What to change:**
 
-1. Replace ``wp.to_torch(data.property)`` with ``data.property.torch``.
+1. Append ``.torch`` to any data property access where you need a ``torch.Tensor``.
 2. If you pass data properties to ``wp.launch()``, no change is needed — ``TorchArray`` implements
    ``__cuda_array_interface__`` and works transparently with warp kernels.
-3. If you access warp-specific attributes (``ptr``, ``strides``), use ``.warp`` first.
+3. If you need the underlying ``warp.array`` (e.g., for ``ptr``, ``strides``), use ``.warp``.
 
 **Deprecation bridge:** During the transition, implicit torch operations on ``TorchArray``
 (arithmetic, indexing, ``torch.*`` functions) still work but emit a one-time

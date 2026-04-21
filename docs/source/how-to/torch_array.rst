@@ -70,23 +70,26 @@ treat it as a ``torch.Tensor`` temporarily:
 The bridge will be removed in a future release. Migrate to explicit ``.torch`` access now.
 
 
-Passing to ``wp.to_torch()``
+Migrating from Isaac Lab 2.x
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Code that previously called ``wp.to_torch()`` on data properties must be updated:
+In Isaac Lab 2.x, data properties returned ``torch.Tensor`` directly. In 3.0, they return
+``TorchArray``. Append ``.torch`` to get the tensor:
 
 .. code-block:: python
 
-   # BEFORE (Isaac Lab 2.x)
-   joint_pos = wp.to_torch(robot.data.joint_pos)
-   first_contact = wp.to_torch(sensor.compute_first_contact(dt))
+   # BEFORE (Isaac Lab 2.x) — properties returned torch.Tensor directly
+   joint_pos = robot.data.joint_pos
+   first_contact = sensor.compute_first_contact(dt)
 
-   # AFTER (Isaac Lab 3.0)
+   # AFTER (Isaac Lab 3.0) — properties return TorchArray
    joint_pos = robot.data.joint_pos.torch
    first_contact = sensor.compute_first_contact(dt).torch
 
-Passing a ``TorchArray`` to ``wp.to_torch()`` will raise an ``AttributeError`` because
-``wp.to_torch()`` expects a ``warp.array``, not a ``TorchArray``.
+.. note::
+
+   Passing a ``TorchArray`` to ``wp.to_torch()`` will raise an ``AttributeError``.
+   Use ``.torch`` instead.
 
 
 Backend Differences
