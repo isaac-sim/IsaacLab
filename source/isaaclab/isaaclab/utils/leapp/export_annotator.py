@@ -78,8 +78,6 @@ class ExportPatcher:
     This lets backends override property implementations without duplicating
     decorators from the abstract API.
 
-    The proxies and a shared dedup cache are wired into both:
-
     - The observation proxy chain (``_EnvProxy`` → ``_SceneProxy`` →
       ``_EntityProxy`` → ``_DataProxy``) for state reads
       by observation term functions.
@@ -87,13 +85,17 @@ class ExportPatcher:
       target writes **and** routes ``.data`` reads through the same
       ``_DataProxy`` / cache.
 
-    This ensures that a property like ``joint_pos`` read by both an
-    observation term and ``RelativeJointPositionAction.apply_actions()``
-    resolves to a single LEAPP input edge rather than being silently baked
-    in as a constant.
     """
 
     def __init__(self, export_method: str, required_obs_groups: set[str] | None = None):
+        """Initialize the export patcher.
+
+        Args:
+            export_method: LEAPP export backend passed to
+                :func:`annotate.output_tensors`.
+            required_obs_groups: Observation groups that should be patched, or
+                ``None`` to patch all groups.
+        """
         self.task_name: str | None = None
         self.export_method = export_method
         self.required_obs_groups = required_obs_groups
@@ -110,7 +112,12 @@ class ExportPatcher:
         self._action_term_scene_keys: dict[str, str] = {}
 
     def setup(self, env):
-        """Patch the unwrapped env in place for LEAPP-aware observation and action export."""
+        """Patch the environment in place for LEAPP-aware export.
+
+        Args:
+            env: Wrapped manager-based environment whose unwrapped instance
+                should be patched.
+        """
         unwrapped = env.env.unwrapped
         self.task_name = unwrapped.spec.id
 
@@ -139,6 +146,10 @@ class ExportPatcher:
         managers serve no purpose.  Disabling them avoids side-effect
         crashes (e.g. ADR curriculum terms accessing nullified noise
         configs) and removes unnecessary computation.
+
+        Args:
+            unwrapped: Unwrapped environment whose training-only managers
+                should be disabled.
         """
         num_envs = unwrapped.num_envs
         device = unwrapped.device
@@ -177,7 +188,15 @@ class ExportPatcher:
 
     @staticmethod
     def _resolve_scene_entity_key(scene, entity: Any) -> str | None:
-        """Return the scene dictionary key for a given entity, if present."""
+        """Return the scene dictionary key for an entity.
+
+        Args:
+            scene: Scene object that stores entity dictionaries.
+            entity: Entity instance to locate.
+
+        Returns:
+            The scene key for ``entity`` if found, otherwise ``None``.
+        """
         for attr_value in vars(scene).values():
             if not isinstance(attr_value, dict):
                 continue
@@ -189,7 +208,12 @@ class ExportPatcher:
     # ── Observation manager patches ───────────────────────────────
 
     def _patch_history_buffers(self, obs_manager):
-        """Patch history-enabled observation buffers to export as LEAPP state."""
+        """Patch history-enabled observation buffers to export as LEAPP state.
+
+        Args:
+            obs_manager: Observation manager whose history buffers should be
+                wrapped.
+        """
         history_buffers = getattr(obs_manager, "_group_obs_term_history_buffer", {})
         term_names_by_group = getattr(obs_manager, "_group_obs_term_names", {})
 
@@ -216,7 +240,12 @@ class ExportPatcher:
                 self._patch_history_buffer_append(circular_buffer, state_name)
 
     def _patch_history_buffer_append(self, circular_buffer, state_name: str):
-        """Wrap ``_append`` so history buffers become explicit LEAPP state."""
+        """Wrap ``_append`` so history buffers become explicit LEAPP state.
+
+        Args:
+            circular_buffer: Circular buffer instance to patch.
+            state_name: LEAPP state tensor name for the buffer contents.
+        """
         if hasattr(circular_buffer, "_leapp_original_append"):
             return
 
@@ -224,6 +253,14 @@ class ExportPatcher:
         original_append = circular_buffer._append
 
         def patched_append(data: torch.Tensor):
+            """Annotate history buffer updates as LEAPP state transitions.
+
+            Args:
+                data: New observation slice appended to the buffer.
+
+            Returns:
+                ``None``.
+            """
             if circular_buffer._buffer is not None:
                 circular_buffer._buffer = annotate.state_tensors(task_name, {state_name: circular_buffer._buffer})
 
@@ -236,7 +273,12 @@ class ExportPatcher:
         circular_buffer._append = patched_append
 
     def _patch_observation_manager(self, obs_manager, proxy_env):
-        """Patch observation terms to use annotating proxies and disable noise."""
+        """Patch observation terms to use annotating proxies and disable noise.
+
+        Args:
+            obs_manager: Observation manager instance to patch.
+            proxy_env: Proxy environment routed into observation terms.
+        """
         for group_name, term_cfgs in obs_manager._group_obs_term_cfgs.items():
             if self.required_obs_groups is not None and group_name not in self.required_obs_groups:
                 continue
@@ -267,7 +309,12 @@ class ExportPatcher:
     # ── Action manager patches ────────────────────────────────────
 
     def _patch_action_manager(self, action_manager, cache):
-        """Patch action terms with write+read proxies and patch manager methods."""
+        """Patch action terms with write/read proxies and manager hooks.
+
+        Args:
+            action_manager: Action manager instance to patch.
+            cache: Shared tensor dedup cache for annotated state reads.
+        """
         scene = action_manager._env.scene
         for term_name, term in action_manager._terms.items():
             asset = getattr(term, "_asset", None)
@@ -314,6 +361,10 @@ class ExportPatcher:
           subsequent iterations): The cache is cleared **before** running
           action terms so every ``.data`` read returns the current simulator
           value, preserving simulation correctness.
+
+        Args:
+            action_manager: Action manager whose instance methods should be
+                wrapped.
         """
         original_process = action_manager.process_action
         original_apply = action_manager.apply_action
@@ -361,12 +412,29 @@ class ExportPatcher:
 
     @staticmethod
     def _wrap_with_proxy(original_func, proxy_env):
-        """Wrap a term function so it receives the proxy env instead of the real env."""
+        """Wrap a term function so it receives the proxy env.
+
+        Args:
+            original_func: Original observation term function or manager term.
+            proxy_env: Proxy environment routed into the wrapped callable.
+
+        Returns:
+            Wrapped callable that substitutes ``proxy_env`` for the real env.
+        """
 
         if isinstance(original_func, ManagerTermBase):
             return _ManagerTermProxy(original_func, proxy_env)
 
         def wrapped(*args, **kwargs):
+            """Invoke the original function with the proxy environment.
+
+            Args:
+                *args: Original positional arguments.
+                **kwargs: Original keyword arguments.
+
+            Returns:
+                Result of the wrapped observation term.
+            """
             if args:
                 args = (proxy_env, *args[1:])
             else:
@@ -383,10 +451,26 @@ class ExportPatcher:
         therefore register it through ``annotate.state_tensors(...)`` on the
         observation side and update it through ``annotate.update_state(...)``
         after the traced action pass.
+
+        Args:
+            original_func: Original ``last_action`` observation term.
+
+        Returns:
+            Wrapped callable that exports ``last_action`` as LEAPP state.
         """
         task_name = self.task_name
 
         def wrapped(env, action_name=None, **kwargs):
+            """Run the wrapped ``last_action`` term and annotate its output.
+
+            Args:
+                env: Environment passed by the observation manager.
+                action_name: Optional action term name.
+                **kwargs: Additional keyword arguments for the term.
+
+            Returns:
+                Annotated last-action tensor.
+            """
             result = original_func(env, action_name, **kwargs)
             return annotate.state_tensors(task_name, {"last_action": result})
 
@@ -398,11 +482,28 @@ class ExportPatcher:
 
         Resolves command semantics (kind, element_names) from the command manager
         configuration when available.
+
+        Args:
+            original_func: Original ``generated_commands`` observation term.
+            term_cfg: Observation term config used to resolve the command name.
+
+        Returns:
+            Wrapped callable that exports generated commands as LEAPP inputs.
         """
         task_name = self.task_name
         command_name_from_cfg = term_cfg.params.get("command_name")
 
         def wrapped(env, command_name=None, **kwargs):
+            """Run the wrapped command term and annotate its output.
+
+            Args:
+                env: Environment passed by the observation manager.
+                command_name: Optional command term name override.
+                **kwargs: Additional keyword arguments for the term.
+
+            Returns:
+                Annotated command tensor.
+            """
             result = original_func(env, command_name, **kwargs)
             leapp_input_name = command_name or command_name_from_cfg or "commands"
             command_cfg = None
@@ -423,7 +524,15 @@ class ExportPatcher:
     # ── Output collection ─────────────────────────────────────────
 
     def _collect_action_outputs(self, action_manager) -> list[TensorSemantics]:
-        """Collect non-writer action tensors that should be exported (e.g. OSC dynamic gains)."""
+        """Collect non-writer action tensors that should be exported.
+
+        Args:
+            action_manager: Action manager whose terms should be inspected.
+
+        Returns:
+            Exportable tensor semantics for dynamic action outputs such as OSC
+            gains.
+        """
         tensors: list[TensorSemantics] = []
         for term_name, term in action_manager._terms.items():
             osc = getattr(term, "_osc", None)
@@ -459,6 +568,12 @@ class ExportPatcher:
         When an action term does not call any ``_leapp_semantics``-decorated write method
         (e.g. ``PreTrainedPolicyAction`` which delegates writes to a nested sub-policy),
         we fall back to capturing ``term.processed_actions`` as the output tensor.
+
+        Args:
+            action_manager: Action manager whose terms should be inspected.
+
+        Returns:
+            Fallback tensor semantics built from ``processed_actions``.
         """
         logger = logging.getLogger(__name__)
         fallback_terms: set[str] = set()
@@ -496,6 +611,14 @@ class ExportPatcher:
         Terms in ``skip_terms`` are excluded — these are terms that fell back
         to ``processed_actions`` and whose static gains (kp/kd) belong to a
         lower abstraction level that is not part of the exported policy.
+
+        Args:
+            action_manager: Action manager whose terms should be inspected.
+            skip_terms: Action term names whose static outputs should be
+                skipped.
+
+        Returns:
+            Static tensor semantics for action gains exported as metadata.
         """
         static_values: list[TensorSemantics] = []
         for term_name, term in action_manager._terms.items():
@@ -577,6 +700,13 @@ def patch_env_for_export(
 
     The underlying env, scene, assets, and tensors remain shared with the rest
     of the pipeline; only the manager call paths are redirected.
+
+    Args:
+        env: Manager-based environment to patch in place.
+        export_method: LEAPP export backend passed to
+            :func:`annotate.output_tensors`.
+        required_obs_groups: Observation groups that should be patched, or
+            ``None`` to patch all groups.
     """
     patch_warp_to_torch_passthrough()
     patcher = ExportPatcher(export_method, required_obs_groups=required_obs_groups)

@@ -78,6 +78,8 @@ class InHandReOrientationCommand(CommandTerm):
         #    the trailing attempt at episode end counts as one unsuccessful attempt.
         self._completed_attempts = torch.zeros(self.num_envs, device=self.device)
 
+        # adds (optional) cmd kind and element names for leapp export
+        # during export, semantic data about this command will be used to annotate the command input
         self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
         self.cfg.element_names = self.cfg.element_names or ["x", "y", "z", "qw", "qx", "qy", "qz"]
 

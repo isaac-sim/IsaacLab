@@ -65,6 +65,8 @@ class UniformPose2dCommand(CommandTerm):
         if self._track_success:
             self._succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
+        # adds (optional) cmd kind and element names for leapp export
+        # during export, semantic data about this command will be used to annotate the command input
         self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
         self.cfg.element_names = self.cfg.element_names or ["x", "y", "z", "heading"]
 

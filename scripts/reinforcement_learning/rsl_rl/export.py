@@ -215,6 +215,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
 
     if isinstance(env.unwrapped, ManagerBasedRLEnv):
         # Patch only the observation groups consumed by the actor policy.
+        # This filters out the critic and teacher observation groups.
         obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
         if isinstance(obs_groups_cfg, Mapping):
             required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))

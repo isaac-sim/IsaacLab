@@ -78,8 +78,16 @@ class WriteOutputSpec:
 def _resolve_joint_ids(element_names: list | None, entity: Any) -> list[int] | None:
     """Convert ``element_names[0]`` joint names to integer joint indices.
 
-    Returns ``None`` when no slicing is needed (all joints, non-joint tensor,
-    or entity does not support joint lookup).
+    Args:
+        element_names: LEAPP element-name metadata for the tensor, or ``None``
+            when the tensor does not define named elements.
+        entity: Scene entity that may provide ``joint_names`` and
+            ``find_joints()`` for name-to-index resolution.
+
+    Returns:
+        Joint indices matching ``element_names[0]``, or ``None`` when no
+        slicing is needed because all joints are selected, the tensor is not
+        joint-indexed, or the entity does not support joint lookup.
     """
     if element_names is None or not hasattr(entity, "find_joints"):
         return None
@@ -97,6 +105,13 @@ def _first_param_name(method: Any) -> str:
 
     Expects a bound method — ``inspect.signature`` on a bound method
     already excludes ``self``, so ``params[0]`` is the first real parameter.
+
+    Args:
+        method: Bound method whose first callable parameter should be
+            inspected.
+
+    Returns:
+        The name of the first non-``self`` parameter.
     """
     params = list(inspect.signature(method).parameters.values())
     if not params:
@@ -217,7 +232,12 @@ class DirectDeploymentEnv:
     # ── I/O Resolution ────────────────────────────────────────────
 
     def _resolve_io(self):
-        """Build ``_input_mapping`` and ``_output_mapping`` from ``isaaclab_connection`` fields."""
+        """Build ``_input_mapping`` and ``_output_mapping`` from LEAPP metadata.
+
+        Parses the ``isaaclab_connection`` field in the loaded LEAPP YAML and
+        resolves each declared input/output to the corresponding scene entity,
+        command term, and optional joint index selection.
+        """
         pipeline = self._leapp_desc["pipeline"]
 
         for node_name, input_names in pipeline["inputs"].items():
@@ -281,7 +301,12 @@ class DirectDeploymentEnv:
     # ── Read / Write ──────────────────────────────────────────────
 
     def _read_inputs(self) -> dict[str, torch.Tensor]:
-        """Read all mapped inputs from scene entities and command manager."""
+        """Read all mapped inputs from scene entities and command manager.
+
+        Returns:
+            A mapping from ``"node_name/tensor_name"`` to the tensor value that
+            should be passed to the LEAPP inference pipeline.
+        """
         inputs: dict[str, torch.Tensor] = {}
         for key, spec in self._input_mapping.items():
             if isinstance(spec, StateInputSpec):
@@ -297,7 +322,12 @@ class DirectDeploymentEnv:
         return inputs
 
     def _write_outputs(self, outputs: dict[str, torch.Tensor]):
-        """Write model outputs to scene entities."""
+        """Write model outputs to scene entities.
+
+        Args:
+            outputs: Model outputs keyed by ``"node_name/tensor_name"`` as
+                returned by :meth:`step` and ``InferenceManager.run_policy()``.
+        """
         for key, tensor in outputs.items():
             spec = self._output_mapping.get(key)
             if spec is None:
@@ -388,7 +418,7 @@ class DirectDeploymentEnv:
         return outputs
 
     def close(self):
-        """Clean up the environment."""
+        """Clean up the environment and release simulator-owned resources."""
         if not self._is_closed:
             self.sim.stop()
             if self.command_manager is not None:
