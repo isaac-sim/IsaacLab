@@ -1,7 +1,7 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
-version = "4.6.13"
+version = "4.6.10"
 
 # Description
 title = "Isaac Lab framework for Robot Learning"
@@ -20,8 +20,7 @@ requirements = [
     "hidapi",
     "gymnasium==0.29.0",
     "trimesh",
-    "websockets",
-    "warp-lang>=1.0.0,<1.13"
+    "websockets"
 ]
 
 modules = [

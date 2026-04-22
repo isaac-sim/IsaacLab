@@ -212,36 +212,6 @@ class AppLauncher:
 
         _deprioritize_prebundle_paths()
 
-        # Verify that warp (if loaded) is a compatible version.  Warp >= 1.13
-        # deprecates warp.types.array with changed semantics; omni.replicator.core
-        # accesses this symbol during rendering and with warp >= 1.13 causes CUDA
-        # error 700 that poisons the context and makes all kernel lookups fail.
-        # The pre-import in isaaclab/__init__.py normally catches this, but log
-        # a warning here too so CI failures are easier to diagnose.
-        import sys
-
-        warp_mod = sys.modules.get("warp")
-        if warp_mod is not None:
-            warp_version = getattr(warp_mod, "version", None)
-            if warp_version is not None:
-                try:
-                    _parts = [int(x) for x in str(warp_version).split(".")[:2]]
-                    if len(_parts) >= 2 and (_parts[0], _parts[1]) >= (1, 13):
-                        import warnings
-
-                        warnings.warn(
-                            f"[IsaacLab] warp {warp_version} is incompatible with "
-                            f"omni.replicator.core.  Warp >= 1.13 deprecates "
-                            f"``warp.types.array`` with changed semantics, which causes "
-                            f"CUDA error 700 during rendering and makes all warp kernel "
-                            f"lookups fail.  Run './isaaclab.sh --install' to install "
-                            f"warp-lang<1.13.",
-                            RuntimeWarning,
-                            stacklevel=2,
-                        )
-                except (ValueError, AttributeError):
-                    pass
-
         # Hide the stop button in the toolbar
         self._hide_stop_button()
         # Set settings from the given rendering mode

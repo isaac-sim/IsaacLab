@@ -17,11 +17,10 @@ def _deprioritize_prebundle_paths():
     warp, and nvidia-cudnn that shadow the versions installed by Isaac Lab,
     causing CUDA runtime errors.
 
-    Additionally, certain Isaac Sim kit extensions (such as
-    ``isaacsim.pip.newton``) bundle their own copies of Python packages that
-    conflict with pip-installed versions.  When loaded by the extension system
-    these paths can appear on ``sys.path`` before ``site-packages``, leading to
-    version mismatches.
+    Additionally, certain Isaac Sim kit extensions (such as ``omni.warp.core``)
+    bundle their own copies of Python packages that conflict with pip-installed
+    versions.  When loaded by the extension system these paths can appear on
+    ``sys.path`` before ``site-packages``, leading to version mismatches.
 
     Rather than removing these paths entirely (which would break packages like
     ``sympy`` that only exist in the prebundle), this function moves them to
@@ -35,6 +34,7 @@ def _deprioritize_prebundle_paths():
     # Extension directory fragments that are known to ship Python packages
     # which conflict with Isaac Lab's pip-installed versions.
     _CONFLICTING_EXT_FRAGMENTS = (
+        "omni.warp.core",
         "omni.isaac.ml_archive",
         "omni.isaac.core_archive",
         "omni.kit.pip_archive",
@@ -44,15 +44,6 @@ def _deprioritize_prebundle_paths():
     def _should_demote(path: str) -> bool:
         norm = path.replace("\\", "/").lower()
         if "pip_prebundle" in norm:
-            return True
-        # Kit ships its own Python interpreter and installs packages into
-        # kit/python/lib/python3.X/site-packages.  When a newer or differently-
-        # configured version of a package (e.g. warp) is installed there, it
-        # takes precedence over pip-installed packages and can cause runtime
-        # failures.  Demote these site-packages to the end of sys.path while
-        # leaving the Kit stdlib path (kit/python/lib/python3.X without
-        # site-packages) in place so Kit's standard-library extras still work.
-        if "kit/python/lib" in norm and "site-packages" in norm:
             return True
         for frag in _CONFLICTING_EXT_FRAGMENTS:
             if frag.lower() in norm:
@@ -88,63 +79,6 @@ def _deprioritize_prebundle_paths():
 
 
 _deprioritize_prebundle_paths()
-
-
-def _pin_warp_import():
-    """Import ``warp`` now to lock ``sys.modules['warp']`` to the correct version.
-
-    Kit's extension system may add Kit's own
-    ``kit/python/lib/python3.X/site-packages`` to ``sys.path`` during
-    ``SimulationApp`` startup, because Kit scans extension directories as part
-    of its registry process.  Any extension that imports ``warp`` during that
-    window (e.g. ``omni.replicator.core``) would set ``sys.modules['warp']`` to
-    the bundled copy before our second ``_deprioritize_prebundle_paths()`` call
-    in ``AppLauncher`` has a chance to run.
-
-    By importing ``warp`` here — after ``_deprioritize_prebundle_paths()`` has
-    already demoted the pip_prebundle and ``kit/python/lib`` site-packages
-    paths — we ensure the pip-managed ``warp-lang`` is the one cached in
-    ``sys.modules``.  Subsequent ``import warp`` calls from Kit extensions all
-    return that cached module, so there is only ever one Warp runtime in the
-    process.
-
-    Failure to import (e.g. warp not yet installed during initial setup) is
-    silently ignored; the import will succeed once the user has run
-    ``./isaaclab.sh --install``.
-    """
-    try:
-        import warp as _warp  # noqa: F401
-    except ImportError:
-        return
-
-    # Warn if the loaded warp version is incompatible with omni.replicator.core.
-    # Warp >= 1.13 deprecates warp.types.array with changed semantics; when
-    # omni.replicator.core (which uses that symbol) is loaded with warp >= 1.13,
-    # it triggers CUDA error 700 (illegal memory access) that poisons the CUDA
-    # context and causes all subsequent warp kernel lookups to fail.
-    # Run './isaaclab.sh --install' to install a compatible warp-lang version.
-    import warnings
-
-    _warp_version = getattr(_warp, "version", None)
-    if _warp_version is not None:
-        try:
-            _parts = [int(x) for x in str(_warp_version).split(".")[:2]]
-            if len(_parts) >= 2 and (_parts[0], _parts[1]) >= (1, 13):
-                warnings.warn(
-                    f"[IsaacLab] warp {_warp_version} is incompatible with "
-                    f"omni.replicator.core.  Warp >= 1.13 deprecates "
-                    f"``warp.types.array`` with changed semantics, which causes "
-                    f"CUDA error 700 (illegal memory access) during rendering and "
-                    f"makes all subsequent warp kernel lookups fail.  Run "
-                    f"'./isaaclab.sh --install' to install warp-lang<1.13.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-        except (ValueError, AttributeError):
-            pass
-
-
-_pin_warp_import()
 
 # Conveniences to other module directories via relative paths.
 ISAACLAB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
