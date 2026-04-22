@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.6.8 (2026-04-21)
+4.6.9 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -40,6 +40,15 @@ Fixed
   which used simple subtraction instead of proper frame decomposition when applying mesh offsets.
   With non-identity orientation offsets, tracked mesh positions were incorrect, causing raycasts to
   miss or hit wrong surfaces. The method now uses :func:`~isaaclab.utils.math.combine_frame_transforms`.
+
+
+4.6.8 (2026-04-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Pinned ``mujoco`` and ``mujoco-warp`` to ``3.6.0`` to align with the Newton library.
 
 
 4.6.7 (2026-04-20)
