@@ -22,6 +22,7 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on interacting with a deformable object.")
+parser.add_argument("--backend", type=str, default="physx", choices=["physx", "newton"], help="Physics backend.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default
@@ -37,14 +38,10 @@ simulation_app = app_launcher.app
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
-
-# deformables supported in PhysX
-from isaaclab_physx.sim import DeformableBodyMaterialCfg, DeformableBodyPropertiesCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.sim import SimulationContext
+from isaaclab.assets import DeformableObject, DeformableObjectCfg
 
 
 def design_scene():
@@ -63,16 +60,17 @@ def design_scene():
     # Each group will have a robot in it
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
     for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
 
     # 3D Deformable Object
     cfg = DeformableObjectCfg(
-        prim_path="/World/Origin.*/Cube",
+        prim_path="/World/env_.*/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=DeformableBodyPropertiesCfg(),
+            deformable_props=sim_utils.DeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
-            physics_material=DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
+            physics_material=sim_utils.DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5, density=500.0),
+            # physics_material=sim_utils.SurfaceDeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e4, surface_thickness=0.001, surface_bend_stiffness=1e0, surface_shear_stiffness=1e0, surface_stretch_stiffness=1e0),
         ),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         debug_vis=True,
@@ -101,11 +99,15 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
     nodal_kinematic_target = wp.to_torch(cube_object.data.nodal_kinematic_target).clone()
 
     # Simulate physics
+    # for _ in range(200):
     while simulation_app.is_running():
         # reset at start and after 3 seconds
         if count % int(3.0 / sim_dt) == 0:
             # reset counters
             count = 0
+
+            # reset buffers
+            cube_object.reset()
 
             # reset the nodal state of the object
             nodal_state = wp.to_torch(cube_object.data.default_nodal_state_w).clone()
@@ -121,9 +123,6 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
             nodal_kinematic_target[..., :3] = nodal_state[..., :3]
             nodal_kinematic_target[..., 3] = 1.0
             cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
-
-            # reset buffers
-            cube_object.reset()
 
             print("----------------------------------------")
             print("[INFO]: Resetting object state...")
@@ -158,8 +157,16 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
-    sim = SimulationContext(sim_cfg)
+    if args_cli.backend == "newton":
+        import isaaclab_experimental.deformable  # noqa: F401 -- register Newton deformable hooks
+        from isaaclab_experimental.deformable.newton_manager_cfg import VBDSolverCfg
+        from isaaclab_newton.physics import NewtonCfg
+        physics_cfg = NewtonCfg(solver_cfg=VBDSolverCfg(iterations=10), num_substeps=4)
+    else:
+        from isaaclab_physx.physics import PhysxCfg
+        physics_cfg = PhysxCfg()
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg)
+    sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
     # Design scene
