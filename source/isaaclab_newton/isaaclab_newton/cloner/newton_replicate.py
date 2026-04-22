@@ -109,8 +109,17 @@ def _build_newton_builder_from_mapping(
                     local_site_map[label] = [[] for _ in range(num_worlds)]
                 for proto_shape_idx in proto_shape_indices:
                     local_site_map[label][col].append(offset + proto_shape_idx)
+
+        # Run per-world builder hooks (e.g. deformable body registration).
+        for hook in NewtonManager._per_world_builder_hooks:
+            hook(builder, col, positions[col].tolist())
+
         # end the world context
         builder.end_world()
+
+    # Run post-replicate hooks (e.g. builder.color() for deformable coloring).
+    for hook in NewtonManager._post_replicate_hooks:
+        hook(builder)
 
     site_index_map = {
         **global_site_map,

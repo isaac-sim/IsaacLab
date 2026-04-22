@@ -11,6 +11,7 @@ import contextlib
 import ctypes
 import inspect
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -120,6 +121,8 @@ class NewtonManager(PhysicsManager):
     _newton_index_attr = "newton:index"
     _clone_physics_only = False
     _transforms_dirty: bool = False
+    _particles_dirty: bool = False
+    _newton_particle_offset_attr = "newton:particleOffset"
 
     # cubric GPU transform hierarchy (replaces CPU update_world_xforms)
     _cubric = None
@@ -131,6 +134,16 @@ class NewtonManager(PhysicsManager):
 
     # Views list for assets to register their views
     _views: list = []
+
+    # Deformable body registry and extension hooks.
+    # Experimental deformable support registers callbacks here so the manager
+    # and cloner can invoke them without hard-coding deformable logic.
+    _deformable_registry: list = []
+    _solver_factories: dict[str, Callable] = {}
+    _particle_sync_fn: Callable | None = None
+    _post_finalize_model_fn: Callable | None = None
+    _per_world_builder_hooks: list = []
+    _post_replicate_hooks: list = []
 
     # CL: Cloning / Replication logic
     # TODO: These attributes support cloning-specific logic and should be moved into a cloner class
@@ -193,6 +206,8 @@ class NewtonManager(PhysicsManager):
     def pre_render(cls) -> None:
         """Flush deferred Fabric writes before cameras/visualizers read the scene."""
         cls.sync_transforms_to_usd()
+        if cls._particle_sync_fn is not None:
+            cls._particle_sync_fn()
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
@@ -294,12 +309,46 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _mark_transforms_dirty(cls) -> None:
-        """Flag that physics state has changed and Fabric needs re-sync.
+        """Flag that rigid-body transforms have changed and Fabric needs re-sync.
 
-        Called by :meth:`_simulate` after stepping. The actual sync is deferred
-        to :meth:`sync_transforms_to_usd`, which runs at render cadence.
+        The actual sync is deferred to :meth:`sync_transforms_to_usd`,
+        which runs at render cadence via :meth:`pre_render`.
         """
         cls._transforms_dirty = True
+
+    @classmethod
+    def _mark_particles_dirty(cls) -> None:
+        """Flag that particle positions have changed and Fabric needs re-sync.
+
+        The actual sync is deferred to the particle sync callback (if registered),
+        which runs at render cadence via :meth:`pre_render`.
+        """
+        cls._particles_dirty = True
+
+    @classmethod
+    def _mark_state_dirty(cls) -> None:
+        """Flag that all physics state has changed and Fabric needs re-sync.
+
+        Convenience method that marks both transforms and particles dirty.
+        Called by :meth:`_simulate` after stepping.
+        """
+        cls._mark_transforms_dirty()
+        cls._mark_particles_dirty()
+
+    @classmethod
+    def register_solver_factory(cls, solver_type: str, factory: Callable) -> None:
+        """Register an external solver factory.
+
+        Experimental extensions can register custom solver constructors that
+        will be invoked by :meth:`initialize_solver` when the configured
+        ``solver_type`` matches *solver_type*.
+
+        Args:
+            solver_type: Solver type string that triggers this factory.
+            factory: Callable ``(cls, cfg_dict, solver_cfg)`` that creates
+                and assigns the solver on the manager.
+        """
+        cls._solver_factories[solver_type] = factory
 
     @classmethod
     def step(cls) -> None:
@@ -339,7 +388,7 @@ class NewtonManager(PhysicsManager):
         if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device:  # type: ignore[union-attr]
             wp.capture_launch(cls._graph)
             if cls._usdrt_stage is not None:
-                cls._mark_transforms_dirty()
+                cls._mark_state_dirty()
         else:
             with wp.ScopedDevice(device):
                 cls._simulate()
@@ -404,6 +453,7 @@ class NewtonManager(PhysicsManager):
         cls._newton_stage_path = None
         cls._usdrt_stage = None
         cls._transforms_dirty = False
+        cls._particles_dirty = False
         cls._up_axis = "Z"
         cls._model_changes = set()
         cls._cl_pending_sites = {}
@@ -411,6 +461,12 @@ class NewtonManager(PhysicsManager):
         cls._pending_extended_state_attributes = set()
         cls._pending_extended_contact_attributes = set()
         cls._views = []
+        cls._deformable_registry = []
+        cls._solver_factories = {}
+        cls._particle_sync_fn = None
+        cls._post_finalize_model_fn = None
+        cls._per_world_builder_hooks = []
+        cls._post_replicate_hooks = []
 
     @classmethod
     def set_builder(cls, builder: ModelBuilder) -> None:
@@ -646,6 +702,10 @@ class NewtonManager(PhysicsManager):
         if cls._pending_extended_contact_attributes:
             cls._model.request_contact_attributes(*cls._pending_extended_contact_attributes)
             cls._pending_extended_contact_attributes = set()
+
+        if cls._post_finalize_model_fn is not None:
+            cls._post_finalize_model_fn()
+
         cls._state_0 = cls._model.state()
         cls._state_1 = cls._model.state()
         cls._control = cls._model.control()
@@ -710,6 +770,10 @@ class NewtonManager(PhysicsManager):
         if not env_paths:
             # No env Xforms — flat loading
             builder.add_usd(stage, schema_resolvers=schema_resolvers)
+            for hook in cls._per_world_builder_hooks:
+                hook(builder, 0, [0.0, 0.0, 0.0])
+            for hook in cls._post_replicate_hooks:
+                hook(builder)
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             ignore_paths = [path for _, path in env_paths]
@@ -752,7 +816,12 @@ class NewtonManager(PhysicsManager):
                         local_site_map[label] = [[] for _ in range(num_worlds)]
                     for proto_shape_idx in proto_shape_indices:
                         local_site_map[label][col].append(offset + proto_shape_idx)
+                for hook in cls._per_world_builder_hooks:
+                    hook(builder, col, list(pos))
                 builder.end_world()
+
+            for hook in cls._post_replicate_hooks:
+                hook(builder)
 
             cls._cl_site_index_map = {
                 **global_site_map,
@@ -833,6 +902,8 @@ class NewtonManager(PhysicsManager):
             elif cls._solver_type == "featherstone":
                 cls._use_single_state = False
                 cls._solver = SolverFeatherstone(cls._model, **cfg_dict)
+            elif cls._solver_type in cls._solver_factories:
+                cls._solver_factories[cls._solver_type](cls, cfg_dict, solver_cfg)
             else:
                 raise ValueError(f"Invalid solver type: {cls._solver_type}")
 
@@ -1070,12 +1141,12 @@ class NewtonManager(PhysicsManager):
         """Run one simulation step with substeps and USD sync.
 
         Delegates physics work to :meth:`_simulate_physics_only` and then
-        marks transforms dirty for the next render-cadence sync.
+        marks state dirty for the next render-cadence sync.
         """
         cls._simulate_physics_only()
 
         if cls._usdrt_stage is not None:
-            cls._mark_transforms_dirty()
+            cls._mark_state_dirty()
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
