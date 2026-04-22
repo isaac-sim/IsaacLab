@@ -406,26 +406,34 @@ def process_success_condition(env: gym.Env, success_term: object | None, success
 
 
 def handle_reset(
-    env: gym.Env, success_step_count: int, instruction_display: InstructionDisplay, label_text: str
+    env: gym.Env,
+    success_step_count: int,
+    instruction_display: InstructionDisplay,
+    label_text: str,
+    teleop_interface: object | None = None,
 ) -> int:
     """Handle resetting the environment.
 
-    Resets the environment, recorder manager, and related state variables.
-    Updates the instruction display with current status.
+    Resets the environment, recorder manager, teleop device, and related
+    state variables.  Updates the instruction display with current status.
 
     Args:
-        env: The environment instance to reset
-        success_step_count: Current count of consecutive successful steps
-        instruction_display: The display object to update
-        label_text: Text to display showing current recording status
+        env: The environment instance to reset.
+        success_step_count: Current count of consecutive successful steps.
+        instruction_display: The display object to update.
+        label_text: Text to display showing current recording status.
+        teleop_interface: Optional teleop device to reset (resets XR anchor
+            and retargeter cross-step state).
 
     Returns:
-        int: Reset success step count (0)
+        Reset success step count (0).
     """
     print("Resetting environment...")
     env.sim.reset()
     env.recorder_manager.reset()
     env.reset()
+    if teleop_interface is not None and hasattr(teleop_interface, "reset"):
+        teleop_interface.reset()
     success_step_count = 0
     instruction_display.show_demo(label_text)
     return success_step_count
@@ -476,7 +484,9 @@ def run_simulation_loop(
         running_recording_instance = False
         print("Recording paused")
 
-    # Set up teleoperation callbacks
+    # Set up teleoperation callbacks.  For IsaacTeleop the primary control
+    # path is poll_control_events(); these callbacks are bridged automatically
+    # and also serve native (keyboard / spacemouse) devices.
     teleoperation_callbacks = {
         "R": reset_recording_instance,
         "START": start_recording_instance,
@@ -485,7 +495,6 @@ def run_simulation_loop(
     }
 
     teleop_interface = setup_teleop_device(teleoperation_callbacks, use_isaac_teleop)
-    teleop_interface.add_callback("R", reset_recording_instance)
 
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
@@ -504,10 +513,21 @@ def run_simulation_loop(
         stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
         print(f"{stack_name} recording started.")
 
+        if use_isaac_teleop:
+            from isaaclab_teleop import poll_control_events
+
         with contextlib.suppress(KeyboardInterrupt), torch.inference_mode():
             while simulation_app.is_running():
                 # Get teleop command (may be None while waiting for session start)
                 action = teleop_interface.advance()
+
+                if use_isaac_teleop:
+                    ctrl = poll_control_events(teleop_interface)
+                    if ctrl.is_active is not None:
+                        running_recording_instance = ctrl.is_active
+                    if ctrl.should_reset:
+                        should_reset_recording_instance = True
+
                 if action is None:
                     env.sim.render()
                     continue
@@ -558,7 +578,9 @@ def run_simulation_loop(
 
                 # Handle reset if requested
                 if should_reset_recording_instance:
-                    success_step_count = handle_reset(env, success_step_count, instruction_display, label_text)
+                    success_step_count = handle_reset(
+                        env, success_step_count, instruction_display, label_text, teleop_interface
+                    )
                     should_reset_recording_instance = False
 
                 # Check if simulation is stopped
