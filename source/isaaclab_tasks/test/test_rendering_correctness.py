@@ -66,9 +66,6 @@ _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
 #              "img_result_path": str | None, "img_golden_path": str | None}
 _COMPARISON_SCORES: list[dict] = []
 
-# Environment seed.
-_ENV_SEED = 42
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -643,7 +640,6 @@ def shadow_hand_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = _ENV_SEED
 
     if data_type == "depth":
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
@@ -652,7 +648,6 @@ def shadow_hand_env(request):
     env = None
     try:
         env = ShadowHandVisionEnv(env_cfg)
-        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -668,7 +663,7 @@ def test_shadow_hand(shadow_hand_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=8.0,
+        max_different_pixels_percentage=2.0,
     )
 
 
@@ -691,12 +686,10 @@ def cartpole_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = _ENV_SEED
 
     env = None
     try:
         env = CartpoleCameraEnv(env_cfg)
-        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -712,7 +705,7 @@ def test_cartpole(cartpole_env):
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=2.0,
+        max_different_pixels_percentage=1.0,
     )
 
 
@@ -739,12 +732,10 @@ def dexsuite_kuka_allegro_lift_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = _ENV_SEED
 
     env = None
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -760,7 +751,7 @@ def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
         physics_backend,
         renderer,
         env.scene.sensors["base_camera"].data.output,
-        max_different_pixels_percentage=10.0,
+        max_different_pixels_percentage=4.0,
     )
 
 
@@ -787,15 +778,12 @@ def test_registered_tasks(task_id):
     env = None
     try:
         env_cfg = parse_env_cfg(task_id, num_envs=4)
-        env_cfg.seed = _ENV_SEED
 
         env = gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped
         sim = getattr(unwrapped, "sim", None)
         if sim is not None:
             sim._app_control_on_stop_handle = None
-
-        env.reset(seed=_ENV_SEED)
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)
