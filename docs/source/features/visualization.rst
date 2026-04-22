@@ -142,7 +142,7 @@ For the migration-focused summary and deprecation context, see
 Partial Visualization
 ~~~~~~~~~~~~~~~~~~~~~
 
-To improve performance, visualizers can be configured to visualize just a subset of environments.
+Visualizers can be configured to visualize just a subset of environments.
 This is called partial visualization.
 
 There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments for partial visualization:

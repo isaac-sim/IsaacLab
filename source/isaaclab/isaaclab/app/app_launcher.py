@@ -523,7 +523,7 @@ class AppLauncher:
             "--max_visible_envs",
             type=int,
             default=argparse.SUPPRESS,
-            help=("When set, caps the nums of envs shown in the launched visualizers to improve performance."),
+            help=("When set, caps the nums of envs shown in the launched visualizers."),
         )
         # special flag for backwards compatibility
 
