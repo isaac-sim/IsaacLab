@@ -104,8 +104,8 @@ class ArticulationData(BaseArticulationData):
         gravity_dir_tiled = np.tile(gravity_dir, (self._num_instances, 1))
         forward_tiled = np.tile(np.array([1.0, 0.0, 0.0], dtype=np.float32), (self._num_instances, 1))
 
-        self.GRAVITY_VEC_W = wp.from_numpy(gravity_dir_tiled, dtype=wp.vec3f, device=device)
-        self.FORWARD_VEC_B = wp.from_numpy(forward_tiled, dtype=wp.vec3f, device=device)
+        self.GRAVITY_VEC_W = TorchArray(wp.from_numpy(gravity_dir_tiled, dtype=wp.vec3f, device=device))
+        self.FORWARD_VEC_B = TorchArray(wp.from_numpy(forward_tiled, dtype=wp.vec3f, device=device))
 
     def update(self, dt: float) -> None:
         """Update the data for the articulation.
