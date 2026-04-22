@@ -6,6 +6,7 @@
 __all__ = [
     "SpawnerCfg",
     "RigidObjectSpawnerCfg",
+    "DeformableObjectSpawnerCfg",
     "spawn_from_mjcf",
     "spawn_from_urdf",
     "spawn_from_usd",
@@ -24,8 +25,11 @@ __all__ = [
     "LightCfg",
     "SphereLightCfg",
     "spawn_rigid_body_material",
+    "spawn_deformable_body_material",
     "PhysicsMaterialCfg",
     "RigidBodyMaterialCfg",
+    "DeformableBodyMaterialCfg",
+    "SurfaceDeformableBodyMaterialCfg",
     "spawn_from_mdl_file",
     "spawn_preview_surface",
     "GlassMdlCfg",
@@ -65,7 +69,7 @@ __all__ = [
     "MultiUsdFileCfg",
 ]
 
-from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg
+from .spawner_cfg import SpawnerCfg, RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg
 from .from_files import (
     spawn_from_mjcf,
     spawn_from_urdf,
@@ -89,8 +93,11 @@ from .lights import (
 )
 from .materials import (
     spawn_rigid_body_material,
+    spawn_deformable_body_material,
     PhysicsMaterialCfg,
     RigidBodyMaterialCfg,
+    DeformableBodyMaterialCfg,
+    SurfaceDeformableBodyMaterialCfg,
     spawn_from_mdl_file,
     spawn_preview_surface,
     GlassMdlCfg,
