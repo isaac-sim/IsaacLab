@@ -16,7 +16,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 import copy
-import os
 
 import numpy as np
 import pytest
@@ -31,8 +30,6 @@ from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCa
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
-from isaaclab.utils import convert_dict_to_backend
-from isaaclab.utils.timer import Timer
 
 # sample camera poses (quaternions in xyzw format)
 POSITION = [2.5, 2.5, 2.5]
@@ -134,11 +131,6 @@ def test_camera_init(setup_simulation):
     sim.reset()
     # Check if camera is initialized
     assert camera.is_initialized
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # Check buffers that exists and have correct shapes
     assert camera.data.pos_w.shape == (1, 3)
     assert camera.data.quat_w_ros.shape == (1, 4)
@@ -146,7 +138,7 @@ def test_camera_init(setup_simulation):
     assert camera.data.quat_w_opengl.shape == (1, 4)
     assert camera.data.intrinsic_matrices.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width)
-    assert camera.data.info == [{camera_cfg.data_types[0]: None}]
+    assert camera.data.info == {camera_cfg.data_types[0]: None}
     # Simulate physics
     for _ in range(10):
         # perform rendering
@@ -169,11 +161,6 @@ def test_camera_resolution(setup_simulation):
     camera = MultiMeshRayCasterCamera(cfg=camera_cfg)
     # Play sim
     sim.reset()
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     camera.update(dt)
     # access image data and compare shapes
     for im_data in camera.data.output.values():
@@ -254,11 +241,6 @@ def test_multi_camera_init(setup_simulation):
     # play sim
     sim.reset()
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # Simulate physics
     for _ in range(10):
         # perform rendering
@@ -336,11 +318,6 @@ def test_intrinsic_matrix(setup_simulation, height, width):
     rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
     # Set matrix into simulator
     camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
     # Simulate physics
     for _ in range(10):
         # perform rendering
@@ -349,64 +326,6 @@ def test_intrinsic_matrix(setup_simulation, height, width):
         camera.update(dt)
         # Check that matrix is correct
         torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices)
-
-    del camera
-
-
-@pytest.mark.isaacsim_ci
-def test_throughput(setup_simulation):
-    """Test camera throughput for different image sizes."""
-    sim, dt, camera_cfg = setup_simulation
-
-    # Create directory temp dir to dump the results
-    file_dir = os.path.dirname(os.path.realpath(__file__))
-    temp_dir = os.path.join(file_dir, "output", "camera", "throughput")
-    os.makedirs(temp_dir, exist_ok=True)
-    # Create replicator writer
-    rep_writer = rep.BasicWriter(output_dir=temp_dir, frame_padding=3)
-    # create camera
-    camera_cfg_copy = copy.deepcopy(camera_cfg)
-    camera_cfg_copy.pattern_cfg.height = 480
-    camera_cfg_copy.pattern_cfg.width = 640
-    camera = MultiMeshRayCasterCamera(camera_cfg_copy)
-
-    # Play simulator
-    sim.reset()
-
-    # Set camera pose
-    eyes = torch.tensor([[2.5, 2.5, 2.5]], dtype=torch.float32, device=camera.device)
-    targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
-    camera.set_world_poses_from_view(eyes, targets)
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-    # Simulate physics
-    for _ in range(5):
-        # perform rendering
-        sim.step()
-        # update camera
-        with Timer(f"Time taken for updating camera with shape {camera.image_shape}"):
-            camera.update(dt)
-        # Save images
-        with Timer(f"Time taken for writing data with shape {camera.image_shape}   "):
-            # Pack data back into replicator format to save them using its writer
-            rep_output = {"annotators": {}}
-            camera_data = convert_dict_to_backend(camera.data.output, backend="numpy")
-            for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
-                if info is not None:
-                    rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
-                else:
-                    rep_output["annotators"][key] = {"render_product": {"data": data}}
-            # Save images
-            rep_output["trigger_outputs"] = {"on_time": camera.frame[0]}
-            rep_writer.write(rep_output)
-        print("----------------------------------------")
-        # Check image data
-        for im_data in camera.data.output.values():
-            assert im_data.shape == (1, camera_cfg_copy.pattern_cfg.height, camera_cfg_copy.pattern_cfg.width, 1)
 
     del camera
 
@@ -858,3 +777,35 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
     )
 
     del camera_usd, camera_warp
+
+
+@pytest.mark.isaacsim_ci
+def test_image_mesh_ids_identifies_hit_mesh(setup_simulation):
+    """image_mesh_ids must contain 0 for ground-plane hits (only one mesh registered)."""
+    sim, dt, camera_cfg = setup_simulation
+
+    cfg = copy.deepcopy(camera_cfg)
+    cfg.update_mesh_ids = True
+    cfg.data_types = ["distance_to_camera"]
+
+    camera = MultiMeshRayCasterCamera(cfg=cfg)
+    sim.reset()
+    camera.update(dt)
+
+    mesh_ids = camera.data.image_mesh_ids  # shape (N, H, W, 1), dtype torch.int16
+    assert mesh_ids is not None, "image_mesh_ids should not be None when update_mesh_ids=True"
+    assert mesh_ids.shape[-1] == 1
+    assert mesh_ids.dtype == torch.int16
+
+    # Identify actual hits via distance < inf. This relies on depth_clipping_behavior="none"
+    # (the default), which leaves missed rays at the Warp-kernel fill value of inf.
+    # Under "max" clipping, missed rays would be clamped to a finite max_distance, making
+    # the inf comparison incorrect.
+    hit_mask = camera.data.output["distance_to_camera"][0, :, :, 0] < float("inf")
+    assert hit_mask.any(), "Expected at least some rays to hit the ground plane"
+
+    # All hits against the single registered mesh must carry mesh_id=0 (first mesh index).
+    hit_mesh_ids = mesh_ids[0, :, :, 0][hit_mask]
+    assert torch.all(hit_mesh_ids == 0), (
+        f"All hits against the single ground mesh must have mesh_id=0, got: {hit_mesh_ids.unique()}"
+    )

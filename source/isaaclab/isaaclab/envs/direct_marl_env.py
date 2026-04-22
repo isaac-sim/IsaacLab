@@ -151,10 +151,10 @@ class DirectMARLEnv(gym.Env):
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        # Initialize when GUI is available OR when visualizers are active (headless rendering)
-        # Visualizers support camera updates via sim.set_camera_view() which forwards to all active visualizers
-        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
-        if self.sim.has_gui or has_visualizers:
+        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
+        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
+        has_visualizers = self.sim.has_active_visualizers()
+        if (self.sim.has_gui or has_visualizers) and has_kit():
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None

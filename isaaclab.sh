@@ -28,5 +28,13 @@ fi
 # Add source/isaaclab to PYTHONPATH so we can import isaaclab.cli.
 export PYTHONPATH="$ISAACLAB_PATH/source/isaaclab:$PYTHONPATH"
 
+# If a local Isaac Sim binary is present, source its env setup so that
+# PYTHONPATH/PATH/EXP_PATH are correct without depending on a conda
+# activate.d hook (those don't fire reliably under e.g. `conda run`).
+if [ -f "$ISAACLAB_PATH/_isaac_sim/setup_conda_env.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$ISAACLAB_PATH/_isaac_sim/setup_conda_env.sh" >/dev/null 2>&1 || true
+fi
+
 # Execute CLI.
 exec "$python_exe" -c "from isaaclab.cli import cli; cli()" "$@"

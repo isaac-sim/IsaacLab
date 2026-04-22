@@ -29,6 +29,10 @@ from pxr import Gf, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
 
+# Deprecation warnings from TiledCamera/TiledCameraCfg are expected in this file;
+# the deprecation mechanism itself is validated in test_tiled_camera.py.
+pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
+
 
 @pytest.fixture()
 def setup_camera():
@@ -94,12 +98,6 @@ def test_multi_tiled_camera_init(setup_camera):
         # Check if camera prim is set correctly and that it is a camera prim
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
@@ -192,12 +190,6 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
         assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
@@ -294,12 +286,6 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         # Check if camera prim is set correctly and that it is a camera prim
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
@@ -424,12 +410,6 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
     # Play sim
     sim.reset()
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     # Simulate physics
     for _ in range(10):

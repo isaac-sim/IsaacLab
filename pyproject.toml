@@ -146,3 +146,15 @@ markers = [
 [[tool.uv.index]]
 url = "https://pypi.nvidia.com"
 explicit = false
+
+# Some Isaac Sim dependencies (e.g. mujoco-usd-converter, tinyobjloader) have
+# mismatched versions across pypi.nvidia.com and PyPI.  unsafe-best-match lets uv
+# resolve the correct version from any index, and prerelease=allow covers packages
+# that only publish pre-release wheels (e.g. tinyobjloader==2.0.0rc13).
+[tool.uv]
+index-strategy = "unsafe-best-match"
+prerelease = "allow"
+
+[tool.uv.pip]
+index-strategy = "unsafe-best-match"
+prerelease = "allow"

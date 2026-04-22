@@ -105,11 +105,12 @@ def is_lambda_expression(name: str) -> bool:
         return False
 
 
-def callable_to_string(value: Callable) -> str:
+def callable_to_string(value: Callable, separator: str = ":") -> str:
     """Converts a callable object to a string.
 
     Args:
         value: A callable object.
+        separator: The separator between the module path and the function name. Defaults to ":".
 
     Raises:
         ValueError: When the input argument is not a callable object.
@@ -132,15 +133,16 @@ def callable_to_string(value: Callable) -> str:
         module_name = value.__module__
         function_name = value.__name__
         # return the string
-        return f"{module_name}:{function_name}"
+        return f"{module_name}{separator}{function_name}"
 
 
-def string_to_callable(name: str) -> Callable:
+def string_to_callable(name: str, separator: str = ":") -> Callable:
     """Resolves the module and function names to return the function.
 
     Args:
         name: The function name. The format should be 'module:attribute_name' or a
             lambda expression of format: 'lambda x: x'.
+        separator: The separator between the module path and the function name. Defaults to ":".
 
     Raises:
         ValueError: When the resolved attribute is not a function.
@@ -153,7 +155,7 @@ def string_to_callable(name: str) -> Callable:
         if is_lambda_expression(name):
             callable_object = eval(name)
         else:
-            mod_name, attr_name = name.split(":")
+            mod_name, attr_name = name.rsplit(separator, 1)
             mod = importlib.import_module(mod_name)
             callable_object = getattr(mod, attr_name)
         # check if attribute is callable
@@ -246,7 +248,11 @@ Regex operations.
 
 
 def resolve_matching_names(
-    keys: str | Sequence[str], list_of_strings: Sequence[str], preserve_order: bool = False
+    keys: str | Sequence[str],
+    list_of_strings: Sequence[str],
+    preserve_order: bool = False,
+    *,
+    raise_when_no_match: bool = True,
 ) -> tuple[list[int], list[str]]:
     """Match a list of query regular expressions against a list of strings and return the matched indices and names.
 
@@ -272,13 +278,15 @@ def resolve_matching_names(
         keys: A regular expression or a list of regular expressions to match the strings in the list.
         list_of_strings: A list of strings to match.
         preserve_order: Whether to preserve the order of the query keys in the returned values. Defaults to False.
+        raise_when_no_match: Whether to raise a ``ValueError`` when not all regular expressions are matched.
+            Defaults to True. When False, returns empty lists instead of raising.
 
     Returns:
         A tuple of lists containing the matched indices and names.
 
     Raises:
         ValueError: When multiple matches are found for a string in the list.
-        ValueError: When not all regular expressions are matched.
+        ValueError: When not all regular expressions are matched and :attr:`raise_when_no_match` is True.
     """
     # resolve name keys
     if isinstance(keys, str):
@@ -328,6 +336,8 @@ def resolve_matching_names(
         names_list = names_list_reorder
     # check that all regular expressions are matched
     if not all(keys_match_found):
+        if not raise_when_no_match:
+            return [], []
         # make this print nicely aligned for debugging
         msg = "\n"
         for key, value in zip(keys, keys_match_found):
@@ -484,3 +494,22 @@ def find_root_prim_path_from_regex(prim_path_regex: str) -> tuple[str, int]:
         root_prim_path = "/".join(prim_paths_list[:root_idx])
         tree_level = root_idx
     return root_prim_path, tree_level
+
+
+def list_intersection(list1: list[Any], list2: list[Any] | None) -> list[Any]:
+    """Return the intersection of two lists.
+
+    The returned list has elements that are in both input lists.
+
+    Args:
+        list1: The first list.
+        list2: The second list.
+
+    Returns:
+        A new list containing elements that are in both input lists.
+
+    """
+    if list2 is None:
+        return list1
+    set2 = set(list2)
+    return [x for x in list1 if x in set2]

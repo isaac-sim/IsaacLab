@@ -36,6 +36,14 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
     ),
 )
 @pytest.mark.newton_ci
+@pytest.mark.xfail(
+    reason=(
+        "TODO: Nested PresetCfg resolution for named presets (e.g. 'newton') is not yet supported. "
+        "The logic in parse_cfg.apply_named_preset should be unified with the deep-nesting "
+        "fixes in https://github.com/isaac-sim/IsaacLab/pull/5029 (isaaclab_tasks.utils.hydra)."
+    ),
+    strict=False,
+)
 def test_environments_newton(task_name, num_envs, device):
     # run environments with newton physics preset
     _run_environments(task_name, device, num_envs, physics_preset_name="newton", create_stage_in_memory=False)

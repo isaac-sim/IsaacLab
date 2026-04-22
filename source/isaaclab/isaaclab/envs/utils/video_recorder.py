@@ -15,6 +15,7 @@ See :mod:`video_recorder_cfg` for configuration.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -24,11 +25,17 @@ if TYPE_CHECKING:
 
     from .video_recorder_cfg import VideoRecorderCfg
 
+logger = logging.getLogger(__name__)
+
 _VideoBackend = Literal["kit", "newton_gl"]
 
 
 def _resolve_video_backend(scene: InteractiveScene) -> _VideoBackend:
-    """Resolve video backend: PhysX or Isaac RTX -> Kit; else Newton or Newton Warp -> GL / tiled Newton path."""
+    """Resolve which video backend to use from physics and renderer configs.
+
+    Priority: PhysX or Isaac RTX -> Kit camera; else Newton or Newton Warp -> GL viewer.
+    When both are present (e.g. PhysX + Newton Warp), Kit wins.
+    """
     sim = scene.sim
     physics_name = sim.physics_manager.__name__.lower()
     renderer_types: list[str] = scene._sensor_renderer_types()
@@ -144,6 +151,7 @@ class VideoRecorder:
             self._capture = create_isaacsim_kit_perspective_video(kcfg)
 
     def render_rgb_array(self) -> np.ndarray | None:
+        """Return an RGB frame for the resolved backend. Fails if backend is unavailable."""
         if self.cfg.env_render_mode != "rgb_array":
             return None
         if self._tiled_capture is not None:

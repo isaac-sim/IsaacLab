@@ -646,12 +646,20 @@ class OperationalSpaceControllerAction(ActionTerm):
             raise ValueError("Invalid value for nullspace joint pos targets.")
 
     def _compute_dynamic_quantities(self):
-        """Computes the dynamic quantities for operational space control."""
+        """Computes the dynamic quantities for operational space control.
+
+        Note: For floating-base robots, PhysX prepends 6 virtual DOFs (base position and orientation)
+        to the generalized mass matrix and gravity compensation forces. We use ``self._jacobi_joint_idx``
+        (which applies the +6 offset for floating-base robots) instead of ``self._joint_ids`` to correctly
+        index into these quantities. For fixed-base robots, the two are identical.
+        """
 
         self._mass_matrix[:] = wp.to_torch(self._asset.root_view.get_generalized_mass_matrices())[
-            :, self._joint_ids, :
-        ][:, :, self._joint_ids]
-        self._gravity[:] = wp.to_torch(self._asset.root_view.get_gravity_compensation_forces())[:, self._joint_ids]
+            :, self._jacobi_joint_idx, :
+        ][:, :, self._jacobi_joint_idx]
+        self._gravity[:] = wp.to_torch(self._asset.root_view.get_gravity_compensation_forces())[
+            :, self._jacobi_joint_idx
+        ]
 
     def _compute_ee_jacobian(self):
         """Computes the geometric Jacobian of the ee body frame in root frame.

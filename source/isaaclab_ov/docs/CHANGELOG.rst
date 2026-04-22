@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.1.2 (2026-03-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Semantic segmentation in :class:`~isaaclab_ov.renderers.OVRTXRenderer` maps
+  semantic instance IDs to RGBA using the same pseudo-random per-ID HSV scheme as the
+  Isaac Sim RTX render backend, so OVRTX and Isaac RTX produce matching colors for the
+  same IDs. Numeric IDs ``0`` (BACKGROUND) and ``1`` (UNLABELLED) use fixed RGBA.
+
 0.1.1 (2026-03-07)
 ~~~~~~~~~~~~~~~~~~
 

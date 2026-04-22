@@ -756,6 +756,7 @@ class RigidObjectData(BaseRigidObjectData):
         # -- default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances,), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
+        self._default_root_state = None  # lazily allocated by deprecated default_root_state property
 
         # Initialize history for finite differencing
         self._previous_body_com_vel = wp.clone(self._root_view.get_link_velocities(SimulationManager.get_state_0()))[

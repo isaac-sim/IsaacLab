@@ -1,6 +1,122 @@
 Changelog
 ---------
 
+1.5.23 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refreshed Newton Warp renderer golden images for Dexsuite Kuka-Allegro environment case in
+  ``test_rendering_correctness`` because Newton Warp renderer honors visibility of prims now.
+
+1.5.22 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rendering correctness tests to use a shared environment seed constant, pass ``seed`` into
+  :meth:`gymnasium.Env.reset`, and aggregate per-data-type validation failures into a single
+  ``pytest.fail`` message in ``test_rendering_correctness``.
+* Refreshed Newton Warp renderer golden images in ``test_rendering_correctness`` so image baselines match the current
+  camera output after Newton shape color alignment and the clear background color change.
+
+
+1.5.21 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced ``resolve_preset_defaults`` with :func:`~isaaclab_tasks.utils.hydra.resolve_presets`
+  which resolves all presets in one pass with CLI selection support.
+
+Added
+^^^^^
+
+* Unknown preset names now raise ``ValueError`` with a grouped listing of all
+  available presets and the config paths they affect.
+
+Fixed
+^^^^^
+
+* Fixed presets inside dict-valued alternatives and ``PresetCfg(default=None)``
+  not being discovered or resolved, causing wrong defaults in deeply nested configs.
+* Unresolvable ``PresetCfg`` (no ``default``, no matching selection) now raises
+  ``ValueError`` instead of silently lingering in the config tree.
+
+
+1.5.20 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Change Franka visuomotor and GR1T2 nut pouring environments to use TiledCamera.
+
+
+1.5.19 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Aligned :class:`~isaaclab_tasks.manager_based.manipulation.deploy.reach.config.rizon_4s.ros_inference_env_cfg.Rizon4sReachROSInferenceEnvCfg`
+  with the Flexiv Rizon 4s mount and workspace at NVIDIA Hubble Lab.
+
+
+1.5.18 (2026-04-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Set semantic tags on the in-hand object in :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.ObjectCfg`
+  so the object receives the same semantic labels for the Newton and PhysX backends.
+
+
+1.5.17 (2026-03-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.utils.hydra.apply_overrides` raising a false
+  conflict error when two global presets resolve to the same value for a path
+  (e.g. ``newton`` aliased to ``cube``).
+
+
+1.5.16 (2026-03-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.utils.hydra.collect_presets` not discovering
+  presets inside nested dicts (e.g. ``EventTerm.params.terms.*.params``).
+
+
+1.5.15 (2026-03-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added semantic segmentation to preset data types for the Cartpole Camera environment.
+* Added semantic segmentation to preset data types for the Shadow Hand environment.
+* Added semantic_segmentation64 to preset data types for for the Dexsuite Kuka-Allegro environment.
+* Added ``Isaac-Deploy-Reach-Rizon4s-ROS`` environments.
+
+1.5.13 (2026-03-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added consistency validation to the camera outputs in ``test_rendering_correctness.py``.
+
+
 1.5.12 (2026-03-16)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -30,6 +146,7 @@ Added
 ^^^^^
 
 * Added ``test_rendering_correctness.py`` to validate rendering correctness of the environments.
+
 
 1.5.9 (2026-03-10)
 ~~~~~~~~~~~~~~~~~~
@@ -165,7 +282,6 @@ Changed
   Newton-compatible randomizations (joint gains, joint position limits, object mass, gravity).
   Material and fixed-tendon randomization remain exclusively in
   :class:`~isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg.PhysxEventCfg`.
-
 
 1.5.2 (2026-03-05)
 ~~~~~~~~~~~~~~~~~~

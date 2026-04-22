@@ -266,6 +266,27 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
+    def pre_render(cls) -> None:
+        """Sync deferred physics state to the rendering backend.
+
+        Called by :meth:`~isaaclab.sim.SimulationContext.render` before cameras
+        and visualizers read scene data. The default implementation is a no-op.
+        Backends that defer transform writes (e.g. Newton's dirty-flag pattern)
+        should override this to flush pending updates.
+        """
+        pass
+
+    @classmethod
+    def after_visualizers_render(cls) -> None:
+        """Hook after visualizers have stepped during :meth:`~isaaclab.sim.SimulationContext.render`.
+
+        Use for physics-backend sync (e.g. fabric) if needed. Recording pipelines (Kit/RTX,
+        Newton GL video, etc.) run from :mod:`isaaclab.envs.utils.recording_hooks` so they are not
+        tied to a specific physics manager. Default is a no-op.
+        """
+        pass
+
+    @classmethod
     def close(cls) -> None:
         """Clean up physics resources.
 
@@ -311,6 +332,11 @@ class PhysicsManager(ABC):
     @classmethod
     def stop(cls) -> None:
         """Stop physics simulation. Default is no-op."""
+        pass
+
+    @classmethod
+    def wait_for_playing(cls) -> None:
+        """Block until the timeline is playing. Default is no-op."""
         pass
 
     @classmethod

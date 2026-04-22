@@ -15,6 +15,7 @@ fault occurs. The launched :class:`isaacsim.simulation_app.SimulationApp` instan
 from __future__ import annotations
 
 import argparse
+import atexit
 import contextlib
 import logging
 import os
@@ -188,6 +189,7 @@ class AppLauncher:
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
         self._visualizer_max_worlds: int | None  # Optional max worlds override for Newton-based visualizers
+        self._video_enabled: bool  # Whether --video recording is enabled
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -227,11 +229,26 @@ class AppLauncher:
                 int(omni.timeline.TimelineEventType.PLAY), lambda e: self._hide_play_button(False)
             )
         )
+        # Signal to the CI test runner that Kit initialization is complete.
+        # stdout may be redirected to /dev/null during _create_app(), so we
+        # use __stderr__ which is never suppressed.
+        print("[ISAACLAB] AppLauncher initialization complete", file=sys.__stderr__, flush=True)
+
+        # Ensure SimulationApp.close() is called on normal process exit so Kit
+        # shuts down cleanly instead of relying on __del__ (which logs a warning
+        # and can leave GPU resources in a bad state for the next test).
+        def _atexit_close(app=self._app):
+            with contextlib.suppress(Exception):
+                app.close()
+
+        atexit.register(_atexit_close)
+
         # Set up signal handlers for graceful shutdown
         # -- during explicit `kill` commands
         signal.signal(signal.SIGTERM, self._abort_signal_handle_callback)
-        # -- during segfaults
+        # -- during aborts
         signal.signal(signal.SIGABRT, self._abort_signal_handle_callback)
+        # -- during segfaults
         signal.signal(signal.SIGSEGV, self._abort_signal_handle_callback)
 
     """
@@ -842,12 +859,13 @@ class AppLauncher:
 
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
+        self._video_enabled = bool(launcher_args.get("video", False))
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording
         #   This is different from offscreen_render because this only affects the default viewport and
         #   not other render-products in the scene
         self._render_viewport = True
-        if self._headless and not self._livestream and not launcher_args.get("video", False):
+        if self._headless and not self._livestream and not self._video_enabled:
             self._render_viewport = False
 
         # hide_ui flag
@@ -1021,8 +1039,8 @@ class AppLauncher:
         for idx in sorted(indexes_to_remove, reverse=True):
             sys.argv = sys.argv[:idx] + sys.argv[idx + 1 :]
 
-        # launch simulation app
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
+
         # enable sys stdout and stderr
         sys.stdout = sys.__stdout__
 
@@ -1069,6 +1087,8 @@ class AppLauncher:
         # (no Kit GUI) the AR profile must be enabled programmatically so that
         # the OpenXR session starts without user interaction
         settings.set_bool("/isaaclab/xr/auto_start", self._headless and self._xr)
+        # set setting to indicate video recording mode
+        settings.set_bool("/isaaclab/video/enabled", self._video_enabled)
 
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)

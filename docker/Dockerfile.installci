@@ -1,0 +1,67 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Minimal container for testing Isaac Lab installation scenarios.
+#
+# Usage:
+#   docker build --build-arg BASE_IMAGE=ubuntu:24.04 -t isaaclab-install-ci .
+#   docker run --rm isaaclab-install-ci -v -k "test_pip"
+
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${BASE_IMAGE}
+
+SHELL ["/bin/bash", "-c"]
+
+LABEL description="Container for installation CI tests."
+
+ENV LANG=C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies needed for building Py packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    cmake \
+    python3 \
+    python3-dev \
+    python3-pip \
+    libglib2.0-0 \
+    python3-venv \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Make python3 the default python
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# Install test runner dependencies
+RUN pip install --break-system-packages \
+    pytest>=8.0 \
+    pytest-timeout>=2.0
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Copy the repo
+ARG ISAACLAB_PATH=/workspace/isaaclab
+ENV ISAACLAB_PATH=${ISAACLAB_PATH}
+COPY . ${ISAACLAB_PATH}
+
+# Fix line endings in .sh files (Win git may add \r)
+# This hack need to be in the main Dockerfiles too
+RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
+RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
+
+WORKDIR ${ISAACLAB_PATH}
+
+# isaaclab.x debug mode
+ENV DEBUG=1
+
+# Run all installation CI tests by default
+ENTRYPOINT ["python", "-m", "pytest", "-c", "source/isaaclab/test/install_ci/pytest.ini", "source/isaaclab/test/install_ci"]
+CMD ["-v", "--tb=short"]

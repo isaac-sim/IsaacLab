@@ -2406,5 +2406,203 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     assert torch.allclose(joint_friction_coeff_sim_2, friction_2)
 
 
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+def test_body_q_consistent_after_root_write(num_articulations, device, articulation_type):
+    """Test that body_q is fresh when collide() runs after a root pose write.
+
+    Regression test for a NaN bug where collide() used stale body_q after env
+    reset because eval_fk was not called between write_root_pose and collide.
+
+    Uses ``use_mujoco_contacts=False`` so the Newton collision pipeline is
+    active, then patches ``_simulate_physics_only`` to capture body_q at
+    the moment collide() is called and asserts it matches joint_q.
+    """
+    from unittest.mock import patch
+
+    sim_cfg = SimulationCfg(
+        dt=1 / 200,
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=70,
+                nconmax=70,
+                integrator="implicitfast",
+                use_mujoco_contacts=False,
+            ),
+            num_substeps=1,
+            use_cuda_graph=False,
+        ),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg, device=device) as sim:
+        sim._app_control_on_stop_handle = None
+        articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+        articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
+
+        sim.reset()
+
+        model = SimulationManager.get_model()
+        jc_starts = model.joint_coord_world_start.numpy()
+        body_starts = model.body_world_start.numpy()
+
+        for _ in range(5):
+            sim.step()
+            articulation.update(sim.cfg.dt)
+
+        # Teleport env 0 by 10m (simulating a reset)
+        new_pose = wp.to_torch(articulation.data.default_root_pose).clone()
+        new_pose[0, 0] += 10.0
+        new_pose[0, 1] += 5.0
+        articulation.write_root_pose_to_sim_index(
+            root_pose=new_pose[0:1],
+            env_ids=torch.tensor([0], device=device, dtype=torch.int32),
+        )
+
+        # Patch _simulate_physics_only to capture body_q before collide runs
+        captured = {}
+        original_simulate = SimulationManager._simulate_physics_only.__func__
+
+        @classmethod  # type: ignore[misc]
+        def _patched_simulate(cls):
+            if cls._needs_collision_pipeline:
+                bq = wp.to_torch(cls._state_0.body_q)
+                jq = wp.to_torch(cls._state_0.joint_q)
+                b0 = int(body_starts[0])
+                jc0 = int(jc_starts[0])
+                captured["bq_root"] = bq[b0, :3].clone()
+                captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
+            original_simulate(cls)
+
+        with patch.object(SimulationManager, "_simulate_physics_only", _patched_simulate):
+            sim.step()
+        articulation.update(sim.cfg.dt)
+
+        assert captured, "collision pipeline did not run — _needs_collision_pipeline is False"
+
+        bq_root = captured["bq_root"]
+        jq_root = captured["jq_root"]
+        diff = (jq_root - bq_root).abs().max().item()
+        assert diff < 0.01, (
+            f"body_q was stale when collide() ran: diff={diff:.4f}m, jq={jq_root.tolist()}, bq={bq_root.tolist()}"
+        )
+
+
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_set_material_properties(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Test getting and setting material properties (friction/restitution) via view-level APIs."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(
+        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+    )
+
+    # Play the simulator
+    sim.reset()
+
+    # Get friction/restitution bindings via view-level API
+    model = SimulationManager.get_model()
+    friction_binding = articulation._root_view.get_attribute("shape_material_mu", model)[:, 0]
+    restitution_binding = articulation._root_view.get_attribute("shape_material_restitution", model)[:, 0]
+    num_shapes = friction_binding.shape[1]
+
+    # Test 1: Set all shapes via in-place writes to the warp binding
+    friction = torch.empty(num_articulations, num_shapes, device=device).uniform_(0.4, 0.8)
+    restitution = torch.empty(num_articulations, num_shapes, device=device).uniform_(0.0, 0.2)
+
+    wp.to_torch(friction_binding)[:] = friction
+    wp.to_torch(restitution_binding)[:] = restitution
+    SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+
+    # Simulate physics
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    # Verify by reading back from the binding
+    mu = wp.to_torch(friction_binding)
+    restitution_check = wp.to_torch(restitution_binding)
+    torch.testing.assert_close(mu, friction)
+    torch.testing.assert_close(restitution_check, restitution)
+
+    # Test 2: Set subset of shapes (only shape 0)
+    if num_shapes > 1:
+        subset_friction = torch.empty(num_articulations, device=device).uniform_(0.1, 0.2)
+        subset_restitution = torch.empty(num_articulations, device=device).uniform_(0.5, 0.6)
+
+        wp.to_torch(friction_binding)[:, 0] = subset_friction
+        wp.to_torch(restitution_binding)[:, 0] = subset_restitution
+        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+
+        sim.step()
+        articulation.update(sim.cfg.dt)
+
+        # Check only the subset was updated
+        mu_updated = wp.to_torch(friction_binding)
+        restitution_updated = wp.to_torch(restitution_binding)
+        torch.testing.assert_close(mu_updated[:, 0], subset_friction)
+        torch.testing.assert_close(restitution_updated[:, 0], subset_restitution)
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_randomize_rigid_body_com(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Test that randomize_rigid_body_com modifies CoM and affects simulation dynamics."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+
+    sim.reset()
+    assert articulation.is_initialized
+
+    original_com = wp.to_torch(articulation.data.body_com_pos_b).clone()
+
+    com_offset = torch.zeros(num_articulations, articulation.num_bodies, 3, device=device)
+    com_offset[..., 0] = 0.5
+    new_com = original_com + com_offset
+    env_ids = torch.arange(num_articulations, device=device, dtype=torch.int32)
+    articulation.set_coms_index(coms=new_com, env_ids=env_ids)
+
+    updated_com = wp.to_torch(articulation.data.body_com_pos_b)
+    torch.testing.assert_close(updated_com, new_com, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Test that Newton collider offset randomization (shape_margin, shape_gap) takes effect."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+
+    sim.reset()
+    assert articulation.is_initialized
+
+    model = SimulationManager.get_model()
+    original_margin = wp.to_torch(articulation.root_view.get_attribute("shape_margin", model)).clone()
+    original_gap = wp.to_torch(articulation.root_view.get_attribute("shape_gap", model)).clone()
+
+    new_margin = original_margin.clone()
+    new_margin[:, 0] += 0.01
+    articulation.root_view.set_attribute("shape_margin", model, wp.from_torch(new_margin, dtype=wp.float32))
+
+    new_gap = original_gap.clone()
+    new_gap[:, 0] += 0.005
+    articulation.root_view.set_attribute("shape_gap", model, wp.from_torch(new_gap, dtype=wp.float32))
+
+    with wp.ScopedDevice(device):
+        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.SHAPE_PROPERTIES)
+
+    updated_margin = wp.to_torch(articulation.root_view.get_attribute("shape_margin", model))
+    updated_gap = wp.to_torch(articulation.root_view.get_attribute("shape_gap", model))
+    torch.testing.assert_close(updated_margin, new_margin)
+    torch.testing.assert_close(updated_gap, new_gap)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])

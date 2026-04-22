@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Re-exports the base IMU data class for backwards compatibility."""
+"""Factory class for IMU data."""
 
 from __future__ import annotations
 
@@ -14,12 +14,13 @@ from isaaclab.utils.backend_utils import FactoryBase
 from .base_imu_data import BaseImuData
 
 if TYPE_CHECKING:
+    from isaaclab_newton.sensors.imu import ImuData as NewtonImuData
     from isaaclab_physx.sensors.imu import ImuData as PhysXImuData
 
 
 class ImuData(FactoryBase, BaseImuData):
     """Factory for creating IMU data instances."""
 
-    def __new__(cls, *args, **kwargs) -> BaseImuData | PhysXImuData:
-        """Create a new instance of an IMU data based on the backend."""
+    def __new__(cls, *args, **kwargs) -> BaseImuData | PhysXImuData | NewtonImuData:
+        """Create a new instance of IMU data based on the backend."""
         return super().__new__(cls, *args, **kwargs)

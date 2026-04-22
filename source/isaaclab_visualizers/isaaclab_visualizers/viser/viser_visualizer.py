@@ -162,9 +162,9 @@ class ViserVisualizer(BaseVisualizer):
             logger=logger,
             title="ViserVisualizer Configuration",
             rows=[
-                ("camera_position", self.cfg.camera_position),
-                ("camera_target", self.cfg.camera_target),
-                ("camera_source", self.cfg.camera_source),
+                ("eye", self.cfg.eye),
+                ("lookat", self.cfg.lookat),
+                ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("port", self.cfg.port),
                 ("viewer_url", viewer_url),
@@ -182,7 +182,7 @@ class ViserVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
-        if self.cfg.camera_source == "usd_path":
+        if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
         self._apply_pending_camera_pose()
 
@@ -259,7 +259,8 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         if self.cfg.open_browser:
             _open_viser_web_viewer(self.cfg.port)
-        self._set_viser_camera_view(self._resolve_initial_camera_pose())
+        initial_pose = self._resolve_initial_camera_pose()
+        self._set_viser_camera_view(initial_pose)
         self._sim_time = 0.0
 
     def _close_viewer(self, finalize_viser: bool = False) -> None:
@@ -277,15 +278,15 @@ class ViserVisualizer(BaseVisualizer):
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
         """Resolve initial camera pose from config or USD camera path."""
-        if self.cfg.camera_source == "usd_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
+        if self.cfg.cam_source == "prim_path":
+            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
             if pose is not None:
                 return pose
-            logger.warning(
-                "[ViserVisualizer] camera_usd_path '%s' not found; using configured camera.",
-                self.cfg.camera_usd_path,
+            raise RuntimeError(
+                "[ViserVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
+                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
             )
-        return self.cfg.camera_position, self.cfg.camera_target
+        return self._resolve_cfg_camera_pose("ViserVisualizer")
 
     def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
         """Try applying camera pose to active viser clients.
@@ -341,7 +342,7 @@ class ViserVisualizer(BaseVisualizer):
 
     def _update_camera_from_usd_path(self) -> None:
         """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
+        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
         if pose is None:
             return
         if self._last_camera_pose == pose or self._pending_camera_pose == pose:

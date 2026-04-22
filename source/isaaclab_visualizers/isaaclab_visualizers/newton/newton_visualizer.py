@@ -56,7 +56,7 @@ class NewtonViewerGL(ViewerGL):
             self._fallback_draw_controls = True
 
     def is_training_paused(self) -> bool:
-        """Return whether training is paused by viewer controls."""
+        """Return whether simulation is paused by viewer controls."""
         return self._paused_training
 
     def is_rendering_paused(self) -> bool:
@@ -68,7 +68,7 @@ class NewtonViewerGL(ViewerGL):
         imgui.separator()
         imgui.text("IsaacLab Controls")
 
-        pause_label = "Resume Training" if self._paused_training else "Pause Training"
+        pause_label = "Resume Simulation" if self._paused_training else "Pause Simulation"
         if imgui.button(pause_label):
             self._paused_training = not self._paused_training
 
@@ -110,7 +110,7 @@ class NewtonViewerGL(ViewerGL):
             imgui.set_next_window_pos(imgui.ImVec2(320, 10))
 
         flags = 0
-        if imgui.begin("Training Controls", flags=flags):
+        if imgui.begin("Simulation Controls", flags=flags):
             self._render_training_controls(imgui)
         imgui.end()
         return None
@@ -190,8 +190,14 @@ class NewtonViewerGL(ViewerGL):
                     show_contacts = self.show_contacts
                     changed, self.show_contacts = imgui.checkbox("Show Contacts", show_contacts)
 
+                    show_collision = self.show_collision
+                    changed, self.show_collision = imgui.checkbox("Show Collision", show_collision)
+
                     show_springs = self.show_springs
                     changed, self.show_springs = imgui.checkbox("Show Springs", show_springs)
+
+                    show_inertia_boxes = self.show_inertia_boxes
+                    changed, self.show_inertia_boxes = imgui.checkbox("Show Inertia Boxes", show_inertia_boxes)
 
                     show_com = self.show_com
                     changed, self.show_com = imgui.checkbox("Show Center of Mass", show_com)
@@ -286,29 +292,27 @@ class NewtonVisualizer(BaseVisualizer):
             self._model = scene_data_provider.get_newton_model()
         self._state = scene_data_provider.get_newton_state(self._env_ids)
 
-        try:
-            self._viewer = NewtonViewerGL(
-                width=self.cfg.window_width,
-                height=self.cfg.window_height,
-                headless=self.cfg.headless,
-                metadata=metadata,
-                update_frequency=self.cfg.update_frequency,
-            )
-        except Exception as exc:
-            if not self.cfg.headless:
-                raise
-            self._viewer = None
-            self._headless_no_viewer = True
-            logger.info(
-                "[NewtonVisualizer] Headless fallback enabled (ViewerGL unavailable in this environment): %s",
-                exc,
-            )
+        # Use pyglet's EGL headless backend when requested. Must run before the first
+        # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.
+        if self.cfg.headless:
+            import pyglet
+
+            pyglet.options["headless"] = True
+
+        self._viewer = NewtonViewerGL(
+            width=self.cfg.window_width,
+            height=self.cfg.window_height,
+            headless=self.cfg.headless,
+            metadata=metadata,
+            update_frequency=self.cfg.update_frequency,
+        )
 
         if self._viewer is not None:
             max_worlds = self.cfg.max_worlds
             self._viewer.set_model(self._model, max_worlds=max_worlds)
             self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-            self._apply_camera_pose(self._resolve_initial_camera_pose())
+            initial_pose = self._resolve_initial_camera_pose()
+            self._apply_camera_pose(initial_pose)
             self._viewer.up_axis = 2  # Z-up
 
             self._viewer.scaling = 1.0
@@ -316,7 +320,9 @@ class NewtonVisualizer(BaseVisualizer):
 
             self._viewer.show_joints = self.cfg.show_joints
             self._viewer.show_contacts = self.cfg.show_contacts
+            self._viewer.show_collision = self.cfg.show_collision
             self._viewer.show_springs = self.cfg.show_springs
+            self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
             self._viewer.show_com = self.cfg.show_com
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
@@ -334,13 +340,11 @@ class NewtonVisualizer(BaseVisualizer):
             title="NewtonVisualizer Configuration",
             rows=[
                 (
-                    "camera_position",
-                    tuple(float(x) for x in self._viewer.camera.pos)
-                    if self._viewer is not None
-                    else self.cfg.camera_position,
+                    "eye",
+                    tuple(float(x) for x in self._viewer.camera.pos) if self._viewer is not None else self.cfg.eye,
                 ),
-                ("camera_target", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.camera_target),
-                ("camera_source", self.cfg.camera_source),
+                ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
+                ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
             ],
@@ -364,7 +368,7 @@ class NewtonVisualizer(BaseVisualizer):
                 self._state = self._scene_data_provider.get_newton_state(self._env_ids)
             return
 
-        if self.cfg.camera_source == "usd_path":
+        if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
         self._state = self._scene_data_provider.get_newton_state(self._env_ids)
@@ -429,15 +433,15 @@ class NewtonVisualizer(BaseVisualizer):
         Returns:
             Camera eye and target tuples.
         """
-        if self.cfg.camera_source == "usd_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
+        if self.cfg.cam_source == "prim_path":
+            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
             if pose is not None:
                 return pose
-            logger.warning(
-                "[NewtonVisualizer] camera_usd_path '%s' not found; using configured camera.",
-                self.cfg.camera_usd_path,
+            raise RuntimeError(
+                "[NewtonVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
+                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
             )
-        return self.cfg.camera_position, self.cfg.camera_target
+        return self._resolve_cfg_camera_pose("NewtonVisualizer")
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply camera eye/target pose to the Newton viewer.
@@ -461,7 +465,7 @@ class NewtonVisualizer(BaseVisualizer):
 
     def _update_camera_from_usd_path(self) -> None:
         """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
+        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
         if pose is None:
             return
         if self._last_camera_pose == pose:

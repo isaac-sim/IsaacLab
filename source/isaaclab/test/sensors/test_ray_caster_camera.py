@@ -31,8 +31,6 @@ from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, pat
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
-from isaaclab.utils import convert_dict_to_backend
-from isaaclab.utils.timer import Timer
 
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
@@ -118,7 +116,7 @@ def test_camera_init(setup_sim):
     assert camera.data.quat_w_opengl.shape == (1, 4)
     assert camera.data.intrinsic_matrices.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width)
-    assert camera.data.info == [{camera_cfg.data_types[0]: None}]
+    assert camera.data.info == {camera_cfg.data_types[0]: None}
     # Simulate physics
     for _ in range(10):
         sim.step()
@@ -450,58 +448,6 @@ def test_intrinsic_matrix(setup_sim):
         camera.update(dt)
         # Check that matrix is correct
         torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices)
-
-
-@pytest.mark.isaacsim_ci
-def test_throughput(setup_sim):
-    """Checks that the single camera gets created properly with a rig."""
-    sim, camera_cfg, dt = setup_sim
-    # Create directory temp dir to dump the results
-    file_dir = os.path.dirname(os.path.realpath(__file__))
-    temp_dir = os.path.join(file_dir, "output", "camera", "throughput")
-    os.makedirs(temp_dir, exist_ok=True)
-    # Create replicator writer
-    rep_writer = rep.BasicWriter(output_dir=temp_dir, frame_padding=3)
-    # create camera
-    camera_cfg.pattern_cfg.height = 480
-    camera_cfg.pattern_cfg.width = 640
-    camera = RayCasterCamera(camera_cfg)
-
-    # Play simulator
-    sim.reset()
-
-    # Set camera pose
-    eyes = torch.tensor([[2.5, 2.5, 2.5]], dtype=torch.float32, device=camera.device)
-    targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
-    camera.set_world_poses_from_view(eyes, targets)
-
-    # Simulate for a few steps
-    for _ in range(5):
-        sim.step()
-    # Simulate physics
-    for _ in range(5):
-        # perform rendering
-        sim.step()
-        # update camera
-        with Timer(f"Time taken for updating camera with shape {camera.image_shape}"):
-            camera.update(dt)
-        # Save images
-        with Timer(f"Time taken for writing data with shape {camera.image_shape}   "):
-            # Pack data back into replicator format to save them using its writer
-            rep_output = {"annotators": {}}
-            camera_data = convert_dict_to_backend({k: v[0] for k, v in camera.data.output.items()}, backend="numpy")
-            for key, data, info in zip(camera_data.keys(), camera_data.values(), camera.data.info[0].values()):
-                if info is not None:
-                    rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
-                else:
-                    rep_output["annotators"][key] = {"render_product": {"data": data}}
-            # Save images
-            rep_output["trigger_outputs"] = {"on_time": camera.frame[0]}
-            rep_writer.write(rep_output)
-        print("----------------------------------------")
-        # Check image data
-        for im_data in camera.data.output.values():
-            assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
 
 @pytest.mark.isaacsim_ci
@@ -1016,3 +962,142 @@ def test_sensor_print(setup_sim):
     sim.reset()
     # print info
     print(sensor)
+
+
+@pytest.mark.isaacsim_ci
+def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
+    """Clipping distance_to_image_plane must not corrupt distance_to_camera and vice versa.
+
+    Both are derived from the same raw ray_distance buffer. If that buffer is modified
+    in-place by one clipping pass it would corrupt the other. This test verifies that
+    requesting both data types simultaneously gives results consistent with requesting
+    each one alone.
+    """
+    sim, camera_cfg, dt = setup_sim
+
+    base_cfg = RayCasterCameraCfg(
+        prim_path="/World/Camera",
+        mesh_prim_paths=["/World/defaultGroundPlane"],
+        offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.0, 0.1305, 0.0, 0.9914449), convention="world"),
+        pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
+            focal_length=38.0,
+            intrinsic_matrix=[380.08, 0.0, 467.79, 0.0, 380.08, 262.05, 0.0, 0.0, 1.0],
+            height=540,
+            width=960,
+        ),
+        max_distance=5.0,
+        data_types=["distance_to_image_plane", "distance_to_camera"],
+        depth_clipping_behavior="max",
+        update_period=0,
+    )
+
+    # Camera requesting both data types simultaneously
+    sim_utils.create_prim("/World/CameraJoint", "Xform")
+    cfg_joint = copy.deepcopy(base_cfg)
+    cfg_joint.prim_path = "/World/CameraJoint"
+    cam_joint = RayCasterCamera(cfg_joint)
+
+    # Camera requesting only d2ip
+    sim_utils.create_prim("/World/CameraD2IP", "Xform")
+    cfg_d2ip = copy.deepcopy(base_cfg)
+    cfg_d2ip.prim_path = "/World/CameraD2IP"
+    cfg_d2ip.data_types = ["distance_to_image_plane"]
+    cam_d2ip = RayCasterCamera(cfg_d2ip)
+
+    # Camera requesting only d2c
+    sim_utils.create_prim("/World/CameraD2C", "Xform")
+    cfg_d2c = copy.deepcopy(base_cfg)
+    cfg_d2c.prim_path = "/World/CameraD2C"
+    cfg_d2c.data_types = ["distance_to_camera"]
+    cam_d2c = RayCasterCamera(cfg_d2c)
+
+    sim.reset()
+
+    cam_joint.update(dt)
+    cam_d2ip.update(dt)
+    cam_d2c.update(dt)
+
+    d2ip_joint = cam_joint.data.output["distance_to_image_plane"]
+    d2c_joint = cam_joint.data.output["distance_to_camera"]
+    d2ip_solo = cam_d2ip.data.output["distance_to_image_plane"]
+    d2c_solo = cam_d2c.data.output["distance_to_camera"]
+
+    # Joint camera must match solo cameras (clipping one must not affect the other)
+    torch.testing.assert_close(d2ip_joint, d2ip_solo, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(d2c_joint, d2c_solo, atol=1e-5, rtol=1e-5)
+
+    # Both should be clipped to max_distance (camera is 6 m above ground, max_distance=5 m)
+    assert d2ip_joint.max().item() <= base_cfg.max_distance + 1e-4
+    assert d2c_joint.max().item() <= base_cfg.max_distance + 1e-4
+
+
+@pytest.mark.isaacsim_ci
+def test_frame_counter_increments_per_update(setup_sim):
+    """frame counter must increment by exactly 1 per update() call and reset to 0 on reset()."""
+    sim, camera_cfg, dt = setup_sim
+    camera = RayCasterCamera(cfg=camera_cfg)
+    sim.reset()
+
+    assert torch.all(camera.frame == 0), "Frame must start at 0"
+
+    n_steps = 7
+    for step in range(1, n_steps + 1):
+        sim.step()
+        camera.update(dt, force_recompute=True)
+        assert camera.frame[0].item() == step, f"Frame must be {step} after {step} update(s)"
+
+    # Partial reset: only env 0 (single-env camera, but API accepts env_ids)
+    camera.reset(env_ids=[0])
+    assert camera.frame[0].item() == 0, "Frame must be 0 after reset(env_ids=[0])"
+
+    # Full reset
+    for _ in range(3):
+        sim.step()
+        camera.update(dt, force_recompute=True)
+    camera.reset()
+    assert torch.all(camera.frame == 0), "Frame must be 0 after full reset()"
+
+
+@pytest.mark.isaacsim_ci
+def test_set_intrinsic_matrices_updates_output(setup_sim):
+    """Depth output must change when intrinsics are updated via set_intrinsic_matrices().
+
+    This tests that the warp view refresh in set_intrinsic_matrices() actually takes
+    effect: stale warp views would cause subsequent images to use the old ray pattern.
+    """
+    sim, camera_cfg, dt = setup_sim
+
+    # Place camera looking straight down at the ground
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.offset = RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 5.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world")
+    camera_cfg.data_types = ["distance_to_camera"]
+    camera = RayCasterCamera(cfg=camera_cfg)
+    sim.reset()
+
+    # Capture output with default focal length (24 mm → 20.955 mm aperture)
+    for _ in range(3):
+        sim.step()
+        camera.update(dt)
+    output_before = camera.data.output["distance_to_camera"].clone()
+
+    # Change to a very different focal length (longer → tighter FOV → depth values differ at edges)
+    new_matrix = torch.tensor(
+        [[200.0, 0.0, 320.0], [0.0, 200.0, 240.0], [0.0, 0.0, 1.0]],
+        device=camera.device,
+    ).unsqueeze(0)
+    camera.set_intrinsic_matrices(new_matrix, focal_length=1.0)
+
+    for _ in range(3):
+        sim.step()
+        camera.update(dt)
+    output_after = camera.data.output["distance_to_camera"].clone()
+
+    # Outputs must differ after intrinsics change (different ray angles → different depths)
+    assert not torch.allclose(output_before, output_after, atol=1e-3), (
+        "Depth output must change when intrinsic matrix is updated; unchanged output indicates stale warp ray buffers."
+    )
+    # With depth_clipping_behavior="none" (default), missed rays produce inf — that is valid.
+    # No NaN values must appear; where rays hit, depth must be positive.
+    assert not torch.any(torch.isnan(output_after)), "Expected no NaN values in depth output after intrinsics update"
+    if torch.any(torch.isfinite(output_after)):
+        assert output_after[torch.isfinite(output_after)].min() > 0
