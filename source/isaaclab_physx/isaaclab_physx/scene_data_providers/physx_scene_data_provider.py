@@ -489,7 +489,10 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         if rigid_count == 0:
             self._warn_once(
                 "rigid-source-unused",
-                "[PhysxSceneDataProvider] RigidBodyView returned no transforms; filled from XformPrimView where needed.",
+                (
+                    "[PhysxSceneDataProvider] RigidBodyView returned no transforms; "
+                    "filled from XformPrimView where needed."
+                ),
                 level=logging.DEBUG,
             )
 

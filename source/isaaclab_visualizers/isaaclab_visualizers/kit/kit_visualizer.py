@@ -395,7 +395,7 @@ class KitVisualizer(BaseVisualizer):
         self._apply_visual_point_instancer_visibility(usd_stage, num_envs, visible)
 
     def _apply_visual_point_instancer_visibility(self, usd_stage, num_envs: int, visible_env_ids: set[int]) -> None:
-        """Set ``PointInstancer.invisibleIds`` for `/Visuals` markers with one instance per env (e.g. velocity arrows)."""
+        """Set ``PointInstancer.invisibleIds`` for per-env `/Visuals` markers (e.g. velocity arrows)."""
         self._point_instancer_invisible_ids_backup.clear()
         hidden = [i for i in range(num_envs) if i not in visible_env_ids]
         vt_hidden = Vt.Int64Array([int(i) for i in hidden])
