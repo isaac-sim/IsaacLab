@@ -158,9 +158,6 @@ There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments f
 
 Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
 
-Note, in the current release, the KitVisualizer does not fully support partial visualization. The non-selected environments
-are made invisible which does not improve performance much.
-
 .. _visualization-common-modes:
 
 .. list-table:: Common modes
