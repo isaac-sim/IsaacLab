@@ -88,7 +88,9 @@ class AnymalCEnv(DirectRLEnv):
         height_data = None
         if isinstance(self.cfg, AnymalCRoughEnvCfg):
             height_data = (
-                self._height_scanner.data.pos_w[:, 2].unsqueeze(1) - self._height_scanner.data.ray_hits_w[..., 2] - 0.5
+                wp.to_torch(self._height_scanner.data.pos_w)[:, 2].unsqueeze(1)
+                - wp.to_torch(self._height_scanner.data.ray_hits_w)[..., 2]
+                - 0.5
             ).clip(-1.0, 1.0)
         obs = torch.cat(
             [

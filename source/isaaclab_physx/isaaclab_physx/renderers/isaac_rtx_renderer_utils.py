@@ -9,16 +9,17 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 
 import isaaclab.sim as sim_utils
 
 logger = logging.getLogger(__name__)
 
-# Module-level dedup stamp: tracks the last (sim instance, physics step) at
+# Module-level dedup stamp: tracks the last (sim instance, physics step, render generation) at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
 # new ``SimulationContext`` (e.g. in a new test) automatically invalidates
 # any stale stamp from a previous instance.
-_last_render_update_key: tuple[int, int] = (0, -1)
+_last_render_update_key: tuple[int, int, int] = (0, -1, -1)
 
 _STREAMING_WAIT_TIMEOUT_S: float = 30.0
 
@@ -58,7 +59,7 @@ def _wait_for_streaming_complete() -> None:
 
 
 def ensure_isaac_rtx_render_update() -> None:
-    """Ensure the Isaac RTX renderer has been pumped for the current physics step.
+    """Ensure the Isaac RTX renderer has been pumped for the current sim step.
 
     This keeps the Kit-specific ``app.update()`` logic inside the renderers
     package rather than in the backend-agnostic ``SimulationContext``.
@@ -66,11 +67,11 @@ def ensure_isaac_rtx_render_update() -> None:
     Safe to call from multiple ``Camera`` / ``TiledCamera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
     because the module-level ``_last_render_update_key`` already matches the
-    current ``(id(sim), step_count)`` pair.
+    current ``(id(sim), step_count, render_generation)`` tuple.
 
-    The key is a ``(sim_instance_id, step_count)`` tuple so that creating a new
-    ``SimulationContext`` (e.g. in a subsequent test) automatically invalidates
-    any stale stamp left over from a previous instance.
+    The key is a ``(sim_instance_id, step_count, render_generation)`` tuple so that:
+    - creating a new ``SimulationContext`` invalidates stale stamps, and
+    - render/reset transitions that do not advance physics step count still force a fresh update.
 
     After the initial ``app.update()`` the streaming subsystem is queried
     synchronously via ``UsdContext.get_stage_streaming_status()``.  If textures
@@ -88,7 +89,8 @@ def ensure_isaac_rtx_render_update() -> None:
     if sim is None:
         return
 
-    key = (id(sim), sim._physics_step_count)
+    render_generation = getattr(sim, "render_generation", getattr(sim, "_render_generation", 0))
+    key = (id(sim), sim._physics_step_count, render_generation)
     if _last_render_update_key == key:
         return  # Already pumped this step (by another camera or a visualizer)
 
@@ -116,3 +118,28 @@ def ensure_isaac_rtx_render_update() -> None:
     sim.set_setting("/app/player/playSimulations", True)
 
     _last_render_update_key = key
+
+
+def pump_kit_app_for_headless_video_render_if_needed(sim: Any) -> None:
+    """Pump Kit app-loop for headless rgb-array rendering when needed.
+
+    Isaac Sim / RTX specific; kept out of backend-agnostic :class:`~isaaclab.sim.SimulationContext`.
+    """
+    if not bool(sim.get_setting("/isaaclab/video/enabled")):
+        return
+
+    from isaaclab.utils.version import has_kit
+
+    if not has_kit():
+        return
+    if any(viz.pumps_app_update() for viz in sim.visualizers):
+        return
+    try:
+        ensure_isaac_rtx_render_update()
+    except (ImportError, AttributeError, ModuleNotFoundError) as exc:
+        logger.debug("[isaac_rtx] Skipping Kit app-loop pump in render() (non-Kit env): %s", exc)
+    except Exception as exc:
+        logger.warning(
+            "[isaac_rtx] Kit app-loop pump failed in render() — video frames may be stale or black: %s",
+            exc,
+        )

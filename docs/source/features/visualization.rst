@@ -104,17 +104,14 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
     sim_cfg = SimulationCfg(
         visualizer_cfgs=[
             KitVisualizerCfg(
-                viewport_name="Visualizer Viewport",
-                create_viewport=True,
-                dock_position="SAME",
-                window_width=1280,
-                window_height=720,
-                camera_position=(0.0, 0.0, 20.0), # high top down view
-                camera_target=(0.0, 0.0, 0.0),
+                # Omit create_viewport (default False) to use the active viewport; set
+                # create_viewport=True and optionally viewport_name to add a dedicated window.
+                eye=(0.0, 0.0, 20.0), # high top down view
+                lookat=(0.0, 0.0, 0.0),
             ),
             NewtonVisualizerCfg(
-                camera_position=(5.0, 5.0, 5.0), # closer quarter view
-                camera_target=(0.0, 0.0, 0.0),
+                eye=(5.0, 5.0, 5.0), # closer quarter view
+                lookat=(0.0, 0.0, 0.0),
                 show_joints=True,
             ),
             RerunVisualizerCfg(
@@ -193,20 +190,18 @@ Omniverse Visualizer
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
     visualizer_cfg = KitVisualizerCfg(
-        # Viewport settings
-        viewport_name="Visualizer Viewport",      # Viewport window name
-        create_viewport=True,                     # Create new viewport vs. use existing
-        dock_position="SAME",                     # Docking: 'LEFT', 'RIGHT', 'BOTTOM', 'SAME'
-        window_width=1280,                        # Viewport width in pixels
-        window_height=720,                        # Viewport height in pixels
+        # Viewport: default is create_viewport=False (use active viewport).
+        # Set create_viewport=True to create a docked window; viewport_name=None uses the default name.
+        create_viewport=False,
+        dock_position="SAME",
+        window_width=1280,
+        window_height=720,
 
-        # Camera settings
-        camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
-        camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
+        eye=(8.0, 8.0, 3.0),
+        lookat=(0.0, 0.0, 0.0),
 
-        # Feature toggles
-        enable_markers=True,                      # Enable visualization markers
-        enable_live_plots=True,                   # Enable live plots (auto-expands frames)
+        enable_markers=True,
+        enable_live_plots=True,
     )
 
 
@@ -217,7 +212,7 @@ Newton Visualizer
 
 - Lightweight OpenGL rendering with low overhead
 - Visualization markers (joints, contacts, springs, COM)
-- Training and rendering pause controls
+- Simulation and rendering pause controls
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 
@@ -255,8 +250,8 @@ Newton Visualizer
         window_height=1080,                       # Window height in pixels
 
         # Camera settings
-        camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
-        camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
+        eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
+        lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -303,8 +298,8 @@ Rerun Visualizer
         bind_address="0.0.0.0",                  # Endpoint host formatting/reuse checks
 
         # Camera settings
-        camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
-        camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
+        eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
+        lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
 
         # History settings
         keep_historical_data=False,               # Keep transforms for time scrubbing
@@ -391,12 +386,6 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 .. code-block:: bash
 
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun --num_envs 512
-
-
-.. note::
-
-    A future feature will support visualizing only a subset of environments, which will improve visualization performance
-    and reduce resource usage while maintaining full-scale training in the background.
 
 
 **Rerun Visualizer FPS Control**

@@ -777,3 +777,35 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
     )
 
     del camera_usd, camera_warp
+
+
+@pytest.mark.isaacsim_ci
+def test_image_mesh_ids_identifies_hit_mesh(setup_simulation):
+    """image_mesh_ids must contain 0 for ground-plane hits (only one mesh registered)."""
+    sim, dt, camera_cfg = setup_simulation
+
+    cfg = copy.deepcopy(camera_cfg)
+    cfg.update_mesh_ids = True
+    cfg.data_types = ["distance_to_camera"]
+
+    camera = MultiMeshRayCasterCamera(cfg=cfg)
+    sim.reset()
+    camera.update(dt)
+
+    mesh_ids = camera.data.image_mesh_ids  # shape (N, H, W, 1), dtype torch.int16
+    assert mesh_ids is not None, "image_mesh_ids should not be None when update_mesh_ids=True"
+    assert mesh_ids.shape[-1] == 1
+    assert mesh_ids.dtype == torch.int16
+
+    # Identify actual hits via distance < inf. This relies on depth_clipping_behavior="none"
+    # (the default), which leaves missed rays at the Warp-kernel fill value of inf.
+    # Under "max" clipping, missed rays would be clamped to a finite max_distance, making
+    # the inf comparison incorrect.
+    hit_mask = camera.data.output["distance_to_camera"][0, :, :, 0] < float("inf")
+    assert hit_mask.any(), "Expected at least some rays to hit the ground plane"
+
+    # All hits against the single registered mesh must carry mesh_id=0 (first mesh index).
+    hit_mesh_ids = mesh_ids[0, :, :, 0][hit_mask]
+    assert torch.all(hit_mesh_ids == 0), (
+        f"All hits against the single ground mesh must have mesh_id=0, got: {hit_mesh_ids.unique()}"
+    )
