@@ -12,9 +12,19 @@ import re
 from collections import deque
 from typing import Any
 
+import warp as wp
+
 from pxr import UsdGeom
 
 from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
+from isaaclab.physics.scene_data_buffers import TransformBufferPool
+from isaaclab.physics.scene_data_types import (
+    MatrixLayout,
+    QuaternionConvention,
+    TransformArrayData,
+    TransformData,
+    TransformFormat,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +56,10 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         # Determine if usd stage sync is required for selected renderers and visualizers
         requirements = self._simulation_context.get_scene_data_requirements()
         self._needs_usd_sync = bool(requirements.requires_usd_stage)
+
+        # Typed transform API state
+        self._transform_buffer_pool = TransformBufferPool()
+        self._generation: int = 0
 
     def _warn_once(self, key: str, message: str, *args) -> None:
         """Emit a warning once per unique key.
@@ -105,6 +119,7 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         (or other USD-based) visualizer is in use. When both sim and rendering backend
         are Newton (or Rerun), the sync is skipped to avoid unnecessary slowdown.
         """
+        self._generation += 1
         if not self._needs_usd_sync:
             return
         try:
@@ -304,3 +319,82 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
             orientations.append(per_world_ori)
 
         return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
+
+    # ---- Typed transform API -----------------------------------------------------------------
+
+    def get_source_format(self) -> TransformFormat:
+        """Return Newton's native transform format.
+
+        Returns:
+            :attr:`TransformFormat.TRANSFORM` — Newton stores body poses as
+            packed ``wp.transformf`` arrays in ``state.body_q``.
+        """
+        return TransformFormat.TRANSFORM
+
+    def get_body_transforms(
+        self,
+        target_format: TransformFormat,
+        *,
+        env_ids: list[int] | None = None,
+        quat_convention: QuaternionConvention = QuaternionConvention.XYZW,
+        matrix_layout: MatrixLayout = MatrixLayout.ROW_MAJOR,
+        double_precision: bool = False,
+        stream: wp.Stream | None = None,
+        allow_passthrough: bool = True,
+        index_map: wp.array | None = None,
+    ) -> TransformData | None:
+        """Return body transforms in the requested format.
+
+        When *target_format* is :attr:`TransformFormat.TRANSFORM` and
+        *allow_passthrough* is ``True``, this returns Newton's own
+        ``state.body_q`` array directly — zero copies, zero kernel launches.
+
+        Args:
+            target_format: Desired output transform representation.
+            env_ids: Optional environment subset (currently unused).
+            quat_convention: Quaternion component ordering for VEC3_QUAT output.
+            matrix_layout: Matrix memory layout for MAT44 / VEC3_MAT33 output.
+            double_precision: Use 64-bit floats for MAT44 output.
+            stream: CUDA stream for deferred kernel execution.
+            allow_passthrough: If ``True`` and formats match, return source
+                data directly without copying.
+            index_map: Optional index remapping for subset scatter writes.
+
+        Returns:
+            Typed transform data, or ``None`` when state is unavailable.
+        """
+        try:
+            from isaaclab_newton.physics import NewtonManager
+
+            state = NewtonManager.get_state_0()
+            if state is None or state.body_q is None:
+                return None
+
+            body_q = state.body_q
+            device = body_q.device.alias if hasattr(body_q.device, "alias") else str(body_q.device)
+            count = body_q.shape[0]
+
+            source = TransformArrayData(
+                count=count,
+                device=device,
+                transforms=body_q,
+            )
+
+            return self._transform_buffer_pool.get_or_convert(
+                source,
+                target_format,
+                generation=self._generation,
+                quat_convention=quat_convention,
+                matrix_layout=matrix_layout,
+                double_precision=double_precision,
+                stream=stream,
+                allow_passthrough=allow_passthrough,
+                index_map=index_map,
+            )
+        except Exception as exc:
+            self._warn_once(
+                "get-body-transforms-failed",
+                "[NewtonSceneDataProvider] get_body_transforms() failed: %s",
+                exc,
+            )
+            return None

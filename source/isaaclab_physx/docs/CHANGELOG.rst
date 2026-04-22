@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.28 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`get_body_transforms` and :meth:`get_source_format` to
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`,
+  implementing the typed transform API with zero-copy
+  :class:`~isaaclab.physics.Vec3QuatTransforms` wrapping PhysX tensor views.
+
+
 0.5.27 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 

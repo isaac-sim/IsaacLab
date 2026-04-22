@@ -338,14 +338,37 @@ class OVRTXRenderer(BaseRenderer):
         pass
 
     def update_transforms(self) -> None:
-        """Sync physics objects to OVRTX."""
+        """Sync physics objects to OVRTX via the typed Scene Data Provider API.
+
+        Uses :meth:`~isaaclab.physics.BaseSceneDataProvider.get_body_transforms`
+        to get transforms as column-major ``mat44d`` matrices, matching OVRTX's
+        native format. Falls back to the legacy Newton state path when the
+        typed API is unavailable.
+        """
         if self._object_binding is None or self._object_newton_indices is None:
             return
 
         try:
+            from isaaclab.physics.scene_data_types import MatrixLayout, TransformFormat
             from isaaclab.sim import SimulationContext
 
             provider = SimulationContext.instance().initialize_scene_data_provider()
+
+            transforms = provider.get_body_transforms(
+                TransformFormat.MAT44,
+                matrix_layout=MatrixLayout.COLUMN_MAJOR,
+                double_precision=True,
+                allow_passthrough=False,
+                index_map=self._object_newton_indices,
+            )
+
+            if transforms is not None:
+                with self._object_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
+                    ovrtx_buf = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
+                    wp.copy(ovrtx_buf, transforms.matrices)
+                return
+
+            # Legacy fallback: use Newton state directly
             newton_state = provider.get_newton_state()
             if newton_state is None:
                 return

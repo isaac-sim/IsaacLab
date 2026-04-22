@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.1.3 (2026-04-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to use the typed
+  Scene Data Provider API (:meth:`get_body_transforms`) for transform updates,
+  with automatic fallback to the legacy kernel path.
+
+
 0.1.2 (2026-03-23)
 ~~~~~~~~~~~~~~~~~~
 

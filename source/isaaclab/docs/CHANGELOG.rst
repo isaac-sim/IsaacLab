@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+4.6.22 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added typed transform format negotiation system for the Scene Data Provider:
+  :class:`~isaaclab.physics.TransformFormat`, :class:`~isaaclab.physics.TransformData`,
+  :class:`~isaaclab.physics.Vec3QuatTransforms`, :class:`~isaaclab.physics.Vec3Mat33Transforms`,
+  :class:`~isaaclab.physics.TransformArrayData`, :class:`~isaaclab.physics.Mat44Transforms`,
+  :class:`~isaaclab.physics.QuaternionConvention`, :class:`~isaaclab.physics.MatrixLayout`.
+* Added :class:`~isaaclab.physics.ConversionDispatcher` with centralized GPU-only
+  Warp kernels for all transform format conversions, replacing per-consumer
+  conversion code.
+* Added :class:`~isaaclab.physics.TransformBufferPool` with generation-based
+  caching, zero-copy passthrough, and cross-frame buffer reuse.
+* Added :meth:`~isaaclab.physics.BaseSceneDataProvider.get_body_transforms` and
+  :meth:`~isaaclab.physics.BaseSceneDataProvider.get_source_format` to
+  :class:`~isaaclab.physics.BaseSceneDataProvider` for typed transform access.
+* Added ``preferred_transform_formats`` to
+  :class:`~isaaclab.physics.scene_data_requirements.SceneDataRequirement`.
+
+
 4.6.21 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 

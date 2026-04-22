@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.25 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`get_body_transforms` and :meth:`get_source_format` to
+  :class:`~isaaclab_newton.scene_data_providers.NewtonSceneDataProvider`,
+  implementing the typed transform API with zero-copy
+  :class:`~isaaclab.physics.TransformArrayData` wrapping Newton ``state.body_q``.
+
+
 0.5.24 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 

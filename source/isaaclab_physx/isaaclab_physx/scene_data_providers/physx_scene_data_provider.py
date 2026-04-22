@@ -18,7 +18,15 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
+from isaaclab.physics.scene_data_buffers import TransformBufferPool
 from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
+from isaaclab.physics.scene_data_types import (
+    MatrixLayout,
+    QuaternionConvention,
+    TransformData,
+    TransformFormat,
+    Vec3QuatTransforms,
+)
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 
 logger = logging.getLogger(__name__)
@@ -128,6 +136,10 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         # Last load outcome (tests / debug): "prebuilt" | "usd_fallback" | "missing" | "error".
         self._last_newton_model_build_source: str | None = None
         self._last_newton_model_build_elapsed_ms: float | None = None
+
+        # Typed transform API state
+        self._transform_buffer_pool = TransformBufferPool()
+        self._generation: int = 0
 
         if self._needs_newton_sync:
             self._load_newton_model_from_prebuilt_artifact()
@@ -583,6 +595,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
     def update(self) -> None:
         """Sync PhysX transforms into the full Newton state (one kernel launch)."""
+        self._generation += 1
         if not self._needs_newton_sync or self._newton_state is None:
             return
 
@@ -765,3 +778,85 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             ``None`` because contacts are not currently implemented in this provider.
         """
         return None
+
+    # ---- Typed transform API -----------------------------------------------------------------
+
+    def get_source_format(self) -> TransformFormat:
+        """Return PhysX's native transform format.
+
+        Returns:
+            :attr:`TransformFormat.VEC3_QUAT` — PhysX produces separate
+            position and quaternion arrays.
+        """
+        return TransformFormat.VEC3_QUAT
+
+    def get_body_transforms(
+        self,
+        target_format: TransformFormat,
+        *,
+        env_ids: list[int] | None = None,
+        quat_convention: QuaternionConvention = QuaternionConvention.XYZW,
+        matrix_layout: MatrixLayout = MatrixLayout.ROW_MAJOR,
+        double_precision: bool = False,
+        stream: wp.Stream | None = None,
+        allow_passthrough: bool = True,
+        index_map: wp.array | None = None,
+    ) -> TransformData | None:
+        """Return body transforms in the requested format.
+
+        Reads positions and quaternions from PhysX tensor views and converts
+        to the requested format via the centralized GPU conversion pipeline.
+
+        Args:
+            target_format: Desired output transform representation.
+            env_ids: Optional environment subset (unused in this method;
+                env filtering is handled at the ``update()`` level).
+            quat_convention: Quaternion component ordering for VEC3_QUAT output.
+            matrix_layout: Matrix memory layout for MAT44 / VEC3_MAT33 output.
+            double_precision: Use 64-bit floats for MAT44 output.
+            stream: CUDA stream for deferred kernel execution.
+            allow_passthrough: If ``True`` and formats match, return source
+                data directly without copying.
+            index_map: Optional index remapping for subset scatter writes.
+
+        Returns:
+            Typed transform data, or ``None`` when poses are unavailable.
+        """
+        try:
+            result = self._read_poses_from_best_source()
+            if result is None:
+                return None
+
+            positions, orientations, _, xform_mask = result
+            orientations_xyzw = self._convert_xform_quats(orientations.reshape(-1, 4), xform_mask)
+
+            positions_wp = wp.from_torch(positions.reshape(-1, 3).contiguous(), dtype=wp.vec3)
+            orientations_wp = wp.from_torch(orientations_xyzw.contiguous(), dtype=wp.quatf)
+            count = positions_wp.shape[0]
+
+            source = Vec3QuatTransforms(
+                count=count,
+                device=self._device,
+                positions=positions_wp,
+                orientations=orientations_wp,
+                quat_convention=QuaternionConvention.XYZW,
+            )
+
+            return self._transform_buffer_pool.get_or_convert(
+                source,
+                target_format,
+                generation=self._generation,
+                quat_convention=quat_convention,
+                matrix_layout=matrix_layout,
+                double_precision=double_precision,
+                stream=stream,
+                allow_passthrough=allow_passthrough,
+                index_map=index_map,
+            )
+        except Exception as exc:
+            self._warn_once(
+                "get-body-transforms-failed",
+                "[PhysxSceneDataProvider] get_body_transforms() failed: %s",
+                exc,
+            )
+            return None

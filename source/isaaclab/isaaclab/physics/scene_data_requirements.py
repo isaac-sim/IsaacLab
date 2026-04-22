@@ -22,6 +22,8 @@ class SceneDataRequirement:
 
     requires_newton_model: bool = False
     requires_usd_stage: bool = False
+    preferred_transform_formats: frozenset = frozenset()
+    """Preferred transform formats for buffer pre-allocation optimization."""
 
 
 @dataclass(frozen=True)
