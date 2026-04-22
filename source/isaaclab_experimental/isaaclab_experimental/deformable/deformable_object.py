@@ -13,15 +13,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
+from isaaclab_newton.physics import NewtonManager as SimulationManager
 
-from pxr import Gf, Usd, UsdGeom, UsdShade
+from pxr import Gf, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
-
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
@@ -350,12 +349,8 @@ class DeformableObject(BaseDeformableObject):
         def _is_sim_mesh(prim) -> bool:
             return any("DeformableSimAPI" in api for api in prim.GetAppliedSchemas())
 
-        tet_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, lambda p: p.GetTypeName() == "TetMesh"
-        )
-        mesh_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path, lambda p: p.GetTypeName() == "Mesh"
-        )
+        tet_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "TetMesh")
+        mesh_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "Mesh")
 
         if len(tet_prims) > 1:
             raise ValueError(
@@ -400,9 +395,10 @@ class DeformableObject(BaseDeformableObject):
 
         # Bake the template prim's xform directly into the vertex positions.
         xform_cache = UsdGeom.XformCache()
-        mesh_to_parent_frame = xform_cache.GetLocalToWorldTransform(
-            mesh_prim
-        ) * xform_cache.GetLocalToWorldTransform(template_prim.GetParent()).GetInverse()
+        mesh_to_parent_frame = (
+            xform_cache.GetLocalToWorldTransform(mesh_prim)
+            * xform_cache.GetLocalToWorldTransform(template_prim.GetParent()).GetInverse()
+        )
 
         def _bake_points(raw_pts) -> list[wp.vec3]:
             out = []

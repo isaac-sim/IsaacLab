@@ -20,19 +20,24 @@ from .newton_manager_cfg import CoupledSolverCfg, NewtonModelCfg, VBDSolverCfg
 from .particle_sync import sync_particles_to_usd
 from .solver_factories import create_coupled_solver, create_vbd_solver
 
-# Register solver factories with NewtonManager
-NewtonManager.register_solver_factory("vbd", create_vbd_solver)
-NewtonManager.register_solver_factory("coupled", create_coupled_solver)
+def register_hooks() -> None:
+    """Register all deformable hooks with :class:`NewtonManager`.
 
-# Register particle sync callback
-NewtonManager._particle_sync_fn = sync_particles_to_usd
+    This is called automatically on first import and can be called again
+    after :meth:`NewtonManager.clear` to re-register hooks that were wiped.
+    """
+    NewtonManager.register_solver_factory("vbd", create_vbd_solver)
+    NewtonManager.register_solver_factory("coupled", create_coupled_solver)
+    NewtonManager._particle_sync_fn = sync_particles_to_usd
+    if per_world_deformable_hook not in NewtonManager._per_world_builder_hooks:
+        NewtonManager._per_world_builder_hooks.append(per_world_deformable_hook)
+    if post_replicate_deformable_hook not in NewtonManager._post_replicate_hooks:
+        NewtonManager._post_replicate_hooks.append(post_replicate_deformable_hook)
+    NewtonManager._post_finalize_model_fn = apply_model_cfg
 
-# Register cloner hooks
-NewtonManager._per_world_builder_hooks.append(per_world_deformable_hook)
-NewtonManager._post_replicate_hooks.append(post_replicate_deformable_hook)
 
-# Register post-finalize model configuration hook
-NewtonManager._post_finalize_model_fn = apply_model_cfg
+# Perform initial registration
+register_hooks()
 
 # Register the Newton DeformableObject backend with the factory
 from isaaclab.assets.deformable_object.deformable_object import DeformableObject as DeformableObjectFactory

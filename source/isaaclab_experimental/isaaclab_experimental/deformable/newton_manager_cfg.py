@@ -7,9 +7,9 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
-
 from isaaclab_newton.physics.newton_manager_cfg import MJWarpSolverCfg, NewtonSolverCfg
+
+from isaaclab.utils import configclass
 
 
 @configclass

@@ -70,8 +70,7 @@ def add_deformable_entry_to_builder(
         )
     else:
         raise ValueError(
-            f"Invalid deformable type '{entry.deformable_type}' for registry entry"
-            f" with prim path '{entry.prim_path}'"
+            f"Invalid deformable type '{entry.deformable_type}' for registry entry with prim path '{entry.prim_path}'"
         )
 
     after_count = getattr(builder, "particle_count", 0)

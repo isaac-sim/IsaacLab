@@ -20,8 +20,9 @@ def apply_model_cfg() -> None:
     executed (not gated behind contact attributes) to ensure contact
     parameters are consistently applied.
     """
-    from isaaclab.physics import PhysicsManager
     from isaaclab_newton.physics import NewtonManager
+
+    from isaaclab.physics import PhysicsManager
 
     cfg = PhysicsManager._cfg
     if cfg is None or not hasattr(cfg, "model_cfg") or cfg.model_cfg is None:
