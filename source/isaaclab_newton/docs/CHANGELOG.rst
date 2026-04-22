@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.19 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ``write_data_to_sim`` in :class:`~isaaclab_newton.assets.Articulation`,
+  :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
+  to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
+  applied after body-frame composition.
+
+
 0.5.18 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 
