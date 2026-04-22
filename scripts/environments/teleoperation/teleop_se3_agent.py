@@ -218,7 +218,7 @@ def main() -> None:
 
     try:
         if use_isaac_teleop:
-            from isaaclab_teleop import create_isaac_teleop_device
+            from isaaclab_teleop import create_isaac_teleop_device, poll_control_events
 
             teleop_interface = create_isaac_teleop_device(
                 env_cfg.isaac_teleop,
@@ -296,6 +296,13 @@ def main() -> None:
                 with torch.inference_mode():
                     # get device command
                     action = teleop_interface.advance()
+
+                    if use_isaac_teleop:
+                        ctrl = poll_control_events(teleop_interface)
+                        if ctrl.is_active is not None:
+                            teleoperation_active = ctrl.is_active
+                        if ctrl.should_reset:
+                            should_reset_recording_instance = True
 
                     # action is None when IsaacTeleop session hasn't started yet
                     # (e.g. waiting for user to click "Start AR")
