@@ -152,10 +152,6 @@ There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments f
 - ``randomly_sample_visible_envs`` (default ``True``): when ``visible_env_indices`` is unset and ``max_visible_envs`` is set,
   enables randomly sampling the selected envs. If disabled, the first ``max_visible_envs`` envs are selected.
 
-.. note::
-   ``max_visible_envs=None`` means no cap (every environment); random sampling does not run in that case.
-   The field default on ``VisualizerCfg`` is ``4``, not ``None``—override to ``None`` explicitly if you want all envs.
-
 Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
 
 .. _visualization-common-modes:
@@ -328,6 +324,10 @@ Rerun Visualizer
         record_to_rrd="recording.rrd",            # Path to save .rrd file (None = no recording)
     )
 
+Rerun startup uses the Python SDK through ``newton.viewer.ViewerRerun`` (no external ``rerun`` CLI process
+management). If ``grpc_port`` is already active, Isaac Lab reuses that server. If ``web_port`` is occupied while
+starting a new server, initialization fails with a clear port-conflict error.
+
 
 Viser Visualizer
 ~~~~~~~~~~~~~~~~
@@ -342,6 +342,26 @@ server, allowing you to view and interact with the scene from any browser.
 - Optional public share URL for remote viewing
 - Recording to ``.viser`` format for replay
 - Environment filtering to control which environments are rendered
+
+**Launch with Viser:**
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py --viz viser
+
+**Configuration example:**
+
+.. code-block:: python
+
+    from isaaclab_visualizers.viser import ViserVisualizerCfg
+
+    visualizer_cfg = ViserVisualizerCfg(
+        port=8080,
+        open_browser=True,
+        label="Isaac Lab Simulation",
+        share=False,
+        max_worlds=64,
+    )
 
 **Configuration options:**
 
