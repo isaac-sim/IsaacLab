@@ -719,23 +719,83 @@ class NewtonManager(PhysicsManager):
             import usdrt
 
             body_paths = getattr(cls._model, "body_label", None) or getattr(cls._model, "body_key", None)
-            if body_paths is None:
-                raise RuntimeError("NewtonManager: model has no body_label/body_key, skipping USD/Fabric sync for RTX.")
-            cls._usdrt_stage = get_current_stage(fabric=True)
-            for i, prim_path in enumerate(body_paths):
-                prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
-                prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
-                prim.GetAttribute(cls._newton_index_attr).Set(i)
-                # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode
-                # applies Inverse propagation (preserves Newton's world
-                # transforms and derives local) instead of Forward.
-                prim.AddAppliedSchema("PhysicsRigidBodyAPI")
-                xformable_prim = usdrt.Rt.Xformable(prim)
-                if not xformable_prim.HasWorldXform():
-                    xformable_prim.SetWorldXformFromUsd()
+            if not body_paths:
+                logger.warning(
+                    "NewtonManager: model has no rigid bodies (body_label/body_key is empty). "
+                    "USD/Fabric body sync for RTX is skipped. "
+                    "Particle-only scenes (e.g. cloth) must register their own USD mesh update."
+                )
+                cls._usdrt_stage = None
+            else:
+                cls._usdrt_stage = get_current_stage(fabric=True)
+                for i, prim_path in enumerate(body_paths):
+                    prim = cls._usdrt_stage.GetPrimAtPath(prim_path)
+                    prim.CreateAttribute(cls._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
+                    prim.GetAttribute(cls._newton_index_attr).Set(i)
+                    # Tag with PhysicsRigidBodyAPI so cubric's eRigidBody mode
+                    # applies Inverse propagation (preserves Newton's world
+                    # transforms and derives local) instead of Forward.
+                    prim.AddAppliedSchema("PhysicsRigidBodyAPI")
+                    xformable_prim = usdrt.Rt.Xformable(prim)
+                    if not xformable_prim.HasWorldXform():
+                        xformable_prim.SetWorldXformFromUsd()
 
-            cls._mark_transforms_dirty()
-            cls.sync_transforms_to_usd()
+                cls._mark_transforms_dirty()
+                cls.sync_transforms_to_usd()
+
+            # Setup Fabric particle sync for deformable bodies.
+            if cls._deformable_registry:
+                import re
+
+                from pxr import UsdGeom
+
+                if cls._usdrt_stage is None:
+                    cls._usdrt_stage = get_current_stage(fabric=True)
+
+                stage = get_current_stage()
+                for entry in cls._deformable_registry:
+                    for inst_idx, offset in enumerate(entry.particle_offsets):
+                        # Resolve regex pattern to concrete instance path
+                        resolved_sim = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.sim_mesh_prim_path)
+                        resolved_sim = re.sub(r"\.\*", str(inst_idx), resolved_sim)
+                        mesh_prim = stage.GetPrimAtPath(resolved_sim)
+
+                        resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
+                        resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
+                        vis_prim = stage.GetPrimAtPath(resolved_vis)
+                        vis_mesh = UsdGeom.Mesh(vis_prim)
+
+                        if not mesh_prim or not mesh_prim.IsValid():
+                            logger.warning("[NewtonManager] particle setup: prim not found at %s", resolved_sim)
+                            continue
+
+                        # Overwrite visual mesh topology to match sim mesh so Fabric
+                        # particle sync can write the correct number of points.
+                        if mesh_prim.GetTypeName() == "TetMesh":
+                            tet_mesh = UsdGeom.TetMesh(mesh_prim)
+                            surface_indices = tet_mesh.GetSurfaceFaceVertexIndicesAttr().Get()
+                            if surface_indices is None or len(surface_indices) == 0:
+                                raise ValueError(
+                                    f"Deformable body has no surface indices on its TetMesh prim; "
+                                    f"cannot sync to visual mesh."
+                                )
+                            vis_mesh.GetPointsAttr().Set(tet_mesh.GetPointsAttr().Get())
+                            vis_mesh.GetFaceVertexIndicesAttr().Set(np.asarray(surface_indices).flatten())
+                            vis_mesh.GetFaceVertexCountsAttr().Set([3] * len(surface_indices))
+                        else:
+                            sim_mesh = UsdGeom.Mesh(mesh_prim)
+                            vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
+                            vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
+
+                        # Per-instance particle offset so the Fabric sync kernel
+                        # can find the right slice of particle_q.
+                        fab_prim = cls._usdrt_stage.GetPrimAtPath(vis_prim.GetPath().pathString)
+                        fab_prim.CreateAttribute(cls._newton_particle_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
+                        fab_prim.GetAttribute(cls._newton_particle_offset_attr).Set(offset)
+
+                cls._mark_particles_dirty()
+                if cls._particle_sync_fn is not None:
+                    cls._particle_sync_fn()
 
     @classmethod
     def _get_deformable_ignore_paths(cls) -> list[str]:
