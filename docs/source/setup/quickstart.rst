@@ -68,11 +68,31 @@ package manager. To begin, create a virtual environment:
          conda activate env_isaaclab
 
 
-Next, install a CUDA-enabled PyTorch build.
+Next, install a CUDA-enabled PyTorch build that matches your system architecture.
 
-   .. code-block:: bash
+.. tab-set::
+   :sync-group: pip-platform
 
-      uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
+      :sync: linux-x86_64
+
+      .. code-block:: bash
+
+         uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
+      :sync: windows-x86_64
+
+      .. code-block:: bash
+
+         uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
+      :sync: linux-aarch64
+
+      .. code-block:: bash
+
+         uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
 
 
 Before we can install Isaac Sim, we need to make sure pip is updated.  To update pip, run

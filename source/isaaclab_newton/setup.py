@@ -33,11 +33,7 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 # Read the extension.toml file
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
-INSTALL_REQUIRES = [
-    # INTENTIONALLY disabled to avoid circular dependency with isaaclab_physx, which also depends on isaaclab_newton.
-    # This will be re-enabled once we move to UV and pyproject.toml-based packaging.
-    # f"isaaclab_physx @ file://{os.path.join(os.path.dirname(EXTENSION_PATH), 'isaaclab_physx')}",
-]
+INSTALL_REQUIRES = []
 
 EXTRAS_REQUIRE = {
     "all": [
