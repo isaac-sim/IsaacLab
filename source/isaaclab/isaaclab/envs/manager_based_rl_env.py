@@ -89,11 +89,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # store the render mode
         self.render_mode = render_mode
 
-        if cfg.video_recorder is not None:
-            self.video_recorder = VideoRecorder(cfg.video_recorder, self.scene)
-        else:
-            self.video_recorder = None
-
         # initialize data and constants
         # -- set the framerate of the gym video recorder wrapper so that the playback speed of the
         #    produced video matches the simulation
