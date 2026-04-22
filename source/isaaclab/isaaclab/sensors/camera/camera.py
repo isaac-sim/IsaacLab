@@ -461,14 +461,6 @@ class Camera(SensorBase):
 
         self._renderer.update_transforms()
         self._renderer.render(self._render_data)
-
-        # Synchronize warp's CUDA stream before handing GPU buffers to torch.
-        # render() launches warp kernels that write into the output tensors;
-        # without an explicit sync, torch may read the buffers on a different
-        # CUDA stream before the warp kernels finish, causing illegal-memory-
-        # access errors (observed with newer Isaac Sim nightly images).
-        wp.synchronize()
-
         self._renderer.read_output(self._render_data, self._data)
 
     """
