@@ -1083,6 +1083,28 @@ If you call the kernel directly, update your launch call:
    )
 
 
+RayCaster.meshes Cache Key
+--------------------------
+
+The :attr:`~isaaclab.sensors.RayCaster.meshes` class variable, which caches warp meshes across
+all :class:`~isaaclab.sensors.RayCaster` instances, is now keyed by ``(prim_path, device)`` tuples
+instead of by ``prim_path`` alone. This prevents a mesh that was built on one device (e.g. CPU)
+from being reused by a sensor running on a different device (e.g. CUDA), which caused illegal
+memory accesses on systems without unified memory.
+
+Code that reads or writes this cache directly must update both the type annotation and the key:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   meshes: ClassVar[dict[str, wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[prim_path]
+
+   # After (Isaac Lab 3.x)
+   meshes: ClassVar[dict[tuple[str, str], wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[(prim_path, device)]
+
+
 Write Method Index/Mask Split
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
