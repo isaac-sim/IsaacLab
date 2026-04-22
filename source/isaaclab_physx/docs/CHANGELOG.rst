@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.5.21 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``Simulation view object is invalidated and cannot be used again to call
+  getDofVelocities`` raised on the first ``scene.update()`` after ``sim.reset()``
+  with recent Isaac Sim ``develop`` builds. Isaac Sim's
+  ``isaacsim.core.simulation_manager.SimulationManager`` recently became reactive
+  to timeline ``STOP`` events (after its ``_on_stop`` was decorated with
+  ``@staticmethod`` upstream), and its ``invalidate_physics()`` was clobbering
+  the shared ``omni.physics.tensors`` simulation view that
+  :class:`~isaaclab_physx.physics.PhysxManager` and PhysX articulation views
+  rely on. The ``isaaclab_physx`` package init now disables the original Isaac
+  Sim ``SimulationManager``'s default timeline/stage callbacks via
+  ``enable_all_default_callbacks(False)`` before swapping the module attribute,
+  so :class:`PhysxManager` is the single owner of the simulation lifecycle.
+
+
 0.5.20 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 
