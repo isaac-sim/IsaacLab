@@ -344,7 +344,7 @@ def test_external_force_on_single_body_at_position(num_envs, num_cubes, device):
             object_collection.num_instances, len(object_ids), 3, device=sim.device
         )
         # Every 2nd cube should have a force applied to it
-        external_wrench_b[:, 0::2, 2] = 500.0
+        external_wrench_b[:, 0::2, 2] = 50.0
         external_wrench_positions_b[:, 0::2, 1] = 1.0
 
         # Desired force and torque

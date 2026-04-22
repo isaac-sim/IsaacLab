@@ -69,8 +69,9 @@ class RayCasterCfg(SensorBaseCfg):
     The options are:
 
     * ``base`` if the rays' starting positions and directions track the full root position and orientation.
-    * ``yaw`` if the rays' starting positions and directions track root position and only yaw component of
-      the orientation. This is useful for ray-casting height maps.
+    * ``yaw`` if the rays' starting positions track root position and the yaw component of the orientation,
+      while ray directions remain fixed in world frame. This is useful for ray-casting height maps where
+      the scan footprint should follow the body heading without tilting when the body pitches or rolls.
     * ``world`` if rays' starting positions and directions are always fixed. This is useful in combination
       with a mapping package on the robot and querying ray-casts in a global frame.
     """

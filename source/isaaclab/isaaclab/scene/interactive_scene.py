@@ -142,11 +142,15 @@ class InteractiveScene:
         self.physics_backend = self.sim.physics_manager.__name__.lower()
         visualizer_clone_fn = None
         requested_viz_types = set(self.sim.resolve_visualizer_types())
-        if "physx" in self.physics_backend:
+        if self.physics_backend.startswith("ovphysx"):
+            from isaaclab_ovphysx.cloner import ovphysx_replicate
+
+            physics_clone_fn = ovphysx_replicate
+        elif self.physics_backend.startswith("physx"):
             from isaaclab_physx.cloner import physx_replicate
 
             physics_clone_fn = physx_replicate
-        elif "newton" in self.physics_backend:
+        elif self.physics_backend.startswith("newton"):
             from isaaclab_newton.cloner import newton_physics_replicate
 
             physics_clone_fn = newton_physics_replicate
@@ -163,6 +167,10 @@ class InteractiveScene:
             device=self.device,
             physics_clone_fn=physics_clone_fn,
             visualizer_clone_fn=None,
+            # For ovphysx: env_1..N are created by physx.clone() in the physics
+            # runtime after add_usd().  USD replication of the asset hierarchy
+            # to env_1..N is skipped — only env_0 needs physics prims in the USD.
+            clone_usd=not self.physics_backend.startswith("ovphysx"),
         )
 
         # create source prim
@@ -206,6 +214,7 @@ class InteractiveScene:
         if has_scene_cfg_entities:
             self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
             # Collision filtering is PhysX-specific (PhysxSchema.PhysxSceneAPI)
+            # Intentionally matches both physx and ovphysx (both are PhysX-based)
             if self.cfg.filter_collisions and "physx" in self.physics_backend:
                 self.filter_collisions(self._global_prim_paths)
 
@@ -218,6 +227,7 @@ class InteractiveScene:
             may increase). Defaults to False.
         """
         # PhysX-only: set env id bit count for replicated physics. Newton handles env separation in its own API.
+        # Intentionally matches both physx and ovphysx (both are PhysX-based)
         if self.cfg.replicate_physics and "physx" in self.physics_backend:
             prim = self.stage.GetPrimAtPath("/physicsScene")
             prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
@@ -235,12 +245,12 @@ class InteractiveScene:
                 self._default_env_origins,
             )
 
-            if not copy_from_source:
-                # skip physx cloning, this means physx will walk and parse the stage one by one faithfully
+            if not copy_from_source and self.cloner_cfg.physics_clone_fn is not None:
                 self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
             if self.cloner_cfg.visualizer_clone_fn is not None:
                 self.cloner_cfg.visualizer_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
-            cloner.usd_replicate(self.stage, *replicate_args)
+            if self.cloner_cfg.clone_usd:
+                cloner.usd_replicate(self.stage, *replicate_args)
 
     def _sensor_renderer_types(self) -> list[str]:
         """Return renderer type names used by scene sensors."""
