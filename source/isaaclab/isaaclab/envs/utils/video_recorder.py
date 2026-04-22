@@ -29,12 +29,22 @@ logger = logging.getLogger(__name__)
 
 _VideoBackend = Literal["kit", "newton_gl"]
 
+# Renderer types that Kit tiled recording can read (matches IsaacsimTiledCameraVideoCfg.preferred_renderer_types).
+_KIT_TILED_RENDERER_TYPES: frozenset[str] = frozenset(("isaac_rtx", "ovrtx"))
 
-def _resolve_video_backend(scene: InteractiveScene) -> _VideoBackend:
+
+def _resolve_video_backend(scene: InteractiveScene, video_mode: str = "perspective") -> _VideoBackend:
     """Resolve which video backend to use from physics and renderer configs.
 
-    Priority: PhysX or Isaac RTX -> Kit camera; else Newton or Newton Warp -> GL viewer.
-    When both are present (e.g. PhysX + Newton Warp), Kit wins.
+    For **perspective** mode: PhysX or Isaac RTX -> Kit; else Newton or Newton Warp -> Newton GL.
+    When both signals are present, Kit wins (the Kit perspective camera is always RTX).
+
+    For **tiled** mode the same rule applies, with one tie-breaking exception:
+    when PhysX physics is paired with a Newton Warp renderer (``physx + newton_renderer``),
+    both ``use_kit`` and ``use_newton_gl`` are True, but the scene cameras all use Newton Warp
+    and are therefore invisible to the Kit RTX tiled recorder. In that case Newton GL is preferred
+    so the existing warp scene cameras are used directly rather than spawning a fallback RTX camera
+    at a world-space position.
     """
     sim = scene.sim
     physics_name = sim.physics_manager.__name__.lower()
@@ -42,6 +52,13 @@ def _resolve_video_backend(scene: InteractiveScene) -> _VideoBackend:
 
     use_kit = "physx" in physics_name or "isaac_rtx" in renderer_types
     use_newton_gl = "newton" in physics_name or "newton_warp" in renderer_types
+
+    if use_kit and use_newton_gl and video_mode == "tiled":
+        # Tie-break: Kit tiled recording requires RTX cameras. If the scene has none
+        # (all cameras use Newton Warp), prefer Newton GL which can read any Camera sensor.
+        has_kit_cameras = bool(_KIT_TILED_RENDERER_TYPES & set(renderer_types))
+        if not has_kit_cameras:
+            return "newton_gl"
 
     if use_kit:
         return "kit"
@@ -70,7 +87,7 @@ class VideoRecorder:
         video_mode = cfg.video_mode or "perspective"
 
         if video_mode == "tiled":
-            self._backend = _resolve_video_backend(scene)
+            self._backend = _resolve_video_backend(scene, video_mode="tiled")
             if self._backend == "newton_gl":
                 try:
                     import pyglet

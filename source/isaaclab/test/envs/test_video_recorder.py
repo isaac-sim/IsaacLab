@@ -91,6 +91,40 @@ def test_init_newton_backend_creates_newton_capture():
     assert vr._tiled_capture is None
 
 
+def test_tiled_tie_breaks_to_newton_gl_when_no_kit_cameras():
+    """physx + newton_warp renderer: tiled mode should prefer Newton GL (warp cameras available)
+    rather than Kit (which would find no RTX cameras and fall back to a world-space fallback)."""
+    scene = MagicMock()
+    scene.sensors = {}
+    scene.num_envs = 2
+    cfg = SimpleNamespace(**{**_DEFAULT_CFG, "video_mode": "tiled"})
+    fake_tiled = MagicMock()
+    newton_tiled_mod = MagicMock()
+    newton_tiled_mod.create_newton_tiled_camera_video = MagicMock(return_value=fake_tiled)
+
+    # physx physics + newton_warp renderer: _sensor_renderer_types returns ["newton_warp"]
+    physx_scene = MagicMock()
+    physx_scene.sim.physics_manager.__name__ = "PhysxManager"
+    physx_scene._sensor_renderer_types = MagicMock(return_value=["newton_warp"])
+    physx_scene.sensors = {}
+
+    with patch.dict(
+        sys.modules,
+        {
+            "pyglet": MagicMock(),
+            "isaaclab_newton.video_recording": MagicMock(),
+            "isaaclab_newton.video_recording.newton_tiled_camera_video": newton_tiled_mod,
+            "isaaclab_newton.video_recording.newton_tiled_camera_video_cfg": MagicMock(),
+            "isaaclab_newton.renderers": MagicMock(),
+        },
+    ):
+        vr = VideoRecorder(cfg, physx_scene)
+
+    newton_tiled_mod.create_newton_tiled_camera_video.assert_called_once()
+    assert vr._tiled_capture is fake_tiled
+    assert vr._backend == "newton_gl"
+
+
 def test_init_tiled_kit_creates_physx_tiled_capture():
     """Tiled mode + kit backend uses isaacsim_tiled_camera_video factory."""
     scene = MagicMock()
