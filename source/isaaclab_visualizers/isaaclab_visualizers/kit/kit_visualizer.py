@@ -75,7 +75,7 @@ class KitVisualizer(BaseVisualizer):
         self._env_ids = self._compute_visualized_env_ids()
         if self._env_ids:
             logger.warning(
-                "[KitVisualizer] env_filter_ids filtering is cosmetic only (no perf gain) in OV; hiding other envs."
+                "[KitVisualizer] With env_filter_ids, Kit uses visibility only and hides unselected env prims."
             )
             self._apply_env_visibility(usd_stage, metadata)
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))

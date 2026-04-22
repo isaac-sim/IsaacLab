@@ -49,17 +49,15 @@ class VisualizerCfg:
     env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
     """Env filter mode: 'none', 'env_ids', or 'random_n'."""
 
-    env_filter_random_n: int = 64
+    env_filter_random_n: int = 16
     """If env_filter_mode='random_n', number of envs to sample."""
 
     env_filter_seed: int = 0
     """Seed for deterministic env sampling."""
 
     env_filter_ids: list[int] = [i for i in range(0, 64, 4)]
-    """If env_filter_mode='env_ids', only these env indices are shown.
+    """If env_filter_mode='env_ids', only these env indices are shown in visualizers.
 
-    This improves performance, particularly for large-scale training, by reducing scene updates sent to visualizers.
-    Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
     """
 
     def get_visualizer_type(self) -> str | None:
