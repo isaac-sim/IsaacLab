@@ -738,6 +738,26 @@ class NewtonManager(PhysicsManager):
             cls.sync_transforms_to_usd()
 
     @classmethod
+    def _get_deformable_ignore_paths(cls) -> list[str]:
+        """Return USD prim paths to skip when calling ``builder.add_usd``.
+
+        For each registered deformable body, both the simulation mesh (which
+        carries ``UsdPhysics.CollisionAPI``) and the visual mesh are returned.
+        The sim mesh must be skipped so Newton does not create a redundant
+        static mesh collider alongside the particles produced by
+        ``add_soft_mesh``.  The visual mesh is skipped so Newton does not
+        treat it as a collider — Kit reads it directly from USD for rendering.
+
+        Paths may contain regex patterns; Newton's ``add_usd`` matches them
+        via :func:`re.match`.
+        """
+        paths: list[str] = []
+        for entry in cls._deformable_registry:
+            paths.append(entry.sim_mesh_prim_path)
+            paths.append(entry.vis_mesh_prim_path)
+        return paths
+
+    @classmethod
     def instantiate_builder_from_stage(cls):
         """Create builder from USD stage.
 
@@ -767,16 +787,20 @@ class NewtonManager(PhysicsManager):
 
         schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
+        # Deformable sim/visual mesh paths must be skipped by ``add_usd``
+        # so they don't get duplicated as static colliders.
+        deformable_ignore_paths = cls._get_deformable_ignore_paths()
+
         if not env_paths:
             # No env Xforms — flat loading
-            builder.add_usd(stage, schema_resolvers=schema_resolvers)
+            builder.add_usd(stage, ignore_paths=deformable_ignore_paths, schema_resolvers=schema_resolvers)
             for hook in cls._per_world_builder_hooks:
                 hook(builder, 0, [0.0, 0.0, 0.0])
             for hook in cls._post_replicate_hooks:
                 hook(builder)
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
-            ignore_paths = [path for _, path in env_paths]
+            ignore_paths = [path for _, path in env_paths] + deformable_ignore_paths
             builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
 
             # Build a prototype from the first env (all envs assumed identical)
@@ -785,6 +809,7 @@ class NewtonManager(PhysicsManager):
             proto.add_usd(
                 stage,
                 root_path=proto_path,
+                ignore_paths=deformable_ignore_paths,
                 schema_resolvers=schema_resolvers,
             )
 
@@ -1095,6 +1120,10 @@ class NewtonManager(PhysicsManager):
         The caller (``step()``) is responsible for calling ``sync_transforms_to_usd()``
         eagerly after ``wp.capture_launch``.
         """
+        # Rebuild BVH once per step for solvers that require it (e.g. VBD cloth).
+        if hasattr(cls._solver, "rebuild_bvh"):
+            cls._solver.rebuild_bvh(cls._state_0)
+
         if cls._needs_collision_pipeline:
             cls._collision_pipeline.collide(cls._state_0, cls._contacts)
             contacts = cls._contacts
