@@ -5,9 +5,9 @@
 
 """Video recorder: perspective or tiled grid.
 
-* **Perspective** — Kit: :mod:`isaaclab_physx.video_recording.isaacsim_kit_perspective_video`;
+* **Perspective** - Kit: :mod:`isaaclab_physx.video_recording.isaacsim_kit_perspective_video`;
   Newton: :mod:`isaaclab_newton.video_recording.newton_gl_perspective_video`.
-* **Tiled** — Kit: :mod:`isaaclab_physx.video_recording.isaacsim_tiled_camera_video`;
+* **Tiled** - Kit: :mod:`isaaclab_physx.video_recording.isaacsim_tiled_camera_video`;
   Newton: :mod:`isaaclab_newton.video_recording.newton_tiled_camera_video`.
 
 See :mod:`video_recorder_cfg` for configuration.

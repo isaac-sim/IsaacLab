@@ -5,10 +5,10 @@
 
 """Configuration for :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`.
 
-* **Perspective** (``video_mode="perspective"``) — Kit backends use
+* **Perspective** (``video_mode="perspective"``) - Kit backends use
   :mod:`isaaclab_physx.video_recording.isaacsim_kit_perspective_video`; Newton backends use
   :mod:`isaaclab_newton.video_recording.newton_gl_perspective_video`.
-* **Tiled** (``video_mode="tiled"``) — Kit backends use
+* **Tiled** (``video_mode="tiled"``) - Kit backends use
   :mod:`isaaclab_physx.video_recording.isaacsim_tiled_camera_video`; Newton backends use
   :mod:`isaaclab_newton.video_recording.newton_tiled_camera_video`.
 """
