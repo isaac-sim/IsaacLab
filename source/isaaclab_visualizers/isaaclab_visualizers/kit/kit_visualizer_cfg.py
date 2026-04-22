@@ -24,7 +24,7 @@ class KitVisualizerCfg(VisualizerCfg):
     If ``None``, a default name (``"Visualizer Viewport"``) is used.
     """
 
-    create_viewport: bool = True
+    create_viewport: bool = False
     """If ``True``, create a new viewport window; if ``False``, use the active viewport window."""
 
     headless: bool = False

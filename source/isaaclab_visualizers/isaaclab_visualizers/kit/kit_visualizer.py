@@ -128,6 +128,9 @@ class KitVisualizer(BaseVisualizer):
                 settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
+        # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
+        # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
+        self._refresh_partial_viz_point_instancers_if_needed()
 
     def close(self) -> None:
         """Close viewport resources and restore temporary state."""
@@ -394,9 +397,20 @@ class KitVisualizer(BaseVisualizer):
 
         self._apply_visual_point_instancer_visibility(usd_stage, num_envs, visible)
 
+    def _refresh_partial_viz_point_instancers_if_needed(self) -> None:
+        """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
+        if self._resolved_visible_env_ids is None or self._scene_data_provider is None:
+            return
+        usd_stage = self._scene_data_provider.get_usd_stage()
+        if usd_stage is None:
+            return
+        num_envs = int(self._scene_data_provider.get_metadata().get("num_envs", 0))
+        if num_envs <= 0:
+            return
+        self._apply_visual_point_instancer_visibility(usd_stage, num_envs, set(self._resolved_visible_env_ids))
+
     def _apply_visual_point_instancer_visibility(self, usd_stage, num_envs: int, visible_env_ids: set[int]) -> None:
         """Set ``PointInstancer.invisibleIds`` for per-env `/Visuals` markers (e.g. velocity arrows)."""
-        self._point_instancer_invisible_ids_backup.clear()
         hidden = [i for i in range(num_envs) if i not in visible_env_ids]
         vt_hidden = Vt.Int64Array([int(i) for i in hidden])
         for root_path in ("/Visuals", "/World/Visuals"):
@@ -412,9 +426,11 @@ class KitVisualizer(BaseVisualizer):
                     continue
                 path_str = prim.GetPath().pathString
                 inv_attr = pi.GetInvisibleIdsAttr()
-                was_authored = inv_attr.HasAuthoredValue()
-                prev = inv_attr.Get() if was_authored else None
-                self._point_instancer_invisible_ids_backup[path_str] = (was_authored, prev)
+                # Record original authorship/value once per instancer for :meth:`_restore_env_visibility`.
+                if path_str not in self._point_instancer_invisible_ids_backup:
+                    was_authored = inv_attr.HasAuthoredValue()
+                    prev = inv_attr.Get() if was_authored else None
+                    self._point_instancer_invisible_ids_backup[path_str] = (was_authored, prev)
                 inv_attr.Set(vt_hidden)
 
     @staticmethod
