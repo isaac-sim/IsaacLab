@@ -295,6 +295,18 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type in SIMPLE_SHADING_MODES:
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
+            # Annotators may return an empty buffer (size 0) on the first one or two frames
+            # before RTX has produced any data.  Launching the reshape kernel with a
+            # zero-length input still spawns ``view_count * height * width`` threads that
+            # immediately read out of bounds, which raises a CUDA illegal-memory-access
+            # (error 700) on warp's stream and poisons the entire CUDA context — every
+            # subsequent op (PhysX tensors, RTX, torch) then fails.  Skip the launch
+            # until the annotator has populated its buffer; the output tensor remains
+            # zero-initialised for that frame, which matches the prior behaviour from
+            # before the empty-buffer regression appeared in newer Isaac Sim builds.
+            if tiled_data_buffer.size == 0:
+                continue
+
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(view_count, cfg.height, cfg.width),

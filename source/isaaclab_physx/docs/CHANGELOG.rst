@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.5.22 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a CUDA ``illegal memory access`` (error 700) in
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` that poisoned the entire
+  CUDA context — surfacing later as ``Failed to find forward kernel
+  'reshape_tiled_image'``, ``Failed to get DOF velocities from backend``, and a
+  cascade of ``CUDA error in freeAsync`` failures from ``omni.physx.tensors``
+  and ``omni.rtx``. On the first one or two camera updates, the Replicator
+  annotator can return an empty (size-zero) buffer before RTX has produced any
+  data; the ``reshape_tiled_image`` warp kernel was still launched with
+  ``view_count * height * width`` threads, each of which read past the end of
+  the empty buffer. The renderer now skips the kernel launch when the
+  annotator buffer is empty so the output tensor stays zero-initialised for
+  that frame instead of corrupting the CUDA context.
+
 0.5.21 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

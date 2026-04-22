@@ -17,10 +17,11 @@ def _deprioritize_prebundle_paths():
     warp, and nvidia-cudnn that shadow the versions installed by Isaac Lab,
     causing CUDA runtime errors.
 
-    Additionally, certain Isaac Sim kit extensions (such as ``omni.warp.core``)
-    bundle their own copies of Python packages that conflict with pip-installed
-    versions.  When loaded by the extension system these paths can appear on
-    ``sys.path`` before ``site-packages``, leading to version mismatches.
+    Additionally, certain Isaac Sim kit extensions (such as
+    ``isaacsim.pip.newton``) bundle their own copies of Python packages that
+    conflict with pip-installed versions.  When loaded by the extension system
+    these paths can appear on ``sys.path`` before ``site-packages``, leading to
+    version mismatches.
 
     Rather than removing these paths entirely (which would break packages like
     ``sympy`` that only exist in the prebundle), this function moves them to
@@ -34,7 +35,6 @@ def _deprioritize_prebundle_paths():
     # Extension directory fragments that are known to ship Python packages
     # which conflict with Isaac Lab's pip-installed versions.
     _CONFLICTING_EXT_FRAGMENTS = (
-        "omni.warp.core",
         "omni.isaac.ml_archive",
         "omni.isaac.core_archive",
         "omni.kit.pip_archive",
@@ -93,20 +93,19 @@ _deprioritize_prebundle_paths()
 def _pin_warp_import():
     """Import ``warp`` now to lock ``sys.modules['warp']`` to the correct version.
 
-    Kit's extension system may add ``omni.warp.core``'s directory or Kit's own
+    Kit's extension system may add Kit's own
     ``kit/python/lib/python3.X/site-packages`` to ``sys.path`` during
-    ``SimulationApp`` startup — even when that extension is excluded from the kit
-    file — because Kit scans extension directories as part of its registry process.
-    Any extension that imports ``warp`` during that window (e.g.
-    ``omni.replicator.core``) would set ``sys.modules['warp']`` to the bundled copy
-    before our second ``_deprioritize_prebundle_paths()`` call in ``AppLauncher``
-    has a chance to run.
+    ``SimulationApp`` startup, because Kit scans extension directories as part
+    of its registry process.  Any extension that imports ``warp`` during that
+    window (e.g. ``omni.replicator.core``) would set ``sys.modules['warp']`` to
+    the bundled copy before our second ``_deprioritize_prebundle_paths()`` call
+    in ``AppLauncher`` has a chance to run.
 
     By importing ``warp`` here — after ``_deprioritize_prebundle_paths()`` has
-    already demoted the pip_prebundle, ``omni.warp.core``, and ``kit/python/lib``
-    site-packages paths — we ensure the pip-managed ``warp-lang`` is the one
-    cached in ``sys.modules``.  Subsequent ``import warp`` calls from Kit extensions
-    all return that cached module, so there is only ever one Warp runtime in the
+    already demoted the pip_prebundle and ``kit/python/lib`` site-packages
+    paths — we ensure the pip-managed ``warp-lang`` is the one cached in
+    ``sys.modules``.  Subsequent ``import warp`` calls from Kit extensions all
+    return that cached module, so there is only ever one Warp runtime in the
     process.
 
     Failure to import (e.g. warp not yet installed during initial setup) is

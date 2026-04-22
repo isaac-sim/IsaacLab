@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+4.6.13 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed ``omni.warp.core`` from the ``_CONFLICTING_EXT_FRAGMENTS`` list in
+  :mod:`isaaclab` and from ``app.extensions.excluded`` in the IsaacLab kit
+  apps. The extension is no longer present in current Isaac Sim builds, so
+  the entries were dead noise.
+
+
 4.6.12 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -38,10 +50,8 @@ Fixed
   ``update_outdated_envs_kernel_<hash>_cuda_kernel_forward``) to return NULL.
   Extended ``_deprioritize_prebundle_paths()`` to also demote
   ``kit/python/lib/*/site-packages`` paths, ensuring pip-installed ``warp-lang``
-  always takes priority.  Also added an explicit ``strip_hash=False`` option to the
-  ``isaaclab.sensors.kernels`` warp module as a defensive safety net, and broadened
-  the post-startup diagnostic warning in :class:`~isaaclab.app.AppLauncher` to cover
-  Kit Python paths.
+  always takes priority.  Broadened the post-startup diagnostic warning in
+  :class:`~isaaclab.app.AppLauncher` to cover Kit Python paths.
 * Fixed a Warp kernel lookup failure (``Failed to find forward kernel … for device 'cuda:0'``)
   caused by Kit's extension scanner adding ``omni.warp.core``'s directory to ``sys.path``
   during ``SimulationApp`` startup, before the second ``_deprioritize_prebundle_paths()``

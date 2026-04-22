@@ -75,11 +75,3 @@ def reset_envs_kernel(
     timestamp_last_update[env] = 0.0
     # Set all reset sensors to outdated so that they are updated when data is called the next time.
     is_outdated[env] = True
-
-
-# Ensure content-based cache invalidation is always active for this module,
-# overriding any global strip_hash=True that Isaac Sim may set.  With
-# strip_hash=True the warp cache directory name is fixed (no content hash),
-# so a stale binary from a previous warp version would be silently reused,
-# causing "Failed to find forward kernel" errors for newly-added kernels.
-wp.get_module(__name__).options["strip_hash"] = False
