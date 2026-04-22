@@ -57,8 +57,8 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 _MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "cartpole": 1.0,
-    "shadow_hand": 3.5,
-    "dexsuite_kuka": 4.5,
+    "shadow_hand": 3.0,
+    "dexsuite_kuka": 4.0,
 }
 
 _OVRTX_DISABLED = pytest.mark.skip(
