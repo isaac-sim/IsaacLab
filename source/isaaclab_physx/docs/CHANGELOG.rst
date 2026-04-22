@@ -4,6 +4,13 @@ Changelog
 0.5.22 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
+Changed
+^^^^^^^
+
+* Updated imports of the PhysX tensors API from ``omni.physics.tensors.impl.api`` to
+  ``omni.physics.tensors.api`` to track the upstream Isaac Sim module relocation
+  (the ``impl`` submodule was removed).
+
 Fixed
 ^^^^^
 

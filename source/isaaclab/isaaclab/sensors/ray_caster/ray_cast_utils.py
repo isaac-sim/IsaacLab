@@ -10,7 +10,7 @@ from __future__ import annotations
 import torch
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
+import omni.physics.tensors.api as physx
 
 from isaaclab.sim.views import XformPrimView
 
