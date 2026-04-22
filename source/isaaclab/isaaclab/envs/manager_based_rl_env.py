@@ -171,6 +171,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         6. Compute the observations.
         7. Return the observations, rewards, resets and extras.
 
+        Rendering can be controlled per-step via :attr:`render_enabled`.
+
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
@@ -184,7 +186,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         # check if we need to do rendering within the physics loop
         # note: uses cached property to avoid settings lookup every step
-        is_rendering = self.sim.is_rendering
+        is_rendering = self.render_enabled and self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -229,7 +231,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self._reset_idx(reset_env_ids)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            if is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 

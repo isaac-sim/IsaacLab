@@ -9,6 +9,13 @@ Added
 
 * Added :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.add_raw_buffers_from` to merge one composer's raw
   input buffers into another.
+* Added ``render_enabled`` property to all environment base classes
+  (:class:`~isaaclab.envs.ManagerBasedEnv`, :class:`~isaaclab.envs.ManagerBasedRLEnv`,
+  :class:`~isaaclab.envs.DirectRLEnv`, :class:`~isaaclab.envs.DirectMARLEnv`).
+  Setting ``env.render_enabled = False`` before calling ``step()`` skips all rendering calls
+  (GUI updates, RTX sensor rendering, post-reset re-renders) while physics simulation continues
+  normally.  The property can be toggled between steps for per-step control.  Defaults to ``True``
+  for full backward compatibility.
 
 Changed
 ^^^^^^^

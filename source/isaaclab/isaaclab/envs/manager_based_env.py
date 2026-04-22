@@ -153,6 +153,9 @@ class ManagerBasedEnv:
         # counter for simulation steps
         self._sim_step_counter = 0
 
+        # -- whether step() performs rendering (set to False to skip all render calls)
+        self.render_enabled: bool = True
+
         # allocate dictionary to store metrics
         self.extras = {}
 
@@ -494,6 +497,8 @@ class ManagerBasedEnv:
         simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.sim.dt` (physics time-step).
         Based on these parameters, the environment time-step is computed as the product of the two.
 
+        Rendering can be controlled per-step via :attr:`render_enabled`.
+
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
@@ -507,7 +512,7 @@ class ManagerBasedEnv:
 
         # check if we need to do rendering within the physics loop
         # note: uses cached property to avoid settings lookup every step
-        is_rendering = self.sim.is_rendering
+        is_rendering = self.render_enabled and self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):

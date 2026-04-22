@@ -217,6 +217,8 @@ class DirectMARLEnv(gym.Env):
         # initialize data and constants
         # -- counter for simulation steps
         self._sim_step_counter = 0
+        # -- whether step() performs rendering (set to False to skip all render calls)
+        self.render_enabled: bool = True
         # -- counter for curriculum
         self.common_step_counter = 0
         # -- init buffers
@@ -391,6 +393,8 @@ class DirectMARLEnv(gym.Env):
         5. Apply interval events if they are enabled.
         6. Compute observations.
 
+        Rendering can be controlled per-step via :attr:`render_enabled`.
+
         Args:
             actions: The actions to apply on the environment (keyed by the agent ID).
                 Shape of individual tensors is (num_envs, action_dim).
@@ -411,7 +415,7 @@ class DirectMARLEnv(gym.Env):
 
         # check if we need to do rendering within the physics loop
         # note: uses cached property to avoid settings lookup every step
-        is_rendering = self.sim.is_rendering
+        is_rendering = self.render_enabled and self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):

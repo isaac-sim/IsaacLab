@@ -223,6 +223,8 @@ class DirectRLEnv(gym.Env):
         # initialize data and constants
         # -- counter for simulation steps
         self._sim_step_counter = 0
+        # -- whether step() performs rendering (set to False to skip all render calls)
+        self.render_enabled: bool = True
         # -- counter for curriculum
         self.common_step_counter = 0
         # -- init buffers
@@ -385,6 +387,8 @@ class DirectRLEnv(gym.Env):
         5. Apply interval events if they are enabled.
         6. Compute observations.
 
+        Rendering can be controlled per-step via :attr:`render_enabled`.
+
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
@@ -401,7 +405,7 @@ class DirectRLEnv(gym.Env):
 
         # check if we need to do rendering within the physics loop
         # note: uses cached property to avoid settings lookup every step
-        is_rendering = self.sim.is_rendering
+        is_rendering = self.render_enabled and self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -434,7 +438,7 @@ class DirectRLEnv(gym.Env):
         if len(reset_env_ids) > 0:
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            if is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 
