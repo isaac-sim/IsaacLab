@@ -7,8 +7,8 @@ Changelog
 Changed
 ^^^^^^^
 
-* Updated cross-backend asset interface tests to import ``SimulationManager`` from
-  :mod:`isaaclab_physx.physics` instead of ``isaacsim.core.simulation_manager``.
+* Updated cross-backend asset interface tests to import :class:`~isaaclab_physx.physics.PhysxManager`
+  (aliased as ``SimulationManager``) instead of ``isaacsim.core.simulation_manager.SimulationManager``.
 * Stopped registering deprecated Isaac Sim extension search paths in Isaac Lab Kit experiences and
   switched explicit Isaac Sim extension dependencies to non-deprecated ``isaacsim.core.experimental.*``,
   ``isaacsim.robot.experimental.wheeled_robots``, ``isaacsim.robot.wheeled_robots.nodes``, and

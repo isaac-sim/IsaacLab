@@ -5,10 +5,9 @@
 
 __all__ = [
     "PhysxManager",
-    "SimulationManager",
     "IsaacEvents",
     "PhysxCfg",
 ]
 
-from .physx_manager import PhysxManager, IsaacEvents, SimulationManager
+from .physx_manager import PhysxManager, IsaacEvents
 from .physx_manager_cfg import PhysxCfg
