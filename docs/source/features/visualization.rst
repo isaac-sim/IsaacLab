@@ -328,31 +328,6 @@ Rerun Visualizer
         record_to_rrd="recording.rrd",            # Path to save .rrd file (None = no recording)
     )
 
-**Remote viewing (SSH / cloud / another machine):**
-
-Rerun serves two TCP ports by default: the **web UI** (``web_port``, default ``9090``) and the **gRPC**
-endpoint (``grpc_port``, default ``9876``). Allow both inbound to the training host (or use a tunnel
-that forwards both).
-
-On startup, the log prints a **RerunVisualizer Configuration** table with ``viewer_url``. For a host
-reachable as ``<host>`` (DNS name or IP), the same shape as the code uses is:
-
-.. code-block:: text
-
-   http://<host>:9090/?url=rerun%2Bhttp%3A%2F%2F<host>%3A9876%2Fproxy
-
-If you override ``web_port`` or ``grpc_port`` in ``RerunVisualizerCfg``, replace ``9090`` and ``9876`` in
-both places and, if needed, take the exact ``viewer_url`` line from the log (it is built the same way as
-``isaaclab_visualizers.rerun.rerun_visualizer._rerun_web_viewer_url``).
-
-Do not copy a ``viewer_url`` that still contains ``127.0.0.1`` or ``localhost`` and open it from a
-**different** machine—the embedded ``rerun+http://…/proxy`` address must use the training host’s
-address that your browser can reach.
-
-Rerun startup uses the Python SDK through ``newton.viewer.ViewerRerun`` (no external ``rerun`` CLI process
-management). If ``grpc_port`` is already active, Isaac Lab reuses that server. If ``web_port`` is occupied while
-starting a new server, initialization fails with a clear port-conflict error.
-
 
 Viser Visualizer
 ~~~~~~~~~~~~~~~~
@@ -367,41 +342,6 @@ server, allowing you to view and interact with the scene from any browser.
 - Optional public share URL for remote viewing
 - Recording to ``.viser`` format for replay
 - Environment filtering to control which environments are rendered
-
-**Remote viewing (SSH / cloud / another machine):**
-
-The Viser HTTP server listens on ``port`` (default ``8080``; set ``ViserVisualizerCfg.port`` if you
-change it). Allow that port inbound, then open:
-
-.. code-block:: text
-
-   http://<host>:8080
-
-Use the machine’s hostname or IP for ``<host>``. On startup, the log prints **ViserVisualizer
-Configuration** with ``viewer_url`` for the configured port (defaults to ``http://localhost:<port>``—replace
-``localhost`` with your remote host when connecting from another device).
-
-You can also enable ``share=True`` in ``ViserVisualizerCfg`` to request a public share URL from Viser when supported.
-
-**Launch with Viser:**
-
-.. code-block:: bash
-
-    ./isaaclab.sh -p source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py --viz viser
-
-**Configuration example:**
-
-.. code-block:: python
-
-    from isaaclab_visualizers.viser import ViserVisualizerCfg
-
-    visualizer_cfg = ViserVisualizerCfg(
-        port=8080,
-        open_browser=True,
-        label="Isaac Lab Simulation",
-        share=False,
-        max_worlds=64,
-    )
 
 **Configuration options:**
 
@@ -421,7 +361,7 @@ You can also enable ``share=True`` in ``ViserVisualizerCfg`` to request a public
 Performance Note
 ----------------
 
-When visualizing large-scale environments, consider:
+To reduce overhead when visualizing large-scale environments, consider:
 
 - Using Newton instead of Omniverse or Rerun
 - Reducing window sizes

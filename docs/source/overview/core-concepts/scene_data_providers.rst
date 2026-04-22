@@ -48,10 +48,9 @@ The system has three layers:
 PhysX Scene Data Provider
 -------------------------
 
-When PhysX is the active physics backend, the provider **loads the Newton model and state from
-the interactive scene’s cloner prebuilt artifact** (see :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`),
-then syncs PhysX transforms into that state each frame. Newton-based visualizers (Newton, Rerun,
-Viser) require this model/state to render; there is no separate USD traversal build in the provider.
+When PhysX is the active physics backend, the provider **builds and maintains a Newton model
+from the USD stage**, then syncs PhysX transforms into it each frame. This is necessary because
+Newton-based visualizers (Newton, Rerun, Viser) require a Newton model/state to render.
 
 The sync pipeline:
 

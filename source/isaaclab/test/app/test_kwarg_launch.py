@@ -77,13 +77,13 @@ def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch:
 
 
 def test_parse_visualizer_csv_accepts_comma_delimited_values():
-    parsed = app_launcher_module._parse_visualizer_csv("kit,newton,rerun,viser")
+    parsed = app_launcher_module.AppLauncher._parse_visualizer_csv("kit,newton,rerun,viser")
     assert parsed == ["kit", "newton", "rerun", "viser"]
 
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():
     with pytest.raises(argparse.ArgumentTypeError, match="spaces are not allowed"):
-        app_launcher_module._parse_visualizer_csv("kit, newton")
+        app_launcher_module.AppLauncher._parse_visualizer_csv("kit, newton")
 
 
 def test_resolve_visualizer_settings_rejects_none_with_others():
