@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+4.6.11 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``isaaclab.sh --install`` leaving ``pinocchio`` uninstalled on top of recent Isaac Sim
+  base images that preinstall ``pin-pink`` in the kit's bundled ``site-packages`` without its
+  ``pin`` (cmeel pinocchio) dependency. Pip treats the ``pin-pink`` requirement as already
+  satisfied and skips the transitive ``pin`` resolve, so the pink IK controller and its tests
+  fail to import. ``isaaclab.cli.commands.install`` now probes ``import pinocchio`` after
+  installing the Isaac Lab submodules and force-reinstalls the cmeel ``pin``/``pin-pink``/
+  ``daqp`` stack when the probe fails.
+
+
 4.6.10 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

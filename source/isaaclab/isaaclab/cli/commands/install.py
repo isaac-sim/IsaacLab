@@ -130,6 +130,66 @@ def _maybe_uninstall_prebundled_torch(
     )
 
 
+# Pinocchio stack required by isaaclab.controllers.pink_ik. Installed via the cmeel
+# ``pin`` wheel, which provides the ``pinocchio`` Python module under
+# ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
+# ``cmeel.pth`` hook.
+_PINOCCHIO_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.7.2")
+
+
+def _ensure_pinocchio_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
+    """Ensure ``pinocchio`` is importable, force-installing the cmeel pin stack if not.
+
+    Recent Isaac Sim base images preinstall ``pin-pink`` into the kit's bundled
+    ``site-packages`` without its ``pin`` (cmeel pinocchio) dependency.  Pip then
+    treats the ``pin-pink`` requirement as satisfied and never resolves the
+    transitive ``pin`` dep, leaving ``import pinocchio`` broken.  This probes
+    for ``pinocchio`` at runtime and force-installs the cmeel stack when needed
+    so the pink IK controller and its tests work out of the box.
+
+    Only runs on Linux x86_64 / aarch64 — the same platforms that have
+    pinocchio listed in :mod:`isaaclab`'s ``setup.py`` install requirements.
+    Skipped on Windows and macOS (no cmeel wheels) and on unsupported
+    architectures so the rest of ``--install`` behaves unchanged there.
+
+    A force-reinstall failure (e.g. transient PyPI / NVIDIA Artifactory issue)
+    is logged as a warning rather than aborting ``--install``: pinocchio is only
+    needed by the optional pink IK controller, so the rest of Isaac Lab should
+    still install cleanly.
+    """
+    import platform
+
+    if platform.system() != "Linux":
+        return
+    if platform.machine() not in {"x86_64", "AMD64", "aarch64", "arm64"}:
+        return
+
+    probe_result = run_command(
+        [python_exe, "-c", "import pinocchio"],
+        env=probe_env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if probe_result.returncode == 0:
+        return
+
+    print_info(
+        "``import pinocchio`` failed — the kit-bundled ``pin-pink`` likely shipped without its"
+        " ``pin`` dep. Force-installing the cmeel pinocchio stack."
+    )
+    install_result = run_command(
+        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINOCCHIO_STACK],
+        check=False,
+    )
+    if install_result.returncode != 0:
+        print_warning(
+            "Force-installing the cmeel pinocchio stack failed (returncode "
+            f"{install_result.returncode}). The pink IK controller and its tests will not be"
+            " usable until ``pin pin-pink==3.1.0 daqp==0.7.2`` is installed manually."
+        )
+
+
 def _ensure_cuda_torch() -> None:
     """Ensure correct PyTorch and CUDA versions are installed."""
     python_exe = extract_python_exe()
@@ -642,6 +702,11 @@ def command_install(install_type: str = "all") -> None:
         # In some rare cases, torch might not be installed properly by setup.py, add one more check here.
         # Can prevent that from happening.
         _ensure_cuda_torch()
+
+        # Ensure ``pinocchio`` is actually importable.  The kit-bundled ``pin-pink`` in recent
+        # Isaac Sim images ships without its cmeel ``pin`` dependency, so the transitive
+        # requirement from ``pip install -e source/isaaclab`` can be silently skipped.
+        _ensure_pinocchio_installed(python_exe, pip_cmd, probe_env=probe_env)
 
         # Repoint prebundled packages in Isaac Sim to the environment's copies so
         # the active venv/conda versions are always loaded regardless of PYTHONPATH
