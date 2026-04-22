@@ -5,18 +5,19 @@
 
 # pyright: reportPrivateUsage=none
 
-"""Tests for MessageChannelTeleopStateManager, _classify_command, _extract_command,
+"""Tests for TeleopMessageProcessor, _classify_command, _extract_command,
 and poll_control_events.
 
 These tests exercise pure logic (no Omniverse/Isaac Sim stack required).
-The state manager is tested by calling its ``_compute_execution_events``
-method directly with fake pipeline I/O, mirroring how TeleopCore's
+The message processor is tested by calling its ``_compute_fn`` method
+directly with fake pipeline I/O, mirroring how TeleopCore's
 ``teleop_control_pipeline`` mechanism invokes it.
 """
 
 from __future__ import annotations
 
 import dataclasses
+import json
 import sys
 from types import ModuleType
 from unittest.mock import MagicMock
@@ -54,7 +55,6 @@ def _install_stubs():
             _stubs[name] = MagicMock()
             sys.modules[name] = _stubs[name]
 
-    # Provide real ExecutionState and ExecutionEvents so state logic works.
     from enum import Enum
 
     class ExecutionState(str, Enum):
@@ -74,21 +74,20 @@ def _install_stubs():
     ee_mod.ExecutionState = ExecutionState  # type: ignore[attr-defined]
     ee_mod.ExecutionEvents = ExecutionEvents  # type: ignore[attr-defined]
 
-    # Make them available from the interface module too
     iface = sys.modules["isaacteleop.retargeting_engine.interface"]
     iface.ExecutionState = ExecutionState  # type: ignore[attr-defined]
     iface.ExecutionEvents = ExecutionEvents  # type: ignore[attr-defined]
     iface.RetargeterIOType = dict  # type: ignore[attr-defined]
 
-    # Provide a minimal TeleopStateManager base so the subclass can instantiate
-    class FakeTeleopStateManager:
+    class FakeBaseRetargeter:
         def __init__(self, name: str) -> None:
             self.name = name
 
-    tsm_mod = sys.modules["isaacteleop.teleop_session_manager.teleop_state_manager_retargeter"]
-    tsm_mod.TeleopStateManager = FakeTeleopStateManager  # type: ignore[attr-defined]
+    iface.BaseRetargeter = FakeBaseRetargeter  # type: ignore[attr-defined]
 
-    # MessageChannelMessagesTrackedGroup stub
+    tsm_types = sys.modules["isaacteleop.teleop_session_manager.teleop_state_manager_types"]
+    tsm_types.bool_signal = MagicMock  # type: ignore[attr-defined]
+
     dt_mod = sys.modules["isaacteleop.retargeting_engine.deviceio_source_nodes.deviceio_tensor_types"]
     dt_mod.MessageChannelMessagesTrackedGroup = MagicMock  # type: ignore[attr-defined]
 
@@ -96,16 +95,10 @@ def _install_stubs():
 _install_stubs()
 
 from isaaclab_teleop.control_events import ControlEvents, poll_control_events  # noqa: E402
-from isaaclab_teleop.message_channel_state_manager import (  # noqa: E402
-    MessageChannelTeleopStateManager,
+from isaaclab_teleop.teleop_message_processor import (  # noqa: E402
+    TeleopMessageProcessor,
     _classify_command,
     _extract_command,
-)
-
-# Re-import after stubs so we can reference them in assertions.
-from isaacteleop.retargeting_engine.interface.execution_events import (  # noqa: E402
-    ExecutionEvents,
-    ExecutionState,
 )
 
 # ---------------------------------------------------------------------------
@@ -137,157 +130,319 @@ def _null_tracked() -> _FakeTracked:
 
 
 def _make_inputs(messages_tracked):
-    """Build a fake RetargeterIO dict for the state manager."""
+    """Build a fake RetargeterIO dict for the processor."""
     tg = MagicMock()
     tg.__getitem__ = MagicMock(return_value=messages_tracked)
-    return {MessageChannelTeleopStateManager.INPUT_MESSAGES: tg}
+    return {TeleopMessageProcessor.INPUT_MESSAGES: tg}
 
 
-def _step(mgr, messages_tracked) -> ExecutionEvents:
-    """Invoke the state manager's compute with fake inputs and return the events."""
+class _FakeOutputSlot:
+    """Captures ``outputs["key"][0] = value`` assignments."""
+
+    def __init__(self):
+        self.value = None
+
+    def __setitem__(self, idx, val):
+        self.value = val
+
+    def __getitem__(self, idx):
+        return self.value
+
+
+def _make_outputs():
+    """Build a fake outputs dict with capturable slots."""
+    return {"run_toggle": _FakeOutputSlot(), "kill": _FakeOutputSlot(), "reset": _FakeOutputSlot()}
+
+
+def _step(proc, messages_tracked) -> dict:
+    """Run the processor's _compute_fn and return captured outputs."""
     inputs = _make_inputs(messages_tracked)
-    return mgr._compute_execution_events(inputs, context=None)
+    outputs = _make_outputs()
+    proc._compute_fn(inputs, outputs, context=None)
+    return {k: v.value for k, v in outputs.items()}
 
 
 # ===========================================================================
-# MessageChannelTeleopStateManager tests
+# TeleopMessageProcessor: basic command parsing
 # ===========================================================================
 
 
-class TestInitialState:
-    def test_defaults(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        events = mgr.last_control_events
-        assert events.is_active is None
-        assert events.should_reset is False
-
-
-class TestStartMessage:
-    def test_start_sets_running(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(b"start"))
-        assert result.execution_state == ExecutionState.RUNNING
-        assert mgr.last_control_events.is_active is True
+class TestStartCommand:
+    def test_start_sets_run_toggle(self):
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"start"))
+        assert result["run_toggle"] is True
+        assert result["kill"] is False
+        assert result["reset"] is False
 
     def test_start_does_not_set_reset(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(b"start"))
-        assert result.reset is False
-        assert mgr.last_control_events.should_reset is False
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"start"))
+        assert result["reset"] is False
 
 
-class TestStopMessage:
-    def test_stop_sets_paused(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(b"stop"))
-        assert result.execution_state == ExecutionState.PAUSED
-        assert mgr.last_control_events.is_active is False
+class TestStopCommand:
+    def test_stop_from_stopped_is_noop(self):
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"stop"))
+        assert result["run_toggle"] is False
+        assert result["kill"] is False
 
 
-class TestResetMessage:
-    def test_reset_sets_flags(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(b"reset"))
-        assert result.reset is True
-        assert mgr.last_control_events.should_reset is True
-
-    def test_reset_does_not_change_active_state(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        _step(mgr, _tracked(b"start"))
-        _step(mgr, _tracked(b"reset"))
-        assert mgr.last_control_events.is_active is True
+class TestResetCommand:
+    def test_reset_sets_reset_flag(self):
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"reset"))
+        assert result["reset"] is True
+        assert result["run_toggle"] is False
+        assert result["kill"] is False
 
 
 class TestResetPulseBehaviour:
-    def test_should_reset_clears_on_next_step(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        _step(mgr, _tracked(b"reset"))
-        assert mgr.last_control_events.should_reset is True
+    def test_reset_clears_on_next_step(self):
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"reset"))
+        assert result["reset"] is True
 
-        _step(mgr, _empty_tracked())
-        assert mgr.last_control_events.should_reset is False
+        result = _step(proc, _empty_tracked())
+        assert result["reset"] is False
+
+
+class TestKillAlwaysFalse:
+    def test_kill_is_always_false(self):
+        proc = TeleopMessageProcessor(name="test")
+        for payload in [b"start", b"stop", b"reset", b"hello"]:
+            result = _step(proc, _tracked(payload))
+            assert result["kill"] is False
+
+
+# ===========================================================================
+# Shadow state and toggle sequences
+# ===========================================================================
+
+
+class TestStartFromStopped:
+    """``start`` from STOPPED needs 2 toggle edges over 3 frames."""
+
+    def test_full_sequence_reaches_running(self):
+        proc = TeleopMessageProcessor(name="test")
+        # Frame 0: "start" received, first toggle edge queued
+        r0 = _step(proc, _tracked(b"start"))
+        assert r0["run_toggle"] is True  # edge 1: STOPPED -> PAUSED
+
+        # Frame 1: queue drains False (prev resets)
+        r1 = _step(proc, _empty_tracked())
+        assert r1["run_toggle"] is False
+
+        # Frame 2: queue drains True (second edge)
+        r2 = _step(proc, _empty_tracked())
+        assert r2["run_toggle"] is True  # edge 2: PAUSED -> RUNNING
+
+        # Frame 3: queue empty, back to idle
+        r3 = _step(proc, _empty_tracked())
+        assert r3["run_toggle"] is False
+
+    def test_shadow_state_is_running_after_sequence(self):
+        proc = TeleopMessageProcessor(name="test")
+        _step(proc, _tracked(b"start"))
+        _step(proc, _empty_tracked())
+        _step(proc, _empty_tracked())
+        assert proc._shadow_state == "running"
+
+
+class TestStartFromPaused:
+    """``start`` from PAUSED needs 1 toggle edge."""
+
+    def test_single_edge_reaches_running(self):
+        proc = TeleopMessageProcessor(name="test")
+        # Drive to RUNNING: start sequence plays 3 frames
+        _step(proc, _tracked(b"start"))
+        _step(proc, _empty_tracked())
+        _step(proc, _empty_tracked())
+        assert proc._shadow_state == "running"
+
+        # Stop to reach PAUSED (prev_toggle is True from start sequence,
+        # so a False is prepended before the toggle edge)
+        _step(proc, _tracked(b"stop"))  # drains False (prepended)
+        r_stop_edge = _step(proc, _empty_tracked())  # drains True (edge)
+        assert r_stop_edge["run_toggle"] is True
+        assert proc._shadow_state == "paused"
+
+        # Start from PAUSED: prev_toggle is True, so False prepended
+        _step(proc, _tracked(b"start"))  # drains False (prepended)
+        r_start_edge = _step(proc, _empty_tracked())  # drains True (edge)
+        assert r_start_edge["run_toggle"] is True
+        assert proc._shadow_state == "running"
+
+
+class TestStartFromRunning:
+    """``start`` when already RUNNING is a no-op."""
+
+    def test_start_from_running_noop(self):
+        proc = TeleopMessageProcessor(name="test")
+        _step(proc, _tracked(b"start"))
+        _step(proc, _empty_tracked())
+        _step(proc, _empty_tracked())
+        assert proc._shadow_state == "running"
+
+        result = _step(proc, _tracked(b"start"))
+        assert result["run_toggle"] is False
+
+
+class TestStopFromRunning:
+    """``stop`` from RUNNING uses one toggle edge to reach PAUSED."""
+
+    def test_stop_pauses(self):
+        proc = TeleopMessageProcessor(name="test")
+        _step(proc, _tracked(b"start"))
+        _step(proc, _empty_tracked())
+        _step(proc, _empty_tracked())
+        assert proc._shadow_state == "running"
+
+        # prev_toggle is True, so stop prepends False before the edge
+        r0 = _step(proc, _tracked(b"stop"))
+        assert r0["run_toggle"] is False  # prepended False
+        r1 = _step(proc, _empty_tracked())
+        assert r1["run_toggle"] is True  # edge: RUNNING -> PAUSED
+        assert proc._shadow_state == "paused"
+
+
+class TestStopFromPaused:
+    """``stop`` when already PAUSED is a no-op."""
+
+    def test_stop_from_paused_noop(self):
+        proc = TeleopMessageProcessor(name="test")
+        _step(proc, _tracked(b"start"))
+        _step(proc, _empty_tracked())
+        _step(proc, _empty_tracked())
+        # Stop to PAUSED
+        _step(proc, _tracked(b"stop"))
+        _step(proc, _empty_tracked())
+        assert proc._shadow_state == "paused"
+
+        result = _step(proc, _tracked(b"stop"))
+        assert result["run_toggle"] is False
+
+
+class TestCommandDuringToggleSequence:
+    """Commands received while a toggle sequence is in progress are ignored."""
+
+    def test_second_start_during_sequence_ignored(self):
+        proc = TeleopMessageProcessor(name="test")
+        _step(proc, _tracked(b"start"))  # starts the 3-frame sequence
+        # Second start during the sequence should not restart it
+        r1 = _step(proc, _tracked(b"start"))
+        assert r1["run_toggle"] is False  # draining the False from queue
+
+        r2 = _step(proc, _empty_tracked())
+        assert r2["run_toggle"] is True  # second edge fires normally
+
+
+# ===========================================================================
+# inject_reset
+# ===========================================================================
+
+
+class TestInjectReset:
+    def test_inject_reset_produces_pulse(self):
+        proc = TeleopMessageProcessor(name="test")
+        proc.inject_reset()
+        result = _step(proc, _empty_tracked())
+        assert result["reset"] is True
+
+    def test_inject_reset_clears_after_one_step(self):
+        proc = TeleopMessageProcessor(name="test")
+        proc.inject_reset()
+        _step(proc, _empty_tracked())
+        result = _step(proc, _empty_tracked())
+        assert result["reset"] is False
+
+    def test_inject_reset_combines_with_message_reset(self):
+        proc = TeleopMessageProcessor(name="test")
+        proc.inject_reset()
+        result = _step(proc, _tracked(b"reset"))
+        assert result["reset"] is True
+
+    def test_inject_reset_independent_of_toggle(self):
+        proc = TeleopMessageProcessor(name="test")
+        proc.inject_reset()
+        result = _step(proc, _tracked(b"start"))
+        assert result["run_toggle"] is True
+        assert result["reset"] is True
+
+
+# ===========================================================================
+# Word boundary matching
+# ===========================================================================
 
 
 class TestWordBoundaryMatching:
     @pytest.mark.parametrize("payload", [b"teleop start", b"xr start session", b"start now"])
     def test_start_word(self, payload: bytes):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(payload))
-        assert result.execution_state == ExecutionState.RUNNING
-
-    @pytest.mark.parametrize("payload", [b"teleop stop", b"stop teleop"])
-    def test_stop_word(self, payload: bytes):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(payload))
-        assert result.execution_state == ExecutionState.PAUSED
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(payload))
+        assert result["run_toggle"] is True
 
     @pytest.mark.parametrize("payload", [b"teleop reset", b"env reset"])
     def test_reset_word(self, payload: bytes):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(payload))
-        assert result.reset is True
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(payload))
+        assert result["reset"] is True
 
 
 class TestAmbiguousPayloads:
-    def test_stop_wins_over_start_when_both_present(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(b"stop and start"))
-        assert result.execution_state == ExecutionState.PAUSED
+    def test_reset_wins_over_start(self):
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"reset and start"))
+        assert result["reset"] is True
+        assert result["run_toggle"] is False
 
-    def test_reset_wins_over_start_when_both_present(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(b"reset and start"))
-        assert result.reset is True
+
+# ===========================================================================
+# Empty, null, and malformed batches
+# ===========================================================================
 
 
 class TestEmptyAndNullBatches:
     def test_empty_data_list(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        _step(mgr, _tracked(b"start"))
-        _step(mgr, _empty_tracked())
-        assert mgr.last_control_events.is_active is True
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _empty_tracked())
+        assert result["run_toggle"] is False
+        assert result["kill"] is False
+        assert result["reset"] is False
 
     def test_null_data(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        _step(mgr, _null_tracked())
-        assert mgr.last_control_events.is_active is None
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _null_tracked())
+        assert result["run_toggle"] is False
 
     def test_none_input(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        _step(mgr, None)
-        assert mgr.last_control_events.is_active is None
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, None)
+        assert result["run_toggle"] is False
 
 
 class TestMultipleMessagesInBatch:
     def test_start_then_reset_in_one_batch(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(b"start", b"reset"))
-        assert mgr.last_control_events.is_active is True
-        assert result.reset is True
-
-
-class TestSequentialStartStop:
-    def test_start_then_stop(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        _step(mgr, _tracked(b"start"))
-        assert mgr.last_control_events.is_active is True
-        result = _step(mgr, _tracked(b"stop"))
-        assert mgr.last_control_events.is_active is False
-        assert result.execution_state == ExecutionState.PAUSED
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"start", b"reset"))
+        assert result["run_toggle"] is True
+        assert result["reset"] is True
 
 
 class TestMalformedPayloads:
     def test_invalid_utf8(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        _step(mgr, _tracked(b"\xff\xfe"))
-        assert mgr.last_control_events.is_active is None
-        assert mgr.last_control_events.should_reset is False
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"\xff\xfe"))
+        assert result["run_toggle"] is False
+        assert result["kill"] is False
+        assert result["reset"] is False
 
     def test_none_payload(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
+        proc = TeleopMessageProcessor(name="test")
         tracked = _FakeTracked(data=[_FakePayload(payload=None)])  # type: ignore[arg-type]
-        _step(mgr, tracked)
-        assert mgr.last_control_events.is_active is None
+        result = _step(proc, tracked)
+        assert result["run_toggle"] is False
 
 
 # ===========================================================================
@@ -297,42 +452,36 @@ class TestMalformedPayloads:
 
 def _json_command(command: str) -> bytes:
     """Build a Quest-style JSON teleop_command payload."""
-    import json
-
     return json.dumps({"type": "teleop_command", "message": {"command": command}}).encode("utf-8")
 
 
 class TestJsonFormat:
     def test_json_start_teleop(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(_json_command("start teleop")))
-        assert result.execution_state == ExecutionState.RUNNING
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(_json_command("start teleop")))
+        assert result["run_toggle"] is True
 
-    def test_json_stop_teleop(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(_json_command("stop teleop")))
-        assert result.execution_state == ExecutionState.PAUSED
+    def test_json_stop_teleop_from_stopped_noop(self):
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(_json_command("stop teleop")))
+        assert result["run_toggle"] is False
 
     def test_json_reset_teleop(self):
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(_json_command("reset teleop")))
-        assert result.reset is True
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(_json_command("reset teleop")))
+        assert result["reset"] is True
 
     def test_json_wrong_type_ignored(self):
-        import json
-
         payload = json.dumps({"type": "other_event", "message": {"command": "start"}}).encode("utf-8")
-        mgr = MessageChannelTeleopStateManager(name="test")
-        _step(mgr, _tracked(payload))
-        assert mgr.last_control_events.is_active is None
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(payload))
+        assert result["run_toggle"] is False
 
     def test_json_message_as_string(self):
-        import json
-
         payload = json.dumps({"type": "teleop_command", "message": "start teleop"}).encode("utf-8")
-        mgr = MessageChannelTeleopStateManager(name="test")
-        result = _step(mgr, _tracked(payload))
-        assert result.execution_state == ExecutionState.RUNNING
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(payload))
+        assert result["run_toggle"] is True
 
 
 # ===========================================================================
@@ -345,20 +494,14 @@ class TestExtractCommand:
         assert _extract_command("start teleop") == "start teleop"
 
     def test_json_teleop_command(self):
-        import json
-
         text = json.dumps({"type": "teleop_command", "message": {"command": "stop"}})
         assert _extract_command(text) == "stop"
 
     def test_json_wrong_type(self):
-        import json
-
         text = json.dumps({"type": "other", "message": {"command": "start"}})
         assert _extract_command(text) is None
 
     def test_json_no_message_key(self):
-        import json
-
         text = json.dumps({"type": "teleop_command"})
         assert _extract_command(text) is None
 

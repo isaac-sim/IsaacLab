@@ -16,8 +16,7 @@ TELEOP_CONTROL_CHANNEL_UUID: bytes = uuid.uuid5(uuid.NAMESPACE_DNS, "teleop_comm
 
 Derived deterministically as ``uuid5(NAMESPACE_DNS, "teleop_command")``
 so that both the Isaac Lab server and the Quest client can independently
-compute the same channel identifier from the string ``"teleop_command"``
-(matching the carb event type name used by the legacy XRCore message bus).
+compute the same channel identifier from the string ``"teleop_command"``.
 
 Pass this value as :attr:`~isaaclab_teleop.IsaacTeleopCfg.control_channel_uuid`
 when configuring a teleop session with message-channel-based control.
@@ -29,12 +28,11 @@ class ControlEvents:
     """Result of :func:`poll_control_events`.
 
     Attributes:
-        is_active: ``True`` if the control channel received a ``"start"``
-            command, ``False`` after ``"stop"``, or ``None`` when no control
+        is_active: ``True`` when the teleop state machine is in RUNNING,
+            ``False`` when PAUSED or STOPPED, or ``None`` when no control
             channel is configured (callers should leave their own active
             flag unchanged).
-        should_reset: ``True`` when the control channel received a
-            ``"reset"`` command this frame.
+        should_reset: ``True`` when a reset was triggered this frame.
     """
 
     is_active: bool | None = None

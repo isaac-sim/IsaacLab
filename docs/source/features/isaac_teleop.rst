@@ -154,10 +154,12 @@ a ``teleop_control_pipeline`` inside TeleopCore's :class:`TeleopSession`, which 
        {"type": "teleop_command", "message": {"command": "stop teleop"}}
        {"type": "teleop_command", "message": {"command": "reset teleop"}}
 
-3. A :class:`~isaaclab_teleop.message_channel_state_manager.MessageChannelTeleopStateManager`
-   parses these payloads and produces ``teleop_state`` (one-hot: stopped / paused / running) and
-   ``reset_event`` (bool pulse) outputs.
-4. TeleopCore decodes these outputs into ``ExecutionEvents`` and injects them into every
+3. A :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor` parses these
+   payloads and produces boolean pulse signals (``run_toggle``, ``kill``, ``reset``).
+4. :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager` consumes the
+   boolean signals, runs its state machine (edge detection, fail-safe), and produces
+   ``teleop_state`` (one-hot) and ``reset_event`` (bool pulse) outputs.
+5. TeleopCore decodes these outputs into ``ExecutionEvents`` and injects them into every
    retargeter's ``ComputeContext``, so stateful retargeters can react to state changes
    (e.g. reinitializing cross-step state on reset).
 

@@ -488,6 +488,7 @@ def run_simulation_loop(
     # path is poll_control_events(); these callbacks are bridged automatically
     # and also serve native (keyboard / spacemouse) devices.
     teleoperation_callbacks = {
+        "R": reset_recording_instance,
         "START": start_recording_instance,
         "STOP": stop_recording_instance,
         "RESET": reset_recording_instance,

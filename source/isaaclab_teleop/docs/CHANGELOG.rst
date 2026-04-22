@@ -12,9 +12,9 @@ Added
   an OpenXR message channel.  The channel is managed by TeleopCore's native
   ``teleop_control_pipeline`` mechanism.
 
-* Added ``MessageChannelTeleopStateManager`` retargeter that converts raw
-  message-channel payloads into ``teleop_state`` and ``reset_event`` outputs
-  for the control pipeline.
+* Added :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor`
+  retargeter that converts raw message-channel payloads into boolean control
+  signals for :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
 
 * Added :func:`~isaaclab_teleop.poll_control_events` helper,
   :class:`~isaaclab_teleop.ControlEvents` dataclass, and

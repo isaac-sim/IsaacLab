@@ -68,7 +68,8 @@ class IsaacTeleopDevice:
 
     Teleop commands:
         The device supports callbacks for START, STOP, and RESET commands
-        that can be triggered via XR controller buttons or the message bus.
+        that can be triggered via the message-channel control pipeline or
+        registered directly via :meth:`add_callback`.
 
     Example:
         .. code-block:: python
@@ -119,7 +120,6 @@ class IsaacTeleopDevice:
         """
         self._cfg = cfg
 
-        # Compose the three collaborators
         self._anchor_manager = XrAnchorManager(cfg.xr_cfg)
         self._command_handler = CommandHandler()
         self._session_lifecycle = TeleopSessionLifecycle(
@@ -128,9 +128,7 @@ class IsaacTeleopDevice:
             auto_launch_cloudxr=auto_launch_cloudxr,
         )
 
-        # Controller button polling state (edge detection for right 'A')
         self._prev_right_a_pressed = False
-        # Track the last is_active value so callbacks only fire on edges
         self._prev_control_is_active: bool | None = None
 
     def __del__(self):
@@ -200,9 +198,9 @@ class IsaacTeleopDevice:
     def last_control_events(self) -> ControlEvents:
         """Control events from the most recent :meth:`advance`.
 
-        Returns a :class:`ControlEvents` derived from messages received over
-        the control message channel.  When no control channel is configured,
-        returns a default (no-op) :class:`ControlEvents`.
+        Returns a :class:`ControlEvents` derived from the teleop control
+        pipeline.  When no control channel is configured, returns a
+        default (no-op) :class:`ControlEvents`.
         """
         return self._session_lifecycle.last_control_events
 
@@ -266,8 +264,6 @@ class IsaacTeleopDevice:
             # Poll controller buttons (e.g. toggle anchor rotation on right 'A' press)
             self._poll_buttons()
 
-        # Bridge control events to legacy callbacks so scripts that registered
-        # via add_callback() still receive START / STOP / RESET dispatches.
         self._dispatch_control_callbacks()
 
         return action
@@ -282,13 +278,23 @@ class IsaacTeleopDevice:
         This bridges the pipeline-based :class:`ControlEvents` with the
         callback-based :class:`CommandHandler` so that scripts which registered
         callbacks via :meth:`add_callback` still receive dispatches.
+
+        Only fires START/STOP when ``is_active`` transitions between ``True``
+        and ``False``; initial transitions from ``None`` are ignored to avoid
+        spurious callbacks during ``DefaultTeleopStateManager``'s
+        STOPPED -> PAUSED progression.
         """
+        from .control_events import _NO_OP_EVENTS
+
         events = self._session_lifecycle.last_control_events
+        if events is _NO_OP_EVENTS:
+            return
         if events.should_reset:
             self._command_handler.fire("RESET")
             self._anchor_manager.reset()
-        if events.is_active is not None and events.is_active != self._prev_control_is_active:
-            self._command_handler.fire("START" if events.is_active else "STOP")
+        if events.is_active is not None:
+            if self._prev_control_is_active is not None and events.is_active != self._prev_control_is_active:
+                self._command_handler.fire("START" if events.is_active else "STOP")
             self._prev_control_is_active = events.is_active
 
     # ------------------------------------------------------------------

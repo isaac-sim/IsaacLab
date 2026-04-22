@@ -126,11 +126,11 @@ class IsaacTeleopCfg:
     channel both the Isaac Lab server and CloudXR JS client use to
     exchange start/stop/reset commands.
 
-    When set, a ``teleop_control_pipeline`` with a
-    :class:`~isaaclab_teleop.message_channel_state_manager.MessageChannelTeleopStateManager`
-    is created automatically.  The remote client sends UTF-8 control
-    commands over the OpenXR opaque data channel identified by this UUID,
-    and the results are exposed via
+    When set, a ``teleop_control_pipeline`` is created automatically
+    using :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor`
+    and :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+    The remote client sends UTF-8 control commands over the OpenXR opaque
+    data channel identified by this UUID, and the results are exposed via
     :func:`~isaaclab_teleop.poll_control_events`.
 
     Set to ``None`` to disable the control channel entirely.
