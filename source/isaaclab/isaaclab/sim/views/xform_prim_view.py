@@ -51,8 +51,8 @@ class XformPrimView:
 
         When Fabric is enabled, this view ensures prims have the required Fabric hierarchy
         attributes (``omni:fabric:localMatrix`` and ``omni:fabric:worldMatrix``). On first Fabric
-        read, USD-authored transforms initialize Fabric state. Fabric writes can optionally
-        be mirrored back to USD via :attr:`sync_usd_on_fabric_write`.
+        read, USD-authored transforms initialize Fabric state. Fabric writes remain
+        GPU-resident and are not mirrored back to USD.
 
         For more information, see the `Fabric Hierarchy documentation`_.
 
@@ -85,7 +85,6 @@ class XformPrimView:
         prim_path: str,
         device: str = "cpu",
         validate_xform_ops: bool = True,
-        sync_usd_on_fabric_write: bool = False,
         stage: Usd.Stage | None = None,
     ):
         """Initialize the view with matching prims.
@@ -107,9 +106,6 @@ class XformPrimView:
                 ``"cuda:0"``. Defaults to ``"cpu"``.
             validate_xform_ops: Whether to validate that the prims have standard xform operations.
                 Defaults to True.
-            sync_usd_on_fabric_write: Whether to mirror Fabric transform writes back to USD.
-                When True, transform updates are synchronized to USD so that USD data readers (e.g., rendering
-                cameras) can observe these changes. Defaults to False for better performance.
             stage: USD stage to search for prims. Defaults to None, in which case the current active stage
                 from the simulation context is used.
 
@@ -166,10 +162,6 @@ class XformPrimView:
         # Create indices buffer
         # Since we iterate over the indices, we need to use range instead of torch tensor
         self._ALL_INDICES = list(range(len(self._prims)))
-
-        # Some prims (e.g., Cameras) require USD-authored transforms for rendering.
-        # When enabled, mirror Fabric pose writes to USD for those prims.
-        self._sync_usd_on_fabric_write = sync_usd_on_fabric_write
 
         # Fabric batch infrastructure (initialized lazily on first use)
         self._fabric_initialized = False
@@ -771,11 +763,6 @@ class XformPrimView:
         self._fabric_hierarchy.update_world_xforms()
         # Fabric now has authoritative data; skip future USD syncs
         self._fabric_usd_sync_done = True
-        # Mirror to USD for renderer-facing prims when enabled.
-        if self._sync_usd_on_fabric_write:
-            self._set_world_poses_usd(positions, orientations, indices)
-
-        # Fabric writes are GPU-resident; local pose operations still use USD.
 
     def _set_local_poses_fabric(
         self,
@@ -842,9 +829,6 @@ class XformPrimView:
         self._fabric_hierarchy.update_world_xforms()
         # Fabric now has authoritative data; skip future USD syncs
         self._fabric_usd_sync_done = True
-        # Mirror to USD for renderer-facing prims when enabled.
-        if self._sync_usd_on_fabric_write:
-            self._set_scales_usd(scales, indices)
 
     def _get_world_poses_fabric(self, indices: Sequence[int] | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Get world poses from Fabric using GPU batch operations."""
@@ -1122,11 +1106,8 @@ class XformPrimView:
         positions_usd, orientations_usd = self._get_world_poses_usd()
         scales_usd = self._get_scales_usd()
 
-        prev_sync = self._sync_usd_on_fabric_write
-        self._sync_usd_on_fabric_write = False
         self._set_world_poses_fabric(positions_usd, orientations_usd)
         self._set_scales_fabric(scales_usd)
-        self._sync_usd_on_fabric_write = prev_sync
 
         self._fabric_usd_sync_done = True
 

@@ -1513,3 +1513,75 @@ def test_fabric_usd_consistency(device):
     pos_fabric_after, quat_fabric_after = view_fabric.get_world_poses()
     torch.testing.assert_close(pos_fabric_after, new_positions, atol=1e-4, rtol=0)
     torch.testing.assert_close(quat_fabric_after, new_orientations, atol=1e-4, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_fabric_writes_do_not_sync_to_usd(device):
+    """Test that Fabric world-pose writes are NOT mirrored back to USD.
+
+    The old workaround (sync_usd_on_fabric_write=True) used to double-write every
+    Fabric pose change back to USD so that USD data readers (cameras, renderers)
+    could observe them.  With the Kit PrepareForReuse fix (OMPE-85872), the renderer
+    picks up GPU-resident Fabric transforms directly, so the USD sync is no longer
+    needed.  This test verifies the sync is truly gone: after a Fabric write, USD
+    xformOp attributes must still contain their original values.
+    """
+    _skip_if_backend_unavailable("fabric", device)
+
+    stage = sim_utils.get_current_stage()
+
+    # Create camera prims with known USD-authored positions
+    num_prims = 3
+    original_positions = [(1.0, 2.0, 3.0), (4.0, 5.0, 6.0), (7.0, 8.0, 9.0)]
+    for i, pos in enumerate(original_positions):
+        sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=pos, stage=stage)
+
+    # Create a Fabric-backed view
+    view = _create_view("/World/Cam_.*", device=device, backend="fabric")
+
+    # Write completely different positions via Fabric
+    new_positions = torch.tensor(
+        [[100.0, 200.0, 300.0], [400.0, 500.0, 600.0], [700.0, 800.0, 900.0]],
+        dtype=torch.float32,
+        device=device,
+    )
+    new_orientations = torch.tensor(
+        [[0.0, 0.0, 0.7071068, 0.7071068]] * num_prims,
+        dtype=torch.float32,
+        device=device,
+    )
+    view.set_world_poses(new_positions, new_orientations)
+
+    # Verify Fabric read returns the new values
+    fabric_pos, _ = view.get_world_poses()
+    torch.testing.assert_close(fabric_pos, new_positions, atol=1e-4, rtol=0)
+
+    # Verify USD xformOp:translate was NOT updated (still has the original values)
+    for i, expected_pos in enumerate(original_positions):
+        prim = stage.GetPrimAtPath(f"/World/Cam_{i}")
+        usd_translate = prim.GetAttribute("xformOp:translate").Get()
+        assert usd_translate is not None, f"Prim /World/Cam_{i} should have xformOp:translate"
+        usd_pos = (usd_translate[0], usd_translate[1], usd_translate[2])
+        assert abs(usd_pos[0] - expected_pos[0]) < 1e-5, (
+            f"USD xformOp:translate should NOT be updated by Fabric write. "
+            f"Expected {expected_pos}, got {usd_pos}"
+        )
+        assert abs(usd_pos[1] - expected_pos[1]) < 1e-5
+        assert abs(usd_pos[2] - expected_pos[2]) < 1e-5
+
+    # Also verify USD orientation was NOT updated (should still be identity)
+    for i in range(num_prims):
+        prim = stage.GetPrimAtPath(f"/World/Cam_{i}")
+        usd_orient = prim.GetAttribute("xformOp:orient").Get()
+        assert usd_orient is not None
+        # Original orientation is identity (w=1, x=0, y=0, z=0)
+        real = usd_orient.GetReal()
+        imag = usd_orient.GetImaginary()
+        assert abs(real - 1.0) < 1e-5, (
+            f"USD xformOp:orient should NOT be updated by Fabric write. "
+            f"Expected identity quaternion, got real={real}, imag={imag}"
+        )
+        assert abs(imag[0]) < 1e-5 and abs(imag[1]) < 1e-5 and abs(imag[2]) < 1e-5, (
+            f"USD xformOp:orient should NOT be updated by Fabric write. "
+            f"Expected identity quaternion, got real={real}, imag={imag}"
+        )
