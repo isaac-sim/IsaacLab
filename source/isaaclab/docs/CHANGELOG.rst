@@ -1,6 +1,61 @@
 Changelog
 ---------
 
+4.6.9 (2026-04-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Converted all four ray caster sensor classes (:class:`~isaaclab.sensors.RayCaster`,
+  :class:`~isaaclab.sensors.RayCasterCamera`, :class:`~isaaclab.sensors.MultiMeshRayCaster`,
+  :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`) to launch Warp kernels directly via
+  ``wp.launch`` instead of going through Python-level torch wrappers. A new
+  :mod:`~isaaclab.sensors.ray_caster.kernels` module contains all sensor-specific kernels.
+  All intermediate ray buffers are now Warp-owned with zero-copy torch views, eliminating
+  per-step allocations. The existing :func:`~isaaclab.utils.warp.kernels.raycast_dynamic_meshes_kernel`
+  gained an ``env_mask`` parameter to support partial environment updates natively. A new
+  :func:`~isaaclab.utils.warp.kernels.raycast_mesh_masked_kernel` was added to
+  :mod:`~isaaclab.utils.warp.kernels` as the general-purpose masked single-mesh variant,
+  with ``return_distance`` and ``return_normal`` flags matching the design of
+  :func:`~isaaclab.utils.warp.kernels.raycast_mesh_kernel`.
+
+  **Breaking change** — :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
+  :attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
+  :attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` now return :class:`wp.array`
+  instead of :class:`torch.Tensor`. Call-sites that previously accessed these as tensors
+  must wrap the result with :func:`wp.to_torch`:
+
+  .. code-block:: python
+
+     # Before
+     hits = sensor.data.ray_hits_w          # torch.Tensor (old)
+     # After
+     hits = wp.to_torch(sensor.data.ray_hits_w)  # torch.Tensor (zero-copy view)
+
+* Changed the :attr:`~isaaclab.sensors.RayCaster.meshes` class variable cache key from
+  ``prim_path`` to a ``(prim_path, device)`` tuple so that meshes built on one device
+  (e.g. CPU) are not reused by a sensor running on another device (e.g. CUDA).
+
+  **Breaking change** — callers that read or write :attr:`~isaaclab.sensors.RayCaster.meshes`
+  directly must update the key:
+
+  .. code-block:: python
+
+     # Before
+     wp_mesh = RayCaster.meshes[prim_path]
+     # After
+     wp_mesh = RayCaster.meshes[(prim_path, device)]
+
+Fixed
+^^^^^
+
+* Fixed frame composition in :meth:`~isaaclab.sensors.MultiMeshRayCaster._update_mesh_transforms`
+  which used simple subtraction instead of proper frame decomposition when applying mesh offsets.
+  With non-identity orientation offsets, tracked mesh positions were incorrect, causing raycasts to
+  miss or hit wrong surfaces. The method now uses :func:`~isaaclab.utils.math.combine_frame_transforms`.
+
+
 4.6.8 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~
 
