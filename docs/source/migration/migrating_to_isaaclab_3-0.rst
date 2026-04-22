@@ -955,6 +955,14 @@ Common patterns that need updating:
      - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.FrameTransformer`
      - ``isaaclab_physx``
+   * - :class:`~isaaclab.sensors.RayCaster`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.RayCasterCamera`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.MultiMeshRayCaster`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`
+     - ``isaaclab``
 
 .. note::
 
@@ -972,6 +980,129 @@ Common patterns that need updating:
 
    Always review the changes after running the tool, as some accesses (e.g., those
    already passed to warp-native functions) should not be wrapped.
+
+
+Ray Caster Warp Backend
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The :class:`~isaaclab.sensors.RayCaster`, :class:`~isaaclab.sensors.RayCasterCamera`,
+:class:`~isaaclab.sensors.MultiMeshRayCaster`, and
+:class:`~isaaclab.sensors.MultiMeshRayCasterCamera` sensors have been transitioned from a
+PyTorch/USD-based backend to a native Warp kernel pipeline. This improves performance by
+eliminating per-step tensor allocations and torch-to-warp conversions, but introduces several
+breaking changes.
+
+
+RayCasterData Return Types
+--------------------------
+
+The :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
+:attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
+:attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` properties now return ``wp.array`` instead of
+``torch.Tensor``. This follows the same pattern as the general warp backend migration described
+above.
+
+.. code-block:: python
+
+   import warp as wp
+
+   # Before (Isaac Lab 2.x)
+   ray_hits = ray_caster.data.ray_hits_w        # torch.Tensor
+   sensor_pos = ray_caster.data.pos_w            # torch.Tensor
+
+   # After (Isaac Lab 3.x)
+   ray_hits = ray_caster.data.ray_hits_w         # wp.array
+   sensor_pos = ray_caster.data.pos_w            # wp.array
+
+   # To use with torch operations, wrap with wp.to_torch()
+   ray_hits_torch = wp.to_torch(ray_caster.data.ray_hits_w)
+   sensor_pos_torch = wp.to_torch(ray_caster.data.pos_w)
+
+
+Ray Alignment Configuration
+----------------------------
+
+The ``attach_yaw_only`` boolean parameter on :class:`~isaaclab.sensors.RayCasterCfg` has been
+deprecated in favor of the new ``ray_alignment`` parameter, which accepts one of three string
+values:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - Old (2.x)
+     - New (3.0)
+     - Behavior
+   * - ``attach_yaw_only=False``
+     - ``ray_alignment="base"``
+     - Rays follow the full sensor orientation.
+   * - ``attach_yaw_only=True``
+     - ``ray_alignment="yaw"``
+     - Rays follow only the yaw component of the sensor orientation.
+   * - *(not available)*
+     - ``ray_alignment="world"``
+     - Rays are always cast in the world frame (no rotation applied).
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   cfg = RayCasterCfg(attach_yaw_only=True, ...)
+
+   # After (Isaac Lab 3.x)
+   cfg = RayCasterCfg(ray_alignment="yaw", ...)
+
+
+Raycasting Kernel Signature Change
+-----------------------------------
+
+The :func:`~isaaclab.utils.warp.kernels.raycast_dynamic_meshes_kernel` Warp kernel now requires
+an ``env_mask`` parameter as its first argument. This is a ``wp.array(dtype=wp.bool)`` that
+controls which environments are updated. The public Python wrapper
+:func:`~isaaclab.utils.warp.ops.raycast_dynamic_meshes` has been updated to inject an all-True
+mask automatically, so code using the wrapper is unaffected.
+
+If you call the kernel directly, update your launch call:
+
+.. code-block:: python
+
+   import warp as wp
+
+   # Before (Isaac Lab 2.x)
+   wp.launch(
+       raycast_dynamic_meshes_kernel,
+       dim=(num_meshes, num_envs, num_rays),
+       inputs=[ray_starts, ray_directions, mesh_ids, ...],
+   )
+
+   # After (Isaac Lab 3.x) -- env_mask is now the first input
+   env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+   wp.launch(
+       raycast_dynamic_meshes_kernel,
+       dim=(num_meshes, num_envs, num_rays),
+       inputs=[env_mask, ray_starts, ray_directions, mesh_ids, ...],
+   )
+
+
+RayCaster.meshes Cache Key
+--------------------------
+
+The :attr:`~isaaclab.sensors.RayCaster.meshes` class variable, which caches warp meshes across
+all :class:`~isaaclab.sensors.RayCaster` instances, is now keyed by ``(prim_path, device)`` tuples
+instead of by ``prim_path`` alone. This prevents a mesh that was built on one device (e.g. CPU)
+from being reused by a sensor running on a different device (e.g. CUDA), which caused illegal
+memory accesses on systems without unified memory.
+
+Code that reads or writes this cache directly must update both the type annotation and the key:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   meshes: ClassVar[dict[str, wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[prim_path]
+
+   # After (Isaac Lab 3.x)
+   meshes: ClassVar[dict[tuple[str, str], wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[(prim_path, device)]
 
 
 Write Method Index/Mask Split

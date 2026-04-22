@@ -62,7 +62,7 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
 
             .. warning::
                Windows support for UV is currently unavailable. Please check
-               `issue #3483 <https://github.com/isaac-sim/IsaacLab/issues/3438>`_ to track progress.
+               `issue #3438 <https://github.com/isaac-sim/IsaacLab/issues/3438>`_ to track progress.
 
    .. tab-item::  Conda Environment
 
@@ -103,7 +103,7 @@ instead of *./isaaclab.sh -p* or *isaaclab.bat -p*.
             .. code:: batch
 
                :: Activate environment
-               conda activate env_isaaclab  # or "conda activate my_env"
+               conda activate env_isaaclab  :: or "conda activate my_env"
 
 Once you are in the virtual environment, you do not need to use ``./isaaclab.sh -p`` or
 ``isaaclab.bat -p`` to run python scripts. You can use the default python executable in your

@@ -61,7 +61,7 @@ Isaac Lab sub-packages:
          uv pip install isaaclab==3.0.0 # specific version
 
          # Isaac Lab + Isaac Sim
-         uv pip install "isaaclab[isaacsim]" --index-strategy unsafe-best-match --prerelease=allow
+         uv pip install "isaaclab[isaacsim]" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
          # Isaac Lab + specific sub-package(s)
          # Note: flags above are only needed when installing the isaacsim extra
@@ -69,7 +69,7 @@ Isaac Lab sub-packages:
          uv pip install "isaaclab[rl,tasks]"
 
          # Isaac Lab + Isaac Sim + all sub-packages
-         uv pip install "isaaclab[isaacsim,all]" --index-strategy unsafe-best-match --prerelease=allow
+         uv pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
    .. tab-item:: pip
 
@@ -170,8 +170,9 @@ Installing dependencies
             When using a conda environment,
             the preload is set up via the conda activation hook.
 
--  If you want to use ``rl_games`` for training and inferencing, install
-   its Python 3.11+ enabled fork:
+-  If you want to use ``rl_games`` for training and inferencing **and did not
+   install the** ``rl`` **extra above**, install its Python 3.11+ enabled fork
+   manually:
 
    .. code-block:: none
 

@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.18 (2026-04-21)
+0.5.19 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -11,6 +11,18 @@ Changed
   :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
   to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
   applied after body-frame composition.
+
+
+0.5.18 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Upgraded Newton from ``2684d75`` to ``a27277e``. Includes collision improvements, contact quality fixes,
+  hydroelastic contact optimization, and memory usage fixes in CollisionPipeline. For details see
+  ``Newton changelog <https://github.com/newton-physics/newton/blob/main/CHANGELOG.md>``.
+* Pinned ``mujoco`` and ``mujoco-warp`` to ``3.6.0`` to align with the Newton library.
 
 
 0.5.17 (2026-04-20)
