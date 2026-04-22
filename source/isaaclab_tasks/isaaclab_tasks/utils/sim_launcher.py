@@ -190,12 +190,38 @@ def launch_simulation(
         import importlib.util
 
         if importlib.util.find_spec("omni.kit") is None:
+            # Print a more obvious hint when a local _isaac_sim symlink
+            # exists but its env wasn't sourced (typical on Win11 + conda
+            # when activate.d hooks didn't fire, e.g. under `conda run`).
+            import os
+            import sys
+
+            isaaclab_path = os.environ.get("ISAACLAB_PATH")
+            local_sim = os.path.join(isaaclab_path, "_isaac_sim") if isaaclab_path else None
+            extra_hint = ""
+            if local_sim and os.path.isdir(local_sim):
+                if sys.platform == "win32":
+                    extra_hint = (
+                        f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
+                        f"  Either run via `isaaclab.bat ...` (which now sources setup_conda_env.bat\n"
+                        f"  automatically), or in your current shell run:\n"
+                        f'    call "{local_sim}\\setup_conda_env.bat"\n'
+                    )
+                else:
+                    extra_hint = (
+                        f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
+                        f"  Either run via `./isaaclab.sh ...` (which now sources setup_conda_env.sh\n"
+                        f"  automatically), or in your current shell run:\n"
+                        f'    source "{local_sim}/setup_conda_env.sh"\n'
+                    )
+
             logger.error(
                 "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"
                 "\n"
                 "  This environment requires Isaac Sim and Omniverse Kit.\n"
                 "    PhysX backend and Kit visualizer currently requires Isaac Sim.\n"
                 "\n"
+                f"{extra_hint}"
                 "  To fix this, ensure Isaac Sim is installed and available in the current environment.\n"
                 "\n"
                 "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"

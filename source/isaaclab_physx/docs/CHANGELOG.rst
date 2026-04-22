@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.20 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ``write_data_to_sim`` in :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and :class:`~isaaclab_physx.assets.RigidObjectCollection`
+  to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
+  applied to PhysX with ``is_global=False`` after body-frame composition.
+
+
 0.5.19 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~~
 

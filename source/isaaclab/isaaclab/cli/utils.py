@@ -146,19 +146,16 @@ def _print_debug_env(prefix: str, env: dict[str, str] | None) -> None:
 _CMD_METACHARACTERS = frozenset("<>|&^")
 
 
-def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> str | list[str]:
+def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> list[str]:
+    """Wrap .bat/.cmd calls in cmd.exe /c so args with < > | & ^ stay literal
+    (otherwise Windows treats e.g. setuptools<82.0.0 as a redirection).
     """
-    Quote ``cmd.exe`` metacharacters when invoking ``.bat``/``.cmd`` files.
-
-    Returns a command string (not list) so ``subprocess.run`` bypasses
-    ``list2cmdline`` which doesn't escape cmd.exe metacharacters (<, >, |, &, ^).
-    """
-    # Only .bat/.cmd files are executed via cmd.exe.
+    # only .bat/.cmd needs wrapping
     exe = str(cmd[0]).lower()
     if not (exe.endswith(".bat") or exe.endswith(".cmd")):
         return list(cmd)
 
-    # Wrap args that contain metacharacters or whitespace in double quotes.
+    # quote anything with metacharacters or spaces
     parts: list[str] = []
     for arg in cmd:
         s = str(arg)
@@ -167,8 +164,7 @@ def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> str | list[str]:
         else:
             parts.append(s)
 
-    # Return a string so subprocess skips list2cmdline.
-    return " ".join(parts)
+    return ["cmd.exe", "/c", " ".join(parts)]
 
 
 def run_command(

@@ -16,8 +16,17 @@ from pxr import UsdGeom
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
-from isaaclab.utils.warp import raycast_mesh
+from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
 
+from .kernels import (
+    ALIGNMENT_BASE,
+    CAMERA_RAYCAST_MAX_DIST,
+    apply_depth_clipping_masked_kernel,
+    compute_distance_to_image_plane_masked_kernel,
+    fill_float2d_masked_kernel,
+    fill_vec3_inf_kernel,
+    update_ray_caster_kernel,
+)
 from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster import RayCaster
 
@@ -143,6 +152,13 @@ class RayCasterCamera(RayCaster):
         self.ray_starts[env_ids], self.ray_directions[env_ids] = self.cfg.pattern_cfg.func(
             self.cfg.pattern_cfg, self._data.intrinsic_matrices[env_ids], self._device
         )
+        # Refresh warp views of local ray buffers; .contiguous() may produce a copy so we store
+        # the contiguous tensors explicitly to prevent GC while the warp views are alive.
+        if hasattr(self, "_ray_starts_local"):
+            self._ray_starts_contiguous = self.ray_starts.contiguous()
+            self._ray_directions_contiguous = self.ray_directions.contiguous()
+            self._ray_starts_local = wp.from_torch(self._ray_starts_contiguous, dtype=wp.vec3f)
+            self._ray_directions_local = wp.from_torch(self._ray_directions_contiguous, dtype=wp.vec3f)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timestamps
@@ -179,7 +195,7 @@ class RayCasterCamera(RayCaster):
         - :obj:`"ros"`    - forward axis: +Z - up axis -Y - Offset is applied in the ROS convention
         - :obj:`"world"`  - forward axis: +X - up axis +Z - Offset is applied in the World Frame convention
 
-        See :meth:`isaaclab.utils.maths.convert_camera_frame_orientation_convention` for more details
+        See :meth:`isaaclab.utils.math.convert_camera_frame_orientation_convention` for more details
         on the conventions.
 
         Args:
@@ -224,7 +240,7 @@ class RayCasterCamera(RayCaster):
         """Set the poses of the camera from the eye position and look-at target position.
 
         Args:
-            eyes: The positions of the camera's eye. Shape is N, 3).
+            eyes: The positions of the camera's eye. Shape is (N, 3).
             targets: The target locations to look at. Shape is (N, 3).
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
@@ -253,99 +269,242 @@ class RayCasterCamera(RayCaster):
         self._create_buffers()
         # compute intrinsic matrices
         self._compute_intrinsic_matrices()
-        # compute ray stars and directions
+        # compute ray starts and directions
         self.ray_starts, self.ray_directions = self.cfg.pattern_cfg.func(
             self.cfg.pattern_cfg, self._data.intrinsic_matrices, self._device
         )
         self.num_rays = self.ray_directions.shape[1]
-        # create buffer to store ray hits
-        self.ray_hits_w = torch.zeros(self._view.count, self.num_rays, 3, device=self._device)
-        # set offsets
+
+        # Offset buffers: warp-primary so the kernel always sees the current values without re-wrapping.
+        # Zero-copy torch views (_offset_pos, _offset_quat) are used by set_world_poses for indexed writes.
+        self._offset_pos_wp = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
+        self._offset_quat_wp = wp.zeros(self._view.count, dtype=wp.quatf, device=self._device)
+        self._offset_pos = wp.to_torch(self._offset_pos_wp)
+        self._offset_quat = wp.to_torch(self._offset_quat_wp)
+        # Initialize from config
         quat_w = math_utils.convert_camera_frame_orientation_convention(
             torch.tensor([self.cfg.offset.rot], device=self._device), origin=self.cfg.offset.convention, target="world"
         )
-        self._offset_quat = quat_w.repeat(self._view.count, 1)
-        self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
+        self._offset_pos[:] = torch.tensor(list(self.cfg.offset.pos), device=self._device)
+        self._offset_quat[:] = quat_w
+
+        # Warp buffers for world-frame rays (used by update kernel)
+        self._ray_starts_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_directions_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+
+        # Warp views for ray_starts and ray_directions (from torch tensors returned by pattern_cfg.func)
+        # These are (num_envs, num_rays, 3) torch tensors; wrap as warp vec3f arrays.
+        # Store contiguous tensors explicitly so they are not garbage-collected while the
+        # warp views are alive (mirrors the pattern in RayCaster._initialize_impl).
+        self._ray_starts_contiguous = self.ray_starts.contiguous()
+        self._ray_directions_contiguous = self.ray_directions.contiguous()
+        self._ray_starts_local = wp.from_torch(self._ray_starts_contiguous, dtype=wp.vec3f)
+        self._ray_directions_local = wp.from_torch(self._ray_directions_contiguous, dtype=wp.vec3f)
+
+        # Wrap the torch drift buffers (created in _create_buffers) as warp arrays (zero-copy).
+        # Cameras do not apply positional drift, so these remain zero.
+        self._drift_contiguous = self.drift.contiguous()
+        self._ray_cast_drift_contiguous = self.ray_cast_drift.contiguous()
+        self._drift = wp.from_torch(self._drift_contiguous, dtype=wp.vec3f)
+        self._ray_cast_drift = wp.from_torch(self._ray_cast_drift_contiguous, dtype=wp.vec3f)
+
+        # Warp buffers for camera pose outputs
+        self._pos_w_wp = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
+        self._quat_w_wp = wp.zeros(self._view.count, dtype=wp.quatf, device=self._device)
+
+        # Intermediate warp buffers for ray results (filled with inf before each raycasting step)
+        self._ray_distance = wp.zeros((self._view.count, self.num_rays), dtype=wp.float32, device=self._device)
+        if "normals" in self.cfg.data_types:
+            self._ray_normal_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        else:
+            self._ray_normal_w = wp.zeros((1, 1), dtype=wp.vec3f, device=self._device)
+
+        if "distance_to_image_plane" in self.cfg.data_types:
+            self._distance_to_image_plane_wp = wp.zeros(
+                (self._view.count, self.num_rays), dtype=wp.float32, device=self._device
+            )
+
+        # Torch buffer for ray hits (used by debug visualizer)
+        self.ray_hits_w = torch.full((self._view.count, self.num_rays, 3), float("inf"), device=self._device)
+        # Warp view of ray_hits_w
+        self._ray_hits_w_wp = wp.from_torch(self.ray_hits_w.contiguous(), dtype=wp.vec3f)
+
+        # Cache zero-copy torch views of warp output buffers to avoid per-step wrapper allocation.
+        self._pos_w_torch = wp.to_torch(self._pos_w_wp)
+        self._quat_w_torch = wp.to_torch(self._quat_w_wp)
+        self._ray_distance_torch = wp.to_torch(self._ray_distance)
+        if "distance_to_image_plane" in self.cfg.data_types:
+            self._distance_to_image_plane_torch = wp.to_torch(self._distance_to_image_plane_wp)
+        if "normals" in self.cfg.data_types:
+            self._ray_normal_w_torch = wp.to_torch(self._ray_normal_w)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         """Fills the buffers of the sensor data."""
+        # Convert mask to indices for torch-indexed writes
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) == 0:
             return
         # increment frame count
         self._frame[env_ids] += 1
 
-        # compute poses from current view
-        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids, clone=True)
-        pos_w, quat_w = math_utils.combine_frame_transforms(
-            pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
+        # Update world-frame ray starts/directions and camera pose via warp kernel.
+        # Camera always uses ALIGNMENT_BASE (full orientation) and zero drift.
+        transforms = self._get_view_transforms_wp()
+        wp.launch(
+            update_ray_caster_kernel,
+            dim=(self._num_envs, self.num_rays),
+            inputs=[
+                transforms,
+                env_mask,
+                self._offset_pos_wp,
+                self._offset_quat_wp,
+                self._drift,
+                self._ray_cast_drift,
+                self._ray_starts_local,
+                self._ray_directions_local,
+                int(ALIGNMENT_BASE),
+            ],
+            outputs=[
+                self._pos_w_wp,
+                self._quat_w_wp,
+                self._ray_starts_w,
+                self._ray_directions_w,
+            ],
+            device=self._device,
         )
-        # update the data
-        self._data.pos_w[env_ids] = pos_w
-        self._data.quat_w_world[env_ids] = quat_w
 
-        # note: full orientation is considered
-        ray_starts_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_starts[env_ids])
-        ray_starts_w += pos_w.unsqueeze(1)
-        ray_directions_w = math_utils.quat_apply(quat_w.repeat(1, self.num_rays), self.ray_directions[env_ids])
+        # Write camera pose to CameraData (torch tensors)
+        self._data.pos_w[env_ids] = self._pos_w_torch[env_ids]
+        self._data.quat_w_world[env_ids] = self._quat_w_torch[env_ids]
 
-        # ray cast and store the hits
-        # note: we set max distance to 1e6 during the ray-casting. THis is because we clip the distance
-        # to the image plane and distance to the camera to the maximum distance afterwards in-order to
-        # match the USD camera behavior.
-
-        # TODO: Make ray-casting work for multiple meshes?
-        # necessary for regular dictionaries.
-        self.ray_hits_w, ray_depth, ray_normal, _ = raycast_mesh(
-            ray_starts_w,
-            ray_directions_w,
-            mesh=RayCaster.meshes[self.cfg.mesh_prim_paths[0]],
-            max_dist=1e6,
-            return_distance=any(
-                [name in self.cfg.data_types for name in ["distance_to_image_plane", "distance_to_camera"]]
-            ),
-            return_normal="normals" in self.cfg.data_types,
+        # Fill ray hit positions with inf before raycasting
+        wp.launch(
+            fill_vec3_inf_kernel,
+            dim=(self._num_envs, self.num_rays),
+            inputs=[env_mask, float("inf"), self._ray_hits_w_wp],
+            device=self._device,
         )
-        # update output buffers
+
+        # Fill ray distance with inf before raycasting
+        wp.launch(
+            fill_float2d_masked_kernel,
+            dim=(self._num_envs, self.num_rays),
+            inputs=[env_mask, float("inf"), self._ray_distance],
+            device=self._device,
+        )
+
+        # Determine whether to compute normals
+        need_normal = int("normals" in self.cfg.data_types)
+        if need_normal:
+            # Fill normal buffer with inf before raycasting
+            wp.launch(
+                fill_vec3_inf_kernel,
+                dim=(self._num_envs, self.num_rays),
+                inputs=[env_mask, float("inf"), self._ray_normal_w],
+                device=self._device,
+            )
+
+        # Ray-cast against the mesh; use a large upper-bound max_dist so depth clipping
+        # can be applied per-data-type afterwards (matching the original behaviour).
+        wp.launch(
+            raycast_mesh_masked_kernel,
+            dim=(self._num_envs, self.num_rays),
+            inputs=[
+                RayCaster.meshes[(self.cfg.mesh_prim_paths[0], self._device)].id,
+                env_mask,
+                self._ray_starts_w,
+                self._ray_directions_w,
+                float(CAMERA_RAYCAST_MAX_DIST),
+                int(True),  # return_distance: always needed for depth output
+                need_normal,
+                self._ray_hits_w_wp,
+                self._ray_distance,
+                self._ray_normal_w,
+            ],
+            device=self._device,
+        )
+
+        # Compute distance_to_image_plane using a warp kernel
         if "distance_to_image_plane" in self.cfg.data_types:
-            # note: data is in camera frame so we only take the first component (z-axis of camera frame)
-            distance_to_image_plane = (
-                math_utils.quat_apply(
-                    math_utils.quat_inv(quat_w).repeat(1, self.num_rays),
-                    (ray_depth[:, :, None] * ray_directions_w),
-                )
-            )[:, :, 0]
-            # apply the maximum distance after the transformation
-            if self.cfg.depth_clipping_behavior == "max":
-                distance_to_image_plane = torch.clip(distance_to_image_plane, max=self.cfg.max_distance)
-                distance_to_image_plane[torch.isnan(distance_to_image_plane)] = self.cfg.max_distance
-            elif self.cfg.depth_clipping_behavior == "zero":
-                distance_to_image_plane[distance_to_image_plane > self.cfg.max_distance] = 0.0
-                distance_to_image_plane[torch.isnan(distance_to_image_plane)] = 0.0
-            self._data.output["distance_to_image_plane"][env_ids] = distance_to_image_plane.view(
+            wp.launch(
+                compute_distance_to_image_plane_masked_kernel,
+                dim=(self._num_envs, self.num_rays),
+                inputs=[
+                    env_mask,
+                    self._quat_w_wp,
+                    self._ray_distance,
+                    self._ray_directions_w,
+                ],
+                outputs=[
+                    self._distance_to_image_plane_wp,
+                ],
+                device=self._device,
+            )
+            # Apply depth clipping on the intermediate buffer (leaves _ray_distance unmodified)
+            self._apply_depth_clipping(env_mask, self._distance_to_image_plane_wp)
+            self._data.output["distance_to_image_plane"][env_ids] = self._distance_to_image_plane_torch[env_ids].view(
                 -1, *self.image_shape, 1
             )
 
         if "distance_to_camera" in self.cfg.data_types:
-            if self.cfg.depth_clipping_behavior == "max":
-                ray_depth = torch.clip(ray_depth, max=self.cfg.max_distance)
-            elif self.cfg.depth_clipping_behavior == "zero":
-                ray_depth[ray_depth > self.cfg.max_distance] = 0.0
-            self._data.output["distance_to_camera"][env_ids] = ray_depth.view(-1, *self.image_shape, 1)
+            # d2ip (if requested) was computed before this block so _ray_distance is still unclipped.
+            self._apply_depth_clipping(env_mask, self._ray_distance)
+            self._data.output["distance_to_camera"][env_ids] = self._ray_distance_torch[env_ids].view(
+                -1, *self.image_shape, 1
+            )
 
         if "normals" in self.cfg.data_types:
-            self._data.output["normals"][env_ids] = ray_normal.view(-1, *self.image_shape, 3)
+            self._data.output["normals"][env_ids] = self._ray_normal_w_torch[env_ids].view(-1, *self.image_shape, 3)
 
     def _debug_vis_callback(self, event):
         # in case it crashes be safe
         if not hasattr(self, "ray_hits_w"):
             return
-        # show ray hit positions
-        self.ray_visualizer.visualize(self.ray_hits_w.view(-1, 3))
+        # filter out missed rays (inf values) before visualizing
+        ray_hits_flat = self.ray_hits_w.reshape(-1, 3)
+        valid_mask = ~torch.isinf(ray_hits_flat).any(dim=-1)
+        viz_points = ray_hits_flat[valid_mask]
+        # if no valid hits, skip
+        if viz_points.shape[0] == 0:
+            return
+        self.ray_visualizer.visualize(viz_points)
 
     """
     Private Helpers
     """
+
+    def _apply_depth_clipping(self, env_mask: wp.array, depth: wp.array) -> None:
+        """Apply depth clipping in-place on a warp float32 buffer.
+
+        Uses :attr:`cfg.depth_clipping_behavior` to determine the fill value:
+        ``"max"`` replaces out-of-range and NaN values with :attr:`cfg.max_distance`;
+        ``"zero"`` replaces them with 0. No-op when behavior is ``"none"``.
+
+        Args:
+            env_mask: Boolean mask selecting which environments to update. Shape is (num_envs,).
+            depth: Warp 2-D float32 buffer to clip in-place. Shape is (num_envs, num_rays).
+        """
+        if self.cfg.depth_clipping_behavior == "max":
+            wp.launch(
+                apply_depth_clipping_masked_kernel,
+                dim=(self._num_envs, self.num_rays),
+                inputs=[env_mask, float(self.cfg.max_distance), float(self.cfg.max_distance), depth],
+                device=self._device,
+            )
+        elif self.cfg.depth_clipping_behavior == "zero":
+            wp.launch(
+                apply_depth_clipping_masked_kernel,
+                dim=(self._num_envs, self.num_rays),
+                inputs=[env_mask, float(self.cfg.max_distance), float(0.0), depth],
+                device=self._device,
+            )
+        elif self.cfg.depth_clipping_behavior == "none":
+            pass  # no clipping: inf values remain as-is
+        else:
+            raise ValueError(
+                f"Unknown depth_clipping_behavior: {self.cfg.depth_clipping_behavior!r}."
+                " Valid values are 'max', 'zero', and 'none'."
+            )
 
     def _check_supported_data_types(self, cfg: RayCasterCameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
@@ -362,7 +521,7 @@ class RayCasterCamera(RayCaster):
 
     def _create_buffers(self):
         """Create buffers for storing data."""
-        # prepare drift
+        # prepare drift (kept as torch tensors so subclasses may use torch indexing)
         self.drift = torch.zeros(self._view.count, 3, device=self.device)
         self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # create the data object

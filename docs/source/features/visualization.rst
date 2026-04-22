@@ -424,7 +424,7 @@ You can also enable ``share=True`` in ``ViserVisualizerCfg`` to request a public
 Performance Note
 ----------------
 
-To reduce overhead when visualizing large-scale environments, consider:
+When visualizing large-scale environments, consider:
 
 - Using Newton instead of Omniverse or Rerun
 - Reducing window sizes

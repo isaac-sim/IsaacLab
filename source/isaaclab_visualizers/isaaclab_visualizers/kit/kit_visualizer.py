@@ -83,7 +83,7 @@ class KitVisualizer(BaseVisualizer):
         )
         if self._resolved_visible_env_ids is not None:
             logger.warning(
-                "[KitVisualizer] Partial visualization is cosmetic only in OV (no perf guarantee); hiding other envs."
+                "[KitVisualizer] Partial visualization in Kit uses visibility only; unselected env prims are hidden."
             )
             self._apply_env_visibility(usd_stage, metadata, self._resolved_visible_env_ids)
         num_visualized_envs = (
