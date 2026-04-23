@@ -22,6 +22,10 @@ keywords = ["experience", "app", "isaaclab", "python", "camera", "minimal"]
 # Rendering
 "omni.kit.material.library" = {}
 "omni.kit.viewport.rtx" = {}
+# Headless viewport + texture support — required for annotators/render-products
+# without a visible window (e.g. DGX Cloud, CI containers).
+"omni.kit.viewport.window" = {}
+"omni.kit.hydra_texture" = {}
 
 [settings.isaaclab]
 # This is used to check that this experience file is loaded when using cameras
