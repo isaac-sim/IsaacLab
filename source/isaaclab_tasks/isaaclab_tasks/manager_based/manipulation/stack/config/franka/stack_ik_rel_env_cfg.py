@@ -95,3 +95,59 @@ class FrankaCubeStackBlueGreenRedEnvCfg(FrankaCubeStackEnvCfg):
                 "cube_3_cfg": SceneEntityCfg("cube_2"),
             },
         )
+
+
+@configclass
+class FrankaCubeStackRedGreenEnvCfg(FrankaCubeStackEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        self.terminations.success = DoneTerm(
+            func=mdp.cubes_stacked,
+            params={"cube_1_cfg": SceneEntityCfg("cube_2"), "cube_2_cfg": SceneEntityCfg("cube_3"), "cube_3_cfg": None},
+        )
+
+
+@configclass
+class FrankaCubeStackRedGreenBlueEnvCfg(FrankaCubeStackEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        self.terminations.success = DoneTerm(
+            func=mdp.cubes_stacked,
+            params={
+                "cube_1_cfg": SceneEntityCfg("cube_2"),
+                "cube_2_cfg": SceneEntityCfg("cube_3"),
+                "cube_3_cfg": SceneEntityCfg("cube_1"),
+            },
+        )
+
+
+@configclass
+class FrankaCubeStackBlueGreenEnvCfg(FrankaCubeStackEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        self.terminations.success = DoneTerm(
+            func=mdp.cubes_stacked,
+            params={"cube_1_cfg": SceneEntityCfg("cube_1"), "cube_2_cfg": SceneEntityCfg("cube_3"), "cube_3_cfg": None},
+        )
+
+
+@configclass
+class FrankaCubeStackBlueGreenRedEnvCfg(FrankaCubeStackEnvCfg):
+    def __post_init__(self):
+        # post init of parent
+        super().__post_init__()
+
+        self.terminations.success = DoneTerm(
+            func=mdp.cubes_stacked,
+            params={
+                "cube_1_cfg": SceneEntityCfg("cube_1"),
+                "cube_2_cfg": SceneEntityCfg("cube_3"),
+                "cube_3_cfg": SceneEntityCfg("cube_2"),
+            },
+        )
