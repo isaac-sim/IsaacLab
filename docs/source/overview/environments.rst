@@ -60,13 +60,14 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     |                  |                             |                                                                         | ``ovphysx``           |
     |                  | |cartpole-direct-link|      |                                                                         |                       |
     +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
-    | |cartpole|       | |cartpole-rgb-link|         | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton``, ``physx`` |
-    |                  |                             | and perceptive inputs. Requires running with ``--enable_cameras``.      | ``newton_renderer``,  |
-    |                  | |cartpole-depth-link|       |                                                                         | ``ovrtx_renderer``    |
-    |                  |                             |                                                                         |                       |
-    |                  | |cartpole-rgb-direct-link|  |                                                                         |                       |
-    |                  |                             |                                                                         |                       |
-    |                  | |cartpole-depth-direct-link||                                                                         |                       |
+    | |cartpole|       | |cartpole-camera-presets|   | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton``, ``physx`` |
+    |                  |                             | and perceptive inputs. Select data type via ``presets=``. Requires      | ``newton_renderer``,  |
+    |                  |                             | running with ``--enable_cameras``.                                      | ``ovrtx_renderer``,   |
+    |                  |                             |                                                                         | ``rgb``, ``depth``,   |
+    |                  |                             |                                                                         | ``albedo``,           |
+    |                  |                             |                                                                         | ``semantic_``         |
+    |                  |                             |                                                                         | ``segmentation``,     |
+    |                  |                             |                                                                         | ``simple_shading_*``  |
     +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
     | |cartpole|       | |cartpole-resnet-link|      | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton``, ``physx`` |
     |                  |                             | based off of features extracted from perceptive inputs with pre-trained |                       |
@@ -80,8 +81,7 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 .. |humanoid-link| replace:: `Isaac-Humanoid-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/humanoid/humanoid_env_cfg.py>`__
 .. |ant-link| replace:: `Isaac-Ant-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/ant/ant_env_cfg.py>`__
 .. |cartpole-link| replace:: `Isaac-Cartpole-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_env_cfg.py>`__
-.. |cartpole-rgb-link| replace:: `Isaac-Cartpole-RGB-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`__
-.. |cartpole-depth-link| replace:: `Isaac-Cartpole-Depth-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`__
+.. |cartpole-camera-presets| replace:: `Isaac-Cartpole-Camera-Presets-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_presets_env_cfg.py>`__
 .. |cartpole-resnet-link| replace:: `Isaac-Cartpole-RGB-ResNet18-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`__
 .. |cartpole-theia-link| replace:: `Isaac-Cartpole-RGB-TheiaTiny-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/cartpole/cartpole_camera_env_cfg.py>`__
 
@@ -89,8 +89,6 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 .. |humanoid-direct-link| replace:: `Isaac-Humanoid-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/humanoid/humanoid_env.py>`__
 .. |ant-direct-link| replace:: `Isaac-Ant-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/ant/ant_env.py>`__
 .. |cartpole-direct-link| replace:: `Isaac-Cartpole-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env.py>`__
-.. |cartpole-rgb-direct-link| replace:: `Isaac-Cartpole-RGB-Camera-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env.py>`__
-.. |cartpole-depth-direct-link| replace:: `Isaac-Cartpole-Depth-Camera-Direct-v0 <https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_camera_env.py>`__
 
 Manipulation
 ~~~~~~~~~~~~
@@ -815,37 +813,22 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **skrl** (PPO)
       - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Depth-Camera-Direct-v0 (Requires running with ``--enable_cameras``)
+    * - Isaac-Cartpole-Camera-Presets-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
-    * - Isaac-Cartpole-Depth-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Manager Based
-      - **rl_games** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``, ``rgb``, ``depth``, ``albedo``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Cartpole-Direct-v0
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - ``newton``, ``physx``, ``ovphysx``
-    * - Isaac-Cartpole-RGB-Camera-Direct-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Direct
-      - **rl_games** (PPO), **skrl** (PPO)
-      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-RGB-ResNet18-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
       - ``newton``, ``physx``
     * - Isaac-Cartpole-RGB-TheiaTiny-v0 (Requires running with ``--enable_cameras``)
-      -
-      - Manager Based
-      - **rl_games** (PPO)
-      - ``newton``, ``physx``
-    * - Isaac-Cartpole-RGB-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
       - **rl_games** (PPO)
