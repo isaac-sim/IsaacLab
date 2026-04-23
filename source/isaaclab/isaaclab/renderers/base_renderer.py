@@ -21,6 +21,33 @@ class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
     @abstractmethod
+    def create_output_buffers(
+        self,
+        data_types: list[str],
+        height: int,
+        width: int,
+        num_views: int,
+        device: torch.device | str,
+    ) -> dict[str, torch.Tensor]:
+        """Allocate output tensors for the supported subset of ``data_types``.
+
+        Implementations MUST omit any data-type names they cannot produce and
+        allocate on ``device``. They MAY include aliased entries that share
+        storage with another entry (e.g. ``rgb`` as a view into ``rgba``).
+
+        Args:
+            data_types: Names of the requested data types.
+            height: Image height in pixels.
+            width: Image width in pixels.
+            num_views: Number of camera views (batch dimension).
+            device: Torch device on which to allocate the buffers.
+
+        Returns:
+            Mapping from data-type name to a pre-allocated tensor.
+        """
+        pass
+
+    @abstractmethod
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the stage for rendering before create_render_data is called.
 

@@ -12,22 +12,20 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 import torch
 import warp as wp
-from packaging import version
 
-from pxr import Sdf, UsdGeom
+from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, Renderer
 from isaaclab.sim.views import XformPrimView
-from isaaclab.utils import has_kit, to_camel_case
+from isaaclab.utils import to_camel_case
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.version import get_isaac_sim_version
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
@@ -95,12 +93,6 @@ class Camera(SensorBase):
     }
     """The set of sensor types that are not supported by the camera class."""
 
-    SIMPLE_SHADING_TYPES: set[str] = {
-        "simple_shading_constant_diffuse",
-        "simple_shading_diffuse_mdl",
-        "simple_shading_full_mdl",
-    }
-
     def __init__(self, cfg: CameraCfg):
         """Initializes the camera sensor.
 
@@ -116,10 +108,15 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
 
-        # toggle rendering of rtx sensors as True
-        # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        settings = get_settings_manager()
-        settings.set_bool("/isaaclab/render/rtx_sensors", True)
+        # TODO: Camera should not branch on a specific renderer_type string. Replace with a
+        # generic opt-in flag on RendererCfg (e.g. ``requires_kit_rtx_sensors_flag``) that
+        # RTX-family cfgs set to True, so this branch carries no renderer-specific knowledge.
+        # The flag must flip at scene-construction time (before sim.reset()) because
+        # SimulationContext.is_rendering and several env classes branch on it pre-reset;
+        # flipping inside the renderer's __init__ (which only runs at sim.reset()) would
+        # silently break that timing.
+        if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
+            get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
         # spawn the asset
         if self.cfg.spawn is not None:
@@ -160,22 +157,6 @@ class Camera(SensorBase):
         self._renderer: BaseRenderer | None = None
         self._render_data = None
 
-        if not has_kit():
-            return
-        # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        # checks for Isaac Sim v4.5 as this issue exists there
-        if get_isaac_sim_version() == version.parse("4.5"):
-            if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
-                logger.warning(
-                    "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"
-                    " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
-                    " will be disabled in the current workflow and may lead to longer load times and increased memory"
-                    " usage."
-                )
-                with Sdf.ChangeBlock():
-                    for prim in self.stage.Traverse():
-                        prim.SetInstanceable(False)
-
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
         # unsubscribe callbacks
@@ -190,10 +171,6 @@ class Camera(SensorBase):
         return (
             f"Camera @ '{self.cfg.prim_path}': \n"
             f"\tdata types   : {list(self.data.output.keys())} \n"
-            f"\tsemantic filter : {self.cfg.semantic_filter}\n"
-            f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
-            f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
-            f"\tcolorize instance id segm.: {self.cfg.colorize_instance_id_segmentation}\n"
             f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
             f"\tnumber of sensors : {self._view.count}"
@@ -396,16 +373,10 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
-            RuntimeError: If cameras are not enabled (missing ``--enable_cameras`` flag).
+            RuntimeError: Propagated from the renderer constructor when the active backend's
+                runtime requirements are not satisfied (e.g. the RTX backend requires the
+                simulation app to be launched with ``--enable_cameras``).
         """
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", "default")
-        needs_kit_cameras = renderer_type in ("default", "isaac_rtx")
-        if needs_kit_cameras and not get_settings_manager().get("/isaaclab/cameras_enabled"):
-            raise RuntimeError(
-                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
-                " rendering."
-            )
-
         # Initialize parent class
         super()._initialize_impl()
 
@@ -498,73 +469,24 @@ class Camera(SensorBase):
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         self._update_poses(self._ALL_INDICES)
         self._data.image_shape = self.image_shape
-        # -- output data (eagerly pre-allocated so renderer.set_outputs() can hold tensor references)
-        data_dict = dict()
-        if "rgba" in self.cfg.data_types or "rgb" in self.cfg.data_types:
-            data_dict["rgba"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-            ).contiguous()
-        if "rgb" in self.cfg.data_types:
-            data_dict["rgb"] = data_dict["rgba"][..., :3]
-        if "albedo" in self.cfg.data_types:
-            data_dict["albedo"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-            ).contiguous()
-        for data_type in self.SIMPLE_SHADING_TYPES:
-            if data_type in self.cfg.data_types:
-                data_dict[data_type] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8
-                ).contiguous()
-        if "distance_to_image_plane" in self.cfg.data_types:
-            data_dict["distance_to_image_plane"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "depth" in self.cfg.data_types:
-            data_dict["depth"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "distance_to_camera" in self.cfg.data_types:
-            data_dict["distance_to_camera"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "normals" in self.cfg.data_types:
-            data_dict["normals"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "motion_vectors" in self.cfg.data_types:
-            data_dict["motion_vectors"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 2), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "semantic_segmentation" in self.cfg.data_types:
-            if self.cfg.colorize_semantic_segmentation:
-                data_dict["semantic_segmentation"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-                ).contiguous()
-            else:
-                data_dict["semantic_segmentation"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
-                ).contiguous()
-        if "instance_segmentation_fast" in self.cfg.data_types:
-            if self.cfg.colorize_instance_segmentation:
-                data_dict["instance_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-                ).contiguous()
-            else:
-                data_dict["instance_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
-                ).contiguous()
-        if "instance_id_segmentation_fast" in self.cfg.data_types:
-            if self.cfg.colorize_instance_id_segmentation:
-                data_dict["instance_id_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-                ).contiguous()
-            else:
-                data_dict["instance_id_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
-                ).contiguous()
-
-        self._data.output = data_dict
-        self._data.info = {name: None for name in self.cfg.data_types}
+        # -- output data: ask the renderer to allocate buffers for the requested data types.
+        buffers = self._renderer.create_output_buffers(
+            self.cfg.data_types,
+            self.cfg.height,
+            self.cfg.width,
+            self._view.count,
+            self.device,
+        )
+        # Surface any requested data types the active renderer cannot produce.
+        unsupported = [name for name in self.cfg.data_types if name not in buffers]
+        if unsupported:
+            logger.warning(
+                "Renderer %s does not support the following requested data types and will not produce them: %s",
+                type(self._renderer).__name__,
+                unsupported,
+            )
+        self._data.output = buffers
+        self._data.info = {name: None for name in buffers}
         self._renderer.set_outputs(self._render_data, self._data.output)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):

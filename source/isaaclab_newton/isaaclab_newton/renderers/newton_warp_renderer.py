@@ -216,6 +216,39 @@ class NewtonWarpRenderer(BaseRenderer):
         if cfg.create_default_light:
             self.newton_sensor.utils.create_default_light(enable_shadows=cfg.enable_shadows)
 
+    def create_output_buffers(
+        self,
+        data_types: list[str],
+        height: int,
+        width: int,
+        num_views: int,
+        device: torch.device | str,
+    ) -> dict[str, torch.Tensor]:
+        """Allocate output tensors for the data types Newton Warp can produce.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_output_buffers`."""
+        buffers: dict[str, torch.Tensor] = {}
+        requested = set(data_types)
+        names = RenderData.OutputNames
+
+        def _zeros(channels: int, dtype: torch.dtype) -> torch.Tensor:
+            return torch.zeros((num_views, height, width, channels), dtype=dtype, device=device).contiguous()
+
+        if names.RGBA in requested or names.RGB in requested:
+            buffers[names.RGBA] = _zeros(4, torch.uint8)
+            buffers[names.RGB] = buffers[names.RGBA][..., :3]
+        if names.ALBEDO in requested:
+            buffers[names.ALBEDO] = _zeros(4, torch.uint8)
+        if names.DEPTH in requested:
+            buffers[names.DEPTH] = _zeros(1, torch.float32)
+        if names.NORMALS in requested:
+            buffers[names.NORMALS] = _zeros(3, torch.float32)
+        if names.INSTANCE_SEGMENTATION in requested:
+            if self.cfg.colorize_instance_segmentation:
+                buffers[names.INSTANCE_SEGMENTATION] = _zeros(4, torch.uint8)
+            else:
+                buffers[names.INSTANCE_SEGMENTATION] = _zeros(1, torch.int32)
+        return buffers
+
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Newton Warp - uses Newton scene directly without stage export.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""

@@ -406,12 +406,12 @@ def test_depth_clipping(setup_sim_camera):
 
     camera_cfg_none = copy.deepcopy(camera_cfg_zero)
     camera_cfg_none.prim_path = "/World/CameraNone"
-    camera_cfg_none.depth_clipping_behavior = "none"
+    camera_cfg_none.renderer_cfg.depth_clipping_behavior = "none"
     camera_none = Camera(camera_cfg_none)
 
     camera_cfg_max = copy.deepcopy(camera_cfg_zero)
     camera_cfg_max.prim_path = "/World/CameraMax"
-    camera_cfg_max.depth_clipping_behavior = "max"
+    camera_cfg_max.renderer_cfg.depth_clipping_behavior = "max"
     camera_max = Camera(camera_cfg_max)
 
     # Play sim
@@ -502,9 +502,9 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
         "instance_segmentation_fast",
         "instance_id_segmentation_fast",
     ]
-    camera_cfg.colorize_instance_id_segmentation = True
-    camera_cfg.colorize_instance_segmentation = True
-    camera_cfg.colorize_semantic_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = True
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = True
     # Create camera
     camera = Camera(camera_cfg)
 
@@ -564,9 +564,9 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
         "instance_segmentation_fast",
         "instance_id_segmentation_fast",
     ]
-    camera_cfg.colorize_instance_id_segmentation = False
-    camera_cfg.colorize_instance_segmentation = False
-    camera_cfg.colorize_semantic_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = False
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
     # Create camera
     camera = Camera(camera_cfg)
 
@@ -625,9 +625,9 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
         "instance_segmentation_fast",
         "instance_id_segmentation_fast",
     ]
-    camera_cfg.colorize_instance_id_segmentation = True
-    camera_cfg.colorize_instance_segmentation = True
-    camera_cfg.colorize_semantic_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = True
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = True
     camera_cfg.width = 512
     camera_cfg.height = 512
     # Create camera
@@ -958,9 +958,9 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation_fast", "instance_id_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera_cfg.colorize_semantic_segmentation = False
-    camera_cfg.colorize_instance_segmentation = False
-    camera_cfg.colorize_instance_id_segmentation = False
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
     camera = Camera(camera_cfg)
 
     sim.reset()
