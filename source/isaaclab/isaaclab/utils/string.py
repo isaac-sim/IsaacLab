@@ -6,6 +6,7 @@
 """Sub-module containing utilities for transforming strings and regular expressions."""
 
 import ast
+import functools
 import importlib
 import inspect
 import re
@@ -247,50 +248,19 @@ Regex operations.
 """
 
 
-def resolve_matching_names(
-    keys: str | Sequence[str],
-    list_of_strings: Sequence[str],
-    preserve_order: bool = False,
-    *,
-    raise_when_no_match: bool = True,
-) -> tuple[list[int], list[str]]:
-    """Match a list of query regular expressions against a list of strings and return the matched indices and names.
+@functools.cache
+def _resolve_matching_names_impl(
+    keys: tuple[str, ...],
+    list_of_strings: tuple[str, ...],
+    preserve_order: bool,
+    raise_when_no_match: bool,
+) -> tuple[tuple[int, ...], tuple[str, ...]]:
+    """Cached implementation of :func:`resolve_matching_names`.
 
-    When a list of query regular expressions is provided, the function checks each target string against each
-    query regular expression and returns the indices of the matched strings and the matched strings.
-
-    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
-    of the provided list of strings. This means that the ordering is dictated by the order of the target strings
-    and not the order of the query regular expressions.
-
-    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
-    of the provided list of query regular expressions.
-
-    For example, consider the list of strings is ['a', 'b', 'c', 'd', 'e'] and the regular expressions are ['a|c', 'b'].
-    If :attr:`preserve_order` is False, then the function will return the indices of the matched strings and the
-    strings as: ([0, 1, 2], ['a', 'b', 'c']). When :attr:`preserve_order` is True, it will return them as:
-    ([0, 2, 1], ['a', 'c', 'b']).
-
-    Note:
-        The function does not sort the indices. It returns the indices in the order they are found.
-
-    Args:
-        keys: A regular expression or a list of regular expressions to match the strings in the list.
-        list_of_strings: A list of strings to match.
-        preserve_order: Whether to preserve the order of the query keys in the returned values. Defaults to False.
-        raise_when_no_match: Whether to raise a ``ValueError`` when not all regular expressions are matched.
-            Defaults to True. When False, returns empty lists instead of raising.
-
-    Returns:
-        A tuple of lists containing the matched indices and names.
-
-    Raises:
-        ValueError: When multiple matches are found for a string in the list.
-        ValueError: When not all regular expressions are matched and :attr:`raise_when_no_match` is True.
+    All arguments are hashable so that ``functools.cache`` can store results.
+    Returns tuples (immutable) to protect the cached data from mutation;
+    the public wrapper converts these back to fresh lists for each caller.
     """
-    # resolve name keys
-    if isinstance(keys, str):
-        keys = [keys]
     # find matching patterns
     index_list = []
     names_list = []
@@ -337,7 +307,7 @@ def resolve_matching_names(
     # check that all regular expressions are matched
     if not all(keys_match_found):
         if not raise_when_no_match:
-            return [], []
+            return (), ()
         # make this print nicely aligned for debugging
         msg = "\n"
         for key, value in zip(keys, keys_match_found):
@@ -347,8 +317,66 @@ def resolve_matching_names(
         raise ValueError(
             f"Not all regular expressions are matched! Please check that the regular expressions are correct: {msg}"
         )
-    # return
-    return index_list, names_list
+    # return immutable tuples for safe caching
+    return tuple(index_list), tuple(names_list)
+
+
+def resolve_matching_names(
+    keys: str | Sequence[str],
+    list_of_strings: Sequence[str],
+    preserve_order: bool = False,
+    *,
+    raise_when_no_match: bool = True,
+) -> tuple[list[int], list[str]]:
+    """Match a list of query regular expressions against a list of strings and return the matched indices and names.
+
+    When a list of query regular expressions is provided, the function checks each target string against each
+    query regular expression and returns the indices of the matched strings and the matched strings.
+
+    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
+    of the provided list of strings. This means that the ordering is dictated by the order of the target strings
+    and not the order of the query regular expressions.
+
+    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
+    of the provided list of query regular expressions.
+
+    For example, consider the list of strings is ['a', 'b', 'c', 'd', 'e'] and the regular expressions are ['a|c', 'b'].
+    If :attr:`preserve_order` is False, then the function will return the indices of the matched strings and the
+    strings as: ([0, 1, 2], ['a', 'b', 'c']). When :attr:`preserve_order` is True, it will return them as:
+    ([0, 2, 1], ['a', 'c', 'b']).
+
+    Results are cached internally — repeated calls with the same arguments avoid redundant regex matching.
+
+    Note:
+        The function does not sort the indices. It returns the indices in the order they are found.
+
+    Args:
+        keys: A regular expression or a list of regular expressions to match the strings in the list.
+        list_of_strings: A list of strings to match.
+        preserve_order: Whether to preserve the order of the query keys in the returned values. Defaults to False.
+        raise_when_no_match: Whether to raise a ``ValueError`` when not all regular expressions are matched.
+            Defaults to True. When False, returns empty lists instead of raising.
+
+    Returns:
+        A tuple of lists containing the matched indices and names.
+
+    Raises:
+        ValueError: When multiple matches are found for a string in the list.
+        ValueError: When not all regular expressions are matched and :attr:`raise_when_no_match` is True.
+    """
+    _keys = (keys,) if isinstance(keys, str) else tuple(keys)
+    idx, names = _resolve_matching_names_impl(_keys, tuple(list_of_strings), preserve_order, raise_when_no_match)
+    return list(idx), list(names)
+
+
+def clear_resolve_matching_names_cache() -> None:
+    """Discard all cached results from :func:`resolve_matching_names`.
+
+    Call this when the simulation scene is torn down so that cached
+    name-resolution entries from destroyed assets do not accumulate
+    across scene rebuilds in long-lived processes.
+    """
+    _resolve_matching_names_impl.cache_clear()
 
 
 def resolve_matching_names_values(
@@ -359,6 +387,11 @@ def resolve_matching_names_values(
 ) -> tuple[list[int], list[str], list[Any]]:
     """Match a list of regular expressions in a dictionary against a list of strings and return
     the matched indices, names, and values.
+
+    Note:
+        Unlike :func:`resolve_matching_names`, this function is not cached. Current callers
+        use it during initialization only (e.g. action/actuator config resolution), so caching
+        would add complexity without a measurable benefit.
 
     If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
     of the provided list of strings. This means that the ordering is dictated by the order of the target strings
