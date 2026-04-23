@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+1.5.24 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated locomotion :class:`~isaaclab.sensors.ray_caster.ray_caster_cfg.RayCasterCfg`
+  height-scanner defaults to spawn a ``raycaster`` Xform child under the robot attachment link
+  (using :class:`~isaaclab.sim.spawners.sensors.sensors_cfg.RayCasterXformCfg`) so the sensor
+  works with Newton site-based :class:`~isaaclab.sim.views.FrameView` tracking.
+* Updated all sensor configurations to use :class:`~isaaclab.sim.views.FrameView` instead of
+  the deprecated ``XformPrimView``.
+
+
 1.5.23 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -9,6 +23,7 @@ Fixed
 
 * Refreshed Newton Warp renderer golden images for Dexsuite Kuka-Allegro environment case in
   ``test_rendering_correctness`` because Newton Warp renderer honors visibility of prims now.
+
 
 1.5.22 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~~

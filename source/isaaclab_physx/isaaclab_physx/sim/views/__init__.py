@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backward-compatibility alias: ``XformPrimView`` -> :class:`FrameView`."""
+"""PhysX simulation views."""
 
-from .frame_view import FrameView
+from isaaclab.utils.module import lazy_export
 
-XformPrimView = FrameView
+lazy_export()

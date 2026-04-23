@@ -51,7 +51,7 @@ def task_done_pick_place_table_frame(
         env: The RL environment instance.
         task_link_name: Name of the right wrist link on the robot.
         object_cfg: Configuration for the object entity.
-        table_cfg: Configuration for the destination table entity (must be an XformPrimView).
+        table_cfg: Configuration for the destination table entity (must be a FrameView).
         right_wrist_max_x: Maximum x position of the right wrist in table frame for task completion.
         min_x: Minimum x position of the object relative to the table for task completion.
         max_x: Maximum x position of the object relative to the table for task completion.
