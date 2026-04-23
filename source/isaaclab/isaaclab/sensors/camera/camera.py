@@ -19,7 +19,7 @@ from pxr import Sdf, UsdGeom
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, Renderer
-from isaaclab.sim.views import FrameView
+from isaaclab.sim.views import UsdFrameView
 from isaaclab.utils import has_kit, to_camel_case
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
@@ -405,9 +405,11 @@ class Camera(SensorBase):
         # references to prims located in the stage.
         self._renderer.prepare_stage(self.stage, self._num_envs)
 
-        # Create a view for the sensor with Fabric enabled for fast pose queries.
-        # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
-        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True)
+        # Camera uses UsdFrameView directly (not FrameView/FabricFrameView) because
+        # the RTX renderer / Replicator reads camera poses from USD prim paths, not
+        # from Fabric.  Writing to Fabric + sync_usd_on_fabric_write was wasteful —
+        # this bypasses Fabric entirely for camera transforms.
+        self._view = UsdFrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(

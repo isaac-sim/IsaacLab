@@ -50,6 +50,10 @@ class FabricFrameView(BaseFrameView):
     Warp kernels operating on ``omni:fabric:worldMatrix``.  All other operations
     delegate to the internal USD view.
 
+    After every Fabric write, :meth:`PrepareForReuse` is called on the
+    ``PrimSelection`` to notify the renderer (FSD/Storm) that Fabric data
+    has changed.
+
     All getters return ``wp.array``.  Setters accept ``wp.array``.
     """
 
@@ -58,12 +62,11 @@ class FabricFrameView(BaseFrameView):
         prim_path: str,
         device: str = "cpu",
         validate_xform_ops: bool = True,
-        sync_usd_on_fabric_write: bool = False,
         stage: Usd.Stage | None = None,
+        **kwargs,
     ):
         self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
-        self._sync_usd_on_fabric_write = sync_usd_on_fabric_write
 
         settings = SettingsManager.instance()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
@@ -134,6 +137,8 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
+        self._prepare_for_reuse()
+
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
 
@@ -165,8 +170,6 @@ class FabricFrameView(BaseFrameView):
 
         self._fabric_hierarchy.update_world_xforms()
         self._fabric_usd_sync_done = True
-        if self._sync_usd_on_fabric_write:
-            self._usd_view.set_world_poses(positions, orientations, indices)
 
     def get_world_poses(self, indices=None):
         if not self._use_fabric:
@@ -176,6 +179,8 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
         if not self._fabric_usd_sync_done:
             self._sync_fabric_from_usd_once()
+
+        self._prepare_for_reuse()
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
@@ -228,6 +233,8 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
+        self._prepare_for_reuse()
+
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
 
@@ -255,8 +262,6 @@ class FabricFrameView(BaseFrameView):
 
         self._fabric_hierarchy.update_world_xforms()
         self._fabric_usd_sync_done = True
-        if self._sync_usd_on_fabric_write:
-            self._usd_view.set_scales(scales, indices)
 
     def get_scales(self, indices=None):
         if not self._use_fabric:
@@ -266,6 +271,8 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
         if not self._fabric_usd_sync_done:
             self._sync_fabric_from_usd_once()
+
+        self._prepare_for_reuse()
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
@@ -293,6 +300,46 @@ class FabricFrameView(BaseFrameView):
         if use_cached:
             wp.synchronize()
         return scales_wp
+
+    # ------------------------------------------------------------------
+    # Internal — PrepareForReuse (renderer notification + topology tracking)
+    # ------------------------------------------------------------------
+
+    def _prepare_for_reuse(self) -> None:
+        """Call PrepareForReuse on the PrimSelection to notify the renderer.
+
+        PrepareForReuse serves two purposes:
+
+        1. **Renderer notification**: Tells FSD/Storm that Fabric data has
+           been (or will be) modified, so the next rendered frame reflects
+           the updated transforms.
+        2. **Topology change detection**: Returns True when Fabric's
+           internal memory layout changed (e.g., prims added/removed).
+           In that case, view-to-fabric index mappings and fabricarrays
+           must be rebuilt.
+        """
+        if self._fabric_selection is None:
+            return
+
+        topology_changed = self._fabric_selection.PrepareForReuse()
+        if topology_changed:
+            logger.info("Fabric topology changed — rebuilding view-to-fabric index mapping.")
+            self._rebuild_fabric_arrays()
+
+    def _rebuild_fabric_arrays(self) -> None:
+        """Rebuild fabricarray and view↔fabric mappings after a topology change."""
+        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._fabric_device)
+        self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
+
+        wp.launch(
+            kernel=fabric_utils.set_view_to_fabric_array,
+            dim=self._fabric_to_view.shape[0],
+            inputs=[self._fabric_to_view, self._view_to_fabric],
+            device=self._fabric_device,
+        )
+        wp.synchronize()
+
+        self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
 
     # ------------------------------------------------------------------
     # Internal — Fabric initialization
@@ -384,11 +431,8 @@ class FabricFrameView(BaseFrameView):
         positions_usd, orientations_usd = self._usd_view.get_world_poses()
         scales_usd = self._usd_view.get_scales()
 
-        prev_sync = self._sync_usd_on_fabric_write
-        self._sync_usd_on_fabric_write = False
         self.set_world_poses(positions_usd, orientations_usd)
         self.set_scales(scales_usd)
-        self._sync_usd_on_fabric_write = prev_sync
 
         self._fabric_usd_sync_done = True
 
