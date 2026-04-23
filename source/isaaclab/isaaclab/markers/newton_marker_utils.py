@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 from typing import Literal
 
 import torch
+
+# Match the color-resolution semantics used in ``sim.utils.newton_model_utils``:
+# - OmniPBR defaults: diffuse_color_constant * diffuse_tint
+# - otherwise use authored/tint-like color when we can infer it from config
+# - fall back to a neutral 18% gray rather than an arbitrary debug color
+_OMNIPBR_DEFAULTS = {
+    "diffuse_color_constant": (0.2, 0.2, 0.2),
+    "diffuse_tint": (1.0, 1.0, 1.0),
+}
+_UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
 
 
 @dataclass(frozen=True)
@@ -111,12 +122,10 @@ def _compile_single_marker(name: str, cfg: object) -> NewtonMarkerPrototype:
                 renderer="mesh",
                 mesh_type="arrow",
                 mesh_params={
-                    # Keep the native Newton arrow roughly unit-sized so Isaac Lab's
-                    # existing cfg.scale and per-instance scales control the final width.
-                    "base_radius": 0.2,
-                    "base_height": 0.65,
-                    "cap_radius": 0.5,
-                    "cap_height": 0.35,
+                    "base_radius": 0.08,
+                    "base_height": 0.7,
+                    "cap_radius": 0.16,
+                    "cap_height": 0.3,
                 },
                 color=color,
                 default_scale=default_scale,
@@ -162,15 +171,55 @@ def _extract_scale_hint(cfg: object) -> tuple[float, float, float]:
 
 
 def _extract_diffuse_color(cfg: object) -> tuple[float, float, float]:
-    """Resolve the simple diffuse color Newton markers support in v1."""
+    """Resolve a marker color using the same policy as Newton model color replacement."""
 
-    # Newton markers intentionally support only a simple diffuse color mapping for now.
     material_cfg = getattr(cfg, "visual_material", None)
     if material_cfg is None:
-        return (1.0, 0.2, 0.2)
+        return _UNBOUND_DEFAULT_FALLBACK_GRAY
 
-    diffuse_color = getattr(material_cfg, "diffuse_color", None)
-    if diffuse_color is None:
-        return (1.0, 0.2, 0.2)
+    if color := _extract_omnipbr_like_color(material_cfg):
+        return color
 
-    return tuple(float(v) for v in diffuse_color)
+    for attr_name in ("diffuse_color", "glass_color", "color"):
+        if color := _extract_rgb(getattr(material_cfg, attr_name, None)):
+            return color
+
+    return _UNBOUND_DEFAULT_FALLBACK_GRAY
+
+
+def _extract_omnipbr_like_color(material_cfg: object) -> tuple[float, float, float] | None:
+    """Resolve OmniPBR-style albedo as diffuse_color_constant * diffuse_tint."""
+
+    diffuse_constant = _extract_rgb(getattr(material_cfg, "diffuse_color_constant", None))
+    diffuse_tint = _extract_rgb(getattr(material_cfg, "diffuse_tint", None))
+
+    # Some config classes only expose a tint/brightness-like view of OmniPBR; honor those too.
+    if diffuse_constant is None and hasattr(material_cfg, "albedo_brightness"):
+        brightness = getattr(material_cfg, "albedo_brightness", None)
+        if brightness is not None:
+            diffuse_constant = (float(brightness), float(brightness), float(brightness))
+
+    if diffuse_constant is None and diffuse_tint is None:
+        mdl_path = str(getattr(material_cfg, "mdl_path", "")).lower()
+        if not mdl_path.endswith("omnipbr.mdl"):
+            return None
+
+    diffuse_constant = diffuse_constant or _OMNIPBR_DEFAULTS["diffuse_color_constant"]
+    diffuse_tint = diffuse_tint or _OMNIPBR_DEFAULTS["diffuse_tint"]
+    return (
+        diffuse_constant[0] * diffuse_tint[0],
+        diffuse_constant[1] * diffuse_tint[1],
+        diffuse_constant[2] * diffuse_tint[2],
+    )
+
+
+def _extract_rgb(value: Any) -> tuple[float, float, float] | None:
+    if value is None:
+        return None
+    try:
+        rgb = tuple(float(v) for v in value)
+    except TypeError:
+        return None
+    if len(rgb) < 3:
+        return None
+    return (rgb[0], rgb[1], rgb[2])

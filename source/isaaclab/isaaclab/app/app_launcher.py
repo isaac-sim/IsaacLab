@@ -106,7 +106,8 @@ class AppLauncher:
             cli_disable_all = bool(cli_explicit) and visualizers is not None and "none" in visualizers
 
         with contextlib.suppress(Exception):
-            visualizer_str = " ".join(visualizers) if visualizers else ""
+            visualizers_to_store = [] if cli_disable_all else (visualizers or [])
+            visualizer_str = " ".join(visualizers_to_store)
             settings = get_settings_manager()
             settings.set_string("/isaaclab/visualizer/types", visualizer_str)
             settings.set_bool("/isaaclab/visualizer/explicit", cli_explicit)

@@ -132,7 +132,7 @@ class NewtonMarkerRenderer:
             wp.array(mesh.indices.astype(np.int32), dtype=wp.int32),
             normals=wp.array(mesh.normals.astype(np.float32), dtype=wp.vec3) if mesh.normals.size else None,
             uvs=wp.array(mesh.uvs.astype(np.float32), dtype=wp.vec2) if mesh.uvs.size else None,
-            hidden=False,
+            hidden=True,
         )
         self._registered_meshes.add(mesh_name)
 
