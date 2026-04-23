@@ -49,9 +49,11 @@ def _patch_isaacsim_simulation_manager():
     getDofVelocities`` on the very first ``scene.update()`` after
     ``sim.reset()``.
 
-    To prevent this, we disable the original class's default callbacks here
-    *before* swapping the module attribute, so :class:`PhysxManager` becomes
-    the single owner of the simulation lifecycle.
+    To prevent this, we unsubscribe only the original class's ``_on_stop``
+    callback *before* swapping the module attribute. Other callbacks
+    (warm_start/PLAY, stage_open, stage_close) are left intact — in particular
+    warm_start must fire so the rendering pipeline initialises correctly on
+    ``sim.reset()``. Disabling it causes tiled-camera RGB output to stay black.
     """
     # Force-import Isaac Sim's SimulationManager before patching so that the
     # subscriptions registered during its module/extension startup are taken
@@ -67,28 +69,25 @@ def _patch_isaacsim_simulation_manager():
     original_module = sys.modules["isaacsim.core.simulation_manager"]
     from .physics.physx_manager import PhysxManager, IsaacEvents
 
-    # Tear down the original Isaac Sim SimulationManager's default timeline /
-    # stage subscriptions so they cannot invalidate the omni.physics.tensors
-    # view that PhysxManager owns. ``enable_all_default_callbacks(False)``
-    # covers warm_start (PLAY), on_stop (STOP), stage_open (OPENED) and
-    # stage_close (CLOSED). Older Isaac Sim builds may not expose this API, so
-    # fall back gracefully.
+    # Only unsubscribe _on_stop — that is the sole callback that calls
+    # ``invalidate_physics()`` and wrecks the shared omni.physics.tensors view.
+    # Leaving warm_start (PLAY) intact ensures the rendering pipeline initialises
+    # correctly when ``sim.reset()`` fires the play event; disabling it causes
+    # tiled-camera RGB to stay black (see isaaclab_visualizers CI failure).
     original_class = getattr(original_module, "SimulationManager", None)
     if original_class is not None and original_class is not PhysxManager:
-        try:
-            original_class.enable_all_default_callbacks(False)
-        except Exception:
-            # Defensive: API changed or original class never finished startup.
-            # Manually clear the subscription handles if they exist so any
-            # remaining references go through the dead-callback path.
-            for attr in (
-                "_default_callback_warm_start",
-                "_default_callback_on_stop",
-                "_default_callback_stage_open",
-                "_default_callback_stage_close",
-            ):
-                if hasattr(original_class, attr):
-                    setattr(original_class, attr, None)
+        if hasattr(original_class, "_default_callback_on_stop"):
+            # Carb subscription objects unsubscribe on destruction — setting to
+            # None drops the reference and silently cancels the subscription.
+            original_class._default_callback_on_stop = None
+        else:
+            # _default_callback_on_stop not found (API change). Fall back to
+            # disabling all callbacks. Note: this may cause tiled-camera black
+            # frames on newer Isaac Sim builds; the targeted fix above is preferred.
+            try:
+                original_class.enable_all_default_callbacks(False)
+            except Exception:
+                pass
 
     original_module.SimulationManager = PhysxManager
     original_module.IsaacEvents = IsaacEvents
