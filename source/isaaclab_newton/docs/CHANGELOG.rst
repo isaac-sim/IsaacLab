@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.21 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flakiness in ``test_body_root_state_properties`` by bounding the random spin velocity so
+  numerical drift stays within the position tolerance over the simulated trajectory.
+
+
 0.5.20 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -603,6 +603,72 @@ class TestArticulationFinders:
 
 
 # ---------------------------------------------------------------------------
+# Tests: resolve_matching_names caching behavior
+# ---------------------------------------------------------------------------
+
+
+_non_mock_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "mock"], indirect=False)
+
+
+class TestResolveMatchingNamesCache:
+    """Test that resolve_matching_names caching returns correct, isolated results."""
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
+    @_default_devices
+    def test_unmatched_regex_raises(self, backend, num_instances, num_joints, num_bodies, device):
+        """ValueError from resolve_matching_names propagates correctly."""
+        art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        with pytest.raises(ValueError):
+            art.find_bodies("nonexistent_body_xyz")
+        with pytest.raises(ValueError):
+            art.find_joints("nonexistent_joint_xyz")
+
+    @_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
+    @_default_devices
+    def test_mutating_result_does_not_corrupt_cache(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
+    ):
+        """Mutating returned lists must not affect future cached results."""
+        art, _ = articulation_iface
+
+        for finder, expected_len in [("find_bodies", num_bodies), ("find_joints", num_joints)]:
+            idx1, names1 = getattr(art, finder)(".*")
+            assert len(idx1) == expected_len
+
+            idx1.clear()
+            names1.append("corrupted")
+
+            idx2, names2 = getattr(art, finder)(".*")
+            assert len(idx2) == expected_len
+            assert "corrupted" not in names2
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
+    @_default_devices
+    def test_find_with_multiple_patterns(self, backend, num_instances, num_joints, num_bodies, device):
+        """Passing a list of regex patterns works correctly."""
+        art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        idx, names = art.find_joints(["joint_0", "joint_1"])
+        assert "joint_0" in names
+        assert "joint_1" in names
+        assert len(names) == 2
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
+    @_default_devices
+    def test_find_with_preserve_order(self, backend, num_instances, num_joints, num_bodies, device):
+        """preserve_order=True returns names in the order of the input patterns."""
+        art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        idx_fwd, names_fwd = art.find_joints(["joint_1", "joint_0"], preserve_order=True)
+        assert names_fwd == ["joint_1", "joint_0"]
+
+        idx_rev, names_rev = art.find_joints(["joint_0", "joint_1"], preserve_order=True)
+        assert names_rev == ["joint_0", "joint_1"]
+
+
+# ---------------------------------------------------------------------------
 # Tests: ArticulationData root state properties
 # ---------------------------------------------------------------------------
 

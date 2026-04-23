@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.6.12 (2026-04-22)
+4.6.13 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -14,6 +14,17 @@ Fixed
   fail to import. ``isaaclab.cli.commands.install`` now probes ``import pinocchio`` after
   installing the Isaac Lab submodules and force-reinstalls the cmeel ``pin``/``pin-pink``/
   ``daqp`` stack when the probe fails.
+
+
+4.6.12 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added caching to :func:`~isaaclab.utils.string.resolve_matching_names`,
+  avoiding repeated regex matching across ``find_bodies``, ``find_joints``,
+  and related calls.
 
 
 4.6.11 (2026-04-22)

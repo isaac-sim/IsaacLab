@@ -29,6 +29,7 @@ from isaaclab.physics.scene_data_requirements import (
     resolve_scene_data_requirements,
 )
 from isaaclab.sim.utils import create_new_stage
+from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
@@ -834,6 +835,9 @@ class SimulationContext:
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
             stage_utils.close_stage()
+
+            # Discard cached name-resolution data from destroyed assets
+            clear_resolve_matching_names_cache()
 
             # Clear instance
             cls._instance = None
