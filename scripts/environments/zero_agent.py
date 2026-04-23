@@ -6,7 +6,6 @@
 """Script to run an environment with zero action agent."""
 
 import argparse
-import contextlib
 import sys
 
 import gymnasium as gym
@@ -31,9 +30,6 @@ args_cli, hydra_args = parser.parse_known_args()
 sys.argv = [sys.argv[0]] + hydra_args
 
 # PLACEHOLDER: Extension template (do not remove this comment)
-with contextlib.suppress(ImportError):
-    import isaaclab_tasks_experimental  # noqa: F401
-
 MAX_STEPS = 100
 
 
