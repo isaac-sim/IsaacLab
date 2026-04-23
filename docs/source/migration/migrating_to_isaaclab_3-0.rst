@@ -98,6 +98,49 @@ The following classes have been moved to ``isaaclab_physx``:
    installation steps are required.
 
 
+Renaming of ``XformPrimView`` to ``FrameView``
+-----------------------------------------------
+
+Isaac Lab's ``XformPrimView`` and related classes have been renamed to ``FrameView`` to
+better reflect their purpose and avoid confusion with Isaac Sim's ``XFormPrim`` class
+hierarchy. The old ``XformPrimView`` name is kept as a deprecated alias.
+
+The rename applies across all backends:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Isaac Lab 2.x
+     - Isaac Lab 3.0
+   * - ``BaseXformPrimView``
+     - :class:`~isaaclab.sim.views.BaseFrameView`
+   * - ``UsdXformPrimView``
+     - :class:`~isaaclab.sim.views.UsdFrameView`
+   * - ``XformPrimView``
+     - :class:`~isaaclab.sim.views.FrameView`
+   * - ``FabricXformPrimView``
+     - :class:`~isaaclab_physx.sim.views.FabricFrameView`
+   * - ``NewtonSiteXformPrimView``
+     - :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`
+
+For most users, the only change needed is updating imports:
+
+.. code-block:: python
+
+   # Before
+   from isaaclab.sim.views import XformPrimView
+
+   # After
+   from isaaclab.sim.views import FrameView
+
+The :class:`~isaaclab.sim.views.FrameView` factory automatically dispatches to the correct
+backend (:class:`~isaaclab_physx.sim.views.FabricFrameView` for PhysX,
+:class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` for Newton) based on the active
+physics backend. The deprecated ``XformPrimView`` alias continues to work but will be
+removed in a future release.
+
+
 Unchanged Imports
 -----------------
 

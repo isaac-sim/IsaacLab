@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.22 (2026-04-22)
+0.5.23 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -26,6 +26,21 @@ Fixed
   the empty buffer. The renderer now skips the kernel launch when the
   annotator buffer is empty so the output tensor stays zero-initialised for
   that frame instead of corrupting the CUDA context.
+
+0.5.22 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.views.XformPrimView` providing the PhysX/Fabric
+  backend implementation for xform prim views.
+
+Changed
+^^^^^^^
+
+* Renamed :class:`~isaaclab_physx.sim.views.FabricXformPrimView` to
+  :class:`~isaaclab_physx.sim.views.FabricFrameView`. Old name is kept as a deprecated alias.
 
 0.5.21 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
