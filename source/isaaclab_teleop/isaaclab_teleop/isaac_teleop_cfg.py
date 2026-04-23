@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
+from .control_events import TELEOP_CONTROL_CHANNEL_UUID
 from .xr_cfg import XrCfg
 
 _CLOUDXR_ENV_DIR = Path(__file__).resolve().parent
@@ -115,6 +116,24 @@ class IsaacTeleopCfg:
     have a ``ParameterState`` (i.e. tunable parameters) will appear.
 
     If ``None``, the tuning UI will not be opened.
+    """
+
+    control_channel_uuid: bytes | None = TELEOP_CONTROL_CHANNEL_UUID
+    """16-byte UUID for the teleop control message channel.
+
+    Defaults to :data:`~isaaclab_teleop.TELEOP_CONTROL_CHANNEL_UUID`
+    (``uuid5(NAMESPACE_DNS, "teleop_command")``), which is the well-known
+    channel both the Isaac Lab server and CloudXR JS client use to
+    exchange start/stop/reset commands.
+
+    When set, a ``teleop_control_pipeline`` is created automatically
+    using :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor`
+    and :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+    The remote client sends UTF-8 control commands over the OpenXR opaque
+    data channel identified by this UUID, and the results are exposed via
+    :func:`~isaaclab_teleop.poll_control_events`.
+
+    Set to ``None`` to disable the control channel entirely.
     """
 
     target_frame_prim_path: str | None = None

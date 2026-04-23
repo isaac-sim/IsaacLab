@@ -11,6 +11,7 @@ __all__ = [
     "spawn_deformable_body_material",
     "DeformableBodyMaterialCfg",
     "SurfaceDeformableBodyMaterialCfg",
+    "views",
 ]
 
 from .schemas import (
@@ -24,3 +25,4 @@ from .spawners import (
     DeformableBodyMaterialCfg,
     SurfaceDeformableBodyMaterialCfg,
 )
+from . import views

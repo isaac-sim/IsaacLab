@@ -187,6 +187,14 @@ class BaseVisualizer(ABC):
         """
         pass
 
+    def _resolve_cfg_camera_pose(
+        self, _visualizer_name: str
+    ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+        """Resolve camera pose from cfg eye/lookat fields."""
+        eye = tuple(float(v) for v in self.cfg.eye)
+        lookat = tuple(float(v) for v in self.cfg.lookat)
+        return eye, lookat
+
     def _resolve_camera_pose_from_usd_path(
         self, usd_path: str
     ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
