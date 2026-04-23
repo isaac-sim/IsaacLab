@@ -38,7 +38,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     """Scene data provider for Omni PhysX backend.
 
     Supports:
-    - rigid-body poses via PhysX tensor views and ``XformPrimView`` where needed
+    - body poses via PhysX tensor views, with FrameView fallback
     - camera poses & intrinsics
     - USD stage handles
     - Newton model/state (from the simulation context prebuilt payload when required)
@@ -411,7 +411,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         """Fill remaining body poses using ``XformPrimView`` for prims not covered by the rigid-body view."""
         import torch
 
-        from isaaclab.sim.views import XformPrimView
+        from isaaclab.sim.views import FrameView
 
         uncovered = torch.where(~covered)[0].cpu().tolist()
         if not uncovered:
@@ -423,14 +423,14 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             path = self._rigid_body_paths[idx]
             try:
                 if path not in self._xform_views:
-                    self._xform_views[path] = XformPrimView(
+                    self._xform_views[path] = FrameView(
                         path, device=self._device, stage=self._stage, validate_xform_ops=False
                     )
 
-                pos, quat = self._xform_views[path].get_world_poses()
-                if pos is not None and quat is not None:
-                    positions[idx] = pos.to(device=self._device, dtype=torch.float32).squeeze()
-                    orientations[idx] = quat.to(device=self._device, dtype=torch.float32).squeeze()
+                pos_wp, quat_wp = self._xform_views[path].get_world_poses()
+                if pos_wp is not None and quat_wp is not None:
+                    positions[idx] = wp.to_torch(pos_wp).to(device=self._device, dtype=torch.float32).squeeze()
+                    orientations[idx] = wp.to_torch(quat_wp).to(device=self._device, dtype=torch.float32).squeeze()
                     covered[idx] = True
                     xform_mask[idx] = True
                     count += 1
@@ -448,7 +448,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return count
 
     def _convert_xform_quats(self, orientations: Any, xform_mask: Any) -> Any:
-        """Return quaternions in xyzw convention (passthrough; inputs already xyzw)."""
+        """Return quaternions in xyzw convention.
+
+        PhysX views, FrameView, and resolve_prim_pose() in Isaac Lab all use xyzw.
+        Keeping this helper as a no-op preserves a single conversion point if conventions
+        ever diverge again.
+        """
         return orientations
 
     def _read_poses_from_best_source(self) -> tuple[Any, Any, str, Any] | None:

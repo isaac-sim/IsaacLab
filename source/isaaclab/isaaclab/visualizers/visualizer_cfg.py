@@ -57,7 +57,8 @@ class VisualizerCfg:
     """env indices to visualize in order (out-of-range indices are dropped)."""
 
     randomly_sample_visible_envs: bool = True
-    """If ``max_visible_envs`` is provided, the selected visible envs are randomly sampled.
+    """If ``max_visible_envs`` is provided, if enabled, selected visible envs are randomly sampled.
+       If disabled, the first ``max_visible_envs`` envs are selected.
 
     * Note  ``visible_env_indices`` overrides this field.
     """

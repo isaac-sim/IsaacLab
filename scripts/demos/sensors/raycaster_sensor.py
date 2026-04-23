@@ -62,7 +62,7 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     ray_caster = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base/lidar_cage",
+        prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
         offset=RayCasterCfg.OffsetCfg(pos=(0, 0, 0.5)),
         mesh_prim_paths=["/World/Ground"],

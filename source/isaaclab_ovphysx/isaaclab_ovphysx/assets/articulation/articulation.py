@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import fnmatch
 import logging
 import re
 from collections.abc import Sequence
@@ -19,6 +18,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsManager
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
@@ -187,12 +187,12 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return self._find_names(self._body_names, name_keys, preserve_order)
+        return resolve_matching_names(name_keys, self._body_names, preserve_order)
 
     def find_joints(
         self,
         name_keys: str | Sequence[str],
-        joint_subset: list[int] | None = None,
+        joint_subset: list[str] | None = None,
         preserve_order: bool = False,
     ) -> tuple[list[int], list[str]]:
         """Find joints in the articulation based on the name keys.
@@ -202,18 +202,16 @@ class Articulation(BaseArticulation):
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the joint names.
-            joint_subset: A subset of joint indices to search within. Defaults to None, which means all joints
+            joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
             A tuple of lists containing the joint indices and names.
         """
-        names = [self._joint_names[i] for i in joint_subset] if joint_subset is not None else self._joint_names
-        indices, matched = self._find_names(names, name_keys, preserve_order)
-        if joint_subset is not None:
-            indices = [joint_subset[i] for i in indices]
-        return indices, matched
+        if joint_subset is None:
+            joint_subset = self._joint_names
+        return resolve_matching_names(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
         self,
@@ -237,9 +235,7 @@ class Articulation(BaseArticulation):
         """
         if tendon_subsets is None:
             tendon_subsets = self.fixed_tendon_names
-        if not tendon_subsets:
-            return [], []
-        return self._find_names(tendon_subsets, name_keys, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     def find_spatial_tendons(
         self,
@@ -262,9 +258,7 @@ class Articulation(BaseArticulation):
         """
         if tendon_subsets is None:
             tendon_subsets = self.spatial_tendon_names
-        if not tendon_subsets:
-            return [], []
-        return self._find_names(tendon_subsets, name_keys, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
     Operations - State Writers.
@@ -2663,28 +2657,6 @@ class Articulation(BaseArticulation):
     def _nst(self):
         """Return the number of spatial tendons (0 if none)."""
         return getattr(self, "_num_spatial_tendons", 0)
-
-    @staticmethod
-    def _find_names(names: list[str], keys: str | Sequence[str], preserve_order: bool) -> tuple[list[int], list[str]]:
-        if isinstance(keys, str):
-            keys = [keys]
-        matched_indices: list[int] = []
-        matched_names: list[str] = []
-        if preserve_order:
-            for key in keys:
-                for idx, name in enumerate(names):
-                    if fnmatch.fnmatch(name, key) or re.fullmatch(key, name):
-                        if idx not in matched_indices:
-                            matched_indices.append(idx)
-                            matched_names.append(name)
-        else:
-            for idx, name in enumerate(names):
-                for key in keys:
-                    if fnmatch.fnmatch(name, key) or re.fullmatch(key, name):
-                        matched_indices.append(idx)
-                        matched_names.append(name)
-                        break
-        return matched_indices, matched_names
 
     def _resolve_joint_values(self, pattern_dict: dict[str, float], buffer: wp.array) -> None:
         """Resolve a {pattern: value} dict into a per-joint buffer.

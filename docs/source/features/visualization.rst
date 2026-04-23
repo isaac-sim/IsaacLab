@@ -381,7 +381,7 @@ server, allowing you to view and interact with the scene from any browser.
 Performance Note
 ----------------
 
-To reduce overhead when visualizing large-scale environments, consider:
+When visualizing large-scale environments, consider:
 
 - Using Newton instead of Omniverse or Rerun
 - Reducing window sizes
