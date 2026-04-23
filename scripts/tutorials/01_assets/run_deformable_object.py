@@ -56,8 +56,9 @@ def design_scene():
     # Create a dictionary for the scene entities
     scene_entities = {}
 
-    # Create separate groups called "Origin0", "Origin1", ...
-    # Each group will have a robot in it
+    # Create separate groups called "env_0", "env_1", ...
+    # Newton's scene loader requires the "env_\d+" naming convention to
+    # detect per-environment Xforms and replicate them as separate worlds.
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
     for i, origin in enumerate(origins):
         sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
@@ -99,15 +100,11 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
     nodal_kinematic_target = wp.to_torch(cube_object.data.nodal_kinematic_target).clone()
 
     # Simulate physics
-    # for _ in range(200):
     while simulation_app.is_running():
         # reset at start and after 3 seconds
         if count % int(3.0 / sim_dt) == 0:
             # reset counters
             count = 0
-
-            # reset buffers
-            cube_object.reset()
 
             # reset the nodal state of the object
             nodal_state = wp.to_torch(cube_object.data.default_nodal_state_w).clone()
@@ -123,6 +120,9 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
             nodal_kinematic_target[..., :3] = nodal_state[..., :3]
             nodal_kinematic_target[..., 3] = 1.0
             cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
+
+            # reset buffers
+            cube_object.reset()
 
             print("----------------------------------------")
             print("[INFO]: Resetting object state...")
@@ -166,7 +166,7 @@ def main():
     else:
         from isaaclab_physx.physics import PhysxCfg
         physics_cfg = PhysxCfg()
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
     sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
