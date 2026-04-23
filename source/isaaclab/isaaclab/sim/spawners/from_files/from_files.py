@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 # deformables only supported on PhysX backend
 from isaaclab_physx.sim import schemas as schemas_physx
-from isaaclab_physx.sim.spawners.materials import SurfaceDeformableBodyMaterialCfg
+from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialCfg
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 

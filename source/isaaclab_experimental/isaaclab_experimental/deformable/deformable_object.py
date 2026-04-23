@@ -15,8 +15,6 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
-from pxr import Gf, UsdGeom, UsdShade
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
@@ -338,7 +336,14 @@ class DeformableObject(BaseDeformableObject):
 
         Returns:
             The registry entry (also stored on NewtonManager._deformable_registry).
+
+        Note:
+            pxr imports are deferred to this method (not module level) so that
+            ``resolve_task_config`` can import the env-cfg module before Kit
+            starts without polluting the ``pxr`` module cache.
         """
+        from pxr import Gf, UsdGeom, UsdShade
+
         # Find the first spawned mesh prim in regex path
         template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
         if template_prim is None:
@@ -352,6 +357,16 @@ class DeformableObject(BaseDeformableObject):
         tet_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "TetMesh")
         mesh_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "Mesh")
 
+        # When the spawn config uses a surface deformable material, the PhysX
+        # spawner may still create a TetMesh proxy (sim_tetmesh) alongside the
+        # original Mesh.  Newton reads the original Mesh directly, so ignore
+        # the PhysX TetMesh proxy and treat this as a surface deformable.
+        _is_surface_material = (
+            self.cfg.spawn is not None
+            and getattr(self.cfg.spawn, "physics_material", None) is not None
+            and "Surface" in type(self.cfg.spawn.physics_material).__name__
+        )
+
         if len(tet_prims) > 1:
             raise ValueError(
                 f"Found multiple TetMesh prims under '{template_prim_path}': "
@@ -360,7 +375,7 @@ class DeformableObject(BaseDeformableObject):
             )
 
         # Pick simulation and visual mesh prims.
-        if len(tet_prims) == 1:
+        if len(tet_prims) == 1 and not _is_surface_material:
             deformable_type = "volume"
             mesh_prim = tet_prims[0]
             vis_candidates = [p for p in mesh_prims if not _is_sim_mesh(p)]
@@ -374,9 +389,16 @@ class DeformableObject(BaseDeformableObject):
                     f"{[p.GetPrimPath() for p in sim_candidates]}."
                     " Deformable body schema supports only one simulation mesh per asset."
                 )
-            # Fall back to the single authored Mesh when no explicit sim mesh was tagged
-            mesh_prim = sim_candidates[0] if sim_candidates else vis_candidates[0]
-            if not sim_candidates:
+            if _is_surface_material and vis_candidates:
+                # Newton reads the original authored Mesh directly.  The PhysX
+                # sim_mesh proxy has no points at scene-construction time, so
+                # prefer the original mesh when using a surface deformable material.
+                mesh_prim = vis_candidates[0]
+                vis_candidates = []  # visual == sim, no separate embedding target
+            elif sim_candidates:
+                mesh_prim = sim_candidates[0]
+            else:
+                mesh_prim = vis_candidates[0]
                 vis_candidates = []  # visual == sim, no separate embedding target
         else:
             raise ValueError(
