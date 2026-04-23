@@ -52,6 +52,15 @@ _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__
 #
 _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 
+# The max percentage of pixels allowed to differ. If the percentage exceeds this value, the test will fail.
+# The value is set case by case based on the screen space taken up by the env in camera output images. It
+# needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
+_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
+    "cartpole": 1.0,
+    "shadow_hand": 3.0,
+    "dexsuite_kuka": 4.0,
+}
+
 _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
 )
@@ -65,9 +74,6 @@ _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
 #              "ssim": float, "diff_pct": float, "passed": bool,
 #              "img_result_path": str | None, "img_golden_path": str | None}
 _COMPARISON_SCORES: list[dict] = []
-
-# Environment seed.
-_ENV_SEED = 42
 
 
 # ---------------------------------------------------------------------------
@@ -643,7 +649,6 @@ def shadow_hand_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = _ENV_SEED
 
     if data_type == "depth":
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
@@ -652,7 +657,6 @@ def shadow_hand_env(request):
     env = None
     try:
         env = ShadowHandVisionEnv(env_cfg)
-        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -662,13 +666,13 @@ def shadow_hand_env(request):
 def test_shadow_hand(shadow_hand_env):
     """Camera output must contain at least one non-zero pixel (Shadow Hand vision env)."""
     physics_backend, renderer, _, env = shadow_hand_env
-
+    test_name = "shadow_hand"
     _validate_camera_outputs(
-        "shadow_hand",
+        test_name,
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=8.0,
+        max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
     )
 
 
@@ -691,12 +695,10 @@ def cartpole_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = _ENV_SEED
 
     env = None
     try:
         env = CartpoleCameraEnv(env_cfg)
-        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -706,13 +708,13 @@ def cartpole_env(request):
 def test_cartpole(cartpole_env):
     """Camera output must contain at least one non-zero pixel (Cartpole camera env)."""
     physics_backend, renderer, _, env = cartpole_env
-
+    test_name = "cartpole"
     _validate_camera_outputs(
-        "cartpole",
+        test_name,
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=2.0,
+        max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
     )
 
 
@@ -739,12 +741,10 @@ def dexsuite_kuka_allegro_lift_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = _ENV_SEED
 
     env = None
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.reset(seed=_ENV_SEED)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -754,13 +754,13 @@ def dexsuite_kuka_allegro_lift_env(request):
 def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
     """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera)."""
     physics_backend, renderer, _, env = dexsuite_kuka_allegro_lift_env
-
+    test_name = "dexsuite_kuka"
     _validate_camera_outputs(
-        "dexsuite_kuka",
+        test_name,
         physics_backend,
         renderer,
         env.scene.sensors["base_camera"].data.output,
-        max_different_pixels_percentage=10.0,
+        max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
     )
 
 
@@ -769,33 +769,31 @@ def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
 # ---------------------------------------------------------------------------
 
 # Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank rendering.
+# The max different pixels percentage is set based on the screen space taken up by the env.
 _RENDER_CORRECTNESS_TASK_IDS = [
-    "Isaac-Cartpole-Albedo-Camera-Direct-v0",
-    "Isaac-Cartpole-Camera-Presets-Direct-v0",
-    "Isaac-Cartpole-Depth-Camera-Direct-v0",
-    "Isaac-Cartpole-RGB-Camera-Direct-v0",
-    "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
-    "Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
-    "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
-    "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
+    ("Isaac-Cartpole-Albedo-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-Camera-Presets-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-Depth-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-RGB-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Repose-Cube-Shadow-Vision-Direct-v0", "shadow_hand"),
 ]
 
 
-@pytest.mark.parametrize("task_id", _RENDER_CORRECTNESS_TASK_IDS)
-def test_registered_tasks(task_id):
+@pytest.mark.parametrize("task_id, env_name", _RENDER_CORRECTNESS_TASK_IDS)
+def test_registered_tasks(task_id, env_name):
     """Camera output must be non-empty for each registered task with camera-based observations."""
     env = None
     try:
         env_cfg = parse_env_cfg(task_id, num_envs=4)
-        env_cfg.seed = _ENV_SEED
 
         env = gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped
         sim = getattr(unwrapped, "sim", None)
         if sim is not None:
             sim._app_control_on_stop_handle = None
-
-        env.reset(seed=_ENV_SEED)
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)
@@ -808,7 +806,7 @@ def test_registered_tasks(task_id):
             "default_physics",
             "default_renderer",
             camera_outputs,
-            max_different_pixels_percentage=5.0,
+            max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name],
         )
     finally:
         if env is not None:
