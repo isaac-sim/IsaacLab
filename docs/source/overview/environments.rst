@@ -49,20 +49,20 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
     | World            | Environment ID              | Description                                                             | Presets               |
     +==================+=============================+=========================================================================+=======================+
     | |humanoid|       | |humanoid-link|             | Move towards a direction with the MuJoCo humanoid robot                 | ``newton``, ``physx`` |
-    |                  |                             |                                                                         |                       |
+    |                  |                             |                                                                         | ``ovphysx``           |
     |                  | |humanoid-direct-link|      |                                                                         |                       |
     +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
     | |ant|            | |ant-link|                  | Move towards a direction with the MuJoCo ant robot                      | ``newton``, ``physx`` |
-    |                  |                             |                                                                         |                       |
+    |                  |                             |                                                                         | ``ovphysx``           |
     |                  | |ant-direct-link|           |                                                                         |                       |
     +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
     | |cartpole|       | |cartpole-link|             | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton``, ``physx`` |
-    |                  |                             |                                                                         |                       |
+    |                  |                             |                                                                         | ``ovphysx``           |
     |                  | |cartpole-direct-link|      |                                                                         |                       |
     +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
     | |cartpole|       | |cartpole-rgb-link|         | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton``, ``physx`` |
-    |                  |                             | and perceptive inputs. Requires running with ``--enable_cameras``.      |                       |
-    |                  | |cartpole-depth-link|       |                                                                         |                       |
+    |                  |                             | and perceptive inputs. Requires running with ``--enable_cameras``.      | ``newton_renderer``,  |
+    |                  | |cartpole-depth-link|       |                                                                         | ``ovrtx_renderer``    |
     |                  |                             |                                                                         |                       |
     |                  | |cartpole-rgb-direct-link|  |                                                                         |                       |
     |                  |                             |                                                                         |                       |
@@ -142,7 +142,13 @@ for the lift-cube environment:
     |                         | |cube-shadow-lstm-link|      |                                                                             |                       |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
     | |cube-shadow|           | |cube-shadow-vis-link|       | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  | ``newton``, ``physx`` |
-    |                         |                              | Requires running with ``--enable_cameras``.                                 |                       |
+    |                         |                              | Requires running with ``--enable_cameras``.                                 | ``newton_renderer``,  |
+    |                         |                              |                                                                             | ``ovrtx_renderer``,   |
+    |                         |                              |                                                                             | ``rgb``, ``depth``,   |
+    |                         |                              |                                                                             | ``albedo``, ``full``, |
+    |                         |                              |                                                                             | ``semantic_``         |
+    |                         |                              |                                                                             | ``segmentation``,     |
+    |                         |                              |                                                                             | ``simple_shading_*``  |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
     | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          |                       |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
@@ -160,12 +166,30 @@ for the lift-cube environment:
     |                         |                              | controlled via Inverse Kinematics).                                         |                       |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
     | |kuka-allegro-lift|     | |kuka-allegro-lift-link|     | Pick up a primitive shape on the table and lift it to target position.      | ``newton``, ``physx`` |
-    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        |                       |
-    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    |                       |
+    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        | ``single_camera``,    |
+    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    | ``duo_camera``,       |
+    |                         |                              |                                                                             | ``newton_renderer``,  |
+    |                         |                              |                                                                             | ``ovrtx_renderer``,   |
+    |                         |                              |                                                                             | ``rgb{64,128,256}``,  |
+    |                         |                              |                                                                             | ``depth{..}``,        |
+    |                         |                              |                                                                             | ``albedo{..}``,       |
+    |                         |                              |                                                                             | ``semantic_``         |
+    |                         |                              |                                                                             | ``segmentation{..}``, |
+    |                         |                              |                                                                             | ``simple_shading_*``  |
+    |                         |                              |                                                                             | ``{64,128,256}``      |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
     | |kuka-allegro-reorient| | |kuka-allegro-reorient-link| | Pick up a primitive shape on the table and orient it to target pose.        | ``newton``, ``physx`` |
-    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        |                       |
-    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    |                       |
+    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        | ``single_camera``,    |
+    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    | ``duo_camera``,       |
+    |                         |                              |                                                                             | ``newton_renderer``,  |
+    |                         |                              |                                                                             | ``ovrtx_renderer``,   |
+    |                         |                              |                                                                             | ``rgb{64,128,256}``,  |
+    |                         |                              |                                                                             | ``depth{..}``,        |
+    |                         |                              |                                                                             | ``albedo{..}``,       |
+    |                         |                              |                                                                             | ``semantic_``         |
+    |                         |                              |                                                                             | ``segmentation{..}``, |
+    |                         |                              |                                                                             | ``simple_shading_*``  |
+    |                         |                              |                                                                             | ``{64,128,256}``      |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
     | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |                       |
     |                         |                              | a Galbot humanoid robot                                                     |                       |
@@ -735,7 +759,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Ant-v0
       -
       - Manager Based
@@ -750,52 +774,52 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Camera-Showcase-Box-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Camera-Showcase-Box-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Camera-Showcase-Dict-Box-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Camera-Showcase-Dict-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Camera-Showcase-Dict-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Camera-Showcase-Tuple-Box-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Camera-Showcase-Tuple-Discrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Camera-Showcase-Tuple-MultiDiscrete-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Depth-Camera-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-Depth-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
@@ -805,12 +829,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-RGB-Camera-Direct-v0 (Requires running with ``--enable_cameras``)
       -
       - Direct
       - **rl_games** (PPO), **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``
     * - Isaac-Cartpole-RGB-ResNet18-v0 (Requires running with ``--enable_cameras``)
       -
       - Manager Based
@@ -830,77 +854,77 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Dict-Box-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0
       -
       - Direct
       - **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Cartpole-v0
       -
       - Manager Based
@@ -970,7 +994,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``ovphysx``
     * - Isaac-Humanoid-v0
       -
       - Manager Based
@@ -1090,7 +1114,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0 (Requires running with ``--enable_cameras``)
       - Direct
       - **rsl_rl** (PPO), **rl_games** (VISION)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``, ``rgb``, ``depth``, ``albedo``, ``full``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
     * - Isaac-Shadow-Hand-Over-Direct-v0
       -
       - Direct
@@ -1116,7 +1140,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``single_camera``, ``duo_camera``, ``state``, ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``, ``rgb64``, ``rgb128``, ``rgb256``, ``depth64``, ``depth128``, ``depth256``, ``albedo64``, ``albedo128``, ``albedo256``, ``semantic_segmentation64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``simple_shading_constant_diffuse64``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_full_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``
     * - Isaac-Dexsuite-Kuka-Allegro-Reorient-v0
 
         Camera variants (requires ``--enable_cameras``):
@@ -1129,7 +1153,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton``, ``physx``, ``single_camera``, ``duo_camera``, ``state``, ``newton_renderer``, ``ovrtx_renderer``, ``isaacsim_rtx_renderer``, ``rgb64``, ``rgb128``, ``rgb256``, ``depth64``, ``depth128``, ``depth256``, ``albedo64``, ``albedo128``, ``albedo256``, ``semantic_segmentation64``, ``semantic_segmentation128``, ``semantic_segmentation256``, ``simple_shading_constant_diffuse64``, ``simple_shading_constant_diffuse128``, ``simple_shading_constant_diffuse256``, ``simple_shading_diffuse_mdl64``, ``simple_shading_diffuse_mdl128``, ``simple_shading_diffuse_mdl256``, ``simple_shading_full_mdl64``, ``simple_shading_full_mdl128``, ``simple_shading_full_mdl256``
     * - Isaac-Stack-Cube-Franka-v0
       -
       - Manager Based
