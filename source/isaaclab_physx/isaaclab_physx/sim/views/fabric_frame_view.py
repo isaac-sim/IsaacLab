@@ -12,7 +12,7 @@ import logging
 import torch
 import warp as wp
 
-from pxr import Usd
+from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager
@@ -212,14 +212,66 @@ class FabricFrameView(BaseFrameView):
         return positions_wp, orientations_wp
 
     # ------------------------------------------------------------------
-    # Local poses — USD fallback (Fabric only accelerates world poses)
+    # Local poses — computed from Fabric world poses when Fabric is active
     # ------------------------------------------------------------------
 
     def set_local_poses(self, translations=None, orientations=None, indices=None):
-        self._usd_view.set_local_poses(translations, orientations, indices)
+        if not self._use_fabric or not self._fabric_initialized or not self._fabric_usd_sync_done:
+            self._usd_view.set_local_poses(translations, orientations, indices)
+            if self._use_fabric and self._fabric_initialized:
+                # After writing local to USD, recompute Fabric world matrices
+                self._fabric_hierarchy.update_world_xforms()
+                self._prepare_for_reuse()
+            return
+
+        # Fabric path: compute child world = parent_world * local, then write to Fabric
+        import torch
+
+        indices_wp = self._resolve_indices_wp(indices)
+        count = indices_wp.shape[0]
+        indices_list = wp.to_torch(indices_wp).long().tolist()
+
+        parent_pos, parent_ori = self._get_parent_world_poses(indices_list)
+
+        if translations is not None:
+            local_pos = wp.to_torch(_to_float32_2d(translations))
+        else:
+            local_pos = torch.zeros((count, 3), dtype=torch.float32, device=self._device)
+
+        if orientations is not None:
+            local_ori = wp.to_torch(_to_float32_2d(orientations))
+        else:
+            local_ori = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * count, dtype=torch.float32, device=self._device)
+
+        child_pos, child_ori = self._compose_parent_local(parent_pos, parent_ori, local_pos, local_ori)
+
+        self.set_world_poses(
+            wp.from_torch(child_pos.contiguous()),
+            wp.from_torch(child_ori.contiguous()),
+            indices,
+        )
 
     def get_local_poses(self, indices=None):
-        return self._usd_view.get_local_poses(indices)
+        if not self._use_fabric or not self._fabric_initialized or not self._fabric_usd_sync_done:
+            return self._usd_view.get_local_poses(indices)
+
+        # Fabric path: local = inv(parent_world) * child_world
+
+        indices_wp = self._resolve_indices_wp(indices)
+        indices_list = wp.to_torch(indices_wp).long().tolist()
+
+        child_pos_wp, child_ori_wp = self.get_world_poses(indices)
+        child_pos = wp.to_torch(child_pos_wp)
+        child_ori = wp.to_torch(child_ori_wp)
+
+        parent_pos, parent_ori = self._get_parent_world_poses(indices_list)
+
+        local_pos, local_ori = self._invert_parent_compose(parent_pos, parent_ori, child_pos, child_ori)
+
+        return (
+            wp.from_torch(local_pos.contiguous()),
+            wp.from_torch(local_ori.contiguous()),
+        )
 
     # ------------------------------------------------------------------
     # Scales — Fabric-accelerated or USD fallback
@@ -340,6 +392,113 @@ class FabricFrameView(BaseFrameView):
         wp.synchronize()
 
         self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
+
+    # ------------------------------------------------------------------
+    # Internal — Local/world pose helpers
+    # ------------------------------------------------------------------
+
+    def _get_parent_world_poses(self, indices_list: list[int]) -> tuple:
+        """Read parent world poses from USD for given child indices.
+
+        Parents are not tracked in Fabric, so we read from USD XformCache.
+        Returns torch tensors ``(parent_pos[N,3], parent_ori[N,4])`` on self._device.
+        Orientation is ``(x, y, z, w)`` to match the convention used by FabricFrameView.
+        """
+        import torch
+
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+        stage = self._usd_view._prims[0].GetStage()
+
+        parent_positions = []
+        parent_orientations = []
+        for idx in indices_list:
+            child_path = self.prim_paths[idx]
+            parent_path = child_path.rsplit("/", 1)[0]
+            parent_prim = stage.GetPrimAtPath(parent_path)
+            if parent_prim and parent_prim.IsValid():
+                parent_tf = xform_cache.GetLocalToWorldTransform(parent_prim)
+                parent_tf.Orthonormalize()
+                t = parent_tf.ExtractTranslation()
+                q = parent_tf.ExtractRotationQuat()
+                img = q.GetImaginary()
+                real = q.GetReal()
+                parent_positions.append([float(t[0]), float(t[1]), float(t[2])])
+                # (x, y, z, w) convention
+                parent_orientations.append([float(img[0]), float(img[1]), float(img[2]), float(real)])
+            else:
+                # No parent — identity
+                parent_positions.append([0.0, 0.0, 0.0])
+                parent_orientations.append([0.0, 0.0, 0.0, 1.0])
+
+        return (
+            torch.tensor(parent_positions, dtype=torch.float32, device=self._device),
+            torch.tensor(parent_orientations, dtype=torch.float32, device=self._device),
+        )
+
+    @staticmethod
+    def _compose_parent_local(
+        parent_pos: torch.Tensor,
+        parent_ori: torch.Tensor,
+        local_pos: torch.Tensor,
+        local_ori: torch.Tensor,
+    ) -> tuple:
+        """Compute child_world = parent_world * local.
+
+        Orientations are ``(x, y, z, w)``.
+        Returns ``(child_world_pos, child_world_ori)``.
+        """
+        child_pos = parent_pos + FabricFrameView._quat_rotate(parent_ori, local_pos)
+        child_ori = FabricFrameView._quat_mul(parent_ori, local_ori)
+        return child_pos, child_ori
+
+    @staticmethod
+    def _invert_parent_compose(
+        parent_pos: torch.Tensor,
+        parent_ori: torch.Tensor,
+        child_pos: torch.Tensor,
+        child_ori: torch.Tensor,
+    ) -> tuple:
+        """Compute local = inv(parent_world) * child_world.
+
+        Orientations are ``(x, y, z, w)``.
+        Returns ``(local_pos, local_ori)``.
+        """
+        parent_ori_inv = FabricFrameView._quat_conjugate(parent_ori)
+        local_pos = FabricFrameView._quat_rotate(parent_ori_inv, child_pos - parent_pos)
+        local_ori = FabricFrameView._quat_mul(parent_ori_inv, child_ori)
+        return local_pos, local_ori
+
+    @staticmethod
+    def _quat_mul(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
+        """Quaternion multiply (x,y,z,w) convention."""
+        x1, y1, z1, w1 = q1[..., 0:1], q1[..., 1:2], q1[..., 2:3], q1[..., 3:4]
+        x2, y2, z2, w2 = q2[..., 0:1], q2[..., 1:2], q2[..., 2:3], q2[..., 3:4]
+        import torch
+
+        return torch.cat(
+            [
+                w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+                w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+                w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+                w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+            ],
+            dim=-1,
+        )
+
+    @staticmethod
+    def _quat_conjugate(q: torch.Tensor) -> torch.Tensor:
+        """Quaternion conjugate (x,y,z,w) convention."""
+        return q * q.new_tensor([-1, -1, -1, 1])
+
+    @staticmethod
+    def _quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        """Rotate vector v by quaternion q. (x,y,z,w) convention."""
+        import torch
+
+        q_xyz = q[..., :3]
+        q_w = q[..., 3:4]
+        t = 2.0 * torch.linalg.cross(q_xyz, v)
+        return v + q_w * t + torch.linalg.cross(q_xyz, t)
 
     # ------------------------------------------------------------------
     # Internal — Fabric initialization

@@ -23,7 +23,7 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
-from frame_view_contract_utils import CHILD_OFFSET, ViewBundle, test_set_world_updates_local  # noqa: E402
+from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
 from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 
 from pxr import Gf, UsdGeom  # noqa: E402
@@ -107,27 +107,11 @@ def view_factory():
 
 
 # ------------------------------------------------------------------
-# Override shared contract test with expected failure for Fabric.
-# FabricFrameView.set_world_poses writes to Fabric worldMatrix only; the local
-# pose (read via USD) does not reflect the change because there is no
-# Fabric → USD writeback for local poses.  This is tracked as Issue #5
-# (localMatrix: set_local_poses falls back to USD).
+# Override: ensure the shared contract test runs without xfail now that
+# get_local_poses computes local from Fabric world matrices.
 # ------------------------------------------------------------------
-
-
-@pytest.mark.xfail(
-    reason=(
-        "Issue #5: FabricFrameView.set_world_poses writes to Fabric worldMatrix only. "
-        "get_local_poses reads from stale USD because there is no Fabric→USD "
-        "writeback for local poses."
-    ),
-    strict=True,
-)
-def test_set_world_updates_local(device, view_factory):  # noqa: F811
-    """Override the shared test to mark it as expected failure."""
-    from frame_view_contract_utils import test_set_world_updates_local as _impl  # noqa: PLC0415
-
-    _impl(device, view_factory)
+# (No override needed — the shared test_set_world_updates_local from
+#  frame_view_contract_utils is imported via wildcard and will run as-is.)
 
 
 # ------------------------------------------------------------------
