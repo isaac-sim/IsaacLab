@@ -167,8 +167,8 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
     echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc && \
-    echo "shopt -s histappend" >> /root/.bashrc && \
-    echo "PROMPT_COMMAND='history -a'" >> /root/.bashrc
+    echo "shopt -s histappend" >> ${HOME}/.bashrc && \
+    echo "PROMPT_COMMAND='history -a'" >> ${HOME}/.bashrc
 
 # copy the rest of the files
 COPY ../ ${ISAACLAB_PATH}/
