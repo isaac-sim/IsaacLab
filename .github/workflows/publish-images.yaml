@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-name: Post-Merge CI
+name: Publish Docker Images
 
 on:
   push:
@@ -15,7 +15,7 @@ on:
 
 # Concurrency control to prevent parallel runs
 concurrency:
-  group: postmerge-ci-${{ github.ref }}
+  group: publish-images-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
