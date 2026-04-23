@@ -8,10 +8,13 @@ Fixed
 ^^^^^
 
 * Fixed CI failures in Theia-based observation tests where ``from transformers import AutoModel``
-  raised ``ValueError: Unable to compare versions for packaging>=20.0: need=20.0 found=None`` when
-  Isaac Sim's bundled ``packaging`` install was missing ``dist-info`` metadata. Pinned
-  ``packaging>=20.0`` in ``source/isaaclab/setup.py`` so pip reinstalls the package with proper
-  metadata during setup.
+  raised ``ValueError: Unable to compare versions for packaging>=20.0: need=20.0 found=None``.
+  :mod:`isaaclab_rl` pins ``packaging<24``, which downgrades Isaac Sim's prebundled ``packaging``
+  26.0 to 23.2 in ``site-packages``. On some Isaac Sim develop images that uninstall/reinstall
+  leaves a ``dist-info`` whose ``METADATA`` is missing the ``Version:`` header, so
+  ``importlib.metadata.version("packaging")`` returns ``None`` at runtime. Added an explicit
+  ``pip install --force-reinstall --no-deps packaging`` step at the end of
+  :meth:`~isaaclab.cli.commands.install.command_install` to rewrite the ``dist-info`` cleanly.
 
 
 4.6.11 (2026-04-22)

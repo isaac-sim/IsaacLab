@@ -570,6 +570,15 @@ def command_install(install_type: str = "all") -> None:
         # Can prevent that from happening.
         _ensure_cuda_torch()
 
+        # Force-reinstall packaging so its METADATA is rewritten by pip.
+        # isaaclab_rl pins "packaging<24", which downgrades Isaac Sim's prebundled
+        # packaging 26.0 to 23.2 in site-packages. On some Isaac Sim develop images
+        # that uninstall/reinstall leaves a dist-info whose METADATA is missing the
+        # "Version:" header, and importlib.metadata.version("packaging") returns
+        # None — which breaks transformers' require_version("packaging>=20.0") at
+        # import time. Writing the dist-info one more time clears that state.
+        run_command(pip_cmd + ["install", "--force-reinstall", "--no-deps", "packaging>=20.0,<24"])
+
         # Repoint prebundled packages in Isaac Sim to the environment's copies so
         # the active venv/conda versions are always loaded regardless of PYTHONPATH
         # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
