@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-4.6.12 (2026-04-22)
+4.6.13 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -22,6 +22,17 @@ Removed
 * Retired several ``source/isaaclab/test/deps/isaacsim`` standalone reproducers that depended on
   deprecated Isaac Sim core extensions; use :mod:`isaaclab.sim` and ``isaacsim.core.experimental.*``
   for similar debugging workflows.
+
+
+4.6.12 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added caching to :func:`~isaaclab.utils.string.resolve_matching_names`,
+  avoiding repeated regex matching across ``find_bodies``, ``find_joints``,
+  and related calls.
 
 
 4.6.11 (2026-04-22)
