@@ -55,7 +55,7 @@ Newton-based visualizers (Newton, Rerun, Viser) require a Newton model/state to 
 The sync pipeline:
 
 1. Reads transforms from PhysX ``RigidBodyView`` (fast tensor API)
-2. Falls back to ``XformPrimView`` for bodies not covered by the rigid body view
+2. Falls back to :class:`~isaaclab.sim.views.FrameView` for bodies not covered by the rigid body view
 3. Converts and writes merged poses into the Newton state via Warp kernels
 
 Newton Scene Data Provider

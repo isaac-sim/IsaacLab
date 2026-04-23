@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+0.5.20 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.views.XformPrimView` providing the Newton
+  backend implementation for xform prim views.
+
+Changed
+^^^^^^^
+
+* Renamed :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView` to
+  :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`. Old name is kept as a deprecated alias.
+
+
+0.5.19 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ``write_data_to_sim`` in :class:`~isaaclab_newton.assets.Articulation`,
+  :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
+  to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
+  applied after body-frame composition.
+
+
+0.5.18 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Upgraded Newton from ``2684d75`` to ``a27277e``. Includes collision improvements, contact quality fixes,
+  hydroelastic contact optimization, and memory usage fixes in CollisionPipeline. For details see
+  ``Newton changelog <https://github.com/newton-physics/newton/blob/main/CHANGELOG.md>``.
+* Pinned ``mujoco`` and ``mujoco-warp`` to ``3.6.0`` to align with the Newton library.
+
+
 0.5.17 (2026-04-20)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -104,10 +144,6 @@ Fixed
   pipeline. Added :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk`
   so articulation write methods trigger ``eval_fk`` before the next
   ``collide()``.
-
-
-0.5.9 (2026-03-16)
-~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

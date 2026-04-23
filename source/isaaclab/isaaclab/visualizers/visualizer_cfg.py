@@ -34,17 +34,17 @@ class VisualizerCfg:
     enable_live_plots: bool = True
     """Enable live plotting of data."""
 
-    camera_position: tuple[float, float, float] = (8.0, 8.0, 3.0)
-    """Initial camera position (x, y, z) in world coordinates."""
+    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    """Initial camera eye position (x, y, z) in world coordinates."""
 
-    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Initial camera target/look-at point (x, y, z) in world coordinates."""
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Initial camera look-at point (x, y, z) in world coordinates."""
 
-    camera_source: Literal["cfg", "usd_path"] = "cfg"
-    """Camera source mode: 'cfg' uses camera_position/target, 'usd_path' follows a USD camera prim."""
+    cam_source: Literal["cfg", "prim_path"] = "cfg"
+    """Camera source mode: 'cfg' uses eye/lookat, 'prim_path' follows a camera prim."""
 
-    camera_usd_path: str = "/World/envs/env_0/Camera"
-    """Absolute USD path to a camera prim when camera_source='usd_path'."""
+    cam_prim_path: str = "/World/envs/env_0/Camera"
+    """Absolute USD path to a camera prim when cam_source='prim_path'."""
 
     env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
     """Env filter mode: 'none', 'env_ids', or 'random_n'."""

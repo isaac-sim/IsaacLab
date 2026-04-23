@@ -45,6 +45,7 @@ class _FakeVisualizer:
         training_paused_steps=0,
         raises_on_step=False,
         requires_forward=False,
+        pumps_app_update=False,
     ):
         self._env_ids = env_ids
         self._running = running
@@ -53,6 +54,7 @@ class _FakeVisualizer:
         self._training_paused_steps = training_paused_steps
         self._raises_on_step = raises_on_step
         self._requires_forward = requires_forward
+        self._pumps_app_update = pumps_app_update
         self.step_calls = []
         self.close_calls = 0
 
@@ -86,6 +88,9 @@ class _FakeVisualizer:
 
     def requires_forward_before_step(self):
         return self._requires_forward
+
+    def pumps_app_update(self):
+        return self._pumps_app_update
 
 
 def _make_context(visualizers, provider=None):
@@ -136,8 +141,19 @@ def test_update_visualizers_removes_closed_nonrunning_and_failed(caplog):
     assert stopped_viz.close_calls == 1
     assert failing_viz.close_calls == 1
     assert paused_viz.close_calls == 0
+    assert paused_viz.step_calls == [0.0]
     assert healthy_viz.step_calls == [0.1]
     assert any("Error stepping visualizer" in r.message for r in caplog.records)
+
+
+def test_update_visualizers_skips_zero_dt_for_paused_app_pumping_visualizer():
+    provider = _FakeProvider()
+    paused_app_pumping_viz = _FakeVisualizer(rendering_paused=True, pumps_app_update=True)
+    ctx = _make_context([paused_app_pumping_viz], provider=provider)
+
+    ctx.update_visualizers(0.3)
+
+    assert paused_app_pumping_viz.step_calls == []
 
 
 def test_update_visualizers_handles_training_pause_loop():
@@ -398,6 +414,8 @@ def _make_context_with_settings(
     ctx._has_gui = has_gui
     ctx._has_offscreen_render = has_offscreen_render
     ctx._xr_enabled = False
+    ctx._pending_camera_view = None
+    ctx._render_generation = 0
     ctx._visualizers = []
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
