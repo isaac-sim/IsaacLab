@@ -179,12 +179,12 @@ def test_xr_anchor(empty_env, mock_xrcore):
     device = OpenXRDevice(OpenXRDeviceCfg(xr_cfg=env_cfg.xr))
 
     # Check that the xr anchor prim is created with the correct pose
-    xr_anchor_view = sim_utils.XformPrimView("/World/XRAnchor")
+    xr_anchor_view = sim_utils.FrameView("/World/XRAnchor")
     assert xr_anchor_view.count == 1
 
     position, orientation = xr_anchor_view.get_world_poses()
     np.testing.assert_almost_equal(position.numpy(), [[1, 2, 3]])
-    # XformPrimView returns quaternion in xyzw format, identity is [0, 0, 0, 1]
+    # FrameView returns quaternion in xyzw format, identity is [0, 0, 0, 1]
     np.testing.assert_almost_equal(orientation.numpy(), [[0, 0, 0, 1]])
 
     # Check that xr anchor mode and custom anchor are set correctly
@@ -202,7 +202,7 @@ def test_xr_anchor_default(empty_env, mock_xrcore):
     device = OpenXRDevice(OpenXRDeviceCfg())
 
     # Check that the xr anchor prim is created with the correct default pose
-    xr_anchor_view = sim_utils.XformPrimView("/World/XRAnchor")
+    xr_anchor_view = sim_utils.FrameView("/World/XRAnchor")
     assert xr_anchor_view.count == 1
 
     position, orientation = xr_anchor_view.get_world_poses()
@@ -225,7 +225,7 @@ def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
     device_2 = OpenXRDevice(OpenXRDeviceCfg())
 
     # Check that the xr anchor prim is created with the correct default pose
-    xr_anchor_view = sim_utils.XformPrimView("/World/XRAnchor")
+    xr_anchor_view = sim_utils.FrameView("/World/XRAnchor")
     assert xr_anchor_view.count == 1
 
     position, orientation = xr_anchor_view.get_world_poses()

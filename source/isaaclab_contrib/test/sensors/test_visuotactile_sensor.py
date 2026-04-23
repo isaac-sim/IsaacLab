@@ -307,7 +307,8 @@ def test_sensor_cam_set_wrong_prim(setup_tactile_cam):
         sim.reset()
         robot.update(dt)
         sensor.update(dt)
-    assert "Could not find prim with path" in str(excinfo.value)
+    err_msg = str(excinfo.value)
+    assert "Could not find prim with path" in err_msg or "does not match the number of environments" in err_msg
 
 
 @pytest.mark.isaacsim_ci

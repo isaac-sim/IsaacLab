@@ -15,8 +15,8 @@ class BaseSceneDataProvider(ABC):
     """Backend-agnostic scene data provider interface."""
 
     @abstractmethod
-    def update(self, env_ids: list[int] | None = None) -> None:
-        """Refresh any cached scene data."""
+    def update(self) -> None:
+        """Refresh any cached scene data (full model/state)."""
         raise NotImplementedError
 
     @abstractmethod
@@ -25,8 +25,8 @@ class BaseSceneDataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_newton_state(self, env_ids: list[int] | None = None) -> Any | None:
-        """Return Newton state handle when available."""
+    def get_newton_state(self) -> Any | None:
+        """Return Newton state handle when available (full state)."""
         raise NotImplementedError
 
     @abstractmethod
