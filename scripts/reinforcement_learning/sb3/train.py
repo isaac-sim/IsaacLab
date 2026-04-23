@@ -30,7 +30,7 @@ from isaaclab.utils.io import dump_yaml
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import add_launcher_args, add_video_args, apply_video_cfg, launch_simulation, resolve_task_config
 
 logger = logging.getLogger(__name__)
 
@@ -40,16 +40,7 @@ with contextlib.suppress(ImportError):
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Train an RL agent with Stable-Baselines3.")
-parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
-parser.add_argument(
-    "--video_mode",
-    type=str,
-    default="perspective",
-    choices=["perspective", "tiled"],
-    help="When --video is set: perspective (Kit/GL viewport) or tiled (TiledCamera grid).",
-)
-parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
-parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
+add_video_args(parser)
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
@@ -114,8 +105,7 @@ def main():
         env_cfg.seed = agent_cfg["seed"]
         env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-        if args_cli.video and getattr(env_cfg, "video_recorder", None) is not None:
-            env_cfg.video_recorder.video_mode = args_cli.video_mode
+        apply_video_cfg(args_cli, env_cfg)
 
         # directory for logging into
         run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -161,12 +151,12 @@ def main():
         # wrap for video recording
         if args_cli.video:
             video_kwargs = {
-                "video_folder": os.path.join(log_dir, "videos", args_cli.video_mode, "train"),
+                "video_folder": os.path.join(log_dir, "videos", args_cli.video, "train"),
                 "step_trigger": lambda step: step % args_cli.video_interval == 0,
                 "video_length": args_cli.video_length,
                 "disable_logger": True,
             }
-            print(f"[INFO] Recording videos (mode={args_cli.video_mode}).")
+            print(f"[INFO] Recording videos (mode={args_cli.video}).")
             print_dict(video_kwargs, nesting=4)
             env = gym.wrappers.RecordVideo(env, **video_kwargs)
 

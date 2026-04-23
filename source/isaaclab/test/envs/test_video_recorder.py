@@ -104,7 +104,7 @@ def test_tiled_tie_breaks_to_newton_gl_when_no_kit_cameras():
 
     # physx physics + newton_warp renderer: _sensor_renderer_types returns ["newton_warp"]
     physx_scene = MagicMock()
-    physx_scene.sim.physics_manager.__name__ = "PhysxManager"
+    physx_scene.physics_backend = "physxmanager"
     physx_scene._sensor_renderer_types = MagicMock(return_value=["newton_warp"])
     physx_scene.sensors = {}
 
@@ -199,6 +199,16 @@ def test_render_rgb_array_none_when_no_backend():
     recorder._backend = None
     recorder._capture = None
     assert recorder.render_rgb_array() is None
+
+
+def test_render_rgb_array_raises_when_rgb_array_mode_but_no_capture():
+    """rgb_array mode with no capture/tiled backend is an internal error - raises RuntimeError."""
+    recorder = _create_recorder(env_render_mode="rgb_array")
+    recorder._backend = None
+    recorder._capture = None
+    recorder._tiled_capture = None
+    with pytest.raises(RuntimeError, match="no capture backend"):
+        recorder.render_rgb_array()
 
 
 def test_capture_exception_propagates():

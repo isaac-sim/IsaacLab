@@ -20,6 +20,49 @@ from isaaclab.sensors.camera.camera_cfg import CameraCfg
 logger = logging.getLogger(__name__)
 
 
+def add_video_args(parser: argparse.ArgumentParser) -> None:
+    """Add video-recording CLI arguments to *parser*.
+
+    Adds ``--video``, ``--video_length``, and ``--video_interval``.  The
+    ``--video`` flag accepts an optional mode value so both the *enable* and
+    *mode* decisions are expressed in a single argument:
+
+    * ``--video``               → perspective mode (default)
+    * ``--video=tiled``         → tiled grid mode
+    * ``--video=perspective``   → explicit perspective mode
+    * *(omitted)*               → recording disabled
+
+    This replaces the old separate ``--video`` (store_true) + ``--video_mode``
+    pair that was duplicated across every train/play/benchmark script.
+    """
+    parser.add_argument(
+        "--video",
+        nargs="?",
+        const="perspective",
+        default=None,
+        choices=["perspective", "tiled"],
+        help=(
+            "Record video. Optionally specify mode: '--video' for perspective (default)"
+            " or '--video=tiled' for tiled camera grid."
+        ),
+    )
+    parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
+    parser.add_argument(
+        "--video_interval", type=int, default=2000, help="Interval between video recordings (in steps)."
+    )
+
+
+def apply_video_cfg(args_cli: argparse.Namespace, env_cfg) -> None:
+    """Forward the ``--video`` mode from *args_cli* to *env_cfg.video_recorder*.
+
+    Must be called after the environment config is resolved and before the
+    environment is constructed.  Safe to call when ``--video`` is not set or
+    when the config has no ``video_recorder`` attribute.
+    """
+    if args_cli.video and getattr(env_cfg, "video_recorder", None) is not None:
+        env_cfg.video_recorder.video_mode = args_cli.video
+
+
 def add_launcher_args(parser: argparse.ArgumentParser) -> None:
     """Add simulation-launcher CLI arguments (``--headless``, ``--device``, etc.) to *parser*.
 

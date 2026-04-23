@@ -13,22 +13,14 @@ import sys
 import time
 
 from isaaclab.app import AppLauncher
+from isaaclab_tasks.utils import add_video_args, apply_video_cfg
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 import scripts.reinforcement_learning.rsl_rl.cli_args as cli_args  # isort: skip
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
-parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
-parser.add_argument(
-    "--video_mode",
-    type=str,
-    default="perspective",
-    choices=["perspective", "tiled"],
-    help="When --video is set: perspective (Kit/GL viewport) or tiled (TiledCamera grid).",
-)
-parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
-parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
+add_video_args(parser)
 parser.add_argument("--num_envs", type=int, default=4096, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=42, help="Seed used for the environment")
@@ -183,8 +175,7 @@ def main(
         agent_cfg.seed = seed
         world_size = int(os.getenv("WORLD_SIZE", 1))
 
-    if args_cli.video and getattr(env_cfg, "video_recorder", None) is not None:
-        env_cfg.video_recorder.video_mode = args_cli.video_mode
+    apply_video_cfg(args_cli, env_cfg)
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
@@ -207,12 +198,12 @@ def main(
     # wrap for video recording
     if args_cli.video:
         video_kwargs = {
-            "video_folder": os.path.join(log_dir, "videos", args_cli.video_mode),
+            "video_folder": os.path.join(log_dir, "videos", args_cli.video),
             "step_trigger": lambda step: step % args_cli.video_interval == 0,
             "video_length": args_cli.video_length,
             "disable_logger": True,
         }
-        print(f"[INFO] Recording videos (mode={args_cli.video_mode}).")
+        print(f"[INFO] Recording videos (mode={args_cli.video}).")
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for rsl-rl

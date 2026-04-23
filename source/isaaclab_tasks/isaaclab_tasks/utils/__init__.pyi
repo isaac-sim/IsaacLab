@@ -14,6 +14,8 @@ __all__ = [
     "hydra_task_config",
     "resolve_presets",
     "add_launcher_args",
+    "add_video_args",
+    "apply_video_cfg",
     "launch_simulation",
     "compute_kit_requirements",
 ]
@@ -21,4 +23,4 @@ __all__ = [
 from .hydra import PresetCfg, preset, hydra_task_config, resolve_task_config, resolve_presets
 from .importer import import_packages
 from .parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
-from .sim_launcher import add_launcher_args, launch_simulation, compute_kit_requirements
+from .sim_launcher import add_launcher_args, add_video_args, apply_video_cfg, launch_simulation, compute_kit_requirements

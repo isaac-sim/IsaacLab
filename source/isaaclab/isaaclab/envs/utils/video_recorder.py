@@ -46,12 +46,11 @@ def _resolve_video_backend(scene: InteractiveScene, video_mode: str = "perspecti
     so the existing warp scene cameras are used directly rather than spawning a fallback RTX camera
     at a world-space position.
     """
-    sim = scene.sim
-    physics_name = sim.physics_manager.__name__.lower()
+    physics_backend: str = scene.physics_backend
     renderer_types: list[str] = scene._sensor_renderer_types()
 
-    use_kit = "physx" in physics_name or "isaac_rtx" in renderer_types
-    use_newton_gl = "newton" in physics_name or "newton_warp" in renderer_types
+    use_kit = "physx" in physics_backend or "isaac_rtx" in renderer_types
+    use_newton_gl = "newton" in physics_backend or "newton_warp" in renderer_types
 
     if use_kit and use_newton_gl and video_mode == "tiled":
         # Tie-break: Kit tiled recording requires RTX cameras. If the scene has none
@@ -168,11 +167,22 @@ class VideoRecorder:
             self._capture = create_isaacsim_kit_perspective_video(kcfg)
 
     def render_rgb_array(self) -> np.ndarray | None:
-        """Return an RGB frame for the resolved backend. Fails if backend is unavailable."""
+        """Return an RGB frame for the resolved backend.
+
+        Returns:
+            RGB frame as a numpy array, or ``None`` when ``env_render_mode`` is not ``"rgb_array"``.
+
+        Raises:
+            RuntimeError: If ``env_render_mode`` is ``"rgb_array"`` but no capture backend was
+                initialised. This indicates an internal setup error.
+        """
         if self.cfg.env_render_mode != "rgb_array":
             return None
         if self._tiled_capture is not None:
             return self._tiled_capture.render_rgb_array()
-        if self._backend is None or self._capture is None:
-            return None
+        if self._capture is None:
+            raise RuntimeError(
+                "VideoRecorder has no capture backend despite rgb_array render mode. "
+                "This is an internal error; please report it."
+            )
         return self._capture.render_rgb_array()

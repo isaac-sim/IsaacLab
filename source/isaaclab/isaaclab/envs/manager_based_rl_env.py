@@ -279,7 +279,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             return None
         elif self.render_mode == "rgb_array":
             if self.video_recorder is None:
-                return None
+                raise RuntimeError(
+                    "Render mode 'rgb_array' requires a video recorder. Pass --video to enable recording."
+                )
             return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
