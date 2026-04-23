@@ -5,7 +5,7 @@ Changelog
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
-^^^^^
+^^^^^^^
 
 * Replaced the deprecated ``--headless`` CLI flag with ``--viz none`` in the dataset-generation
   tests under ``isaaclab_mimic/test/`` to silence the ``AppLauncher`` deprecation warning.
