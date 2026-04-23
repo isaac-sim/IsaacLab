@@ -18,17 +18,11 @@ if TYPE_CHECKING:
 def create_isaacsim_tiled_camera_video(cfg: IsaacsimTiledCameraVideoCfg, scene: InteractiveScene):
     """Instantiate tiled capture from ``cfg.class_type`` (default: :class:`TiledCameraGridVideoCapture`)."""
     ct = cfg.class_type
-    if isinstance(ct, type):
-        return ct(
-            scene,
-            video_num_tiles=cfg.video_num_tiles,
-            fallback_camera_cfg=cfg.fallback_camera_cfg,
-            preferred_renderer_types=cfg.preferred_renderer_types,
-        )
-    from isaaclab.utils.string import string_to_callable
+    if not isinstance(ct, type):
+        from isaaclab.utils.string import string_to_callable
 
-    cls = string_to_callable(str(ct))
-    return cls(
+        ct = string_to_callable(str(ct))
+    return ct(
         scene,
         video_num_tiles=cfg.video_num_tiles,
         fallback_camera_cfg=cfg.fallback_camera_cfg,

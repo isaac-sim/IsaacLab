@@ -19,11 +19,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-# ---------------------------------------------------------------------------
-# Load the module under test without requiring the isaaclab package to be
-# installed.  The file has only stdlib + numpy at module-level; all Isaac Sim
-# imports are lazy (inside methods) so they can be mocked per-test.
-# ---------------------------------------------------------------------------
+# Load module directly; Isaac Sim imports are lazy so they can be mocked per-test.
 _MODULE_PATH = (
     pathlib.Path(__file__).parent.parent.parent / "isaaclab" / "envs" / "utils" / "tiled_camera_grid_video.py"
 )
@@ -36,18 +32,8 @@ _tiled_camera_renderer_type = _module._tiled_camera_renderer_type
 _tiled_camera_has_rgb_cfg = _module._tiled_camera_has_rgb_cfg
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 class FakeCamera:
-    """Minimal stand-in for isaaclab.sensors.camera.Camera.
-
-    Using a real class (not MagicMock) is required so that
-    ``isinstance(sensor, Camera)`` checks inside _find_video_camera work
-    correctly when Camera is patched to this class.
-    """
+    """Real class (not MagicMock) so ``isinstance(sensor, Camera)`` works when Camera is patched."""
 
     pass
 
@@ -62,7 +48,6 @@ def _fake_camera_module():
 def _make_rgb_tensor(n_envs: int, h: int = 8, w: int = 8):
     """Return a numpy array shaped (n_envs, h, w, 3) as a fake torch tensor."""
     arr = np.zeros((n_envs, h, w, 3), dtype=np.uint8)
-    # Wrap in an object that behaves like a torch tensor for the code under test.
     tensor = MagicMock()
     tensor.shape = arr.shape
     tensor.__getitem__ = lambda self, key: _SlicedTensor(arr[key])
@@ -119,11 +104,6 @@ def _make_capture(*, scene_sensors=None, fallback=None, preferred=None, num_tile
     return cap
 
 
-# ---------------------------------------------------------------------------
-# _tiled_camera_renderer_type / _tiled_camera_has_rgb_cfg helpers
-# ---------------------------------------------------------------------------
-
-
 class TestHelpers:
     def test_renderer_type_returns_default_when_no_cfg(self):
         assert _tiled_camera_renderer_type(object()) == "default"
@@ -146,11 +126,6 @@ class TestHelpers:
 
     def test_has_rgb_cfg_false_when_no_cfg(self):
         assert _tiled_camera_has_rgb_cfg(object()) is False
-
-
-# ---------------------------------------------------------------------------
-# _find_video_camera — no preferred_renderer_types
-# ---------------------------------------------------------------------------
 
 
 class TestFindVideoCameraUnfiltered:
@@ -214,14 +189,8 @@ class TestFindVideoCameraUnfiltered:
 
         with patch.dict(sys.modules, {"isaaclab.sensors.camera": _fake_camera_module()}):
             first = cap._find_video_camera()
-            second = cap._find_video_camera()  # should hit the cache
-
+            second = cap._find_video_camera()
         assert first is second is sensor
-
-
-# ---------------------------------------------------------------------------
-# _find_video_camera — with preferred_renderer_types
-# ---------------------------------------------------------------------------
 
 
 class TestFindVideoCameraFiltered:
@@ -275,11 +244,6 @@ class TestFindVideoCameraFiltered:
         assert result in (sensor_rtx, sensor_ovrtx)
 
 
-# ---------------------------------------------------------------------------
-# render_rgb_array — grid layout
-# ---------------------------------------------------------------------------
-
-
 class TestRenderRgbArray:
     def _primed_capture(self, n_envs: int, h: int, w: int, num_tiles: int = -1):
         """Return a capture already past _find_video_camera (camera pre-set)."""
@@ -293,28 +257,27 @@ class TestRenderRgbArray:
         return cap, sensor
 
     def test_output_shape_4_envs(self):
-        """4 envs on 8x8 tiles → 2×2 grid → 16×16 output."""
+        """4 envs on 8x8 tiles becomes a 2 by 2 grid which results in a 16 by 16 output."""
         cap, _ = self._primed_capture(n_envs=4, h=8, w=8)
         out = cap.render_rgb_array()
         assert out.shape == (16, 16, 3)
 
     def test_output_shape_1_env(self):
-        """1 env on 4x4 tile → 1×1 grid → 4×4 output."""
+        """1 env on 4x4 tile becomes a 1 by 1 grid which results in a 4 by 4 output."""
         cap, _ = self._primed_capture(n_envs=1, h=4, w=4)
         out = cap.render_rgb_array()
         assert out.shape == (4, 4, 3)
 
     def test_output_shape_non_square_envs(self):
-        """3 envs → ceil(sqrt(3))=2 grid → 2×2 with 1 blank pad → 2H×2W."""
+        """3 envs becomes a ceil(sqrt(3))=2 grid which results in a 2 by 2 output with 1 blank pad."""
         cap, _ = self._primed_capture(n_envs=3, h=6, w=6)
         out = cap.render_rgb_array()
         assert out.shape == (12, 12, 3)
 
     def test_num_tiles_caps_envs(self):
-        """video_num_tiles=2 with 4 available → 2×1 grid (ceil(sqrt(2))=2) → 2H×2W."""
+        """video_num_tiles=2 with 4 available becomes a ceil(sqrt(2))=2 grid which results in a 16 by 16 output."""
         cap, _ = self._primed_capture(n_envs=4, h=8, w=8, num_tiles=2)
         out = cap.render_rgb_array()
-        # ceil(sqrt(2)) = 2 → 16×16
         assert out.shape == (16, 16, 3)
 
     def test_raises_when_no_camera_found(self):
@@ -361,11 +324,6 @@ class TestRenderRgbArray:
         assert out.shape[-1] == 3
 
 
-# ---------------------------------------------------------------------------
-# _spawn_fallback_cameras — uses Camera, not TiledCamera
-# ---------------------------------------------------------------------------
-
-
 class TestSpawnFallbackCameras:
     def test_spawns_camera_not_tiled_camera(self):
         """After PR #5162, _spawn_fallback_cameras must instantiate Camera."""
@@ -397,13 +355,8 @@ class TestSpawnFallbackCameras:
 
         with patch.dict(
             sys.modules,
-            {
-                "isaaclab.sensors.camera": fake_cam_module,
-                "isaaclab.utils.math": fake_math_module,
-            },
+            {"isaaclab.sensors.camera": fake_cam_module, "isaaclab.utils.math": fake_math_module},
         ):
             result = TiledCameraGridVideoCapture._spawn_fallback_cameras(camera_cfg, scene)
-
-        # Camera() must have been called — not TiledCamera()
         MockCamera.assert_called_once_with(fake_cfg_replaced)
         assert result is fake_camera_instance

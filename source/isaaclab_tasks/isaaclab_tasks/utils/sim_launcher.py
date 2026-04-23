@@ -21,20 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def add_video_args(parser: argparse.ArgumentParser) -> None:
-    """Add video-recording CLI arguments to *parser*.
-
-    Adds ``--video``, ``--video_length``, and ``--video_interval``.  The
-    ``--video`` flag accepts an optional mode value so both the *enable* and
-    *mode* decisions are expressed in a single argument:
-
-    * ``--video``               → perspective mode (default)
-    * ``--video=tiled``         → tiled grid mode
-    * ``--video=perspective``   → explicit perspective mode
-    * *(omitted)*               → recording disabled
-
-    This replaces the old separate ``--video`` (store_true) + ``--video_mode``
-    pair that was duplicated across every train/play/benchmark script.
-    """
+    """Add ``--video`` (mode: perspective/tiled), ``--video_length``, and ``--video_interval`` to *parser*."""
     parser.add_argument(
         "--video",
         nargs="?",
@@ -53,12 +40,7 @@ def add_video_args(parser: argparse.ArgumentParser) -> None:
 
 
 def apply_video_cfg(args_cli: argparse.Namespace, env_cfg) -> None:
-    """Forward the ``--video`` mode from *args_cli* to *env_cfg.video_recorder*.
-
-    Must be called after the environment config is resolved and before the
-    environment is constructed.  Safe to call when ``--video`` is not set or
-    when the config has no ``video_recorder`` attribute.
-    """
+    """Forward ``--video`` mode to ``env_cfg.video_recorder.video_mode`` when both are set."""
     if args_cli.video and getattr(env_cfg, "video_recorder", None) is not None:
         env_cfg.video_recorder.video_mode = args_cli.video
 
