@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from isaaclab.sim.debug_vis import register_visualizer_step_debug_vis, should_use_visualizer_step_debug_vis
 from isaaclab.utils.version import has_kit
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -113,6 +114,9 @@ class CommandTerm(ManagerTermBase):
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                 )
+        elif debug_vis and should_use_visualizer_step_debug_vis():
+            if self._debug_vis_handle is None:
+                self._debug_vis_handle = register_visualizer_step_debug_vis(self)
         else:
             # remove the subscriber if it exists
             if self._debug_vis_handle is not None:

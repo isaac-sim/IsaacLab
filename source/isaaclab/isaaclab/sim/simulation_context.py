@@ -68,6 +68,22 @@ class SettingsHelper:
         return self._settings.get(name)
 
 
+class SimulationCallbackHandle:
+    """Handle for a SimulationContext-managed callback."""
+
+    def __init__(self, callback_id: str, remover):
+        self._callback_id = callback_id
+        self._remover = remover
+
+    def deregister(self) -> None:
+        """Remove the callback from its registry."""
+        self._remover(self._callback_id)
+
+    def unsubscribe(self) -> None:
+        """Alias used by existing debug-vis call sites."""
+        self.deregister()
+
+
 class SimulationContext:
     """Controls simulation lifecycle including physics stepping and rendering.
 
@@ -184,6 +200,8 @@ class SimulationContext:
         self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
         # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self._visualizer_callbacks: dict[str, Any] = {}
+        self._marker_store: dict[str, Any] = {}
 
         # Simulation state
         self._is_playing = False
@@ -737,6 +755,9 @@ class SimulationContext:
 
         self.update_scene_data_provider()
 
+        for callback in self._visualizer_callbacks.values():
+            callback(None)
+
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
@@ -783,6 +804,28 @@ class SimulationContext:
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""
         return any(viz.requires_forward_before_step() for viz in self._visualizers)
+
+    def add_visualizer_callback(self, name: str, callback) -> SimulationCallbackHandle:
+        """Register a callback invoked before visualizers step each render tick."""
+        self._visualizer_callbacks[name] = callback
+        return SimulationCallbackHandle(name, self.remove_visualizer_callback)
+
+    def remove_visualizer_callback(self, callback_id: str | SimulationCallbackHandle) -> None:
+        """Remove a visualizer-step callback if it exists."""
+        callback_name = callback_id._callback_id if isinstance(callback_id, SimulationCallbackHandle) else callback_id
+        self._visualizer_callbacks.pop(callback_name, None)
+
+    def set_visualization_marker_group(self, group_id: str, state: Any) -> None:
+        """Set or replace one visualization marker group state."""
+        self._marker_store[group_id] = state
+
+    def remove_visualization_marker_group(self, group_id: str) -> None:
+        """Remove one visualization marker group state if present."""
+        self._marker_store.pop(group_id, None)
+
+    def get_visualization_marker_groups(self) -> dict[str, Any]:
+        """Return all active visualization marker groups."""
+        return self._marker_store
 
     def play(self) -> None:
         """Start or resume the simulation."""

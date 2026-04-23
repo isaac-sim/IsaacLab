@@ -21,6 +21,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
+from ..newton.marker_renderer import NewtonMarkerRenderer
 from .viser_visualizer_cfg import ViserVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -129,6 +130,8 @@ class ViserVisualizer(BaseVisualizer):
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self._resolved_visible_env_ids: list[int] | None = None
+        self._marker_renderer = NewtonMarkerRenderer()
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -151,8 +154,8 @@ class ViserVisualizer(BaseVisualizer):
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
         num_envs_meta = int(metadata.get("num_envs", 0))
-        _resolved = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs_meta)
-        num_visualized_envs = len(_resolved) if _resolved is not None else num_envs_meta
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs_meta)
+        num_visualized_envs = len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs_meta
         viewer_url = _viser_web_viewer_url(self.cfg.port)
         self._log_initialization_table(
             logger=logger,
@@ -183,9 +186,12 @@ class ViserVisualizer(BaseVisualizer):
         self._apply_pending_camera_pose()
 
         self._state = self._scene_data_provider.get_newton_state()
+        num_envs = int(self._scene_data_provider.get_metadata().get("num_envs", 0))
         self._sim_time += dt
         self._viewer.begin_frame(self._sim_time)
         self._viewer.log_state(self._state)
+        if self.cfg.enable_markers:
+            self._marker_renderer.render(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
         self._viewer.end_frame()
 
     def close(self) -> None:
@@ -223,8 +229,8 @@ class ViserVisualizer(BaseVisualizer):
         return False
 
     def supports_markers(self) -> bool:
-        """Viser backend currently does not expose Isaac Lab marker primitives."""
-        return False
+        """Viser backend supports Isaac Lab markers through Newton viewer primitives."""
+        return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
         """Viser backend currently does not expose Isaac Lab live-plot widgets."""

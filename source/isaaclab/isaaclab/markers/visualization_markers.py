@@ -27,6 +27,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, Vt
 
 import isaaclab.sim as sim_utils
+from isaaclab.markers.newton_marker_utils import NewtonMarkerGroupState, compile_markers_cfg_for_newton
 from isaaclab.utils.version import has_kit
 
 from .visualization_markers_cfg import VisualizationMarkersCfg
@@ -128,25 +129,19 @@ class VisualizationMarkers:
         Raises:
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
-        # get next free path for the prim
-        prim_path = sim_utils.get_next_free_prim_path(cfg.prim_path)
-        # create a new prim
-        self.stage = sim_utils.get_current_stage()
-        self._instancer_manager = UsdGeom.PointInstancer.Define(self.stage, prim_path)
-        # store inputs
-        self.prim_path = prim_path
         self.cfg = cfg
         # check if any markers is provided
         if len(self.cfg.markers) == 0:
             raise ValueError(f"The `cfg.markers` cannot be empty. Received: {self.cfg.markers}")
-
-        # create a child prim for the marker
-        self._add_markers_prototypes(self.cfg.markers)
-        # Note: We need to do this the first time to initialize the instancer.
-        #   Otherwise, the instancer will not be "created" and the function `GetInstanceIndices()` will fail.
-        self._instancer_manager.GetProtoIndicesAttr().Set(list(range(self.num_prototypes)))
-        self._instancer_manager.GetPositionsAttr().Set([Gf.Vec3f(0.0)] * self.num_prototypes)
+        self.stage = sim_utils.get_current_stage()
+        self.prim_path = cfg.prim_path
+        self._instancer_manager: UsdGeom.PointInstancer | None = None
         self._count = self.num_prototypes
+        self._is_visible = True
+        self._newton_group_id = f"{cfg.prim_path}::{id(self)}"
+        self._newton_state: NewtonMarkerGroupState | None = None
+        self._backend_names: set[str] = set()
+        self._ensure_backends_initialized()
 
     def __str__(self) -> str:
         """Return: A string representation of the class."""
@@ -186,11 +181,16 @@ class VisualizationMarkers:
         Args:
             visible: flag to set the visibility.
         """
-        imageable = UsdGeom.Imageable(self._instancer_manager)
-        if visible:
-            imageable.MakeVisible()
-        else:
-            imageable.MakeInvisible()
+        self._is_visible = visible
+        if self._instancer_manager is not None:
+            imageable = UsdGeom.Imageable(self._instancer_manager)
+            if visible:
+                imageable.MakeVisible()
+            else:
+                imageable.MakeInvisible()
+        if self._newton_state is not None:
+            self._newton_state.visible = visible
+            self._publish_newton_state()
 
     def is_visible(self) -> bool:
         """Checks the visibility of the markers.
@@ -198,7 +198,9 @@ class VisualizationMarkers:
         Returns:
             True if the markers are visible, False otherwise.
         """
-        return self._instancer_manager.GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
+        if self._instancer_manager is not None:
+            return self._instancer_manager.GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
+        return self._is_visible
 
     def visualize(
         self,
@@ -254,68 +256,50 @@ class VisualizationMarkers:
             ValueError: When input arrays do not follow the expected shapes.
             ValueError: When the function is called with all None arguments.
         """
+        self._ensure_backends_initialized()
         # check if it is visible (if not then let's not waste time)
         if not self.is_visible():
             return
-        # check if we have any markers to visualize
+        norm_translations = self._to_tensor(translations, expected_width=3, name="translations")
+        norm_orientations = self._to_tensor(orientations, expected_width=4, name="orientations")
+        norm_scales = self._to_tensor(scales, expected_width=3, name="scales")
+        norm_marker_indices = self._to_index_tensor(marker_indices)
+        target_device = self._resolve_target_device(norm_translations, norm_orientations, norm_scales, norm_marker_indices)
+        if norm_translations is not None:
+            norm_translations = norm_translations.to(device=target_device)
+        if norm_orientations is not None:
+            norm_orientations = norm_orientations.to(device=target_device)
+        if norm_scales is not None:
+            norm_scales = norm_scales.to(device=target_device)
+        if norm_marker_indices is not None:
+            norm_marker_indices = norm_marker_indices.to(device=target_device)
+
         num_markers = 0
-        # resolve inputs
-        # -- position
-        if translations is not None:
-            if isinstance(translations, torch.Tensor):
-                translations = translations.detach().cpu().numpy()
-            # check that shape is correct
-            if translations.shape[1] != 3 or len(translations.shape) != 2:
-                raise ValueError(f"Expected `translations` to have shape (M, 3). Received: {translations.shape}.")
-            # apply translations
-            self._instancer_manager.GetPositionsAttr().Set(Vt.Vec3fArray.FromNumpy(translations))
-            # update number of markers
-            num_markers = translations.shape[0]
-        # -- orientation
-        if orientations is not None:
-            if isinstance(orientations, torch.Tensor):
-                orientations = orientations.detach().cpu().numpy()
-            # check that shape is correct
-            if orientations.shape[1] != 4 or len(orientations.shape) != 2:
-                raise ValueError(f"Expected `orientations` to have shape (M, 4). Received: {orientations.shape}.")
-            # apply orientations (already in xyzw format expected by USD)
-            self._instancer_manager.GetOrientationsAttr().Set(Vt.QuathArray.FromNumpy(orientations))
-            # update number of markers
-            num_markers = orientations.shape[0]
-        # -- scales
-        if scales is not None:
-            if isinstance(scales, torch.Tensor):
-                scales = scales.detach().cpu().numpy()
-            # check that shape is correct
-            if scales.shape[1] != 3 or len(scales.shape) != 2:
-                raise ValueError(f"Expected `scales` to have shape (M, 3). Received: {scales.shape}.")
-            # apply scales
-            self._instancer_manager.GetScalesAttr().Set(Vt.Vec3fArray.FromNumpy(scales))
-            # update number of markers
-            num_markers = scales.shape[0]
-        # -- status
-        if marker_indices is not None or num_markers != self._count:
-            # apply marker indices
-            if marker_indices is not None:
-                if isinstance(marker_indices, torch.Tensor):
-                    marker_indices = marker_indices.detach().cpu().numpy()
-                elif isinstance(marker_indices, list):
-                    marker_indices = np.array(marker_indices)
-                # check that shape is correct
-                if len(marker_indices.shape) != 1:
-                    raise ValueError(f"Expected `marker_indices` to have shape (M,). Received: {marker_indices.shape}.")
-                # apply proto indices
-                self._instancer_manager.GetProtoIndicesAttr().Set(Vt.IntArray.FromNumpy(marker_indices))
-                # update number of markers
-                num_markers = marker_indices.shape[0]
-            else:
-                # check that number of markers is not zero
-                if num_markers == 0:
-                    raise ValueError("Number of markers cannot be zero! Hint: The function was called with no inputs?")
-                # set all markers to be the first prototype
-                self._instancer_manager.GetProtoIndicesAttr().Set([0] * num_markers)
-        # set number of markers
-        self._count = num_markers
+        for value in (norm_translations, norm_orientations, norm_scales, norm_marker_indices):
+            if value is not None:
+                num_markers = value.shape[0]
+
+        if norm_marker_indices is None and num_markers != 0 and num_markers != self._count:
+            norm_marker_indices = torch.zeros(num_markers, dtype=torch.int32, device=target_device)
+        elif norm_marker_indices is None and num_markers == 0:
+            if all(value is None for value in (norm_translations, norm_orientations, norm_scales)):
+                raise ValueError("Number of markers cannot be zero! Hint: The function was called with no inputs?")
+            num_markers = self._count
+
+        if self._instancer_manager is not None:
+            self._visualize_usd(norm_translations, norm_orientations, norm_scales, norm_marker_indices)
+
+        if self._newton_state is not None:
+            self._visualize_newton(norm_translations, norm_orientations, norm_scales, norm_marker_indices)
+
+        if num_markers != 0:
+            self._count = num_markers
+
+    def __del__(self):
+        if self._newton_state is not None:
+            sim = sim_utils.SimulationContext.instance()
+            if sim is not None:
+                sim.remove_visualization_marker_group(self._newton_group_id)
 
     """
     Helper functions.
@@ -391,3 +375,152 @@ class VisualizationMarkers:
             import omni.physx.scripts.utils as physx_utils
 
             physx_utils.removeRigidBodySubtree(prim)
+
+    def _ensure_backends_initialized(self) -> None:
+        sim = sim_utils.SimulationContext.instance()
+        if sim is None:
+            if "usd" not in self._backend_names:
+                self._initialize_usd_backend()
+            return
+
+        has_kit_marker_backend = any(
+            viz.supports_markers()
+            and viz.pumps_app_update()
+            and getattr(viz.cfg, "enable_markers", True)
+            for viz in sim.visualizers
+        )
+        has_newton_marker_backend = any(
+            viz.supports_markers()
+            and not viz.pumps_app_update()
+            and getattr(viz.cfg, "enable_markers", True)
+            for viz in sim.visualizers
+        )
+
+        if has_kit_marker_backend and "usd" not in self._backend_names:
+            self._initialize_usd_backend()
+        if has_newton_marker_backend and "newton" not in self._backend_names:
+            self._initialize_newton_backend()
+
+    def _initialize_usd_backend(self) -> None:
+        prim_path = sim_utils.get_next_free_prim_path(self.cfg.prim_path)
+        self.stage = sim_utils.get_current_stage()
+        self._instancer_manager = UsdGeom.PointInstancer.Define(self.stage, prim_path)
+        self.prim_path = prim_path
+        self._add_markers_prototypes(self.cfg.markers)
+        self._instancer_manager.GetProtoIndicesAttr().Set(list(range(self.num_prototypes)))
+        self._instancer_manager.GetPositionsAttr().Set([Gf.Vec3f(0.0)] * self.num_prototypes)
+        self._backend_names.add("usd")
+
+    def _initialize_newton_backend(self) -> None:
+        self._newton_state = NewtonMarkerGroupState(
+            group_id=self._newton_group_id,
+            prototypes=compile_markers_cfg_for_newton(self.cfg.markers),
+            visible=self._is_visible,
+            count=self._count,
+        )
+        self._publish_newton_state()
+        self._backend_names.add("newton")
+
+    def _publish_newton_state(self) -> None:
+        sim = sim_utils.SimulationContext.instance()
+        if sim is not None and self._newton_state is not None:
+            sim.set_visualization_marker_group(self._newton_group_id, self._newton_state)
+
+    def _visualize_usd(
+        self,
+        translations: torch.Tensor | None,
+        orientations: torch.Tensor | None,
+        scales: torch.Tensor | None,
+        marker_indices: torch.Tensor | None,
+    ) -> None:
+        num_markers = 0
+        if translations is not None:
+            translations_np = translations.detach().cpu().numpy()
+            self._instancer_manager.GetPositionsAttr().Set(Vt.Vec3fArray.FromNumpy(translations_np))
+            num_markers = translations_np.shape[0]
+        if orientations is not None:
+            orientations_np = orientations.detach().cpu().numpy()
+            self._instancer_manager.GetOrientationsAttr().Set(Vt.QuathArray.FromNumpy(orientations_np))
+            num_markers = orientations_np.shape[0]
+        if scales is not None:
+            scales_np = scales.detach().cpu().numpy()
+            self._instancer_manager.GetScalesAttr().Set(Vt.Vec3fArray.FromNumpy(scales_np))
+            num_markers = scales_np.shape[0]
+        if marker_indices is not None or num_markers != self._count:
+            if marker_indices is not None:
+                marker_indices_np = marker_indices.detach().cpu().numpy()
+                self._instancer_manager.GetProtoIndicesAttr().Set(Vt.IntArray.FromNumpy(marker_indices_np))
+            elif num_markers != 0:
+                self._instancer_manager.GetProtoIndicesAttr().Set([0] * num_markers)
+
+    def _visualize_newton(
+        self,
+        translations: torch.Tensor | None,
+        orientations: torch.Tensor | None,
+        scales: torch.Tensor | None,
+        marker_indices: torch.Tensor | None,
+    ) -> None:
+        state = self._newton_state
+        if state is None:
+            return
+        if translations is not None:
+            state.translations = translations.detach()
+            state.count = translations.shape[0]
+        if orientations is not None:
+            state.orientations = orientations.detach()
+            state.count = orientations.shape[0]
+        if scales is not None:
+            state.scales = scales.detach()
+            state.count = scales.shape[0]
+        if marker_indices is not None:
+            state.marker_indices = marker_indices.detach().to(dtype=torch.int32)
+            state.count = marker_indices.shape[0]
+        elif state.count != self._count and state.count != 0:
+            state.marker_indices = torch.zeros(state.count, dtype=torch.int32, device=self._infer_device())
+        self._publish_newton_state()
+
+    def _infer_device(self) -> torch.device:
+        for value in (
+            self._newton_state.translations if self._newton_state else None,
+            self._newton_state.orientations if self._newton_state else None,
+            self._newton_state.scales if self._newton_state else None,
+        ):
+            if value is not None:
+                return value.device
+        return torch.device("cpu")
+
+    def _resolve_target_device(self, *values: torch.Tensor | None) -> torch.device:
+        for value in values:
+            if value is not None:
+                return value.device
+        return self._infer_device()
+
+    @staticmethod
+    def _to_tensor(
+        value: np.ndarray | torch.Tensor | None,
+        expected_width: int,
+        name: str,
+    ) -> torch.Tensor | None:
+        if value is None:
+            return None
+        if isinstance(value, np.ndarray):
+            tensor = torch.from_numpy(value)
+        else:
+            tensor = value.detach()
+        if tensor.ndim != 2 or tensor.shape[1] != expected_width:
+            raise ValueError(f"Expected `{name}` to have shape (M, {expected_width}). Received: {tuple(tensor.shape)}.")
+        return tensor.to(dtype=torch.float32)
+
+    @staticmethod
+    def _to_index_tensor(value: list[int] | np.ndarray | torch.Tensor | None) -> torch.Tensor | None:
+        if value is None:
+            return None
+        if isinstance(value, list):
+            tensor = torch.tensor(value)
+        elif isinstance(value, np.ndarray):
+            tensor = torch.from_numpy(value)
+        else:
+            tensor = value.detach()
+        if tensor.ndim != 1:
+            raise ValueError(f"Expected `marker_indices` to have shape (M,). Received: {tuple(tensor.shape)}.")
+        return tensor.to(dtype=torch.int32)

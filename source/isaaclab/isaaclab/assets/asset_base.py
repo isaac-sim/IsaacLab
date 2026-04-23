@@ -16,6 +16,7 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.debug_vis import register_visualizer_step_debug_vis, should_use_visualizer_step_debug_vis
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
@@ -212,6 +213,8 @@ class AssetBase(ABC):
                     self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                         lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                     )
+                elif should_use_visualizer_step_debug_vis():
+                    self._debug_vis_handle = register_visualizer_step_debug_vis(self)
         else:
             if self._debug_vis_handle is not None:
                 self._debug_vis_handle.unsubscribe()
