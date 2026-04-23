@@ -153,7 +153,12 @@ class ManagerBasedEnv:
         # counter for simulation steps
         self._sim_step_counter = 0
 
-        # -- whether step() performs rendering (set to False to skip all render calls)
+        # -- controls camera/Kit rendering in step().
+        # When False, the Kit app loop (app.update()) and camera/RTX sensor updates are
+        # skipped, but standalone visualizers (Newton, Rerun, Viser) continue to update.
+        # This is because Kit bundles camera rendering with its app loop and the two
+        # cannot be separated.  Non-Kit visualizers have independent step() methods
+        # that do not trigger camera or GUI updates, so they remain active.
         self.render_enabled: bool = True
 
         # allocate dictionary to store metrics
@@ -499,6 +504,15 @@ class ManagerBasedEnv:
 
         Rendering can be controlled per-step via :attr:`render_enabled`.
 
+        When ``render_enabled`` is False:
+
+        - The Kit app loop (``app.update()``) is **skipped**, which also disables
+          camera/RTX sensor rendering and GUI viewport updates.  Kit bundles these
+          operations together, so they cannot be separated.
+        - Standalone visualizers (Newton, Rerun, Viser) **continue to update**
+          normally because their ``step()`` methods are independent of the Kit
+          app loop.
+
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
@@ -512,7 +526,7 @@ class ManagerBasedEnv:
 
         # check if we need to do rendering within the physics loop
         # note: uses cached property to avoid settings lookup every step
-        is_rendering = self.render_enabled and self.sim.is_rendering
+        is_rendering = self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -523,11 +537,11 @@ class ManagerBasedEnv:
             self.scene.write_data_to_sim()
             # simulate
             self.sim.step(render=False)
-            # render between steps only if the GUI or an RTX sensor needs it
-            # note: we assume the render interval to be the shortest accepted rendering interval.
-            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+            # render between steps only if the GUI or an RTX sensor needs it.
+            # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
+            # but standalone visualizers (Newton, Rerun, Viser) still update.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render()
+                self.sim.render(skip_app_pumping=not self.render_enabled)
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 
