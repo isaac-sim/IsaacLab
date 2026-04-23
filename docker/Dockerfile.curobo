@@ -34,6 +34,10 @@ ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Base image ends with USER isaac-sim (uid 1234); switch to root for
+# system-level setup (apt, cuda, /bin/nvidia-* placeholders, etc.).
+USER root
+
 # Install dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -143,9 +147,20 @@ RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* &&
     ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
     rm get-pip.py
 
+# Hand workspace ownership to the non-root runtime user (isaac-sim, uid 1234,
+# provisioned by the base image) and drop privileges. Only the paths we still
+# need to write to are chowned; /isaac-sim itself is already isaac-sim-owned
+# from the base image, so re-chowning it would needlessly bloat the layer.
+RUN chown -R isaac-sim:isaac-sim \
+        ${ISAACLAB_PATH} \
+        ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages \
+        ${DOCKER_USER_HOME}
+
+USER isaac-sim
+
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
-RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip,uid=1234,gid=1234 \
     ${ISAACLAB_PATH}/isaaclab.sh --install
 
 # HACK: Uninstall quadprog as it causes issues with some reinforcement learning frameworks
@@ -171,7 +186,7 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "PROMPT_COMMAND='history -a'" >> ${HOME}/.bashrc
 
 # copy the rest of the files
-COPY ../ ${ISAACLAB_PATH}/
+COPY --chown=isaac-sim:isaac-sim ../ ${ISAACLAB_PATH}/
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
