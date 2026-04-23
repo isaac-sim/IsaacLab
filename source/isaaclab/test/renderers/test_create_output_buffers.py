@@ -12,9 +12,10 @@ import torch
 
 pytest.importorskip("isaaclab_physx")
 
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
 from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sim import PinholeCameraCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -72,8 +73,7 @@ def test_camera_cfg_default_does_not_warn_or_forward():
         )
 
     deprecation_warnings = [
-        w for w in caught
-        if issubclass(w.category, DeprecationWarning) and "CameraCfg." in str(w.message)
+        w for w in caught if issubclass(w.category, DeprecationWarning) and "CameraCfg." in str(w.message)
     ]
     assert deprecation_warnings == []
     assert cfg.renderer_cfg.colorize_semantic_segmentation is True
@@ -107,14 +107,12 @@ def test_tiled_camera_cfg_does_not_forward_deprecated_fields():
         )
 
     tiled_warnings = [
-        w for w in caught
-        if issubclass(w.category, DeprecationWarning) and "TiledCameraCfg" in str(w.message)
+        w for w in caught if issubclass(w.category, DeprecationWarning) and "TiledCameraCfg" in str(w.message)
     ]
     assert tiled_warnings
 
     field_warnings = [
-        w for w in caught
-        if issubclass(w.category, DeprecationWarning) and "CameraCfg.colorize_" in str(w.message)
+        w for w in caught if issubclass(w.category, DeprecationWarning) and "CameraCfg.colorize_" in str(w.message)
     ]
     assert field_warnings == []
 
@@ -136,9 +134,7 @@ def test_isaac_rtx_create_output_buffers_omits_unsupported_and_aliases_rgb():
     renderer.cfg = IsaacRtxRendererCfg()
 
     requested = ["rgb", "rgba", "depth", "definitely_not_supported"]
-    buffers = renderer.create_output_buffers(
-        data_types=requested, height=8, width=16, num_views=2, device="cpu"
-    )
+    buffers = renderer.create_output_buffers(data_types=requested, height=8, width=16, num_views=2, device="cpu")
 
     assert "definitely_not_supported" not in buffers
     assert {"rgb", "rgba", "depth"} <= set(buffers.keys())
@@ -170,7 +166,6 @@ def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
     pytest.importorskip("isaaclab_ov")
     pytest.importorskip("ovrtx")
     import warp as wp
-
     from isaaclab_ov.renderers import OVRTXRendererCfg
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
 
@@ -196,9 +191,10 @@ def test_ovrtx_read_output_is_a_no_op_after_consolidation():
     """OVRTXRenderer.read_output is a no-op once set_outputs wires up zero-copy."""
     pytest.importorskip("isaaclab_ov")
     pytest.importorskip("ovrtx")
-    from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab_ov.renderers import OVRTXRendererCfg
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
+
+    from isaaclab.sensors.camera.camera_data import CameraData
 
     renderer = OVRTXRenderer(OVRTXRendererCfg())
     render_data = _make_ovrtx_render_data()
