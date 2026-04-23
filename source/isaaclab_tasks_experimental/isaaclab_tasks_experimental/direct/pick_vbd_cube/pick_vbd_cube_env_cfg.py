@@ -5,7 +5,7 @@
 
 """Configuration for the Pick-VBD-Cube environment: Franka robot + deformable cube with coupled solver."""
 
-from isaaclab_experimental.deformable.newton_manager_cfg import CoupledSolverCfg, NewtonModelCfg, VBDSolverCfg
+from isaaclab_contrib.deformable.newton_manager_cfg import CoupledSolverCfg, NewtonModelCfg, VBDSolverCfg
 from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_visualizers.newton import NewtonVisualizerCfg
 

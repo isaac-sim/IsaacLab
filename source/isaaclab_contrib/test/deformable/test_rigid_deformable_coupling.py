@@ -19,7 +19,7 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import warp as wp
 
-from isaaclab_experimental.deformable import CoupledSolverCfg, DeformableObject, VBDSolverCfg, register_hooks
+from isaaclab_contrib.deformable import CoupledSolverCfg, DeformableObject, VBDSolverCfg, register_hooks
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 

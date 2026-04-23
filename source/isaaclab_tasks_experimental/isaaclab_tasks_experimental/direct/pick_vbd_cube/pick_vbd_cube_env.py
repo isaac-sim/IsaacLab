@@ -13,7 +13,7 @@ from collections.abc import Sequence
 import torch
 import warp as wp
 
-from isaaclab_experimental.deformable import register_hooks as _register_deformable_hooks
+from isaaclab_contrib.deformable import register_hooks as _register_deformable_hooks
 
 _register_deformable_hooks()
 

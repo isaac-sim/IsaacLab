@@ -158,9 +158,9 @@ def main():
     """Main function."""
     # Load kit helper
     if args_cli.backend == "newton":
-        from isaaclab_experimental.deformable import register_hooks as _register_deformable_hooks
+        from isaaclab_contrib.deformable import register_hooks as _register_deformable_hooks
         _register_deformable_hooks()
-        from isaaclab_experimental.deformable.newton_manager_cfg import VBDSolverCfg
+        from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
         from isaaclab_newton.physics import NewtonCfg
         physics_cfg = NewtonCfg(solver_cfg=VBDSolverCfg(iterations=10), num_substeps=4)
     else:

@@ -21,7 +21,7 @@ import torch
 import warp as wp
 from flaky import flaky
 
-from isaaclab_experimental.deformable import DeformableObject, VBDSolverCfg, register_hooks
+from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg, register_hooks
 from isaaclab_newton.physics import NewtonCfg
 
 import isaaclab.sim as sim_utils
