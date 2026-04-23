@@ -697,7 +697,7 @@ class SimulationContext:
         if render and self.is_rendering:
             self.render()
 
-    def render(self, mode: int | None = None) -> None:
+    def render(self, mode: int | None = None, skip_app_pumping: bool = False) -> None:
         """Update visualizers and render the scene.
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
@@ -705,9 +705,24 @@ class SimulationContext:
         fetching data. Recording-related follow-up (Kit/RTX headless video, Newton GL
         video, etc.) runs in :mod:`isaaclab.envs.utils.recording_hooks` so it is not tied to a
         specific :class:`~isaaclab.physics.PhysicsManager` subclass.
+
+        **Kit vs. standalone visualizers:**  The Kit app loop (``app.update()``) is the
+        only way to drive camera/RTX sensor rendering and viewport GUI updates; it
+        cannot be split into "cameras only" and "GUI only".  Standalone visualizers
+        (Newton, Rerun, Viser) have self-contained ``step()`` methods that never call
+        ``app.update()``, so they can run independently of camera rendering.  The
+        ``skip_app_pumping`` flag exploits this distinction: when True, Kit is skipped
+        while standalone visualizers continue to update.
+
+        Args:
+            mode: Unused. Kept for backward compatibility.
+            skip_app_pumping: When True, skip visualizers whose :meth:`~BaseVisualizer.pumps_app_update`
+                returns True (e.g. KitVisualizer).  This disables the Kit app loop and camera
+                updates while still stepping standalone visualizers (Newton, Rerun, Viser).
+                Used by environment ``step()`` when ``render_enabled`` is False.
         """
         self.physics_manager.pre_render()
-        self.update_visualizers(self.get_rendering_dt())
+        self.update_visualizers(self.get_rendering_dt(), skip_app_pumping=skip_app_pumping)
         self.physics_manager.after_visualizers_render()
         run_recording_hooks_after_visualizers(self)
         self._render_generation += 1
@@ -717,8 +732,16 @@ class SimulationContext:
             for callback in self._render_callbacks.values():
                 callback(None)  # Pass None as event data
 
-    def update_visualizers(self, dt: float) -> None:
-        """Update visualizers without triggering renderer/GUI."""
+    def update_visualizers(self, dt: float, skip_app_pumping: bool = False) -> None:
+        """Update visualizers without triggering renderer/GUI.
+
+        Args:
+            dt: Simulation time-step in seconds.
+            skip_app_pumping: When True, skip visualizers whose :meth:`~BaseVisualizer.pumps_app_update`
+                returns True (e.g. KitVisualizer). This is used when the environment's ``render_enabled``
+                flag is False — cameras and the Kit app loop are skipped, but standalone visualizers
+                (Newton, Rerun, Viser) still receive updates.
+        """
         if not self._visualizers:
             return
 
@@ -727,6 +750,9 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
+                # When skip_app_pumping is set, skip Kit-like visualizers that call app.update()
+                if skip_app_pumping and viz.pumps_app_update():
+                    continue
                 if viz.is_closed or not viz.is_running():
                     if viz.is_closed:
                         logger.info("Visualizer closed: %s", type(viz).__name__)
