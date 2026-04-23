@@ -25,11 +25,7 @@ import pytest
 # imports are lazy (inside methods) so they can be mocked per-test.
 # ---------------------------------------------------------------------------
 _MODULE_PATH = (
-    pathlib.Path(__file__).parent.parent.parent
-    / "isaaclab"
-    / "envs"
-    / "utils"
-    / "tiled_camera_grid_video.py"
+    pathlib.Path(__file__).parent.parent.parent / "isaaclab" / "envs" / "utils" / "tiled_camera_grid_video.py"
 )
 _spec = importlib.util.spec_from_file_location("_tcgv", _MODULE_PATH)
 _module = importlib.util.module_from_spec(_spec)
@@ -287,7 +283,6 @@ class TestFindVideoCameraFiltered:
 class TestRenderRgbArray:
     def _primed_capture(self, n_envs: int, h: int, w: int, num_tiles: int = -1):
         """Return a capture already past _find_video_camera (camera pre-set)."""
-        import math
 
         sensor = _make_sensor(rgb=True, n_envs=n_envs, h=h, w=w)
         cap = _make_capture(scene_sensors={"cam": sensor}, num_tiles=num_tiles)
@@ -396,8 +391,6 @@ class TestSpawnFallbackCameras:
         fake_math_module.convert_camera_frame_orientation_convention.return_value = MagicMock(
             squeeze=lambda dim: MagicMock(cpu=lambda: MagicMock(numpy=lambda: np.array([0.0, 0.0, 0.0, 1.0])))
         )
-
-        import torch
 
         fake_cfg_replaced = MagicMock()
         camera_cfg.replace.return_value = fake_cfg_replaced

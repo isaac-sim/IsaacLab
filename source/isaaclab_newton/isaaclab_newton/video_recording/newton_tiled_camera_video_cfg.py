@@ -12,17 +12,17 @@ from typing import TYPE_CHECKING, Any
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab.envs.utils.tiled_camera_grid_video import TiledCameraGridVideoCapture
+    pass
 
 
 @configclass
 class NewtonTiledCameraVideoCfg:
     """Settings for tiled RGB recording via Camera (Newton / Newton Warp setups)."""
 
-    class_type: type[Any] | str = (
-        "isaaclab.envs.utils.tiled_camera_grid_video:TiledCameraGridVideoCapture"
-    )
-    """Implementation class; default is :class:`~isaaclab.envs.utils.tiled_camera_grid_video.TiledCameraGridVideoCapture`."""
+    class_type: type[Any] | str = "isaaclab.envs.utils.tiled_camera_grid_video:TiledCameraGridVideoCapture"
+    """Implementation class; default is
+    :class:`~isaaclab.envs.utils.tiled_camera_grid_video.TiledCameraGridVideoCapture`.
+    """
 
     video_num_tiles: int = -1
     """Max environments per frame (``-1`` = all). Tiles fill a square grid with padding."""

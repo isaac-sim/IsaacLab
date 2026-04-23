@@ -28,7 +28,13 @@ from isaaclab.utils.string import list_intersection, string_to_callable
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, add_video_args, apply_video_cfg, get_checkpoint_path, launch_simulation
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    add_video_args,
+    apply_video_cfg,
+    get_checkpoint_path,
+    launch_simulation,
+)
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # local imports

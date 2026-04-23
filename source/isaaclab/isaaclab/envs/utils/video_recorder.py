@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Video recorder: perspective or tiled grid.
+"""Video recorder implementation.
 
 * **Perspective** - Kit: :mod:`isaaclab_physx.video_recording.isaacsim_kit_perspective_video`;
   Newton: :mod:`isaaclab_newton.video_recording.newton_gl_perspective_video`.
@@ -34,17 +34,9 @@ _KIT_TILED_RENDERER_TYPES: frozenset[str] = frozenset(("isaac_rtx", "ovrtx"))
 
 
 def _resolve_video_backend(scene: InteractiveScene, video_mode: str = "perspective") -> _VideoBackend:
-    """Resolve which video backend to use from physics and renderer configs.
+    """PhysX or Isaac RTX -> Kit; Newton or Newton Warp -> Newton GL; Kit wins when both are present.
 
-    For **perspective** mode: PhysX or Isaac RTX -> Kit; else Newton or Newton Warp -> Newton GL.
-    When both signals are present, Kit wins (the Kit perspective camera is always RTX).
-
-    For **tiled** mode the same rule applies, with one tie-breaking exception:
-    when PhysX physics is paired with a Newton Warp renderer (``physx + newton_renderer``),
-    both ``use_kit`` and ``use_newton_gl`` are True, but the scene cameras all use Newton Warp
-    and are therefore invisible to the Kit RTX tiled recorder. In that case Newton GL is preferred
-    so the existing warp scene cameras are used directly rather than spawning a fallback RTX camera
-    at a world-space position.
+    Tiled exception: if the scene has no RTX cameras (all use Newton Warp), Newton GL is preferred over Kit.
     """
     physics_backend: str = scene.physics_backend
     renderer_types: list[str] = scene._sensor_renderer_types()
@@ -53,8 +45,8 @@ def _resolve_video_backend(scene: InteractiveScene, video_mode: str = "perspecti
     use_newton_gl = "newton" in physics_backend or "newton_warp" in renderer_types
 
     if use_kit and use_newton_gl and video_mode == "tiled":
-        # Tie-break: Kit tiled recording requires RTX cameras. If the scene has none
-        # (all cameras use Newton Warp), prefer Newton GL which can read any Camera sensor.
+        # Tie-break: Kit tiled recording requires RTX cameras.
+        # If the scene has no RTX cameras but has Newton Warp cameras, then prefer Newton GL.
         has_kit_cameras = bool(_KIT_TILED_RENDERER_TYPES & set(renderer_types))
         if not has_kit_cameras:
             return "newton_gl"
@@ -97,12 +89,11 @@ class VideoRecorder:
                     raise ImportError(
                         "The Newton GL video backend requires 'pyglet'. Install IsaacLab with './isaaclab.sh -i'."
                     ) from e
+                from isaaclab_newton.renderers import NewtonWarpRendererCfg
                 from isaaclab_newton.video_recording.newton_tiled_camera_video import (
                     create_newton_tiled_camera_video,
                 )
                 from isaaclab_newton.video_recording.newton_tiled_camera_video_cfg import NewtonTiledCameraVideoCfg
-
-                from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
                 newton_fb = cfg.fallback_camera_cfg
                 if newton_fb is not None:
@@ -167,15 +158,7 @@ class VideoRecorder:
             self._capture = create_isaacsim_kit_perspective_video(kcfg)
 
     def render_rgb_array(self) -> np.ndarray | None:
-        """Return an RGB frame for the resolved backend.
-
-        Returns:
-            RGB frame as a numpy array, or ``None`` when ``env_render_mode`` is not ``"rgb_array"``.
-
-        Raises:
-            RuntimeError: If ``env_render_mode`` is ``"rgb_array"`` but no capture backend was
-                initialised. This indicates an internal setup error.
-        """
+        """Return an RGB frame, or ``None`` if not in ``rgb_array`` mode; raises if mode set but no backend."""
         if self.cfg.env_render_mode != "rgb_array":
             return None
         if self._tiled_capture is not None:

@@ -25,7 +25,14 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, add_video_args, apply_video_cfg, get_checkpoint_path, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    add_video_args,
+    apply_video_cfg,
+    get_checkpoint_path,
+    launch_simulation,
+    resolve_task_config,
+)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):

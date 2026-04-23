@@ -5,12 +5,7 @@
 
 """Configuration for :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder`.
 
-* **Perspective** (``video_mode="perspective"``) - Kit backends use
-  :mod:`isaaclab_physx.video_recording.isaacsim_kit_perspective_video`; Newton backends use
-  :mod:`isaaclab_newton.video_recording.newton_gl_perspective_video`.
-* **Tiled** (``video_mode="tiled"``) - Kit backends use
-  :mod:`isaaclab_physx.video_recording.isaacsim_tiled_camera_video`; Newton backends use
-  :mod:`isaaclab_newton.video_recording.newton_tiled_camera_video`.
+Supports ``video_mode="perspective"`` (Kit or Newton GL) and ``video_mode="tiled"`` (Camera grid).
 """
 
 from __future__ import annotations
@@ -20,7 +15,6 @@ from isaaclab.sensors.camera import TiledCameraCfg
 from isaaclab.utils import configclass
 
 from .video_recorder import VideoRecorder
-
 
 DEFAULT_TILED_RECORDING_CAMERA_CFG = TiledCameraCfg(
     prim_path="/World/envs/env_0/VideoCamera",
@@ -36,11 +30,7 @@ DEFAULT_TILED_RECORDING_CAMERA_CFG = TiledCameraCfg(
     ),
     offset=TiledCameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.0, 0.1045, 0.0, 0.9945), convention="world"),
 )
-"""Default :class:`~isaaclab.sensors.camera.TiledCameraCfg` for tiled state-based video recording.
-
-Places a pinhole camera at ``(-7, 0, 3)`` m relative to env_0's origin, angled ~12° downward.
-Only spawned when ``--video=tiled`` is active and no observation TiledCamera exists in the scene.
-"""
+"""Pinhole camera at ``(-7, 0, 3)`` m, ~12° downward; spawned only when no scene TiledCamera exists."""
 
 
 @configclass
@@ -63,14 +53,7 @@ class VideoRecorderCfg:
     """Max environments per tiled frame (``-1`` = all). CLI: ``env.video_recorder.video_num_tiles=9``."""
 
     fallback_camera_cfg: object | None = DEFAULT_TILED_RECORDING_CAMERA_CFG
-    """Fallback :class:`~isaaclab.sensors.camera.TiledCameraCfg` for tiled mode.
-
-    Spawned at ``VideoRecorder`` init (Kit: Isaac RTX on ``VideoCamera`` prims; Newton tiled: same pose
-    with :class:`~isaaclab_newton.renderers.newton_warp_renderer_cfg.NewtonWarpRendererCfg`).
-    Kit tiled recording prefers sensors whose renderer is Isaac RTX or OV RTX; if the only scene
-    TiledCamera uses Newton Warp (e.g. PhysX + ``newton_renderer`` preset), this fallback supplies
-    RTX tiles. Set to ``None`` to disable (then an RTX TiledCamera must exist for Kit tiled video).
-    Ignored when ``video_mode="perspective"``.
+    """Auto-spawned tiled camera when no suitable scene Camera exists. ``None`` disables; ignored in perspective mode.
     """
 
     camera_position: tuple[float, float, float] = (7.5, 7.5, 7.5)

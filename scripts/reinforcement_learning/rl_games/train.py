@@ -29,7 +29,13 @@ from isaaclab.utils.io import dump_yaml
 from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, add_video_args, apply_video_cfg, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import (
+    add_launcher_args,
+    add_video_args,
+    apply_video_cfg,
+    launch_simulation,
+    resolve_task_config,
+)
 
 logger = logging.getLogger(__name__)
 

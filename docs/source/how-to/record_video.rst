@@ -3,12 +3,11 @@ Recording video clips during training
 
 Isaac Lab supports recording video clips during training using the
 `gymnasium.wrappers.RecordVideo <https://gymnasium.farama.org/main/_modules/gymnasium/wrappers/record_video/>`_ class.
-When the ``--video`` flag is enabled, Isaac Lab captures video of the scene. Two modes are supported:
+When the ``--video`` flag is enabled, Isaac Lab captures a video of the scene. Two modes are supported:
 
-* **Perspective** (default) - captures a single wide-angle view of the scene from a configurable
-  world-space camera position.
+* **Perspective** (default) - captures a single, wide-angle view of the scene from a configurable, world-space camera position.
 * **Tiled** - captures all (or a subset of) parallel environments laid out in a grid, using
-  ``TiledCamera`` sensors already in the scene or a fallback camera spawned automatically.
+  ``Camera`` sensors already in the scene or a fallback camera spawned automatically.
 
 The backend is chosen automatically from the active physics and renderer stack: an Isaac Sim Kit
 camera (PhysX / Isaac RTX) or a Newton GL headless viewer (Newton / Newton Warp).
@@ -29,16 +28,13 @@ Example usage (perspective):
 
     python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --video --video_length 100 --video_interval 500
 
-Example usage (tiled - all envs):
+Example usage (tiled):
 
 .. code-block:: shell
 
+    # all envs per frame
     python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --video=tiled --video_length 100 --video_interval 500
-
-Example usage (tiled - cap at 9 envs per frame):
-
-.. code-block:: shell
-
+    # or a subset of envs per frame
     python scripts/reinforcement_learning/rl_games/train.py --task=Isaac-Cartpole-v0 --headless --video=tiled "env.video_recorder.video_num_tiles=9" --video_length 100 --video_interval 500
 
 The recorded videos will be saved in the same directory as the training checkpoints, under
@@ -71,8 +67,8 @@ The dataclass lives in ``isaaclab.envs.utils.video_recorder_cfg``. Key fields:
 * ``camera_position`` / ``camera_target`` - world-space eye and look-at points (metres) for
   perspective mode.
 * ``video_num_tiles`` - maximum environments per tiled frame; ``-1`` means all.
-* ``fallback_camera_cfg`` - a :class:`~isaaclab.sensors.camera.TiledCameraCfg` spawned automatically
-  when no suitable ``TiledCamera`` exists in the scene (tiled mode only).
+* ``fallback_camera_cfg`` - a :class:`~isaaclab.sensors.camera.CameraCfg` spawned automatically
+  when no suitable ``Camera`` exists in the scene (tiled mode only).
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder_cfg.py
    :language: python
@@ -113,7 +109,7 @@ Construction and dispatch
 When ``env_render_mode`` is ``"rgb_array"`` (as when wrappers or scripts request RGB frames for
 video), the recorder checks ``video_mode`` and instantiates the backend-specific helper accordingly.
 Perspective mode passes through ``camera_position``, ``camera_target``, and window size.
-Tiled mode resolves or spawns a ``TiledCamera`` sensor and tiles all requested environments.
+Tiled mode resolves or spawns a ``Camera`` sensor and tiles all requested environments.
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder.py
    :language: python
@@ -127,8 +123,8 @@ When ``--video`` (perspective) is passed, the recording camera uses the same
 position and look-at target as the interactive viewer. The defaults come from
 :class:`~isaaclab.envs.common.ViewerCfg`:
 
-* ``eye = (7.5, 7.5, 7.5)`` - camera position in world space (metres)
-* ``lookat = (0.0, 0.0, 0.0)`` - camera look-at target in world space (metres)
+* ``eye = (7.5, 7.5, 7.5)`` — camera position in world space (metres)
+* ``lookat = (0.0, 0.0, 0.0)`` — camera look-at target in world space (metres)
 * Resolution ``1280x720``
 
 To change the recording angle, override the ``viewer`` field in your task's environment config.
@@ -160,16 +156,16 @@ environments simultaneously.
 **How it works:**
 
 1. ``VideoRecorder`` selects the backend (Kit or Newton GL) as usual.
-2. It looks for an existing ``TiledCamera`` sensor in the scene with a supported renderer
+2. It looks for an existing ``Camera`` sensor in the scene with a supported renderer
    (Isaac RTX or OV RTX for Kit; Newton Warp for Newton GL).
 3. If none is found, it spawns the ``fallback_camera_cfg`` (default:
    :data:`~isaaclab.envs.utils.video_recorder_cfg.DEFAULT_TILED_RECORDING_CAMERA_CFG`) - a
    pinhole camera placed at ``(-7, 0, 3)`` m, angled ~12° downward, covering the first environment.
 4. Tile count is controlled by ``video_num_tiles`` (``-1`` = all environments).
 
-**Using a task's own TiledCamera sensor:**
+**Using a task's own Camera sensor:**
 
-If your task already declares a ``TiledCamera`` with an Isaac RTX or OV RTX renderer (for Kit
+If your task already declares a ``Camera`` with an Isaac RTX or OV RTX renderer (for Kit
 backends), that sensor is reused automatically and no fallback camera is spawned. Set
 ``fallback_camera_cfg=None`` to enforce this:
 
@@ -179,7 +175,7 @@ backends), that sensor is reused automatically and no fallback camera is spawned
 
     video_recorder = VideoRecorderCfg(
         video_mode="tiled",
-        fallback_camera_cfg=None,  # require an existing TiledCamera in the scene
+        fallback_camera_cfg=None,  # require an existing Camera in the scene
     )
 
 **Custom fallback camera:**
@@ -223,11 +219,11 @@ Summary
    * - ``tiled``
      - ``physx,...`` or ``isaac_rtx_renderer,...``
      - Kit (``"kit"``)
-     - Isaac RTX ``TiledCamera`` sensor grid
+     - Isaac RTX ``Camera`` sensor grid
    * - ``tiled``
      - ``newton,...`` or ``newton_renderer,...`` (no Kit signals)
      - Newton GL (``"newton_gl"``)
-     - Newton Warp ``TiledCamera`` sensor grid
+     - Newton Warp ``Camera`` sensor grid
 
 
 See also

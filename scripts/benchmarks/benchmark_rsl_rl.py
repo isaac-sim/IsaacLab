@@ -13,6 +13,7 @@ import sys
 import time
 
 from isaaclab.app import AppLauncher
+
 from isaaclab_tasks.utils import add_video_args, apply_video_cfg
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
