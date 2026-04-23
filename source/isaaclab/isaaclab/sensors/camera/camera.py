@@ -448,6 +448,7 @@ class Camera(SensorBase):
 
         self._renderer.update_transforms()
         self._renderer.render(self._render_data)
+
         self._renderer.read_output(self._render_data, self._data)
 
     """
