@@ -214,3 +214,6 @@ class CameraCfg(SensorBaseCfg):
             )
             if hasattr(self.renderer_cfg, field_name):
                 setattr(self.renderer_cfg, field_name, value)
+            # Reset to default so re-runs of ``__post_init__`` (via ``SensorBase.__init__``'s
+            # ``cfg.copy()``) don't re-forward and clobber a user-set ``renderer_cfg`` field.
+            setattr(self, field_name, default)
