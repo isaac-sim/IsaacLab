@@ -1080,6 +1080,92 @@ def test_camera_frame_offset(setup_camera_device, device):
     del camera
 
 
+def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
+    """Test Camera warns once and drops data types its renderer cannot produce."""
+    import logging
+
+    from isaaclab.renderers import Renderer
+    from isaaclab.renderers.base_renderer import BaseRenderer
+
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = ["rgba", "depth", "normals"]
+
+    class _PartialRenderer(BaseRenderer):
+        """Returns only ``rgba`` regardless of what was asked for."""
+
+        def __init__(self, cfg=None):
+            self.cfg = cfg
+
+        def create_output_buffers(self, data_types, height, width, num_views, device):
+            buffers: dict[str, torch.Tensor] = {}
+            if "rgba" in data_types or "rgb" in data_types:
+                buffers["rgba"] = torch.zeros((num_views, height, width, 4), dtype=torch.uint8, device=device)
+            return buffers
+
+        def prepare_stage(self, stage, num_envs):
+            pass
+
+        def create_render_data(self, sensor):
+            return object()
+
+        def set_outputs(self, render_data, output_data):
+            pass
+
+        def update_transforms(self):
+            pass
+
+        def update_camera(self, render_data, positions, orientations, intrinsics):
+            pass
+
+        def render(self, render_data):
+            pass
+
+        def read_output(self, render_data, camera_data):
+            pass
+
+        def cleanup(self, render_data):
+            pass
+
+    backend = Renderer._get_backend(camera_cfg.renderer_cfg)
+    original = Renderer._registry.get(backend)
+    Renderer._registry[backend] = _PartialRenderer
+    try:
+        camera = Camera(camera_cfg)
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger="isaaclab.sensors.camera.camera"):
+            sim.reset()
+            # Step a few frames and confirm the warning is emitted once at init.
+            for _ in range(3):
+                sim.step()
+                camera.update(dt)
+
+        warning_records = [
+            r for r in caplog.records if r.levelno == logging.WARNING and "does not support" in r.getMessage()
+        ]
+        assert len(warning_records) == 1, (
+            f"Expected exactly one 'does not support' warning, got {len(warning_records)}:"
+            f" {[r.getMessage() for r in warning_records]}"
+        )
+        msg = warning_records[0].getMessage()
+        assert "_PartialRenderer" in msg
+        assert "depth" in msg
+        assert "normals" in msg
+        assert "rgba" not in msg
+
+        # Only the supported subset is in ``data.output``; the rest were dropped.
+        assert set(camera.data.output.keys()) == {"rgba"}
+        # ``data.info`` mirrors the ``data.output`` keys.
+        assert set(camera.data.info.keys()) == {"rgba"}
+
+        del camera
+    finally:
+        if original is not None:
+            Renderer._registry[backend] = original
+        else:
+            Renderer._registry.pop(backend, None)
+
+
 def _populate_scene():
     """Add prims to the scene."""
     # Ground-plane

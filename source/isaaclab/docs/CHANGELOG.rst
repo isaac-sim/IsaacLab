@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+4.6.13 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renderer backends now own output-buffer allocation via a new
+  ``BaseRenderer.create_output_buffers`` hook. Backends are the source of truth
+  for shape, dtype, and any aliasing (e.g. ``rgb`` as a view into ``rgba``).
+  Requested data types the backend cannot produce are dropped with a single
+  warning, instead of being silently discarded later.
+* :class:`~isaaclab_ov.renderers.OVRTXRenderer` now writes rendered tiles
+  directly into the torch storage backing ``camera.data.output``, eliminating
+  the per-frame ``wp.copy`` bridge.
+* Moved Kit/RTX-only logic out of :class:`~isaaclab.sensors.camera.Camera`
+  into :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated RTX-flavored fields on :class:`~isaaclab.sensors.camera.CameraCfg`
+  (``semantic_filter``, ``colorize_semantic_segmentation``,
+  ``colorize_instance_segmentation``, ``colorize_instance_id_segmentation``,
+  ``semantic_segmentation_mapping``, ``depth_clipping_behavior``); set them on
+  :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` instead.
+
+
 4.6.12 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -81,7 +81,7 @@ class CameraCfg(SensorBaseCfg):
     - ``"zero"``: Values are clipped to zero.
     - ``"none``: No clipping is applied. Values will be returned as ``inf``.
 
-    .. deprecated:: 4.7.0
+    .. deprecated:: 4.6.13
         This field is RTX-specific. Set
         :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`
         on :attr:`renderer_cfg` instead.
@@ -127,7 +127,7 @@ class CameraCfg(SensorBaseCfg):
 
     .. _Replicator Semantics Schema Editor: https://docs.omniverse.nvidia.com/extensions/latest/ext_replicator/semantics_schema_editor.html#semantics-filtering
 
-    .. deprecated:: 4.7.0
+    .. deprecated:: 4.6.13
         This field is RTX-specific. Set
         :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter` on
         :attr:`renderer_cfg` instead.
@@ -139,7 +139,7 @@ class CameraCfg(SensorBaseCfg):
     If True, semantic segmentation is converted to an image where semantic IDs are mapped to colors
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
 
-    .. deprecated:: 4.7.0
+    .. deprecated:: 4.6.13
         This field is RTX-specific. Set
         :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_semantic_segmentation`
         on :attr:`renderer_cfg` instead.
@@ -151,7 +151,7 @@ class CameraCfg(SensorBaseCfg):
     If True, instance id segmentation is converted to an image where instance IDs are mapped to colors.
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
 
-    .. deprecated:: 4.7.0
+    .. deprecated:: 4.6.13
         This field is RTX-specific. Set
         :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_instance_id_segmentation`
         on :attr:`renderer_cfg` instead.
@@ -163,7 +163,7 @@ class CameraCfg(SensorBaseCfg):
     If True, instance segmentation is converted to an image where instance IDs are mapped to colors.
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
 
-    .. deprecated:: 4.7.0
+    .. deprecated:: 4.6.13
         This field is RTX-specific. Set
         :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.colorize_instance_segmentation`
         on :attr:`renderer_cfg` instead.
@@ -185,7 +185,7 @@ class CameraCfg(SensorBaseCfg):
             "class:robot": (61, 178, 255, 255),
         }
 
-    .. deprecated:: 4.7.0
+    .. deprecated:: 4.6.13
         This field is RTX-specific. Set
         :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_segmentation_mapping`
         on :attr:`renderer_cfg` instead.
