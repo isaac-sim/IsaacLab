@@ -342,6 +342,53 @@ class FabricFrameView(BaseFrameView):
         self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
 
     # ------------------------------------------------------------------
+    # Context managers for raw Fabric access
+    # ------------------------------------------------------------------
+
+    def fabric_write(self):
+        """Context manager for raw Fabric write operations.
+
+        Calls ``PrepareForReuse()`` on entry (notifying the renderer that
+        data is about to change) and ``update_world_xforms()`` +
+        ``PrepareForReuse()`` on exit (propagating changes through the
+        hierarchy).
+
+        Example::
+
+            with view.fabric_write() as fab:
+                # fab.world_matrices is the fabricarray
+                wp.launch(my_kernel, dim=N, inputs=[fab.world_matrices, ...])
+        """
+        return _FabricWriteContext(self)
+
+    def fabric_read(self):
+        """Context manager for raw Fabric read operations.
+
+        Calls ``PrepareForReuse()`` on entry to ensure the view’s
+        fabricarray pointers are still valid after potential topology
+        changes.
+
+        Example::
+
+            with view.fabric_read() as fab:
+                wp.launch(my_read_kernel, dim=N, inputs=[fab.world_matrices, ...])
+        """
+        return _FabricReadContext(self)
+
+    @property
+    def world_matrices(self) -> wp.fabricarray | None:
+        """The raw Fabric world-matrix array (read-only property).
+
+        Returns None if Fabric is not initialized.
+        """
+        return getattr(self, "_fabric_world_matrices", None)
+
+    @property
+    def view_to_fabric_mapping(self) -> wp.array | None:
+        """View-index → Fabric-index mapping array."""
+        return getattr(self, "_view_to_fabric", None)
+
+    # ------------------------------------------------------------------
     # Internal — Fabric initialization
     # ------------------------------------------------------------------
 
@@ -445,3 +492,90 @@ class FabricFrameView(BaseFrameView):
         if indices.dtype != wp.uint32:
             return wp.array(indices.numpy().astype("uint32"), dtype=wp.uint32, device=self._device)
         return indices
+
+
+# ======================================================================
+# Context manager helpers (module-level, not inside FabricFrameView)
+# ======================================================================
+
+
+class _FabricWriteContext:
+    """RAII context manager for Fabric write operations.
+
+    On entry: ensures Fabric is initialized, calls PrepareForReuse.
+    On exit (no exception): synchronizes, propagates hierarchy, marks sync done.
+    """
+
+    __slots__ = ("_view",)
+
+    def __init__(self, view: FabricFrameView):
+        self._view = view
+
+    def __enter__(self):
+        if not self._view._fabric_initialized:
+            self._view._initialize_fabric()
+        if not self._view._fabric_usd_sync_done:
+            self._view._sync_fabric_from_usd_once()
+        self._view._prepare_for_reuse()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            wp.synchronize()
+            self._view._fabric_hierarchy.update_world_xforms()
+            self._view._fabric_usd_sync_done = True
+        return False
+
+    @property
+    def world_matrices(self) -> wp.fabricarray:
+        """The fabricarray of omni:fabric:worldMatrix."""
+        return self._view._fabric_world_matrices
+
+    @property
+    def view_to_fabric(self) -> wp.array:
+        """View-index to Fabric-index mapping."""
+        return self._view._view_to_fabric
+
+    @property
+    def count(self) -> int:
+        """Number of prims in the view."""
+        return self._view.count
+
+
+class _FabricReadContext:
+    """RAII context manager for Fabric read operations.
+
+    On entry: ensures Fabric is initialized, calls PrepareForReuse.
+    On exit: no-op.
+    """
+
+    __slots__ = ("_view",)
+
+    def __init__(self, view: FabricFrameView):
+        self._view = view
+
+    def __enter__(self):
+        if not self._view._fabric_initialized:
+            self._view._initialize_fabric()
+        if not self._view._fabric_usd_sync_done:
+            self._view._sync_fabric_from_usd_once()
+        self._view._prepare_for_reuse()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+    @property
+    def world_matrices(self) -> wp.fabricarray:
+        """The fabricarray of omni:fabric:worldMatrix."""
+        return self._view._fabric_world_matrices
+
+    @property
+    def view_to_fabric(self) -> wp.array:
+        """View-index to Fabric-index mapping."""
+        return self._view._view_to_fabric
+
+    @property
+    def count(self) -> int:
+        """Number of prims in the view."""
+        return self._view.count

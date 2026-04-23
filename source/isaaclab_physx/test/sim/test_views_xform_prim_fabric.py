@@ -23,12 +23,13 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
-from frame_view_contract_utils import CHILD_OFFSET, ViewBundle, test_set_world_updates_local  # noqa: E402
+from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
 from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 
 from pxr import Gf, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.utils.warp import fabric as fabric_utils  # noqa: E402
 
 PARENT_POS = (0.0, 0.0, 1.0)
 
@@ -199,6 +200,69 @@ def test_prepare_for_reuse_detects_topology_change(device, view_factory):
     result = view._fabric_selection.PrepareForReuse()
     assert isinstance(result, bool), f"PrepareForReuse should return bool, got {type(result)}"
     assert not result, "PrepareForReuse should return False when no topology change"
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_fabric_write_context_manager(device, view_factory):
+    """Verify fabric_write() context manager correctly brackets writes.
+
+    After using the context manager to modify world matrices, the
+    resulting poses should be readable via get_world_poses.
+    """
+    bundle = view_factory(2, device)
+    view = bundle.view
+    view.get_world_poses()  # trigger Fabric init
+
+    # Write via context manager
+    with view.fabric_write() as fab:
+        assert fab.world_matrices is not None, "world_matrices should be available"
+        assert fab.view_to_fabric is not None, "view_to_fabric should be available"
+        assert fab.count == 2, f"Expected count=2, got {fab.count}"
+
+        # Move all prims to (42, 42, 42)
+        new_pos = wp.zeros((2, 3), dtype=wp.float32, device=device)
+        wp.launch(kernel=_fill_position, dim=2, inputs=[new_pos, 42.0, 42.0, 42.0], device=device)
+
+        wp.launch(
+            kernel=fabric_utils.compose_fabric_transformation_matrix_from_warp_arrays,
+            dim=2,
+            inputs=[
+                fab.world_matrices,
+                new_pos,
+                wp.zeros((0, 4), dtype=wp.float32, device=device),
+                wp.zeros((0, 3), dtype=wp.float32, device=device),
+                False,
+                False,
+                False,
+                view._default_view_indices,
+                fab.view_to_fabric,
+            ],
+            device=device,
+        )
+
+    # Verify via high-level API
+    pos, _ = view.get_world_poses()
+    pos_t = wp.to_torch(pos)
+    assert torch.allclose(pos_t, torch.tensor([[42.0, 42.0, 42.0]] * 2, device=device), atol=0.5), (
+        f"Expected ~(42,42,42) but got {pos_t}"
+    )
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_fabric_read_context_manager(device, view_factory):
+    """Verify fabric_read() context manager provides access without side effects."""
+    bundle = view_factory(1, device)
+    view = bundle.view
+    pos_before, _ = view.get_world_poses()  # trigger Fabric init
+    pos_before_t = wp.to_torch(pos_before).clone()
+
+    with view.fabric_read() as fab:
+        assert fab.world_matrices is not None
+        assert fab.count == 1
+
+    # Poses should be unchanged after a read context
+    pos_after, _ = view.get_world_poses()
+    assert torch.allclose(wp.to_torch(pos_after), pos_before_t, atol=0.01)
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
