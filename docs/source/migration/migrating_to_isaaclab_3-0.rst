@@ -98,6 +98,49 @@ The following classes have been moved to ``isaaclab_physx``:
    installation steps are required.
 
 
+Renaming of ``XformPrimView`` to ``FrameView``
+-----------------------------------------------
+
+Isaac Lab's ``XformPrimView`` and related classes have been renamed to ``FrameView`` to
+better reflect their purpose and avoid confusion with Isaac Sim's ``XFormPrim`` class
+hierarchy. The old ``XformPrimView`` name is kept as a deprecated alias.
+
+The rename applies across all backends:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Isaac Lab 2.x
+     - Isaac Lab 3.0
+   * - ``BaseXformPrimView``
+     - :class:`~isaaclab.sim.views.BaseFrameView`
+   * - ``UsdXformPrimView``
+     - :class:`~isaaclab.sim.views.UsdFrameView`
+   * - ``XformPrimView``
+     - :class:`~isaaclab.sim.views.FrameView`
+   * - ``FabricXformPrimView``
+     - :class:`~isaaclab_physx.sim.views.FabricFrameView`
+   * - ``NewtonSiteXformPrimView``
+     - :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`
+
+For most users, the only change needed is updating imports:
+
+.. code-block:: python
+
+   # Before
+   from isaaclab.sim.views import XformPrimView
+
+   # After
+   from isaaclab.sim.views import FrameView
+
+The :class:`~isaaclab.sim.views.FrameView` factory automatically dispatches to the correct
+backend (:class:`~isaaclab_physx.sim.views.FabricFrameView` for PhysX,
+:class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` for Newton) based on the active
+physics backend. The deprecated ``XformPrimView`` alias continues to work but will be
+removed in a future release.
+
+
 Unchanged Imports
 -----------------
 
@@ -113,10 +156,18 @@ The following sensor classes also remain in the ``isaaclab`` package with unchan
 
 - :class:`~isaaclab.sensors.ContactSensor`, :class:`~isaaclab.sensors.ContactSensorCfg`, :class:`~isaaclab.sensors.ContactSensorData`
 - :class:`~isaaclab.sensors.Imu`, :class:`~isaaclab.sensors.ImuCfg`, :class:`~isaaclab.sensors.ImuData`
+- :class:`~isaaclab.sensors.Pva`, :class:`~isaaclab.sensors.PvaCfg`, :class:`~isaaclab.sensors.PvaData`
 - :class:`~isaaclab.sensors.FrameTransformer`, :class:`~isaaclab.sensors.FrameTransformerCfg`, :class:`~isaaclab.sensors.FrameTransformerData`
 
 These sensor classes now use factory patterns that automatically instantiate the appropriate backend
 implementation (PhysX by default), maintaining full backward compatibility.
+
+.. note::
+
+   The ``Imu`` sensor in Isaac Lab 3.0 is **not** the same as the ``Imu`` sensor in 2.x.
+   The old ``Imu`` (full state sensor) has been renamed to :class:`~isaaclab.sensors.Pva`.
+   The new :class:`~isaaclab.sensors.Imu` is a lightweight sensor that only provides angular velocity
+   and linear acceleration. See :ref:`imu-to-pva-migration` below for details.
 
 If you need to import the PhysX sensor implementations directly (e.g., for type hints or subclassing),
 you can import from ``isaaclab_physx.sensors``:
@@ -126,6 +177,7 @@ you can import from ``isaaclab_physx.sensors``:
    # Direct PhysX implementation imports
    from isaaclab_physx.sensors import ContactSensor, ContactSensorData
    from isaaclab_physx.sensors import Imu, ImuData
+   from isaaclab_physx.sensors import Pva, PvaData
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
 
 
@@ -156,11 +208,102 @@ If you need to import Newton implementations directly (e.g., for type hints or s
    from isaaclab_newton.assets import RigidObject as NewtonRigidObject
 
 
+Deformable Object API Changes
+------------------------------
+
+Isaac Lab 3.0 updates the deformable body API to align with the current Omni Physics 110.0
+release. The old soft body API has been deprecated and replaced by two distinct deformable
+types: **volume deformables** (3D FEM tetrahedral meshes) and **surface deformables** (2D
+triangle cloth meshes). The deformable type is determined by the physics material assigned:
+
+- :class:`~isaaclab_physx.sim.DeformableBodyMaterialCfg` for volume deformables.
+- :class:`~isaaclab_physx.sim.SurfaceDeformableBodyMaterialCfg` for surface deformables.
+
+All deformable-related classes have moved from ``isaaclab`` to ``isaaclab_physx``, as shown
+in the import table above. Several properties on
+:class:`~isaaclab_physx.sim.DeformableBodyPropertiesCfg` have been removed or added to match
+the new Omni Physics schema.
+
+For a comprehensive guide covering the full deformable API migration — including removed and
+added properties, material changes, code examples for both volume and surface deformables, and
+current limitations — see :ref:`migrating-deformables`.
+
+
+.. _imu-to-pva-migration:
+
+IMU Sensor Renamed to PVA; New Lightweight IMU Sensor
+-----------------------------------------------------
+
+The old ``Imu`` sensor has been renamed to **PVA** (Pose Velocity Acceleration) because it provided
+full pose, velocity, and acceleration data — far more than a real inertial measurement unit measures.
+A new lightweight **IMU** sensor has been introduced that only provides the two physical quantities
+a real IMU measures: angular velocity (gyroscope) and linear acceleration (accelerometer).
+
+If you were using the old ``Imu`` sensor, you need to decide which new sensor to use:
+
+- Use :class:`~isaaclab.sensors.Pva` / :class:`~isaaclab.sensors.PvaCfg` if you need full state
+  data (pose, linear velocity, angular velocity, linear and angular acceleration, projected gravity).
+- Use :class:`~isaaclab.sensors.Imu` / :class:`~isaaclab.sensors.ImuCfg` if you only need angular
+  velocity and linear acceleration (as a real IMU provides).
+
+**Import changes:**
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x) — the old IMU provided full state
+   from isaaclab.sensors import Imu, ImuCfg, ImuData
+
+   # After (Isaac Lab 3.x) — use PVA for the same full-state sensor
+   from isaaclab.sensors import Pva, PvaCfg, PvaData
+
+   # Or use the new lightweight IMU for angular velocity + linear acceleration only
+   from isaaclab.sensors import Imu, ImuCfg, ImuData
+
+**Configuration changes:**
+
+The ``gravity_bias`` configuration parameter has been removed from both sensors:
+
+- **PVA** reports raw kinematic acceleration (no gravity contribution), as the acceleration
+  is derived from finite differencing of velocities which do not include gravity.
+- **IMU** unconditionally includes gravity in its accelerometer readings, matching the behavior
+  of a real accelerometer. The gravity vector is automatically queried from the simulation.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   imu_cfg = ImuCfg(
+       prim_path="{ENV_REGEX_NS}/Robot/base",
+       gravity_bias=(0.0, 0.0, 9.81),  # had to be configured manually
+   )
+
+   # After (Isaac Lab 3.x) — PVA (no gravity in acceleration)
+   pva_cfg = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/base")
+
+   # After (Isaac Lab 3.x) — IMU (gravity always included automatically)
+   imu_cfg = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/base")
+
+**Observation function changes:**
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   from isaaclab.envs.mdp import imu_orientation, imu_projected_gravity
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.envs.mdp import pva_orientation, pva_projected_gravity
+
+**Data property changes:**
+
+The new ``ImuData`` only provides ``ang_vel_b`` and ``lin_acc_b``. If you were accessing other
+properties (``pos_w``, ``quat_w``, ``lin_vel_b``, ``ang_acc_b``, ``projected_gravity_b``), switch
+to :class:`~isaaclab.sensors.PvaData` which provides all of them.
+
+
 Sensor Pose Properties Deprecation
 ----------------------------------
 
 The ``pose_w``, ``pos_w``, and ``quat_w`` properties on :class:`~isaaclab.sensors.ContactSensorData`
-and :class:`~isaaclab.sensors.ImuData` are deprecated and will be removed in a future release.
+are deprecated and will be removed in a future release.
 
 If you need to track sensor poses in world frame, please use a dedicated sensor such as
 :class:`~isaaclab.sensors.FrameTransformer` instead.
@@ -787,7 +930,7 @@ All ``.data.*`` properties on asset and sensor classes now return ``wp.array`` i
 :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
 :class:`~isaaclab_physx.assets.DeformableObject`) and all sensor classes
 (:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
-:class:`~isaaclab_physx.sensors.FrameTransformer`).
+:class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
 
 To convert back to ``torch.Tensor`` for use with PyTorch operations, wrap the property
 access with ``wp.to_torch()``:
@@ -851,8 +994,18 @@ Common patterns that need updating:
      - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.Imu`
      - ``isaaclab_physx``
+   * - :class:`~isaaclab_physx.sensors.Pva`
+     - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.FrameTransformer`
      - ``isaaclab_physx``
+   * - :class:`~isaaclab.sensors.RayCaster`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.RayCasterCamera`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.MultiMeshRayCaster`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`
+     - ``isaaclab``
 
 .. note::
 
@@ -870,6 +1023,129 @@ Common patterns that need updating:
 
    Always review the changes after running the tool, as some accesses (e.g., those
    already passed to warp-native functions) should not be wrapped.
+
+
+Ray Caster Warp Backend
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The :class:`~isaaclab.sensors.RayCaster`, :class:`~isaaclab.sensors.RayCasterCamera`,
+:class:`~isaaclab.sensors.MultiMeshRayCaster`, and
+:class:`~isaaclab.sensors.MultiMeshRayCasterCamera` sensors have been transitioned from a
+PyTorch/USD-based backend to a native Warp kernel pipeline. This improves performance by
+eliminating per-step tensor allocations and torch-to-warp conversions, but introduces several
+breaking changes.
+
+
+RayCasterData Return Types
+--------------------------
+
+The :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
+:attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
+:attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` properties now return ``wp.array`` instead of
+``torch.Tensor``. This follows the same pattern as the general warp backend migration described
+above.
+
+.. code-block:: python
+
+   import warp as wp
+
+   # Before (Isaac Lab 2.x)
+   ray_hits = ray_caster.data.ray_hits_w        # torch.Tensor
+   sensor_pos = ray_caster.data.pos_w            # torch.Tensor
+
+   # After (Isaac Lab 3.x)
+   ray_hits = ray_caster.data.ray_hits_w         # wp.array
+   sensor_pos = ray_caster.data.pos_w            # wp.array
+
+   # To use with torch operations, wrap with wp.to_torch()
+   ray_hits_torch = wp.to_torch(ray_caster.data.ray_hits_w)
+   sensor_pos_torch = wp.to_torch(ray_caster.data.pos_w)
+
+
+Ray Alignment Configuration
+----------------------------
+
+The ``attach_yaw_only`` boolean parameter on :class:`~isaaclab.sensors.RayCasterCfg` has been
+deprecated in favor of the new ``ray_alignment`` parameter, which accepts one of three string
+values:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - Old (2.x)
+     - New (3.0)
+     - Behavior
+   * - ``attach_yaw_only=False``
+     - ``ray_alignment="base"``
+     - Rays follow the full sensor orientation.
+   * - ``attach_yaw_only=True``
+     - ``ray_alignment="yaw"``
+     - Rays follow only the yaw component of the sensor orientation.
+   * - *(not available)*
+     - ``ray_alignment="world"``
+     - Rays are always cast in the world frame (no rotation applied).
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   cfg = RayCasterCfg(attach_yaw_only=True, ...)
+
+   # After (Isaac Lab 3.x)
+   cfg = RayCasterCfg(ray_alignment="yaw", ...)
+
+
+Raycasting Kernel Signature Change
+-----------------------------------
+
+The :func:`~isaaclab.utils.warp.kernels.raycast_dynamic_meshes_kernel` Warp kernel now requires
+an ``env_mask`` parameter as its first argument. This is a ``wp.array(dtype=wp.bool)`` that
+controls which environments are updated. The public Python wrapper
+:func:`~isaaclab.utils.warp.ops.raycast_dynamic_meshes` has been updated to inject an all-True
+mask automatically, so code using the wrapper is unaffected.
+
+If you call the kernel directly, update your launch call:
+
+.. code-block:: python
+
+   import warp as wp
+
+   # Before (Isaac Lab 2.x)
+   wp.launch(
+       raycast_dynamic_meshes_kernel,
+       dim=(num_meshes, num_envs, num_rays),
+       inputs=[ray_starts, ray_directions, mesh_ids, ...],
+   )
+
+   # After (Isaac Lab 3.x) -- env_mask is now the first input
+   env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+   wp.launch(
+       raycast_dynamic_meshes_kernel,
+       dim=(num_meshes, num_envs, num_rays),
+       inputs=[env_mask, ray_starts, ray_directions, mesh_ids, ...],
+   )
+
+
+RayCaster.meshes Cache Key
+--------------------------
+
+The :attr:`~isaaclab.sensors.RayCaster.meshes` class variable, which caches warp meshes across
+all :class:`~isaaclab.sensors.RayCaster` instances, is now keyed by ``(prim_path, device)`` tuples
+instead of by ``prim_path`` alone. This prevents a mesh that was built on one device (e.g. CPU)
+from being reused by a sensor running on a different device (e.g. CUDA), which caused illegal
+memory accesses on systems without unified memory.
+
+Code that reads or writes this cache directly must update both the type annotation and the key:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   meshes: ClassVar[dict[str, wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[prim_path]
+
+   # After (Isaac Lab 3.x)
+   meshes: ClassVar[dict[tuple[str, str], wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[(prim_path, device)]
 
 
 Write Method Index/Mask Split

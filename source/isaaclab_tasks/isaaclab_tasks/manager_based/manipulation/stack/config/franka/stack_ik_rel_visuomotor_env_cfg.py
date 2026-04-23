@@ -10,7 +10,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.sensors import TiledCameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR
 
@@ -199,9 +199,9 @@ class FrankaCubeStackVisuomotorEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnv
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
         )
 
-        # Set cameras
+        # Set cameras (using TiledCamera for better memory efficiency with many envs)
         # Set wrist camera
-        self.scene.wrist_cam = CameraCfg(
+        self.scene.wrist_cam = TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/panda_hand/wrist_cam",
             update_period=0.0,
             height=200,
@@ -210,13 +210,13 @@ class FrankaCubeStackVisuomotorEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnv
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
             ),
-            offset=CameraCfg.OffsetCfg(
+            offset=TiledCameraCfg.OffsetCfg(
                 pos=(0.13, 0.0, -0.15), rot=(0.03701, 0.03701, -0.70614, -0.70614), convention="ros"
             ),
         )
 
         # Set table view camera
-        self.scene.table_cam = CameraCfg(
+        self.scene.table_cam = TiledCameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
             height=200,
@@ -225,7 +225,7 @@ class FrankaCubeStackVisuomotorEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnv
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
             ),
-            offset=CameraCfg.OffsetCfg(
+            offset=TiledCameraCfg.OffsetCfg(
                 pos=(1.0, 0.0, 0.4), rot=(-0.61237, -0.61237, 0.35355, 0.35355), convention="ros"
             ),
         )

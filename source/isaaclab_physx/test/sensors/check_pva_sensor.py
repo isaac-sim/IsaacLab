@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Visual test script for the imu sensor from the Orbit framework.
+Visual test script for the pva sensor from the Orbit framework.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import argparse
 from isaacsim import SimulationApp
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Imu Test Script")
+parser = argparse.ArgumentParser(description="Pva Test Script")
 parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
 parser.add_argument(
@@ -46,7 +46,7 @@ from isaacsim.core.utils.viewports import set_camera_view
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab.assets import RigidObject, RigidObjectCfg
-from isaaclab.sensors.imu import Imu, ImuCfg
+from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
@@ -126,20 +126,20 @@ def main():
     # Design the scene
     balls = design_scene(sim=sim, num_envs=num_envs)
 
-    # Create a ray-caster sensor
-    imu_cfg = ImuCfg(
+    # Create a pva sensor
+    pva_cfg = PvaCfg(
         prim_path="/World/envs/env_.*/ball",
         debug_vis=not args_cli.headless,
     )
     # increase scale of the arrows for better visualization
-    imu_cfg.visualizer_cfg.markers["arrow"].scale = (1.0, 0.2, 0.2)
-    imu = Imu(cfg=imu_cfg)
+    pva_cfg.visualizer_cfg.markers["arrow"].scale = (1.0, 0.2, 0.2)
+    pva = Pva(cfg=pva_cfg)
 
-    # Play simulator and init the Imu
+    # Play simulator and init the Pva
     sim.reset()
 
     # Print the sensor information
-    print(imu)
+    print(pva)
 
     # Get the ball initial positions
     sim.step(render=not args_cli.headless)
@@ -164,14 +164,14 @@ def main():
             balls.write_root_pose_to_sim(torch.cat([ball_initial_positions, ball_initial_orientations], dim=-1))
             balls.reset()
             # reset the sensor
-            imu.reset()
+            pva.reset()
             # reset the counter
             step_count = 0
         # Step simulation
         sim.step()
-        # Update the imu sensor
-        with Timer(f"Imu sensor update with {num_envs}"):
-            imu.update(dt=sim.get_physics_dt(), force_recompute=True)
+        # Update the pva sensor
+        with Timer(f"Pva sensor update with {num_envs}"):
+            pva.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter
         step_count += 1
 

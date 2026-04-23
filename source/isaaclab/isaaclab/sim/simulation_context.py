@@ -21,6 +21,7 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
+from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
@@ -28,6 +29,7 @@ from isaaclab.physics.scene_data_requirements import (
     resolve_scene_data_requirements,
 )
 from isaaclab.sim.utils import create_new_stage
+from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
@@ -181,6 +183,7 @@ class SimulationContext:
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
         self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
         # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
+        self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
         # Simulation state
         self._is_playing = False
@@ -188,6 +191,10 @@ class SimulationContext:
 
         # Monotonic physics-step counter used by camera sensors for
         self._physics_step_count: int = 0
+        # Monotonic render-generation counter. This increments whenever render()
+        # is executed and lets downstream camera freshness logic distinguish
+        # render/reset transitions that occur without advancing physics steps.
+        self._render_generation: int = 0
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -289,10 +296,14 @@ class SimulationContext:
             UsdGeom.SetStageMetersPerUnit(self.stage, 1.0)
             UsdPhysics.SetStageKilogramsPerUnit(self.stage, 1.0)
 
-            # Find and delete any existing physics scene
-            for prim in self.stage.Traverse():
-                if prim.GetTypeName() == "PhysicsScene":
-                    sim_utils.delete_prim(prim.GetPath().pathString, stage=self.stage)
+            # Find and delete any existing physics scene.
+            # Collect paths first to avoid mutating the stage while traversing,
+            # which can invalidate the USD iterator.
+            physics_scene_paths = [
+                prim.GetPath().pathString for prim in self.stage.Traverse() if prim.GetTypeName() == "PhysicsScene"
+            ]
+            for path in physics_scene_paths:
+                sim_utils.delete_prim(path, stage=self.stage)
 
             # Create a new physics scene
             if self.stage.GetPrimAtPath(cfg.physics_prim_path).IsValid():
@@ -337,6 +348,10 @@ class SimulationContext:
         """Returns whether offscreen rendering is enabled (cached at init)."""
         return self._has_offscreen_render
 
+    def has_active_visualizers(self) -> bool:
+        """Return whether any visualizer path is active for rendering/camera control."""
+        return bool(self.get_setting("/isaaclab/visualizer/types"))
+
     @property
     def is_rendering(self) -> bool:
         """Returns whether rendering is active (GUI, RTX sensors, visualizers, or XR)."""
@@ -351,6 +366,11 @@ class SimulationContext:
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""
         return self.physics_manager.get_physics_dt()
+
+    @property
+    def render_generation(self) -> int:
+        """Returns a monotonic counter for render() executions."""
+        return self._render_generation
 
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configs for requested types.
@@ -577,6 +597,14 @@ class SimulationContext:
                     exc,
                 )
 
+        # Replay any camera pose requested before visualizers were initialized.
+        pending = getattr(self, "_pending_camera_view", None)
+        if pending is not None:
+            eye, target = pending
+            for viz in self._visualizers:
+                viz.set_camera_view(eye, target)
+            self._pending_camera_view = None
+
         if not self._visualizers and self._scene_data_provider is not None:
             close_provider = getattr(self._scene_data_provider, "close", None)
             if callable(close_provider):
@@ -627,6 +655,7 @@ class SimulationContext:
 
     def set_camera_view(self, eye: tuple, target: tuple) -> None:
         """Set camera view on all visualizers that support it."""
+        self._pending_camera_view = (tuple(eye), tuple(target))
         for viz in self._visualizers:
             viz.set_camera_view(eye, target)
 
@@ -654,9 +683,15 @@ class SimulationContext:
     def step(self, render: bool = True) -> None:
         """Step physics and optionally render.
 
+        If the timeline is paused (e.g. via the GUI), this method blocks and keeps
+        the visualizer responsive until the timeline is resumed or stopped.
+
         Args:
             render: Whether to render the scene after stepping. Defaults to True.
         """
+        # Block while the GUI timeline is paused so the entire training loop freezes.
+        # See: https://github.com/isaac-sim/IsaacLab/issues/4279
+        self.physics_manager.wait_for_playing()
         self._physics_step_count += 1
         self.physics_manager.step()
         if render and self.is_rendering:
@@ -667,10 +702,15 @@ class SimulationContext:
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
         every physics step). Camera sensors drive their configured renderer when
-        fetching data, so this method remains backend-agnostic.
+        fetching data. Recording-related follow-up (Kit/RTX headless video, Newton GL
+        video, etc.) runs in :mod:`isaaclab.envs.utils.recording_hooks` so it is not tied to a
+        specific :class:`~isaaclab.physics.PhysicsManager` subclass.
         """
         self.physics_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt())
+        self.physics_manager.after_visualizers_render()
+        run_recording_hooks_after_visualizers(self)
+        self._render_generation += 1
 
         # Call render callbacks
         if hasattr(self, "_render_callbacks"):
@@ -695,6 +735,11 @@ class SimulationContext:
                     visualizers_to_remove.append(viz)
                     continue
                 if viz.is_rendering_paused():
+                    # Keep non-Kit visualizer event loops responsive while rendering is paused.
+                    # Newton/Rerun/Viser need step(0.0) so GL/UI can process input (e.g. Resume).
+                    # Kit is skipped: step() would call app.update(), which must not run during pause.
+                    if not viz.pumps_app_update():
+                        viz.step(0.0)
                     continue
                 while viz.is_training_paused() and viz.is_running():
                     viz.step(0.0)
@@ -790,6 +835,9 @@ class SimulationContext:
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
             stage_utils.close_stage()
+
+            # Discard cached name-resolution data from destroyed assets
+            clear_resolve_matching_names_cache()
 
             # Clear instance
             cls._instance = None

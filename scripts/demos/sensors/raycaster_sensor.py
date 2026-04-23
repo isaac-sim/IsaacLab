@@ -62,7 +62,7 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     ray_caster = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base/lidar_cage",
+        prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
         offset=RayCasterCfg.OffsetCfg(pos=(0, 0, 0.5)),
         mesh_prim_paths=["/World/Ground"],
@@ -127,13 +127,13 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # print information from the sensors
         print("-------------------------------")
         print(scene["ray_caster"])
-        print("Ray cast hit results: ", scene["ray_caster"].data.ray_hits_w)
+        print("Ray cast hit results: ", wp.to_torch(scene["ray_caster"].data.ray_hits_w))
 
         if not triggered:
             if countdown > 0:
                 countdown -= 1
                 continue
-            data = scene["ray_caster"].data.ray_hits_w.cpu().numpy()
+            data = wp.to_torch(scene["ray_caster"].data.ray_hits_w).cpu().numpy()
             np.save("cast_data.npy", data)
             triggered = True
         else:

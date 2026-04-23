@@ -1,6 +1,78 @@
 Changelog
 ---------
 
+0.3.6 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopCfg.control_channel_uuid` for
+  receiving teleop control commands (start/stop/reset) from the headset via
+  an OpenXR message channel.  The channel is managed by TeleopCore's native
+  ``teleop_control_pipeline`` mechanism.
+
+* Added :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor`
+  retargeter that converts raw message-channel payloads into boolean control
+  signals for :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+
+* Added :func:`~isaaclab_teleop.poll_control_events` helper,
+  :class:`~isaaclab_teleop.ControlEvents` dataclass, and
+  :class:`~isaaclab_teleop.SupportsControlEvents` protocol for polling
+  start/stop/reset signals from any teleop device in a single call.
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopDevice.last_control_events`
+  property exposing the most recent control events from the message channel.
+  Control events are automatically bridged to legacy
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.add_callback` callbacks.
+
+Changed
+^^^^^^^
+
+* :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset` now injects a
+  ``reset`` :class:`ExecutionEvents` into TeleopCore's ``ComputeContext``
+  on the next pipeline step, resetting retargeter cross-step state.
+  Previously only the XR anchor was reset.
+
+Fixed
+^^^^^
+
+* Fixed ``record_demos.py`` not resetting the teleop device when a
+  success condition triggers an environment reset.  Retargeters now
+  reinitialize their state on success-triggered resets.
+
+* Fixed shutdown hang caused by Kit's pre-shutdown callback calling
+  ``stop()`` while the simulation loop was still running.  The callback
+  now uses the same graceful teardown path as the XR-disabled handler.
+
+
+0.3.5 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``cloudxr_env_file`` and ``auto_launch_cloudxr`` parameters to
+  :func:`~isaaclab_teleop.create_isaac_teleop_device`,
+  :class:`~isaaclab_teleop.IsaacTeleopDevice`, and
+  :class:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle` for
+  auto-launching the CloudXR runtime and WSS proxy during session startup.
+  When a ``.env`` file path is provided via ``--cloudxr_env``, users no
+  longer need to run ``python -m isaacteleop.cloudxr`` in a separate
+  terminal.
+* Added device-specific CloudXR ``.env`` profiles:
+  :data:`~isaaclab_teleop.CLOUDXR_JS_ENV` (Quest/Pico, ``auto-webrtc``) and
+  :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV` (Apple Vision Pro, ``auto-native``).
+* Added ``dex-retargeting==0.5.0`` as a required dependency on Linux x86_64.
+
+Changed
+^^^^^^^
+
+* Made ``isaacteleop[retargeters,ui,cloudxr]~=1.2.0`` a required dependency of
+  ``isaaclab_teleop`` (previously an optional extra via
+  ``isaaclab_teleop[teleop]``).
+
+
 0.3.4 (2026-03-17)
 ~~~~~~~~~~~~~~~~~~~
 

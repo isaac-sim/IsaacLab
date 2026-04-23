@@ -46,7 +46,7 @@ def _make_mock_renderer_class(name: str):
         def render(self, render_data):
             pass
 
-        def write_output(self, render_data, output_name, output_data):
+        def read_output(self, render_data, camera_data):
             pass
 
         def cleanup(self, render_data):

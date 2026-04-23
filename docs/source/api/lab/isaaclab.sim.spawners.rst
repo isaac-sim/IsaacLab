@@ -21,7 +21,6 @@
 
     SpawnerCfg
     RigidObjectSpawnerCfg
-    DeformableObjectSpawnerCfg
 
 Spawners
 --------
@@ -35,10 +34,12 @@ Spawners
     :show-inheritance:
     :exclude-members: __init__
 
-.. autoclass:: DeformableObjectSpawnerCfg
-    :members:
-    :show-inheritance:
-    :exclude-members: __init__
+.. note::
+
+   ``DeformableObjectSpawnerCfg`` has moved to the PhysX backend extension. See
+   :class:`isaaclab_physx.sim.spawners.DeformableObjectSpawnerCfg`.
+
+   For migration details, see :ref:`migrating-deformables`.
 
 Shapes
 ------
@@ -260,7 +261,6 @@ Materials
     GlassMdlCfg
     PhysicsMaterialCfg
     RigidBodyMaterialCfg
-    DeformableBodyMaterialCfg
 
 Visual Materials
 ~~~~~~~~~~~~~~~~
@@ -298,11 +298,15 @@ Physical Materials
     :members:
     :exclude-members: __init__, func
 
-.. autofunction:: spawn_deformable_body_material
+.. note::
 
-.. autoclass:: DeformableBodyMaterialCfg
-    :members:
-    :exclude-members: __init__, func
+   ``DeformableBodyMaterialCfg``, ``SurfaceDeformableBodyMaterialCfg``, and
+   ``spawn_deformable_body_material`` have moved to the PhysX backend extension. See
+   :class:`isaaclab_physx.sim.spawners.materials.DeformableBodyMaterialCfg`,
+   :class:`isaaclab_physx.sim.spawners.materials.SurfaceDeformableBodyMaterialCfg`, and
+   :func:`isaaclab_physx.sim.spawners.materials.spawn_deformable_body_material`.
+
+   For migration details, see :ref:`migrating-deformables`.
 
 Wrappers
 --------

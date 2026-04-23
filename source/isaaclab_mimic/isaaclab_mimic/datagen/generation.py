@@ -78,6 +78,7 @@ def env_loop(
     env_action_queue: asyncio.Queue,
     shared_datagen_info_pool: DataGenInfoPool,
     asyncio_event_loop: asyncio.AbstractEventLoop,
+    data_gen_tasks: asyncio.Future | None = None,
 ):
     """Main asyncio loop for the environment.
 
@@ -87,6 +88,8 @@ def env_loop(
         env_action_queue: The asyncio queue to handle actions to for executing actions.
         shared_datagen_info_pool: The shared datagen info pool that stores source demo info.
         asyncio_event_loop: The main asyncio event loop.
+        data_gen_tasks: The gathered async data generation future. When provided, the loop
+            will exit early if all tasks finish unexpectedly (e.g. due to an unhandled exception).
     """
     global num_success, num_failures, num_attempts
     env_id_tensor = torch.tensor([0], dtype=torch.int64, device=env.device)
@@ -97,17 +100,20 @@ def env_loop(
             # check if any environment needs to be reset while waiting for actions
             while env_action_queue.qsize() != env.num_envs:
                 asyncio_event_loop.run_until_complete(asyncio.sleep(0))
+                if data_gen_tasks is not None and data_gen_tasks.done():
+                    exc = data_gen_tasks.exception()
+                    if exc is not None:
+                        raise exc
+                    return
                 while not env_reset_queue.empty():
                     env_id_tensor[0] = env_reset_queue.get_nowait()
                     env.reset(env_ids=env_id_tensor)
                     env_reset_queue.task_done()
 
             actions = torch.zeros(env.action_space.shape)
-
-            # get actions from all the data generators
-            for i in range(env.num_envs):
-                # an async-blocking call to get an action from a data generator
-                env_id, action = asyncio_event_loop.run_until_complete(env_action_queue.get())
+            get_tasks = [env_action_queue.get() for _ in range(env.num_envs)]
+            results = asyncio_event_loop.run_until_complete(asyncio.gather(*get_tasks))
+            for env_id, action in results:
                 actions[env_id] = action
 
             # perform action on environment
@@ -152,6 +158,7 @@ def setup_env_config(
     device: str,
     generation_num_trials: int | None = None,
     recorder_cfg: RecorderManagerBaseCfg | None = None,
+    dataset_compression: bool = True,
 ) -> tuple[Any, Any]:
     """Configure the environment for data generation.
 
@@ -162,6 +169,8 @@ def setup_env_config(
         num_envs: Number of environments to run
         device: Device to run on
         generation_num_trials: Optional override for number of trials
+        recorder_cfg: Recorder manager configuration
+        dataset_compression: Whether to enable dataset compression
 
     Returns:
         tuple containing:
@@ -198,6 +207,8 @@ def setup_env_config(
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
 
+    env_cfg.recorders.dataset_compression = dataset_compression
+
     if env_cfg.datagen_config.generation_keep_failed:
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES
     else:
@@ -230,8 +241,7 @@ def setup_async_generation(
     asyncio_event_loop = asyncio.get_event_loop()
     env_reset_queue = asyncio.Queue()
     env_action_queue = asyncio.Queue()
-    shared_datagen_info_pool_lock = asyncio.Lock()
-    shared_datagen_info_pool = DataGenInfoPool(env, env.cfg, env.device, asyncio_lock=shared_datagen_info_pool_lock)
+    shared_datagen_info_pool = DataGenInfoPool(env, env.cfg, env.device)
     shared_datagen_info_pool.load_from_dataset_file(input_file)
     print(f"Loaded {shared_datagen_info_pool.num_datagen_infos} to datagen info pool")
 

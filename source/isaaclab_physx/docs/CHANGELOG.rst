@@ -1,6 +1,172 @@
 Changelog
 ---------
 
+0.5.21 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.views.XformPrimView` providing the PhysX/Fabric
+  backend implementation for xform prim views.
+
+Changed
+^^^^^^^
+
+* Renamed :class:`~isaaclab_physx.sim.views.FabricXformPrimView` to
+  :class:`~isaaclab_physx.sim.views.FabricFrameView`. Old name is kept as a deprecated alias.
+
+
+0.5.20 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ``write_data_to_sim`` in :class:`~isaaclab_physx.assets.Articulation`,
+  :class:`~isaaclab_physx.assets.RigidObject`, and :class:`~isaaclab_physx.assets.RigidObjectCollection`
+  to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
+  applied to PhysX with ``is_global=False`` after body-frame composition.
+
+
+0.5.19 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton ``shape_color`` not reflecting the post-clone USD stage when the
+  PhysX scene data provider builds or reloads the Newton model by calling
+  :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_shape_colors` on
+  the artifact, per-environment, and filtered Newton models in
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`.
+
+
+0.5.18 (2026-04-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flaky first-frame textured rendering by replacing the event-based RTX
+  streaming subscription with a synchronous
+  ``UsdContext.get_stage_streaming_status()`` query in
+  :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.ensure_isaac_rtx_render_update`.
+
+
+0.5.17 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.schemas.DeformableBodyPropertiesCfg` with
+  namespace-aware property routing. Properties are organized into
+  ``omniphysics:``, ``physxDeformableBody:``, and ``physxCollision:`` prefixed
+  parent classes, allowing correct USD attribute mapping for the updated PhysX
+  deformable body schema.
+* Added :func:`~isaaclab_physx.sim.schemas.define_deformable_body_properties` and
+  :func:`~isaaclab_physx.sim.schemas.modify_deformable_body_properties` to
+  ``isaaclab_physx.sim.schemas``, supporting both surface and volume deformable
+  types via the ``deformable_type`` parameter.
+* Added :class:`~isaaclab_physx.sim.spawners.materials.DeformableBodyMaterialCfg`
+  and :class:`~isaaclab_physx.sim.spawners.materials.SurfaceDeformableBodyMaterialCfg`
+  with namespace-aware property routing for ``omniphysics:`` and
+  ``physxDeformableBody:`` material attributes.
+* Added :class:`~isaaclab_physx.sim.spawners.spawner_cfg.DeformableObjectSpawnerCfg`
+  for configuring deformable body properties and materials when spawning.
+* Added surface deformable body support to
+  :class:`~isaaclab_physx.assets.DeformableObject`. The asset now detects whether
+  the deformable is a surface or volume type based on the applied material API
+  and creates the appropriate PhysX tensor view
+  (``create_surface_deformable_body_view`` vs ``create_volume_deformable_body_view``).
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_physx.assets.DeformableObject.root_view` return type
+  from ``physx.SoftBodyView`` to ``physx.DeformableBodyView`` to align with the
+  updated PhysX API.
+* Changed :attr:`~isaaclab_physx.assets.DeformableObject.material_physx_view`
+  return type from ``physx.SoftBodyMaterialView`` to
+  ``physx.DeformableMaterialView``.
+* Changed deformable body root prim discovery to check for
+  ``OmniPhysicsDeformableBodyAPI`` instead of ``PhysxDeformableBodyAPI``.
+* Changed material prim discovery to check for ``OmniPhysicsDeformableMaterialAPI``
+  instead of ``PhysxDeformableBodyMaterialAPI``.
+* Changed PhysX view API calls to use updated method names:
+  ``get_simulation_nodal_positions``, ``set_simulation_nodal_positions``,
+  ``set_simulation_nodal_velocities``, ``get_simulation_nodal_kinematic_targets``,
+  ``set_simulation_nodal_kinematic_targets``.
+* Changed property accessors to use updated PhysX view attributes:
+  ``max_simulation_elements_per_body``, ``max_collision_elements_per_body``,
+  ``max_simulation_nodes_per_body``, ``max_collision_nodes_per_body``.
+* Changed kinematic target operations to raise ``ValueError`` when called on
+  surface deformable bodies, which do not support kinematic targets.
+
+
+0.5.16 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the PhysX IMU sensor implementation to
+  :class:`~isaaclab_physx.sensors.Pva`. The ``isaaclab_physx.sensors.imu``
+  module now contains a new lightweight IMU sensor that only provides angular
+  velocity and linear acceleration.
+* Changed :class:`~isaaclab_physx.sensors.Pva` to no longer accept a
+  ``gravity_bias`` parameter. Linear acceleration is now pure finite
+  differencing of velocity without any gravity contribution.
+* Changed :class:`~isaaclab_physx.sensors.Imu` to unconditionally include
+  gravity in accelerometer readings. The gravity vector is queried from the
+  PhysX simulation at initialization instead of being user-configured.
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sensors.Imu` PhysX backend for the new
+  lightweight IMU sensor with simplified Warp kernels that only compute
+  angular velocity and linear acceleration.
+
+Fixed
+^^^^^
+
+* Fixed unused ``body_pos`` variable in the IMU Warp kernel.
+* Fixed ``phsyx`` typo in :class:`~isaaclab.sensors.pva.BasePva` docstring.
+
+
+0.5.15 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_physx.assets.RigidObject.set_material_properties_index`,
+  :meth:`~isaaclab_physx.assets.RigidObject.set_material_properties_mask`,
+  :meth:`~isaaclab_physx.assets.Articulation.set_material_properties_index`,
+  :meth:`~isaaclab_physx.assets.Articulation.set_material_properties_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_material_properties_index`, and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.set_material_properties_mask`
+  methods for setting collision shape material properties (friction, restitution).
+  These methods follow the standard ``_index``/``_mask`` pattern, providing a unified
+  API across PhysX and Newton backends.
+
+
+0.5.14 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the simulation training loop not pausing when the Kit GUI timeline is
+  paused. :meth:`~isaaclab_physx.physics.PhysxManager.wait_for_playing` now
+  blocks and keeps the GUI responsive until the timeline is resumed or stopped.
+* Fixed articulation visualization freezing after pausing and unpausing the
+  simulation through the headed GUI in Isaac Sim 5.1+. Articulation meshes now
+  remain visually updated after resuming.
+
+
 0.5.13 (2026-03-25)
 ~~~~~~~~~~~~~~~~~~~
 

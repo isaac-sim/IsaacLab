@@ -327,8 +327,8 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
     )
 
     # Set ball positions over terrain origins
-    # Create a view over all the balls using Isaac Lab's XformPrimView
-    ball_view = sim_utils.XformPrimView("/World/envs/env_.*/ball")
+    # Create a view over all the balls using Isaac Lab's FrameView
+    ball_view = sim_utils.FrameView("/World/envs/env_.*/ball")
     # cache initial state of the balls
     ball_initial_positions = terrain_importer.env_origins.clone()
     ball_initial_positions[:, 2] += 5.0

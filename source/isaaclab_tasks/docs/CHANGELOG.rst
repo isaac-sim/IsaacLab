@@ -1,6 +1,76 @@
 Changelog
 ---------
 
+1.5.24 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated locomotion :class:`~isaaclab.sensors.ray_caster.ray_caster_cfg.RayCasterCfg`
+  height-scanner defaults to spawn a ``raycaster`` Xform child under the robot attachment link
+  (using :class:`~isaaclab.sim.spawners.sensors.sensors_cfg.RayCasterXformCfg`) so the sensor
+  works with Newton site-based :class:`~isaaclab.sim.views.FrameView` tracking.
+* Updated all sensor configurations to use :class:`~isaaclab.sim.views.FrameView` instead of
+  the deprecated ``XformPrimView``.
+
+
+1.5.23 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Refreshed Newton Warp renderer golden images for Dexsuite Kuka-Allegro environment case in
+  ``test_rendering_correctness`` because Newton Warp renderer honors visibility of prims now.
+
+
+1.5.22 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rendering correctness tests to use a shared environment seed constant, pass ``seed`` into
+  :meth:`gymnasium.Env.reset`, and aggregate per-data-type validation failures into a single
+  ``pytest.fail`` message in ``test_rendering_correctness``.
+* Refreshed Newton Warp renderer golden images in ``test_rendering_correctness`` so image baselines match the current
+  camera output after Newton shape color alignment and the clear background color change.
+
+
+1.5.21 (2026-04-13)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Replaced ``resolve_preset_defaults`` with :func:`~isaaclab_tasks.utils.hydra.resolve_presets`
+  which resolves all presets in one pass with CLI selection support.
+
+Added
+^^^^^
+
+* Unknown preset names now raise ``ValueError`` with a grouped listing of all
+  available presets and the config paths they affect.
+
+Fixed
+^^^^^
+
+* Fixed presets inside dict-valued alternatives and ``PresetCfg(default=None)``
+  not being discovered or resolved, causing wrong defaults in deeply nested configs.
+* Unresolvable ``PresetCfg`` (no ``default``, no matching selection) now raises
+  ``ValueError`` instead of silently lingering in the config tree.
+
+
+1.5.20 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Change Franka visuomotor and GR1T2 nut pouring environments to use TiledCamera.
+
+
 1.5.19 (2026-04-06)
 ~~~~~~~~~~~~~~~~~~~
 

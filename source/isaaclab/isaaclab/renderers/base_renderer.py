@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     import torch
 
     from isaaclab.sensors import SensorBase
+    from isaaclab.sensors.camera.camera_data import CameraData
 
 
 class BaseRenderer(ABC):
@@ -93,13 +94,13 @@ class BaseRenderer(ABC):
         pass
 
     @abstractmethod
-    def write_output(self, render_data: Any, output_name: str, output_data: torch.Tensor) -> None:
-        """Write a specific output type to the given buffer.
+    def read_output(self, render_data: Any, camera_data: CameraData) -> None:
+        """Read rendered outputs from the renderer into the camera data container.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
-            output_name: Name of the output (e.g. ``"rgba"``, ``"depth"``).
-            output_data: Pre-allocated tensor to write the output into.
+            camera_data: The :class:`~isaaclab.sensors.camera.camera_data.CameraData`
+                instance to populate.
         """
         pass
 
