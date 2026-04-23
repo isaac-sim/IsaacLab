@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.5.21 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale :attr:`~isaaclab_newton.assets.RigidObjectData.body_link_pose_w` and
+  :attr:`~isaaclab_newton.assets.RigidObjectCollectionData.body_link_pose_w` after calls to
+  ``write_root_*_pose_to_sim_*`` / ``write_body_*_pose_to_sim_*``. The pose writers now
+  invalidate forward kinematics via :meth:`~isaaclab_newton.physics.SimulationManager.invalidate_fk`
+  and an internal ``_fk_timestamp`` so the next pose read triggers a forward-kinematics update,
+  matching the behavior already implemented in :class:`~isaaclab_newton.assets.Articulation`.
+
+
 0.5.20 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

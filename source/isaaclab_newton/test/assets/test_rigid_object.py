@@ -1259,3 +1259,49 @@ def test_warmup_attach_stage_not_called_for_cpu():
             f"This indicates the CPU MBP broadphase double-initialization regression is present: "
             f"attach_stage() + force_load_physics_from_usd() must not be combined for CPU."
         )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("writer", ["link_index", "link_mask", "com_index", "com_mask"])
+@pytest.mark.isaacsim_ci
+def test_body_link_pose_w_fresh_after_root_pose_write(device, writer):
+    """Regression: ``body_link_pose_w`` must reflect a freshly written root pose without an intervening sim step.
+
+    After ``write_root_{link,com}_pose_to_sim_{index,mask}``, the cached ``_sim_bind_body_link_pose_w``
+    (Newton ``body_q``) is stale until forward kinematics is re-evaluated. The getter must call
+    :meth:`SimulationManager.forward` so the returned tensor matches the written pose. Without the fix,
+    the getter returns the pre-write value.
+    """
+    num_cubes = 2
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.5, device=device)
+
+        sim.reset()
+        assert cube_object.is_initialized
+
+        # Step once so that _sim_timestamp > 0 and caches are primed.
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        # Prime the body_link_pose_w cache with the current pose.
+        _ = wp.to_torch(cube_object.data.body_link_pose_w).clone()
+
+        # Build a target pose clearly distinct from the current one.
+        target_pose = wp.to_torch(cube_object.data.root_link_pose_w).clone()
+        target_pose[..., 0] += 10.0
+        target_pose[..., 1] += 5.0
+        target_pose[..., 2] += 2.0
+
+        if writer == "link_index":
+            cube_object.write_root_link_pose_to_sim_index(root_pose=target_pose)
+        elif writer == "link_mask":
+            cube_object.write_root_link_pose_to_sim_mask(root_pose=target_pose)
+        elif writer == "com_index":
+            cube_object.write_root_com_pose_to_sim_index(root_pose=target_pose)
+        elif writer == "com_mask":
+            cube_object.write_root_com_pose_to_sim_mask(root_pose=target_pose)
+
+        # Read without stepping: getter must trigger forward kinematics and return the fresh pose.
+        body_link = wp.to_torch(cube_object.data.body_link_pose_w).view(num_cubes, 7)
+        torch.testing.assert_close(body_link[..., :3], target_pose[..., :3], rtol=1e-4, atol=1e-4)
