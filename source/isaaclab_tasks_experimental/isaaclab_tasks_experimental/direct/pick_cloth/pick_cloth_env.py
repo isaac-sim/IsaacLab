@@ -13,7 +13,9 @@ from collections.abc import Sequence
 import torch
 import warp as wp
 
-import isaaclab_experimental.deformable  # noqa: F401 -- trigger hook registration
+from isaaclab_experimental.deformable import register_hooks as _register_deformable_hooks
+
+_register_deformable_hooks()
 
 from pxr import Gf, UsdGeom
 
