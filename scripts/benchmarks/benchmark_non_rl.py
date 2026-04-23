@@ -27,6 +27,12 @@ parser.add_argument(
 )
 parser.add_argument("--num_frames", type=int, default=100, help="Number of environment frames to run benchmark for.")
 parser.add_argument(
+    "--preview_dir",
+    type=str,
+    default=None,
+    help="If set, capture a first-frame screenshot and scene metadata into this directory (rank 0 only).",
+)
+parser.add_argument(
     "--benchmark_backend",
     type=str,
     default="omniperf",
@@ -48,8 +54,8 @@ parser.add_argument("--output_path", type=str, default=".", help="Path to output
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli, hydra_args = parser.parse_known_args()
-# always enable cameras to record video
-if args_cli.video:
+# always enable cameras to record video or capture preview
+if args_cli.video or args_cli.preview_dir:
     args_cli.enable_cameras = True
 
 # clear out sys.argv for Hydra
@@ -61,6 +67,7 @@ from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor
 from isaaclab.utils.timer import Timer
 
 from scripts.benchmarks.utils import (
+    capture_scene_preview,
     get_backend_type,
     get_preset_string,
     log_app_start_time,
@@ -141,7 +148,9 @@ def main(
     task_startup_time_begin = time.perf_counter_ns()
 
     # create isaac environment
-    env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+    env = gym.make(
+        args_cli.task, cfg=env_cfg, render_mode="rgb_array" if (args_cli.video or args_cli.preview_dir) else None
+    )
     # wrap for video recording
     if args_cli.video:
         log_root_path = os.path.abspath(f"benchmark/{args_cli.task}")
@@ -159,6 +168,9 @@ def main(
     task_startup_time_end = time.perf_counter_ns()
 
     env.reset()
+
+    if args_cli.preview_dir and world_rank == 0:
+        capture_scene_preview(env, args_cli.preview_dir)
 
     # counter for number of frames to run for
     num_frames = 0

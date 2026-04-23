@@ -6,6 +6,7 @@
 
 import cProfile
 import glob
+import json
 import os
 import statistics
 import sys
@@ -118,6 +119,62 @@ def log_runtime_step_times(benchmark: BaseIsaacLabBenchmark, value: dict, comput
     benchmark.add_measurement("runtime", measurement=measurement)
     if compute_stats:
         log_min_max_mean_stats(benchmark, value)
+
+
+def capture_scene_preview(env, preview_dir: str) -> None:
+    """Capture a first-frame screenshot and scene metadata into preview_dir.
+
+    Writes screenshot.png and scene_meta.json. Both are best-effort — failures
+    are logged as warnings and do not abort the benchmark.
+
+    Args:
+        env: The IsaacLab gym environment (may be wrapped), created with render_mode="rgb_array".
+        preview_dir: Directory to write output files into (created if absent).
+    """
+    os.makedirs(preview_dir, exist_ok=True)
+
+    # Screenshot via the replicator-backed render() path
+    try:
+        from PIL import Image
+
+        rgb = env.render()
+        if rgb is not None and hasattr(rgb, "size") and rgb.size > 0:
+            Image.fromarray(rgb).save(os.path.join(preview_dir, "screenshot.png"))
+            print(f"[BENCH] Preview screenshot saved to {preview_dir}/screenshot.png")
+        else:
+            print("[BENCH] WARNING: render() returned empty frame — screenshot skipped")
+    except ImportError:
+        print("[BENCH] WARNING: Pillow not installed — screenshot skipped")
+    except Exception as e:
+        print(f"[BENCH] WARNING: Screenshot capture failed: {e}")
+
+    # Scene metadata from carb settings and USD stage
+    meta = {}
+    try:
+        import carb.settings
+
+        settings = carb.settings.get_settings()
+        meta["renderer"] = settings.get("/renderer/active") or "unknown"
+        meta["shadows_enabled"] = settings.get("/rtx/shadows/enabled")
+    except Exception as e:
+        print(f"[BENCH] WARNING: Could not read renderer settings: {e}")
+
+    try:
+        import omni.usd
+        from pxr import UsdLux
+
+        stage = omni.usd.get_context().get_stage()
+        if stage:
+            meta["light_count"] = sum(1 for p in stage.Traverse() if p.HasAPI(UsdLux.LightAPI))
+    except Exception as e:
+        print(f"[BENCH] WARNING: Could not count lights in USD stage: {e}")
+
+    try:
+        with open(os.path.join(preview_dir, "scene_meta.json"), "w") as f:
+            json.dump(meta, f, indent=2)
+        print(f"[BENCH] Scene metadata saved to {preview_dir}/scene_meta.json")
+    except Exception as e:
+        print(f"[BENCH] WARNING: Scene metadata write failed: {e}")
 
 
 def get_preset_string(hydra_args: list[str]) -> str:
