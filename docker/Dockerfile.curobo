@@ -34,8 +34,6 @@ ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
-USER root
-
 # Install dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
