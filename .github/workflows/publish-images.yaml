@@ -62,7 +62,10 @@ jobs:
         # Only attempt NGC login if API key is available
         if [ -n "${{ env.NGC_API_KEY }}" ]; then
           echo "🔵 Logging into NGC registry..."
-          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+          if ! docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io; then
+            echo "🔴 Failed to log into NGC registry"
+            exit 1
+          fi
           echo "🟢 Successfully logged into NGC registry"
         else
           echo "🟠 NGC_API_KEY not set - skipping NGC login (normal when secrets are not configured)"
@@ -155,7 +158,8 @@ jobs:
           TAG_ARGS+=("-t" "$t")
         done
 
-        docker buildx build \
+        echo "🔵 Building and pushing image with tags listed above..."
+        if ! docker buildx build \
           --platform "$BUILD_PLATFORMS" \
           --progress=plain \
           "${TAG_ARGS[@]}" \
@@ -167,7 +171,11 @@ jobs:
           --cache-from type=gha \
           --cache-to type=gha,mode=max \
           -f docker/Dockerfile.base \
-          --push .
+          --push .; then
+          echo "🔴 docker buildx build/push failed for tags:"
+          printf '  - %s\n' "${TAGS[@]}"
+          exit 1
+        fi
 
         for t in "${TAGS[@]}"; do
           echo "🟢 Successfully built and pushed: $t (platforms: $BUILD_PLATFORMS)"
