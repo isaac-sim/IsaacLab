@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.5.19 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to implement
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer._create_render_data_impl`
+  with :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec`.
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderData` now holds ``spec`` instead of
+  a weak reference to the camera sensor.
+
+
 0.5.18 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,43 @@
 Changelog
 ---------
 
+4.6.7 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` so render
+  backends receive explicit camera inputs (USD paths, cfg, device, counts) instead
+  of the full sensor instance.
+* Added :meth:`~isaaclab.renderers.render_context.RenderContext.render_into_camera`
+  to centralize transform sync, :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`,
+  and :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output` for camera sensors.
+* Added :attr:`~isaaclab.renderers.base_renderer.BaseRenderer.uses_global_scene_transform_sync`
+  so :class:`~isaaclab.renderers.render_context.RenderContext` can dedupe scene-wide
+  transform updates without hard-coding backend class names.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab.sensors.camera.Camera` now builds a
+  :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` and passes it to
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`; concrete
+  renderers implement :meth:`~isaaclab.renderers.base_renderer.BaseRenderer._create_render_data_impl`
+  instead of accepting the sensor object.
+* :class:`~isaaclab.scene.interactive_scene.InteractiveScene` calls
+  :meth:`~isaaclab.renderers.render_context.RenderContext.maybe_update_transforms`
+  once at the start of :meth:`~isaaclab.scene.interactive_scene.InteractiveScene.update`
+  when ``lazy_sensor_update`` is disabled, complementing per-fetch deduplication.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated passing a :class:`~isaaclab.sensors.sensor_base.SensorBase` to
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`; pass
+  :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` instead.
+
+
 4.6.6 (2026-04-17)
 ~~~~~~~~~~~~~~~~~~~
 

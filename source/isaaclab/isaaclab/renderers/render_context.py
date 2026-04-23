@@ -11,16 +11,13 @@ from __future__ import annotations
 import logging
 from typing import Any, cast
 
+from isaaclab.sensors.camera.camera_data import CameraData
+
 from .base_renderer import BaseRenderer
 from .renderer import Renderer
 from .renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
-
-# Backends where update_transforms() syncs shared scene state; dedupe once per physics step.
-_DEDUPE_TRANSFORM_BACKENDS: frozenset[str] = frozenset(
-    {"NewtonWarpRenderer", "OVRTXRenderer"}
-)
 
 
 def renderer_cfgs_compatible(a: RendererCfg, b: RendererCfg) -> bool:
@@ -42,9 +39,9 @@ class RenderContext:
     """Owns one Renderer / BaseRenderer for all scene cameras.
 
     Every Camera with a compatible ``renderer_cfg`` shares the same backend.
-    ``prepare_stage`` runs once. For Newton and OVRTX, ``update_transforms`` runs at
-    most once per physics step (see ``physics_step_count``); Isaac RTX uses a no-op
-    ``update_transforms``.
+    ``prepare_stage`` runs once. For backends with
+    :attr:`~isaaclab.renderers.base_renderer.BaseRenderer.uses_global_scene_transform_sync`,
+    ``update_transforms`` runs at most once per physics step (see ``physics_step_count``).
 
     Mixing incompatible ``renderer_cfg`` in one simulation raises RuntimeError.
     """
@@ -139,14 +136,25 @@ class RenderContext:
         """
         if self._renderer is None:
             return
-        backend_name = type(self._renderer).__name__
-        if backend_name not in _DEDUPE_TRANSFORM_BACKENDS:
+        if not self._renderer.uses_global_scene_transform_sync:
             self._renderer.update_transforms()
             return
         if self._last_transforms_step == physics_step_count:
             return
         self._renderer.update_transforms()
         self._last_transforms_step = physics_step_count
+
+    def render_into_camera(
+        self,
+        renderer: BaseRenderer,
+        render_data: Any,
+        camera_data: CameraData,
+        physics_step_count: int,
+    ) -> None:
+        """Sync scene transforms (if needed), render, and copy outputs into ``camera_data``."""
+        self.maybe_update_transforms(physics_step_count)
+        renderer.render(render_data)
+        renderer.read_output(render_data, camera_data)
 
     def reset_stage_prepare_flag(self) -> None:
         """Allow ensure_prepare_stage to run prepare_stage again (e.g. new USD stage)."""

@@ -5,6 +5,7 @@
 
 __all__ = [
     "BaseRenderer",
+    "CameraRenderSpec",
     "Renderer",
     "RendererCfg",
     "RenderContext",
@@ -12,6 +13,7 @@ __all__ = [
 ]
 
 from .base_renderer import BaseRenderer
+from .camera_render_spec import CameraRenderSpec
 from .renderer import Renderer
 from .renderer_cfg import RendererCfg
 from .render_context import RenderContext, renderer_cfgs_compatible

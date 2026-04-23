@@ -20,6 +20,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim.views import XformPrimView
 from isaaclab.utils import has_kit, to_camel_case
 from isaaclab.utils.math import (
@@ -448,7 +449,23 @@ class Camera(SensorBase):
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
         # View needs to exist before creating render data
-        self._render_data = self._renderer.create_render_data(self)
+        cam_paths = tuple(cam_prim.GetPath().pathString for cam_prim in self._view.prims)
+        env_0_prefix = "/World/envs/env_0/"
+        rel_under_env0 = (
+            cam_paths[0].removeprefix(env_0_prefix)
+            if cam_paths and cam_paths[0].startswith(env_0_prefix)
+            else ""
+        )
+        device_str = self._device if isinstance(self._device, str) else str(self._device)
+        render_spec = CameraRenderSpec(
+            cfg=self.cfg,
+            device=device_str,
+            num_instances=self.num_instances,
+            camera_prim_paths=cam_paths,
+            view_count=self._view.count,
+            camera_path_relative_to_env_0=rel_under_env0,
+        )
+        self._render_data = self._renderer.create_render_data(render_spec)
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
@@ -464,11 +481,18 @@ class Camera(SensorBase):
             self._update_poses(env_ids)
 
         sim_ctx = sim_utils.SimulationContext.instance()
+        renderer = self._renderer
+        assert renderer is not None
         if sim_ctx is not None:
-            sim_ctx.render_context.maybe_update_transforms(sim_ctx.get_physics_step_count())
-        self._renderer.render(self._render_data)
-
-        self._renderer.read_output(self._render_data, self._data)
+            sim_ctx.render_context.render_into_camera(
+                renderer,
+                self._render_data,
+                self._data,
+                sim_ctx.get_physics_step_count(),
+            )
+        else:
+            renderer.render(self._render_data)
+            renderer.read_output(self._render_data, self._data)
 
     """
     Private Helpers

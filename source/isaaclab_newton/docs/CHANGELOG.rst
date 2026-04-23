@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.15 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` and
+  ``RenderData`` to use :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec`
+  instead of retaining a reference to the camera sensor.
+
+
 0.5.14 (2026-04-14)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -1,4 +1,5 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers
+# (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,15 +11,27 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
+from isaaclab.sensors.sensor_base import SensorBase
+
+from .camera_render_spec import CameraRenderSpec
+
 if TYPE_CHECKING:
     import torch
 
-    from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
 
 
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
+
+    @property
+    def uses_global_scene_transform_sync(self) -> bool:
+        """Whether :meth:`update_transforms` syncs shared scene state for all cameras.
+
+        When ``True``, :class:`~isaaclab.renderers.render_context.RenderContext` may invoke
+        :meth:`update_transforms` at most once per physics step across all cameras.
+        """
+        return False
 
     @abstractmethod
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
@@ -34,22 +47,31 @@ class BaseRenderer(ABC):
         """
         pass
 
-    @abstractmethod
-    def create_render_data(self, sensor: SensorBase) -> Any:
-        """Create render data for the given sensor.
-
-        The returned object is opaque to the interface: callers pass it to other
-        renderer methods without inspecting its contents. Its structure is
-        implementation-specific (each renderer defines its own type).
+    def create_render_data(self, source: CameraRenderSpec | SensorBase) -> Any:
+        """Create render data for the given camera description.
 
         Args:
-            sensor: The camera sensor to create render data for.
+            source: :class:`CameraRenderSpec` describing the tiled camera. Passing a
+                :class:`~isaaclab.sensors.sensor_base.SensorBase` is deprecated.
 
         Returns:
             Renderer-specific data object holding resources needed for rendering.
             Passed to subsequent render calls.
         """
-        pass
+        spec = CameraRenderSpec.coerce(source)
+        return self._create_render_data_impl(spec)
+
+    @abstractmethod
+    def _create_render_data_impl(self, spec: CameraRenderSpec) -> Any:
+        """Create render data from a :class:`CameraRenderSpec`.
+
+        Args:
+            spec: Immutable camera binding (paths, cfg, device, counts).
+
+        Returns:
+            Renderer-specific opaque handle passed to :meth:`render` and related methods.
+        """
+        raise NotImplementedError
 
     @abstractmethod
     def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]) -> None:

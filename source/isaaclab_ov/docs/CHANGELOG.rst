@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.1.3 (2026-04-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` initialization and
+  :class:`~isaaclab_ov.renderers.OVRTXRenderData` to use
+  :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` instead of the
+  camera sensor instance.
+
+
 0.1.2 (2026-03-23)
 ~~~~~~~~~~~~~~~~~~
 

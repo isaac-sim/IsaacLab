@@ -73,10 +73,14 @@ def test_maybe_update_transforms_dedupes_newton():
     calls: list[int] = []
 
     class FakeNewton:
+        @property
+        def uses_global_scene_transform_sync(self) -> bool:
+            return True
+
         def prepare_stage(self, stage, num_envs):
             pass
 
-        def create_render_data(self, sensor):
+        def _create_render_data_impl(self, spec):
             return object()
 
         def set_outputs(self, render_data, output_data):
