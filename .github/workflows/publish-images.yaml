@@ -61,11 +61,11 @@ jobs:
       run: |
         # Only attempt NGC login if API key is available
         if [ -n "${{ env.NGC_API_KEY }}" ]; then
-          echo "Logging into NGC registry..."
+          echo "🔵 Logging into NGC registry..."
           docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
-          echo "Successfully logged into NGC registry"
+          echo "🟢 Successfully logged into NGC registry"
         else
-          echo "NGC_API_KEY not set - skipping NGC login (normal when secrets are not configured)"
+          echo "🟠 NGC_API_KEY not set - skipping NGC login (normal when secrets are not configured)"
         fi
 
     - name: Build and Push Docker Images
@@ -99,7 +99,7 @@ jobs:
             if [ -n "$VERSION" ]; then
               TAGS+=("$IMAGE:v$VERSION")
             else
-              echo "VERSION file is empty; skipping versioned tag"
+              echo "🟠 VERSION file is empty; skipping versioned tag"
             fi
             ;;
           *)
@@ -109,12 +109,12 @@ jobs:
         esac
 
         # Determine if multiarch is supported by inspecting the base image manifest
-        echo "Checking if base image supports multiarch..."
+        echo "🔵 Checking if base image supports multiarch..."
         BASE_IMAGE_FULL="${{ env.ISAACSIM_BASE_IMAGE }}:${IMAGE_BASE_VERSION}"
         ARCHITECTURES=$(docker manifest inspect "$BASE_IMAGE_FULL" 2>/dev/null | grep -o '"architecture": "[^"]*"' | cut -d'"' -f4 | sort -u)
 
         if [ -z "$ARCHITECTURES" ]; then
-          echo "Could not inspect base image manifest: $BASE_IMAGE_FULL - defaulting to linux/amd64 only"
+          echo "🟠 Could not inspect base image manifest: $BASE_IMAGE_FULL - defaulting to linux/amd64 only"
           BUILD_PLATFORMS="linux/amd64"
         else
           echo "Base image architectures found:"
@@ -124,7 +124,7 @@ jobs:
           HAS_ARM64=$(echo "$ARCHITECTURES" | grep -c "arm64" || true)
 
           if [ "$HAS_AMD64" -gt 0 ] && [ "$HAS_ARM64" -gt 0 ]; then
-            echo "Base image supports multiarch (amd64 + arm64)"
+            echo "🟢 Base image supports multiarch (amd64 + arm64)"
             BUILD_PLATFORMS="linux/amd64,linux/arm64"
           elif [ "$HAS_AMD64" -gt 0 ]; then
             echo "Base image only supports amd64"
@@ -133,7 +133,7 @@ jobs:
             echo "Base image only supports arm64"
             BUILD_PLATFORMS="linux/arm64"
           else
-            echo "Unknown architecture support for $BASE_IMAGE_FULL - defaulting to linux/amd64"
+            echo "🟠 Unknown architecture support for $BASE_IMAGE_FULL - defaulting to linux/amd64"
             BUILD_PLATFORMS="linux/amd64"
           fi
         fi
@@ -163,5 +163,5 @@ jobs:
           --push .
 
         for t in "${TAGS[@]}"; do
-          echo "Successfully built and pushed: $t (platforms: $BUILD_PLATFORMS)"
+          echo "🟢 Successfully built and pushed: $t (platforms: $BUILD_PLATFORMS)"
         done
