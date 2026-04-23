@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backward-compatibility alias: ``XformPrimView`` -> :class:`FrameView`."""
+__all__ = [
+    "NewtonSiteFrameView",
+]
 
-from .frame_view import FrameView
-
-XformPrimView = FrameView
+from .newton_site_frame_view import NewtonSiteFrameView
