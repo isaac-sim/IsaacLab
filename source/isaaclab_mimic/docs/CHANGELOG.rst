@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.2.5 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^
+
+* Replaced the deprecated ``--headless`` CLI flag with ``--viz none`` in the dataset-generation
+  tests under ``isaaclab_mimic/test/`` to silence the ``AppLauncher`` deprecation warning.
+
+
 1.2.4 (2026-04-06)
 ~~~~~~~~~~~~~~~~~~~
 
