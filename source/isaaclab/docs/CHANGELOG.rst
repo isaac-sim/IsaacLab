@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.6.12 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed CI failures in Theia-based observation tests where ``from transformers import AutoModel``
+  raised ``ValueError: Unable to compare versions for packaging>=20.0: need=20.0 found=None`` when
+  Isaac Sim's bundled ``packaging`` install was missing ``dist-info`` metadata. Pinned
+  ``packaging>=20.0`` in ``source/isaaclab/setup.py`` so pip reinstalls the package with proper
+  metadata during setup.
+
+
 4.6.11 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

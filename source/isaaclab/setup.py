@@ -52,7 +52,9 @@ INSTALL_REQUIRES = [
     "debugpy>=1.8.20",
     "flatdict>=4.1.0",
     "flaky",
-    "packaging",
+    # Floor matches transformers' runtime check (require_version("packaging>=20.0")) and forces
+    # pip to reinstall when Isaac Sim's site-packages ship a metadata-less copy.
+    "packaging>=20.0",
     "psutil",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
