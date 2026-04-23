@@ -72,23 +72,23 @@ jobs:
       run: |
         BRANCH_NAME="${{ github.ref_name }}"
         IMAGE_BASE_VERSION="${{ env.ISAACSIM_BASE_VERSION }}"
-        SHORT_SHA="${GITHUB_SHA::7}"
+        SHA="${{ github.sha }}"
         IMAGE="${{ env.ISAACLAB_IMAGE_NAME }}"
 
         echo "Branch: $BRANCH_NAME"
-        echo "Commit: ${{ github.sha }} (short: $SHORT_SHA)"
+        echo "Commit: $SHA"
         echo "IsaacSim base image: ${{ env.ISAACSIM_BASE_IMAGE }}:$IMAGE_BASE_VERSION"
         echo "Target Isaac Lab image: $IMAGE"
 
         # Build the list of tags based on the branch.
         #
         # Tagging scheme:
-        #   - Every build:        $IMAGE:<short-sha>            (immutable, retained for re-testing)
+        #   - Every build:        $IMAGE:<full-sha>             (immutable, retained for re-testing)
         #   - Push to develop:    $IMAGE:latest-develop         (moves to newest develop build)
         #   - Push to release/X:  $IMAGE:latest-release-X       (moves to newest build on that release branch)
         #   - Push to main:       $IMAGE:latest                 (moves to newest main build)
         #                         $IMAGE:v<VERSION>             (from the VERSION file, e.g. v3.0.0)
-        TAGS=("$IMAGE:$SHORT_SHA")
+        TAGS=("$IMAGE:$SHA")
 
         case "$BRANCH_NAME" in
           develop)
@@ -111,7 +111,7 @@ jobs:
             ;;
           *)
             # Other tracked branches only get the immutable sha tag.
-            echo "Branch '$BRANCH_NAME' has no moving tag; only $IMAGE:$SHORT_SHA will be published."
+            echo "Branch '$BRANCH_NAME' has no moving tag; only $IMAGE:$SHA will be published."
             ;;
         esac
 
