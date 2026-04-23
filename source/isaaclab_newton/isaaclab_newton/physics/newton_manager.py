@@ -34,6 +34,7 @@ from newton.sensors import SensorIMU as NewtonSensorIMU
 from newton.solvers import SolverBase, SolverFeatherstone, SolverKamino, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
@@ -500,10 +501,10 @@ class NewtonManager(PhysicsManager):
             **kwargs: Forwarded to :class:`ModelBuilder`.
 
         Returns:
-            New builder with up-axis and contact margin defaults applied.
+            New builder with up-axis and gap defaults applied.
         """
         builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
-        builder.default_shape_cfg.contact_margin = 0.01
+        builder.default_shape_cfg.gap = 0.01
         return builder
 
     @classmethod
@@ -749,6 +750,8 @@ class NewtonManager(PhysicsManager):
             cls._model = cls._builder.finalize(device=device)
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
+
+            replace_newton_shape_colors(cls._model)
 
         if cls._pending_extended_contact_attributes:
             cls._model.request_contact_attributes(*cls._pending_extended_contact_attributes)

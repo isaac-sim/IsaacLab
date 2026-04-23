@@ -10,7 +10,7 @@ import torch
 import warp as wp
 
 import isaaclab.utils.math as math_utils
-from isaaclab.sim.views import XformPrimView
+from isaaclab.sim.views import FrameView
 
 from .occupancy_map_utils import OccupancyMap, intersect_occupancy_maps
 from .transform_utils import transform_mul
@@ -101,19 +101,21 @@ class SceneAsset(HasPose):
         self.scene = scene
         self.entity_name = entity_name
 
-    def _get_xform_view(self) -> XformPrimView:
-        """Return the XformPrimView for this asset, refreshing it if prims were not yet cloned."""
+    def _get_xform_view(self) -> FrameView:
+        """Return the FrameView for this asset, refreshing it if prims were not yet cloned."""
         xform_prim = self.scene[self.entity_name]
         if xform_prim.count == 0:
             # The view was created before environment cloning; rebuild it now that prims exist.
-            xform_prim = XformPrimView(xform_prim._prim_path, device=xform_prim.device)
+            xform_prim = FrameView(xform_prim._prim_path, device=xform_prim.device)
             self.scene.extras[self.entity_name] = xform_prim
         return xform_prim
 
     def get_pose(self):
         """Get the 3D pose of the entity."""
         xform_prim = self._get_xform_view()
-        position, orientation = xform_prim.get_world_poses()
+        pos_wp, ori_wp = xform_prim.get_world_poses()
+        position = wp.to_torch(pos_wp)
+        orientation = wp.to_torch(ori_wp)
         pose = torch.cat([position, orientation], dim=-1)
         return pose
 
@@ -122,7 +124,7 @@ class SceneAsset(HasPose):
         xform_prim = self._get_xform_view()
         position = pose[..., :3]
         orientation = pose[..., 3:]
-        xform_prim.set_world_poses(position, orientation, None)
+        xform_prim.set_world_poses(wp.from_torch(position.contiguous()), wp.from_torch(orientation.contiguous()), None)
 
 
 class RelativePose(HasPose):

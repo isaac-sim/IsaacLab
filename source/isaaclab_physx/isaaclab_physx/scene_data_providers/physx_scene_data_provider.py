@@ -18,6 +18,7 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
+from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     """Scene data provider for Omni PhysX backend.
 
     Supports:
-    - body poses via PhysX tensor views, with XformPrimView fallback
+    - body poses via PhysX tensor views, with FrameView fallback
     - camera poses & intrinsics
     - USD stage handles
     - Newton model/state handles
@@ -217,6 +218,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
         self._newton_model = model
         self._newton_state = state
+
+        # The Newton artifact was generated before all envs were cloned on the stage, so we update the shape colors
+        # in the Newton model here as the envs should have been cloned.
+        replace_newton_shape_colors(self._newton_model, self._stage)
+
         body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
         # Keep one-to-one alignment between `body_paths` and Newton `state.body_q`.
         # Articulation root prims are not body_q entries and must not be mixed here.
@@ -259,6 +265,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._last_newton_model_build_source = (
                 "usd_fallback_forced" if self._force_usd_fallback_for_newton_model_build else "usd_fallback"
             )
+
             from newton import ModelBuilder
 
             builder = ModelBuilder(up_axis=self._up_axis)
@@ -267,8 +274,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                 builder.begin_world()
                 builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
                 builder.end_world()
+
             self._newton_model = builder.finalize(device=self._device)
             self._newton_state = self._newton_model.state()
+
+            replace_newton_shape_colors(self._newton_model, self._stage)
 
             # Extract scene structure from Newton model (single source of truth)
             self._rigid_body_paths = self._model_body_paths(self._newton_model)
@@ -337,8 +347,11 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                 builder.begin_world()
                 builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
                 builder.end_world()
+
             self._filtered_newton_model = builder.finalize(device=self._device)
             self._filtered_newton_state = self._filtered_newton_model.state()
+
+            replace_newton_shape_colors(self._filtered_newton_model, self._stage)
 
             full_index_by_path = {path: i for i, path in enumerate(self._rigid_body_paths)}
             filtered_paths = self._model_body_paths(self._filtered_newton_model)
@@ -547,13 +560,13 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return count
 
     def _apply_xform_poses(self, positions: Any, orientations: Any, covered: Any, xform_mask: Any) -> int:
-        """Fill remaining poses using XformPrimView (USD fallback).
+        """Fill remaining poses using FrameView (USD fallback).
 
         This is slower but more robust when PhysX views don't cover all bodies.
         """
         import torch
 
-        from isaaclab.sim.views import XformPrimView
+        from isaaclab.sim.views import FrameView
 
         uncovered = torch.where(~covered)[0].cpu().tolist()
         if not uncovered:
@@ -565,14 +578,14 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             path = self._rigid_body_paths[idx]
             try:
                 if path not in self._xform_views:
-                    self._xform_views[path] = XformPrimView(
+                    self._xform_views[path] = FrameView(
                         path, device=self._device, stage=self._stage, validate_xform_ops=False
                     )
 
-                pos, quat = self._xform_views[path].get_world_poses()
-                if pos is not None and quat is not None:
-                    positions[idx] = pos.to(device=self._device, dtype=torch.float32).squeeze()
-                    orientations[idx] = quat.to(device=self._device, dtype=torch.float32).squeeze()
+                pos_wp, quat_wp = self._xform_views[path].get_world_poses()
+                if pos_wp is not None and quat_wp is not None:
+                    positions[idx] = wp.to_torch(pos_wp).to(device=self._device, dtype=torch.float32).squeeze()
+                    orientations[idx] = wp.to_torch(quat_wp).to(device=self._device, dtype=torch.float32).squeeze()
                     covered[idx] = True
                     xform_mask[idx] = True
                     count += 1
@@ -592,7 +605,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     def _convert_xform_quats(self, orientations: Any, xform_mask: Any) -> Any:
         """Return quaternions in xyzw convention.
 
-        PhysX views, XformPrimView, and resolve_prim_pose() in Isaac Lab all use xyzw.
+        PhysX views, FrameView, and resolve_prim_pose() in Isaac Lab all use xyzw.
         Keeping this helper as a no-op preserves a single conversion point if conventions
         ever diverge again.
         """

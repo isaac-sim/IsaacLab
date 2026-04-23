@@ -189,6 +189,7 @@ class AppLauncher:
         self._offscreen_render: bool  # 0: Disabled, 1: Enabled
         self._sim_experience_file: str  # Experience file to load
         self._visualizer_max_worlds: int | None  # Optional max worlds override for Newton-based visualizers
+        self._video_enabled: bool  # Whether --video recording is enabled
 
         # Exposed to train scripts
         self.device_id: int  # device ID for GPU simulation (defaults to 0)
@@ -858,12 +859,13 @@ class AppLauncher:
 
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
+        self._video_enabled = bool(launcher_args.get("video", False))
         # Check if we can disable the viewport to improve performance
         #   This should only happen if we are running headless and do not require livestreaming or video recording
         #   This is different from offscreen_render because this only affects the default viewport and
         #   not other render-products in the scene
         self._render_viewport = True
-        if self._headless and not self._livestream and not launcher_args.get("video", False):
+        if self._headless and not self._livestream and not self._video_enabled:
             self._render_viewport = False
 
         # hide_ui flag
@@ -1085,6 +1087,8 @@ class AppLauncher:
         # (no Kit GUI) the AR profile must be enabled programmatically so that
         # the OpenXR session starts without user interaction
         settings.set_bool("/isaaclab/xr/auto_start", self._headless and self._xr)
+        # set setting to indicate video recording mode
+        settings.set_bool("/isaaclab/video/enabled", self._video_enabled)
 
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)

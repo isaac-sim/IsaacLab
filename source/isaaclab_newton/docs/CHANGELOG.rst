@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.16 (2026-04-17)
+0.5.21 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -26,6 +26,76 @@ Fixed
   ``step()`` inside graph capture. These memory-pool addresses become stale without a
   warm-up ``wp.capture_launch`` replay to pin them before any eager ``solver.reset()`` call.
 
+
+0.5.20 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.views.XformPrimView` providing the Newton
+  backend implementation for xform prim views.
+
+Changed
+^^^^^^^
+
+* Renamed :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView` to
+  :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`. Old name is kept as a deprecated alias.
+
+
+0.5.19 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated ``write_data_to_sim`` in :class:`~isaaclab_newton.assets.Articulation`,
+  :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
+  to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
+  applied after body-frame composition.
+
+
+0.5.18 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Upgraded Newton from ``2684d75`` to ``a27277e``. Includes collision improvements, contact quality fixes,
+  hydroelastic contact optimization, and memory usage fixes in CollisionPipeline. For details see
+  ``Newton changelog <https://github.com/newton-physics/newton/blob/main/CHANGELOG.md>``.
+* Pinned ``mujoco`` and ``mujoco-warp`` to ``3.6.0`` to align with the Newton library.
+
+
+0.5.17 (2026-04-20)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton visualization colors drifting from the USD stage by calling
+  :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_shape_colors`
+  after the model is finalized in :class:`~isaaclab_newton.physics.NewtonManager`.
+
+Changed
+^^^^^^^
+
+* Changed Newton Warp tiled camera outputs to clear with a light linear gray
+  (0xFFEEEEEE, 93% gray, fully opaque) background via ``SensorTiledCamera.ClearData``
+  in :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`.
+
+
+0.5.16 (2026-04-17)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed incorrect attribute name ``contact_margin`` on Newton
+  ``ShapeConfig`` in
+  :meth:`~isaaclab_newton.physics.NewtonManager.create_builder`. The
+  field was renamed to ``gap`` in Newton PR #1732. The typo created a
+  dead attribute so the intended 1 cm default shape gap was never applied.
 
 
 0.5.15 (2026-04-16)
@@ -100,10 +170,6 @@ Fixed
   pipeline. Added :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk`
   so articulation write methods trigger ``eval_fk`` before the next
   ``collide()``.
-
-
-0.5.9 (2026-03-16)
-~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

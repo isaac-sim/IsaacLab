@@ -256,40 +256,23 @@ class Articulation(BaseArticulation):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to the simulation
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._instantaneous_wrench_composer.composed_force,
-                        self._instantaneous_wrench_composer.composed_torque,
-                        self._data._sim_bind_body_external_wrench,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
-                # Apply permanent wrench to the simulation
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._permanent_wrench_composer.composed_force,
-                        self._permanent_wrench_composer.composed_torque,
-                        self._data._sim_bind_body_external_wrench,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._permanent_wrench_composer
+            composer.compose_to_body_frame()
+            wp.launch(
+                shared_kernels.update_wrench_array_with_force_and_torque,
+                dim=(self.num_instances, self.num_bodies),
+                device=self.device,
+                inputs=[
+                    composer.out_force_b,
+                    composer.out_torque_b,
+                    self._data._sim_bind_body_external_wrench,
+                    self._ALL_ENV_MASK,
+                    self._ALL_BODY_MASK,
+                ],
+            )
         self._instantaneous_wrench_composer.reset()
 
         # apply actuator models

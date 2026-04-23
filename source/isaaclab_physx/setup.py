@@ -16,11 +16,13 @@ EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
 # Minimum dependencies required prior to installation
-INSTALL_REQUIRES = [
-    # INTENTIONALLY disabled to avoid circular dependency with isaaclab_physx, which also depends on isaaclab_newton.
-    # This will be re-enabled once we move to UV and pyproject.toml-based packaging.
-    # f"isaaclab_newton @ file://{os.path.join(os.path.dirname(EXTENSION_PATH), 'isaaclab_newton')}",
-]
+INSTALL_REQUIRES = []
+
+EXTRAS_REQUIRE = {
+    "newton": [
+        "newton @ git+https://github.com/newton-physics/newton.git@2684d75bfa4bb8b058a93b81c458a74b7701c997",
+    ],
+}
 
 # Installation operation
 setup(
@@ -36,6 +38,7 @@ setup(
     package_data={"": ["*.pyi"]},
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
+    extras_require=EXTRAS_REQUIRE,
     packages=[
         "isaaclab_physx",
         "isaaclab_physx.assets",
