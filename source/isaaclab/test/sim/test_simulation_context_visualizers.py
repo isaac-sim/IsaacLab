@@ -35,6 +35,8 @@ class _FakeProvider:
 
 
 class _FakeVisualizer:
+    """Minimal visualizer for orchestration tests."""
+
     def __init__(
         self,
         *,
@@ -219,7 +221,8 @@ def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: p
     assert visualizer._sim_time == pytest.approx(0.25)
     assert viewer.calls[0][0] == "begin_frame"
     assert viewer.calls[0][1] == pytest.approx(0.25)
-    assert viewer.calls[1] == ("log_state", {"state_call": 2, "env_ids": None})
+    # log_state passes through get_newton_state() as-is; no env_ids (or other) keys are merged in.
+    assert viewer.calls[1] == ("log_state", {"state_call": 2})
     assert viewer.calls[2] == ("end_frame",)
 
 

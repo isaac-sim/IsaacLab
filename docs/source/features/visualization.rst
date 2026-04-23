@@ -360,7 +360,7 @@ server, allowing you to view and interact with the scene from any browser.
         open_browser=True,
         label="Isaac Lab Simulation",
         share=False,
-        max_worlds=64,
+        max_visible_envs=16,
     )
 
 **Configuration options:**
@@ -371,7 +371,6 @@ server, allowing you to view and interact with the scene from any browser.
 - ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
 - ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
 - ``verbose`` (bool, default ``True``): Print viewer server startup information.
-- ``max_worlds`` (int or None, default ``None``): Maximum number of environments rendered.
 
 .. note::
 

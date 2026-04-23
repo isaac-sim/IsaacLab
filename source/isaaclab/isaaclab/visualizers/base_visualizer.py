@@ -136,7 +136,7 @@ class BaseVisualizer(ABC):
         Returns:
             Visualized environment ids, or ``None`` for all environments.
         """
-        return getattr(self, "_env_ids", None)
+        return self._env_ids
 
     def _compute_visualized_env_ids(self) -> list[int] | None:
         """Compute which environment indices to visualize from config.
