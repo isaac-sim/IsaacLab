@@ -17,8 +17,10 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
 from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.flat_env_cfg import AnymalCFlatEnvCfg
+from isaaclab_tasks.utils.hydra import resolve_presets
 
 LOW_LEVEL_ENV_CFG = AnymalCFlatEnvCfg()
+resolve_presets(LOW_LEVEL_ENV_CFG)
 
 
 @configclass
@@ -137,8 +139,14 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.dt = LOW_LEVEL_ENV_CFG.sim.dt
         self.sim.render_interval = LOW_LEVEL_ENV_CFG.decimation
+        self.sim.physics_material = self.scene.terrain.physics_material
         self.decimation = LOW_LEVEL_ENV_CFG.decimation * 10
         self.episode_length_s = self.commands.pose_command.resampling_time_range[1]
+
+        # Resolve any PresetCfg wrappers in the scene so that update_period
+        # is set on the actual sensor config rather than the wrapper (which
+        # would be discarded by a later resolve_presets call).
+        resolve_presets(self.scene)
 
         if self.scene.height_scanner is not None:
             self.scene.height_scanner.update_period = (
