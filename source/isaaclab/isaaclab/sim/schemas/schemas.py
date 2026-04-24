@@ -1207,6 +1207,26 @@ def define_deformable_body_properties(
             Only surface and volume deformables are supported."""
         )
 
+    # TODO: Temporary solution: Overwrite visual mesh with tet mesh surface points or copy
+    # surface sim mesh to vis mesh. In the future we can have separate visual from simulation mesh.
+    # This currently does not work if an asset is loaded where the visual mesh is not the simulation mesh surface.
+    vis_mesh = UsdGeom.Mesh(vis_mesh_prim)
+    if deformable_type == "volume":
+        tet_mesh_prim = UsdGeom.TetMesh(sim_mesh_prim)
+        surface_indices = tet_mesh_prim.GetSurfaceFaceVertexIndicesAttr().Get()
+        if surface_indices is None or len(surface_indices) == 0:
+            raise ValueError(
+                f"Deformable body at '{prim_path}' has no surface indices on its TetMesh prim; "
+                "cannot sync to visual mesh."
+            )
+        vis_mesh.GetPointsAttr().Set(tet_mesh_prim.GetPointsAttr().Get())
+        vis_mesh.GetFaceVertexIndicesAttr().Set(np.asarray(surface_indices).flatten())
+        vis_mesh.GetFaceVertexCountsAttr().Set([3] * len(surface_indices))
+    else:
+        sim_mesh = UsdGeom.Mesh(sim_mesh_prim)
+        vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
+        vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
+
     # bind visual to sim mesh by applying bind pose deformable pose API
     purposes = ["bindPose"]
     vis_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")

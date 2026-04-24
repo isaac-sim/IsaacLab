@@ -123,6 +123,7 @@ class NewtonManager(PhysicsManager):
     _transforms_dirty: bool = False
     _particles_dirty: bool = False
     _newton_particle_offset_attr = "newton:particleOffset"
+    _newton_particle_count_attr = "newton:particleCount"
 
     # cubric GPU transform hierarchy (replaces CPU update_world_xforms)
     _cubric = None
