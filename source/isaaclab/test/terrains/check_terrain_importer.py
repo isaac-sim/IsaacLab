@@ -153,8 +153,8 @@ def main():
         physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
     )
 
-    # Set ball positions over terrain origins using XformPrimView (before simulation starts)
-    xform_view = sim_utils.XformPrimView("/World/envs/env_.*/ball")
+    # Set ball positions over terrain origins using FrameView (before simulation starts)
+    xform_view = sim_utils.FrameView("/World/envs/env_.*/ball")
     # cache initial state of the balls
     ball_initial_positions = terrain_importer.env_origins.clone()
     ball_initial_positions[:, 2] += 5.0

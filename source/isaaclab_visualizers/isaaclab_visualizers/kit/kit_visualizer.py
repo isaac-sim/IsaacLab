@@ -11,10 +11,12 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from pxr import UsdGeom
+from pxr import Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .kit_visualizer_cfg import KitVisualizerCfg
 
@@ -45,6 +47,8 @@ class KitVisualizer(BaseVisualizer):
         self._sim_time = 0.0
         self._step_counter = 0
         self._hidden_env_visibilities: dict[str, str] = {}
+        # PointInstancer prim path -> (had authored invisibleIds, previous value) for partial viz restore.
+        self._point_instancer_invisible_ids_backup: dict[str, tuple[bool, object]] = {}
         self._runtime_headless = bool(cfg.headless)
         # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
         self._controlled_camera_path: str | None = None
@@ -73,12 +77,18 @@ class KitVisualizer(BaseVisualizer):
         self._setup_viewport()
 
         self._env_ids = self._compute_visualized_env_ids()
-        if self._env_ids:
+        num_envs_meta = int(metadata.get("num_envs", 0))
+        self._resolved_visible_env_ids = resolve_visible_env_indices(
+            self._env_ids, self.cfg.max_visible_envs, num_envs_meta
+        )
+        if self._resolved_visible_env_ids is not None:
             logger.warning(
-                "[KitVisualizer] env_filter_ids filtering is cosmetic only (no perf gain) in OV; hiding other envs."
+                "[KitVisualizer] Partial visualization in Kit uses visibility only; unselected env prims are hidden."
             )
-            self._apply_env_visibility(usd_stage, metadata)
-        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+            self._apply_env_visibility(usd_stage, metadata, self._resolved_visible_env_ids)
+        num_visualized_envs = (
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs_meta
+        )
         self._log_initialization_table(
             logger=logger,
             title="KitVisualizer Configuration",
@@ -86,6 +96,7 @@ class KitVisualizer(BaseVisualizer):
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
                 ("cam_source", self.cfg.cam_source),
+                ("max_visible_envs", self.cfg.max_visible_envs),
                 ("num_visualized_envs", num_visualized_envs),
                 ("create_viewport", self.cfg.create_viewport),
                 ("headless", self._runtime_headless),
@@ -117,6 +128,9 @@ class KitVisualizer(BaseVisualizer):
                 settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
+        # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
+        # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
+        self._refresh_partial_viz_point_instancers_if_needed()
 
     def close(self) -> None:
         """Close viewport resources and restore temporary state."""
@@ -177,10 +191,17 @@ class KitVisualizer(BaseVisualizer):
     ) -> None:
         """Set active viewport camera eye/target.
 
+        When :attr:`self.cfg.cam_source` is ``"cfg"``, this is a no-op: the pose comes only from
+        :attr:`self.cfg.eye` / :attr:`self.cfg.lookat` (applied in :meth:`_setup_viewport`). Otherwise
+        :class:`~isaaclab.sim.simulation_context.SimulationContext` and :class:`ViewportCameraController`
+        would overwrite that pose with :class:`~isaaclab.envs.common.ViewerCfg`-driven views.
+
         Args:
             eye: Camera eye position.
             target: Camera look-at target.
         """
+        if self.cfg.cam_source == "cfg":
+            return
         if not self._is_initialized:
             logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
@@ -352,14 +373,12 @@ class KitVisualizer(BaseVisualizer):
         self._viewport_api.set_active_camera(camera_path)
         return True
 
-    def _apply_env_visibility(self, usd_stage, metadata: dict) -> None:
-        """Hide non-selected environments for cosmetic env filtering."""
-        if not self._env_ids:
-            return
+    def _apply_env_visibility(self, usd_stage, metadata: dict, visible_env_ids: list[int]) -> None:
+        """Hide environments not listed in ``visible_env_ids`` (cosmetic partial visualization)."""
         num_envs = int(metadata.get("num_envs", 0))
         if num_envs <= 0:
             return
-        visible = set(self._env_ids)
+        visible = set(visible_env_ids)
         for env_id in range(num_envs):
             if env_id in visible:
                 continue
@@ -376,10 +395,63 @@ class KitVisualizer(BaseVisualizer):
                 self._hidden_env_visibilities[env_path] = prev
             attr.Set(UsdGeom.Tokens.invisible)
 
-    def _restore_env_visibility(self) -> None:
-        """Restore environment visibilities modified by env filtering."""
-        if not self._hidden_env_visibilities:
+        self._apply_visual_point_instancer_visibility(usd_stage, num_envs, visible)
+
+    def _refresh_partial_viz_point_instancers_if_needed(self) -> None:
+        """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
+        if self._resolved_visible_env_ids is None or self._scene_data_provider is None:
             return
+        usd_stage = self._scene_data_provider.get_usd_stage()
+        if usd_stage is None:
+            return
+        num_envs = int(self._scene_data_provider.get_metadata().get("num_envs", 0))
+        if num_envs <= 0:
+            return
+        self._apply_visual_point_instancer_visibility(usd_stage, num_envs, set(self._resolved_visible_env_ids))
+
+    def _apply_visual_point_instancer_visibility(self, usd_stage, num_envs: int, visible_env_ids: set[int]) -> None:
+        """Set ``PointInstancer.invisibleIds`` for per-env `/Visuals` markers (e.g. velocity arrows)."""
+        hidden = [i for i in range(num_envs) if i not in visible_env_ids]
+        vt_hidden = Vt.Int64Array([int(i) for i in hidden])
+        for root_path in ("/Visuals", "/World/Visuals"):
+            root_prim = usd_stage.GetPrimAtPath(root_path)
+            if not root_prim.IsValid():
+                continue
+            for prim in Usd.PrimRange(root_prim):
+                if not prim.IsA(UsdGeom.PointInstancer):
+                    continue
+                pi = UsdGeom.PointInstancer(prim)
+                n = self._point_instancer_instance_count(pi)
+                if n is None or n != num_envs:
+                    continue
+                path_str = prim.GetPath().pathString
+                inv_attr = pi.GetInvisibleIdsAttr()
+                # Record original authorship/value once per instancer for :meth:`_restore_env_visibility`.
+                if path_str not in self._point_instancer_invisible_ids_backup:
+                    was_authored = inv_attr.HasAuthoredValue()
+                    prev = inv_attr.Get() if was_authored else None
+                    self._point_instancer_invisible_ids_backup[path_str] = (was_authored, prev)
+                inv_attr.Set(vt_hidden)
+
+    @staticmethod
+    def _point_instancer_instance_count(pi: UsdGeom.PointInstancer) -> int | None:
+        """Return instance count from the first authored per-instance array, if any."""
+        for attr in (
+            pi.GetPositionsAttr(),
+            pi.GetScalesAttr(),
+            pi.GetOrientationsAttr(),
+            pi.GetProtoIndicesAttr(),
+        ):
+            if not attr.HasAuthoredValue():
+                continue
+            val = attr.Get()
+            if val is None:
+                continue
+            return len(val)
+        return None
+
+    def _restore_env_visibility(self) -> None:
+        """Restore environment visibilities and PointInstancer ``invisibleIds`` from partial viz."""
         usd_stage = self._scene_data_provider.get_usd_stage() if self._scene_data_provider else None
         if usd_stage is None:
             return
@@ -392,3 +464,14 @@ class KitVisualizer(BaseVisualizer):
                 continue
             imageable.GetVisibilityAttr().Set(prev)
         self._hidden_env_visibilities.clear()
+
+        for path_str, (was_authored, prev) in self._point_instancer_invisible_ids_backup.items():
+            prim = usd_stage.GetPrimAtPath(path_str)
+            if not prim.IsValid() or not prim.IsA(UsdGeom.PointInstancer):
+                continue
+            inv_attr = UsdGeom.PointInstancer(prim).GetInvisibleIdsAttr()
+            if not was_authored:
+                inv_attr.Clear()
+            else:
+                inv_attr.Set(prev)
+        self._point_instancer_invisible_ids_backup.clear()

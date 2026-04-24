@@ -12,6 +12,7 @@ Each sensor class should inherit from this class and implement the abstract meth
 from __future__ import annotations
 
 import inspect
+import logging
 import re
 import weakref
 from abc import ABC, abstractmethod
@@ -28,6 +29,8 @@ from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_time
 
 if TYPE_CHECKING:
     from .sensor_base_cfg import SensorBaseCfg
+
+logger = logging.getLogger(__name__)
 
 
 class SensorBase(ABC):
@@ -386,3 +389,71 @@ class SensorBase(ABC):
             self._reset_mask.zero_()
             self._reset_mask_torch[env_ids] = True
             return self._reset_mask
+
+    def _resolve_and_spawn(self, sensor_name: str, **spawn_kwargs) -> None:
+        """Resolve physics-body prim paths and spawn the sensor prim if needed.
+
+        Behavior matrix (``spawn`` refers to ``cfg.spawn``):
+
+        +----------------+------------------+--------------------------------------------+
+        | ``spawn``      | ``prim_path``    | Action                                     |
+        +================+==================+============================================+
+        | not ``None``   | physics body     | Append ``/<sensor_name>``, spawn child.    |
+        +----------------+------------------+--------------------------------------------+
+        | not ``None``   | non-physics prim | Use existing prim, skip spawn.             |
+        |                | (already exists) |                                            |
+        +----------------+------------------+--------------------------------------------+
+        | not ``None``   | does not exist   | Spawn prim at ``prim_path``.               |
+        +----------------+------------------+--------------------------------------------+
+        | ``None``       | physics body     | Raise ``ValueError``.                      |
+        +----------------+------------------+--------------------------------------------+
+        | ``None``       | non-physics prim | Use as-is (no spawn).                      |
+        +----------------+------------------+--------------------------------------------+
+
+        Args:
+            sensor_name: Short identifier (e.g. ``"raycaster"``, ``"camera"``).
+            **spawn_kwargs: Extra keyword arguments forwarded to ``cfg.spawn.func``
+                (e.g. ``translation``, ``orientation``).
+
+        Raises:
+            ValueError: If ``spawn`` is ``None`` and ``prim_path`` is a physics body.
+            RuntimeError: If the prim does not exist after the spawn attempt.
+        """
+        from pxr import UsdPhysics  # noqa: PLC0415
+
+        spawn = getattr(self.cfg, "spawn", None)
+        has_spawn = spawn is not None
+
+        # Determine the path to probe for physics-body redirect
+        spawn_path = (getattr(spawn, "spawn_path", None) or self.cfg.prim_path) if has_spawn else None
+        probe_path = spawn_path if spawn_path is not None else self.cfg.prim_path
+
+        prim = sim_utils.find_first_matching_prim(probe_path)
+        if prim is not None and prim.IsValid():
+            is_physics = prim.HasAPI(UsdPhysics.ArticulationRootAPI) or prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            if is_physics:
+                if not has_spawn:
+                    raise ValueError(
+                        f"Sensor prim_path '{self.cfg.prim_path}' resolves to a physics body but"
+                        f" no spawner is configured (spawn=None). Either set spawn or point"
+                        f" prim_path at a non-physics child (e.g. '{self.cfg.prim_path}/{sensor_name}')."
+                    )
+                logger.info(
+                    f"Sensor prim_path '{self.cfg.prim_path}' points at a physics body."
+                    f" Redirecting to '{self.cfg.prim_path}/{sensor_name}'."
+                )
+                self.cfg.prim_path = f"{self.cfg.prim_path}/{sensor_name}"
+                if getattr(spawn, "spawn_path", None) is not None:
+                    spawn.spawn_path = f"{spawn.spawn_path}/{sensor_name}"
+
+        if not has_spawn:
+            return
+
+        spawn_target = getattr(spawn, "spawn_path", None) or self.cfg.prim_path
+        prim = sim_utils.find_first_matching_prim(spawn_target)
+        if prim is None or not prim.IsValid():
+            spawn.func(spawn_target, spawn, **spawn_kwargs)
+
+        check_path = getattr(spawn, "spawn_path", None) or self.cfg.prim_path
+        if len(sim_utils.find_matching_prims(check_path)) == 0:
+            raise RuntimeError(f"Could not find prim with path {check_path!r}.")
