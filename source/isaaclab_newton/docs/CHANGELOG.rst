@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.23 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` to match the
+  new :class:`~isaaclab.sim.views.BaseFrameView` TorchArray return contract.
+  See the ``isaaclab`` 4.6.15 changelog for migration guidance.
+
+
 0.5.22 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 
