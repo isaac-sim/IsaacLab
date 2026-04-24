@@ -52,20 +52,22 @@ def _patch_isaacsim_simulation_manager():
     To prevent this, we disable the original class's default callbacks here
     *before* swapping the module attribute, so :class:`PhysxManager` becomes
     the single owner of the simulation lifecycle.
+
+    This function is intentionally lazy: it only patches if
+    ``isaacsim.core.simulation_manager`` is already present in ``sys.modules``.
+    In the normal production flow Kit loads that module during extension startup,
+    before any user script imports :mod:`isaaclab_physx`, so the condition is
+    true and the patch fires on time. If :mod:`isaaclab_physx` happens to be
+    imported for pure config loading before Kit has launched (e.g. in
+    ``test_env_cfg_no_forbidden_imports``), the module is absent and this
+    function is a no-op — which is correct, because no callbacks have been
+    registered yet.
     """
-    # Force-import Isaac Sim's SimulationManager before patching so that the
-    # subscriptions registered during its module/extension startup are taken
-    # down deterministically here, regardless of the order in which Kit
-    # extensions or user code happen to import the module.
-    try:
-        import isaacsim.core.simulation_manager  # noqa: F401
-    except ImportError:
-        # Isaac Sim is not installed (e.g. during ``./isaaclab.sh --install``
-        # bootstrap or in pure unit-test environments). Nothing to patch.
+    original_module = sys.modules.get("isaacsim.core.simulation_manager")
+    if original_module is None:
         return
 
-    original_module = sys.modules["isaacsim.core.simulation_manager"]
-    from .physics.physx_manager import PhysxManager, IsaacEvents
+    from .physics.physx_manager import IsaacEvents, PhysxManager
 
     # Tear down the original Isaac Sim SimulationManager's default timeline /
     # stage subscriptions so they cannot invalidate the omni.physics.tensors

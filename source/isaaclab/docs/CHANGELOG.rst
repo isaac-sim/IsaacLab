@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+4.6.14 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.randomize_visual_color` and
+  :class:`~isaaclab.envs.mdp.randomize_visual_texture` failing with
+  ``'rtx::neuraylib::MdlModuleId' for '' is Invalid`` on Replicator >= 1.13.0.
+  Kit's ``omni_usd_resolver`` intentionally returns an empty string when resolving
+  builtin MDL short-names such as ``OmniPBR.mdl`` (``OMNI_USD_RESOLVER_MDL_BUILTIN_BYPASS=1``),
+  but Replicator's ``create_sdf_spec_material`` now passes that empty resolved path directly
+  into ``UsdMdl.RegistryUtils.GetSubIdentifiersForAsset``. The fix pre-resolves the absolute
+  on-disk path via ``carb.tokens`` (``${kit}/mdl/core/Base/OmniPBR.mdl``) before handing it
+  to Replicator so the resolver returns a valid path.
+
+
 4.6.13 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

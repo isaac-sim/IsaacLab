@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.5.24 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Deferred the Isaac Sim ``SimulationManager`` patch in
+  :mod:`isaaclab_physx` so that ``import isaaclab_physx`` no longer eagerly
+  imports ``isaacsim``, ``omni`` or ``carb``. The patch is now applied via a
+  :class:`importlib.abc.MetaPathFinder` the first time
+  ``isaacsim.core.simulation_manager`` is loaded by Kit, allowing pure-data
+  config classes that depend on :class:`~isaaclab_physx.physics.PhysxCfg` to
+  be constructed before SimulationApp has launched (regression caught by
+  ``test_env_cfg_no_forbidden_imports``).
+
+
 0.5.23 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
