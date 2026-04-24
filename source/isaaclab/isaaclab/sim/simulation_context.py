@@ -350,7 +350,13 @@ class SimulationContext:
 
     def has_active_visualizers(self) -> bool:
         """Return whether any visualizer path is active for rendering/camera control."""
-        return bool(self.get_setting("/isaaclab/visualizer/types"))
+        return bool(self.get_setting("/isaaclab/visualizer/types")) or bool(
+            self.get_setting("/isaaclab/video/auto_start_kit")
+        )
+
+    def can_render_rgb_array(self) -> bool:
+        """Return whether rgb-array rendering is currently available."""
+        return self.has_gui or self.has_offscreen_render or self.has_active_visualizers()
 
     @property
     def is_rendering(self) -> bool:
@@ -425,39 +431,23 @@ class SimulationContext:
         # App launcher writes this as a single string; accept comma and/or whitespace separators.
         return [value for chunk in requested.split(",") for value in chunk.split() if value]
 
-    def _get_cli_visualizer_max_worlds_override(self) -> tuple[bool, int | None]:
-        """Return CLI override for visualizer max worlds.
-
-        Returns:
-            Tuple of (has_override, value), where value=None means no override.
-        """
-        value = self.get_setting("/isaaclab/visualizer/max_worlds")
-        if value is None:
-            return False, None
-        try:
-            max_worlds = int(value)
-        except (TypeError, ValueError):
-            logger.warning("[SimulationContext] Invalid /isaaclab/visualizer/max_worlds setting: %r", value)
-            return False, None
-
-        # -1 means no CLI override.
-        if max_worlds < 0:
-            return False, None
-        return True, max_worlds
-
     def _apply_visualizer_cli_overrides(self, visualizer_cfgs: list[Any]) -> None:
-        """Apply CLI visualizer overrides (e.g., max worlds) to resolved configs.
+        """Apply ``--max_visible_envs`` to every resolved visualizer cfg when set in settings.
 
-        Args:
-            visualizer_cfgs: Resolved visualizer configs to update in-place.
+        AppLauncher stores ``/isaaclab/visualizer/max_visible_envs`` as ``-1`` when the flag was
+        omitted; any non-negative int overrides :attr:`VisualizerCfg.max_visible_envs` on each cfg.
         """
-        has_max_worlds_override, max_worlds_override = self._get_cli_visualizer_max_worlds_override()
-        if not has_max_worlds_override:
+        raw = self.get_setting("/isaaclab/visualizer/max_visible_envs")
+        try:
+            max_visible = int(raw) if raw is not None else -1
+        except (TypeError, ValueError):
+            logger.warning("[SimulationContext] Invalid /isaaclab/visualizer/max_visible_envs: %r", raw)
             return
-
+        if max_visible < 0:
+            return
         for cfg in visualizer_cfgs:
-            if hasattr(cfg, "max_worlds"):
-                cfg.max_worlds = max_worlds_override
+            if hasattr(cfg, "max_visible_envs"):
+                cfg.max_visible_envs = max_visible
 
     def _is_cli_visualizer_explicit(self) -> bool:
         """Return ``True`` when visualizers were explicitly provided via CLI."""
@@ -697,7 +687,7 @@ class SimulationContext:
         if render and self.is_rendering:
             self.render()
 
-    def render(self, mode: int | None = None) -> None:
+    def render(self, mode: int | None = None, skip_app_pumping: bool = False) -> None:
         """Update visualizers and render the scene.
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
@@ -705,9 +695,24 @@ class SimulationContext:
         fetching data. Recording-related follow-up (Kit/RTX headless video, Newton GL
         video, etc.) runs in :mod:`isaaclab.envs.utils.recording_hooks` so it is not tied to a
         specific :class:`~isaaclab.physics.PhysicsManager` subclass.
+
+        **Kit vs. standalone visualizers:**  The Kit app loop (``app.update()``) is the
+        only way to drive camera/RTX sensor rendering and viewport GUI updates; it
+        cannot be split into "cameras only" and "GUI only".  Standalone visualizers
+        (Newton, Rerun, Viser) have self-contained ``step()`` methods that never call
+        ``app.update()``, so they can run independently of camera rendering.  The
+        ``skip_app_pumping`` flag exploits this distinction: when True, Kit is skipped
+        while standalone visualizers continue to update.
+
+        Args:
+            mode: Unused. Kept for backward compatibility.
+            skip_app_pumping: When True, skip visualizers whose :meth:`~BaseVisualizer.pumps_app_update`
+                returns True (e.g. KitVisualizer).  This disables the Kit app loop and camera
+                updates while still stepping standalone visualizers (Newton, Rerun, Viser).
+                Used by environment ``step()`` when ``render_enabled`` is False.
         """
         self.physics_manager.pre_render()
-        self.update_visualizers(self.get_rendering_dt())
+        self.update_visualizers(self.get_rendering_dt(), skip_app_pumping=skip_app_pumping)
         self.physics_manager.after_visualizers_render()
         run_recording_hooks_after_visualizers(self)
         self._render_generation += 1
@@ -717,8 +722,16 @@ class SimulationContext:
             for callback in self._render_callbacks.values():
                 callback(None)  # Pass None as event data
 
-    def update_visualizers(self, dt: float) -> None:
-        """Update visualizers without triggering renderer/GUI."""
+    def update_visualizers(self, dt: float, skip_app_pumping: bool = False) -> None:
+        """Update visualizers without triggering renderer/GUI.
+
+        Args:
+            dt: Simulation time-step in seconds.
+            skip_app_pumping: When True, skip visualizers whose :meth:`~BaseVisualizer.pumps_app_update`
+                returns True (e.g. KitVisualizer). This is used when the environment's ``render_enabled``
+                flag is False — cameras and the Kit app loop are skipped, but standalone visualizers
+                (Newton, Rerun, Viser) still receive updates.
+        """
         if not self._visualizers:
             return
 
@@ -727,6 +740,9 @@ class SimulationContext:
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
+                # When skip_app_pumping is set, skip Kit-like visualizers that call app.update()
+                if skip_app_pumping and viz.pumps_app_update():
+                    continue
                 if viz.is_closed or not viz.is_running():
                     if viz.is_closed:
                         logger.info("Visualizer closed: %s", type(viz).__name__)
@@ -762,14 +778,7 @@ class SimulationContext:
         self._visualizer_step_counter += 1
         if self._scene_data_provider is None:
             return
-        provider = self._scene_data_provider
-        env_ids_union: list[int] = []
-        for viz in self._visualizers:
-            ids = viz.get_visualized_env_ids()
-            if ids is not None:
-                env_ids_union.extend(ids)
-        env_ids = list(dict.fromkeys(env_ids_union)) if env_ids_union else None
-        provider.update(env_ids)
+        self._scene_data_provider.update()
 
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""
