@@ -26,9 +26,7 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 # Map of task IDs to the reason for marking the corresponding parametrized
 # test cases as expected failures.  Tests that consume :func:`setup_environment`
 # automatically pick up these marks via :class:`pytest.param`.
-XFAIL_TASKS: dict[str, str] = {
-    "Isaac-Cartpole-RGB-TheiaTiny-v0": "TheiaTiny environment is currently broken; xfailed pending fix.",
-}
+XFAIL_TASKS: dict[str, str] = {}
 
 
 def _is_teleop_env(task_spec) -> bool:
