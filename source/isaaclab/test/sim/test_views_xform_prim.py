@@ -228,7 +228,7 @@ def test_nested_hierarchy_world_poses(device):
     frames_view.set_local_poses(translations=torch.tensor(frame_positions, device=device))
     targets_view.set_local_poses(translations=torch.tensor(target_positions, device=device))
 
-    world_pos = wp.to_torch(targets_view.get_world_poses()[0])
+    world_pos = targets_view.get_world_poses()[0].torch
     expected = torch.tensor(
         [[f[j] + t[j] for j in range(3)] for f, t in zip(frame_positions, target_positions)],
         device=device,
@@ -257,7 +257,7 @@ def test_compare_get_world_poses_with_isaacsim():
     isaaclab_view = FrameView(pattern, device="cpu")
     isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
 
-    isaaclab_pos = wp.to_torch(isaaclab_view.get_world_poses()[0])
+    isaaclab_pos = isaaclab_view.get_world_poses()[0].torch
     isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses()
     if not isinstance(isaacsim_pos, torch.Tensor):
         isaacsim_pos = torch.tensor(isaacsim_pos, dtype=torch.float32)
@@ -285,12 +285,12 @@ def test_with_franka_robots(device):
     view = FrameView("/World/Franka_.*", device=device)
     assert view.count == 2
 
-    positions = wp.to_torch(view.get_world_poses()[0])
+    positions = view.get_world_poses()[0].torch
     torch.testing.assert_close(positions, torch.zeros(2, 3, device=device), atol=1e-5, rtol=0)
 
     new_pos = torch.tensor([[10.0, 10.0, 0.0], [-40.0, -40.0, 0.0]], device=device)
     new_quat = torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068], [0.0, 0.0, -0.7071068, 0.7071068]], device=device)
     view.set_world_poses(positions=new_pos, orientations=new_quat)
 
-    ret_pos = wp.to_torch(view.get_world_poses()[0])
+    ret_pos = view.get_world_poses()[0].torch
     torch.testing.assert_close(ret_pos, new_pos, atol=1e-5, rtol=0)

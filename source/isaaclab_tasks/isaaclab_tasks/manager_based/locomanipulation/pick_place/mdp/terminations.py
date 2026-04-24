@@ -74,6 +74,7 @@ def task_done_pick_place_table_frame(
 
     # Get table world pose
     table_pos_w, table_quat_w = table.get_world_poses()
+    table_pos_w, table_quat_w = table_pos_w.torch, table_quat_w.torch
 
     # Broadcast table pose if a single table is shared across all envs
     object_root_pos_w = object.data.root_pos_w.torch  # [num_envs, 3]

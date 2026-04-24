@@ -582,10 +582,10 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                         path, device=self._device, stage=self._stage, validate_xform_ops=False
                     )
 
-                pos_wp, quat_wp = self._xform_views[path].get_world_poses()
-                if pos_wp is not None and quat_wp is not None:
-                    positions[idx] = wp.to_torch(pos_wp).to(device=self._device, dtype=torch.float32).squeeze()
-                    orientations[idx] = wp.to_torch(quat_wp).to(device=self._device, dtype=torch.float32).squeeze()
+                pos_w, quat_w = self._xform_views[path].get_world_poses()
+                if pos_w is not None and quat_w is not None:
+                    positions[idx] = pos_w.torch.to(device=self._device, dtype=torch.float32).squeeze()
+                    orientations[idx] = quat_w.torch.to(device=self._device, dtype=torch.float32).squeeze()
                     covered[idx] = True
                     xform_mask[idx] = True
                     count += 1
