@@ -160,6 +160,69 @@ Follow conventional commit message practices.
 
 - IMPORTANT: Pin actions by SHA hash. Use `action@<sha>  # vX.Y.Z` format for supply-chain security. Check existing workflows in `.github/workflows/` for the allowlisted hashes. New actions or versions require repo admin approval to be added to the allowlist.
 
+## Headless Rendering (DGX Cloud / Containers / CI)
+
+When running Isaac Lab with cameras or rendering in headless environments (DGX Cloud, Docker containers, CI), several issues can arise.
+
+### `DISPLAY` environment variable
+
+**Problem**: If `DISPLAY` is set (e.g., `DISPLAY=:99` in `/etc/environment`), Kit tries to use GLX which causes `GLXBadFBConfig` crashes even when no display is available.
+
+**Fix**: Unset `DISPLAY` before running:
+```bash
+DISPLAY= ./isaaclab.sh -p -m pytest ...
+# or
+unset DISPLAY
+```
+
+### EGL vs Vulkan
+
+**Problem**: `eglInitialize` fails if `nvidia_drm` kernel module is not loaded (common in containers without GPU display passthrough).
+
+**Diagnosis**:
+```bash
+# Check if nvidia_drm is loaded
+lsmod | grep nvidia_drm
+# Check for render nodes
+ls -la /dev/dri/render*
+# Check modeset parameter
+cat /sys/module/nvidia_drm/parameters/modeset
+```
+
+**Note**: Even without EGL, **Vulkan typically works** in headless mode. PhysX, Fabric, Warp, and CUDA all function normally. RTX rendering works via Vulkan without EGL.
+
+### Missing `.kit` file dependencies for headless camera rendering
+
+**Problem**: Camera annotators (RGB, depth, etc.) return empty data in headless mode because required extensions aren't loaded.
+
+**Root cause**: The headless rendering experience file (`apps/isaaclab.python.headless.rendering.kit`) may be missing dependencies needed for the HydraTexture and viewport pipeline.
+
+**Symptoms**:
+- `rep.orchestrator.step()` hangs or loops infinitely
+- Annotator `get_data()` returns None or zero-filled arrays
+- Thousands of `createViewport` calls in Kit log
+
+**Key extensions** needed for headless camera rendering:
+- `omni.kit.hydra_texture` — Must be loaded before `omni.replicator.core` imports (availability is cached at import time)
+- A viewport infrastructure extension — needed for render product creation
+
+**Note**: `omni.kit.viewport.window` works but pulls in `omni.ui` which is heavyweight. Prefer a lighter alternative if available (see [PR discussions](https://github.com/isaac-sim/IsaacLab/pull/5375) for current status).
+
+### Conda conflicts
+
+**Problem**: `isaaclab.sh` checks `CONDA_PREFIX` before `_isaac_sim/python.sh` — if conda is activated, it picks the conda Python which lacks Isaac Sim packages.
+
+**Fix**: Deactivate conda first:
+```bash
+conda deactivate
+./isaaclab.sh --install
+```
+Or override: `CONDA_PREFIX= ./isaaclab.sh --install`
+
+### Shared `_isaac_sim` symlink pitfall
+
+When multiple Isaac Lab working copies share the same Isaac Sim build via `_isaac_sim` symlink, `pip install -e` in one overwrites the other's packages in the shared site-packages directory. Always re-run `isaaclab.sh --install` when switching between repos.
+
 ## Testing Guidelines
 
 - **Always verify regression tests fail without the fix.** When writing a regression test for a bug fix, temporarily revert the fix and run the test to confirm it fails. Then reapply the fix and verify the test passes. This ensures the test actually covers the bug.
