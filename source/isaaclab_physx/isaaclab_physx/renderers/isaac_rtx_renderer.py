@@ -23,7 +23,7 @@ from isaaclab.renderers import BaseRenderer
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
-from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update, ensure_rtx_hydra_engine_attached
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
+        ensure_rtx_hydra_engine_attached()
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Isaac RTX - uses USD scene directly without export.
