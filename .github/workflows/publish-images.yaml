@@ -25,7 +25,7 @@ env:
 
 jobs:
   config:
-    name: Load Image Config
+    name: Load Config
     runs-on: ubuntu-latest
     outputs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
