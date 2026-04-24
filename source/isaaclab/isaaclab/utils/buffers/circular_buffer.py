@@ -47,6 +47,13 @@ class CircularBuffer:
         # the actual buffer for data storage
         # note: this is initialized on the first call to :meth:`append`
         self._buffer: torch.Tensor = None  # type: ignore
+        # CPU-side flag that mirrors ``any(self._num_pushes == 0)`` without
+        # requiring a GPU→CPU synchronization in the hot path. It flips True
+        # whenever :meth:`reset` marks any batch index for first-push
+        # replication, and clears when the next :meth:`append` performs that
+        # replication. Reads in :meth:`__getitem__` use this to raise the same
+        # "buffer empty" error as before but without a per-call sync.
+        self._any_first_push_pending: bool = False
 
     """
     Properties.
@@ -108,6 +115,10 @@ class CircularBuffer:
             # set buffer at batch_id reset indices to 0.0 so that the buffer()
             # getter returns the cleared circular buffer after reset.
             self._buffer[:, batch_ids, :] = 0.0
+        # mark that at least one batch index now has ``num_pushes == 0`` so
+        # the next :meth:`append` performs the first-push history replication
+        # and :meth:`__getitem__` rejects reads until that append happens.
+        self._any_first_push_pending = True
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.
@@ -129,14 +140,28 @@ class CircularBuffer:
         if self._buffer is None:
             self._pointer = -1
             self._buffer = torch.empty((self.max_length, *data.shape), dtype=data.dtype, device=self._device)
+            # the buffer was just created, so every batch index starts with
+            # ``num_pushes == 0`` and must be replicated on this first append
+            self._any_first_push_pending = True
         # move the head to the next slot
         self._pointer = (self._pointer + 1) % self.max_length
         # add the new data to the last layer
         self._buffer[self._pointer] = data
-        # Check for batches with zero pushes and initialize all values in batch to first append
-        is_first_push = self._num_pushes == 0
-        if torch.any(is_first_push):
-            self._buffer[:, is_first_push] = data[is_first_push]
+        # Check for batches with zero pushes and initialize all values in
+        # batch to first append. The CPU flag ``_any_first_push_pending``
+        # mirrors ``torch.any(num_pushes == 0)`` but is maintained by
+        # :meth:`reset` and cleared here, so we avoid a GPU→CPU sync every
+        # append in the common case where no batch just reset.
+        if self._any_first_push_pending:
+            is_first_push = self._num_pushes == 0
+            # Broadcast-safe write that works for arbitrary trailing data
+            # shape. Equivalent to ``self._buffer[:, is_first_push] =
+            # data[is_first_push]`` but without materializing the dynamic
+            # boolean index (which would reintroduce a sync on some torch
+            # versions via shape inference).
+            mask = is_first_push.view(1, -1, *([1] * (data.ndim - 1)))
+            self._buffer = torch.where(mask, data.unsqueeze(0), self._buffer)
+            self._any_first_push_pending = False
         # increment number of number of pushes for all batches
         self._num_pushes += 1
 
@@ -160,8 +185,11 @@ class CircularBuffer:
         # check the batch size
         if len(key) != self.batch_size:
             raise ValueError(f"The argument 'key' has length {key.shape[0]}, while expecting {self.batch_size}")
-        # check if the buffer is empty
-        if torch.any(self._num_pushes == 0) or self._buffer is None:
+        # check if the buffer is empty — equivalent to
+        # ``torch.any(self._num_pushes == 0)`` but sync-free: the CPU flag
+        # flips True in :meth:`reset` (or on buffer construction) and back to
+        # False when :meth:`append` has filled every reset index's history.
+        if self._any_first_push_pending or self._buffer is None:
             raise RuntimeError("Attempting to retrieve data on an empty circular buffer. Please append data first.")
 
         # admissible lag

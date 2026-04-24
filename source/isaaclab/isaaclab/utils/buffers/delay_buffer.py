@@ -173,6 +173,9 @@ class DelayBuffer:
         """
         # add the new data to the last layer
         self._circular_buffer.append(data)
-        # return output
-        delayed_data = self._circular_buffer[self._time_lags]
-        return delayed_data.clone()
+        # ``CircularBuffer.__getitem__`` uses advanced indexing
+        # (``self._buffer[index_in_buffer, self._ALL_INDICES]``), which
+        # already allocates a fresh storage. Returning the gather result
+        # directly is safe — consumers that mutate it in place won't touch
+        # the internal buffer — and skips one ``(batch, *feat)`` copy per call.
+        return self._circular_buffer[self._time_lags]

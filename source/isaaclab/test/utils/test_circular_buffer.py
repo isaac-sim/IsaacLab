@@ -154,6 +154,54 @@ def test_key_greater_than_pushes(circular_buffer):
     assert torch.equal(retrieved_data, data1)
 
 
+def test_partial_reset_then_read_raises(circular_buffer):
+    """``__getitem__`` must still raise after a partial reset without a follow-up append.
+
+    Guards the CPU-side ``_any_first_push_pending`` flag that replaces the
+    previous per-call ``torch.any(num_pushes == 0)`` probe: the flag must be
+    set by :meth:`reset` and only cleared once :meth:`append` replicates the
+    first push, otherwise a reader could silently observe uninitialised slots.
+    """
+    data = torch.ones((circular_buffer.batch_size, 2), device=circular_buffer.device)
+    circular_buffer.append(data)
+    circular_buffer.append(data)
+    circular_buffer.reset(batch_ids=[0])
+    with pytest.raises(RuntimeError):
+        circular_buffer[torch.tensor([0, 0, 0], device=circular_buffer.device)]
+
+
+def test_interleaved_partial_reset_and_append(circular_buffer):
+    """Cycle several partial resets + appends and verify each reset env's
+    history is fully replicated with its first post-reset sample (first-push
+    invariant) while untouched envs keep their real history."""
+    d1 = torch.tensor([[1, 1], [2, 2], [3, 3]], device=circular_buffer.device)
+    d2 = 10 * d1
+    d3 = 100 * d1
+
+    circular_buffer.append(d1)
+    circular_buffer.append(d2)
+
+    # Partial reset env 0 then append d3. Env 0's entire history should now
+    # be d3[0]; envs 1, 2 should have history including d1, d2, d3.
+    circular_buffer.reset(batch_ids=[0])
+    circular_buffer.append(d3)
+    for i in range(circular_buffer.max_length):
+        torch.testing.assert_close(circular_buffer.buffer[0, 0], circular_buffer.buffer[0, i])
+    torch.testing.assert_close(circular_buffer.buffer[1, -1], d3[1])
+    torch.testing.assert_close(circular_buffer.buffer[1, -2], d2[1])
+
+    # Now partial reset env 1 and append d1 again. Env 1's history should
+    # now be d1[1] everywhere; env 0 still keeps its d3 history (plus the new
+    # d1 append at the head), env 2 shifts normally.
+    circular_buffer.reset(batch_ids=[1])
+    circular_buffer.append(d1)
+    for i in range(circular_buffer.max_length):
+        torch.testing.assert_close(circular_buffer.buffer[1, 0], circular_buffer.buffer[1, i])
+    torch.testing.assert_close(circular_buffer.buffer[1, -1], d1[1])
+    torch.testing.assert_close(circular_buffer.buffer[0, -1], d1[0])
+    torch.testing.assert_close(circular_buffer.buffer[2, -1], d1[2])
+
+
 def test_return_buffer_prop(circular_buffer):
     """Test retrieving the whole buffer for correct size and contents.
     Returning the whole buffer should have the shape [batch_size,max_len,data.shape[1:]]

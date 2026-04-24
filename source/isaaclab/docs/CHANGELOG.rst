@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.54.4 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed per-call GPU→CPU synchronizations from
+  :class:`~isaaclab.utils.buffers.CircularBuffer` by replacing the
+  ``torch.any(...)`` probes in ``append`` and ``__getitem__`` with a
+  CPU-side flag maintained by :meth:`reset`. Also removed a redundant
+  ``.clone()`` from :meth:`~isaaclab.utils.buffers.DelayBuffer.compute`
+  (the underlying advanced-indexing gather already allocates fresh
+  storage). Public API and first-push replication semantics are
+  unchanged; on CUDA at large ``num_envs`` this yields a meaningful
+  speedup for consumers that call the delay buffer every physics step
+  (e.g. :class:`~isaaclab.actuators.DelayedPDActuator`,
+  :class:`~isaaclab.actuators.RemotizedPDActuator`, and observation
+  history buffers).
+
+
 0.54.3 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~~
 
