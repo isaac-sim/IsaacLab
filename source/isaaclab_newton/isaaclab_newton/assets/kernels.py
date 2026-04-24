@@ -1127,20 +1127,17 @@ def write_2d_data_to_flat_buffer_with_indices(
     stride: int,
     out_data: wp.array(dtype=wp.float32),
 ):
-    """Write 2D float data to a buffer at specified indices.
+    """Write flattened 2D float data to a flat buffer at specified indices.
 
-    This kernel copies float data from an input array to an output buffer at the specified
+    This kernel copies float data from an input array to a flat output buffer at the specified
     environment and joint/body indices.
 
     Args:
-        in_data: Input array containing float data. Shape is (num_envs, num_joints) or
-            (num_selected_envs, num_selected_joints) depending on from_mask.
+        in_data: Input array containing float data. Shape is (num_envs*stride,)
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         joint_ids: Input array of joint/body indices to write to. Shape is (num_selected_joints,).
-        from_mask: Input flag indicating whether to use masked indexing. If True, env_ids
-            and joint_ids are used to index into in_data. If False, in_data is indexed
-            directly using the thread indices.
-        out_data: Output array where data is written. Shape is (num_envs, num_joints).
+        stride: number of indices in each env
+        out_data: Output array where data is written. Shape is (num_envs*stride,).
     """
     i, j = wp.tid()
     out_data[env_ids[i]*stride+joint_ids[j]] = in_data[env_ids[i]*stride+joint_ids[j]]

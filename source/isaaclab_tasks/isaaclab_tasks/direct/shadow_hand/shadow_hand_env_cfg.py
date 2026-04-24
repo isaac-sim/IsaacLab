@@ -34,6 +34,18 @@ class NewtonEventCfg:
     Material and tendon randomization are omitted: Newton does not expose
     per-body friction-material buckets or fixed-tendon APIs.
     """
+    robot_tendon_properties = EventTerm(
+        func=mdp.randomize_fixed_tendon_parameters,
+        min_step_count_between_reset=720,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", fixed_tendon_names=".*"),
+            "stiffness_distribution_params": (0.75, 1.5),
+            "damping_distribution_params": (0.3, 3.0),
+            "operation": "scale",
+            "distribution": "log_uniform",
+        },
+    )
 
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
@@ -121,7 +133,7 @@ class PhysxEventCfg:
 class ShadowHandEventCfg(PresetCfg):
     physx = PhysxEventCfg()
     newton = NewtonEventCfg()
-    default = physx
+    default = newton
 
 
 @configclass
@@ -137,7 +149,7 @@ class ShadowHandRobotCfg(PresetCfg):
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
             # newton requires implicitactuators be specified in usd and there's a bug with physx tendons
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable_newton.usd",
+            usd_path=f"/home/rgresia/Repositories/mujoco_menagerie/shadow_hand/right_hand.usd/right_shadow_hand.usda",
             activate_contact_sensors=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=True,
@@ -231,7 +243,7 @@ class ObjectCfg(PresetCfg):
         actuators={},
         articulation_root_prim_path="",
     )
-    default = physx
+    default = newton
 
 
 @configclass
@@ -248,7 +260,7 @@ class ShadowHandSceneCfg(PresetCfg):
     newton: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
-    default: InteractiveSceneCfg = physx
+    default: InteractiveSceneCfg = newton
 
 
 @configclass
@@ -272,7 +284,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    default = physx
+    default = newton
 
 
 @configclass

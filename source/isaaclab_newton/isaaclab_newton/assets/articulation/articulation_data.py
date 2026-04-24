@@ -1213,8 +1213,18 @@ class ArticulationData(BaseArticulationData):
         self._num_instances = self._root_view.count
         self._num_joints = self._root_view.joint_dof_count
         self._num_bodies = self._root_view.link_count
-        self._num_fixed_tendons = self._root_view.tendon_count # self._root_view.max_fixed_tendons
-        self._num_spatial_tendons = 0  # self._root_view.max_spatial_tendons
+
+        # tendon count includes both spatial/fixed, so count each type individually
+        # type buffer only exists when tendons exist
+        if self._root_view.tendon_count > 0:
+            tendon_types = wp.to_torch(
+                self._root_view.get_attribute("mujoco.tendon_type", SimulationManager.get_model())
+            )
+            self._num_fixed_tendons = (tendon_types == 0).sum()
+            self._num_spatial_tendons = (tendon_types == 1).sum()
+        else:
+            self._num_fixed_tendons = 0
+            self._num_spatial_tendons = 0
 
         # -- root properties
         self._sim_bind_root_link_pose_w = self._root_view.get_root_transforms(SimulationManager.get_state_0())[:, 0]
@@ -1324,23 +1334,6 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
 
-        # tendon bindings
-        if self._num_fixed_tendons > 0:
-            self._sim_bind_tendon_stiffness = self._root_view.get_attribute("mujoco.tendon_stiffness",
-                                                                   SimulationManager.get_model())
-            self._sim_bind_tendon_damping = self._root_view.get_attribute("mujoco.tendon_damping",
-                                                                 SimulationManager.get_model())
-
-        # check for actuator controls
-        mujoco_attrs = getattr(SimulationManager.get_model(), "mujoco", None)
-        if hasattr(mujoco_attrs, "actuator_trntype"):
-            self.actuator_count = len(mujoco_attrs.actuator_trntype)
-            mujoco_act_attr = getattr(SimulationManager.get_control(), "mujoco", None)
-            self._sim_bind_actuator_ctrl = getattr(mujoco_act_attr, "ctrl", None)
-        else:
-            self.actuator_count = 0
-            self._sim_bind_actuator_ctrl = None
-
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
         super()._create_buffers()
@@ -1368,10 +1361,6 @@ class ArticulationData(BaseArticulationData):
         self._default_joint_vel = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-
-        # -- mujoco ctrl api
-        if self.actuator_count > 0:
-            self._default_actuator_ctrl = wp.zeros((self.actuator_count,), wp.float32, device=self.device)
 
         # -- joint commands (sent to the actuator from the user)
         self._joint_pos_target = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
@@ -1451,6 +1440,26 @@ class ArticulationData(BaseArticulationData):
         self._joint_acc = TimestampedBuffer(
             shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
+
+        if self._num_fixed_tendons > 0:
+            self._fixed_tendon_stiffness = wp.clone(
+                self._root_view.get_attribute("mujoco.tendon_stiffness", SimulationManager.get_model()),
+                device=self.device)
+            self._fixed_tendon_damping = wp.clone(
+                self._root_view.get_attribute("mujoco.tendon_damping", SimulationManager.get_model()),
+                device=self.device)
+            self._fixed_tendon_rest_length = wp.clone(
+                self._root_view.get_attribute("mujoco.tendon_springlength", SimulationManager.get_model()),
+                self.device)
+            self._fixed_tendon_pos_limits = wp.clone(
+                self._root_view.get_attribute("mujoco.tendon_range", SimulationManager.get_model()),
+                device=self.device)
+        else:
+            self._fixed_tendon_stiffness = None
+            self._fixed_tendon_damping = None
+            self._fixed_tendon_rest_length = None
+            self._fixed_tendon_pos_limits = None
+
         # Empty memory pre-allocations
         self._body_incoming_joint_wrench_b = None
         self._root_link_lin_vel_b = None
