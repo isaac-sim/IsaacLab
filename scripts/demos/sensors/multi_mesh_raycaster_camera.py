@@ -49,7 +49,6 @@ simulation_app = app_launcher.app
 import random
 
 import torch
-import warp as wp
 
 from pxr import Gf, Sdf
 
@@ -255,17 +254,17 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             count = 0
             # reset the scene entities
             # root state
-            root_pose = wp.to_torch(scene["asset"].data.default_root_pose).clone()
+            root_pose = scene["asset"].data.default_root_pose.torch.clone()
             root_pose[:, :3] += scene.env_origins
             scene["asset"].write_root_pose_to_sim_index(root_pose=root_pose)
-            root_vel = wp.to_torch(scene["asset"].data.default_root_vel).clone()
+            root_vel = scene["asset"].data.default_root_vel.torch.clone()
             scene["asset"].write_root_velocity_to_sim_index(root_velocity=root_vel)
 
             if isinstance(scene["asset"], Articulation):
                 # set joint positions with some noise
                 joint_pos, joint_vel = (
-                    wp.to_torch(scene["asset"].data.default_joint_pos).clone(),
-                    wp.to_torch(scene["asset"].data.default_joint_vel).clone(),
+                    scene["asset"].data.default_joint_pos.torch.clone(),
+                    scene["asset"].data.default_joint_vel.torch.clone(),
                 )
                 joint_pos += torch.rand_like(joint_pos) * 0.1
                 scene["asset"].write_joint_position_to_sim_index(position=joint_pos)
@@ -276,7 +275,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
         if isinstance(scene["asset"], Articulation):
             # -- generate actions/commands
-            default_joint_pos = wp.to_torch(scene["asset"].data.default_joint_pos)
+            default_joint_pos = scene["asset"].data.default_joint_pos.torch
             targets = default_joint_pos + 5 * (torch.rand_like(default_joint_pos) - 0.5)
             # -- apply action to the asset
             scene["asset"].set_joint_position_target_index(target=targets)
@@ -295,7 +294,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
                 countdown -= 1
                 continue
 
-            data = scene["ray_caster"].data.ray_hits_w.cpu().numpy()  # noqa: F841
+            data = scene["ray_caster"].data.ray_hits_w.torch.cpu().numpy()  # noqa: F841
             triggered = True
         else:
             continue

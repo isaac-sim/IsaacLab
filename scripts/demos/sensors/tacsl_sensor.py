@@ -30,7 +30,6 @@ import os
 import cv2
 import numpy as np
 import torch
-import warp as wp
 
 from isaaclab.app import AppLauncher
 
@@ -333,10 +332,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # Reset robot and contact object positions
             count = 0
             for entity in entity_list:
-                root_pose = wp.to_torch(scene[entity].data.default_root_pose).clone()
+                root_pose = scene[entity].data.default_root_pose.torch.clone()
                 root_pose[:, :3] += scene.env_origins
                 scene[entity].write_root_pose_to_sim_index(root_pose=root_pose)
-                root_vel = wp.to_torch(scene[entity].data.default_root_vel).clone()
+                root_vel = scene[entity].data.default_root_vel.torch.clone()
                 scene[entity].write_root_velocity_to_sim_index(root_velocity=root_vel)
 
             scene.reset()
