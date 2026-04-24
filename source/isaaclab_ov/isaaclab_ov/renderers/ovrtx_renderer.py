@@ -39,7 +39,7 @@ os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 
-from isaaclab.renderers.base_renderer import BaseRenderer
+from isaaclab.renderers import BaseRenderer, CameraDataType, OutputSpec
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
@@ -90,33 +90,18 @@ class OVRTXRenderer(BaseRenderer):
 
     cfg: OVRTXRendererCfg
 
-    def create_output_buffers(
-        self,
-        data_types: list[str],
-        height: int,
-        width: int,
-        num_views: int,
-        device: torch.device | str,
-    ) -> dict[str, torch.Tensor]:
-        """Allocate output tensors for the data types OVRTX can produce.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_output_buffers`."""
-        buffers: dict[str, torch.Tensor] = {}
-        requested = set(data_types)
-
-        def _zeros(channels: int, dtype: torch.dtype) -> torch.Tensor:
-            return torch.zeros((num_views, height, width, channels), dtype=dtype, device=device).contiguous()
-
-        if "rgba" in requested or "rgb" in requested:
-            buffers["rgba"] = _zeros(4, torch.uint8)
-            buffers["rgb"] = buffers["rgba"][..., :3]
-        if "albedo" in requested:
-            buffers["albedo"] = _zeros(4, torch.uint8)
-        if "semantic_segmentation" in requested:
-            buffers["semantic_segmentation"] = _zeros(4, torch.uint8)
-        for depth_key in ("depth", "distance_to_image_plane", "distance_to_camera"):
-            if depth_key in requested:
-                buffers[depth_key] = _zeros(1, torch.float32)
-        return buffers
+    def supported_output_types(self) -> dict[CameraDataType, OutputSpec]:
+        """Publish the per-output layout this OVRTX backend writes.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
+        return {
+            CameraDataType.RGBA: OutputSpec(4, torch.uint8),
+            CameraDataType.RGB: OutputSpec(3, torch.uint8),
+            CameraDataType.ALBEDO: OutputSpec(4, torch.uint8),
+            CameraDataType.SEMANTIC_SEGMENTATION: OutputSpec(4, torch.uint8),
+            CameraDataType.DEPTH: OutputSpec(1, torch.float32),
+            CameraDataType.DISTANCE_TO_IMAGE_PLANE: OutputSpec(1, torch.float32),
+            CameraDataType.DISTANCE_TO_CAMERA: OutputSpec(1, torch.float32),
+        }
 
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg

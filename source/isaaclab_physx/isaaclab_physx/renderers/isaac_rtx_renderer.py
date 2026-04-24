@@ -22,7 +22,7 @@ from packaging import version
 from pxr import Sdf
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer
+from isaaclab.renderers import BaseRenderer, CameraDataType, OutputSpec
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
@@ -83,56 +83,42 @@ class IsaacRtxRenderer(BaseRenderer):
             )
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
 
-    def create_output_buffers(
-        self,
-        data_types: list[str],
-        height: int,
-        width: int,
-        num_views: int,
-        device: torch.device | str,
-    ) -> dict[str, torch.Tensor]:
-        """Allocate Replicator-shaped output tensors for the data types Isaac RTX can produce.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_output_buffers`."""
+    def supported_output_types(self) -> dict[CameraDataType, OutputSpec]:
+        """Publish the per-output Replicator layout this RTX backend writes.
+
+        ``ALBEDO`` and the three ``SIMPLE_SHADING_*`` outputs require Isaac Sim 6.0+
+        and are omitted on older versions. The three segmentation outputs report
+        ``OutputSpec(4, uint8)`` when the matching ``self.cfg.colorize_*`` flag is
+        set, otherwise ``OutputSpec(1, int32)``.
+        """
         sim_major = get_isaac_sim_version().major
 
-        buffers: dict[str, torch.Tensor] = {}
-        requested = set(data_types)
+        specs: dict[CameraDataType, OutputSpec] = {
+            # Replicator's native layout for color output is rgba/uint8;
+            # ``Camera`` aliases ``rgb`` as a view into ``rgba`` storage.
+            CameraDataType.RGBA: OutputSpec(4, torch.uint8),
+            CameraDataType.RGB: OutputSpec(3, torch.uint8),
+            CameraDataType.DEPTH: OutputSpec(1, torch.float32),
+            CameraDataType.DISTANCE_TO_IMAGE_PLANE: OutputSpec(1, torch.float32),
+            CameraDataType.DISTANCE_TO_CAMERA: OutputSpec(1, torch.float32),
+            CameraDataType.NORMALS: OutputSpec(3, torch.float32),
+            CameraDataType.MOTION_VECTORS: OutputSpec(2, torch.float32),
+        }
 
-        def _zeros(channels: int, dtype: torch.dtype) -> torch.Tensor:
-            return torch.zeros((num_views, height, width, channels), dtype=dtype, device=device).contiguous()
-
-        if "rgba" in requested or "rgb" in requested:
-            buffers["rgba"] = _zeros(4, torch.uint8)
-            # rgb shares storage with rgba (Replicator's native layout).
-            buffers["rgb"] = buffers["rgba"][..., :3]
-        if "albedo" in requested and sim_major >= 6:
-            buffers["albedo"] = _zeros(4, torch.uint8)
         if sim_major >= 6:
+            specs[CameraDataType.ALBEDO] = OutputSpec(4, torch.uint8)
             for shading_type in SIMPLE_SHADING_MODES:
-                if shading_type in requested:
-                    buffers[shading_type] = _zeros(3, torch.uint8)
-        for depth_key in ("depth", "distance_to_image_plane", "distance_to_camera"):
-            if depth_key in requested:
-                buffers[depth_key] = _zeros(1, torch.float32)
-        if "normals" in requested:
-            buffers["normals"] = _zeros(3, torch.float32)
-        if "motion_vectors" in requested:
-            buffers["motion_vectors"] = _zeros(2, torch.float32)
+                specs[CameraDataType(shading_type)] = OutputSpec(3, torch.uint8)
 
         seg_specs = (
-            ("semantic_segmentation", self.cfg.colorize_semantic_segmentation),
-            ("instance_segmentation_fast", self.cfg.colorize_instance_segmentation),
-            ("instance_id_segmentation_fast", self.cfg.colorize_instance_id_segmentation),
+            (CameraDataType.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
+            (CameraDataType.INSTANCE_SEGMENTATION_FAST, self.cfg.colorize_instance_segmentation),
+            (CameraDataType.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
         )
         for name, colorize in seg_specs:
-            if name not in requested:
-                continue
-            if colorize:
-                buffers[name] = _zeros(4, torch.uint8)
-            else:
-                buffers[name] = _zeros(1, torch.int32)
+            specs[name] = OutputSpec(4, torch.uint8) if colorize else OutputSpec(1, torch.int32)
 
-        return buffers
+        return specs
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Isaac RTX - uses USD scene directly without export.

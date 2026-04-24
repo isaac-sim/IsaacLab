@@ -1091,17 +1091,16 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["rgba", "depth", "normals"]
 
+    from isaaclab.sensors.camera.camera_data import CameraDataType, OutputSpec
+
     class _PartialRenderer(BaseRenderer):
-        """Returns only ``rgba`` regardless of what was asked for."""
+        """Publishes only ``rgba`` in its supported-output contract."""
 
         def __init__(self, cfg=None):
             self.cfg = cfg
 
-        def create_output_buffers(self, data_types, height, width, num_views, device):
-            buffers: dict[str, torch.Tensor] = {}
-            if "rgba" in data_types or "rgb" in data_types:
-                buffers["rgba"] = torch.zeros((num_views, height, width, 4), dtype=torch.uint8, device=device)
-            return buffers
+        def supported_output_types(self):
+            return {CameraDataType.RGBA: OutputSpec(4, torch.uint8)}
 
         def prepare_stage(self, stage, num_envs):
             pass

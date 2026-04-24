@@ -27,7 +27,7 @@ from isaaclab.utils.math import (
 )
 
 from ..sensor_base import SensorBase
-from .camera_data import CameraData
+from .camera_data import CameraData, CameraDataType
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -129,8 +129,8 @@ class Camera(SensorBase):
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
-        # Create empty variables for storing output data
-        self._data = CameraData()
+        # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
+        self._data: CameraData | None = None
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
@@ -448,32 +448,39 @@ class Camera(SensorBase):
 
     def _create_buffers(self):
         """Create buffers for storing data."""
-        # -- intrinsic matrix
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
-        self._update_intrinsic_matrices(self._ALL_INDICES)
-        # -- pose of the cameras
-        self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
-        self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
-        self._update_poses(self._ALL_INDICES)
-        self._data.image_shape = self.image_shape
-        # -- output data: ask the renderer to allocate buffers for the requested data types.
-        buffers = self._renderer.create_output_buffers(
-            self.cfg.data_types,
-            self.cfg.height,
-            self.cfg.width,
-            self._view.count,
-            self.device,
-        )
-        # Surface any requested data types the active renderer cannot produce.
-        unsupported = [name for name in self.cfg.data_types if name not in buffers]
+        specs = self._renderer.supported_output_types()
+        # Split requested names into known/unsupported; warn once for any the renderer can't produce.
+        known: list[str] = []
+        unsupported: list[str] = []
+        for name in self.cfg.data_types:
+            try:
+                if CameraDataType(name) in specs:
+                    known.append(name)
+                else:
+                    unsupported.append(name)
+            except ValueError:
+                unsupported.append(name)
         if unsupported:
             logger.warning(
                 "Renderer %s does not support the following requested data types and will not produce them: %s",
                 type(self._renderer).__name__,
                 unsupported,
             )
-        self._data.output = buffers
-        self._data.info = {name: None for name in buffers}
+        self._data = CameraData.allocate(
+            data_types=known,
+            height=self.cfg.height,
+            width=self.cfg.width,
+            num_views=self._view.count,
+            device=self._device,
+            supported_specs=specs,
+        )
+        # Camera-frame state (pose / intrinsics) is owned by the camera, not
+        # the renderer: populate it on the freshly constructed ``CameraData``.
+        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        self._update_intrinsic_matrices(self._ALL_INDICES)
+        self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
+        self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
+        self._update_poses(self._ALL_INDICES)
         self._renderer.set_outputs(self._render_data, self._data.output)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
