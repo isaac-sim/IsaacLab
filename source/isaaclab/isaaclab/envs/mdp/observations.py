@@ -14,7 +14,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
@@ -302,7 +301,7 @@ def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float 
     # extract the used quantities (to enable type-hinting)
     sensor: RayCaster = env.scene.sensors[sensor_cfg.name]
     # height scan: height = sensor_height - hit_point_z - offset
-    return wp.to_torch(sensor.data.pos_w)[:, 2].unsqueeze(1) - wp.to_torch(sensor.data.ray_hits_w)[..., 2] - offset
+    return sensor.data.pos_w.torch[:, 2].unsqueeze(1) - sensor.data.ray_hits_w.torch[..., 2] - offset
 
 
 def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
