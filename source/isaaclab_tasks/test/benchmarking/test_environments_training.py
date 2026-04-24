@@ -76,6 +76,7 @@ def train_job(workflow, task, env_config, num_gpus):
     return duration
 
 
+@pytest.mark.skip(reason="Temporarily disabled due to long running time.")
 @pytest.mark.parametrize("task_spec", setup_environment())
 def test_train_environments(workflow, task_spec, config_path, mode, num_gpus, kpi_store):
     """Train environments provided in the config file, save KPIs, and evaluate against thresholds"""

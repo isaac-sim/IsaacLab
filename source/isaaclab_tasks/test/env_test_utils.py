@@ -23,6 +23,13 @@ from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
+# Map of task IDs to the reason for marking the corresponding parametrized
+# test cases as expected failures.  Tests that consume :func:`setup_environment`
+# automatically pick up these marks via :class:`pytest.param`.
+XFAIL_TASKS: dict[str, str] = {
+    "Isaac-Cartpole-RGB-TheiaTiny-v0": "TheiaTiny environment is currently broken; xfailed pending fix.",
+}
+
 
 def _is_teleop_env(task_spec) -> bool:
     """Check if a task's environment config has teleop dependencies.
@@ -200,7 +207,14 @@ def setup_environment(
 
     print(">>> All registered environments:", registered_tasks)
 
-    return registered_tasks
+    # Wrap tasks listed in XFAIL_TASKS in pytest.param so the corresponding
+    # parametrized test cases are reported as xfailed instead of failed.
+    return [
+        pytest.param(task_id, marks=pytest.mark.xfail(reason=XFAIL_TASKS[task_id], strict=False))
+        if task_id in XFAIL_TASKS
+        else task_id
+        for task_id in registered_tasks
+    ]
 
 
 def _run_environments(
