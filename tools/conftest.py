@@ -352,7 +352,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
         report_file = f"tests/test-reports-{str(file_name)}.xml"
 
-        # -- Run with retry on startup hang ---------------------------------
+        # -- Run with retry on startup hang --------------------------------
         returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
         wall_time, pre_kill_diag = 0.0, ""
         for attempt in range(STARTUP_HANG_RETRIES + 1):
@@ -378,7 +378,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
                     diag = diag[:10000] + "\n... (truncated)"
                 print(diag)
                 continue
-
             break
 
         # -- Resolve result from kill_reason and report file ----------------
