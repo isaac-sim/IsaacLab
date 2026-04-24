@@ -97,8 +97,8 @@ permissions:
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE }}
-  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION }}
+  ISAACSIM_IMAGE_NAME: ${{ vars.ISAACSIM_IMAGE_NAME }}
+  ISAACSIM_IMAGE_TAG: ${{ vars.ISAACSIM_IMAGE_TAG }}
   CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
@@ -256,8 +256,8 @@ jobs:
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
@@ -281,8 +281,8 @@ jobs:
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
   #endregion
@@ -308,8 +308,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_tasks"
         shard-index: "0"
         shard-count: "3"
@@ -335,8 +335,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_tasks"
         shard-index: "1"
         shard-count: "3"
@@ -362,8 +362,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_tasks"
         shard-index: "2"
         shard-count: "3"
@@ -387,8 +387,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "not isaaclab_"
         shard-index: "0"
         shard-count: "3"
@@ -412,8 +412,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "not isaaclab_"
         shard-index: "1"
         shard-count: "3"
@@ -437,8 +437,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "not isaaclab_"
         shard-index: "2"
         shard-count: "3"
@@ -463,8 +463,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_rl"
         container-name: isaac-lab-rl-test
 
@@ -487,8 +487,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_mimic"
         container-name: isaac-lab-mimic-test
 
@@ -511,8 +511,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_contrib"
         container-name: isaac-lab-contrib-test
 
@@ -535,8 +535,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_teleop"
         container-name: isaac-lab-teleop-test
 
@@ -559,8 +559,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_visualizers"
         container-name: isaac-lab-visualizers-test
 
@@ -583,8 +583,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_assets"
         container-name: isaac-lab-assets-test
 
@@ -607,8 +607,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_newton"
         container-name: isaac-lab-newton-test
 
@@ -631,8 +631,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_physx"
         container-name: isaac-lab-physx-test
 
@@ -655,8 +655,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_ov"
         container-name: isaac-lab-ov-test
 
@@ -680,8 +680,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
@@ -708,8 +708,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
         include-files: "test_generate_dataset_skillgen.py,test_environments_skillgen.py,test_environments_automate.py"
@@ -735,8 +735,8 @@ jobs:
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+        isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
         filter-pattern: "isaaclab_tasks"
         include-files: "test_environments_training.py"
         container-name: isaac-lab-environments-training-test
@@ -760,8 +760,8 @@ jobs:
 #   - uses: ./.github/actions/run-package-tests
 #     with:
 #       image-tag: ${{ env.CI_IMAGE_TAG }}
-#       isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-#       isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+#       isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
+#       isaacsim-version: ${{ env.ISAACSIM_IMAGE_TAG }}
 #       quarantined-only: "true"
 #       container-name: isaac-lab-quarantined-test
 #endregion
