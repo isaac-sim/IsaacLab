@@ -8,7 +8,7 @@ Changed
 ^^^^^^^
 
 * Migrated all data property accesses from ``wp.to_torch(data.property)`` to
-  ``data.property.torch`` to match the new :class:`~isaaclab.utils.warp.TorchArray`
+  ``data.property.torch`` to match the new :class:`~isaaclab.utils.warp.ProxyArray`
   return type introduced in ``isaaclab`` 4.6.13.
 
 

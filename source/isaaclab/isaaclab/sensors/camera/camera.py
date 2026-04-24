@@ -599,7 +599,7 @@ class Camera(SensorBase):
         if len(self._sensor_prims) == 0:
             raise RuntimeError("Camera prim is None. Please call 'sim.play()' first.")
 
-        # get the poses from the view (returns TorchArray, use .torch for tensor access)
+        # get the poses from the view (returns ProxyArray, use .torch for tensor access)
         if env_ids is not None and not isinstance(env_ids, torch.Tensor):
             env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None

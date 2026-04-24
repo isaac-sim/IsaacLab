@@ -1,17 +1,17 @@
 .. _how-to-torch-array:
 
-Working with TorchArray
+Working with ProxyArray
 =======================
 
 .. currentmodule:: isaaclab.utils.warp
 
-Isaac Lab data classes return :class:`TorchArray` — a lightweight, warp-first wrapper that
+Isaac Lab data classes return :class:`ProxyArray` — a lightweight, warp-first wrapper that
 provides zero-copy access to simulation data as either a :class:`warp.array` or a
 :class:`torch.Tensor`.
 
 .. note::
 
-   ``TorchArray`` is inspired by the ``TorchArray`` class from
+   ``ProxyArray`` is inspired by the ``ProxyArray`` class from
    `mujocolab/mjlab <https://github.com/mujocolab/mjlab>`_ (BSD-3-Clause).
    The design adapts the same dual-accessor pattern to Isaac Lab's warp-based data pipeline.
 
@@ -20,7 +20,7 @@ Quick Start
 ~~~~~~~~~~~
 
 Every property on asset and sensor data classes (e.g., ``robot.data.joint_pos``,
-``sensor.data.net_forces_w``) returns a ``TorchArray``:
+``sensor.data.net_forces_w``) returns a ``ProxyArray``:
 
 .. code-block:: python
 
@@ -52,7 +52,7 @@ The ``.torch`` and ``.warp`` Accessors
 Deprecation Bridge
 ~~~~~~~~~~~~~~~~~~
 
-To ease migration, ``TorchArray`` includes a deprecation bridge that allows existing code to
+To ease migration, ``ProxyArray`` includes a deprecation bridge that allows existing code to
 treat it as a ``torch.Tensor`` temporarily:
 
 .. code-block:: python
@@ -74,7 +74,7 @@ Migrating from Isaac Lab 2.x
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In Isaac Lab 2.x, data properties returned ``torch.Tensor`` directly. In 3.0, they return
-``TorchArray``. Append ``.torch`` to get the tensor:
+``ProxyArray``. Append ``.torch`` to get the tensor:
 
 .. code-block:: python
 
@@ -82,30 +82,30 @@ In Isaac Lab 2.x, data properties returned ``torch.Tensor`` directly. In 3.0, th
    joint_pos = robot.data.joint_pos
    first_contact = sensor.compute_first_contact(dt)
 
-   # AFTER (Isaac Lab 3.0) — properties return TorchArray
+   # AFTER (Isaac Lab 3.0) — properties return ProxyArray
    joint_pos = robot.data.joint_pos.torch
    first_contact = sensor.compute_first_contact(dt).torch
 
 .. note::
 
-   Passing a ``TorchArray`` to ``wp.to_torch()`` will raise an ``AttributeError``.
+   Passing a ``ProxyArray`` to ``wp.to_torch()`` will raise an ``AttributeError``.
    Use ``.torch`` instead.
 
 
 Backend Differences
 ~~~~~~~~~~~~~~~~~~~
 
-While the ``TorchArray`` interface is identical across backends, the underlying data refresh
+While the ``ProxyArray`` interface is identical across backends, the underlying data refresh
 model differs:
 
 **PhysX (pull-to-refresh):**
   Properties pull fresh data from the PhysX tensor API on first access per simulation step,
   then cache the result. The underlying GPU buffers are stable and pre-allocated — the
-  ``TorchArray`` wrapper is created once and reused safely across steps.
+  ``ProxyArray`` wrapper is created once and reused safely across steps.
 
 **Newton (auto-refresh with rebind):**
   The simulation automatically refreshes GPU buffers each step. On full simulation resets,
-  buffers may be re-created. The Newton backend calls :meth:`TorchArray.rebind` to update
+  buffers may be re-created. The Newton backend calls :meth:`ProxyArray.rebind` to update
   the wrapper when the underlying warp array changes, invalidating the cached torch tensor.
 
 In both cases, ``.torch`` always returns a view of the current simulation state for the
@@ -121,7 +121,7 @@ current step.
 API Reference
 ~~~~~~~~~~~~~
 
-.. autoclass:: TorchArray
+.. autoclass:: ProxyArray
    :members:
    :undoc-members:
    :no-index:

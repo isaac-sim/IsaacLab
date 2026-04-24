@@ -466,10 +466,10 @@ def articulation_iface(request):
 
 
 def _check_torch_array(arr, *, expected_shape: tuple, expected_dtype: type, name: str):
-    """Assert that `arr` is a TorchArray with the expected shape and dtype."""
-    from isaaclab.utils.warp import TorchArray
+    """Assert that `arr` is a ProxyArray with the expected shape and dtype."""
+    from isaaclab.utils.warp import ProxyArray
 
-    assert isinstance(arr, TorchArray), f"{name}: expected TorchArray, got {type(arr)}"
+    assert isinstance(arr, ProxyArray), f"{name}: expected ProxyArray, got {type(arr)}"
     assert arr.shape == expected_shape, f"{name}: expected shape {expected_shape}, got {arr.shape}"
     assert arr.dtype == expected_dtype, f"{name}: expected dtype {expected_dtype}, got {arr.dtype}"
 
@@ -2303,10 +2303,10 @@ class TestArticulationDataTendonState:
     ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        from isaaclab.utils.warp import TorchArray
+        from isaaclab.utils.warp import ProxyArray
 
         arr = art.data.fixed_tendon_pos_limits
-        assert isinstance(arr, TorchArray), f"fixed_tendon_pos_limits: expected TorchArray, got {type(arr)}"
+        assert isinstance(arr, ProxyArray), f"fixed_tendon_pos_limits: expected ProxyArray, got {type(arr)}"
         if num_fixed_tendons == 0:
             # When no tendons, shape is (N, 0, 2) float32
             assert arr.shape == (num_instances, 0, 2)

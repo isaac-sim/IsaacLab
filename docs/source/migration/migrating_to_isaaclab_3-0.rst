@@ -1674,11 +1674,11 @@ compatibility. These will be removed in a future release.
 
 .. _torcharray-migration:
 
-Data Properties Return ``TorchArray`` Instead of ``wp.array``
+Data Properties Return ``ProxyArray`` Instead of ``wp.array``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All asset and sensor data class properties now return :class:`~isaaclab.utils.warp.TorchArray`
-instead of raw ``warp.array``. ``TorchArray`` is a lightweight wrapper with explicit ``.torch``
+All asset and sensor data class properties now return :class:`~isaaclab.utils.warp.ProxyArray`
+instead of raw ``warp.array``. ``ProxyArray`` is a lightweight wrapper with explicit ``.torch``
 and ``.warp`` accessors:
 
 .. code-block:: python
@@ -1687,14 +1687,14 @@ and ``.warp`` accessors:
    joint_pos = robot.data.joint_pos          # torch.Tensor
    root_pos = robot.data.root_pos_w          # torch.Tensor
 
-   # AFTER (3.0) — properties return TorchArray, use .torch for the tensor
+   # AFTER (3.0) — properties return ProxyArray, use .torch for the tensor
    joint_pos = robot.data.joint_pos.torch    # cached zero-copy torch.Tensor
    root_pos = robot.data.root_pos_w.torch    # cached zero-copy torch.Tensor
    joint_pos_warp = robot.data.joint_pos.warp  # the underlying warp.array
 
 **Automatic interop — in many cases, no changes are needed:**
 
-- **Warp kernels:** ``TorchArray`` implements ``__cuda_array_interface__``, so it can be passed
+- **Warp kernels:** ``ProxyArray`` implements ``__cuda_array_interface__``, so it can be passed
   directly to ``wp.launch()`` without calling ``.warp``:
 
   .. code-block:: python
@@ -1702,7 +1702,7 @@ and ``.warp`` accessors:
      # Just works — no .warp needed
      wp.launch(my_kernel, inputs=[robot.data.joint_pos], ...)
 
-- **Torch functions:** ``TorchArray`` implements ``__torch_function__``, so ``torch.*`` operations
+- **Torch functions:** ``ProxyArray`` implements ``__torch_function__``, so ``torch.*`` operations
   accept it directly. During the deprecation period this emits a one-time warning, but works:
 
   .. code-block:: python
@@ -1715,7 +1715,7 @@ and ``.warp`` accessors:
 
 1. Append ``.torch`` where you need an explicit ``torch.Tensor`` (e.g., for indexing, slicing,
    or passing to non-torch libraries).
-2. Warp kernel calls need no changes — ``TorchArray`` works transparently.
+2. Warp kernel calls need no changes — ``ProxyArray`` works transparently.
 3. If you need the underlying ``warp.array`` (e.g., for ``ptr``, ``strides``), use ``.warp``.
 
 .. note::
@@ -1724,7 +1724,7 @@ and ``.warp`` accessors:
    We recommend migrating to explicit ``.torch`` access now, but your code will not break
    immediately.
 
-For a complete guide, see :doc:`/source/how-to/torch_array`.
+For a complete guide, see :doc:`/source/how-to/proxy_array`.
 
 
 Need Help?

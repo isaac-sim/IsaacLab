@@ -5,7 +5,7 @@
 
 """Warp-first dual-access array wrapper with explicit ``.torch`` and ``.warp`` accessors.
 
-Inspired by TorchArray from mujocolab/mjlab (BSD-3-Clause).
+Inspired by ProxyArray from mujocolab/mjlab (BSD-3-Clause).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import torch
 import warp as wp
 
 
-class TorchArray:
+class ProxyArray:
     """Warp-first array wrapper providing cached zero-copy ``.torch`` and ``.warp`` accessors.
 
     This class wraps a :class:`warp.array` and provides:
@@ -27,7 +27,7 @@ class TorchArray:
       (via :func:`warp.to_torch`).
     * Convenience properties (``shape``, ``dtype``, ``device``) delegated to the warp array.
     * A deprecation bridge (``__torch_function__`` and arithmetic/comparison operators) that
-      allows existing code using ``TorchArray`` as if it were a ``torch.Tensor`` to keep working
+      allows existing code using ``ProxyArray`` as if it were a ``torch.Tensor`` to keep working
       while emitting a one-time :class:`DeprecationWarning`.
 
     Example:
@@ -35,10 +35,10 @@ class TorchArray:
     .. code-block:: python
 
         import warp as wp
-        from isaaclab.utils.warp.torch_array import TorchArray
+        from isaaclab.utils.warp.proxy_array import ProxyArray
 
         arr = wp.zeros(100, dtype=wp.vec3f, device="cuda:0")
-        ta = TorchArray(arr)
+        ta = ProxyArray(arr)
 
         # Explicit access (preferred)
         ta.warp  # -> wp.array, shape (100,), dtype vec3f
@@ -52,7 +52,7 @@ class TorchArray:
     """Class-level flag ensuring the deprecation warning is emitted at most once."""
 
     def __init__(self, wp_array: wp.array) -> None:
-        """Initialize the TorchArray wrapper.
+        """Initialize the ProxyArray wrapper.
 
         Args:
             wp_array: The warp array to wrap.
@@ -62,8 +62,8 @@ class TorchArray:
         """
         if not isinstance(wp_array, wp.array):
             raise TypeError(
-                f"TorchArray expects a warp.array, got {type(wp_array).__name__}."
-                " If you have a TorchArray, use it directly instead of wrapping it again."
+                f"ProxyArray expects a warp.array, got {type(wp_array).__name__}."
+                " If you have a ProxyArray, use it directly instead of wrapping it again."
             )
         self._warp = wp_array
         self._torch_cache: torch.Tensor | None = None
@@ -125,8 +125,8 @@ class TorchArray:
         return self._warp.shape[0]
 
     def __repr__(self) -> str:
-        """Return a string representation of the TorchArray."""
-        return f"TorchArray(shape={self.shape}, dtype={self.dtype}, device={self.device})"
+        """Return a string representation of the ProxyArray."""
+        return f"ProxyArray(shape={self.shape}, dtype={self.dtype}, device={self.device})"
 
     # ------------------------------------------------------------------
     # Warp kernel interop
@@ -136,7 +136,7 @@ class TorchArray:
     def __cuda_array_interface__(self):
         """Delegate the CUDA array interface to the underlying warp array.
 
-        This allows a ``TorchArray`` to be passed directly as an argument to
+        This allows a ``ProxyArray`` to be passed directly as an argument to
         :func:`warp.launch` without explicitly accessing ``.warp``.
 
         Raises:
@@ -148,7 +148,7 @@ class TorchArray:
     def __array_interface__(self):
         """Delegate the NumPy array interface to the underlying warp array.
 
-        This allows a ``TorchArray`` to be passed directly as an argument to
+        This allows a ``ProxyArray`` to be passed directly as an argument to
         :func:`warp.launch` on CPU without explicitly accessing ``.warp``.
 
         Raises:
@@ -188,7 +188,7 @@ class TorchArray:
         if not cls._deprecation_warned:
             cls._deprecation_warned = True
             warnings.warn(
-                "Implicit use of TorchArray as a torch.Tensor is deprecated. "
+                "Implicit use of ProxyArray as a torch.Tensor is deprecated. "
                 "Use the explicit .torch property instead (e.g., array.torch).",
                 DeprecationWarning,
                 stacklevel=3,
@@ -196,10 +196,10 @@ class TorchArray:
 
     @classmethod
     def __torch_function__(cls, func, types, args=(), kwargs=None):
-        """Enable torch operations on TorchArray by unwrapping to ``.torch``.
+        """Enable torch operations on ProxyArray by unwrapping to ``.torch``.
 
         This method is called by PyTorch when a torch function receives a
-        ``TorchArray`` as an argument. It unwraps all ``TorchArray`` instances
+        ``ProxyArray`` as an argument. It unwraps all ``ProxyArray`` instances
         to their ``.torch`` tensors and delegates to the original function.
         """
         if kwargs is None:
@@ -207,7 +207,7 @@ class TorchArray:
         cls._warn_implicit()
 
         def unwrap(x):
-            if isinstance(x, TorchArray):
+            if isinstance(x, ProxyArray):
                 return x.torch
             if isinstance(x, (list, tuple)):
                 return type(x)(unwrap(i) for i in x)
@@ -224,7 +224,7 @@ class TorchArray:
     def _binop(self, other, op: str) -> torch.Tensor:
         """Helper for binary and reflected binary operations."""
         self._warn_implicit()
-        other_val = other.torch if isinstance(other, TorchArray) else other
+        other_val = other.torch if isinstance(other, ProxyArray) else other
         return getattr(self.torch, op)(other_val)
 
     def __add__(self, other) -> torch.Tensor:

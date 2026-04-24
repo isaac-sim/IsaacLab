@@ -232,10 +232,10 @@ def rigid_object_iface(request):
 
 
 def _check_torch_array(arr, *, expected_shape: tuple, expected_dtype: type, name: str):
-    """Assert that `arr` is a TorchArray with the expected shape and dtype."""
-    from isaaclab.utils.warp import TorchArray
+    """Assert that `arr` is a ProxyArray with the expected shape and dtype."""
+    from isaaclab.utils.warp import ProxyArray
 
-    assert isinstance(arr, TorchArray), f"{name}: expected TorchArray, got {type(arr)}"
+    assert isinstance(arr, ProxyArray), f"{name}: expected ProxyArray, got {type(arr)}"
     assert arr.shape == expected_shape, f"{name}: expected shape {expected_shape}, got {arr.shape}"
     assert arr.dtype == expected_dtype, f"{name}: expected dtype {expected_dtype}, got {arr.dtype}"
 

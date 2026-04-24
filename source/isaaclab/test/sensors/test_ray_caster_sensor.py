@@ -96,7 +96,7 @@ def test_world_alignment_ignores_sensor_pitch(sim_ground):
     sensor_upright.update(dt)
     sensor_pitched.update(dt)
 
-    # ray_hits_w returns a TorchArray; use .torch for tensor indexing.
+    # ray_hits_w returns a ProxyArray; use .torch for tensor indexing.
     hits_upright = sensor_upright.data.ray_hits_w.torch  # (1, 1, 3)
     hits_pitched = sensor_pitched.data.ray_hits_w.torch
 

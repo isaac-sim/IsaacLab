@@ -8,7 +8,7 @@ Changed
 ^^^^^^^
 
 * Updated :class:`~isaaclab_physx.sim.views.FabricFrameView` to match the new
-  :class:`~isaaclab.sim.views.BaseFrameView` TorchArray return contract. See
+  :class:`~isaaclab.sim.views.BaseFrameView` ProxyArray return contract. See
   the ``isaaclab`` 4.6.15 changelog for migration guidance.
 
 
@@ -19,7 +19,7 @@ Changed
 ^^^^^^^
 
 * Properties on the following data classes now return
-  :class:`~isaaclab.utils.warp.TorchArray` instead of raw ``wp.array``:
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of raw ``wp.array``:
   :class:`~isaaclab_physx.assets.articulation.ArticulationData`,
   :class:`~isaaclab_physx.assets.rigid_object.RigidObjectData`,
   :class:`~isaaclab_physx.assets.rigid_object_collection.RigidObjectCollectionData`,

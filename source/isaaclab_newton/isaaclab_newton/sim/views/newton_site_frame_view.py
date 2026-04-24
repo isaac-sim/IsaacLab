@@ -16,7 +16,7 @@ from pxr import Gf, Usd, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics.newton_manager import NewtonManager
 
@@ -507,7 +507,7 @@ class NewtonSiteFrameView(BaseFrameView):
     ``set_world_poses`` and ``set_local_poses`` update ``site_local`` --
     neither touches ``body_q``.
 
-    Pose getters return :class:`~isaaclab.utils.warp.TorchArray`.  Setters accept ``wp.array``.
+    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
 
     Raises:
         ValueError: If any matched prim resolves to a Newton physics body
@@ -623,10 +623,10 @@ class NewtonSiteFrameView(BaseFrameView):
         self._quat_buf = wp.zeros(self.count, dtype=wp.vec4f, device=device)
         self._local_pos_buf = wp.zeros(self.count, dtype=wp.vec3f, device=device)
         self._local_quat_buf = wp.zeros(self.count, dtype=wp.vec4f, device=device)
-        self._pos_ta = TorchArray(self._pos_buf)
-        self._quat_ta = TorchArray(self._quat_buf)
-        self._local_pos_ta = TorchArray(self._local_pos_buf)
-        self._local_quat_ta = TorchArray(self._local_quat_buf)
+        self._pos_ta = ProxyArray(self._pos_buf)
+        self._quat_ta = ProxyArray(self._quat_buf)
+        self._local_pos_ta = ProxyArray(self._local_pos_buf)
+        self._local_quat_ta = ProxyArray(self._local_quat_buf)
 
     @staticmethod
     def _resolve_ancestor_body(
@@ -682,14 +682,14 @@ class NewtonSiteFrameView(BaseFrameView):
     # World poses
     # ------------------------------------------------------------------
 
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[TorchArray, TorchArray]:
+    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations.
 
         Args:
             indices: Subset of sites to query. ``None`` means all sites.
 
         Returns:
-            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.TorchArray`
+            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
             wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
             cached zero-copy ``torch.Tensor`` view.
         """
@@ -706,7 +706,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 outputs=[pos_buf, quat_buf],
                 device=self._device,
             )
-            return TorchArray(pos_buf), TorchArray(quat_buf)
+            return ProxyArray(pos_buf), ProxyArray(quat_buf)
 
         wp.launch(
             _compute_site_world_transforms,
@@ -767,7 +767,7 @@ class NewtonSiteFrameView(BaseFrameView):
     # Local poses (parent-relative)
     # ------------------------------------------------------------------
 
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[TorchArray, TorchArray]:
+    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get parent-relative positions and orientations.
 
         Computes ``inv(parent_world) * prim_world`` for each site.
@@ -776,7 +776,7 @@ class NewtonSiteFrameView(BaseFrameView):
             indices: Subset of sites to query. ``None`` means all sites.
 
         Returns:
-            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.TorchArray`
+            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
             wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
             cached zero-copy ``torch.Tensor`` view.
         """
@@ -800,7 +800,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 outputs=[pos_buf, quat_buf],
                 device=self._device,
             )
-            return TorchArray(pos_buf), TorchArray(quat_buf)
+            return ProxyArray(pos_buf), ProxyArray(quat_buf)
 
         wp.launch(
             _compute_site_local_transforms,

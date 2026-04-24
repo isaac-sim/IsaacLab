@@ -11,7 +11,7 @@ import logging
 import warp as wp
 
 from isaaclab.sensors.contact_sensor.base_contact_sensor_data import BaseContactSensorData
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +33,12 @@ class ContactSensorData(BaseContactSensorData):
     _first_transition: wp.array | None
 
     @property
-    def pose_w(self) -> TorchArray | None:
+    def pose_w(self) -> ProxyArray | None:
         """Not supported by Newton contact sensor."""
         raise NotImplementedError("pose_w is not supported by the Newton contact sensor.")
 
     @property
-    def pos_w(self) -> TorchArray | None:
+    def pos_w(self) -> ProxyArray | None:
         """Position of the sensor origin in world frame.
 
         `wp.vec3f` array whose shape is (N,) where N is the number of sensors. Note, that when casted to as a
@@ -50,11 +50,11 @@ class ContactSensorData(BaseContactSensorData):
         if self._pos_w is None:
             return None
         if self._pos_w_ta is None:
-            self._pos_w_ta = TorchArray(self._pos_w)
+            self._pos_w_ta = ProxyArray(self._pos_w)
         return self._pos_w_ta
 
     @property
-    def quat_w(self) -> TorchArray | None:
+    def quat_w(self) -> ProxyArray | None:
         """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame.
 
         `wp.quatf` whose shape is (N,) where N is the number of sensors. Note, that when casted to as a `torch.Tensor`,
@@ -66,11 +66,11 @@ class ContactSensorData(BaseContactSensorData):
         if self._quat_w is None:
             return None
         if self._quat_w_ta is None:
-            self._quat_w_ta = TorchArray(self._quat_w)
+            self._quat_w_ta = ProxyArray(self._quat_w)
         return self._quat_w_ta
 
     @property
-    def net_forces_w(self) -> TorchArray | None:
+    def net_forces_w(self) -> ProxyArray | None:
         """The net (total) contact forces in world frame.
 
         `wp.vec3f` array whose shape is (N, S) where N is the number of environments and S is the number of sensors.
@@ -85,7 +85,7 @@ class ContactSensorData(BaseContactSensorData):
         return self._net_forces_w_ta
 
     @property
-    def net_forces_w_history(self) -> TorchArray | None:
+    def net_forces_w_history(self) -> ProxyArray | None:
         """The net (total) contact forces in world frame.
 
         `wp.vec3f` array whose shape is (N, T, S) where N is the number of environments, T is the configured history
@@ -103,7 +103,7 @@ class ContactSensorData(BaseContactSensorData):
         return self._net_forces_w_history_ta
 
     @property
-    def force_matrix_w(self) -> TorchArray | None:
+    def force_matrix_w(self) -> ProxyArray | None:
         """The contact forces between sensors and filter objects in world frame.
 
         `wp.vec3f` array whose shape is (N, S, F) where N is the number of environments, S is number of sensors
@@ -116,11 +116,11 @@ class ContactSensorData(BaseContactSensorData):
         if self._force_matrix_w is None:
             return None
         if self._force_matrix_w_ta is None:
-            self._force_matrix_w_ta = TorchArray(self._force_matrix_w)
+            self._force_matrix_w_ta = ProxyArray(self._force_matrix_w)
         return self._force_matrix_w_ta
 
     @property
-    def force_matrix_w_history(self) -> TorchArray | None:
+    def force_matrix_w_history(self) -> ProxyArray | None:
         """The contact forces between sensors and filter objects in world frame.
 
         `wp.vec3f` array whose shape is (N, T, S, F) where N is the number of environments, T is the configured history
@@ -135,21 +135,21 @@ class ContactSensorData(BaseContactSensorData):
         if self._force_matrix_w_history is None:
             return None
         if self._force_matrix_w_history_ta is None:
-            self._force_matrix_w_history_ta = TorchArray(self._force_matrix_w_history)
+            self._force_matrix_w_history_ta = ProxyArray(self._force_matrix_w_history)
         return self._force_matrix_w_history_ta
 
     @property
-    def contact_pos_w(self) -> TorchArray | None:
+    def contact_pos_w(self) -> ProxyArray | None:
         """Not supported by Newton contact sensor."""
         raise NotImplementedError("contact_pos_w is not supported by the Newton contact sensor.")
 
     @property
-    def friction_forces_w(self) -> TorchArray | None:
+    def friction_forces_w(self) -> ProxyArray | None:
         """Not supported by Newton contact sensor."""
         raise NotImplementedError("friction_forces_w is not supported by the Newton contact sensor.")
 
     @property
-    def last_air_time(self) -> TorchArray | None:
+    def last_air_time(self) -> ProxyArray | None:
         """Time spent (in s) in the air before the last contact.
 
         `wp.float32` array whose shape is (N, S) where N is the number of environments and S is the number of sensors.
@@ -163,7 +163,7 @@ class ContactSensorData(BaseContactSensorData):
         return self._last_air_time_ta
 
     @property
-    def current_air_time(self) -> TorchArray | None:
+    def current_air_time(self) -> ProxyArray | None:
         """Time spent (in s) in the air since the last detach.
 
         `wp.float32` array whose shape is (N, S) where N is the number of environments and S is the number of sensors.
@@ -177,7 +177,7 @@ class ContactSensorData(BaseContactSensorData):
         return self._current_air_time_ta
 
     @property
-    def last_contact_time(self) -> TorchArray | None:
+    def last_contact_time(self) -> ProxyArray | None:
         """Time spent (in s) in contact before the last detach.
 
         `wp.float32` array whose shape is (N, S) where N is the number of environments and S is the number of sensors.
@@ -191,7 +191,7 @@ class ContactSensorData(BaseContactSensorData):
         return self._last_contact_time_ta
 
     @property
-    def current_contact_time(self) -> TorchArray | None:
+    def current_contact_time(self) -> ProxyArray | None:
         """Time spent (in s) in contact since the last contact.
 
         `wp.float32` array whose shape is (N, S) where N is the number of environments and S is the number of sensors.
@@ -269,7 +269,7 @@ class ContactSensorData(BaseContactSensorData):
             self._last_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._current_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._first_transition = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
-            self._first_transition_ta = TorchArray(self._first_transition)
+            self._first_transition_ta = ProxyArray(self._first_transition)
         else:
             self._last_air_time = None
             self._current_air_time = None
@@ -278,22 +278,22 @@ class ContactSensorData(BaseContactSensorData):
             self._first_transition = None
             self._first_transition_ta = None
 
-        # -- Pin TorchArray instances for pre-allocated buffers
-        self._net_forces_w_ta = TorchArray(self._net_forces_w)
+        # -- Pin ProxyArray instances for pre-allocated buffers
+        self._net_forces_w_ta = ProxyArray(self._net_forces_w)
         self._net_forces_w_history_ta = (
-            TorchArray(self._net_forces_w_history) if self._net_forces_w_history is not None else None
+            ProxyArray(self._net_forces_w_history) if self._net_forces_w_history is not None else None
         )
-        # -- Lazy TorchArray instances for nullable buffers (pinned on first access)
-        self._pos_w_ta: TorchArray | None = None
-        self._quat_w_ta: TorchArray | None = None
-        self._force_matrix_w_ta: TorchArray | None = None
-        self._force_matrix_w_history_ta: TorchArray | None = None
-        # -- Pin TorchArray instances for air/contact time buffers (eagerly when allocated)
-        self._last_air_time_ta = TorchArray(self._last_air_time) if self._last_air_time is not None else None
-        self._current_air_time_ta = TorchArray(self._current_air_time) if self._current_air_time is not None else None
+        # -- Lazy ProxyArray instances for nullable buffers (pinned on first access)
+        self._pos_w_ta: ProxyArray | None = None
+        self._quat_w_ta: ProxyArray | None = None
+        self._force_matrix_w_ta: ProxyArray | None = None
+        self._force_matrix_w_history_ta: ProxyArray | None = None
+        # -- Pin ProxyArray instances for air/contact time buffers (eagerly when allocated)
+        self._last_air_time_ta = ProxyArray(self._last_air_time) if self._last_air_time is not None else None
+        self._current_air_time_ta = ProxyArray(self._current_air_time) if self._current_air_time is not None else None
         self._last_contact_time_ta = (
-            TorchArray(self._last_contact_time) if self._last_contact_time is not None else None
+            ProxyArray(self._last_contact_time) if self._last_contact_time is not None else None
         )
         self._current_contact_time_ta = (
-            TorchArray(self._current_contact_time) if self._current_contact_time is not None else None
+            ProxyArray(self._current_contact_time) if self._current_contact_time is not None else None
         )

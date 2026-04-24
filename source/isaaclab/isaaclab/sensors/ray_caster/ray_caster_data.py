@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import warp as wp
 
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 
 class RayCasterData:
     """Data container for the ray-cast sensor.
 
-    Public properties return :class:`~isaaclab.utils.warp.TorchArray` wrappers.
+    Public properties return :class:`~isaaclab.utils.warp.ProxyArray` wrappers.
     Use ``.torch`` for a cached zero-copy :class:`torch.Tensor` view or
     ``.warp`` for the underlying :class:`warp.array`.
     """
@@ -27,7 +27,7 @@ class RayCasterData:
         # Accessing the public properties before create_buffers() raises AttributeError.
 
     @property
-    def pos_w(self) -> TorchArray:
+    def pos_w(self) -> ProxyArray:
         """Position of the sensor origin in world frame [m].
 
         Shape is (N,), dtype ``wp.vec3f``. In torch this resolves to (N, 3),
@@ -37,7 +37,7 @@ class RayCasterData:
         return self._pos_w_ta
 
     @property
-    def quat_w(self) -> TorchArray:
+    def quat_w(self) -> ProxyArray:
         """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame.
 
         Shape is (N,), dtype ``wp.quatf``. In torch this resolves to (N, 4),
@@ -47,7 +47,7 @@ class RayCasterData:
         return self._quat_w_ta
 
     @property
-    def ray_hits_w(self) -> TorchArray:
+    def ray_hits_w(self) -> ProxyArray:
         """The ray hit positions in the world frame [m].
 
         Shape is (N, B), dtype ``wp.vec3f``. In torch this resolves to (N, B, 3),
@@ -58,7 +58,7 @@ class RayCasterData:
         return self._ray_hits_w_ta
 
     def create_buffers(self, num_envs: int, num_rays: int, device: str) -> None:
-        """Create internal warp buffers and their :class:`TorchArray` wrappers.
+        """Create internal warp buffers and their :class:`ProxyArray` wrappers.
 
         Args:
             num_envs: Number of environments / sensors.
@@ -71,6 +71,6 @@ class RayCasterData:
         self._quat_w = wp.zeros(num_envs, dtype=wp.quatf, device=device)
         self._ray_hits_w = wp.zeros((num_envs, num_rays), dtype=wp.vec3f, device=device)
 
-        self._pos_w_ta = TorchArray(self._pos_w)
-        self._quat_w_ta = TorchArray(self._quat_w)
-        self._ray_hits_w_ta = TorchArray(self._ray_hits_w)
+        self._pos_w_ta = ProxyArray(self._pos_w)
+        self._quat_w_ta = ProxyArray(self._quat_w)
+        self._ray_hits_w_ta = ProxyArray(self._ray_hits_w)

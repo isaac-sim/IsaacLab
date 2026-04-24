@@ -291,7 +291,7 @@ def test_raycaster_offset_does_not_affect_pos_w():
     sim.reset()
     sensor.update(dt)
 
-    # data.pos_w / data.ray_hits_w return TorchArray wrappers; use .torch for tensor indexing.
+    # data.pos_w / data.ray_hits_w return ProxyArray wrappers; use .torch for tensor indexing.
     pos_w = sensor.data.pos_w.torch[0].cpu()
 
     # pos_w.z should be near the body height, NOT body_height + offset

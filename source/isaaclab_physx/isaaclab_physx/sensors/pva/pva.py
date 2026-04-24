@@ -17,7 +17,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -181,7 +181,7 @@ class Pva(BasePva):
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
         gravity_dir_repeated = gravity_dir.repeat(self.num_instances, 1)
-        self.GRAVITY_VEC_W = TorchArray(wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f))
+        self.GRAVITY_VEC_W = ProxyArray(wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f))
 
         # Create internal buffers
         self._initialize_buffers_impl()

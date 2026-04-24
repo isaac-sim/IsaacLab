@@ -11,7 +11,7 @@ import abc
 
 import warp as wp
 
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 
 class BaseFrameView(abc.ABC):
@@ -22,7 +22,7 @@ class BaseFrameView(abc.ABC):
     :class:`~isaaclab.sim.views.FrameView` selects the correct
     implementation at runtime based on the active physics backend.
 
-    All pose getters return :class:`~isaaclab.utils.warp.TorchArray`.  Setters accept ``wp.array``.
+    All pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
     """
 
     @property
@@ -38,14 +38,14 @@ class BaseFrameView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[TorchArray, TorchArray]:
+    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations for prims in the view.
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.TorchArray`
+            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
             wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
             cached zero-copy ``torch.Tensor`` view.
         """
@@ -68,14 +68,14 @@ class BaseFrameView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[TorchArray, TorchArray]:
+    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get local-space positions and orientations for prims in the view.
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.TorchArray`
+            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
             wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
             cached zero-copy ``torch.Tensor`` view.
         """

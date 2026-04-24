@@ -104,13 +104,13 @@ Isaac Lab.
 Working with Simulation Data
 ----------------------------
 
-This guide explains how to read and write simulation state using the :class:`~isaaclab.utils.warp.TorchArray`
+This guide explains how to read and write simulation state using the :class:`~isaaclab.utils.warp.ProxyArray`
 dual-access wrapper that all data classes return.
 
 .. toctree::
     :maxdepth: 1
 
-    torch_array
+    proxy_array
 
 
 Interfacing with Environments

@@ -21,7 +21,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -711,7 +711,7 @@ class DeformableObject(AssetBase):
             outputs=[default_nodal_state],
             device=self.device,
         )
-        self._data.default_nodal_state_w = TorchArray(default_nodal_state)
+        self._data.default_nodal_state_w = ProxyArray(default_nodal_state)
 
         # kinematic targets (only for volume deformables, surface deformables do not support kinematic targets)
         if self._deformable_type == "volume":
@@ -729,7 +729,7 @@ class DeformableObject(AssetBase):
                 inputs=[kinematic_target.reshape((self.num_instances * self.max_sim_vertices_per_body,))],
                 device=self.device,
             )
-            self._data.nodal_kinematic_target = TorchArray(kinematic_target)
+            self._data.nodal_kinematic_target = ProxyArray(kinematic_target)
 
     """
     Internal simulation callbacks.

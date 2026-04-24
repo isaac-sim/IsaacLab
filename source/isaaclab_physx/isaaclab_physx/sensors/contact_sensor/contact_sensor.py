@@ -20,7 +20,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -190,7 +190,7 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> TorchArray:
+    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have established contact within the last :attr:`dt` seconds
@@ -235,7 +235,7 @@ class ContactSensor(BaseContactSensor):
         )
         return self._data._first_transition_ta
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> TorchArray:
+    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have broken contact within the last :attr:`dt` seconds

@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.kernels import (
     add_forces_to_dual_buffers_index,
     add_forces_to_dual_buffers_mask,
@@ -86,9 +86,9 @@ class WrenchComposer:
         self._out_force_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
         self._out_torque_b = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
 
-        # TorchArray caches for the output buffers, exposed via the public properties.
-        self._out_force_b_ta = TorchArray(self._out_force_b)
-        self._out_torque_b_ta = TorchArray(self._out_torque_b)
+        # ProxyArray caches for the output buffers, exposed via the public properties.
+        self._out_force_b_ta = ProxyArray(self._out_force_b)
+        self._out_torque_b_ta = ProxyArray(self._out_torque_b)
 
         # -- Index / mask helper arrays --
         self._ALL_ENV_INDICES = wp.array(np.arange(self.num_envs, dtype=np.int32), dtype=wp.int32, device=self.device)
@@ -169,7 +169,7 @@ class WrenchComposer:
         return self._local_torque_b
 
     @property
-    def out_force_b(self) -> TorchArray:
+    def out_force_b(self) -> ProxyArray:
         """Composed output force [N] in the body frame.
 
         Shape is ``(num_envs, num_bodies)``, dtype = ``wp.vec3f``. In torch this resolves to
@@ -182,7 +182,7 @@ class WrenchComposer:
         return self._out_force_b_ta
 
     @property
-    def out_torque_b(self) -> TorchArray:
+    def out_torque_b(self) -> ProxyArray:
         """Composed output torque [N·m] in the body frame.
 
         Shape is ``(num_envs, num_bodies)``, dtype = ``wp.vec3f``. In torch this resolves to
@@ -195,7 +195,7 @@ class WrenchComposer:
         return self._out_torque_b_ta
 
     @property
-    def composed_force(self) -> TorchArray:
+    def composed_force(self) -> ProxyArray:
         """Composed force in the body frame.
 
         .. deprecated:: 4.5.33
@@ -209,7 +209,7 @@ class WrenchComposer:
         return self.out_force_b
 
     @property
-    def composed_torque(self) -> TorchArray:
+    def composed_torque(self) -> ProxyArray:
         """Composed torque in the body frame.
 
         .. deprecated:: 4.5.33

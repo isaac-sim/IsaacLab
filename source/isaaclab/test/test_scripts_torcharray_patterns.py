@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Static scanner ensuring scripts/ does not regress the TorchArray migration.
+"""Static scanner ensuring scripts/ does not regress the ProxyArray migration.
 
 Every public ``.data.<field>`` on an asset or sensor now returns a
-:class:`~isaaclab.utils.warp.TorchArray` (or, for CameraData, a raw
+:class:`~isaaclab.utils.warp.ProxyArray` (or, for CameraData, a raw
 ``torch.Tensor``) — **never** a ``wp.array``. Wrapping such an access
 in :func:`wp.to_torch` therefore fails at runtime with a confusing
 ``TypeError``. This test regex-scans ``scripts/`` for the pattern and
@@ -64,7 +64,7 @@ def _scripts_files() -> list[Path]:
 def test_no_wp_to_torch_on_torcharray_data(path: Path) -> None:
     """No ``wp.to_torch(<x>.data.<field>)`` / ``wp.to_torch(<x>_data.<field>)`` in scripts/.
 
-    Post-migration, ``<asset>.data.<field>`` returns a ``TorchArray``
+    Post-migration, ``<asset>.data.<field>`` returns a ``ProxyArray``
     (or ``torch.Tensor`` for CameraData); passing either to ``wp.to_torch``
     raises ``TypeError`` because it expects ``wp.array``. Use the
     ``.torch`` accessor instead (or omit the wrap entirely for
@@ -72,7 +72,7 @@ def test_no_wp_to_torch_on_torcharray_data(path: Path) -> None:
     """
     rel = path.relative_to(_repo_root()).as_posix()
     if any(rel.endswith(suffix) for suffix in _EXCLUDE):
-        pytest.skip(f"{rel} is excluded from the TorchArray hygiene scan")
+        pytest.skip(f"{rel} is excluded from the ProxyArray hygiene scan")
 
     text = path.read_text(encoding="utf-8")
 
@@ -83,6 +83,6 @@ def test_no_wp_to_torch_on_torcharray_data(path: Path) -> None:
 
     if offenders:
         pytest.fail(
-            "Found wp.to_torch(...) calls on a migrated TorchArray data accessor. "
+            "Found wp.to_torch(...) calls on a migrated ProxyArray data accessor. "
             "Use .torch instead of wp.to_torch(...) (see isaaclab 4.6.15 CHANGELOG).\n" + "\n".join(offenders)
         )

@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 
 class BaseRigidObjectCollectionData(ABC):
@@ -65,7 +65,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def default_body_pose(self) -> TorchArray:
+    def default_body_pose(self) -> ProxyArray:
         """Default body pose ``[pos, quat]`` in local environment frame.
 
         The position and quaternion are of the rigid body's actor frame.
@@ -76,7 +76,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def default_body_vel(self) -> TorchArray:
+    def default_body_vel(self) -> ProxyArray:
         """Default body velocity ``[lin_vel, ang_vel]`` in local environment frame.
 
         The linear and angular velocities are of the rigid body's center of mass frame.
@@ -87,7 +87,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def default_body_state(self) -> TorchArray:
+    def default_body_state(self) -> ProxyArray:
         """Deprecated, same as :attr:`default_body_pose` and :attr:`default_body_vel`."""
         raise NotImplementedError()
 
@@ -97,7 +97,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_pose_w(self) -> TorchArray:
+    def body_link_pose_w(self) -> ProxyArray:
         """Body link pose ``[pos, quat]`` in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
@@ -110,7 +110,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_vel_w(self) -> TorchArray:
+    def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
@@ -123,7 +123,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pose_w(self) -> TorchArray:
+    def body_com_pose_w(self) -> ProxyArray:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
@@ -136,7 +136,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_vel_w(self) -> TorchArray:
+    def body_com_vel_w(self) -> ProxyArray:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
@@ -149,25 +149,25 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_state_w(self) -> TorchArray:
+    def body_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_link_state_w(self) -> TorchArray:
+    def body_link_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_state_w(self) -> TorchArray:
+    def body_com_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_acc_w(self) -> TorchArray:
+    def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
@@ -179,7 +179,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pose_b(self) -> TorchArray:
+    def body_com_pose_b(self) -> ProxyArray:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
 
         Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
@@ -192,7 +192,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_mass(self) -> TorchArray:
+    def body_mass(self) -> ProxyArray:
         """Mass of all bodies in the simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
@@ -201,7 +201,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_inertia(self) -> TorchArray:
+    def body_inertia(self) -> ProxyArray:
         """Inertia of all bodies in the simulation world frame.
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
@@ -215,7 +215,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def projected_gravity_b(self) -> TorchArray:
+    def projected_gravity_b(self) -> ProxyArray:
         """Projection of the gravity direction on base frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -225,7 +225,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def heading_w(self) -> TorchArray:
+    def heading_w(self) -> ProxyArray:
         """Yaw heading of the base frame (in radians).
 
         Shape is (num_instances, num_bodies), dtype = wp.float32.
@@ -239,7 +239,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_lin_vel_b(self) -> TorchArray:
+    def body_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -252,7 +252,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_ang_vel_b(self) -> TorchArray:
+    def body_link_ang_vel_b(self) -> ProxyArray:
         """Root link angular velocity in base frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -265,7 +265,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_lin_vel_b(self) -> TorchArray:
+    def body_com_lin_vel_b(self) -> ProxyArray:
         """Root center of mass linear velocity in base frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -278,7 +278,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_vel_b(self) -> TorchArray:
+    def body_com_ang_vel_b(self) -> ProxyArray:
         """Root center of mass angular velocity in base frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -295,7 +295,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_pos_w(self) -> TorchArray:
+    def body_link_pos_w(self) -> ProxyArray:
         """Positions of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -307,7 +307,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_quat_w(self) -> TorchArray:
+    def body_link_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
@@ -319,7 +319,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_lin_vel_w(self) -> TorchArray:
+    def body_link_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -331,7 +331,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_link_ang_vel_w(self) -> TorchArray:
+    def body_link_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -343,7 +343,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pos_w(self) -> TorchArray:
+    def body_com_pos_w(self) -> ProxyArray:
         """Positions of all bodies' center of mass in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -355,7 +355,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_quat_w(self) -> TorchArray:
+    def body_com_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
@@ -367,7 +367,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_lin_vel_w(self) -> TorchArray:
+    def body_com_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -379,7 +379,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_vel_w(self) -> TorchArray:
+    def body_com_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -391,7 +391,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_lin_acc_w(self) -> TorchArray:
+    def body_com_lin_acc_w(self) -> ProxyArray:
         """Linear acceleration of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -403,7 +403,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_acc_w(self) -> TorchArray:
+    def body_com_ang_acc_w(self) -> ProxyArray:
         """Angular acceleration of all bodies in simulation world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -415,7 +415,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pos_b(self) -> TorchArray:
+    def body_com_pos_b(self) -> ProxyArray:
         """Center of mass position of all of the bodies in their respective link frames.
 
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
@@ -427,7 +427,7 @@ class BaseRigidObjectCollectionData(ABC):
 
     @property
     @abstractmethod
-    def body_com_quat_b(self) -> TorchArray:
+    def body_com_quat_b(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their
         respective link frames.
 
@@ -443,57 +443,57 @@ class BaseRigidObjectCollectionData(ABC):
     """
 
     @property
-    def body_pose_w(self) -> TorchArray:
+    def body_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pose_w`."""
         return self.body_link_pose_w
 
     @property
-    def body_pos_w(self) -> TorchArray:
+    def body_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pos_w`."""
         return self.body_link_pos_w
 
     @property
-    def body_quat_w(self) -> TorchArray:
+    def body_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_quat_w`."""
         return self.body_link_quat_w
 
     @property
-    def body_vel_w(self) -> TorchArray:
+    def body_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
 
     @property
-    def body_lin_vel_w(self) -> TorchArray:
+    def body_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_vel_w`."""
         return self.body_com_lin_vel_w
 
     @property
-    def body_ang_vel_w(self) -> TorchArray:
+    def body_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_vel_w`."""
         return self.body_com_ang_vel_w
 
     @property
-    def body_acc_w(self) -> TorchArray:
+    def body_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_acc_w`."""
         return self.body_com_acc_w
 
     @property
-    def body_lin_acc_w(self) -> TorchArray:
+    def body_lin_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_acc_w`."""
         return self.body_com_lin_acc_w
 
     @property
-    def body_ang_acc_w(self) -> TorchArray:
+    def body_ang_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_acc_w`."""
         return self.body_com_ang_acc_w
 
     @property
-    def com_pos_b(self) -> TorchArray:
+    def com_pos_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_pos_b`."""
         return self.body_com_pos_b
 
     @property
-    def com_quat_b(self) -> TorchArray:
+    def com_quat_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_quat_b`."""
         return self.body_com_quat_b
 
@@ -507,7 +507,7 @@ class BaseRigidObjectCollectionData(ABC):
     """
 
     @property
-    def default_object_pose(self) -> TorchArray:
+    def default_object_pose(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_body_pose` instead."""
         warnings.warn(
             "The `default_object_pose` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -518,7 +518,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.default_body_pose
 
     @property
-    def default_object_vel(self) -> TorchArray:
+    def default_object_vel(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_body_vel` instead."""
         warnings.warn(
             "The `default_object_vel` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -529,7 +529,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.default_body_vel
 
     @property
-    def default_object_state(self) -> TorchArray:
+    def default_object_state(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_body_state` instead."""
         warnings.warn(
             "The `default_object_state` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -638,7 +638,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pose_b
 
     @property
-    def object_link_pos_w(self) -> TorchArray:
+    def object_link_pos_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
         warnings.warn(
             "The `object_link_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -649,7 +649,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pos_w
 
     @property
-    def object_link_quat_w(self) -> TorchArray:
+    def object_link_quat_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
         warnings.warn(
             "The `object_link_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -660,7 +660,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_quat_w
 
     @property
-    def object_link_lin_vel_w(self) -> TorchArray:
+    def object_link_lin_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_lin_vel_w` instead."""
         warnings.warn(
             "The `object_link_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -671,7 +671,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_lin_vel_w
 
     @property
-    def object_link_ang_vel_w(self) -> TorchArray:
+    def object_link_ang_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_ang_vel_w` instead."""
         warnings.warn(
             "The `object_link_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -682,7 +682,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_ang_vel_w
 
     @property
-    def object_com_pos_w(self) -> TorchArray:
+    def object_com_pos_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_pos_w` instead."""
         warnings.warn(
             "The `object_com_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -693,7 +693,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pos_w
 
     @property
-    def object_com_quat_w(self) -> TorchArray:
+    def object_com_quat_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_quat_w` instead."""
         warnings.warn(
             "The `object_com_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -704,7 +704,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_quat_w
 
     @property
-    def object_com_lin_vel_w(self) -> TorchArray:
+    def object_com_lin_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
         warnings.warn(
             "The `object_com_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -715,7 +715,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_w
 
     @property
-    def object_com_ang_vel_w(self) -> TorchArray:
+    def object_com_ang_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
         warnings.warn(
             "The `object_com_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -726,7 +726,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_w
 
     @property
-    def object_com_lin_acc_w(self) -> TorchArray:
+    def object_com_lin_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
         warnings.warn(
             "The `object_com_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -737,7 +737,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_acc_w
 
     @property
-    def object_com_ang_acc_w(self) -> TorchArray:
+    def object_com_ang_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
         warnings.warn(
             "The `object_com_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -748,7 +748,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_acc_w
 
     @property
-    def object_com_pos_b(self) -> TorchArray:
+    def object_com_pos_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
         warnings.warn(
             "The `object_com_pos_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -759,7 +759,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_pos_b
 
     @property
-    def object_com_quat_b(self) -> TorchArray:
+    def object_com_quat_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
         warnings.warn(
             "The `object_com_quat_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -770,7 +770,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_quat_b
 
     @property
-    def object_link_lin_vel_b(self) -> TorchArray:
+    def object_link_lin_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_lin_vel_b` instead."""
         warnings.warn(
             "The `object_link_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -781,7 +781,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_lin_vel_b
 
     @property
-    def object_link_ang_vel_b(self) -> TorchArray:
+    def object_link_ang_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_ang_vel_b` instead."""
         warnings.warn(
             "The `object_link_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -792,7 +792,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_ang_vel_b
 
     @property
-    def object_com_lin_vel_b(self) -> TorchArray:
+    def object_com_lin_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
         warnings.warn(
             "The `object_com_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -803,7 +803,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_b
 
     @property
-    def object_com_ang_vel_b(self) -> TorchArray:
+    def object_com_ang_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
         warnings.warn(
             "The `object_com_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -814,7 +814,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_b
 
     @property
-    def object_pose_w(self) -> TorchArray:
+    def object_pose_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
         warnings.warn(
             "The `object_pose_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pose_w` instead.",
@@ -824,7 +824,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pose_w
 
     @property
-    def object_pos_w(self) -> TorchArray:
+    def object_pos_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
         warnings.warn(
             "The `object_pos_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pos_w` instead.",
@@ -834,7 +834,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_pos_w
 
     @property
-    def object_quat_w(self) -> TorchArray:
+    def object_quat_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
         warnings.warn(
             "The `object_quat_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_quat_w` instead.",
@@ -844,7 +844,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_link_quat_w
 
     @property
-    def object_vel_w(self) -> TorchArray:
+    def object_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
         warnings.warn(
             "The `object_vel_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_vel_w` instead.",
@@ -854,7 +854,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_vel_w
 
     @property
-    def object_lin_vel_w(self) -> TorchArray:
+    def object_lin_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
         warnings.warn(
             "The `object_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -865,7 +865,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_w
 
     @property
-    def object_ang_vel_w(self) -> TorchArray:
+    def object_ang_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
         warnings.warn(
             "The `object_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -876,7 +876,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_w
 
     @property
-    def object_lin_vel_b(self) -> TorchArray:
+    def object_lin_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
         warnings.warn(
             "The `object_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -887,7 +887,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_vel_b
 
     @property
-    def object_ang_vel_b(self) -> TorchArray:
+    def object_ang_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
         warnings.warn(
             "The `object_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -898,7 +898,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_ang_vel_b
 
     @property
-    def object_acc_w(self) -> TorchArray:
+    def object_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
         warnings.warn(
             "The `object_acc_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_acc_w` instead.",
@@ -908,7 +908,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_acc_w
 
     @property
-    def object_lin_acc_w(self) -> TorchArray:
+    def object_lin_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
         warnings.warn(
             "The `object_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -919,7 +919,7 @@ class BaseRigidObjectCollectionData(ABC):
         return self.body_com_lin_acc_w
 
     @property
-    def object_ang_acc_w(self) -> TorchArray:
+    def object_ang_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
         warnings.warn(
             "The `object_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
@@ -934,7 +934,7 @@ class BaseRigidObjectCollectionData(ABC):
     """
 
     @property
-    def default_mass(self) -> TorchArray:
+    def default_mass(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
         warnings.warn(
             "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
@@ -944,10 +944,10 @@ class BaseRigidObjectCollectionData(ABC):
         )
         if self._default_mass is None:
             self._default_mass = wp.clone(self.body_mass.warp, self.device)
-        return TorchArray(self._default_mass)
+        return ProxyArray(self._default_mass)
 
     @property
-    def default_inertia(self) -> TorchArray:
+    def default_inertia(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
         warnings.warn(
             "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
@@ -957,4 +957,4 @@ class BaseRigidObjectCollectionData(ABC):
         )
         if self._default_inertia is None:
             self._default_inertia = wp.clone(self.body_inertia.warp, self.device)
-        return TorchArray(self._default_inertia)
+        return ProxyArray(self._default_inertia)

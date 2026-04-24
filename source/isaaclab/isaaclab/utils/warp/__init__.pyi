@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "TorchArray",
+    "ProxyArray",
     "convert_to_warp_mesh",
     "raycast_dynamic_meshes",
     "raycast_mesh",
@@ -12,4 +12,4 @@ __all__ = [
 ]
 
 from .ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh, raycast_single_mesh
-from .torch_array import TorchArray
+from .proxy_array import ProxyArray

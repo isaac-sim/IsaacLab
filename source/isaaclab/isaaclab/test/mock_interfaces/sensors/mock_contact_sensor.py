@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 try:
     from isaaclab.sensors.contact_sensor.base_contact_sensor_data import BaseContactSensorData
@@ -74,23 +74,23 @@ class MockContactSensorData(BaseContactSensorData):
         self._last_contact_time: wp.array | None = None
         self._current_contact_time: wp.array | None = None
 
-        # TorchArray caches
-        self._pos_w_ta: TorchArray | None = None
-        self._quat_w_ta: TorchArray | None = None
-        self._net_forces_w_ta: TorchArray | None = None
-        self._net_forces_w_history_ta: TorchArray | None = None
-        self._force_matrix_w_ta: TorchArray | None = None
-        self._contact_pos_w_ta: TorchArray | None = None
-        self._friction_forces_w_ta: TorchArray | None = None
-        self._last_air_time_ta: TorchArray | None = None
-        self._current_air_time_ta: TorchArray | None = None
-        self._last_contact_time_ta: TorchArray | None = None
-        self._current_contact_time_ta: TorchArray | None = None
+        # ProxyArray caches
+        self._pos_w_ta: ProxyArray | None = None
+        self._quat_w_ta: ProxyArray | None = None
+        self._net_forces_w_ta: ProxyArray | None = None
+        self._net_forces_w_history_ta: ProxyArray | None = None
+        self._force_matrix_w_ta: ProxyArray | None = None
+        self._contact_pos_w_ta: ProxyArray | None = None
+        self._friction_forces_w_ta: ProxyArray | None = None
+        self._last_air_time_ta: ProxyArray | None = None
+        self._current_air_time_ta: ProxyArray | None = None
+        self._last_contact_time_ta: ProxyArray | None = None
+        self._current_contact_time_ta: ProxyArray | None = None
 
     # -- Properties --
 
     @property
-    def pos_w(self) -> TorchArray | None:
+    def pos_w(self) -> ProxyArray | None:
         """Position of sensor origins in world frame. Shape: (N, B, 3)."""
         if self._pos_w is None:
             self._pos_w = wp.zeros(
@@ -98,11 +98,11 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._pos_w_ta = None
         if self._pos_w_ta is None:
-            self._pos_w_ta = TorchArray(self._pos_w)
+            self._pos_w_ta = ProxyArray(self._pos_w)
         return self._pos_w_ta
 
     @property
-    def quat_w(self) -> TorchArray | None:
+    def quat_w(self) -> ProxyArray | None:
         """Orientation (w, x, y, z) in world frame. Shape: (N, B, 4)."""
         if self._quat_w is None:
             # Default to identity quaternion
@@ -111,19 +111,19 @@ class MockContactSensorData(BaseContactSensorData):
             self._quat_w = wp.array(quat_np, dtype=wp.float32, device=self.device)
             self._quat_w_ta = None
         if self._quat_w_ta is None:
-            self._quat_w_ta = TorchArray(self._quat_w)
+            self._quat_w_ta = ProxyArray(self._quat_w)
         return self._quat_w_ta
 
     @property
-    def pose_w(self) -> TorchArray | None:
+    def pose_w(self) -> ProxyArray | None:
         """Pose in world frame (pos + quat). Shape: (N, B, 7)."""
         pos_t = self.pos_w.torch
         quat_t = self.quat_w.torch
         pose_t = torch.cat([pos_t, quat_t], dim=-1)
-        return TorchArray(wp.from_torch(pose_t.contiguous(), dtype=wp.float32))
+        return ProxyArray(wp.from_torch(pose_t.contiguous(), dtype=wp.float32))
 
     @property
-    def net_forces_w(self) -> TorchArray:
+    def net_forces_w(self) -> ProxyArray:
         """Net normal contact forces in world frame. Shape: (N, B, 3)."""
         if self._net_forces_w is None:
             self._net_forces_w = wp.zeros(
@@ -131,11 +131,11 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._net_forces_w_ta = None
         if self._net_forces_w_ta is None:
-            self._net_forces_w_ta = TorchArray(self._net_forces_w)
+            self._net_forces_w_ta = ProxyArray(self._net_forces_w)
         return self._net_forces_w_ta
 
     @property
-    def net_forces_w_history(self) -> TorchArray | None:
+    def net_forces_w_history(self) -> ProxyArray | None:
         """History of net forces. Shape: (N, T, B, 3)."""
         if self._history_length == 0:
             return None
@@ -147,11 +147,11 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._net_forces_w_history_ta = None
         if self._net_forces_w_history_ta is None:
-            self._net_forces_w_history_ta = TorchArray(self._net_forces_w_history)
+            self._net_forces_w_history_ta = ProxyArray(self._net_forces_w_history)
         return self._net_forces_w_history_ta
 
     @property
-    def force_matrix_w(self) -> TorchArray | None:
+    def force_matrix_w(self) -> ProxyArray | None:
         """Filtered contact forces. Shape: (N, B, M, 3)."""
         if self._num_filter_bodies == 0:
             return None
@@ -163,7 +163,7 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._force_matrix_w_ta = None
         if self._force_matrix_w_ta is None:
-            self._force_matrix_w_ta = TorchArray(self._force_matrix_w)
+            self._force_matrix_w_ta = ProxyArray(self._force_matrix_w)
         return self._force_matrix_w_ta
 
     @property
@@ -183,7 +183,7 @@ class MockContactSensorData(BaseContactSensorData):
         return self._force_matrix_w_history
 
     @property
-    def contact_pos_w(self) -> TorchArray | None:
+    def contact_pos_w(self) -> ProxyArray | None:
         """Contact point positions in world frame. Shape: (N, B, M, 3)."""
         if self._num_filter_bodies == 0:
             return None
@@ -195,11 +195,11 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._contact_pos_w_ta = None
         if self._contact_pos_w_ta is None:
-            self._contact_pos_w_ta = TorchArray(self._contact_pos_w)
+            self._contact_pos_w_ta = ProxyArray(self._contact_pos_w)
         return self._contact_pos_w_ta
 
     @property
-    def friction_forces_w(self) -> TorchArray | None:
+    def friction_forces_w(self) -> ProxyArray | None:
         """Friction forces in world frame. Shape: (N, B, M, 3)."""
         if self._num_filter_bodies == 0:
             return None
@@ -211,11 +211,11 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._friction_forces_w_ta = None
         if self._friction_forces_w_ta is None:
-            self._friction_forces_w_ta = TorchArray(self._friction_forces_w)
+            self._friction_forces_w_ta = ProxyArray(self._friction_forces_w)
         return self._friction_forces_w_ta
 
     @property
-    def last_air_time(self) -> TorchArray:
+    def last_air_time(self) -> ProxyArray:
         """Time in air before last contact. Shape: (N, B)."""
         if self._last_air_time is None:
             self._last_air_time = wp.zeros(
@@ -223,11 +223,11 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._last_air_time_ta = None
         if self._last_air_time_ta is None:
-            self._last_air_time_ta = TorchArray(self._last_air_time)
+            self._last_air_time_ta = ProxyArray(self._last_air_time)
         return self._last_air_time_ta
 
     @property
-    def current_air_time(self) -> TorchArray:
+    def current_air_time(self) -> ProxyArray:
         """Current time in air. Shape: (N, B)."""
         if self._current_air_time is None:
             self._current_air_time = wp.zeros(
@@ -235,11 +235,11 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._current_air_time_ta = None
         if self._current_air_time_ta is None:
-            self._current_air_time_ta = TorchArray(self._current_air_time)
+            self._current_air_time_ta = ProxyArray(self._current_air_time)
         return self._current_air_time_ta
 
     @property
-    def last_contact_time(self) -> TorchArray:
+    def last_contact_time(self) -> ProxyArray:
         """Time in contact before last detach. Shape: (N, B)."""
         if self._last_contact_time is None:
             self._last_contact_time = wp.zeros(
@@ -247,11 +247,11 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._last_contact_time_ta = None
         if self._last_contact_time_ta is None:
-            self._last_contact_time_ta = TorchArray(self._last_contact_time)
+            self._last_contact_time_ta = ProxyArray(self._last_contact_time)
         return self._last_contact_time_ta
 
     @property
-    def current_contact_time(self) -> TorchArray:
+    def current_contact_time(self) -> ProxyArray:
         """Current time in contact. Shape: (N, B)."""
         if self._current_contact_time is None:
             self._current_contact_time = wp.zeros(
@@ -259,7 +259,7 @@ class MockContactSensorData(BaseContactSensorData):
             )
             self._current_contact_time_ta = None
         if self._current_contact_time_ta is None:
-            self._current_contact_time_ta = TorchArray(self._current_contact_time)
+            self._current_contact_time_ta = ProxyArray(self._current_contact_time)
         return self._current_contact_time_ta
 
     # -- Setters --

@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 try:
     from isaaclab.sensors.frame_transformer.base_frame_transformer_data import BaseFrameTransformerData
@@ -65,13 +65,13 @@ class MockFrameTransformerData(BaseFrameTransformerData):
         self._target_pos_source: wp.array | None = None
         self._target_quat_source: wp.array | None = None
 
-        # TorchArray caches
-        self._source_pos_w_ta: TorchArray | None = None
-        self._source_quat_w_ta: TorchArray | None = None
-        self._target_pos_w_ta: TorchArray | None = None
-        self._target_quat_w_ta: TorchArray | None = None
-        self._target_pos_source_ta: TorchArray | None = None
-        self._target_quat_source_ta: TorchArray | None = None
+        # ProxyArray caches
+        self._source_pos_w_ta: ProxyArray | None = None
+        self._source_quat_w_ta: ProxyArray | None = None
+        self._target_pos_w_ta: ProxyArray | None = None
+        self._target_quat_w_ta: ProxyArray | None = None
+        self._target_pos_source_ta: ProxyArray | None = None
+        self._target_quat_source_ta: ProxyArray | None = None
 
     # -- Properties --
 
@@ -81,17 +81,17 @@ class MockFrameTransformerData(BaseFrameTransformerData):
         return self._target_frame_names
 
     @property
-    def source_pos_w(self) -> TorchArray:
+    def source_pos_w(self) -> ProxyArray:
         """Position of source frame in world frame. Shape: (N, 3)."""
         if self._source_pos_w is None:
             self._source_pos_w = wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
             self._source_pos_w_ta = None
         if self._source_pos_w_ta is None:
-            self._source_pos_w_ta = TorchArray(self._source_pos_w)
+            self._source_pos_w_ta = ProxyArray(self._source_pos_w)
         return self._source_pos_w_ta
 
     @property
-    def source_quat_w(self) -> TorchArray:
+    def source_quat_w(self) -> ProxyArray:
         """Orientation (w, x, y, z) of source frame in world frame. Shape: (N, 4)."""
         if self._source_quat_w is None:
             quat_np = np.zeros((self._num_instances, 4), dtype=np.float32)
@@ -99,19 +99,19 @@ class MockFrameTransformerData(BaseFrameTransformerData):
             self._source_quat_w = wp.array(quat_np, dtype=wp.float32, device=self.device)
             self._source_quat_w_ta = None
         if self._source_quat_w_ta is None:
-            self._source_quat_w_ta = TorchArray(self._source_quat_w)
+            self._source_quat_w_ta = ProxyArray(self._source_quat_w)
         return self._source_quat_w_ta
 
     @property
-    def source_pose_w(self) -> TorchArray:
+    def source_pose_w(self) -> ProxyArray:
         """Pose of source frame in world frame. Shape: (N, 7)."""
         pos_t = self.source_pos_w.torch
         quat_t = self.source_quat_w.torch
         pose_t = torch.cat([pos_t, quat_t], dim=-1)
-        return TorchArray(wp.from_torch(pose_t.contiguous(), dtype=wp.float32))
+        return ProxyArray(wp.from_torch(pose_t.contiguous(), dtype=wp.float32))
 
     @property
-    def target_pos_w(self) -> TorchArray:
+    def target_pos_w(self) -> ProxyArray:
         """Position of target frames in world frame. Shape: (N, M, 3)."""
         if self._target_pos_w is None:
             self._target_pos_w = wp.zeros(
@@ -119,11 +119,11 @@ class MockFrameTransformerData(BaseFrameTransformerData):
             )
             self._target_pos_w_ta = None
         if self._target_pos_w_ta is None:
-            self._target_pos_w_ta = TorchArray(self._target_pos_w)
+            self._target_pos_w_ta = ProxyArray(self._target_pos_w)
         return self._target_pos_w_ta
 
     @property
-    def target_quat_w(self) -> TorchArray:
+    def target_quat_w(self) -> ProxyArray:
         """Orientation (w, x, y, z) of target frames in world frame. Shape: (N, M, 4)."""
         if self._target_quat_w is None:
             quat_np = np.zeros((self._num_instances, self._num_target_frames, 4), dtype=np.float32)
@@ -131,19 +131,19 @@ class MockFrameTransformerData(BaseFrameTransformerData):
             self._target_quat_w = wp.array(quat_np, dtype=wp.float32, device=self.device)
             self._target_quat_w_ta = None
         if self._target_quat_w_ta is None:
-            self._target_quat_w_ta = TorchArray(self._target_quat_w)
+            self._target_quat_w_ta = ProxyArray(self._target_quat_w)
         return self._target_quat_w_ta
 
     @property
-    def target_pose_w(self) -> TorchArray:
+    def target_pose_w(self) -> ProxyArray:
         """Pose of target frames in world frame. Shape: (N, M, 7)."""
         pos_t = self.target_pos_w.torch
         quat_t = self.target_quat_w.torch
         pose_t = torch.cat([pos_t, quat_t], dim=-1)
-        return TorchArray(wp.from_torch(pose_t.contiguous(), dtype=wp.float32))
+        return ProxyArray(wp.from_torch(pose_t.contiguous(), dtype=wp.float32))
 
     @property
-    def target_pos_source(self) -> TorchArray:
+    def target_pos_source(self) -> ProxyArray:
         """Position of target frames relative to source frame. Shape: (N, M, 3)."""
         if self._target_pos_source is None:
             self._target_pos_source = wp.zeros(
@@ -151,11 +151,11 @@ class MockFrameTransformerData(BaseFrameTransformerData):
             )
             self._target_pos_source_ta = None
         if self._target_pos_source_ta is None:
-            self._target_pos_source_ta = TorchArray(self._target_pos_source)
+            self._target_pos_source_ta = ProxyArray(self._target_pos_source)
         return self._target_pos_source_ta
 
     @property
-    def target_quat_source(self) -> TorchArray:
+    def target_quat_source(self) -> ProxyArray:
         """Orientation (w, x, y, z) of target frames relative to source frame. Shape: (N, M, 4)."""
         if self._target_quat_source is None:
             quat_np = np.zeros((self._num_instances, self._num_target_frames, 4), dtype=np.float32)
@@ -163,16 +163,16 @@ class MockFrameTransformerData(BaseFrameTransformerData):
             self._target_quat_source = wp.array(quat_np, dtype=wp.float32, device=self.device)
             self._target_quat_source_ta = None
         if self._target_quat_source_ta is None:
-            self._target_quat_source_ta = TorchArray(self._target_quat_source)
+            self._target_quat_source_ta = ProxyArray(self._target_quat_source)
         return self._target_quat_source_ta
 
     @property
-    def target_pose_source(self) -> TorchArray:
+    def target_pose_source(self) -> ProxyArray:
         """Pose of target frames relative to source frame. Shape: (N, M, 7)."""
         pos_t = self.target_pos_source.torch
         quat_t = self.target_quat_source.torch
         pose_t = torch.cat([pos_t, quat_t], dim=-1)
-        return TorchArray(wp.from_torch(pose_t.contiguous(), dtype=wp.float32))
+        return ProxyArray(wp.from_torch(pose_t.contiguous(), dtype=wp.float32))
 
     # -- Setters --
 

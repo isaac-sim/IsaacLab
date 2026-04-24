@@ -9,7 +9,7 @@ Fixed
 
 * Wrapped :attr:`~isaaclab_ovphysx.assets.ArticulationData.GRAVITY_VEC_W` and
   :attr:`~isaaclab_ovphysx.assets.ArticulationData.FORWARD_VEC_B` in
-  :class:`~isaaclab.utils.warp.TorchArray` to match the PhysX and Newton
+  :class:`~isaaclab.utils.warp.ProxyArray` to match the PhysX and Newton
   backends. Public observations such as
   :func:`~isaaclab.envs.mdp.observations.projected_gravity` access
   ``asset.data.GRAVITY_VEC_W.torch``; the previous raw ``wp.array`` lacked

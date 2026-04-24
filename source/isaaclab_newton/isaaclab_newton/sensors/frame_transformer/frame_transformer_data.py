@@ -8,7 +8,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.sensors.frame_transformer.base_frame_transformer_data import BaseFrameTransformerData
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.math_ops import transform_to_vec_quat
 
 
@@ -51,46 +51,46 @@ class FrameTransformerData(BaseFrameTransformerData):
         return self._target_frame_names
 
     @property
-    def target_pose_source(self) -> TorchArray:
+    def target_pose_source(self) -> ProxyArray:
         """Target poses relative to source frame, shape ``(num_envs, num_targets)``, dtype ``wp.transformf``."""
-        return TorchArray(self._target_transforms)
+        return ProxyArray(self._target_transforms)
 
     @property
-    def target_pos_source(self) -> TorchArray:
+    def target_pos_source(self) -> ProxyArray:
         """Position of target frames relative to source frame [m], shape ``(num_envs, num_targets, 3)``."""
-        return TorchArray(self._target_pos_source)
+        return ProxyArray(self._target_pos_source)
 
     @property
-    def target_quat_source(self) -> TorchArray:
+    def target_quat_source(self) -> ProxyArray:
         """Orientation of target frames relative to source frame (xyzw), shape ``(num_envs, num_targets, 4)``."""
-        return TorchArray(self._target_quat_source)
+        return ProxyArray(self._target_quat_source)
 
     @property
-    def target_pose_w(self) -> TorchArray:
+    def target_pose_w(self) -> ProxyArray:
         """Target poses in world frame, shape ``(num_envs, num_targets)``, dtype ``wp.transformf``."""
-        return TorchArray(self._target_transforms_w)
+        return ProxyArray(self._target_transforms_w)
 
     @property
-    def target_pos_w(self) -> TorchArray:
+    def target_pos_w(self) -> ProxyArray:
         """Position of target frames in world frame [m], shape ``(num_envs, num_targets, 3)``."""
-        return TorchArray(self._target_pos_w)
+        return ProxyArray(self._target_pos_w)
 
     @property
-    def target_quat_w(self) -> TorchArray:
+    def target_quat_w(self) -> ProxyArray:
         """Orientation of target frames in world frame (xyzw), shape ``(num_envs, num_targets, 4)``."""
-        return TorchArray(self._target_quat_w)
+        return ProxyArray(self._target_quat_w)
 
     @property
-    def source_pose_w(self) -> TorchArray:
+    def source_pose_w(self) -> ProxyArray:
         """Source pose in world frame, shape ``(num_envs,)``, dtype ``wp.transformf``."""
-        return TorchArray(self._source_transforms)
+        return ProxyArray(self._source_transforms)
 
     @property
-    def source_pos_w(self) -> TorchArray:
+    def source_pos_w(self) -> ProxyArray:
         """Position of source frame in world frame [m], shape ``(num_envs, 3)``."""
-        return TorchArray(self._source_pos_w)
+        return ProxyArray(self._source_pos_w)
 
     @property
-    def source_quat_w(self) -> TorchArray:
+    def source_quat_w(self) -> ProxyArray:
         """Orientation of source frame in world frame (xyzw), shape ``(num_envs, 4)``."""
-        return TorchArray(self._source_quat_w)
+        return ProxyArray(self._source_quat_w)

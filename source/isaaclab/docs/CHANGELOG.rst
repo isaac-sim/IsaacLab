@@ -9,13 +9,13 @@ Changed
 
 * :meth:`~isaaclab.sim.views.BaseFrameView.get_world_poses` and
   :meth:`~isaaclab.sim.views.BaseFrameView.get_local_poses` now return
-  a pair of :class:`~isaaclab.utils.warp.TorchArray` wrappers instead
+  a pair of :class:`~isaaclab.utils.warp.ProxyArray` wrappers instead
   of raw ``wp.array``. :class:`~isaaclab.sim.views.UsdFrameView`,
   :class:`~isaaclab_physx.sim.views.FabricFrameView`, and
   :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` were updated
-  accordingly. Calls without ``indices`` reuse a cached TorchArray
+  accordingly. Calls without ``indices`` reuse a cached ProxyArray
   wrapping the backend's stable buffer (Fabric/Newton); calls with
-  ``indices`` and all calls on USD construct a fresh TorchArray per
+  ``indices`` and all calls on USD construct a fresh ProxyArray per
   invocation.
 
   **Breaking change** — call sites that wrapped the return in
@@ -45,7 +45,7 @@ Changed
   :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
   :attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
   :attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` now return
-  :class:`~isaaclab.utils.warp.TorchArray` instead of raw ``wp.array``.
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of raw ``wp.array``.
   Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view or ``.warp``
   for the underlying ``wp.array``.
 
@@ -66,7 +66,7 @@ Changed
 Added
 ^^^^^
 
-* Added :class:`~isaaclab.utils.warp.TorchArray`, a warp-first dual-access array
+* Added :class:`~isaaclab.utils.warp.ProxyArray`, a warp-first dual-access array
   that provides explicit ``.torch`` and ``.warp`` accessors for seamless
   interoperability between warp and PyTorch workflows.
 
@@ -74,7 +74,7 @@ Changed
 ^^^^^^^
 
 * All properties on the following base data classes now return
-  :class:`~isaaclab.utils.warp.TorchArray` instead of raw ``wp.array``:
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of raw ``wp.array``:
   :class:`~isaaclab.assets.articulation.BaseArticulationData`,
   :class:`~isaaclab.assets.rigid_object.BaseRigidObjectData`,
   :class:`~isaaclab.assets.rigid_object_collection.BaseRigidObjectCollectionData`,

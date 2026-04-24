@@ -14,7 +14,7 @@ import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 from .base_frame_view import BaseFrameView
 
@@ -35,7 +35,7 @@ class UsdFrameView(BaseFrameView):
     For GPU-accelerated Fabric operations, use the PhysX backend variant
     obtained via :class:`~isaaclab.sim.views.FrameView`.
 
-    Pose getters return :class:`~isaaclab.utils.warp.TorchArray`.  Setters accept ``wp.array``.
+    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
 
     .. note::
         **Transform Requirements:**
@@ -253,14 +253,14 @@ class UsdFrameView(BaseFrameView):
     # Getters
     # ------------------------------------------------------------------
 
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[TorchArray, TorchArray]:
+    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space poses for prims in the view.
 
         Args:
             indices: Indices of prims to get poses for. Defaults to None (all prims).
 
         Returns:
-            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.TorchArray`
+            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
             wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
             cached zero-copy ``torch.Tensor`` view.
         """
@@ -279,16 +279,16 @@ class UsdFrameView(BaseFrameView):
 
         pos_wp = wp.array(np.array(positions, dtype=np.float32), dtype=wp.float32, device=self._device)
         quat_wp = wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device)
-        return TorchArray(pos_wp), TorchArray(quat_wp)
+        return ProxyArray(pos_wp), ProxyArray(quat_wp)
 
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[TorchArray, TorchArray]:
+    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get local-space poses for prims in the view.
 
         Args:
             indices: Indices of prims to get poses for. Defaults to None (all prims).
 
         Returns:
-            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.TorchArray`
+            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
             wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
             cached zero-copy ``torch.Tensor`` view.
         """
@@ -307,7 +307,7 @@ class UsdFrameView(BaseFrameView):
 
         pos_wp = wp.array(np.array(translations, dtype=np.float32), dtype=wp.float32, device=self._device)
         quat_wp = wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device)
-        return TorchArray(pos_wp), TorchArray(quat_wp)
+        return ProxyArray(pos_wp), ProxyArray(quat_wp)
 
     def get_scales(self, indices: wp.array | None = None) -> wp.array:
         """Get scales for prims in the view.

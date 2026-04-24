@@ -15,7 +15,7 @@ import warp as wp
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.math import normalize
-from isaaclab.utils.warp import TorchArray
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
@@ -52,7 +52,7 @@ class ArticulationData(BaseArticulationData):
         Newton backend, where buffers are refreshed automatically by the simulation.
 
     .. note::
-        **TorchArray pointer stability.** Each :class:`TorchArray` wrapper is created once on the
+        **ProxyArray pointer stability.** Each :class:`ProxyArray` wrapper is created once on the
         first property access and reused thereafter. This is safe because the PhysX tensor API
         returns views into stable, pre-allocated GPU buffers whose device pointer does not change
         across simulation steps. The ``wp.array`` Python objects returned by getters like
@@ -91,8 +91,8 @@ class ArticulationData(BaseArticulationData):
         forward_vec = torch.tensor((1.0, 0.0, 0.0), device=self.device).repeat(self._root_view.count, 1)
 
         # Initialize constants
-        self.GRAVITY_VEC_W = TorchArray(wp.from_torch(gravity_dir, dtype=wp.vec3f))
-        self.FORWARD_VEC_B = TorchArray(wp.from_torch(forward_vec, dtype=wp.vec3f))
+        self.GRAVITY_VEC_W = ProxyArray(wp.from_torch(gravity_dir, dtype=wp.vec3f))
+        self.FORWARD_VEC_B = ProxyArray(wp.from_torch(forward_vec, dtype=wp.vec3f))
 
         self._create_buffers()
 
@@ -151,14 +151,14 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def default_root_pose(self) -> TorchArray:
+    def default_root_pose(self) -> ProxyArray:
         """Default root pose ``[pos, quat]`` in the local environment frame.
 
         The position and quaternion are of the articulation root's actor frame.
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
         """
         if self._default_root_pose_ta is None:
-            self._default_root_pose_ta = TorchArray(self._default_root_pose)
+            self._default_root_pose_ta = ProxyArray(self._default_root_pose)
         return self._default_root_pose_ta
 
     @default_root_pose.setter
@@ -176,14 +176,14 @@ class ArticulationData(BaseArticulationData):
         self._default_root_pose.assign(value)
 
     @property
-    def default_root_vel(self) -> TorchArray:
+    def default_root_vel(self) -> ProxyArray:
         """Default root velocity ``[lin_vel, ang_vel]`` in the local environment frame.
 
         The linear and angular velocities are of the articulation root's center of mass frame.
         Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
         """
         if self._default_root_vel_ta is None:
-            self._default_root_vel_ta = TorchArray(self._default_root_vel)
+            self._default_root_vel_ta = ProxyArray(self._default_root_vel)
         return self._default_root_vel_ta
 
     @default_root_vel.setter
@@ -201,7 +201,7 @@ class ArticulationData(BaseArticulationData):
         self._default_root_vel.assign(value)
 
     @property
-    def default_joint_pos(self) -> TorchArray:
+    def default_joint_pos(self) -> ProxyArray:
         """Default joint positions of all joints.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -209,7 +209,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
         """
         if self._default_joint_pos_ta is None:
-            self._default_joint_pos_ta = TorchArray(self._default_joint_pos)
+            self._default_joint_pos_ta = ProxyArray(self._default_joint_pos)
         return self._default_joint_pos_ta
 
     @default_joint_pos.setter
@@ -227,7 +227,7 @@ class ArticulationData(BaseArticulationData):
         self._default_joint_pos.assign(value)
 
     @property
-    def default_joint_vel(self) -> TorchArray:
+    def default_joint_vel(self) -> ProxyArray:
         """Default joint velocities of all joints.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -235,7 +235,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is configured through the :attr:`isaaclab.assets.ArticulationCfg.init_state` parameter.
         """
         if self._default_joint_vel_ta is None:
-            self._default_joint_vel_ta = TorchArray(self._default_joint_vel)
+            self._default_joint_vel_ta = ProxyArray(self._default_joint_vel)
         return self._default_joint_vel_ta
 
     @default_joint_vel.setter
@@ -257,7 +257,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def joint_pos_target(self) -> TorchArray:
+    def joint_pos_target(self) -> ProxyArray:
         """Joint position targets commanded by the user.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -267,11 +267,11 @@ class ArticulationData(BaseArticulationData):
         which are then set into the simulation.
         """
         if self._joint_pos_target_ta is None:
-            self._joint_pos_target_ta = TorchArray(self._joint_pos_target)
+            self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
         return self._joint_pos_target_ta
 
     @property
-    def joint_vel_target(self) -> TorchArray:
+    def joint_vel_target(self) -> ProxyArray:
         """Joint velocity targets commanded by the user.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -281,11 +281,11 @@ class ArticulationData(BaseArticulationData):
         which are then set into the simulation.
         """
         if self._joint_vel_target_ta is None:
-            self._joint_vel_target_ta = TorchArray(self._joint_vel_target)
+            self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
         return self._joint_vel_target_ta
 
     @property
-    def joint_effort_target(self) -> TorchArray:
+    def joint_effort_target(self) -> ProxyArray:
         """Joint effort targets commanded by the user.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -295,7 +295,7 @@ class ArticulationData(BaseArticulationData):
         which are then set into the simulation.
         """
         if self._joint_effort_target_ta is None:
-            self._joint_effort_target_ta = TorchArray(self._joint_effort_target)
+            self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
         return self._joint_effort_target_ta
 
     """
@@ -303,7 +303,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def computed_torque(self) -> TorchArray:
+    def computed_torque(self) -> ProxyArray:
         """Joint torques computed from the actuator model (before clipping).
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -313,11 +313,11 @@ class ArticulationData(BaseArticulationData):
         For instance, to penalize the learning agent for a difference between the computed and applied torques.
         """
         if self._computed_torque_ta is None:
-            self._computed_torque_ta = TorchArray(self._computed_torque)
+            self._computed_torque_ta = ProxyArray(self._computed_torque)
         return self._computed_torque_ta
 
     @property
-    def applied_torque(self) -> TorchArray:
+    def applied_torque(self) -> ProxyArray:
         """Joint torques applied from the actuator model (after clipping).
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -326,7 +326,7 @@ class ArticulationData(BaseArticulationData):
         actuator model.
         """
         if self._applied_torque_ta is None:
-            self._applied_torque_ta = TorchArray(self._applied_torque)
+            self._applied_torque_ta = ProxyArray(self._applied_torque)
         return self._applied_torque_ta
 
     """
@@ -334,7 +334,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def joint_stiffness(self) -> TorchArray:
+    def joint_stiffness(self) -> ProxyArray:
         """Joint stiffness provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -342,11 +342,11 @@ class ArticulationData(BaseArticulationData):
         In the case of explicit actuators, the value for the corresponding joints is zero.
         """
         if self._joint_stiffness_ta is None:
-            self._joint_stiffness_ta = TorchArray(self._joint_stiffness)
+            self._joint_stiffness_ta = ProxyArray(self._joint_stiffness)
         return self._joint_stiffness_ta
 
     @property
-    def joint_damping(self) -> TorchArray:
+    def joint_damping(self) -> ProxyArray:
         """Joint damping provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -354,51 +354,51 @@ class ArticulationData(BaseArticulationData):
         In the case of explicit actuators, the value for the corresponding joints is zero.
         """
         if self._joint_damping_ta is None:
-            self._joint_damping_ta = TorchArray(self._joint_damping)
+            self._joint_damping_ta = ProxyArray(self._joint_damping)
         return self._joint_damping_ta
 
     @property
-    def joint_armature(self) -> TorchArray:
+    def joint_armature(self) -> ProxyArray:
         """Joint armature provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
         if self._joint_armature_ta is None:
-            self._joint_armature_ta = TorchArray(self._joint_armature)
+            self._joint_armature_ta = ProxyArray(self._joint_armature)
         return self._joint_armature_ta
 
     @property
-    def joint_friction_coeff(self) -> TorchArray:
+    def joint_friction_coeff(self) -> ProxyArray:
         """Joint static friction coefficient provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
         if self._joint_friction_coeff_ta is None:
-            self._joint_friction_coeff_ta = TorchArray(self._joint_friction_coeff)
+            self._joint_friction_coeff_ta = ProxyArray(self._joint_friction_coeff)
         return self._joint_friction_coeff_ta
 
     @property
-    def joint_dynamic_friction_coeff(self) -> TorchArray:
+    def joint_dynamic_friction_coeff(self) -> ProxyArray:
         """Joint dynamic friction coefficient provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
         if self._joint_dynamic_friction_coeff_ta is None:
-            self._joint_dynamic_friction_coeff_ta = TorchArray(self._joint_dynamic_friction_coeff)
+            self._joint_dynamic_friction_coeff_ta = ProxyArray(self._joint_dynamic_friction_coeff)
         return self._joint_dynamic_friction_coeff_ta
 
     @property
-    def joint_viscous_friction_coeff(self) -> TorchArray:
+    def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Joint viscous friction coefficient provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
         if self._joint_viscous_friction_coeff_ta is None:
-            self._joint_viscous_friction_coeff_ta = TorchArray(self._joint_viscous_friction_coeff)
+            self._joint_viscous_friction_coeff_ta = ProxyArray(self._joint_viscous_friction_coeff)
         return self._joint_viscous_friction_coeff_ta
 
     @property
-    def joint_pos_limits(self) -> TorchArray:
+    def joint_pos_limits(self) -> ProxyArray:
         """Joint position limits provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.vec2f. In torch this resolves to
@@ -407,27 +407,27 @@ class ArticulationData(BaseArticulationData):
         The limits are in the order :math:`[lower, upper]`.
         """
         if self._joint_pos_limits_ta is None:
-            self._joint_pos_limits_ta = TorchArray(self._joint_pos_limits)
+            self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits)
         return self._joint_pos_limits_ta
 
     @property
-    def joint_vel_limits(self) -> TorchArray:
+    def joint_vel_limits(self) -> ProxyArray:
         """Joint maximum velocity provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
         if self._joint_vel_limits_ta is None:
-            self._joint_vel_limits_ta = TorchArray(self._joint_vel_limits)
+            self._joint_vel_limits_ta = ProxyArray(self._joint_vel_limits)
         return self._joint_vel_limits_ta
 
     @property
-    def joint_effort_limits(self) -> TorchArray:
+    def joint_effort_limits(self) -> ProxyArray:
         """Joint maximum effort provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
         if self._joint_effort_limits_ta is None:
-            self._joint_effort_limits_ta = TorchArray(self._joint_effort_limits)
+            self._joint_effort_limits_ta = ProxyArray(self._joint_effort_limits)
         return self._joint_effort_limits_ta
 
     """
@@ -435,7 +435,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def soft_joint_pos_limits(self) -> TorchArray:
+    def soft_joint_pos_limits(self) -> ProxyArray:
         r"""Soft joint positions limits for all joints.
 
         Shape is (num_instances, num_joints), dtype = wp.vec2f. In torch this resolves to
@@ -457,11 +457,11 @@ class ArticulationData(BaseArticulationData):
         simulation, but is useful for learning agents to prevent the joint positions from violating the limits.
         """
         if self._soft_joint_pos_limits_ta is None:
-            self._soft_joint_pos_limits_ta = TorchArray(self._soft_joint_pos_limits)
+            self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
         return self._soft_joint_pos_limits_ta
 
     @property
-    def soft_joint_vel_limits(self) -> TorchArray:
+    def soft_joint_vel_limits(self) -> ProxyArray:
         """Soft joint velocity limits for all joints.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -470,17 +470,17 @@ class ArticulationData(BaseArticulationData):
         has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
         """
         if self._soft_joint_vel_limits_ta is None:
-            self._soft_joint_vel_limits_ta = TorchArray(self._soft_joint_vel_limits)
+            self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
         return self._soft_joint_vel_limits_ta
 
     @property
-    def gear_ratio(self) -> TorchArray:
+    def gear_ratio(self) -> ProxyArray:
         """Gear ratio for relating motor torques to applied Joint torques.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
         if self._gear_ratio_ta is None:
-            self._gear_ratio_ta = TorchArray(self._gear_ratio)
+            self._gear_ratio_ta = ProxyArray(self._gear_ratio)
         return self._gear_ratio_ta
 
     """
@@ -488,69 +488,69 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def fixed_tendon_stiffness(self) -> TorchArray:
+    def fixed_tendon_stiffness(self) -> ProxyArray:
         """Fixed tendon stiffness provided to the simulation.
 
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
         if self._fixed_tendon_stiffness_ta is None:
-            self._fixed_tendon_stiffness_ta = TorchArray(self._fixed_tendon_stiffness)
+            self._fixed_tendon_stiffness_ta = ProxyArray(self._fixed_tendon_stiffness)
         return self._fixed_tendon_stiffness_ta
 
     @property
-    def fixed_tendon_damping(self) -> TorchArray:
+    def fixed_tendon_damping(self) -> ProxyArray:
         """Fixed tendon damping provided to the simulation.
 
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
         if self._fixed_tendon_damping_ta is None:
-            self._fixed_tendon_damping_ta = TorchArray(self._fixed_tendon_damping)
+            self._fixed_tendon_damping_ta = ProxyArray(self._fixed_tendon_damping)
         return self._fixed_tendon_damping_ta
 
     @property
-    def fixed_tendon_limit_stiffness(self) -> TorchArray:
+    def fixed_tendon_limit_stiffness(self) -> ProxyArray:
         """Fixed tendon limit stiffness provided to the simulation.
 
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
         if self._fixed_tendon_limit_stiffness_ta is None:
-            self._fixed_tendon_limit_stiffness_ta = TorchArray(self._fixed_tendon_limit_stiffness)
+            self._fixed_tendon_limit_stiffness_ta = ProxyArray(self._fixed_tendon_limit_stiffness)
         return self._fixed_tendon_limit_stiffness_ta
 
     @property
-    def fixed_tendon_rest_length(self) -> TorchArray:
+    def fixed_tendon_rest_length(self) -> ProxyArray:
         """Fixed tendon rest length provided to the simulation.
 
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
         if self._fixed_tendon_rest_length_ta is None:
-            self._fixed_tendon_rest_length_ta = TorchArray(self._fixed_tendon_rest_length)
+            self._fixed_tendon_rest_length_ta = ProxyArray(self._fixed_tendon_rest_length)
         return self._fixed_tendon_rest_length_ta
 
     @property
-    def fixed_tendon_offset(self) -> TorchArray:
+    def fixed_tendon_offset(self) -> ProxyArray:
         """Fixed tendon offset provided to the simulation.
 
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
         if self._fixed_tendon_offset_ta is None:
-            self._fixed_tendon_offset_ta = TorchArray(self._fixed_tendon_offset)
+            self._fixed_tendon_offset_ta = ProxyArray(self._fixed_tendon_offset)
         return self._fixed_tendon_offset_ta
 
     @property
-    def fixed_tendon_pos_limits(self) -> TorchArray:
+    def fixed_tendon_pos_limits(self) -> ProxyArray:
         """Fixed tendon position limits provided to the simulation.
 
         Shape is (num_instances, num_fixed_tendons), dtype = wp.vec2f. In torch this resolves to
         (num_instances, num_fixed_tendons, 2).
         """
         if self._fixed_tendon_pos_limits_ta is None:
-            self._fixed_tendon_pos_limits_ta = TorchArray(self._fixed_tendon_pos_limits)
+            self._fixed_tendon_pos_limits_ta = ProxyArray(self._fixed_tendon_pos_limits)
         return self._fixed_tendon_pos_limits_ta
 
     """
@@ -558,47 +558,47 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def spatial_tendon_stiffness(self) -> TorchArray:
+    def spatial_tendon_stiffness(self) -> ProxyArray:
         """Spatial tendon stiffness provided to the simulation.
 
         Shape is (num_instances, num_spatial_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_spatial_tendons).
         """
         if self._spatial_tendon_stiffness_ta is None:
-            self._spatial_tendon_stiffness_ta = TorchArray(self._spatial_tendon_stiffness)
+            self._spatial_tendon_stiffness_ta = ProxyArray(self._spatial_tendon_stiffness)
         return self._spatial_tendon_stiffness_ta
 
     @property
-    def spatial_tendon_damping(self) -> TorchArray:
+    def spatial_tendon_damping(self) -> ProxyArray:
         """Spatial tendon damping provided to the simulation.
 
         Shape is (num_instances, num_spatial_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_spatial_tendons).
         """
         if self._spatial_tendon_damping_ta is None:
-            self._spatial_tendon_damping_ta = TorchArray(self._spatial_tendon_damping)
+            self._spatial_tendon_damping_ta = ProxyArray(self._spatial_tendon_damping)
         return self._spatial_tendon_damping_ta
 
     @property
-    def spatial_tendon_limit_stiffness(self) -> TorchArray:
+    def spatial_tendon_limit_stiffness(self) -> ProxyArray:
         """Spatial tendon limit stiffness provided to the simulation.
 
         Shape is (num_instances, num_spatial_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_spatial_tendons).
         """
         if self._spatial_tendon_limit_stiffness_ta is None:
-            self._spatial_tendon_limit_stiffness_ta = TorchArray(self._spatial_tendon_limit_stiffness)
+            self._spatial_tendon_limit_stiffness_ta = ProxyArray(self._spatial_tendon_limit_stiffness)
         return self._spatial_tendon_limit_stiffness_ta
 
     @property
-    def spatial_tendon_offset(self) -> TorchArray:
+    def spatial_tendon_offset(self) -> ProxyArray:
         """Spatial tendon offset provided to the simulation.
 
         Shape is (num_instances, num_spatial_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_spatial_tendons).
         """
         if self._spatial_tendon_offset_ta is None:
-            self._spatial_tendon_offset_ta = TorchArray(self._spatial_tendon_offset)
+            self._spatial_tendon_offset_ta = ProxyArray(self._spatial_tendon_offset)
         return self._spatial_tendon_offset_ta
 
     """
@@ -606,7 +606,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def root_link_pose_w(self) -> TorchArray:
+    def root_link_pose_w(self) -> ProxyArray:
         """Root link pose ``[pos, quat]`` in simulation world frame.
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
 
@@ -619,11 +619,11 @@ class ArticulationData(BaseArticulationData):
             self._root_link_pose_w.timestamp = self._sim_timestamp
 
         if self._root_link_pose_w_ta is None:
-            self._root_link_pose_w_ta = TorchArray(self._root_link_pose_w.data)
+            self._root_link_pose_w_ta = ProxyArray(self._root_link_pose_w.data)
         return self._root_link_pose_w_ta
 
     @property
-    def root_link_vel_w(self) -> TorchArray:
+    def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
 
@@ -647,11 +647,11 @@ class ArticulationData(BaseArticulationData):
             self._root_link_vel_w.timestamp = self._sim_timestamp
 
         if self._root_link_vel_w_ta is None:
-            self._root_link_vel_w_ta = TorchArray(self._root_link_vel_w.data)
+            self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)
         return self._root_link_vel_w_ta
 
     @property
-    def root_com_pose_w(self) -> TorchArray:
+    def root_com_pose_w(self) -> ProxyArray:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame.
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
 
@@ -675,11 +675,11 @@ class ArticulationData(BaseArticulationData):
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
         if self._root_com_pose_w_ta is None:
-            self._root_com_pose_w_ta = TorchArray(self._root_com_pose_w.data)
+            self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w.data)
         return self._root_com_pose_w_ta
 
     @property
-    def root_com_vel_w(self) -> TorchArray:
+    def root_com_vel_w(self) -> ProxyArray:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
 
@@ -691,7 +691,7 @@ class ArticulationData(BaseArticulationData):
             self._root_com_vel_w.timestamp = self._sim_timestamp
 
         if self._root_com_vel_w_ta is None:
-            self._root_com_vel_w_ta = TorchArray(self._root_com_vel_w.data)
+            self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w.data)
         return self._root_com_vel_w_ta
 
     """
@@ -699,18 +699,18 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def body_mass(self) -> TorchArray:
+    def body_mass(self) -> ProxyArray:
         """Body mass in the world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
         """
         self._body_mass.assign(self._root_view.get_masses())
         if self._body_mass_ta is None:
-            self._body_mass_ta = TorchArray(self._body_mass)
+            self._body_mass_ta = ProxyArray(self._body_mass)
         return self._body_mass_ta
 
     @property
-    def body_inertia(self) -> TorchArray:
+    def body_inertia(self) -> ProxyArray:
         """Flattened body inertia in the world frame.
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
@@ -718,11 +718,11 @@ class ArticulationData(BaseArticulationData):
         """
         self._body_inertia.assign(self._root_view.get_inertias())
         if self._body_inertia_ta is None:
-            self._body_inertia_ta = TorchArray(self._body_inertia)
+            self._body_inertia_ta = ProxyArray(self._body_inertia)
         return self._body_inertia_ta
 
     @property
-    def body_link_pose_w(self) -> TorchArray:
+    def body_link_pose_w(self) -> ProxyArray:
         """Body link pose ``[pos, quat]`` in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
         (num_instances, num_bodies, 7).
@@ -738,11 +738,11 @@ class ArticulationData(BaseArticulationData):
             self._body_link_pose_w.timestamp = self._sim_timestamp
 
         if self._body_link_pose_w_ta is None:
-            self._body_link_pose_w_ta = TorchArray(self._body_link_pose_w.data)
+            self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
         return self._body_link_pose_w_ta
 
     @property
-    def body_link_vel_w(self) -> TorchArray:
+    def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
         (num_instances, num_bodies, 6).
@@ -767,11 +767,11 @@ class ArticulationData(BaseArticulationData):
             self._body_link_vel_w.timestamp = self._sim_timestamp
 
         if self._body_link_vel_w_ta is None:
-            self._body_link_vel_w_ta = TorchArray(self._body_link_vel_w.data)
+            self._body_link_vel_w_ta = ProxyArray(self._body_link_vel_w.data)
         return self._body_link_vel_w_ta
 
     @property
-    def body_com_pose_w(self) -> TorchArray:
+    def body_com_pose_w(self) -> ProxyArray:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
         (num_instances, num_bodies, 7).
@@ -795,11 +795,11 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pose_w.timestamp = self._sim_timestamp
 
         if self._body_com_pose_w_ta is None:
-            self._body_com_pose_w_ta = TorchArray(self._body_com_pose_w.data)
+            self._body_com_pose_w_ta = ProxyArray(self._body_com_pose_w.data)
         return self._body_com_pose_w_ta
 
     @property
-    def body_com_vel_w(self) -> TorchArray:
+    def body_com_vel_w(self) -> ProxyArray:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
         (num_instances, num_bodies, 6).
@@ -812,11 +812,11 @@ class ArticulationData(BaseArticulationData):
             self._body_com_vel_w.timestamp = self._sim_timestamp
 
         if self._body_com_vel_w_ta is None:
-            self._body_com_vel_w_ta = TorchArray(self._body_com_vel_w.data)
+            self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
         return self._body_com_vel_w_ta
 
     @property
-    def body_com_acc_w(self) -> TorchArray:
+    def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
         (num_instances, num_bodies, 6).
@@ -829,11 +829,11 @@ class ArticulationData(BaseArticulationData):
             self._body_com_acc_w.timestamp = self._sim_timestamp
 
         if self._body_com_acc_w_ta is None:
-            self._body_com_acc_w_ta = TorchArray(self._body_com_acc_w.data)
+            self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
         return self._body_com_acc_w_ta
 
     @property
-    def body_com_pose_b(self) -> TorchArray:
+    def body_com_pose_b(self) -> ProxyArray:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
         Shape is (num_instances, num_bodies), dtype = wp.transformf. In torch this resolves to
         (num_instances, num_bodies, 7).
@@ -847,11 +847,11 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pose_b.timestamp = self._sim_timestamp
 
         if self._body_com_pose_b_ta is None:
-            self._body_com_pose_b_ta = TorchArray(self._body_com_pose_b.data)
+            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
 
     @property
-    def body_incoming_joint_wrench_b(self) -> TorchArray:
+    def body_incoming_joint_wrench_b(self) -> ProxyArray:
         """Joint reaction wrench applied to each body through its incoming joint, expressed in that body's frame.
 
         Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
@@ -874,7 +874,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._body_incoming_joint_wrench_b.timestamp = self._sim_timestamp
         if self._body_incoming_joint_wrench_b_ta is None:
-            self._body_incoming_joint_wrench_b_ta = TorchArray(self._body_incoming_joint_wrench_b.data)
+            self._body_incoming_joint_wrench_b_ta = ProxyArray(self._body_incoming_joint_wrench_b.data)
         return self._body_incoming_joint_wrench_b_ta
 
     """
@@ -882,7 +882,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def joint_pos(self) -> TorchArray:
+    def joint_pos(self) -> ProxyArray:
         """Joint positions of all joints.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -892,11 +892,11 @@ class ArticulationData(BaseArticulationData):
             self._joint_pos.data = self._root_view.get_dof_positions()
             self._joint_pos.timestamp = self._sim_timestamp
         if self._joint_pos_ta is None:
-            self._joint_pos_ta = TorchArray(self._joint_pos.data)
+            self._joint_pos_ta = ProxyArray(self._joint_pos.data)
         return self._joint_pos_ta
 
     @property
-    def joint_vel(self) -> TorchArray:
+    def joint_vel(self) -> ProxyArray:
         """Joint velocities of all joints.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -906,11 +906,11 @@ class ArticulationData(BaseArticulationData):
             self._joint_vel.data = self._root_view.get_dof_velocities()
             self._joint_vel.timestamp = self._sim_timestamp
         if self._joint_vel_ta is None:
-            self._joint_vel_ta = TorchArray(self._joint_vel.data)
+            self._joint_vel_ta = ProxyArray(self._joint_vel.data)
         return self._joint_vel_ta
 
     @property
-    def joint_acc(self) -> TorchArray:
+    def joint_acc(self) -> ProxyArray:
         """Joint acceleration of all joints.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
@@ -933,7 +933,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._joint_acc.timestamp = self._sim_timestamp
         if self._joint_acc_ta is None:
-            self._joint_acc_ta = TorchArray(self._joint_acc.data)
+            self._joint_acc_ta = ProxyArray(self._joint_acc.data)
         return self._joint_acc_ta
 
     """
@@ -941,7 +941,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def projected_gravity_b(self) -> TorchArray:
+    def projected_gravity_b(self) -> ProxyArray:
         """Projection of the gravity direction on base frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3)."""
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
@@ -954,11 +954,11 @@ class ArticulationData(BaseArticulationData):
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
         if self._projected_gravity_b_ta is None:
-            self._projected_gravity_b_ta = TorchArray(self._projected_gravity_b.data)
+            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
         return self._projected_gravity_b_ta
 
     @property
-    def heading_w(self) -> TorchArray:
+    def heading_w(self) -> ProxyArray:
         """Yaw heading of the base frame (in radians). Shape is (num_instances,), dtype = wp.float32.
 
         .. note::
@@ -975,11 +975,11 @@ class ArticulationData(BaseArticulationData):
             )
             self._heading_w.timestamp = self._sim_timestamp
         if self._heading_w_ta is None:
-            self._heading_w_ta = TorchArray(self._heading_w.data)
+            self._heading_w_ta = ProxyArray(self._heading_w.data)
         return self._heading_w_ta
 
     @property
-    def root_link_lin_vel_b(self) -> TorchArray:
+    def root_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -995,11 +995,11 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_link_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_link_lin_vel_b_ta is None:
-            self._root_link_lin_vel_b_ta = TorchArray(self._root_link_lin_vel_b.data)
+            self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
         return self._root_link_lin_vel_b_ta
 
     @property
-    def root_link_ang_vel_b(self) -> TorchArray:
+    def root_link_ang_vel_b(self) -> ProxyArray:
         """Root link angular velocity in base frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -1015,11 +1015,11 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_link_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_link_ang_vel_b_ta is None:
-            self._root_link_ang_vel_b_ta = TorchArray(self._root_link_ang_vel_b.data)
+            self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
         return self._root_link_ang_vel_b_ta
 
     @property
-    def root_com_lin_vel_b(self) -> TorchArray:
+    def root_com_lin_vel_b(self) -> ProxyArray:
         """Root center of mass linear velocity in base frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -1036,11 +1036,11 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_com_lin_vel_b.timestamp = self._sim_timestamp
         if self._root_com_lin_vel_b_ta is None:
-            self._root_com_lin_vel_b_ta = TorchArray(self._root_com_lin_vel_b.data)
+            self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
         return self._root_com_lin_vel_b_ta
 
     @property
-    def root_com_ang_vel_b(self) -> TorchArray:
+    def root_com_ang_vel_b(self) -> ProxyArray:
         """Root center of mass angular velocity in base frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -1057,7 +1057,7 @@ class ArticulationData(BaseArticulationData):
             )
             self._root_com_ang_vel_b.timestamp = self._sim_timestamp
         if self._root_com_ang_vel_b_ta is None:
-            self._root_com_ang_vel_b_ta = TorchArray(self._root_com_ang_vel_b.data)
+            self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
         return self._root_com_ang_vel_b_ta
 
     """
@@ -1065,7 +1065,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def root_link_pos_w(self) -> TorchArray:
+    def root_link_pos_w(self) -> ProxyArray:
         """Root link position in simulation world frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -1074,11 +1074,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.root_link_pose_w
         if self._root_link_pos_w_ta is None:
-            self._root_link_pos_w_ta = TorchArray(self._get_pos_from_transform(parent.warp))
+            self._root_link_pos_w_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
         return self._root_link_pos_w_ta
 
     @property
-    def root_link_quat_w(self) -> TorchArray:
+    def root_link_quat_w(self) -> ProxyArray:
         """Root link orientation (x, y, z, w) in simulation world frame.
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
 
@@ -1087,11 +1087,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.root_link_pose_w
         if self._root_link_quat_w_ta is None:
-            self._root_link_quat_w_ta = TorchArray(self._get_quat_from_transform(parent.warp))
+            self._root_link_quat_w_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
         return self._root_link_quat_w_ta
 
     @property
-    def root_link_lin_vel_w(self) -> TorchArray:
+    def root_link_lin_vel_w(self) -> ProxyArray:
         """Root linear velocity in simulation world frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -1100,11 +1100,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.root_link_vel_w
         if self._root_link_lin_vel_w_ta is None:
-            self._root_link_lin_vel_w_ta = TorchArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+            self._root_link_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
         return self._root_link_lin_vel_w_ta
 
     @property
-    def root_link_ang_vel_w(self) -> TorchArray:
+    def root_link_ang_vel_w(self) -> ProxyArray:
         """Root link angular velocity in simulation world frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -1113,11 +1113,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.root_link_vel_w
         if self._root_link_ang_vel_w_ta is None:
-            self._root_link_ang_vel_w_ta = TorchArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+            self._root_link_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
         return self._root_link_ang_vel_w_ta
 
     @property
-    def root_com_pos_w(self) -> TorchArray:
+    def root_com_pos_w(self) -> ProxyArray:
         """Root center of mass position in simulation world frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -1126,11 +1126,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.root_com_pose_w
         if self._root_com_pos_w_ta is None:
-            self._root_com_pos_w_ta = TorchArray(self._get_pos_from_transform(parent.warp))
+            self._root_com_pos_w_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
         return self._root_com_pos_w_ta
 
     @property
-    def root_com_quat_w(self) -> TorchArray:
+    def root_com_quat_w(self) -> ProxyArray:
         """Root center of mass orientation (x, y, z, w) in simulation world frame.
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
 
@@ -1139,11 +1139,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.root_com_pose_w
         if self._root_com_quat_w_ta is None:
-            self._root_com_quat_w_ta = TorchArray(self._get_quat_from_transform(parent.warp))
+            self._root_com_quat_w_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
         return self._root_com_quat_w_ta
 
     @property
-    def root_com_lin_vel_w(self) -> TorchArray:
+    def root_com_lin_vel_w(self) -> ProxyArray:
         """Root center of mass linear velocity in simulation world frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -1152,11 +1152,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.root_com_vel_w
         if self._root_com_lin_vel_w_ta is None:
-            self._root_com_lin_vel_w_ta = TorchArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+            self._root_com_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
         return self._root_com_lin_vel_w_ta
 
     @property
-    def root_com_ang_vel_w(self) -> TorchArray:
+    def root_com_ang_vel_w(self) -> ProxyArray:
         """Root center of mass angular velocity in simulation world frame.
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
 
@@ -1165,11 +1165,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.root_com_vel_w
         if self._root_com_ang_vel_w_ta is None:
-            self._root_com_ang_vel_w_ta = TorchArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+            self._root_com_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
         return self._root_com_ang_vel_w_ta
 
     @property
-    def body_link_pos_w(self) -> TorchArray:
+    def body_link_pos_w(self) -> ProxyArray:
         """Positions of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
@@ -1179,11 +1179,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_link_pose_w
         if self._body_link_pos_w_ta is None:
-            self._body_link_pos_w_ta = TorchArray(self._get_pos_from_transform(parent.warp))
+            self._body_link_pos_w_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
         return self._body_link_pos_w_ta
 
     @property
-    def body_link_quat_w(self) -> TorchArray:
+    def body_link_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_bodies, 4).
@@ -1193,11 +1193,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_link_pose_w
         if self._body_link_quat_w_ta is None:
-            self._body_link_quat_w_ta = TorchArray(self._get_quat_from_transform(parent.warp))
+            self._body_link_quat_w_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
         return self._body_link_quat_w_ta
 
     @property
-    def body_link_lin_vel_w(self) -> TorchArray:
+    def body_link_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
@@ -1207,11 +1207,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_link_vel_w
         if self._body_link_lin_vel_w_ta is None:
-            self._body_link_lin_vel_w_ta = TorchArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+            self._body_link_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
         return self._body_link_lin_vel_w_ta
 
     @property
-    def body_link_ang_vel_w(self) -> TorchArray:
+    def body_link_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
@@ -1221,11 +1221,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_link_vel_w
         if self._body_link_ang_vel_w_ta is None:
-            self._body_link_ang_vel_w_ta = TorchArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+            self._body_link_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
         return self._body_link_ang_vel_w_ta
 
     @property
-    def body_com_pos_w(self) -> TorchArray:
+    def body_com_pos_w(self) -> ProxyArray:
         """Positions of all bodies' center of mass in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
@@ -1235,11 +1235,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_com_pose_w
         if self._body_com_pos_w_ta is None:
-            self._body_com_pos_w_ta = TorchArray(self._get_pos_from_transform(parent.warp))
+            self._body_com_pos_w_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
         return self._body_com_pos_w_ta
 
     @property
-    def body_com_quat_w(self) -> TorchArray:
+    def body_com_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
         (num_instances, num_bodies, 4).
@@ -1249,11 +1249,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_com_pose_w
         if self._body_com_quat_w_ta is None:
-            self._body_com_quat_w_ta = TorchArray(self._get_quat_from_transform(parent.warp))
+            self._body_com_quat_w_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
         return self._body_com_quat_w_ta
 
     @property
-    def body_com_lin_vel_w(self) -> TorchArray:
+    def body_com_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
@@ -1263,11 +1263,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_com_vel_w
         if self._body_com_lin_vel_w_ta is None:
-            self._body_com_lin_vel_w_ta = TorchArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+            self._body_com_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
         return self._body_com_lin_vel_w_ta
 
     @property
-    def body_com_ang_vel_w(self) -> TorchArray:
+    def body_com_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
@@ -1277,11 +1277,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_com_vel_w
         if self._body_com_ang_vel_w_ta is None:
-            self._body_com_ang_vel_w_ta = TorchArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+            self._body_com_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
         return self._body_com_ang_vel_w_ta
 
     @property
-    def body_com_lin_acc_w(self) -> TorchArray:
+    def body_com_lin_acc_w(self) -> ProxyArray:
         """Linear acceleration of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
@@ -1291,11 +1291,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_com_acc_w
         if self._body_com_lin_acc_w_ta is None:
-            self._body_com_lin_acc_w_ta = TorchArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+            self._body_com_lin_acc_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
         return self._body_com_lin_acc_w_ta
 
     @property
-    def body_com_ang_acc_w(self) -> TorchArray:
+    def body_com_ang_acc_w(self) -> ProxyArray:
         """Angular acceleration of all bodies in simulation world frame.
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
@@ -1305,11 +1305,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_com_acc_w
         if self._body_com_ang_acc_w_ta is None:
-            self._body_com_ang_acc_w_ta = TorchArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+            self._body_com_ang_acc_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
         return self._body_com_ang_acc_w_ta
 
     @property
-    def body_com_pos_b(self) -> TorchArray:
+    def body_com_pos_b(self) -> ProxyArray:
         """Center of mass position of all of the bodies in their respective link frames.
         Shape is (num_instances, num_bodies), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_bodies, 3).
@@ -1319,11 +1319,11 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_com_pose_b
         if self._body_com_pos_b_ta is None:
-            self._body_com_pos_b_ta = TorchArray(self._get_pos_from_transform(parent.warp))
+            self._body_com_pos_b_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
         return self._body_com_pos_b_ta
 
     @property
-    def body_com_quat_b(self) -> TorchArray:
+    def body_com_quat_b(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their
         respective link frames.
         Shape is (num_instances, num_bodies), dtype = wp.quatf. In torch this resolves to
@@ -1334,7 +1334,7 @@ class ArticulationData(BaseArticulationData):
         # Access parent property to trigger its getter call (PhysX is pull-on-demand)
         parent = self.body_com_pose_b
         if self._body_com_quat_b_ta is None:
-            self._body_com_quat_b_ta = TorchArray(self._get_quat_from_transform(parent.warp))
+            self._body_com_quat_b_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
         return self._body_com_quat_b_ta
 
     def _create_buffers(self) -> None:
@@ -1494,115 +1494,115 @@ class ArticulationData(BaseArticulationData):
         self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
         self._default_root_state = None
 
-        # Initialize TorchArray wrappers
+        # Initialize ProxyArray wrappers
         self._pin_torch_arrays()
 
     def _pin_torch_arrays(self) -> None:
-        """Create pinned TorchArray wrappers for all data buffers.
+        """Create pinned ProxyArray wrappers for all data buffers.
 
         This is called once from :meth:`_create_buffers` during initialization.
         PhysX tensor API buffers have stable GPU pointers across simulation steps,
         so no rebinding is needed (unlike Newton).
         """
-        # -- Pinned TorchArray cache (one per read property, lazily created on first access)
+        # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
         # Defaults
-        self._default_root_pose_ta: TorchArray | None = None
-        self._default_root_vel_ta: TorchArray | None = None
-        self._default_joint_pos_ta: TorchArray | None = None
-        self._default_joint_vel_ta: TorchArray | None = None
+        self._default_root_pose_ta: ProxyArray | None = None
+        self._default_root_vel_ta: ProxyArray | None = None
+        self._default_joint_pos_ta: ProxyArray | None = None
+        self._default_joint_vel_ta: ProxyArray | None = None
         # Joint commands (set into simulation)
-        self._joint_pos_target_ta: TorchArray | None = None
-        self._joint_vel_target_ta: TorchArray | None = None
-        self._joint_effort_target_ta: TorchArray | None = None
+        self._joint_pos_target_ta: ProxyArray | None = None
+        self._joint_vel_target_ta: ProxyArray | None = None
+        self._joint_effort_target_ta: ProxyArray | None = None
         # Joint commands (explicit actuator model)
-        self._computed_torque_ta: TorchArray | None = None
-        self._applied_torque_ta: TorchArray | None = None
+        self._computed_torque_ta: ProxyArray | None = None
+        self._applied_torque_ta: ProxyArray | None = None
         # Joint properties
-        self._joint_stiffness_ta: TorchArray | None = None
-        self._joint_damping_ta: TorchArray | None = None
-        self._joint_armature_ta: TorchArray | None = None
-        self._joint_friction_coeff_ta: TorchArray | None = None
-        self._joint_dynamic_friction_coeff_ta: TorchArray | None = None
-        self._joint_viscous_friction_coeff_ta: TorchArray | None = None
-        self._joint_pos_limits_ta: TorchArray | None = None
-        self._joint_vel_limits_ta: TorchArray | None = None
-        self._joint_effort_limits_ta: TorchArray | None = None
+        self._joint_stiffness_ta: ProxyArray | None = None
+        self._joint_damping_ta: ProxyArray | None = None
+        self._joint_armature_ta: ProxyArray | None = None
+        self._joint_friction_coeff_ta: ProxyArray | None = None
+        self._joint_dynamic_friction_coeff_ta: ProxyArray | None = None
+        self._joint_viscous_friction_coeff_ta: ProxyArray | None = None
+        self._joint_pos_limits_ta: ProxyArray | None = None
+        self._joint_vel_limits_ta: ProxyArray | None = None
+        self._joint_effort_limits_ta: ProxyArray | None = None
         # Joint properties (custom)
-        self._soft_joint_pos_limits_ta: TorchArray | None = None
-        self._soft_joint_vel_limits_ta: TorchArray | None = None
-        self._gear_ratio_ta: TorchArray | None = None
+        self._soft_joint_pos_limits_ta: ProxyArray | None = None
+        self._soft_joint_vel_limits_ta: ProxyArray | None = None
+        self._gear_ratio_ta: ProxyArray | None = None
         # Fixed tendon properties
-        self._fixed_tendon_stiffness_ta: TorchArray | None = None
-        self._fixed_tendon_damping_ta: TorchArray | None = None
-        self._fixed_tendon_limit_stiffness_ta: TorchArray | None = None
-        self._fixed_tendon_rest_length_ta: TorchArray | None = None
-        self._fixed_tendon_offset_ta: TorchArray | None = None
-        self._fixed_tendon_pos_limits_ta: TorchArray | None = None
+        self._fixed_tendon_stiffness_ta: ProxyArray | None = None
+        self._fixed_tendon_damping_ta: ProxyArray | None = None
+        self._fixed_tendon_limit_stiffness_ta: ProxyArray | None = None
+        self._fixed_tendon_rest_length_ta: ProxyArray | None = None
+        self._fixed_tendon_offset_ta: ProxyArray | None = None
+        self._fixed_tendon_pos_limits_ta: ProxyArray | None = None
         # Spatial tendon properties
-        self._spatial_tendon_stiffness_ta: TorchArray | None = None
-        self._spatial_tendon_damping_ta: TorchArray | None = None
-        self._spatial_tendon_limit_stiffness_ta: TorchArray | None = None
-        self._spatial_tendon_offset_ta: TorchArray | None = None
+        self._spatial_tendon_stiffness_ta: ProxyArray | None = None
+        self._spatial_tendon_damping_ta: ProxyArray | None = None
+        self._spatial_tendon_limit_stiffness_ta: ProxyArray | None = None
+        self._spatial_tendon_offset_ta: ProxyArray | None = None
         # Root state (timestamped)
-        self._root_link_pose_w_ta: TorchArray | None = None
-        self._root_link_vel_w_ta: TorchArray | None = None
-        self._root_com_pose_w_ta: TorchArray | None = None
-        self._root_com_vel_w_ta: TorchArray | None = None
+        self._root_link_pose_w_ta: ProxyArray | None = None
+        self._root_link_vel_w_ta: ProxyArray | None = None
+        self._root_com_pose_w_ta: ProxyArray | None = None
+        self._root_com_vel_w_ta: ProxyArray | None = None
         # Body state (timestamped)
-        self._body_link_pose_w_ta: TorchArray | None = None
-        self._body_link_vel_w_ta: TorchArray | None = None
-        self._body_com_pose_w_ta: TorchArray | None = None
-        self._body_com_vel_w_ta: TorchArray | None = None
-        self._body_com_acc_w_ta: TorchArray | None = None
-        self._body_com_pose_b_ta: TorchArray | None = None
-        self._body_incoming_joint_wrench_b_ta: TorchArray | None = None
+        self._body_link_pose_w_ta: ProxyArray | None = None
+        self._body_link_vel_w_ta: ProxyArray | None = None
+        self._body_com_pose_w_ta: ProxyArray | None = None
+        self._body_com_vel_w_ta: ProxyArray | None = None
+        self._body_com_acc_w_ta: ProxyArray | None = None
+        self._body_com_pose_b_ta: ProxyArray | None = None
+        self._body_incoming_joint_wrench_b_ta: ProxyArray | None = None
         # Body properties
-        self._body_mass_ta: TorchArray | None = None
-        self._body_inertia_ta: TorchArray | None = None
+        self._body_mass_ta: ProxyArray | None = None
+        self._body_inertia_ta: ProxyArray | None = None
         # Joint state (timestamped)
-        self._joint_pos_ta: TorchArray | None = None
-        self._joint_vel_ta: TorchArray | None = None
-        self._joint_acc_ta: TorchArray | None = None
+        self._joint_pos_ta: ProxyArray | None = None
+        self._joint_vel_ta: ProxyArray | None = None
+        self._joint_acc_ta: ProxyArray | None = None
         # Derived properties (timestamped)
-        self._projected_gravity_b_ta: TorchArray | None = None
-        self._heading_w_ta: TorchArray | None = None
-        self._root_link_lin_vel_b_ta: TorchArray | None = None
-        self._root_link_ang_vel_b_ta: TorchArray | None = None
-        self._root_com_lin_vel_b_ta: TorchArray | None = None
-        self._root_com_ang_vel_b_ta: TorchArray | None = None
+        self._projected_gravity_b_ta: ProxyArray | None = None
+        self._heading_w_ta: ProxyArray | None = None
+        self._root_link_lin_vel_b_ta: ProxyArray | None = None
+        self._root_link_ang_vel_b_ta: ProxyArray | None = None
+        self._root_com_lin_vel_b_ta: ProxyArray | None = None
+        self._root_com_ang_vel_b_ta: ProxyArray | None = None
         # Sliced properties (root link)
-        self._root_link_pos_w_ta: TorchArray | None = None
-        self._root_link_quat_w_ta: TorchArray | None = None
-        self._root_link_lin_vel_w_ta: TorchArray | None = None
-        self._root_link_ang_vel_w_ta: TorchArray | None = None
+        self._root_link_pos_w_ta: ProxyArray | None = None
+        self._root_link_quat_w_ta: ProxyArray | None = None
+        self._root_link_lin_vel_w_ta: ProxyArray | None = None
+        self._root_link_ang_vel_w_ta: ProxyArray | None = None
         # Sliced properties (root com)
-        self._root_com_pos_w_ta: TorchArray | None = None
-        self._root_com_quat_w_ta: TorchArray | None = None
-        self._root_com_lin_vel_w_ta: TorchArray | None = None
-        self._root_com_ang_vel_w_ta: TorchArray | None = None
+        self._root_com_pos_w_ta: ProxyArray | None = None
+        self._root_com_quat_w_ta: ProxyArray | None = None
+        self._root_com_lin_vel_w_ta: ProxyArray | None = None
+        self._root_com_ang_vel_w_ta: ProxyArray | None = None
         # Sliced properties (body link)
-        self._body_link_pos_w_ta: TorchArray | None = None
-        self._body_link_quat_w_ta: TorchArray | None = None
-        self._body_link_lin_vel_w_ta: TorchArray | None = None
-        self._body_link_ang_vel_w_ta: TorchArray | None = None
+        self._body_link_pos_w_ta: ProxyArray | None = None
+        self._body_link_quat_w_ta: ProxyArray | None = None
+        self._body_link_lin_vel_w_ta: ProxyArray | None = None
+        self._body_link_ang_vel_w_ta: ProxyArray | None = None
         # Sliced properties (body com)
-        self._body_com_pos_w_ta: TorchArray | None = None
-        self._body_com_quat_w_ta: TorchArray | None = None
-        self._body_com_lin_vel_w_ta: TorchArray | None = None
-        self._body_com_ang_vel_w_ta: TorchArray | None = None
-        self._body_com_lin_acc_w_ta: TorchArray | None = None
-        self._body_com_ang_acc_w_ta: TorchArray | None = None
+        self._body_com_pos_w_ta: ProxyArray | None = None
+        self._body_com_quat_w_ta: ProxyArray | None = None
+        self._body_com_lin_vel_w_ta: ProxyArray | None = None
+        self._body_com_ang_vel_w_ta: ProxyArray | None = None
+        self._body_com_lin_acc_w_ta: ProxyArray | None = None
+        self._body_com_ang_acc_w_ta: ProxyArray | None = None
         # Sliced properties (body com in body frame)
-        self._body_com_pos_b_ta: TorchArray | None = None
-        self._body_com_quat_b_ta: TorchArray | None = None
+        self._body_com_pos_b_ta: ProxyArray | None = None
+        self._body_com_quat_b_ta: ProxyArray | None = None
         # Deprecated state-concat properties
-        self._default_root_state_ta: TorchArray | None = None
-        self._root_state_w_ta: TorchArray | None = None
-        self._root_link_state_w_ta: TorchArray | None = None
-        self._root_com_state_w_ta: TorchArray | None = None
-        self._body_state_w_ta: TorchArray | None = None
-        self._body_link_state_w_ta: TorchArray | None = None
-        self._body_com_state_w_ta: TorchArray | None = None
+        self._default_root_state_ta: ProxyArray | None = None
+        self._root_state_w_ta: ProxyArray | None = None
+        self._root_link_state_w_ta: ProxyArray | None = None
+        self._root_com_state_w_ta: ProxyArray | None = None
+        self._body_state_w_ta: ProxyArray | None = None
+        self._body_link_state_w_ta: ProxyArray | None = None
+        self._body_com_state_w_ta: ProxyArray | None = None
 
     """
     Internal helpers.
@@ -1681,7 +1681,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     @property
-    def default_root_state(self) -> TorchArray:
+    def default_root_state(self) -> ProxyArray:
         """Default root state ``[pos, quat, lin_vel, ang_vel]`` in the local environment frame.
 
 
@@ -1711,11 +1711,11 @@ class ArticulationData(BaseArticulationData):
             device=self.device,
         )
         if self._default_root_state_ta is None:
-            self._default_root_state_ta = TorchArray(self._default_root_state)
+            self._default_root_state_ta = ProxyArray(self._default_root_state)
         return self._default_root_state_ta
 
     @property
-    def root_state_w(self) -> TorchArray:
+    def root_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
         warnings.warn(
             "The `root_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pose_w` and "
@@ -1739,11 +1739,11 @@ class ArticulationData(BaseArticulationData):
             self._root_state_w.timestamp = self._sim_timestamp
 
         if self._root_state_w_ta is None:
-            self._root_state_w_ta = TorchArray(self._root_state_w.data)
+            self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         return self._root_state_w_ta
 
     @property
-    def root_link_state_w(self) -> TorchArray:
+    def root_link_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_link_vel_w`."""
         warnings.warn(
             "The `root_link_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_link_pose_w` and "
@@ -1767,11 +1767,11 @@ class ArticulationData(BaseArticulationData):
             self._root_link_state_w.timestamp = self._sim_timestamp
 
         if self._root_link_state_w_ta is None:
-            self._root_link_state_w_ta = TorchArray(self._root_link_state_w.data)
+            self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         return self._root_link_state_w_ta
 
     @property
-    def root_com_state_w(self) -> TorchArray:
+    def root_com_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`root_com_pose_w` and :attr:`root_com_vel_w`."""
         warnings.warn(
             "The `root_com_state_w` property will be deprecated in a IsaacLab 4.0. Please use `root_com_pose_w` and "
@@ -1795,11 +1795,11 @@ class ArticulationData(BaseArticulationData):
             self._root_com_state_w.timestamp = self._sim_timestamp
 
         if self._root_com_state_w_ta is None:
-            self._root_com_state_w_ta = TorchArray(self._root_com_state_w.data)
+            self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         return self._root_com_state_w_ta
 
     @property
-    def body_state_w(self) -> TorchArray:
+    def body_state_w(self) -> ProxyArray:
         """State of all bodies `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, num_bodies, 13).
 
@@ -1828,11 +1828,11 @@ class ArticulationData(BaseArticulationData):
             self._body_state_w.timestamp = self._sim_timestamp
 
         if self._body_state_w_ta is None:
-            self._body_state_w_ta = TorchArray(self._body_state_w.data)
+            self._body_state_w_ta = ProxyArray(self._body_state_w.data)
         return self._body_state_w_ta
 
     @property
-    def body_link_state_w(self) -> TorchArray:
+    def body_link_state_w(self) -> ProxyArray:
         """State of all bodies' link frame`[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, num_bodies, 13).
 
@@ -1860,11 +1860,11 @@ class ArticulationData(BaseArticulationData):
             self._body_link_state_w.timestamp = self._sim_timestamp
 
         if self._body_link_state_w_ta is None:
-            self._body_link_state_w_ta = TorchArray(self._body_link_state_w.data)
+            self._body_link_state_w_ta = ProxyArray(self._body_link_state_w.data)
         return self._body_link_state_w_ta
 
     @property
-    def body_com_state_w(self) -> TorchArray:
+    def body_com_state_w(self) -> ProxyArray:
         """State of all bodies center of mass `[pos, quat, lin_vel, ang_vel]` in simulation world frame.
         Shape is (num_instances, num_bodies, 13).
 
@@ -1894,5 +1894,5 @@ class ArticulationData(BaseArticulationData):
             self._body_com_state_w.timestamp = self._sim_timestamp
 
         if self._body_com_state_w_ta is None:
-            self._body_com_state_w_ta = TorchArray(self._body_com_state_w.data)
+            self._body_com_state_w_ta = ProxyArray(self._body_com_state_w.data)
         return self._body_com_state_w_ta
