@@ -250,7 +250,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
 
     # start annotation tracing
     # Note: all patching is done at module/class level before isaaclab_tasks import
-    save_path = args_cli.export_save_path if args_cli.export_save_path is not None else log_dir
+    if args_cli.export_save_path is not None:
+        save_path = args_cli.export_save_path
+    elif args_cli.use_pretrained_checkpoint:
+        # Use a predictable path independent of the Nucleus mirror directory structure.
+        save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", train_task_name)
+    else:
+        save_path = log_dir
     leapp.start(export_task_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
     # obs = env.get_observations()
     obs = env.reset()[0]
