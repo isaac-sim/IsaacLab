@@ -75,7 +75,7 @@ def ensure_rtx_hydra_engine_attached() -> None:
     This helper replicates only the activation step ``ViewportWindow`` performs,
     without creating a UI or a window. It is idempotent: when the engine is already
     attached (e.g. GUI runs that do load ``omni.kit.viewport.window``, or a previous
-    call already attached it) the function is a no-op. Failures are logged as warnings
+    call already attached it) the function is a no-op. Failures are logged as errors
     and do not propagate, so non-RTX contexts (e.g. unit tests importing this module
     without a running Kit app) continue to work.
     """
