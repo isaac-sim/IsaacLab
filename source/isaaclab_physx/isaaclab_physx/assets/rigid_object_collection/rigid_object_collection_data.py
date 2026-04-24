@@ -216,7 +216,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self._body_link_pose_w.timestamp = self._sim_timestamp
             # Rebind ProxyArray since reshape creates a new wp.array each time
             if self._body_link_pose_w_ta is not None:
-                self._body_link_pose_w_ta.rebind(pose)
+                self._body_link_pose_w_ta = ProxyArray(pose)
                 self._body_link_pos_w_ta = None
                 self._body_link_quat_w_ta = None
 
@@ -296,7 +296,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self._body_com_vel_w.timestamp = self._sim_timestamp
             # Rebind ProxyArray since reshape creates a new wp.array each time
             if self._body_com_vel_w_ta is not None:
-                self._body_com_vel_w_ta.rebind(vel)
+                self._body_com_vel_w_ta = ProxyArray(vel)
                 self._body_com_lin_vel_w_ta = None
                 self._body_com_ang_vel_w_ta = None
 
@@ -318,7 +318,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self._body_com_acc_w.timestamp = self._sim_timestamp
             # Rebind ProxyArray since reshape creates a new wp.array each time
             if self._body_com_acc_w_ta is not None:
-                self._body_com_acc_w_ta.rebind(acc)
+                self._body_com_acc_w_ta = ProxyArray(acc)
                 self._body_com_lin_acc_w_ta = None
                 self._body_com_ang_acc_w_ta = None
         if self._body_com_acc_w_ta is None:

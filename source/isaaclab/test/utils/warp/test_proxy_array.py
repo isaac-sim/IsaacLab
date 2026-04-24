@@ -63,40 +63,29 @@ class TestTorchArrayBasic:
         arr_np = arr.numpy()
         assert arr_np[0] == 42.0
 
-    def test_rebind_invalidates_cache(self, device):
-        """Test that rebind() updates the warp array and invalidates the cached torch tensor."""
+    def test_immutable_warp_cannot_be_reassigned(self, device):
+        """ProxyArray._warp cannot be reassigned; callers must construct a new wrapper."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
 
-        arr1 = wp.zeros(10, dtype=wp.float32, device=device)
-        ta = ProxyArray(arr1)
-        t1 = ta.torch  # cache created
+        arr = wp.zeros(10, dtype=wp.float32, device=device)
+        ta = ProxyArray(arr)
 
-        arr2 = wp.ones(10, dtype=wp.float32, device=device)
-        ta.rebind(arr2)  # invalidate cache
+        with pytest.raises(AttributeError, match="immutable"):
+            ta._warp = wp.ones(10, dtype=wp.float32, device=device)
+        with pytest.raises(AttributeError, match="immutable"):
+            ta.new_field = 42  # arbitrary attribute writes also blocked
 
-        t2 = ta.torch  # should be a new tensor from arr2
-        assert t1 is not t2
-        assert t2[0].item() == 1.0
-        assert ta.warp is arr2
-
-    def test_rebind_stale_reference(self, device):
-        """Test that a held .torch reference becomes stale after rebind()."""
+    def test_immutable_allows_internal_torch_cache(self, device):
+        """Lazy .torch caching still works — only _torch_cache is allowed as a post-init write."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
 
-        arr1 = wp.zeros(10, dtype=wp.float32, device=device)
-        ta = ProxyArray(arr1)
-        stale_ref = ta.torch  # hold a reference
-
-        arr2 = wp.ones(10, dtype=wp.float32, device=device)
-        ta.rebind(arr2)
-
-        fresh_ref = ta.torch
-        # The stale reference should NOT be the same object as the fresh one
-        assert stale_ref is not fresh_ref
-        # The stale reference still points to the OLD data (zeros)
-        assert stale_ref[0].item() == 0.0
-        # The fresh reference points to the NEW data (ones)
-        assert fresh_ref[0].item() == 1.0
+        arr = wp.zeros(10, dtype=wp.float32, device=device)
+        ta = ProxyArray(arr)
+        # First access populates the cache; no exception.
+        first = ta.torch
+        # Subsequent accesses return the same cached tensor.
+        second = ta.torch
+        assert first is second
 
     def test_cuda_array_interface(self):
         """Test that __cuda_array_interface__ delegates to the underlying warp array."""

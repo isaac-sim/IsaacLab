@@ -54,6 +54,10 @@ class ProxyArray:
     def __init__(self, wp_array: wp.array) -> None:
         """Initialize the ProxyArray wrapper.
 
+        The instance is immutable after construction: the wrapped ``wp.array`` cannot
+        be reassigned. If the underlying simulation memory is re-allocated, construct
+        a new :class:`ProxyArray` instead of mutating an existing one.
+
         Args:
             wp_array: The warp array to wrap.
 
@@ -65,24 +69,28 @@ class ProxyArray:
                 f"ProxyArray expects a warp.array, got {type(wp_array).__name__}."
                 " If you have a ProxyArray, use it directly instead of wrapping it again."
             )
-        self._warp = wp_array
-        self._torch_cache: torch.Tensor | None = None
+        # Bypass __setattr__ for the two internal fields — everything else raises.
+        object.__setattr__(self, "_warp", wp_array)
+        object.__setattr__(self, "_torch_cache", None)
+
+    def __setattr__(self, name: str, value) -> None:
+        """Forbid mutation of ProxyArray instances except for the internal torch cache.
+
+        The torch view is populated lazily on first ``.torch`` access; that is the
+        only allowed post-init state change. Every other write raises
+        :class:`AttributeError` so callers don't accidentally re-point the wrapper.
+        """
+        if name == "_torch_cache":
+            object.__setattr__(self, name, value)
+            return
+        raise AttributeError(
+            f"ProxyArray is immutable; cannot set attribute {name!r}."
+            " Construct a new ProxyArray instead of mutating an existing one."
+        )
 
     # ------------------------------------------------------------------
     # Core accessors
     # ------------------------------------------------------------------
-
-    def rebind(self, wp_array: wp.array) -> None:
-        """Rebind this wrapper to a new warp array, invalidating the torch cache.
-
-        This is needed when the underlying simulation memory is re-created (e.g. after
-        a full simulation reset) and the old warp array pointer becomes stale.
-
-        Args:
-            wp_array: The new warp array to wrap.
-        """
-        self._warp = wp_array
-        self._torch_cache = None
 
     @property
     def warp(self) -> wp.array:

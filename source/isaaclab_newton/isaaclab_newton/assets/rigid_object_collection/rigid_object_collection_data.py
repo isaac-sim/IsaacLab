@@ -700,11 +700,11 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
         if is_rebind:
             # Rebind sim-bound TorchArrays to new solver arrays
-            self._body_link_pose_w_ta.rebind(self._sim_bind_body_link_pose_w)
-            self._body_com_vel_w_ta.rebind(self._sim_bind_body_com_vel_w)
-            self._body_com_pos_b_ta.rebind(self._sim_bind_body_com_pos_b)
-            self._body_mass_ta.rebind(self._sim_bind_body_mass)
-            self._body_inertia_ta.rebind(self._body_inertia)
+            self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
+            self._body_com_vel_w_ta = ProxyArray(self._sim_bind_body_com_vel_w)
+            self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
+            self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
+            self._body_inertia_ta = ProxyArray(self._body_inertia)
         else:
             # First-time creation: pin TorchArrays to current buffers
             # Category 1: sim-bound and pre-allocated buffers
