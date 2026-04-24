@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.23 (2026-04-22)
+0.5.24 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -10,6 +10,20 @@ Changed
 * Updated imports of the PhysX tensors API from ``omni.physics.tensors.impl.api`` to
   ``omni.physics.tensors.api`` to track the upstream Isaac Sim module relocation
   (the ``impl`` submodule was removed).
+
+
+0.5.23 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``RuntimeError: NewtonWarpRenderer requires a Newton model but the scene data provider
+  returned None`` when a Direct env (e.g. ``ShadowHandVisionEnv``, ``CartpoleCameraEnv``)
+  uses ``physx`` physics with the ``newton_warp`` renderer. The
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider` now falls back to a
+  USD-traversal Newton build when the cloner-time prebuilt artifact is absent, and stashes
+  the freshly built artifact on the simulation context so subsequent providers reuse it.
 
 
 0.5.22 (2026-04-22)
@@ -26,6 +40,7 @@ Changed
 
 * Renamed :class:`~isaaclab_physx.sim.views.FabricXformPrimView` to
   :class:`~isaaclab_physx.sim.views.FabricFrameView`. Old name is kept as a deprecated alias.
+
 
 0.5.21 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
