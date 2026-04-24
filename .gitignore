@@ -85,3 +85,6 @@ _build
 
 # Isaac Lab CI environments in native mode
 **/_isaaclab_install_ci_*
+
+# Superpowers (Claude Code plugin artifacts)
+docs/superpowers/
