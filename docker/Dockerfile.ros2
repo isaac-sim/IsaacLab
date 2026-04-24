@@ -9,6 +9,8 @@ FROM isaac-lab-base${DOCKER_NAME_SUFFIX} AS ros2
 # Which ROS2 apt package to install
 ARG ROS2_APT_PACKAGE
 
+USER root
+
 # ROS2 Humble Apt installations
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -37,3 +39,6 @@ RUN --mount=type=cache,target=/var/cache/apt \
 # Copy the RMW specifications for ROS2
 # https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_ros.html
 COPY docker/.ros/ ${DOCKER_USER_HOME}/.ros/
+RUN chown -R ${DOCKER_UID}:${DOCKER_GID} ${DOCKER_USER_HOME}/.ros
+
+USER ${DOCKER_UID}:${DOCKER_GID}

@@ -84,6 +84,11 @@ class ContainerInterface:
         # except make sure that the docker name suffix is set from the script
         self.environ = os.environ.copy()
         self.environ["DOCKER_NAME_SUFFIX"] = self.suffix
+        self.environ.setdefault("DOCKER_UID", "2000049")
+        self.environ.setdefault("DOCKER_GID", "2000049")
+        self.environ.setdefault("DOCKER_USER_NAME", "balfaro")
+
+        self.environ["COMPOSE_PROJECT_NAME"] = self.container_name   
 
         # resolve the image extension through the passed yamls and envs
         self._resolve_image_extension(yamls, envs)

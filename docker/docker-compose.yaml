@@ -69,10 +69,13 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
   - type: bind
     source: .isaac-lab-docker-history
     target: ${DOCKER_USER_HOME}/.bash_history
+  - type: bind
+    source: ../../../
+    target: /project_code/
 
 x-default-isaac-lab-environment: &default-isaac-lab-environment
   - ISAACSIM_PATH=${DOCKER_ISAACLAB_PATH}/_isaac_sim
-  - OMNI_KIT_ALLOW_ROOT=1
+  - OMNI_KIT_ALLOW_ROOT=0
 
 x-default-isaac-lab-deploy: &default-isaac-lab-deploy
   resources:
@@ -96,6 +99,9 @@ services:
         - ISAACSIM_ROOT_PATH_ARG=${DOCKER_ISAACSIM_ROOT_PATH}
         - ISAACLAB_PATH_ARG=${DOCKER_ISAACLAB_PATH}
         - DOCKER_USER_HOME_ARG=${DOCKER_USER_HOME}
+        - DOCKER_UID_ARG=${DOCKER_UID}
+        - DOCKER_GID_ARG=${DOCKER_GID}
+        - DOCKER_USER_NAME_ARG=${DOCKER_USER_NAME}
     image: isaac-lab-base${DOCKER_NAME_SUFFIX-}
     container_name: isaac-lab-base${DOCKER_NAME_SUFFIX-}
     environment: *default-isaac-lab-environment

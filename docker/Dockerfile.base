@@ -29,6 +29,12 @@ ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 # Home dir of docker user, typically '/root'
 ARG DOCKER_USER_HOME_ARG
 ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
+ARG DOCKER_UID_ARG=2000049
+ARG DOCKER_GID_ARG=2000049
+ARG DOCKER_USER_NAME_ARG=balfaro
+ENV DOCKER_UID=${DOCKER_UID_ARG}
+ENV DOCKER_GID=${DOCKER_GID_ARG}
+ENV DOCKER_USER_NAME=${DOCKER_USER_NAME_ARG}
 
 # Set environment variables
 ENV LANG=C.UTF-8
@@ -44,6 +50,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     git \
     libglib2.0-0 \
     ncurses-term \
+    sudo \
     wget && \
     apt -y autoremove && apt clean autoclean && \
     rm -rf /var/lib/apt/lists/*
@@ -92,20 +99,31 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh --install
 
 # HACK: Remove install of quadprog dependency
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
+# RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
+
+# Create a non-root user following host UID/GID.
+RUN groupadd --gid ${DOCKER_GID} ${DOCKER_USER_NAME} && \
+    useradd --uid ${DOCKER_UID} --gid ${DOCKER_GID} -m -s /bin/bash ${DOCKER_USER_NAME} && \
+    echo "${DOCKER_USER_NAME}:${DOCKER_USER_NAME}" | chpasswd && \
+    usermod -aG sudo ${DOCKER_USER_NAME} && \
+    echo "${DOCKER_USER_NAME} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/${DOCKER_USER_NAME} && \
+    chmod 0440 /etc/sudoers.d/${DOCKER_USER_NAME} && \
+    chown -R ${DOCKER_UID}:${DOCKER_GID} ${DOCKER_USER_HOME}
 
 # aliasing isaaclab.sh and python for convenience
-RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
-    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${HOME}/.bashrc && \
-    echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${HOME}/.bashrc && \
-    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${HOME}/.bashrc && \
-    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${HOME}/.bashrc && \
-    echo "export TZ=$(date +%Z)" >> ${HOME}/.bashrc && \
-    echo "shopt -s histappend" >> /root/.bashrc && \
-    echo "PROMPT_COMMAND='history -a'" >> /root/.bashrc
+RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "export TZ=$(date +%Z)" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
+ENV HOME=${DOCKER_USER_HOME}
+USER ${DOCKER_USER_NAME}
 WORKDIR ${ISAACLAB_PATH}
