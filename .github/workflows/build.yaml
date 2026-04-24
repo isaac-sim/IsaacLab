@@ -97,15 +97,9 @@ permissions:
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  # On merge to main defaults will point to "nvcr.io/nvidia/isaac-sim:6.0.0"
-  ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim' # ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  # Pinned to the Apr 8 nightly digest that last passed CI, while latest-develop is broken.
-  # TODO(AntoineRichard): Revert to 'latest-develop' once the nightly is fixed.
-  ISAACSIM_BASE_VERSION: 'latest-develop' # ${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}
-  DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
-  # To run quarantined tests, create a GitHub repo variable named
-  # RUN_QUARANTINED_TESTS and set it to 'true'. The test-quarantined
-  # job is skipped when the variable is absent or not 'true'.
+  ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE }}
+  ISAACSIM_BASE_VERSION: ${{ vars.ISAACSIM_BASE_VERSION }}
+  CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
   detect-changes:
@@ -261,7 +255,7 @@ jobs:
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.base
@@ -286,7 +280,7 @@ jobs:
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.curobo
@@ -313,7 +307,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_tasks"
@@ -340,7 +334,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_tasks"
@@ -367,7 +361,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_tasks"
@@ -392,7 +386,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "not isaaclab_"
@@ -417,7 +411,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "not isaaclab_"
@@ -442,7 +436,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "not isaaclab_"
@@ -468,7 +462,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_rl"
@@ -492,7 +486,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_mimic"
@@ -516,7 +510,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_contrib"
@@ -540,7 +534,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_teleop"
@@ -564,7 +558,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_visualizers"
@@ -588,7 +582,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_assets"
@@ -612,7 +606,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_newton"
@@ -636,7 +630,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_physx"
@@ -660,7 +654,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_ov"
@@ -685,7 +679,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.curobo
@@ -713,7 +707,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
+        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         dockerfile-path: docker/Dockerfile.curobo
@@ -740,7 +734,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
         isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
         isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
         filter-pattern: "isaaclab_tasks"
@@ -765,7 +759,7 @@ jobs:
 #       lfs: true
 #   - uses: ./.github/actions/run-package-tests
 #     with:
-#       image-tag: ${{ env.DOCKER_IMAGE_TAG }}
+#       image-tag: ${{ env.CI_IMAGE_TAG }}
 #       isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
 #       isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
 #       quarantined-only: "true"
