@@ -10,8 +10,6 @@ velocity environment are properly resolved in the navigation env config,
 and that sensor update periods and physics materials are correctly propagated.
 """
 
-import pytest
-
 from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
 
 
@@ -57,9 +55,8 @@ class TestNavigationEnvCfg:
 
     def test_no_remaining_presets(self):
         """No PresetCfg wrappers should remain after resolve_presets."""
-        from isaaclab_tasks.utils.hydra import collect_presets
-
         from isaaclab_tasks.manager_based.navigation.config.anymal_c.navigation_env_cfg import NavigationEnvCfg
+        from isaaclab_tasks.utils.hydra import collect_presets
 
         cfg = NavigationEnvCfg()
         resolved = resolve_presets(cfg)
