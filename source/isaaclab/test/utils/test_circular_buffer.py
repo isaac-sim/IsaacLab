@@ -154,6 +154,28 @@ def test_key_greater_than_pushes(circular_buffer):
     assert torch.equal(retrieved_data, data1)
 
 
+def test_empty_batch_ids_reset_is_noop(circular_buffer):
+    """``reset(batch_ids=[])`` must leave the buffer readable.
+
+    Regression test for the CPU-flag path: a zero-length ``batch_ids`` must
+    not flip ``_any_first_push_pending`` (nothing was actually zeroed). The
+    previous ``torch.any(num_pushes == 0)`` probe was immune because it read
+    the real tensor state; the flag-based guard must match that behavior to
+    avoid spuriously raising on callers that pass empty done-env lists.
+    """
+    data = torch.ones((circular_buffer.batch_size, 2), device=circular_buffer.device)
+    circular_buffer.append(data)
+    circular_buffer.append(data)
+    circular_buffer.reset(batch_ids=[])
+    # Must not raise — all batch indices still have num_pushes > 0.
+    retrieved = circular_buffer[torch.tensor([0, 0, 0], device=circular_buffer.device)]
+    torch.testing.assert_close(retrieved, data)
+    # Also accept a zero-length tensor (common when built from a termination mask).
+    circular_buffer.reset(batch_ids=torch.tensor([], dtype=torch.long, device=circular_buffer.device))
+    retrieved = circular_buffer[torch.tensor([0, 0, 0], device=circular_buffer.device)]
+    torch.testing.assert_close(retrieved, data)
+
+
 def test_partial_reset_then_read_raises(circular_buffer):
     """``__getitem__`` must still raise after a partial reset without a follow-up append.
 

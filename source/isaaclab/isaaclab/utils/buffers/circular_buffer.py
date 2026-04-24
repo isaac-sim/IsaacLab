@@ -106,6 +106,12 @@ class CircularBuffer:
         Args:
             batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
         """
+        # A zero-length ``batch_ids`` is a no-op: nothing to zero, and raising
+        # ``_any_first_push_pending`` would spuriously block the next read
+        # (the previous ``torch.any(num_pushes == 0)`` guard was immune to
+        # this because it probed the actual tensor state).
+        if batch_ids is not None and len(batch_ids) == 0:
+            return
         # resolve all indices
         if batch_ids is None:
             batch_ids = slice(None)
