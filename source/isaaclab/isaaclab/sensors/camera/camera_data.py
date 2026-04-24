@@ -113,9 +113,7 @@ class CameraData:
             except ValueError:
                 unknown.append(name)
         if unknown:
-            raise ValueError(
-                f"Unknown CameraDataType name(s): {unknown}. Expected members of CameraDataType."
-            )
+            raise ValueError(f"Unknown CameraDataType name(s): {unknown}. Expected members of CameraDataType.")
         # rgb is exposed as a view into rgba when the renderer publishes both,
         # so requesting either one allocates the shared rgba buffer.
         rgb_alias = (
