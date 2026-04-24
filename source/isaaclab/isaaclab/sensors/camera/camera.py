@@ -114,6 +114,7 @@ class Camera(SensorBase):
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
+        self._register_renderer_scene_data_requirements()
 
         # toggle rendering of rtx sensors as True
         # this flag is read by SimulationContext to determine if rtx sensors should be rendered
@@ -153,6 +154,29 @@ class Camera(SensorBase):
                 with Sdf.ChangeBlock():
                     for prim in self.stage.Traverse():
                         prim.SetInstanceable(False)
+
+    def _register_renderer_scene_data_requirements(self) -> None:
+        """Register renderer requirements early enough for clone-time prebuilds."""
+        renderer_type = getattr(getattr(self.cfg, "renderer_cfg", None), "renderer_type", None)
+        if renderer_type is None:
+            return
+
+        from isaaclab.physics.scene_data_requirements import aggregate_requirements, requirement_for_renderer_type
+        from isaaclab.sim import SimulationContext
+
+        sim = SimulationContext.instance()
+        if sim is None:
+            return
+
+        try:
+            renderer_req = requirement_for_renderer_type(renderer_type)
+        except ValueError:
+            return
+
+        current_req = sim.get_scene_data_requirements()
+        merged_req = aggregate_requirements((current_req, renderer_req))
+        if merged_req != current_req:
+            sim.update_scene_data_requirements(merged_req)
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
