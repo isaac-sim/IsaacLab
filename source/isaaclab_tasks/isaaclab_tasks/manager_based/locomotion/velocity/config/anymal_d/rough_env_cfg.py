@@ -3,14 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
@@ -19,28 +15,7 @@ from isaaclab_assets.robots.anymal import ANYMAL_D_CFG  # isort: skip
 
 
 @configclass
-class RoughPhysicsCfg(PresetCfg):
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    newton = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=200,
-            nconmax=100,
-            cone="pyramidal",
-            impratio=1.0,
-            integrator="implicitfast",
-            use_mujoco_contacts=False,
-        ),
-        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=1,
-        debug_mode=False,
-    )
-    physx = default
-
-
-@configclass
 class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(physics=RoughPhysicsCfg())
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

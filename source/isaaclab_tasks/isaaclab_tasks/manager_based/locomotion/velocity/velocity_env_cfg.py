@@ -6,7 +6,9 @@
 import math
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 
 import isaaclab.sim as sim_utils
@@ -21,6 +23,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
+from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -33,6 +36,36 @@ from isaaclab_tasks.utils import PresetCfg, preset
 # Pre-defined configs
 ##
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
+
+
+##
+# Physics presets
+##
+
+
+@configclass
+class RoughPhysicsCfg(PresetCfg):
+    """Shared physics preset for all rough-terrain locomotion envs."""
+
+    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    newton = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=200,
+            nconmax=100,
+            cone="pyramidal",
+            impratio=1.0,
+            integrator="implicitfast",
+            use_mujoco_contacts=False,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=1,
+        debug_mode=False,
+        # 1 cm shape margin is the single most important Newton setting for rough
+        # terrain — without it, non-Anymal-D robots fail to learn stable contact
+        # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+    )
+    physx = default
 
 
 ##
@@ -179,8 +212,12 @@ class EventsCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            "mass_distribution_params": (-5.0, 5.0),
-            "operation": "add",
+            # Multiplicative ±25% log-uniform. Scale-invariant across robot sizes
+            # (no per-robot kg overrides needed) with geometric mean 1.0 and
+            # symmetric inverse perturbation (acceleration symmetric around nominal).
+            "mass_distribution_params": (1 / 1.25, 1.25),
+            "operation": "scale",
+            "distribution": "log_uniform",
         },
     )
 
@@ -304,6 +341,8 @@ class CurriculumCfg:
 class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
+    # Simulation settings — shared physics preset (PhysX + Newton) for all rough-terrain envs
+    sim: SimulationCfg = SimulationCfg(physics=RoughPhysicsCfg())
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings

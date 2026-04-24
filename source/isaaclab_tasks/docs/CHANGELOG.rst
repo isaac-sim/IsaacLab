@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+1.5.25 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled Newton rough-terrain locomotion training on the remaining
+  quadrupeds (Go1, Go2, A1, Anymal-B, Anymal-C), bipeds (H1, Cassie),
+  Digit, and G1 on top of Octi's Anymal-D work cherry-picked from
+  PR #5225.
+* Hoisted the per-env Anymal-D ``RoughPhysicsCfg`` (MJWarp solver +
+  collision pipeline) into the shared
+  :class:`~isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg.LocomotionVelocityRoughEnvCfg`
+  so every rough-terrain env inherits identical physics. The shared
+  preset opts in to ``default_shape_cfg=NewtonShapeCfg(margin=0.01)``,
+  which is the single most important Newton setting for rough terrain.
+* Added Go1 Newton-only leg armature preset to improve rough-terrain
+  training stability on lightweight quadrupeds.
+
+Changed
+^^^^^^^
+
+* Replaced the additive ``(-5, 5)`` kg default on
+  ``EventsCfg.add_base_mass`` with a multiplicative ``(1/1.25, 1.25)``
+  log-uniform scale (``operation="scale"``,
+  ``distribution="log_uniform"``). Scale-invariant across robot sizes
+  with geometric mean 1.0; removes the need for per-robot
+  ``(-1.0, 3.0)`` additive overrides on A1/Go1/Go2.
+
+
 1.5.24 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
