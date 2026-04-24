@@ -139,6 +139,21 @@ The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visu
 For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
+Partial Visualization
+~~~~~~~~~~~~~~~~~~~~~
+
+Visualizers can be configured to visualize just a subset of environments.
+This is called partial visualization.
+
+There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments for partial visualization:
+
+- ``max_visible_envs`` caps how many envs are shown.
+- ``visible_env_indices`` explicitly selects the envs to visualize.
+- ``randomly_sample_visible_envs`` (default ``True``): when ``visible_env_indices`` is unset and ``max_visible_envs`` is set,
+  enables randomly sampling the selected envs. If disabled, the first ``max_visible_envs`` envs are selected.
+
+Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
+
 .. _visualization-common-modes:
 
 .. list-table:: Common modes
@@ -345,7 +360,7 @@ server, allowing you to view and interact with the scene from any browser.
         open_browser=True,
         label="Isaac Lab Simulation",
         share=False,
-        max_worlds=64,
+        max_visible_envs=16,
     )
 
 **Configuration options:**
@@ -356,7 +371,6 @@ server, allowing you to view and interact with the scene from any browser.
 - ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
 - ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
 - ``verbose`` (bool, default ``True``): Print viewer server startup information.
-- ``max_worlds`` (int or None, default ``None``): Maximum number of environments rendered.
 
 .. note::
 
@@ -366,7 +380,7 @@ server, allowing you to view and interact with the scene from any browser.
 Performance Note
 ----------------
 
-To reduce overhead when visualizing large-scale environments, consider:
+When visualizing large-scale environments, consider:
 
 - Using Newton instead of Omniverse or Rerun
 - Reducing window sizes
