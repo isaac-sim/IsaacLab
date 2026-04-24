@@ -1,8 +1,7 @@
 Changelog
 ---------
 
-<<<<<<< fix/prebundle-and-deprecation
-0.5.22 (2026-04-22)
+0.5.23 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -14,7 +13,8 @@ Changed
   Newton backend's ``NewtonManager as SimulationManager`` convention).
 * Updated optional-extension enablement and Kit perspective capture helpers to use non-deprecated
   Isaac Sim module paths (``isaacsim.core.experimental.utils.app`` and ``isaacsim.core.rendering_manager``).
-=======
+
+
 0.5.22 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -27,7 +27,6 @@ Fixed
   :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider` now falls back to a
   USD-traversal Newton build when the cloner-time prebuilt artifact is absent, and stashes
   the freshly built artifact on the simulation context so subsequent providers reuse it.
->>>>>>> develop
 
 
 0.5.21 (2026-04-22)
