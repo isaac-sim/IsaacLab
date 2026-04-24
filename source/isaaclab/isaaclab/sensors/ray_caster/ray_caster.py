@@ -13,13 +13,12 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.views import XformPrimView
+from isaaclab.sim.views import FrameView
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.warp import convert_to_warp_mesh
 from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
@@ -74,6 +73,8 @@ class RayCaster(SensorBase):
         """
         RayCaster._instance_count += 1
         super().__init__(cfg)
+        # Resolve physics-body paths and spawn the sensor Xform child if needed.
+        self._resolve_and_spawn("raycaster")
         self._data = RayCasterData()
 
     def __str__(self) -> str:
@@ -135,41 +136,19 @@ class RayCaster(SensorBase):
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        # obtain global simulation view
-        self._physics_sim_view = sim_utils.SimulationContext.instance().physics_manager.get_physics_sim_view()
-        prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if prim is None:
-            available_prims = ",".join([str(p.GetPath()) for p in sim_utils.get_current_stage().Traverse()])
-            raise RuntimeError(
-                f"Failed to find a prim at path expression: {self.cfg.prim_path}. Available prims: {available_prims}"
-            )
+        # Build a FrameView over the sensor prim paths. The FrameView tracks the spawned
+        # (non-physics) Xform directly, so no physics-body redirect or offset resolution
+        # is needed at runtime — the world pose returned already includes any offset
+        # baked into the prim's local transform.
+        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
 
-        self._view, self._offset = self._obtain_trackable_prim_view(self.cfg.prim_path)
-
-        # Convert offsets to warp (zero-copy from existing torch tensors).
-        # Store the contiguous tensors explicitly so they are not garbage-collected while
-        # the wp.array views (_offset_pos_wp / _offset_quat_wp) are alive. If the tensor
-        # returned by .contiguous() is a temporary copy (non-contiguous input), the warp
-        # view would otherwise point to freed memory once GC reclaims it.
-        self._offset_pos_contiguous = self._offset[0].contiguous()
-        self._offset_quat_contiguous = self._offset[1].contiguous()
-        self._offset_pos_wp = wp.from_torch(self._offset_pos_contiguous, dtype=wp.vec3f)
+        # Per-env identity offsets (kept for kernel ABI compatibility): the sensor frame is
+        # already the FrameView's tracked prim, so no additional view-to-sensor offset applies.
+        self._offset_pos_wp = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
+        identity_quat = torch.zeros(self._view.count, 4, device=self._device)
+        identity_quat[:, 3] = 1.0
+        self._offset_quat_contiguous = identity_quat.contiguous()
         self._offset_quat_wp = wp.from_torch(self._offset_quat_contiguous, dtype=wp.quatf)
-
-        # Handle deprecated attach_yaw_only at init time
-        if self.cfg.attach_yaw_only is not None:
-            msg = (
-                "Raycaster attribute 'attach_yaw_only' property will be deprecated in a future release."
-                " Please use the parameter 'ray_alignment' instead."
-            )
-            if self.cfg.attach_yaw_only:
-                self.cfg.ray_alignment = "yaw"
-                msg += " Setting ray_alignment to 'yaw'."
-            else:
-                self.cfg.ray_alignment = "base"
-                msg += " Setting ray_alignment to 'base'."
-            logger.warning(msg)
-            self.cfg.attach_yaw_only = None
 
         # Resolve alignment mode to integer constant for kernel dispatch
         alignment_map = {"world": 0, "yaw": 1, "base": 2}
@@ -278,23 +257,18 @@ class RayCaster(SensorBase):
         self._dummy_ray_normal = wp.empty((1, 1), dtype=wp.vec3f, device=self._device)
 
     def _get_view_transforms_wp(self) -> wp.array:
-        """Get world transforms from the physics view as a warp array.
+        """Get world transforms from the frame view as a warp array of ``wp.transformf``.
 
         Returns:
-            Warp array of ``wp.transformf`` with shape (num_envs,).
+            Warp array of ``wp.transformf`` with shape ``(num_envs,)``. Layout is
+            ``(tx, ty, tz, qx, qy, qz, qw)`` per element, matching the quaternion
+            convention returned by :class:`~isaaclab.sim.views.FrameView`.
         """
-        if isinstance(self._view, XformPrimView):
-            # XformPrimView.get_world_poses() returns quaternions in (x, y, z, w) convention,
-            # which matches the wp.transformf layout (translation then xyzw quaternion).
-            pos_w, quat_w = self._view.get_world_poses()
-            poses = torch.cat([pos_w, quat_w], dim=-1).contiguous()
-            return wp.from_torch(poses).view(wp.transformf)
-        elif isinstance(self._view, physx.ArticulationView):
-            return self._view.get_root_transforms().view(wp.transformf)
-        elif isinstance(self._view, physx.RigidBodyView):
-            return self._view.get_transforms().view(wp.transformf)
-        else:
-            raise NotImplementedError(f"Cannot get transforms for view type '{type(self._view)}'.")
+        pos_wp, quat_wp = self._view.get_world_poses()
+        pos_torch = wp.to_torch(pos_wp).reshape(-1, 3)
+        quat_torch = wp.to_torch(quat_wp).reshape(-1, 4)
+        poses = torch.cat([pos_torch, quat_torch], dim=-1).contiguous()
+        return wp.from_torch(poses).view(wp.transformf)
 
     def _update_ray_infos(self, env_mask: wp.array):
         """Updates sensor poses and ray world-frame buffers via a single warp kernel."""
@@ -384,86 +358,6 @@ class RayCaster(SensorBase):
             return
 
         self.ray_visualizer.visualize(viz_points)
-
-    """
-    Internal Helpers.
-    """
-
-    def _obtain_trackable_prim_view(
-        self, target_prim_path: str
-    ) -> tuple[XformPrimView | physx.ArticulationView | physx.RigidBodyView, tuple[torch.Tensor, torch.Tensor]]:
-        """Obtain a prim view that can be used to track the pose of the target prim.
-
-        The target prim path is a regex expression that matches one or more mesh prims. While we can track its
-        pose directly using XFormPrim, this is not efficient and can be slow. Instead, we create a prim view
-        using the physics simulation view, which provides a more efficient way to track the pose of the mesh prims.
-
-        The function additionally resolves the relative pose between the mesh and its corresponding physics prim.
-        This is especially useful if the mesh is not directly parented to the physics prim.
-
-        Args:
-            target_prim_path: The target prim path to obtain the prim view for.
-
-        Returns:
-            A tuple containing:
-
-            - An XFormPrim or a physics prim view (ArticulationView or RigidBodyView).
-            - A tuple containing the positions and orientations of the mesh prims in the physics prim frame.
-
-        """
-
-        mesh_prim = sim_utils.find_first_matching_prim(target_prim_path)
-        current_prim = mesh_prim
-        current_path_expr = target_prim_path
-
-        prim_view = None
-
-        while prim_view is None:
-            if current_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-                prim_view = self._physics_sim_view.create_articulation_view(current_path_expr.replace(".*", "*"))
-                logger.info(f"Created articulation view for mesh prim at path: {target_prim_path}")
-                break
-
-            if current_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                prim_view = self._physics_sim_view.create_rigid_body_view(current_path_expr.replace(".*", "*"))
-                logger.info(f"Created rigid body view for mesh prim at path: {target_prim_path}")
-                break
-
-            new_root_prim = current_prim.GetParent()
-            current_path_expr = current_path_expr.rsplit("/", 1)[0]
-            if not new_root_prim.IsValid():
-                prim_view = XformPrimView(target_prim_path, device=self._device, stage=self.stage)
-                current_path_expr = target_prim_path
-                logger.warning(
-                    f"The prim at path {target_prim_path} which is used for raycasting is not a physics prim."
-                    " Defaulting to XFormPrim. \n The pose of the mesh will most likely not"
-                    " be updated correctly when running in headless mode and position lookups will be much slower. \n"
-                    " If possible, ensure that the mesh or its parent is a physics prim (rigid body or articulation)."
-                )
-                break
-
-            current_prim = new_root_prim
-
-        # obtain the relative transforms between target prim and the view prims
-        mesh_prims = sim_utils.find_matching_prims(target_prim_path)
-        view_prims = sim_utils.find_matching_prims(current_path_expr)
-        if len(mesh_prims) != len(view_prims):
-            raise RuntimeError(
-                f"The number of mesh prims ({len(mesh_prims)}) does not match the number of physics prims"
-                f" ({len(view_prims)})Please specify the correct mesh and physics prim paths more"
-                " specifically in your target expressions."
-            )
-        positions = []
-        quaternions = []
-        for mesh_prim, view_prim in zip(mesh_prims, view_prims):
-            pos, orientation = sim_utils.resolve_prim_pose(mesh_prim, view_prim)
-            positions.append(torch.tensor(pos, dtype=torch.float32, device=self.device))
-            quaternions.append(torch.tensor(orientation, dtype=torch.float32, device=self.device))
-
-        positions = torch.stack(positions).to(device=self.device, dtype=torch.float32)
-        quaternions = torch.stack(quaternions).to(device=self.device, dtype=torch.float32)
-
-        return prim_view, (positions, quaternions)
 
     """
     Internal simulation callbacks.

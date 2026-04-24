@@ -50,8 +50,10 @@ __all__ = [
     "MeshSphereCfg",
     "MeshSquareCfg",
     "spawn_camera",
+    "spawn_sensor_frame",
     "FisheyeCameraCfg",
     "PinholeCameraCfg",
+    "SensorFrameCfg",
     "spawn_capsule",
     "spawn_cone",
     "spawn_cuboid",
@@ -120,7 +122,7 @@ from .meshes import (
     MeshSquareCfg,
     MeshSphereCfg,
 )
-from .sensors import spawn_camera, FisheyeCameraCfg, PinholeCameraCfg
+from .sensors import spawn_camera, spawn_sensor_frame, FisheyeCameraCfg, PinholeCameraCfg, SensorFrameCfg
 from .shapes import (
     spawn_capsule,
     spawn_cone,

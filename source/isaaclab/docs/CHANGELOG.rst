@@ -1,6 +1,51 @@
 Changelog
 ---------
 
+4.6.12 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added caching to :func:`~isaaclab.utils.string.resolve_matching_names`,
+  avoiding repeated regex matching across ``find_bodies``, ``find_joints``,
+  and related calls.
+
+
+4.6.11 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.sensors.RayCaster` to spawn its own non-physics Xform prim via
+  the new :attr:`~isaaclab.sensors.RayCasterCfg.spawn` attribute. ``prim_path`` should now
+  point to a child under the parent link (e.g. ``{ENV_REGEX_NS}/Robot/base/raycaster``).
+* Renamed :class:`~isaaclab.sim.views.XformPrimView` to :class:`~isaaclab.sim.views.FrameView`,
+  ``BaseXformPrimView`` to :class:`~isaaclab.sim.views.BaseFrameView`,
+  and ``UsdXformPrimView`` to :class:`~isaaclab.sim.views.UsdFrameView`.
+  ``XformPrimView`` is kept as a deprecated alias.
+* Moved :class:`~isaaclab.sensors.RayCasterCfg` offset into the spawned prim's local transform
+  instead of applying it at runtime. The :class:`~isaaclab.sim.views.FrameView` world pose now
+  includes the offset directly.
+* Unified sensor prim path resolution in :class:`~isaaclab.sensors.SensorBase`. When
+  ``prim_path`` points at a physics body and a spawner is configured, a child prim is
+  automatically created underneath.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated passing a ``prim_path`` with ``ArticulationRootAPI`` or ``RigidBodyAPI`` to
+  :class:`~isaaclab.sensors.RayCasterCfg`. The path is automatically extended with
+  ``/raycaster``; users should migrate to the child-path convention.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`~isaaclab.sensors.RayCasterCfg.attach_yaw_only` (deprecated since 2.1.1).
+  Use ``ray_alignment="yaw"`` or ``ray_alignment="base"`` instead.
+
+
 4.6.10 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -9,6 +54,20 @@ Added
 
 * Added :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.add_raw_buffers_from` to merge one composer's raw
   input buffers into another.
+* Added ``render_enabled`` property to all environment base classes
+  (:class:`~isaaclab.envs.ManagerBasedEnv`, :class:`~isaaclab.envs.ManagerBasedRLEnv`,
+  :class:`~isaaclab.envs.DirectRLEnv`, :class:`~isaaclab.envs.DirectMARLEnv`).
+  Setting ``env.render_enabled = False`` before calling ``step()`` skips the Kit app loop
+  (``app.update()``) and camera/RTX sensor rendering, while standalone visualizers (Newton,
+  Rerun, Viser) continue to update normally.  Kit bundles camera rendering with its app loop
+  so the two cannot be separated; non-Kit visualizers have independent ``step()`` methods and
+  are unaffected by this flag.  Post-reset re-renders for RTX sensors are also skipped when
+  disabled.  The property can be toggled between steps for per-step control.  Defaults to
+  ``True`` for full backward compatibility.
+* Added ``skip_app_pumping`` parameter to
+  :meth:`~isaaclab.sim.SimulationContext.render` and
+  :meth:`~isaaclab.sim.SimulationContext.update_visualizers` to selectively skip
+  visualizers that pump the Kit app loop (``pumps_app_update() == True``).
 
 Changed
 ^^^^^^^
@@ -380,6 +439,21 @@ Added
 
 Added
 ^^^^^
+
+
+* Added :class:`~isaaclab.sim.views.BaseXformPrimView` abstract base class that defines
+  the common interface for backend-specific ``XformPrimView`` implementations.
+* Added :class:`~isaaclab.sim.views.XformPrimView` factory to instantiate the correct
+  backend-specific ``XformPrimView`` based on the active simulation backend.
+
+Changed
+^^^^^^^
+
+* Refactored :class:`~isaaclab.sim.views.XformPrimView` to delegate backend-specific
+  logic to :class:`~isaaclab_physx.sim.views.FabricXformPrimView` and
+  :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView`. The public API is
+  unchanged; use :class:`~isaaclab.sim.views.XformPrimView` for backend-aware
+  instantiation.
 
 * Added release version to
   :class:`~isaaclab.test.benchmark.recorders.VersionInfoRecorder` output.

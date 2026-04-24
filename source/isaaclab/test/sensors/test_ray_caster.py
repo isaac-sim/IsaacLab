@@ -243,6 +243,84 @@ def test_raycast_random_cube(raycast_setup):
         torch.testing.assert_close(ray_face_id, ray_face_id_m)
 
 
+##
+# RayCaster sensor-level tests
+##
+
+
+def test_raycaster_offset_does_not_affect_pos_w():
+    """Verify that cfg.offset.pos shifts ray starts but NOT data.pos_w.
+
+    data.pos_w must reflect the parent body position so that downstream
+    observations like height_scan (pos_w_z - hit_z - 0.5) produce values
+    relative to the body, not relative to the offset sensor frame.
+
+    Regression test: previously the offset was baked into the FrameView's
+    Xform local transform, causing data.pos_w to include the 20m offset
+    and breaking height-scan observations during training.
+    """
+    import isaaclab.sim as sim_utils
+    from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
+    from isaaclab.terrains.trimesh.utils import make_plane
+    from isaaclab.terrains.utils import create_prim_from_mesh
+
+    sim_utils.create_new_stage()
+
+    # ground plane at z=0
+    mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
+    create_prim_from_mesh("/World/ground", mesh)
+
+    # parent body at known position
+    body_pos = (0.0, 0.0, 0.6)
+    sim_utils.create_prim("/World/Robot", "Xform", translation=body_pos)
+
+    # large z-offset to make the regression obvious
+    offset_z = 20.0
+    cfg = RayCasterCfg(
+        prim_path="/World/Robot",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, offset_z)),
+        mesh_prim_paths=["/World/ground"],
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.5, size=[1.0, 1.0]),
+        ray_alignment="yaw",
+    )
+
+    dt = 0.01
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=dt))
+
+    sensor = RayCaster(cfg)
+    sim.reset()
+    sensor.update(dt)
+
+    # data.pos_w / data.ray_hits_w are wp.array after the ray caster warp-backend
+    # migration (PR #4967); convert to torch views for indexing.
+    pos_w = wp.to_torch(sensor.data.pos_w)[0].cpu()
+
+    # pos_w.z should be near the body height, NOT body_height + offset
+    assert abs(pos_w[2].item() - body_pos[2]) < 1.0, (
+        f"data.pos_w.z = {pos_w[2].item():.2f}, expected near body height {body_pos[2]}."
+        f" If pos_w.z ≈ {body_pos[2] + offset_z}, the offset was incorrectly baked into the FrameView."
+    )
+
+    # ray_hits should be near z=0 (ground plane)
+    hits_z = wp.to_torch(sensor.data.ray_hits_w)[0, :, 2].cpu()
+    valid = hits_z[~torch.isinf(hits_z)]
+    if len(valid) > 0:
+        assert valid.abs().max().item() < 2.0, (
+            f"Ray hits z range [{valid.min().item():.2f}, {valid.max().item():.2f}] — expected near ground (z≈0)."
+        )
+
+    # height_scan observation: pos_w_z - hit_z - 0.5 should be small, not ~20
+    if len(valid) > 0:
+        height_obs = pos_w[2].item() - valid.mean().item() - 0.5
+        assert abs(height_obs) < 5.0, (
+            f"height_scan observation = {height_obs:.2f}, expected near 0."
+            f" If ≈{offset_z}, the offset leaked into data.pos_w."
+        )
+
+    sim.stop()
+    sim.clear_instance()
+
+
 # ---------------------------------------------------------------------------
 # Tests for raycast_mesh_masked_kernel (new kernel in utils/warp/kernels.py)
 # ---------------------------------------------------------------------------

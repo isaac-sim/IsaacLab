@@ -21,7 +21,6 @@ from .kernels import (
 )
 from .multi_mesh_ray_caster import MultiMeshRayCaster
 from .multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
-from .ray_cast_utils import obtain_world_pose_from_view
 from .ray_caster_camera import RayCasterCamera
 
 if TYPE_CHECKING:
@@ -178,7 +177,9 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             return
 
         # Compute camera world poses by composing view pose with sensor offset
-        pos_w, quat_w = obtain_world_pose_from_view(self._view, env_ids)
+        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
+        pos_wp, quat_wp = self._view.get_world_poses(indices)
+        pos_w, quat_w = wp.to_torch(pos_wp), wp.to_torch(quat_wp)
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
