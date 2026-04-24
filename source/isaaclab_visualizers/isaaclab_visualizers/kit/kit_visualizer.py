@@ -11,7 +11,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from pxr import Usd, UsdGeom, Vt
+from pxr import Gf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
