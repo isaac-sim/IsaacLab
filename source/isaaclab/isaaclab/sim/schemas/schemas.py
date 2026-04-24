@@ -1256,6 +1256,8 @@ def modify_deformable_body_properties(
     of triangles, while the simulation mesh is composed of tetrahedrons for volume deformables,
     and triangles for surface deformables.
 
+    We apply similar design choices to the simulation in Newton with a separate visual, simulation and collision mesh.
+
     .. caution::
         The deformable body schema is still under development by the Omniverse team. The current implementation
         works with the PhysX schemas shipped with Isaac Sim 6.0.0 onwards. It may change in future releases.
