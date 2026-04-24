@@ -17,6 +17,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import copy
 import random
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -27,7 +28,9 @@ import omni.replicator.core as rep
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.sim import SimulationContext
 
 pytestmark = pytest.mark.isaacsim_ci
 
@@ -43,6 +46,23 @@ QUAT_WORLD = (-0.27984815, -0.1159169, 0.88047623, -0.3647052)
 # resolutions
 HEIGHT = 240
 WIDTH = 320
+
+
+def test_camera_registers_renderer_scene_data_requirements(monkeypatch: pytest.MonkeyPatch):
+    """Camera creation path should register renderer-driven scene-data requirements."""
+    camera = object.__new__(Camera)
+    camera.cfg = SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="newton_warp"))
+    updates = []
+    sim = SimpleNamespace(
+        get_scene_data_requirements=lambda: SceneDataRequirement(),
+        update_scene_data_requirements=updates.append,
+    )
+
+    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
+
+    camera._register_renderer_scene_data_requirements()
+
+    assert updates == [SceneDataRequirement(requires_newton_model=True)]
 
 
 def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
