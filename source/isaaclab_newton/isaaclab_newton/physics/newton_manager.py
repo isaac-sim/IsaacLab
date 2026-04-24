@@ -142,6 +142,7 @@ class NewtonManager(PhysicsManager):
     _solver_factories: dict[str, Callable] = {}
     _particle_sync_fn: Callable | None = None
     _post_finalize_model_fn: Callable | None = None
+    _post_start_simulation_fn: Callable | None = None
     _per_world_builder_hooks: list = []
     _post_replicate_hooks: list = []
 
@@ -465,6 +466,7 @@ class NewtonManager(PhysicsManager):
         cls._solver_factories = {}
         cls._particle_sync_fn = None
         cls._post_finalize_model_fn = None
+        cls._post_start_simulation_fn = None
         cls._per_world_builder_hooks = []
         cls._post_replicate_hooks = []
 
@@ -744,58 +746,8 @@ class NewtonManager(PhysicsManager):
                 cls.sync_transforms_to_usd()
 
             # Setup Fabric particle sync for deformable bodies.
-            if cls._deformable_registry:
-                import re
-
-                from pxr import UsdGeom
-
-                if cls._usdrt_stage is None:
-                    cls._usdrt_stage = get_current_stage(fabric=True)
-
-                stage = get_current_stage()
-                for entry in cls._deformable_registry:
-                    for inst_idx, offset in enumerate(entry.particle_offsets):
-                        # Resolve regex pattern to concrete instance path
-                        resolved_sim = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.sim_mesh_prim_path)
-                        resolved_sim = re.sub(r"\.\*", str(inst_idx), resolved_sim)
-                        mesh_prim = stage.GetPrimAtPath(resolved_sim)
-
-                        resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
-                        resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
-                        vis_prim = stage.GetPrimAtPath(resolved_vis)
-                        vis_mesh = UsdGeom.Mesh(vis_prim)
-
-                        if not mesh_prim or not mesh_prim.IsValid():
-                            logger.warning("[NewtonManager] particle setup: prim not found at %s", resolved_sim)
-                            continue
-
-                        # Overwrite visual mesh topology to match sim mesh so Fabric
-                        # particle sync can write the correct number of points.
-                        if mesh_prim.GetTypeName() == "TetMesh":
-                            tet_mesh = UsdGeom.TetMesh(mesh_prim)
-                            surface_indices = tet_mesh.GetSurfaceFaceVertexIndicesAttr().Get()
-                            if surface_indices is None or len(surface_indices) == 0:
-                                raise ValueError(
-                                    f"Deformable body has no surface indices on its TetMesh prim; "
-                                    f"cannot sync to visual mesh."
-                                )
-                            vis_mesh.GetPointsAttr().Set(tet_mesh.GetPointsAttr().Get())
-                            vis_mesh.GetFaceVertexIndicesAttr().Set(np.asarray(surface_indices).flatten())
-                            vis_mesh.GetFaceVertexCountsAttr().Set([3] * len(surface_indices))
-                        else:
-                            sim_mesh = UsdGeom.Mesh(mesh_prim)
-                            vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
-                            vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
-
-                        # Per-instance particle offset so the Fabric sync kernel
-                        # can find the right slice of particle_q.
-                        fab_prim = cls._usdrt_stage.GetPrimAtPath(vis_prim.GetPath().pathString)
-                        fab_prim.CreateAttribute(cls._newton_particle_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
-                        fab_prim.GetAttribute(cls._newton_particle_offset_attr).Set(offset)
-
-                cls._mark_particles_dirty()
-                if cls._particle_sync_fn is not None:
-                    cls._particle_sync_fn()
+            if cls._deformable_registry and cls._post_start_simulation_fn is not None:
+                cls._post_start_simulation_fn()
 
     @classmethod
     def _get_deformable_ignore_paths(cls) -> list[str]:

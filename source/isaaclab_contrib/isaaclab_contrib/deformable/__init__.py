@@ -50,7 +50,7 @@ def _do_deferred_imports():
     from .deformable_object import DeformableObject, DeformableRegistryEntry
     from .deformable_object_data import DeformableObjectData
     from .model_cfg_hook import apply_model_cfg
-    from .particle_sync import sync_particles_to_usd
+    from .particle_sync import setup_fabric_particle_sync, sync_particles_to_usd
     from .solver_factories import create_coupled_solver, create_vbd_solver
 
     # Inject into module namespace so subsequent accesses are direct
@@ -64,6 +64,7 @@ def _do_deferred_imports():
     g["post_replicate_deformable_hook"] = post_replicate_deformable_hook
     g["apply_model_cfg"] = apply_model_cfg
     g["sync_particles_to_usd"] = sync_particles_to_usd
+    g["setup_fabric_particle_sync"] = setup_fabric_particle_sync
     g["create_coupled_solver"] = create_coupled_solver
     g["create_vbd_solver"] = create_vbd_solver
 
@@ -71,7 +72,8 @@ def _do_deferred_imports():
     if not _hooks_registered:
         _hooks_registered = True
         _register_hooks_impl(NewtonManager, create_vbd_solver, create_coupled_solver,
-                             sync_particles_to_usd, per_world_deformable_hook,
+                             sync_particles_to_usd, setup_fabric_particle_sync,
+                             per_world_deformable_hook,
                              post_replicate_deformable_hook, apply_model_cfg)
 
     # Register the Newton DeformableObject backend with the factory
@@ -80,12 +82,14 @@ def _do_deferred_imports():
 
 
 def _register_hooks_impl(NewtonManager, create_vbd_solver, create_coupled_solver,
-                          sync_particles_to_usd, per_world_deformable_hook,
+                          sync_particles_to_usd, setup_fabric_particle_sync,
+                          per_world_deformable_hook,
                           post_replicate_deformable_hook, apply_model_cfg):
     """Register all deformable hooks with NewtonManager."""
     NewtonManager.register_solver_factory("vbd", create_vbd_solver)
     NewtonManager.register_solver_factory("coupled", create_coupled_solver)
     NewtonManager._particle_sync_fn = sync_particles_to_usd
+    NewtonManager._post_start_simulation_fn = setup_fabric_particle_sync
     if per_world_deformable_hook not in NewtonManager._per_world_builder_hooks:
         NewtonManager._per_world_builder_hooks.append(per_world_deformable_hook)
     if post_replicate_deformable_hook not in NewtonManager._post_replicate_hooks:

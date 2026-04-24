@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import logging
+import re
 
+import numpy as np
 import warp as wp
 
 from isaaclab.physics import PhysicsManager
@@ -108,3 +110,70 @@ def sync_particles_to_usd() -> None:
         NewtonManager._particles_dirty = False
     except Exception as exc:
         logger.debug("[sync_particles_to_usd] %s", exc)
+
+
+def setup_fabric_particle_sync() -> None:
+    """Set up Fabric attributes for deformable particle sync after simulation starts.
+
+    For each deformable registry entry, this function:
+
+    1. Resolves regex prim paths to concrete per-instance paths.
+    2. Overwrites the visual mesh topology to match the simulation mesh so
+       Fabric particle sync writes the correct number of points.
+    3. Creates a per-instance ``newton:particleOffset`` Fabric attribute so
+       :func:`sync_particles_to_usd` can find the right slice of ``particle_q``.
+    4. Triggers an initial particle sync.
+    """
+    import usdrt
+    from pxr import UsdGeom
+
+    from isaaclab.sim.utils.stage import get_current_stage
+    from isaaclab_newton.physics import NewtonManager
+
+    if NewtonManager._usdrt_stage is None:
+        NewtonManager._usdrt_stage = get_current_stage(fabric=True)
+
+    stage = get_current_stage()
+    for entry in NewtonManager._deformable_registry:
+        for inst_idx, offset in enumerate(entry.particle_offsets):
+            # Resolve regex pattern to concrete instance path
+            resolved_sim = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.sim_mesh_prim_path)
+            resolved_sim = re.sub(r"\.\*", str(inst_idx), resolved_sim)
+            mesh_prim = stage.GetPrimAtPath(resolved_sim)
+
+            resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
+            resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
+            vis_prim = stage.GetPrimAtPath(resolved_vis)
+            vis_mesh = UsdGeom.Mesh(vis_prim)
+
+            if not mesh_prim or not mesh_prim.IsValid():
+                logger.warning("[setup_fabric_particle_sync] prim not found at %s", resolved_sim)
+                continue
+
+            # Overwrite visual mesh topology to match sim mesh so Fabric
+            # particle sync can write the correct number of points.
+            if mesh_prim.GetTypeName() == "TetMesh":
+                tet_mesh = UsdGeom.TetMesh(mesh_prim)
+                surface_indices = tet_mesh.GetSurfaceFaceVertexIndicesAttr().Get()
+                if surface_indices is None or len(surface_indices) == 0:
+                    raise ValueError(
+                        "Deformable body has no surface indices on its TetMesh prim; "
+                        "cannot sync to visual mesh."
+                    )
+                vis_mesh.GetPointsAttr().Set(tet_mesh.GetPointsAttr().Get())
+                vis_mesh.GetFaceVertexIndicesAttr().Set(np.asarray(surface_indices).flatten())
+                vis_mesh.GetFaceVertexCountsAttr().Set([3] * len(surface_indices))
+            else:
+                sim_mesh = UsdGeom.Mesh(mesh_prim)
+                vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
+                vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
+
+            # Per-instance particle offset so the Fabric sync kernel
+            # can find the right slice of particle_q.
+            fab_prim = NewtonManager._usdrt_stage.GetPrimAtPath(vis_prim.GetPath().pathString)
+            fab_prim.CreateAttribute(NewtonManager._newton_particle_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True)
+            fab_prim.GetAttribute(NewtonManager._newton_particle_offset_attr).Set(offset)
+
+    NewtonManager._mark_particles_dirty()
+    if NewtonManager._particle_sync_fn is not None:
+        NewtonManager._particle_sync_fn()
