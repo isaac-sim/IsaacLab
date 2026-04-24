@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+4.6.13 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.checked_apply` for forwarding declared
+  fields from an Isaac Lab configclass onto an external dataclass
+  (typically an upstream library config object). Raises
+  :class:`AttributeError` if the target is missing a declared field, so
+  upstream renames surface at startup instead of as silent no-ops.
+
+
 4.6.12 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 
