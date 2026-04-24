@@ -20,6 +20,8 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c.flat_env_c
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 LOW_LEVEL_ENV_CFG = AnymalCFlatEnvCfg()
+# Resolve PresetCfg wrappers (contact sensor, actuator armature, etc.) so that
+# class-level defaults referencing LOW_LEVEL_ENV_CFG fields get concrete configs.
 resolve_presets(LOW_LEVEL_ENV_CFG)
 
 
@@ -139,14 +141,15 @@ class NavigationEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.dt = LOW_LEVEL_ENV_CFG.sim.dt
         self.sim.render_interval = LOW_LEVEL_ENV_CFG.decimation
-        self.sim.physics_material = self.scene.terrain.physics_material
         self.decimation = LOW_LEVEL_ENV_CFG.decimation * 10
         self.episode_length_s = self.commands.pose_command.resampling_time_range[1]
 
-        # Resolve any PresetCfg wrappers in the scene so that update_period
-        # is set on the actual sensor config rather than the wrapper (which
-        # would be discarded by a later resolve_presets call).
+        # Resolve any PresetCfg wrappers in the scene so that subsequent
+        # attribute assignments target the actual configs, not wrappers that
+        # would be discarded by a later resolve_presets call.
         resolve_presets(self.scene)
+
+        self.sim.physics_material = self.scene.terrain.physics_material
 
         if self.scene.height_scanner is not None:
             self.scene.height_scanner.update_period = (
