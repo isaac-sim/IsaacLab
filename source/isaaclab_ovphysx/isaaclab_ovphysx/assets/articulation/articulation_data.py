@@ -1448,7 +1448,7 @@ class ArticulationData(BaseArticulationData):
         self._read_initial_properties()
 
         # Initialize ProxyArray wrappers (lazily created on first access)
-        self._pin_torch_arrays()
+        self._pin_proxy_arrays()
 
     def _read_initial_properties(self) -> None:
         """Read static/initial joint and body properties from ovphysx bindings.
@@ -1530,7 +1530,7 @@ class ArticulationData(BaseArticulationData):
                 if np_buf is not None and dst is not None:
                     wp.copy(dst, wp.from_numpy(np_buf, dtype=wp.float32, device=self.device))
 
-    def _pin_torch_arrays(self) -> None:
+    def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.
 
         This is called once from :meth:`_create_buffers` during initialization.

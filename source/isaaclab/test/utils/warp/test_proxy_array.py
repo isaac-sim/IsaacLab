@@ -21,7 +21,7 @@ def device(request):
     return request.param
 
 
-class TestTorchArrayBasic:
+class TestProxyArrayBasic:
     """Tests for basic ProxyArray functionality."""
 
     def test_warp_returns_original(self, device):
@@ -108,7 +108,7 @@ class TestTorchArrayBasic:
         with pytest.raises(AttributeError):
             _ = ta.__cuda_array_interface__
 
-    def test_wp_launch_accepts_torch_array(self):
+    def test_wp_launch_accepts_proxy_array(self):
         """Test that wp.launch() can consume a ProxyArray via __cuda_array_interface__."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
 
@@ -125,7 +125,7 @@ class TestTorchArrayBasic:
         assert dst.torch[4].item() == 1.0
 
 
-class TestTorchArrayStructuredTypes:
+class TestProxyArrayStructuredTypes:
     """Tests for ProxyArray with structured warp types (vec3f, quatf, etc)."""
 
     def test_vec3f_shape(self, device):
@@ -169,7 +169,7 @@ class TestTorchArrayStructuredTypes:
         assert ta.torch.shape == (4, 5, 3)
 
 
-class TestTorchArrayConvenienceProperties:
+class TestProxyArrayConvenienceProperties:
     """Tests for convenience properties: shape, dtype, device, len, repr."""
 
     def test_shape(self, device):
@@ -215,7 +215,7 @@ class TestTorchArrayConvenienceProperties:
         assert "float32" in r
 
 
-class TestTorchArrayDeprecationBridge:
+class TestProxyArrayDeprecationBridge:
     """Tests for the deprecation bridge: __torch_function__, operators."""
 
     def setup_method(self):
@@ -285,7 +285,7 @@ class TestTorchArrayDeprecationBridge:
             # Only one warning despite three operations
             assert len(w) == 1
 
-    def test_tensor_plus_torch_array(self, device):
+    def test_tensor_plus_proxy_array(self, device):
         """Test that torch.Tensor + ProxyArray works via __torch_function__."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
 
@@ -339,7 +339,7 @@ class TestTorchArrayDeprecationBridge:
         result = eval(f"scalar {op} ta")  # noqa: S307
         assert torch.allclose(result, torch.tensor(expected))
 
-    def test_torch_array_op_torch_array(self):
+    def test_proxy_array_op_proxy_array(self):
         """Test binary operations between two ProxyArray instances."""
         from isaaclab.utils.warp.proxy_array import ProxyArray
 

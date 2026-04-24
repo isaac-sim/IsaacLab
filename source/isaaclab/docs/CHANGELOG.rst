@@ -7,9 +7,9 @@ Changelog
 Changed
 ^^^^^^^
 
-* Renamed :class:`~isaaclab.utils.warp.TorchArray` to
+* Renamed :class:`~isaaclab.utils.warp.ProxyArray` to
   :class:`~isaaclab.utils.warp.ProxyArray` and its module from
-  ``isaaclab.utils.warp.torch_array`` to
+  ``isaaclab.utils.warp.proxy_array`` to
   ``isaaclab.utils.warp.proxy_array``. The new name better describes
   the class as a proxy around a :class:`wp.array` exposing both
   ``.warp`` and ``.torch`` accessors, rather than a torch-first type.

@@ -819,7 +819,7 @@ class RigidObjectData(BaseRigidObjectData):
         # Re-pin ProxyArray wrappers to the newly created sim bindings.
         # On first init, _create_buffers() handles this after all buffers exist.
         if hasattr(self, "_root_link_pose_w_ta"):
-            self._pin_torch_arrays()
+            self._pin_proxy_arrays()
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
@@ -904,9 +904,9 @@ class RigidObjectData(BaseRigidObjectData):
         self._body_com_ang_acc_w = None
 
         # Pin all ProxyArray wrappers to current buffers.
-        self._pin_torch_arrays()
+        self._pin_proxy_arrays()
 
-    def _pin_torch_arrays(self) -> None:
+    def _pin_proxy_arrays(self) -> None:
         """Create or rebind all pinned ProxyArray wrappers.
 
         Called from :meth:`_create_buffers` on first initialization and from
@@ -916,7 +916,7 @@ class RigidObjectData(BaseRigidObjectData):
         is_rebind = hasattr(self, "_root_link_pose_w_ta")
 
         if is_rebind:
-            # Rebind sim-bound TorchArrays to new solver arrays
+            # Rebind sim-bound ProxyArrays to new solver arrays
             self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
             self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
             self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
@@ -925,7 +925,7 @@ class RigidObjectData(BaseRigidObjectData):
             self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
             self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
         else:
-            # First-time creation: pin TorchArrays to current buffers
+            # First-time creation: pin ProxyArrays to current buffers
             # Category 1: sim-bound and pre-allocated buffers
             # Newton wp.array pointers are stable, so a ProxyArray wrapping them is valid forever.
             self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
@@ -959,7 +959,7 @@ class RigidObjectData(BaseRigidObjectData):
             self._body_link_state_w_ta: ProxyArray | None = None
             self._body_com_state_w_ta: ProxyArray | None = None
 
-        # Invalidate lazy sliced TorchArrays AND their backing wp.arrays so they are
+        # Invalidate lazy sliced ProxyArrays AND their backing wp.arrays so they are
         # re-created from fresh data on next access.  On first init the backing fields
         # are already None (set by _create_buffers), so the assignments below are
         # harmless no-ops.  On rebind they reset stale pointers into freed transform

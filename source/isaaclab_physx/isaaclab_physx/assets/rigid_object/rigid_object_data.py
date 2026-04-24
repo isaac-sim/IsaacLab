@@ -805,9 +805,9 @@ class RigidObjectData(BaseRigidObjectData):
         )
 
         # Initialize ProxyArray wrappers
-        self._pin_torch_arrays()
+        self._pin_proxy_arrays()
 
-    def _pin_torch_arrays(self) -> None:
+    def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.
 
         This is called once from :meth:`_create_buffers` during initialization.

@@ -715,9 +715,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._body_inertia = self._reshape_view_to_data_3d(self._root_view.get_inertias(), 9)
 
         # Initialize ProxyArray wrappers
-        self._pin_torch_arrays()
+        self._pin_proxy_arrays()
 
-    def _pin_torch_arrays(self) -> None:
+    def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.
 
         This is called once from :meth:`_create_buffers` during initialization.
