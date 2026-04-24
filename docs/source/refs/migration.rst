@@ -20,92 +20,12 @@ framework that can be customized by users through the use of app templates.
 Notably, the following commonly used Isaac Sim extensions in Isaac Lab are renamed as follow:
 
 * ``omni.isaac.cloner`` --> ``isaacsim.core.cloner``
-* ``omni.isaac.core.prims`` --> ``isaacsim.core.experimental.prims`` (Isaac Sim 6.0+)
-* ``omni.isaac.core.simulation_context`` --> ``isaacsim.core.experimental.*`` and :mod:`isaaclab.sim`
-* ``omni.isaac.core.utils`` --> ``isaacsim.core.experimental.utils`` (Isaac Sim 6.0+)
-* ``omni.isaac.core.world`` --> ``isaacsim.core.experimental.*`` and :mod:`isaaclab.sim`
+* ``omni.isaac.core.prims`` --> ``isaacsim.core.prims``
+* ``omni.isaac.core.simulation_context`` --> ``isaacsim.core.api.simulation_context``
+* ``omni.isaac.core.utils`` --> ``isaacsim.core.utils``
+* ``omni.isaac.core.world`` --> ``isaacsim.core.api.world``
 * ``omni.isaac.kit.SimulationApp`` --> ``isaacsim.SimulationApp``
 * ``omni.isaac.ui`` --> ``isaacsim.gui.components``
-
-
-Migration off Deprecated Isaac Sim APIs (Isaac Sim 6.0 / Isaac Lab 3.0)
------------------------------------------------------------------------
-
-In Isaac Sim 6.0, the legacy ``isaacsim.core.*``, ``isaacsim.sensors.*``, and
-``isaacsim.robot.wheeled_robots`` Python module paths are **deprecated** in favor of their
-``isaacsim.core.experimental.*`` (and ``*.experimental.*``) equivalents. Isaac Lab 3.0 has
-been migrated off the deprecated paths so that Isaac Lab continues to load and run when
-those modules are removed in a future Isaac Sim release.
-
-This is mostly a transparent change for users — Isaac Lab's own public Python API
-(``isaaclab.*``, ``isaaclab_physx.*``, ``isaaclab_tasks.*``, ``isaaclab_teleop.*``,
-``isaaclab_mimic.*``) is unchanged. The migration is only user-visible if you:
-
-1. Import Isaac Sim symbols **directly** in your project, or
-2. Maintain a custom Kit experience (``.kit`` file) that lists Isaac Sim extension
-   dependencies, or
-3. Imported ``SimulationManager`` from ``isaacsim.core.simulation_manager`` in your own
-   PhysX-backed code.
-
-Python module renames
-^^^^^^^^^^^^^^^^^^^^^
-
-Update direct imports in your own code as follows:
-
-* ``isaacsim.core.utils.*`` --> ``isaacsim.core.experimental.utils.*``
-* ``isaacsim.core.prims`` --> ``isaacsim.core.experimental.prims``
-* ``isaacsim.core.simulation_manager.SimulationManager`` -->
-  :class:`isaaclab_physx.physics.PhysxManager` (PhysX backend) or
-  ``isaaclab_newton.physics.NewtonManager`` (Newton backend). To keep call-site code
-  symmetric across backends, prefer the local-alias pattern:
-
-  .. code:: python
-
-     from isaaclab_physx.physics import PhysxManager as SimulationManager
-     # or, for the Newton backend
-     from isaaclab_newton.physics import NewtonManager as SimulationManager
-
-* ``isaacsim.core.utils.viewports.set_camera_view`` -->
-  ``omni.kit.viewport.utility.camera_state.ViewportCameraState``
-* ``isaacsim.core.cloner`` --> :mod:`isaaclab.cloner` (Isaac Lab's in-tree cloner)
-* ``isaacsim.replicator.mobility_gen`` --> ``isaacsim.replicator.experimental.mobility_gen``
-* ``isaacsim.sensors.<name>`` --> ``isaacsim.sensors.experimental.<name>``
-* ``isaacsim.robot.wheeled_robots`` --> ``isaacsim.robot.experimental.wheeled_robots``
-  (and ``isaacsim.robot.wheeled_robots.nodes`` for OmniGraph nodes)
-
-Kit experience (``.kit``) updates
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If you maintain a custom Kit experience derived from one of the Isaac Lab apps under
-``apps/``:
-
-* **Stop registering deprecated extension search paths.** The ``extsDeprecated`` search
-  path entry has been removed from all stock Isaac Lab Kit experiences (headless,
-  rendering, XR variants). Mirror that change in your own experience.
-* **Switch explicit Isaac Sim extension dependencies** to the non-deprecated equivalents
-  listed above (``isaacsim.core.experimental.*``, ``isaacsim.sensors.experimental.*``,
-  ``isaacsim.robot.experimental.wheeled_robots``).
-* **Remove unused Isaac Sim extensions that pull in** ``isaacsim.core.api`` — Isaac Lab
-  no longer depends on those, and keeping them resurrects the deprecated stack.
-
-``SimulationManager`` is no longer re-exported
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Earlier internal previews of this migration briefly exposed
-``isaaclab_physx.physics.SimulationManager`` as a public alias of
-:class:`~isaaclab_physx.physics.PhysxManager`. **That alias has been removed**; use
-:class:`~isaaclab_physx.physics.PhysxManager` directly (with ``as SimulationManager`` at
-the import site if you want backend-agnostic call-site code, as shown above).
-
-Retired standalone reproducers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-A handful of legacy reproducers under ``source/isaaclab/test/deps/isaacsim`` that
-depended on the deprecated Isaac Sim core extensions have been retired:
-``check_camera.py``, ``check_floating_base_made_fixed.py``,
-``check_legged_robot_clone.py``, ``check_rep_texture_randomizer.py``, and
-``check_ref_count.py``. Use :mod:`isaaclab.sim` together with the new
-``isaacsim.core.experimental.*`` APIs for the same debugging workflows.
 
 
 Renaming of the URDF and MJCF Importers
@@ -212,72 +132,6 @@ Additionally, we have also restructured the ``isaaclab_assets`` extension to be 
 subdirectories. This allows for clearer separation between the pre-defined configurations provided in the extension.
 For any existing imports such as ``from omni.isaac.lab_assets.anymal import ANYMAL_C_CFG``, please replace it with
 ``from isaaclab.robots.anymal import ANYMAL_C_CFG``.
-
-
-Lazy Exporting and Resolvable Strings
---------------------------------------
-
-Isaac Lab now uses **lazy exporting** throughout all packages so that importing a top-level
-module (e.g. ``import isaaclab.sensors``) no longer eagerly pulls in heavyweight
-dependencies such as ``pxr``, ``omni``, or ``scipy``. This is critical because Kit and the
-Isaac Sim viewer do **not** tolerate imports of ``pxr``, ``omni``, or ``scipy`` before the
-application is launched — doing so will cause crashes or undefined behavior. With lazy
-exporting, config objects can be constructed *before* ``SimulationApp`` is launched, which
-enables automatic physics-backend selection without requiring flags like
-``--enable_cameras``.
-
-Two key patterns support this:
-
-1. **Lazy exports** — Every ``__init__.py`` uses :func:`~isaaclab.utils.module.lazy_export`
-   together with an adjacent ``.pyi`` stub to defer submodule and symbol imports until
-   first access.
-2. **Resolvable strings** — Config fields such as ``class_type`` store implementation
-   references as strings (e.g. ``"{DIR}.sensor:Sensor"``) instead of direct class imports.
-   The string is resolved to the actual class only after ``SimulationApp`` has been
-   initialized.
-
-For full details, examples, and the ``{DIR}`` placeholder convention, see the
-:ref:`contributing` guide — in particular the
-`Lazy Loading & Module Exports <contributing.html#lazy-loading-module-exports>`__,
-`Resolvable Strings <contributing.html#resolvable-strings>`__, and
-`Config + Implementation File Split <contributing.html#config-implementation-file-split>`__
-sections.
-
-Lazy Exporting in User Code
-----------------------------
-
-If your own project imports Isaac Lab symbols eagerly (i.e. via normal ``from ... import``
-statements in ``__init__.py``), those imports may trigger heavyweight modules before the
-simulation app is ready. This prevents automatic backend selection and may require you to
-pass explicit flags like ``--enable_cameras`` or ``--kit``.
-
-To fix this, adopt the same lazy-exporting pattern used throughout Isaac Lab:
-
-1. Rename your existing ``__init__.py`` to ``__init__.pyi`` (this becomes the type stub).
-2. Create a new ``__init__.py`` that calls ``lazy_export()``:
-
-.. code:: python
-
-   # my_package/__init__.py
-   from isaaclab.utils.module import lazy_export
-
-   lazy_export()
-
-3. Ensure the ``.pyi`` stub uses **relative imports** and declares ``__all__``:
-
-.. code:: python
-
-   # my_package/__init__.pyi
-   __all__ = ["MyCfg", "MyClass"]
-
-   from .my_cfg import MyCfg
-   from .my_class import MyClass
-
-With this in place, ``import my_package`` will not eagerly import any submodules. Symbols
-are loaded on first access, giving ``SimulationApp`` time to initialize and auto-detect the
-correct backend.
-
-For more details, refer to the :ref:`contributing` guide.
 
 
 .. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

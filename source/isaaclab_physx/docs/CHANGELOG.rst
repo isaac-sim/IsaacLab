@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.5.24 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated :func:`~isaaclab_physx.renderers.kit_viewport_utils.set_kit_renderer_camera_view`
+  off the deprecated ``isaacsim.core.utils.viewports.set_camera_view`` to
+  ``isaacsim.core.rendering_manager.ViewportManager.set_camera_view``, matching the
+  pattern used by the Kit perspective video helper.
+
+
 0.5.23 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 

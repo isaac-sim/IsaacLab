@@ -276,7 +276,7 @@ Related PRs: https://github.com/isaac-sim/IsaacLab/pull/4329, https://github.com
 USD Utilities - Unified ``isaaclab.sim.utils`` Module
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Isaac Lab now provides its own comprehensive USD utility module (``isaaclab.sim.utils``) instead of relying on scattered utilities from Isaac Sim's ``isaacsim.core.experimental.utils`` packages.
+Isaac Lab now provides its own comprehensive USD utility module (``isaaclab.sim.utils``) instead of relying on scattered utilities from Isaac Sim's ``isaacsim.core.utils`` packages.
 
 Related PR: https://github.com/isaac-sim/IsaacLab/pull/4286
 
@@ -319,7 +319,7 @@ Related PR: https://github.com/isaac-sim/IsaacLab/pull/4286
 
 For backward compatibility, legacy functions are still available in ``isaaclab.sim.utils.legacy``, but it's recommended to migrate to the new APIs or use USD directly.
 
-**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.3.1...v2.3.2
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.2.1...v2.3.2
 
 v2.3.1
 ======
@@ -1347,10 +1347,10 @@ framework that can be customized by users through the use of app templates.
 Notably, the following commonly used Isaac Sim extensions in Isaac Lab are renamed as follow:
 
 * ``omni.isaac.cloner`` --> :mod:`isaacsim.core.cloner`
-* ``omni.isaac.core.prims`` --> :mod:`isaacsim.core.experimental.prims` (Isaac Sim 6.0+)
-* ``omni.isaac.core.simulation_context`` --> ``isaacsim.core.experimental.*`` and :mod:`isaaclab.sim`
-* ``omni.isaac.core.utils`` --> :mod:`isaacsim.core.experimental.utils` (Isaac Sim 6.0+)
-* ``omni.isaac.core.world`` --> ``isaacsim.core.experimental.*`` and :mod:`isaaclab.sim`
+* ``omni.isaac.core.prims`` --> :mod:`isaacsim.core.prims`
+* ``omni.isaac.core.simulation_context`` --> :mod:`isaacsim.core.api.simulation_context`
+* ``omni.isaac.core.utils`` --> :mod:`isaacsim.core.utils`
+* ``omni.isaac.core.world`` --> :mod:`isaacsim.core.api.world`
 * ``omni.isaac.kit.SimulationApp`` --> :mod:`isaacsim.SimulationApp`
 * ``omni.isaac.ui`` --> :mod:`isaacsim.gui.components`
 
@@ -1975,7 +1975,7 @@ Migration Guide
 
 Please find detailed migration guides as follows:
 
-* :doc:`From Orbit to IsaacLab <../migration/migrating_from_orbit>`
-* :doc:`From OmniIsaacGymEnvs to IsaacLab <../migration/migrating_from_omniisaacgymenvs>`
+* `From Orbit to IsaacLab <https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_orbit.html>`_
+* `From OmniIsaacGymEnvs to IsaacLab <https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_omniisaacgymenvs.html>`_
 
 .. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

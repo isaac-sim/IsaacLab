@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.3.8 (2026-04-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Switched :class:`~isaaclab_teleop.xr_anchor_utils.XrAnchorSynchronizer` to import
+  ``get_current_stage`` from :mod:`isaaclab.sim.utils.stage` instead of
+  ``isaacsim.core.experimental.utils.stage``, aligning with the Isaac Lab API.
+
+
 0.3.7 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~
 
