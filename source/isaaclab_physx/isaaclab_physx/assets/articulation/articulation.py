@@ -3076,12 +3076,12 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         # Write fixed tendon properties to the simulation.
         self.root_view.set_fixed_tendon_properties(
-            self.data.fixed_tendon_stiffness,
-            self.data.fixed_tendon_damping,
-            self.data.fixed_tendon_limit_stiffness,
-            self.data.fixed_tendon_pos_limits,
-            self.data.fixed_tendon_rest_length,
-            self.data.fixed_tendon_offset,
+            self.data.fixed_tendon_stiffness.warp,
+            self.data.fixed_tendon_damping.warp,
+            self.data.fixed_tendon_limit_stiffness.warp,
+            self.data.fixed_tendon_pos_limits.warp,
+            self.data.fixed_tendon_rest_length.warp,
+            self.data.fixed_tendon_offset.warp,
             indices=env_ids,
         )
 
@@ -3533,10 +3533,10 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         # Write spatial tendon properties to the simulation.
         self.root_view.set_spatial_tendon_properties(
-            self.data.spatial_tendon_stiffness,
-            self.data.spatial_tendon_damping,
-            self.data.spatial_tendon_limit_stiffness,
-            self.data.spatial_tendon_offset,
+            self.data.spatial_tendon_stiffness.warp,
+            self.data.spatial_tendon_damping.warp,
+            self.data.spatial_tendon_limit_stiffness.warp,
+            self.data.spatial_tendon_offset.warp,
             indices=env_ids,
         )
 
