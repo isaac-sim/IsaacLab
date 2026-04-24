@@ -48,6 +48,16 @@ without wasting the full hard timeout.
 STARTUP_HANG_RETRIES = 2
 """Number of times to retry a test that hangs during startup before giving up."""
 
+CRASH_RETRIES = 2
+"""Number of times to retry a test that crashed (killed by a signal with no report) before giving up.
+
+A test is considered crashed when the subprocess exits with a negative return
+code (i.e. terminated by a signal such as SIGABRT/SIGSEGV/SIGKILL) without
+producing a JUnit XML report file.  These are typically transient failures
+(GPU driver hiccups, OOM, race conditions in Kit shutdown, etc.) so we give
+the test a couple of fresh attempts before declaring it broken.
+"""
+
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
 
@@ -352,10 +362,13 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
         report_file = f"tests/test-reports-{str(file_name)}.xml"
 
-        # -- Run with retry on startup hang --------------------------------
+        # -- Run with retry on startup hang or crash ------------------------
         returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
         wall_time, pre_kill_diag = 0.0, ""
-        for attempt in range(STARTUP_HANG_RETRIES + 1):
+        startup_hang_attempts = 0
+        crash_attempts = 0
+        max_attempts = max(STARTUP_HANG_RETRIES, CRASH_RETRIES) + 1
+        for attempt in range(max_attempts):
             with contextlib.suppress(FileNotFoundError):
                 os.remove(report_file)
 
@@ -365,7 +378,12 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
                 )
             )
 
-            if kill_reason == "startup_hang" and attempt < STARTUP_HANG_RETRIES:
+            # A test is considered "crashed" when it died from a signal without
+            # producing a JUnit report and we did not kill it ourselves.
+            crashed = returncode < 0 and kill_reason == "" and not os.path.exists(report_file)
+
+            if kill_reason == "startup_hang" and startup_hang_attempts < STARTUP_HANG_RETRIES:
+                startup_hang_attempts += 1
                 print(
                     f"⚠️  {test_file}: startup hang detected after {startup_deadline}s"
                     f" (attempt {attempt + 1}/{STARTUP_HANG_RETRIES + 1}), retrying..."
@@ -378,6 +396,22 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
                     diag = diag[:10000] + "\n... (truncated)"
                 print(diag)
                 continue
+
+            if crashed and crash_attempts < CRASH_RETRIES:
+                crash_attempts += 1
+                print(
+                    f"⚠️  {test_file}: {_signal_description(-returncode)}"
+                    f" (attempt {attempt + 1}/{CRASH_RETRIES + 1}), retrying..."
+                )
+                if stderr_data:
+                    print("=== STDERR (last 5000 chars) ===")
+                    print(stderr_data.decode("utf-8", errors="replace")[-5000:])
+                diag = _capture_system_diagnostics()
+                if len(diag) > 10000:
+                    diag = diag[:10000] + "\n... (truncated)"
+                print(diag)
+                continue
+
             break
 
         # -- Resolve result from kill_reason and report file ----------------

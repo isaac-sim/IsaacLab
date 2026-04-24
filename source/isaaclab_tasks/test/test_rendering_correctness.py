@@ -65,6 +65,12 @@ _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
 )
 
+# physx + newton_renderer (warp) RGB/depth combinations are currently flaky on CI
+# (intermittent setup errors). Re-run up to 3 times so a single transient failure
+# does not fail the test suite. Uses the ``flaky`` plugin which is already a
+# project dependency (see ``source/isaaclab/setup.py``).
+_PHYSX_NEWTON_WARP_FLAKY = pytest.mark.flaky(max_runs=3, min_passes=1)
+
 # Directory for comparison images saved during the test session.
 # Located under the pytest output root so it gets copied alongside test reports.
 _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
@@ -160,10 +166,12 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
     pytest.param(
         ("physx", "newton_renderer", "rgb"),
         id="physx-newton_warp-rgb",
+        marks=_PHYSX_NEWTON_WARP_FLAKY,
     ),
     pytest.param(
         ("physx", "newton_renderer", "depth"),
         id="physx-newton_warp-depth",
+        marks=_PHYSX_NEWTON_WARP_FLAKY,
     ),
     # newton + isaacsim_rtx_renderer
     pytest.param(
