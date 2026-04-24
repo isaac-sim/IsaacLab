@@ -665,8 +665,8 @@ def test_link_density(sim_config):
 
 
 @pytest.mark.isaacsim_ci
-def test_collider_type_convex_decomposition(sim_config):
-    """Verify that collider_type='convex_decomposition' runs without error and produces valid output.
+def test_collision_type_convex_decomposition(sim_config):
+    """Verify that ``collision_type='Convex Decomposition'`` runs without error and produces valid output.
 
     Note: MeshCollisionAPI is applied on the intermediate stage before the asset transformer.
     The transformer may not preserve these schemas in the final output, so this test
@@ -678,7 +678,7 @@ def test_collider_type_convex_decomposition(sim_config):
     os.makedirs(output_dir, exist_ok=True)
 
     config.collision_from_visuals = True
-    config.collider_type = "convex_decomposition"
+    config.collision_type = "Convex Decomposition"
     config.force_usd_conversion = True
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
