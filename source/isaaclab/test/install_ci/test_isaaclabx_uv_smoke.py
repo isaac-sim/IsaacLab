@@ -55,8 +55,8 @@ class Test_UV_Env_Smoke(UV_Mixin):
 
     @pytest.mark.uv
     @pytest.mark.timeout(300)
-    def test_isaaclab_newton_installs_isaaclab_physx(self, isaaclab_root):
-        """Run ./isaaclab.x -i 'newton' and verify isaaclab_physx is importable."""
+    def test_isaaclab_newton_installs_isaaclab_newton(self, isaaclab_root):
+        """Run ./isaaclab.x -i 'newton' and verify isaaclab_newton is importable."""
 
         try:
             self.create_uv_env(isaaclab_root)
@@ -65,9 +65,9 @@ class Test_UV_Env_Smoke(UV_Mixin):
             result = self.run_in_uv_env([str(self.cli_script), "-i", "newton"], cwd=isaaclab_root)
             assert result.returncode == 0, f"isaaclab -i newton failed:\n{result.stdout}\n{result.stderr}"
 
-            # import isaaclab_physx
-            result = self.run_in_uv_env(["python", "-c", "import isaaclab_physx; print(isaaclab_physx.__version__)"])
-            assert result.returncode == 0, f"import isaaclab_physx failed:\n{result.stdout}\n{result.stderr}"
+            # import isaaclab_newton
+            result = self.run_in_uv_env(["python", "-c", "import isaaclab_newton; print(isaaclab_newton.__version__)"])
+            assert result.returncode == 0, f"import isaaclab_newton failed:\n{result.stdout}\n{result.stderr}"
 
         finally:
             self.destroy_uv_env()

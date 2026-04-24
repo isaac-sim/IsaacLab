@@ -237,30 +237,18 @@ class Articulation(BaseArticulation):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._instantaneous_wrench_composer.composed_force.warp.flatten().view(wp.float32),
-                    torque_data=self._instantaneous_wrench_composer.composed_torque.warp.flatten().view(wp.float32),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
-                # Apply permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._permanent_wrench_composer.composed_force.warp.flatten().view(wp.float32),
-                    torque_data=self._permanent_wrench_composer.composed_torque.warp.flatten().view(wp.float32),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
-                )
+                composer = self._permanent_wrench_composer
+            composer.compose_to_body_frame()
+            self.root_view.apply_forces_and_torques_at_position(
+                force_data=composer.out_force_b.warp.flatten().view(wp.float32),
+                torque_data=composer.out_torque_b.warp.flatten().view(wp.float32),
+                position_data=None,
+                indices=self._ALL_INDICES,
+                is_global=False,
+            )
         self._instantaneous_wrench_composer.reset()
 
         # apply actuator models
@@ -3088,12 +3076,12 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         # Write fixed tendon properties to the simulation.
         self.root_view.set_fixed_tendon_properties(
-            self.data.fixed_tendon_stiffness.warp,
-            self.data.fixed_tendon_damping.warp,
-            self.data.fixed_tendon_limit_stiffness.warp,
-            self.data.fixed_tendon_pos_limits.warp,
-            self.data.fixed_tendon_rest_length.warp,
-            self.data.fixed_tendon_offset.warp,
+            self.data.fixed_tendon_stiffness,
+            self.data.fixed_tendon_damping,
+            self.data.fixed_tendon_limit_stiffness,
+            self.data.fixed_tendon_pos_limits,
+            self.data.fixed_tendon_rest_length,
+            self.data.fixed_tendon_offset,
             indices=env_ids,
         )
 
@@ -3545,10 +3533,10 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         # Write spatial tendon properties to the simulation.
         self.root_view.set_spatial_tendon_properties(
-            self.data.spatial_tendon_stiffness.warp,
-            self.data.spatial_tendon_damping.warp,
-            self.data.spatial_tendon_limit_stiffness.warp,
-            self.data.spatial_tendon_offset.warp,
+            self.data.spatial_tendon_stiffness,
+            self.data.spatial_tendon_damping,
+            self.data.spatial_tendon_limit_stiffness,
+            self.data.spatial_tendon_offset,
             indices=env_ids,
         )
 
@@ -3662,9 +3650,9 @@ class Articulation(BaseArticulation):
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
-        self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
-        self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
-        self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
+        self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
+        self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
+        self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(

@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Literal
 
 _DIM = "\033[2m"
 _MAGENTA = "\033[95m"
@@ -23,6 +24,73 @@ _RESET = "\033[0m"
 # Controls whether run_cmd() streams output by default.
 # Set to True by conftest.py when pytest runs with -s / --capture=no.
 stream_output: bool = False
+
+# ISAACLAB_INSTALL_CI_ENV can be set to override execution
+# environment detection in install_ci tests
+# (for testing the testing while testing).
+
+ExecutionEnvironment = Literal["docker", "native"]
+
+
+def detect_execution_environment(
+    environ: dict[str, str] | None = None,
+    filesystem_root: Path | None = None,
+) -> ExecutionEnvironment:
+    """Detect whether install_ci tests are running in Docker or natively."""
+    env = environ if environ is not None else os.environ
+    root = filesystem_root if filesystem_root is not None else Path("/")
+
+    override = env.get("ISAACLAB_INSTALL_CI_ENV")
+    if override:
+        cleaned = override.strip().lower()
+        if cleaned not in ("docker", "native"):
+            raise ValueError(f"ISAACLAB_INSTALL_CI_ENV must be 'docker' or 'native', got: {override!r}")
+        return cleaned  # type: ignore[return-value]
+
+    if (root / ".dockerenv").exists() or (root / "run" / ".containerenv").exists():
+        return "docker"
+
+    for cgroup_path in (root / "proc" / "1" / "cgroup", root / "proc" / "self" / "cgroup"):
+        try:
+            cgroup_text = cgroup_path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if any(
+            hint in cgroup_text
+            for hint in (
+                "docker",
+                "containerd",
+                "kubepods",
+                "libpod",
+                "podman",
+            )
+        ):
+            return "docker"
+
+    if env.get("container"):
+        return "docker"
+
+    return "native"
+
+
+def get_execution_environment_skip_reason(
+    marker_names: set[str],
+    execution_environment: ExecutionEnvironment,
+) -> str | None:
+    """Return a skip reason when environment markers do not match the runtime."""
+    has_docker = "docker" in marker_names
+    has_native = "native" in marker_names
+
+    if has_docker and has_native:
+        raise ValueError("tests cannot be marked with both 'docker' and 'native'")
+
+    if has_docker and execution_environment != "docker":
+        return f"requires Docker execution environment, detected {execution_environment}"
+
+    if has_native and execution_environment != "native":
+        return f"requires native execution environment, detected {execution_environment}"
+
+    return None
 
 
 def find_isaaclab_root() -> Path:
@@ -76,6 +144,7 @@ def run_cmd(
             stderr=subprocess.STDOUT,
             text=True,
         )
+        assert proc.stdout is not None
         lines: list[str] = []
         try:
             for line in proc.stdout:
@@ -145,6 +214,9 @@ class UV_Mixin:
         result = run_cmd([str(self.cli_script), "-u", env_name], cwd=isaaclab_root, err_on_err=False)
         assert result.returncode == 0, f"uv env creation failed:\n{result.stdout}\n{result.stderr}"
         assert self.env_path.exists(), f"Expected env directory {self.env_path} was not created"
+
+        # Prevent the venv from being tracked by git.
+        (self.env_path / ".gitignore").write_text("*\n")
 
         self.python = (self.env_path / "Scripts" / "python.exe") if _IS_WINDOWS else (self.env_path / "bin" / "python")
         assert self.python.exists(), f"Python executable not found at {self.python}"

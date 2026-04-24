@@ -13,6 +13,7 @@ simulation_app = app_launcher.app
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.test.mock_interfaces.sensors import (
     MockContactSensor,
@@ -211,7 +212,6 @@ class TestMockContactSensor:
 
     def test_compute_first_contact(self, sensor):
         """Test first contact computation."""
-        import warp as wp
 
         # Set contact time to 0.5 for all bodies
         sensor.data.set_current_contact_time(torch.full((4, 4), 0.5))
@@ -226,7 +226,6 @@ class TestMockContactSensor:
 
     def test_compute_first_air(self, sensor):
         """Test first air computation."""
-        import warp as wp
 
         sensor.data.set_current_air_time(torch.full((4, 4), 0.2))
 
