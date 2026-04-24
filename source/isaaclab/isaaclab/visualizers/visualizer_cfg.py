@@ -46,20 +46,21 @@ class VisualizerCfg:
     cam_prim_path: str = "/World/envs/env_0/Camera"
     """Absolute USD path to a camera prim when cam_source='prim_path'."""
 
-    env_filter_mode: Literal["none", "env_ids", "random_n"] = "none"
-    """Env filter mode: 'none', 'env_ids', or 'random_n'."""
+    max_visible_envs: int | None = None
+    """Upper bound on how many envs are shown.
 
-    env_filter_random_n: int = 64
-    """If env_filter_mode='random_n', number of envs to sample."""
+    * If visible_env_indices is not None, then this field will apply also
+      to the explicit env indices set to the visible_env_indices.
+    """
 
-    env_filter_seed: int = 0
-    """Seed for deterministic env sampling."""
+    visible_env_indices: list[int] | None = None
+    """env indices to visualize in order (out-of-range indices are dropped)."""
 
-    env_filter_ids: list[int] = [i for i in range(0, 64, 4)]
-    """If env_filter_mode='env_ids', only these env indices are shown.
+    randomly_sample_visible_envs: bool = True
+    """If ``max_visible_envs`` is provided, when enabled, selected visible envs are randomly sampled.
+       If disabled, the first ``max_visible_envs`` envs are selected.
 
-    This improves performance, particularly for large-scale training, by reducing scene updates sent to visualizers.
-    Note, OV visualizer only applies a cosmetic visibility toggle (no performance gain).
+    * Note: ``visible_env_indices`` overrides this field.
     """
 
     def get_visualizer_type(self) -> str | None:

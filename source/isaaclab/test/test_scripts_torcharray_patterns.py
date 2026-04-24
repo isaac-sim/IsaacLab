@@ -84,6 +84,5 @@ def test_no_wp_to_torch_on_torcharray_data(path: Path) -> None:
     if offenders:
         pytest.fail(
             "Found wp.to_torch(...) calls on a migrated TorchArray data accessor. "
-            "Use .torch instead of wp.to_torch(...) (see isaaclab 4.6.15 CHANGELOG).\n"
-            + "\n".join(offenders)
+            "Use .torch instead of wp.to_torch(...) (see isaaclab 4.6.15 CHANGELOG).\n" + "\n".join(offenders)
         )
