@@ -83,6 +83,14 @@ def test_load_prebuilt_artifact_missing_falls_back_to_usd_build():
         set_scene_data_visualizer_prebuilt_artifact=stored.append,
     )
     provider._stage = None
+    provider._xform_views = {}
+    provider._view_body_index_map = {}
+    provider._view_order_tensors = {}
+    provider._pose_buf_num_bodies = 0
+    provider._positions_buf = None
+    provider._orientations_buf = None
+    provider._covered_buf = None
+    provider._xform_mask_buf = None
 
     with (
         patch.object(
