@@ -147,20 +147,26 @@ RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* &&
     ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
     rm get-pip.py
 
-# Hand workspace ownership to the non-root runtime user (isaac-sim, uid 1234,
-# provisioned by the base image) and drop privileges. Only the paths we still
-# need to write to are chowned; /isaac-sim itself is already isaac-sim-owned
-# from the base image, so re-chowning it would needlessly bloat the layer.
-RUN chown -R isaac-sim:isaac-sim \
+# Create a non-root runtime user with uid 1000 to match the CI runner host
+# user that owns the bind-mounted /workspace/isaaclab. Without this match,
+# runtime `mkdir tests` etc. fail with EACCES on the bind-mount overlay.
+# The base image already provisions an isaac-sim user (uid 1234) which keeps
+# ownership of /isaac-sim; we only chown the paths the new user needs to
+# write to so we don't trigger an OverlayFS copy-up of the multi-GB Isaac
+# Sim install. /isaac-sim stays mode 755 so isaaclab can still read+exec it.
+RUN useradd -ms /bin/bash -l --uid 1000 isaaclab -d /home/isaaclab
+
+RUN chown -R isaaclab:isaaclab \
         ${ISAACLAB_PATH} \
         ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages \
-        ${DOCKER_USER_HOME}
+        ${DOCKER_USER_HOME} \
+        /home/isaaclab
 
-USER isaac-sim
+USER isaaclab
 
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
-RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip,uid=1234,gid=1234 \
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip,uid=1000,gid=1000 \
     ${ISAACLAB_PATH}/isaaclab.sh --install
 
 # HACK: Uninstall quadprog as it causes issues with some reinforcement learning frameworks
@@ -186,7 +192,7 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${HOME}/.bashrc && \
     echo "PROMPT_COMMAND='history -a'" >> ${HOME}/.bashrc
 
 # copy the rest of the files
-COPY --chown=isaac-sim:isaac-sim ../ ${ISAACLAB_PATH}/
+COPY --chown=isaaclab:isaaclab ../ ${ISAACLAB_PATH}/
 
 # make working directory as the Isaac Lab directory
 # this is the default directory when the container is run
