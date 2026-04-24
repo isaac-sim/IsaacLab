@@ -140,7 +140,6 @@ class InteractiveScene:
         self.stage_id = get_current_stage_id()
         self.sim.clear_scene_data_visualizer_prebuilt_artifact()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
-        visualizer_clone_fn = None
         requested_viz_types = set(self.sim.resolve_visualizer_types())
         if self.physics_backend.startswith("ovphysx"):
             from isaaclab_ovphysx.cloner import ovphysx_replicate
@@ -190,26 +189,7 @@ class InteractiveScene:
         if has_scene_cfg_entities:
             self._add_entities_from_cfg()
 
-        requirements = resolve_scene_data_requirements(
-            visualizer_types=requested_viz_types,
-            renderer_types=self._sensor_renderer_types(),
-        )
-        self.sim.update_scene_data_requirements(requirements)
-        visualizer_clone_fn = cloner.resolve_visualizer_clone_fn(
-            physics_backend=self.physics_backend,
-            requirements=requirements,
-            stage=self.stage,
-            set_visualizer_artifact=self.sim.set_scene_data_visualizer_prebuilt_artifact,
-        )
-        if visualizer_clone_fn is not None:
-            logger.debug(
-                "Enabling visualizer artifact prebuild for clone path "
-                "(backend=%s, requires_newton_model=%s, requires_usd_stage=%s).",
-                self.physics_backend,
-                requirements.requires_newton_model,
-                requirements.requires_usd_stage,
-            )
-            self.cloner_cfg.visualizer_clone_fn = visualizer_clone_fn
+        self._refresh_visualizer_clone_fn_from_requirements(requested_viz_types)
 
         if has_scene_cfg_entities:
             self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
@@ -254,14 +234,15 @@ class InteractiveScene:
             if self.cloner_cfg.clone_usd:
                 cloner.usd_replicate(self.stage, *replicate_args)
 
-    def _refresh_visualizer_clone_fn_from_requirements(self) -> None:
+    def _refresh_visualizer_clone_fn_from_requirements(self, visualizer_types=()) -> None:
         """Refresh clone-time visualizer prebuild hook from current scene-data requirements."""
-        sensor_req = resolve_scene_data_requirements(
-            visualizer_types=(),
+        discovered_req = resolve_scene_data_requirements(
+            visualizer_types=visualizer_types,
             renderer_types=self._sensor_renderer_types(),
         )
-        requirements = aggregate_requirements((self.sim.get_scene_data_requirements(), sensor_req))
-        if requirements != self.sim.get_scene_data_requirements():
+        current_req = self.sim.get_scene_data_requirements()
+        requirements = aggregate_requirements((current_req, discovered_req))
+        if requirements != current_req:
             self.sim.update_scene_data_requirements(requirements)
 
         visualizer_clone_fn = cloner.resolve_visualizer_clone_fn(
@@ -271,6 +252,13 @@ class InteractiveScene:
             set_visualizer_artifact=self.sim.set_scene_data_visualizer_prebuilt_artifact,
         )
         if visualizer_clone_fn is not None:
+            logger.debug(
+                "Enabling visualizer artifact prebuild for clone path "
+                "(backend=%s, requires_newton_model=%s, requires_usd_stage=%s).",
+                self.physics_backend,
+                requirements.requires_newton_model,
+                requirements.requires_usd_stage,
+            )
             self.cloner_cfg.visualizer_clone_fn = visualizer_clone_fn
 
     def _sensor_renderer_types(self) -> list[str]:

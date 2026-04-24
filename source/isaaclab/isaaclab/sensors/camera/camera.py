@@ -166,6 +166,7 @@ class Camera(SensorBase):
 
         sim = SimulationContext.instance()
         if sim is None:
+            logger.debug("SimulationContext not available; deferring renderer requirements registration.")
             return
 
         try:
