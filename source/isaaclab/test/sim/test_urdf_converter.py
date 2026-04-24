@@ -636,9 +636,9 @@ def test_usd_structure_has_joints_and_links(sim_config):
 def test_link_density(sim_config):
     """Verify that link_density applies density to rigid body links.
 
-    Note: The Franka Panda URDF has explicit mass on all links, so ``_apply_link_density``
-    only sets density on links without explicit mass (mass == 0). This test verifies the
-    pipeline runs without errors when link_density is set.
+    Note: The Franka Panda URDF has explicit mass on all links, so the importer's
+    ``apply_link_density`` only sets density on links without explicit mass (mass == 0).
+    This test verifies the pipeline runs without errors when ``link_density`` is set.
     """
     sim, config = sim_config
     test_dir = os.path.dirname(os.path.abspath(__file__))
