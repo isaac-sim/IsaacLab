@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+4.6.13 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``test/install_ci/test_usd_pxr_file_clashes.py`` to detect ABI-clash
+  risk from multiple installed distributions shipping overlapping ``pxr/``
+  files. The test fails if any path under ``pxr/`` is claimed by more than one
+  distribution's ``RECORD``, catching packaging conflicts (e.g. between
+  ``usd-core`` and ``usd-exchange``) before they surface as machine-specific
+  runtime crashes such as ``Tf_PyEnumWrapper has not been created yet``.
+
+
 4.6.12 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 
