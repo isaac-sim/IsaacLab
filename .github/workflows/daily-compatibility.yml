@@ -136,7 +136,7 @@ jobs:
       uses: ./.github/actions/docker-build
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-base-image: ${{ env.ISAACSIM_IMAGE_NAME }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
 
     - name: Run General Tests
