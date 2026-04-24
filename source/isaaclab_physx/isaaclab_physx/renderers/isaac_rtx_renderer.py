@@ -33,14 +33,25 @@ if TYPE_CHECKING:
 
     from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
-# RTX simple-shading constants (mode indices, AOV name, carb setting path)
+# RTX simple-shading constants.
+#
+# Simple shading is driven by Kit's RTX "Minimal" render mode via the
+# ``/rtx/minimal/mode`` carb setting (key ``omni:rtx:minimal:mode``), with
+# integer values:
+#   0 = No Rendering (black output; only other AOVs are produced)
+#   1 = Constant Diffuse (single constant color for all surfaces)
+#   2 = Texture Diffuse  (diffuse shading using texture colors)
+#   3 = Diffuse/Glossy/Emission (full material shading)
+#
+# The public data-type names we expose (``simple_shading_*``) are kept stable
+# for backwards compatibility and map onto the Kit integer values below.
 SIMPLE_SHADING_AOV = "SimpleShadingSD"
 SIMPLE_SHADING_MODES = {
-    "simple_shading_constant_diffuse": 0,
-    "simple_shading_diffuse_mdl": 1,
-    "simple_shading_full_mdl": 2,
+    "simple_shading_constant_diffuse": 1,
+    "simple_shading_diffuse_mdl": 2,
+    "simple_shading_full_mdl": 3,
 }
-SIMPLE_SHADING_MODE_SETTING = "/rtx/sdg/simpleShading/mode"
+SIMPLE_SHADING_MODE_SETTING = "/rtx/minimal/mode"
 
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
