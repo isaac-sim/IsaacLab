@@ -431,3 +431,65 @@ class TestProxyArrayDeprecationBridge:
             _ = ta[0]
             deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
             assert len(deprecation_warnings) == 1
+
+
+class TestWpToTorchShim:
+    """Tests for the ``wp.to_torch`` shim installed by ``isaaclab.utils.warp``.
+
+    The shim makes legacy call sites like ``wp.to_torch(asset.data.joint_pos)``
+    keep working after the ProxyArray migration, instead of raising
+    ``AttributeError`` on ``requires_grad`` lookup.
+    """
+
+    def test_raw_wp_array_unchanged(self):
+        """``wp.to_torch(wp.array)`` must still produce a zero-copy torch view."""
+        import isaaclab.utils.warp  # noqa: F401  # ensure shim is installed
+
+        arr = wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu")
+        t = wp.to_torch(arr)
+        assert isinstance(t, torch.Tensor)
+        assert t.shape == (3,)
+
+    def test_proxy_array_returns_torch_with_warning(self):
+        """``wp.to_torch(ProxyArray)`` returns the cached .torch view and warns once."""
+        import isaaclab.utils.warp as iw  # noqa: F401  # ensure shim is installed
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        # Reset the module-level one-shot flag so the warning fires in this test.
+        iw._WP_TO_TORCH_WARNED = False
+
+        arr = wp.array([7.0, 8.0], dtype=wp.float32, device="cpu")
+        proxy = ProxyArray(arr)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            t = wp.to_torch(proxy)
+            deprecation = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+
+        assert isinstance(t, torch.Tensor)
+        assert t is proxy.torch, "shim should return the cached .torch view"
+        assert len(deprecation) == 1
+        assert "ProxyArray" in str(deprecation[0].message)
+
+    def test_proxy_array_warning_is_one_shot(self):
+        """Repeated ``wp.to_torch(ProxyArray)`` calls must not spam warnings."""
+        import isaaclab.utils.warp as iw
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        iw._WP_TO_TORCH_WARNED = True  # pretend the warning already fired
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            wp.to_torch(ProxyArray(wp.zeros(2, dtype=wp.float32, device="cpu")))
+            deprecation = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+
+        assert not deprecation, "shim must not re-warn after the first call"
+
+    def test_requires_grad_forwarded_to_raw_wp_array(self):
+        """The ``requires_grad`` kwarg still reaches the original ``wp.to_torch``."""
+        import isaaclab.utils.warp  # noqa: F401
+
+        arr = wp.array([1.0, 2.0], dtype=wp.float32, device="cpu")
+        t = wp.to_torch(arr, requires_grad=False)
+        assert isinstance(t, torch.Tensor)
+        assert t.requires_grad is False
