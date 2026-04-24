@@ -152,15 +152,15 @@ class SensorBase(ABC):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                if has_kit():
+                if should_use_visualizer_step_debug_vis():
+                    self._debug_vis_handle = register_visualizer_step_debug_vis(self)
+                elif has_kit():
                     import omni.kit.app  # noqa: PLC0415
 
                     app_interface = omni.kit.app.get_app_interface()
                     self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                         lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                     )
-                elif should_use_visualizer_step_debug_vis():
-                    self._debug_vis_handle = register_visualizer_step_debug_vis(self)
         else:
             # remove the subscriber if it exists
             if self._debug_vis_handle is not None:

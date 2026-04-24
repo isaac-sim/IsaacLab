@@ -117,6 +117,11 @@ def _compile_single_marker(name: str, cfg: object) -> NewtonMarkerPrototype:
     if cfg_type == "UsdFileCfg":
         usd_path = str(getattr(cfg, "usd_path", "")).lower()
         if usd_path.endswith("arrow_x.usd"):
+            widened_arrow_scale = (
+                default_scale[0],
+                default_scale[1] * 2.5,
+                default_scale[2] * 2.5,
+            )
             return NewtonMarkerPrototype(
                 name=name,
                 renderer="mesh",
@@ -128,7 +133,7 @@ def _compile_single_marker(name: str, cfg: object) -> NewtonMarkerPrototype:
                     "cap_height": 0.3,
                 },
                 color=color,
-                default_scale=default_scale,
+                default_scale=widened_arrow_scale,
                 visible=visible,
             )
         if usd_path.endswith("frame_prim.usd"):

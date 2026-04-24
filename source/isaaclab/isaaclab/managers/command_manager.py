@@ -107,16 +107,16 @@ class CommandTerm(ManagerTermBase):
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
-        if debug_vis and has_kit():
+        if debug_vis and should_use_visualizer_step_debug_vis():
+            if self._debug_vis_handle is None:
+                self._debug_vis_handle = register_visualizer_step_debug_vis(self)
+        elif debug_vis and has_kit():
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                 )
-        elif debug_vis and should_use_visualizer_step_debug_vis():
-            if self._debug_vis_handle is None:
-                self._debug_vis_handle = register_visualizer_step_debug_vis(self)
         else:
             # remove the subscriber if it exists
             if self._debug_vis_handle is not None:

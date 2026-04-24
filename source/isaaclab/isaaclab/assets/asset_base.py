@@ -206,15 +206,15 @@ class AssetBase(ABC):
         if debug_vis:
             if self._debug_vis_handle is None:
                 sim_ctx = SimulationContext.instance()
-                if "physx" in sim_ctx.physics_manager.__name__.lower():
+                if should_use_visualizer_step_debug_vis():
+                    self._debug_vis_handle = register_visualizer_step_debug_vis(self)
+                elif "physx" in sim_ctx.physics_manager.__name__.lower():
                     import omni.kit.app
 
                     app_interface = omni.kit.app.get_app_interface()
                     self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                         lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                     )
-                elif should_use_visualizer_step_debug_vis():
-                    self._debug_vis_handle = register_visualizer_step_debug_vis(self)
         else:
             if self._debug_vis_handle is not None:
                 self._debug_vis_handle.unsubscribe()

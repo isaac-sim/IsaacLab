@@ -4,24 +4,31 @@ from __future__ import annotations
 
 import weakref
 
-from .simulation_context import SimulationContext
-
 
 def should_use_visualizer_step_debug_vis() -> bool:
     """Return whether standalone visualizers should drive debug-vis callbacks."""
+
+    from .simulation_context import SimulationContext
 
     sim = SimulationContext.instance()
     if sim is None:
         return False
 
-    return any(
+    has_standalone_marker_viz = any(
         viz.supports_markers() and not viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
         for viz in sim.visualizers
     )
+    has_app_pumping_marker_viz = any(
+        viz.supports_markers() and viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
+        for viz in sim.visualizers
+    )
+    return has_standalone_marker_viz and not has_app_pumping_marker_viz
 
 
 def register_visualizer_step_debug_vis(owner, callback_name: str = "_debug_vis_callback"):
     """Register a callback on the SimulationContext visualizer-step hook."""
+
+    from .simulation_context import SimulationContext
 
     sim = SimulationContext.instance()
     if sim is None:
