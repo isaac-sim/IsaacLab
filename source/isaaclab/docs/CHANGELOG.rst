@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+4.6.14 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab.sensors.RayCasterData` and
+  :class:`~isaaclab.sensors.MultiMeshRayCasterData` properties
+  :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
+  :attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
+  :attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` now return
+  :class:`~isaaclab.utils.warp.TorchArray` instead of raw ``wp.array``.
+  Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view or ``.warp``
+  for the underlying ``wp.array``.
+
+  **Breaking change** — call sites that previously wrapped these in
+  ``wp.to_torch(...)`` must migrate to the ``.torch`` accessor:
+
+  .. code-block:: python
+
+     # Before (4.6.13)
+     hits = wp.to_torch(sensor.data.ray_hits_w)
+     # After (4.6.14)
+     hits = sensor.data.ray_hits_w.torch
+
+
 4.6.13 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 
