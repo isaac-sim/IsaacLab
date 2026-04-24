@@ -33,8 +33,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Maximum contact slots for the reaction kernel. Threads beyond the actual
-# contact count early-exit immediately so over-allocating is cheap.
+# Fixed upper bound on contact slots for the reaction kernel.  The kernel is
+# launched with this many threads; threads beyond the actual contact count
+# early-exit immediately so over-allocating is cheap.
 _MAX_REACTION_CONTACTS: int = 2048
 
 
@@ -300,7 +301,16 @@ class CoupledSolver:
         model.particle_count = saved_particle_count
 
     def _apply_reactions(self, state: State, dt: float) -> None:
-        """Launch the reaction kernel to inject normal + friction forces into body_f."""
+        """Launch the reaction kernel to inject normal + friction forces into body_f.
+
+        .. note::
+            ``particle_q_prev`` receives the same array as ``particle_q``, so the
+            friction term's relative displacement (``dx = q - q_prev``) is always
+            zero. Friction is therefore computed from body velocity only. Maintaining
+            a separate ``q_prev`` snapshot would give physically correct Coulomb
+            friction but requires an extra buffer copy per substep. Acceptable for
+            now since one-way coupling is the primary use case.
+        """
         model = self._model
         contacts = self.contacts
 

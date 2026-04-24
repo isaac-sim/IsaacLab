@@ -71,6 +71,80 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def add_deformable_entry_to_builder(
+    builder,
+    entry: DeformableRegistryEntry,
+    env_idx: int,
+    env_position: list[float],
+) -> None:
+    """Add a deformable registry entry to a Newton ``ModelBuilder`` for one environment.
+
+    Depending on the deformable type (``"volume"`` or ``"surface"``), calls
+    ``builder.add_soft_mesh()`` or ``builder.add_cloth_mesh()`` with the mesh
+    data and material properties stored in the registry entry.
+
+    Also records the particle offset for the instance and, on the first
+    environment, records the per-body particle count.
+
+    Args:
+        builder: The Newton ``ModelBuilder``.
+        entry: A :class:`DeformableRegistryEntry` with mesh data and config.
+        env_idx: The environment index.
+        env_position: World position [x, y, z] [m] for this environment.
+    """
+    before_count = getattr(builder, "particle_count", 0)
+
+    body_pos = wp.vec3(
+        entry.init_pos[0] + env_position[0],
+        entry.init_pos[1] + env_position[1],
+        entry.init_pos[2] + env_position[2],
+    )
+    body_rot = wp.quat(entry.init_rot[0], entry.init_rot[1], entry.init_rot[2], entry.init_rot[3])
+
+    if entry.deformable_type == "volume":
+        builder.add_soft_mesh(
+            pos=body_pos,
+            rot=body_rot,
+            scale=1.0,
+            vel=wp.vec3(0.0, 0.0, 0.0),
+            vertices=entry.vertices,
+            indices=entry.indices,
+            density=entry.density,
+            k_mu=entry.k_mu,
+            k_lambda=entry.k_lambda,
+            k_damp=entry.k_damp,
+            particle_radius=entry.particle_radius,
+        )
+    elif entry.deformable_type == "surface":
+        builder.add_cloth_mesh(
+            pos=body_pos,
+            rot=body_rot,
+            scale=1.0,
+            vel=wp.vec3(0.0, 0.0, 0.0),
+            vertices=entry.vertices,
+            indices=entry.indices,
+            density=entry.density,
+            tri_ke=entry.tri_ke,
+            tri_ka=entry.tri_ka,
+            tri_kd=entry.tri_kd,
+            edge_ke=entry.edge_ke,
+            edge_kd=entry.edge_kd,
+            particle_radius=entry.particle_radius,
+        )
+    else:
+        raise ValueError(
+            f"Invalid deformable type '{entry.deformable_type}' for registry entry "
+            f"with prim path '{entry.prim_path}'"
+        )
+
+    after_count = getattr(builder, "particle_count", 0)
+    delta = after_count - before_count
+
+    entry.particle_offsets.append(before_count)
+    if env_idx == 0:
+        entry.particles_per_body = delta
+
+
 class DeformableObject(BaseDeformableObject):
     """A deformable object asset class (Newton backend).
 
@@ -308,14 +382,11 @@ class DeformableObject(BaseDeformableObject):
         if self._data.nodal_kinematic_target is not None:
             targets_torch = wp.to_torch(targets)
             buffer_torch = wp.to_torch(self._data.nodal_kinematic_target)
+            env_ids_torch = wp.to_torch(env_ids).long()
             if full_data:
-                for idx in range(env_ids.shape[0]):
-                    env_id = int(wp.to_torch(env_ids)[idx].item())
-                    buffer_torch[env_id] = targets_torch[env_id]
+                buffer_torch[env_ids_torch] = targets_torch[env_ids_torch]
             else:
-                for idx in range(env_ids.shape[0]):
-                    env_id = int(wp.to_torch(env_ids)[idx].item())
-                    buffer_torch[env_id] = targets_torch[idx]
+                buffer_torch[env_ids_torch] = targets_torch
 
     """
     Internal helper.

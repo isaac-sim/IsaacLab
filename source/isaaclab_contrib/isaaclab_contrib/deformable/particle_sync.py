@@ -16,6 +16,9 @@ from isaaclab.physics import PhysicsManager
 
 logger = logging.getLogger(__name__)
 
+_usdrt = None  # cached usdrt module (avoid re-importing every render frame)
+_sync_warned = False  # True after the first sync failure has been logged at warning level
+
 
 @wp.kernel(enable_backward=False)
 def _sync_particle_points(
@@ -85,7 +88,12 @@ def sync_particles_to_usd() -> None:
         return
     pq = NewtonManager._state_0.particle_q
     try:
-        import usdrt
+        global _usdrt
+        if _usdrt is None:
+            import usdrt
+
+            _usdrt = usdrt
+        usdrt = _usdrt
 
         selection = NewtonManager._usdrt_stage.SelectPrims(
             require_attrs=[
@@ -110,7 +118,12 @@ def sync_particles_to_usd() -> None:
         )
         NewtonManager._particles_dirty = False
     except Exception as exc:
-        logger.debug("[sync_particles_to_usd] %s", exc)
+        global _sync_warned
+        if not _sync_warned:
+            logger.warning("[sync_particles_to_usd] %s", exc)
+            _sync_warned = True
+        else:
+            logger.debug("[sync_particles_to_usd] %s", exc)
 
 
 def setup_fabric_particle_sync() -> None:
