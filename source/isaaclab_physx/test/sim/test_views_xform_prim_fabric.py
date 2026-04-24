@@ -186,6 +186,41 @@ def test_prepare_for_reuse_detects_topology_change(device, view_factory):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
+def test_set_local_via_fabric_path(device, view_factory):
+    """Exercise the Fabric-native set_local_poses path.
+
+    Ensures set_local_poses computes child_world = parent_world * local
+    entirely within Fabric (not falling back to USD) by first triggering
+    the Fabric sync via get_world_poses.
+    """
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+
+    # Trigger Fabric init and sync (sets _fabric_usd_sync_done = True)
+    view.get_world_poses()
+
+    # Now set_local_poses should take the Fabric path
+    new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 2.0, 3.0], device=device)
+    ori = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
+    new_local_ori = wp.from_torch(ori)
+
+    view.set_local_poses(translations=new_local_pos, orientations=new_local_ori)
+
+    # Verify: world = parent(0,0,1) + local(1,2,3) = (1,2,4)
+    world_pos, _ = view.get_world_poses()
+    pos_t = wp.to_torch(world_pos)
+    expected = torch.tensor([[1.0, 2.0, 4.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(pos_t, expected, atol=1e-4, rtol=0)
+
+    # Verify get_local_poses returns the local offset
+    local_pos, _ = view.get_local_poses()
+    local_t = wp.to_torch(local_pos)
+    expected_local = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(local_t, expected_local, atol=1e-4, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
 def test_get_scales_fabric_path(device, view_factory):
     """Exercise the Fabric-native get_scales path."""
     bundle = view_factory(num_envs=1, device=device)
