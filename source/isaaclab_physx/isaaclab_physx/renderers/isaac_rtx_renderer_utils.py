@@ -11,6 +11,8 @@ import logging
 import time
 from typing import Any
 
+import omni.usd
+
 import isaaclab.sim as sim_utils
 
 logger = logging.getLogger(__name__)
@@ -56,6 +58,36 @@ def _wait_for_streaming_complete() -> None:
         logger.info("RTX streaming completed in %.2f s.", elapsed)
 
     omni.kit.app.get_app().update()
+
+
+def ensure_rtx_hydra_engine_attached() -> None:
+    """Attach the RTX Hydra engine to the USD context if not already attached.
+
+    Headless app files such as ``isaaclab.python.headless.rendering.kit`` intentionally
+    omit ``omni.kit.viewport.window`` to avoid pulling in the ``omni.ui``-based viewport
+    stack. However, ``ViewportWindow`` is normally responsible for calling
+    :func:`omni.usd.create_hydra_engine` at startup; without it the RTX Hydra engine is
+    never bound to the :class:`omni.usd.UsdContext`, and the first Replicator tiled
+    render product runs against a cold pipeline. On some GPUs this manifests as
+    ``cudaErrorIllegalAddress`` inside ``omni.rtx`` (CUDA ``freeAsync``) and/or all
+    tiles rendering as black.
+
+    This helper replicates only the activation step ``ViewportWindow`` performs,
+    without creating a UI or a window. It is idempotent: when the engine is already
+    attached (e.g. GUI runs that do load ``omni.kit.viewport.window``, or a previous
+    call already attached it) the function is a no-op. Failures are logged as errors
+    and do not propagate, so non-RTX contexts (e.g. unit tests importing this module
+    without a running Kit app) continue to work.
+    """
+    try:
+        ctx = omni.usd.get_context()
+        if ctx is None:
+            return
+        if "rtx" in ctx.get_attached_hydra_engine_names():
+            return
+        omni.usd.create_hydra_engine("rtx", ctx)
+    except Exception as e:  # noqa: BLE001
+        logger.error("RTX Hydra engine attach failed: %s", e)
 
 
 def ensure_isaac_rtx_render_update() -> None:
