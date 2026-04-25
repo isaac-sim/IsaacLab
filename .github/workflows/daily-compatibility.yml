@@ -29,9 +29,29 @@ permissions:
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  ISAACSIM_BASE_IMAGE: ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
 
 jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
+
   setup-versions:
     runs-on: ubuntu-latest
     outputs:
@@ -52,7 +72,7 @@ jobs:
           fi
 
   test-isaaclab-tasks-compat:
-    needs: setup-versions
+    needs: [setup-versions, config]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
@@ -79,7 +99,7 @@ jobs:
       uses: ./.github/actions/docker-build
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
 
     - name: Run IsaacLab Tasks Tests
@@ -110,7 +130,7 @@ jobs:
         compression-level: 9
 
   test-general-compat:
-    needs: setup-versions
+    needs: [setup-versions, config]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     strategy:
@@ -136,7 +156,7 @@ jobs:
       uses: ./.github/actions/docker-build
       with:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
 
     - name: Run General Tests
