@@ -17,12 +17,8 @@ from typing import TYPE_CHECKING, Any
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.utils.version import has_kit
-
-if has_kit():
-    import omni.kit.app
-
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
+from isaaclab.utils.version import has_kit
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
@@ -132,9 +128,11 @@ class ActionTerm(ManagerTermBase):
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
-        if debug_vis:
+        if debug_vis and has_kit():
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
+                import omni.kit.app
+
                 app_interface = omni.kit.app.get_app_interface()
                 self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
                     lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
