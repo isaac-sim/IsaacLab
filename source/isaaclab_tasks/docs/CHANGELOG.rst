@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.5.25 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated golden images ``source/isaaclab_tasks/test/golden_images/**/*.png`` to Git LFS.
+
+
 1.5.24 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
