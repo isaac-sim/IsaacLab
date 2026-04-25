@@ -109,7 +109,7 @@ exts."omni.replicator.core".Orchestrator.enabled = false
 metricsAssembler.changeListenerEnabled = false
 
 # explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
-app.extensions.excluded = ["omni.kit.pip_archive"]
+app.extensions.excluded = ["omni.kit.pip_archive", "omni.isaac.ml_archive", "isaacsim.pip.newton", "omni.warp.core"]
 
 [settings.app.python]
 # These disable the kit app from also printing out python output, which gets confusing
