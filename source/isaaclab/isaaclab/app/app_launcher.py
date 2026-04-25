@@ -241,6 +241,15 @@ class AppLauncher:
         self._create_app()
         # Load IsaacSim extensions
         self._load_extensions()
+
+        # Re-run path sanitization.  Kit and its extensions may have inserted
+        # additional ``pip_prebundle`` or conflicting extension directories onto
+        # ``sys.path`` during startup.  A second pass ensures pip-installed
+        # packages still take priority over bundled copies.
+        from isaaclab import _deprioritize_prebundle_paths
+
+        _deprioritize_prebundle_paths()
+
         # Hide the stop button in the toolbar
         self._hide_stop_button()
         # Set settings from the given rendering mode

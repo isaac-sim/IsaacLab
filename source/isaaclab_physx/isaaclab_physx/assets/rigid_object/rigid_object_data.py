@@ -20,7 +20,7 @@ from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.impl.api as physx
+    import omni.physics.tensors.api as physx
 
 # import logger
 logger = logging.getLogger(__name__)
