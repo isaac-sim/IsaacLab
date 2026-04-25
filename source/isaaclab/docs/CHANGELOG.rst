@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+4.6.14 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.envs.mdp.randomize_visual_color` and
+  :class:`~isaaclab.envs.mdp.randomize_visual_texture` failing with
+  ``'rtx::neuraylib::MdlModuleId' for '' is Invalid`` on Replicator >= 1.13.0.
+  Kit's ``omni_usd_resolver`` intentionally returns an empty string when resolving
+  builtin MDL short-names such as ``OmniPBR.mdl`` (``OMNI_USD_RESOLVER_MDL_BUILTIN_BYPASS=1``),
+  but Replicator's ``create_sdf_spec_material`` now passes that empty resolved path directly
+  into ``UsdMdl.RegistryUtils.GetSubIdentifiersForAsset``. The fix pre-resolves the absolute
+  on-disk path via ``carb.tokens`` (``${kit}/mdl/core/Base/OmniPBR.mdl``) before handing it
+  to Replicator so the resolver returns a valid path.
+
+
+4.6.13 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``isaaclab.sh --install`` leaving ``pinocchio`` uninstalled on top of recent Isaac Sim
+  base images that preinstall ``pin-pink`` in the kit's bundled ``site-packages`` without its
+  ``pin`` (cmeel pinocchio) dependency. Pip treats the ``pin-pink`` requirement as already
+  satisfied and skips the transitive ``pin`` resolve, so the pink IK controller and its tests
+  fail to import. ``isaaclab.cli.commands.install`` now probes ``import pinocchio`` after
+  installing the Isaac Lab submodules and force-reinstalls the cmeel ``pin``/``pin-pink``/
+  ``daqp`` stack when the probe fails.
+
+
 4.6.12 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -76,6 +108,9 @@ Changed
   global (world-frame) and local (body-frame) buffers. A new
   :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.compose_to_body_frame` method rotates global forces/torques
   into the body frame at apply time using the current body orientation, then sums with local forces/torques.
+* Updated imports of the PhysX tensors API in the ray caster sensors from
+  ``omni.physics.tensors.impl.api`` to ``omni.physics.tensors.api`` to track the upstream
+  Isaac Sim module relocation (the ``impl`` submodule was removed).
 
 Deprecated
 ^^^^^^^^^^

@@ -1,7 +1,33 @@
 Changelog
 ---------
 
-0.5.22 (2026-04-23)
+0.5.25 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``import isaaclab_physx`` eagerly importing ``isaacsim``, ``omni``,
+  and ``carb`` backend modules when used for pure-data config loading before
+  ``SimulationApp`` has launched. The ``SimulationManager`` patch now checks
+  ``sys.modules`` lazily instead of force-importing the target module, allowing
+  env-cfg classes that reference :class:`~isaaclab_physx.physics.PhysxCfg` to
+  be constructed without a running Kit instance (regression caught by
+  ``test_env_cfg_no_forbidden_imports``).
+
+
+0.5.24 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated imports of the PhysX tensors API from ``omni.physics.tensors.impl.api`` to
+  ``omni.physics.tensors.api`` to track the upstream Isaac Sim module relocation
+  (the ``impl`` submodule was removed).
+
+
+0.5.23 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -15,7 +41,7 @@ Fixed
   the freshly built artifact on the simulation context so subsequent providers reuse it.
 
 
-0.5.21 (2026-04-22)
+0.5.22 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -29,6 +55,26 @@ Changed
 
 * Renamed :class:`~isaaclab_physx.sim.views.FabricXformPrimView` to
   :class:`~isaaclab_physx.sim.views.FabricFrameView`. Old name is kept as a deprecated alias.
+
+
+0.5.21 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``Simulation view object is invalidated and cannot be used again to call
+  getDofVelocities`` raised on the first ``scene.update()`` after ``sim.reset()``
+  with recent Isaac Sim ``develop`` builds. Isaac Sim's
+  ``isaacsim.core.simulation_manager.SimulationManager`` recently became reactive
+  to timeline ``STOP`` events (after its ``_on_stop`` was decorated with
+  ``@staticmethod`` upstream), and its ``invalidate_physics()`` was clobbering
+  the shared ``omni.physics.tensors`` simulation view that
+  :class:`~isaaclab_physx.physics.PhysxManager` and PhysX articulation views
+  rely on. The ``isaaclab_physx`` package init now disables the original Isaac
+  Sim ``SimulationManager``'s default timeline/stage callbacks via
+  ``enable_all_default_callbacks(False)`` before swapping the module attribute,
+  so :class:`PhysxManager` is the single owner of the simulation lifecycle.
 
 
 0.5.20 (2026-04-21)

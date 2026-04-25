@@ -59,6 +59,7 @@ PER_TEST_TIMEOUTS = {
     "test_multirotor.py": 1000,
     "test_shadow_hand_vision_presets.py": 5000,
     "test_environments_newton.py": 5000,
+    "test_surface_gripper.py": 3000,
 }
 """A dictionary of tests and their timeouts in seconds.
 

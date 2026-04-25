@@ -21,7 +21,7 @@ from isaaclab_physx.assets.articulation import kernels as articulation_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.impl.api as physx
+    import omni.physics.tensors.api as physx
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -763,7 +763,7 @@ class ArticulationData(BaseArticulationData):
         `PhysX Tensor API`_.
 
         .. _`PhysX documentation`: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
-        .. _`PhysX Tensor API`: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force
+        .. _`PhysX Tensor API`: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.api.ArticulationView.get_link_incoming_joint_force
         """
 
         if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:

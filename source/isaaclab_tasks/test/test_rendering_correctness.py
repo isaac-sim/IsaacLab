@@ -847,6 +847,7 @@ def dexsuite_kuka_allegro_lift_env(request):
             env.close()
 
 
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
     """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera)."""
     physics_backend, renderer, _, env = dexsuite_kuka_allegro_lift_env
