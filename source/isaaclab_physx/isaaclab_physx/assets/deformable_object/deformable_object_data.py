@@ -7,7 +7,7 @@ import weakref
 
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
+import omni.physics.tensors.api as physx
 
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 

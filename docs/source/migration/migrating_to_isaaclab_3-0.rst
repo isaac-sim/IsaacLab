@@ -1789,6 +1789,33 @@ depended on the deprecated Isaac Sim core extensions have been retired:
 ``isaacsim.core.experimental.*`` APIs for the same debugging workflows.
 
 
+PhysX Tensors API Module Path
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Recent Isaac Sim releases removed the internal ``impl`` submodule of
+``omni.physics.tensors`` and now expose the PhysX Tensor API types
+(``ArticulationView``, ``RigidBodyView``, ``SimulationView``, etc.) directly
+under ``omni.physics.tensors.api``. Importing from the old path raises
+``ModuleNotFoundError: No module named 'omni.physics.tensors.impl'`` at import
+time.
+
+Isaac Lab has been updated to import from the new path. Downstream code
+(custom assets, sensors, or scripts) that imported from the old path must be
+updated:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x / older Isaac Sim)
+   import omni.physics.tensors.impl.api as physx
+
+   # After (Isaac Lab 3.x / current Isaac Sim)
+   import omni.physics.tensors.api as physx
+
+The class identities are unchanged — only the module path moved. Type hints
+referencing the old path (``omni.physics.tensors.impl.api.ArticulationView``)
+should be similarly updated to ``omni.physics.tensors.api.ArticulationView``.
+
+
 Need Help?
 ~~~~~~~~~~
 
