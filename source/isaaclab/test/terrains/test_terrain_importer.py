@@ -257,7 +257,6 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
     terrain_importer = TerrainImporter(terrain_importer_cfg)
 
     # Create environment clones using Lab's cloner utilities
-    num_balls = terrain_importer_cfg.num_envs
     env_fmt = "/World/envs/env_{}"
     env_ids = torch.arange(num_balls, dtype=torch.long, device=sim.device)
     env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0, device=sim.device)

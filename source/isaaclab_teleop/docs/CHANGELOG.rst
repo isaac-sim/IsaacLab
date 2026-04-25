@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.3.9 (2026-04-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_teleop.xr_anchor_manager.XrAnchorManager` to use
+  :func:`isaaclab.sim.utils.prims.create_prim` for XR anchor prim creation instead of
+  ``isaacsim.core.experimental.prims.XformPrim``, which wraps existing prims rather than
+  creating them.
+
 0.3.8 (2026-04-24)
 ~~~~~~~~~~~~~~~~~~
 
