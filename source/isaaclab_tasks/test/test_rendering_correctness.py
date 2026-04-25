@@ -37,6 +37,8 @@ from isaaclab_tasks.utils.hydra import (  # noqa: E402
 )
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg  # noqa: E402
 
+pytestmark = pytest.mark.isaacsim_ci
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------

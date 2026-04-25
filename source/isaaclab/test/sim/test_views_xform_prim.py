@@ -32,6 +32,7 @@ import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.sim.views import UsdFrameView as FrameView  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
+pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)
 
 

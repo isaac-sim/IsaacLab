@@ -157,7 +157,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     )
 
 
-@pytest.mark.isaacsim_ci
 def test_generate_dataset_franka_state(setup_test_environment):
     """Test dataset generation for the state-based cube-stack environment (single env)."""
     workflow_root = setup_test_environment
@@ -166,7 +165,6 @@ def test_generate_dataset_franka_state(setup_test_environment):
     _run_generation(workflow_root, annotated_input_path, generated_output_path, num_envs=1)
 
 
-@pytest.mark.isaacsim_ci
 def test_generate_dataset_franka_state_multi_env(setup_test_environment):
     """Test dataset generation for the state-based cube-stack environment (5 envs)."""
     workflow_root = setup_test_environment
