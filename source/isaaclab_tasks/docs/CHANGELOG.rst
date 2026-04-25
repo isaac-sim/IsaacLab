@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+1.5.26 (2026-04-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored Franka cube-stack manager-based environment configs (IK-relative, visuomotor, and joint-position
+  variants under ``stack/config/franka/``) to build on :class:`~isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg.StackEnvCfg`,
+  including explicit cube spawns with semantic tags, gripper actions where applicable, end-effector
+  :class:`~isaaclab.sensors.frame_transformer.frame_transformer_cfg.FrameTransformerCfg`, and default Franka poses
+  via articulation ``InitialStateCfg`` instead of a reset-time default-pose event.
+* Changed GR1T2 and Unitree G1 Inspire pick-place environment configs to define ``idle_action`` as a plain Python
+  sequence instead of ``torch.tensor``, dropping the ``torch`` import from those modules.
+
+
 1.5.25 (2026-04-24)
 ~~~~~~~~~~~~~~~~~~~
 
