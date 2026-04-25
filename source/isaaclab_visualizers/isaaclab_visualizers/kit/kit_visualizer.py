@@ -346,7 +346,7 @@ class KitVisualizer(BaseVisualizer):
         try:
             from omni.kit.viewport.utility.camera_state import ViewportCameraState
         except ImportError as exc:
-            logger.debug("[KitVisualizer] Viewport camera update skipped: %s", exc)
+            logger.warning("[KitVisualizer] Viewport camera update skipped: %s", exc)
             return
 
         camera_path = self._viewport_api.get_active_camera()
