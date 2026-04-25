@@ -810,8 +810,8 @@ def test_cartpole(cartpole_env):
 
 
 @pytest.mark.flaky(max_runs=3, min_passes=1)
-@pytest.mark.parametrize("params", _PHYSICS_RENDERER_AOV_COMBINATIONS)
-def test_dexsuite_kuka_allegro_lift(params):
+@pytest.mark.parametrize("test_params", _PHYSICS_RENDERER_AOV_COMBINATIONS)
+def test_dexsuite_kuka_allegro_lift(test_params):
     """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera).
 
     The env setup is intentionally inlined (not delegated to a yield fixture) so that
@@ -825,7 +825,7 @@ def test_dexsuite_kuka_allegro_lift(params):
         DexsuiteKukaAllegroLiftEnvCfg,
     )
 
-    physics_backend, renderer, data_type = params
+    physics_backend, renderer, data_type = test_params
 
     # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64.
     override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]

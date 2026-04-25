@@ -34,7 +34,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("env_spacing", [1.0, 4.325, 8.0])
 @pytest.mark.parametrize("num_envs", [1, 4, 125, 379, 1024])
-def test_grid_clone_env_origins(device, env_spacing, num_envs):
+def test_terrain_importer_env_origins(device, env_spacing, num_envs):
     """Tests that env origins are consistent when computed using the TerrainImporter and Lab's grid_transforms."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None

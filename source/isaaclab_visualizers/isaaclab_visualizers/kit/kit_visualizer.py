@@ -340,9 +340,13 @@ class KitVisualizer(BaseVisualizer):
 
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Apply eye/target camera view to the active viewport."""
-        from omni.kit.viewport.utility.camera_state import ViewportCameraState
-
         if self._viewport_api is None:
+            return
+
+        try:
+            from omni.kit.viewport.utility.camera_state import ViewportCameraState
+        except ImportError as exc:
+            logger.debug("[KitVisualizer] Viewport camera update skipped: %s", exc)
             return
 
         camera_path = self._viewport_api.get_active_camera()
