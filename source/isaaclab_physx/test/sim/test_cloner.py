@@ -23,6 +23,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.cloner import TemplateCloneCfg, clone_from_template, sequential, usd_replicate
 from isaaclab.sim import build_simulation_context
 
+wp.init()
+
 pytestmark = pytest.mark.isaacsim_ci
 
 

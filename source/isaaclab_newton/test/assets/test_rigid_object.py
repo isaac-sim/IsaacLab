@@ -119,6 +119,7 @@ def generate_cubes_scene(
     return cube_object, origins
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_initialization(num_cubes, device):
@@ -152,6 +153,7 @@ def test_initialization(num_cubes, device):
             cube_object.update(sim.cfg.dt)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.skip(reason="Newton does not support kinematic rigid bodies")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -190,6 +192,7 @@ def test_initialization_with_kinematic_enabled(num_cubes, device):
             torch.testing.assert_close(wp.to_torch(cube_object.data.root_com_vel_w), default_root_vel)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_initialization_with_no_rigid_body(num_cubes, device):
@@ -207,6 +210,7 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
             sim.reset()
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_initialization_with_articulation_root(num_cubes, device):
@@ -224,6 +228,7 @@ def test_initialization_with_articulation_root(num_cubes, device):
             sim.reset()
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_buffer(device):
     """Test if external force buffer correctly updates in the force value is zero case.
@@ -291,6 +296,7 @@ def test_external_force_buffer(device):
             cube_object.update(sim.cfg.dt)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [2, 4])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_external_force_on_single_body(num_cubes, device):
@@ -454,6 +460,7 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
             assert torch.all(wp.to_torch(cube_object.data.root_pos_w)[1::2, 2] < 1.0)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_set_rigid_object_state(num_cubes, device):
@@ -521,6 +528,7 @@ def test_set_rigid_object_state(num_cubes, device):
                     cube_object.update(sim.cfg.dt)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reset_rigid_object(num_cubes, device):
@@ -563,6 +571,7 @@ def test_reset_rigid_object(num_cubes, device):
                 assert torch.count_nonzero(wp.to_torch(cube_object._permanent_wrench_composer.composed_torque)) == 0
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_rigid_body_set_material_properties(num_cubes, device):
@@ -616,6 +625,7 @@ def _set_newton_material_properties(cube_object, friction_val, restitution_val, 
     SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.skip(reason="MuJoCo contact at height=0 does not settle the same as PhysX — cube falls on z-axis")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -668,6 +678,7 @@ def test_rigid_body_no_friction(num_cubes, device):
             )
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.skip(reason="MuJoCo uses Coulomb friction (single mu), no static/dynamic distinction")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -747,6 +758,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
                 assert (wp.to_torch(cube_object.data.root_pos_w)[..., 0] - initial_root_pos[..., 0] > 0.02).all()
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.skip(reason="MuJoCo restitution model differs from PhysX — inelastic collisions still bounce")
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -825,6 +837,7 @@ def test_rigid_body_with_restitution(num_cubes, device):
                 assert (curr_z_velocity > 0.0).all()
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_rigid_body_set_mass(num_cubes, device):
@@ -862,6 +875,7 @@ def test_rigid_body_set_mass(num_cubes, device):
         torch.testing.assert_close(masses, masses_to_check)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [True, False])
@@ -901,6 +915,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
             torch.testing.assert_close(wp.to_torch(cube_object.data.body_acc_w), gravity)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
@@ -1013,6 +1028,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
                 torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
@@ -1083,6 +1099,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
                 torch.testing.assert_close(rand_state[..., 7:], wp.to_torch(cube_object.data.root_link_vel_w))
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True])
@@ -1195,6 +1212,7 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.skip(reason="PhysX-specific warmup test")
 def test_warmup_attach_stage_not_called_for_cpu():
     """Regression test: attach_stage() must not be called for CPU in _warmup_and_create_views().
