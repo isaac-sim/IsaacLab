@@ -37,6 +37,9 @@ Changed
   :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
   to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
   applied after body-frame composition.
+* Updated the PhysX Tensor API docstring link in :class:`~isaaclab_newton.assets.ArticulationData`
+  from ``omni.physics.tensors.impl.api`` to ``omni.physics.tensors.api`` to track the upstream
+  Isaac Sim module relocation (the ``impl`` submodule was removed).
 
 
 0.5.18 (2026-04-21)

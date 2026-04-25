@@ -92,7 +92,6 @@ keywords = ["experience", "app", "usd"]
 "omni.uiaudio" = {}
 "omni.usd.metrics.assembler.ui" = {}
 "omni.usd.schema.metrics.assembler" = {}
-"omni.warp.core" = {}
 
 ########################
 # Isaac Lab Extensions #
@@ -257,7 +256,7 @@ exts."omni.replicator.core".Orchestrator.enabled = false
 omni.rtx.nre.compositing.rendererHints = 3
 
 # explicitly disable omni.kit.pip_archive to prevent conflicting dependencies
-app.extensions.excluded = ["omni.kit.pip_archive"]
+app.extensions.excluded = ["omni.kit.pip_archive", "omni.isaac.ml_archive", "isaacsim.pip.newton", "omni.warp.core"]
 
 [settings.app.livestream]
 outDirectory = "${data}"
