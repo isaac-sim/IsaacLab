@@ -74,7 +74,8 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
         str(num_envs),
         "--generation_num_trials",
         "1",
-        "--headless",
+        "--viz",
+        "none",
     ]
 
     result = run_script(command)

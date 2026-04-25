@@ -75,7 +75,8 @@ def setup_test_environment():
         "--output_file",
         annotated_output_path,
         "--auto",
-        "--headless",
+        "--viz",
+        "none",
     ]
     print(config_command)
 
@@ -139,7 +140,8 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
         str(num_envs),
         "--generation_num_trials",
         "1",
-        "--headless",
+        "--viz",
+        "none",
     ]
 
     result = run_script(command, timeout=_SUBPROCESS_TIMEOUT)

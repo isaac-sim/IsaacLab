@@ -85,7 +85,8 @@ def test_generate_dataset_skillgen(setup_skillgen_test_environment):
         "--generation_num_trials",
         "1",
         "--use_skillgen",
-        "--headless",
+        "--viz",
+        "none",
         "--task",
         "Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0",
     ]
