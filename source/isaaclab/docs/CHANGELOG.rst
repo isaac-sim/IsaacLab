@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+4.6.15 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Marked :meth:`~isaaclab.envs.manager_based_rl_mimic_env.ManagerBasedRLMimicEnv.get_subtask_start_signals` and
+  :meth:`~isaaclab.envs.manager_based_rl_mimic_env.ManagerBasedRLMimicEnv.get_subtask_term_signals` with
+  ``@optional_method``.
+
+
 4.6.14 (2026-04-24)
 ~~~~~~~~~~~~~~~~~~~
 
