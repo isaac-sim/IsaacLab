@@ -35,11 +35,8 @@ class ViewerCfg:
     """Configuration of the scene viewport camera.
 
     Note:
-        Overriding non-default fields is deprecated. In a future release, Isaac Sim viewport camera
-        configuration will be expressed only through ``KitVisualizerCfg`` under
-        ``SimulationCfg.visualizer_cfgs``; use ``NewtonVisualizerCfg`` for the Newton viewer.
-        Those visualizer configs replace the viewport camera pose, resolution, prim path, and
-        frame-origin behavior that this class used to configure.
+        ViewerCfg is deprecated. In a future release, this config will be streamlined with
+        the KitVisualizerCfg.
     """
 
     eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
@@ -107,12 +104,8 @@ class ViewerCfg:
                 differing.append(f.name)
         if differing:
             warnings.warn(
-                "ViewerCfg is deprecated when overriding default viewport camera fields "
-                f"({', '.join(sorted(differing))}). In a future release, Isaac Sim viewport camera "
-                "settings will be configured only through ``SimulationCfg.visualizer_cfgs`` using "
-                "``KitVisualizerCfg`` (viewport camera pose, resolution, prim path, and "
-                "frame-origin options). For the Newton viewer, use ``NewtonVisualizerCfg``. "
-                "Migrate overrides out of ``ViewerCfg`` accordingly.",
+                "ViewerCfg is deprecated. In a future release, this config will be streamlined with "
+                "the KitVisualizerCfg.",
                 DeprecationWarning,
                 stacklevel=2,
             )
