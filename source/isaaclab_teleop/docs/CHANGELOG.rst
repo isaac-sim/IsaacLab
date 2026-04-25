@@ -18,8 +18,8 @@ Changed
 Changed
 ^^^^^^^
 
-* Updated XR anchor utilities to use non-deprecated Isaac Sim core module paths
-  (``isaacsim.core.experimental.prims`` / ``isaacsim.core.experimental.utils``).
+* Updated XR anchor prim creation to use :func:`isaaclab.sim.utils.prims.create_prim`
+  instead of ``isaacsim.core.experimental.prims.XformPrim``.
 
 
 0.3.6 (2026-04-21)
