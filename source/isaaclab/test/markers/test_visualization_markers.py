@@ -126,7 +126,7 @@ def test_multiple_prototypes_marker(sim):
         sim.step()
 
 
-@pytest.mark.flaky(reruns=3, reruns_delay=0, min_passes=1)
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 def test_visualization_time_based_on_prototypes(sim):
     """Test with time taken when number of prototypes is increased."""
     # create a marker
