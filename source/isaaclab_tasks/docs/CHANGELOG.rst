@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-1.5.25 (2026-04-22)
+1.5.25 (2026-04-25)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -9,6 +9,7 @@ Changed
 
 * Updated stack-event utilities to enable optional extensions via
   ``isaacsim.core.experimental.utils.app.enable_extension`` (non-deprecated Isaac Sim path).
+* Migrated golden images ``source/isaaclab_tasks/test/golden_images/**/*.png`` to Git LFS.
 
 
 1.5.24 (2026-04-22)
