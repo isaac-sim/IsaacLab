@@ -203,7 +203,7 @@ def _run_ik_controller(
             # at reset, the jacobians are not updated to the latest state
             # so we MUST skip the first step
             # obtain quantities from simulation
-            jacobian = wp.to_torch(robot.root_view.get_jacobians())[:, ee_jacobi_idx, :, arm_joint_ids]
+            jacobian = wp.to_torch(robot.get_jacobians())[:, ee_jacobi_idx, :, arm_joint_ids]
             ee_pose_w = wp.to_torch(robot.data.body_pose_w)[:, ee_frame_idx]
             root_pose_w = wp.to_torch(robot.data.root_pose_w)
             base_rot = root_pose_w[:, 3:7]

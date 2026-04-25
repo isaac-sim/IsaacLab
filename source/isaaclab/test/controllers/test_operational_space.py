@@ -1303,8 +1303,11 @@ class _FloatingBaseOscActionsCfg:
         controller_cfg=OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
             impedance_mode="fixed",
+            # Both flags enabled so the action term fetches mass matrix AND
+            # gravity each step, exercising the floating-base +6 indexing on
+            # both quantities.
             inertial_dynamics_decoupling=True,
-            gravity_compensation=False,
+            gravity_compensation=True,
             motion_stiffness_task=500.0,
             motion_damping_ratio_task=1.0,
         ),
@@ -1594,9 +1597,9 @@ def _update_states(
     """
     # obtain dynamics related quantities from simulation
     ee_jacobi_idx = ee_frame_idx - 1
-    jacobian_w = wp.to_torch(robot.root_view.get_jacobians())[:, ee_jacobi_idx, :, arm_joint_ids]
-    mass_matrix = wp.to_torch(robot.root_view.get_generalized_mass_matrices())[:, arm_joint_ids, :][:, :, arm_joint_ids]
-    gravity = wp.to_torch(robot.root_view.get_gravity_compensation_forces())[:, arm_joint_ids]
+    jacobian_w = wp.to_torch(robot.get_jacobians())[:, ee_jacobi_idx, :, arm_joint_ids]
+    mass_matrix = wp.to_torch(robot.get_mass_matrix())[:, arm_joint_ids, :][:, :, arm_joint_ids]
+    gravity = wp.to_torch(robot.get_gravity_compensation_forces())[:, arm_joint_ids]
     # Convert the Jacobian from world to root frame
     jacobian_b = jacobian_w.clone()
     root_rot_matrix = matrix_from_quat(quat_inv(wp.to_torch(robot.data.root_quat_w)))

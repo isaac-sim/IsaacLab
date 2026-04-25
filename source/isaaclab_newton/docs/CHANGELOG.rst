@@ -1,6 +1,51 @@
 Changelog
 ---------
 
+0.5.22 (2026-04-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton implementations of
+  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians` and
+  :meth:`~isaaclab.assets.BaseArticulation.get_mass_matrix` that wrap
+  ``ArticulationView.eval_jacobian`` /
+  ``ArticulationView.eval_mass_matrix`` and return view-sized arrays
+  matching the PhysX contract. Per-step behavior is allocation-free
+  and safe under CUDA graph capture:
+
+  - All source / scratch / output buffers
+    (``_jacobian_buf_flat`` / ``_jacobian_buf``,
+    ``_jacobian_joint_S_s_buf``, ``_jacobian_view_buf``,
+    ``_mass_matrix_buf``, ``_mass_matrix_view_buf``) are pre-allocated
+    in ``_create_buffers``.
+  - Newton's ``eval_*`` kernels write every articulation in the model,
+    not just the ones owned by this view. New
+    :func:`~isaaclab_newton.assets.articulation.kernels.gather_jacobian_rows`
+    (4-D) and
+    :func:`~isaaclab_newton.assets.articulation.kernels.gather_mass_matrix_rows`
+    (3-D) Warp kernels gather the rows indexed by
+    ``ArticulationView.articulation_ids`` into the view-sized output,
+    preserving the PhysX shape contract in scenes with multiple
+    articulation types.
+
+Changed
+^^^^^^^
+
+* :meth:`~isaaclab.assets.BaseArticulation.get_gravity_compensation_forces`
+  raises :class:`NotImplementedError` on Newton with a message
+  pointing at the upstream gap (Newton's ``ArticulationView`` exposes
+  ``eval_fk`` / ``eval_jacobian`` / ``eval_mass_matrix`` only — no
+  gravity-compensation primitive). Callers should set the controller's
+  ``gravity_compensation=False`` until upstream Newton adds an
+  ``eval_gravity_compensation`` API. The gap is pinned by
+  ``test_get_gravity_compensation_forces_not_implemented_on_newton``,
+  which deliberately fails (with ``DID NOT RAISE``) once upstream
+  Newton ships the primitive and the stub gets replaced with a real
+  implementation.
+
+
 0.5.21 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 

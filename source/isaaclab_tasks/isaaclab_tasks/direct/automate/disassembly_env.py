@@ -215,12 +215,12 @@ class DisassemblyEnv(DirectRLEnv):
         self.fingertip_midpoint_linvel = wp.to_torch(self._robot.data.body_lin_vel_w)[:, self.fingertip_body_idx]
         self.fingertip_midpoint_angvel = wp.to_torch(self._robot.data.body_ang_vel_w)[:, self.fingertip_body_idx]
 
-        jacobians = wp.to_torch(self._robot.root_view.get_jacobians())
+        jacobians = wp.to_torch(self._robot.get_jacobians())
 
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = wp.to_torch(self._robot.root_view.get_generalized_mass_matrices())[:, 0:7, 0:7]
+        self.arm_mass_matrix = wp.to_torch(self._robot.get_mass_matrix())[:, 0:7, 0:7]
         self.joint_pos = wp.to_torch(self._robot.data.joint_pos).clone()
         self.joint_vel = wp.to_torch(self._robot.data.joint_vel).clone()
 

@@ -128,7 +128,7 @@ class RMPFlowAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
-        return wp.to_torch(self._asset.root_view.get_jacobians())[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
+        return wp.to_torch(self._asset.get_jacobians())[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
 
     @property
     def jacobian_b(self) -> torch.Tensor:

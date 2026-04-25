@@ -329,13 +329,11 @@ class PinkInverseKinematicsAction(ActionTerm):
             # Get gravity compensation forces using cached tensor
             if self._asset.is_fixed_base:
                 gravity = torch.zeros_like(
-                    wp.to_torch(self._asset.root_view.get_gravity_compensation_forces())[
-                        :, self._controlled_joint_ids_tensor
-                    ]
+                    wp.to_torch(self._asset.get_gravity_compensation_forces())[:, self._controlled_joint_ids_tensor]
                 )
             else:
                 # If floating base, then need to skip the first 6 joints (base)
-                gravity = wp.to_torch(self._asset.root_view.get_gravity_compensation_forces())[
+                gravity = wp.to_torch(self._asset.get_gravity_compensation_forces())[
                     :, self._controlled_joint_ids_tensor + self._physx_floating_joint_indices_offset
                 ]
 

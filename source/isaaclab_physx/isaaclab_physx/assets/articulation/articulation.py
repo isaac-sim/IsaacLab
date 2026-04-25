@@ -179,6 +179,15 @@ class Articulation(BaseArticulation):
         """
         return self._root_view
 
+    def get_jacobians(self) -> wp.array:
+        return self._root_view.get_jacobians()
+
+    def get_mass_matrix(self) -> wp.array:
+        return self._root_view.get_generalized_mass_matrices()
+
+    def get_gravity_compensation_forces(self) -> wp.array:
+        return self._root_view.get_gravity_compensation_forces()
+
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
         """Instantaneous wrench composer.

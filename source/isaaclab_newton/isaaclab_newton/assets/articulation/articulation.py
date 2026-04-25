@@ -198,6 +198,65 @@ class Articulation(BaseArticulation):
         """
         return self._root_view
 
+    def get_jacobians(self) -> wp.array:
+        # eval_jacobian writes every articulation in the model; gather kernel
+        # extracts this view's rows (skipping the fixed-root row for fixed-base
+        # articulations) to match the PhysX contract.
+        self._root_view.eval_jacobian(
+            SimulationManager.get_state_0(),
+            J=self._jacobian_buf_flat,
+            joint_S_s=self._jacobian_joint_S_s_buf,
+        )
+        wp.launch(
+            articulation_kernels.gather_jacobian_rows,
+            dim=self._jacobian_view_buf.shape,
+            inputs=[self._jacobian_buf, self._jacobian_view_art_ids, self._jacobian_link_offset],
+            outputs=[self._jacobian_view_buf],
+            device=self.device,
+        )
+        return self._jacobian_view_buf
+
+    def get_mass_matrix(self) -> wp.array:
+        # eval_mass_matrix treats ``J`` as an input (skips its own jacobian
+        # compute when provided), so we must populate the scratch first via
+        # eval_jacobian. Reusing ``_jacobian_buf_flat`` (same shape) avoids a
+        # second allocation; the call is idempotent for a given state, so any
+        # earlier get_jacobians this step is overwritten with identical data.
+        # All scratch buffers are pre-allocated for CUDA-graph capture safety.
+        state = SimulationManager.get_state_0()
+        self._root_view.eval_jacobian(
+            state,
+            J=self._jacobian_buf_flat,
+            joint_S_s=self._jacobian_joint_S_s_buf,
+        )
+        self._root_view.eval_mass_matrix(
+            state,
+            H=self._mass_matrix_buf,
+            J=self._jacobian_buf_flat,
+            body_I_s=self._mass_matrix_body_I_s_buf,
+            joint_S_s=self._jacobian_joint_S_s_buf,
+        )
+        wp.launch(
+            articulation_kernels.gather_mass_matrix_rows,
+            dim=self._mass_matrix_view_buf.shape,
+            inputs=[self._mass_matrix_buf, self._jacobian_view_art_ids],
+            outputs=[self._mass_matrix_view_buf],
+            device=self.device,
+        )
+        return self._mass_matrix_view_buf
+
+    def get_gravity_compensation_forces(self) -> wp.array:
+        # Newton's ArticulationView has no eval_gravity_compensation primitive
+        # (only eval_fk / eval_jacobian / eval_mass_matrix). Track upstream
+        # request at https://github.com/newton-physics/newton/issues
+        # (TODO: file and link). Callers should gate this method behind their
+        # own ``gravity_compensation`` config flag.
+        raise NotImplementedError(
+            "Newton has no gravity-compensation primitive. Use PhysX, or set the controller's"
+            " ``gravity_compensation=False`` until upstream Newton adds an"
+            " ``eval_gravity_compensation`` API."
+        )
+
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
         """Instantaneous wrench composer.
@@ -3237,6 +3296,62 @@ class Articulation(BaseArticulation):
         self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
         self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
         self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
+
+        # -- jacobian buffers for task-space controllers (IK, OSC, RMPFlow).
+        # Pre-allocated here (not lazily on first call) for capture safety.
+        model = SimulationManager.get_model()
+        max_links = model.max_joints_per_articulation
+        max_dofs = model.max_dofs_per_articulation
+        # Source buffer covers every articulation in the model; the gather
+        # kernel below extracts this view's rows.
+        self._jacobian_buf_flat = wp.zeros(
+            (model.articulation_count, max_links * 6, max_dofs),
+            dtype=wp.float32,
+            device=self.device,
+        )
+        # 4-D reshape view (zero-copy); used as kernel input.
+        self._jacobian_buf = self._jacobian_buf_flat.reshape((model.articulation_count, max_links, 6, max_dofs))
+        # Motion-subspace scratch (Featherstone ``S``, spatial frame).
+        self._jacobian_joint_S_s_buf = wp.zeros(
+            model.joint_dof_count,
+            dtype=wp.spatial_vector,
+            device=self.device,
+        )
+        # View-sized output returned by get_jacobians; matches PhysX shape.
+        # For fixed-base articulations, Newton fills row 0 with the fixed-root
+        # joint (zero motion subspace). PhysX excludes that row and reindexes
+        # bodies by -1. The gather kernel below applies a corresponding offset.
+        self._jacobian_link_offset = 1 if self.is_fixed_base else 0
+        num_jacobi_bodies = max_links - self._jacobian_link_offset
+        self._jacobian_view_buf = wp.zeros(
+            (self.num_instances, num_jacobi_bodies, 6, max_dofs),
+            dtype=wp.float32,
+            device=self.device,
+        )
+        # Mass-matrix source (model-sized) and view-sized output. Same gather
+        # pattern as the jacobian buffers, just one dimension smaller.
+        self._mass_matrix_buf = wp.zeros(
+            (model.articulation_count, max_dofs, max_dofs),
+            dtype=wp.float32,
+            device=self.device,
+        )
+        # eval_mass_matrix needs per-step body spatial inertias as scratch.
+        # Pre-allocate for capture safety. (The Jacobian scratch input is the
+        # already-allocated ``_jacobian_buf_flat`` — get_mass_matrix populates
+        # it via eval_jacobian before calling eval_mass_matrix.)
+        self._mass_matrix_body_I_s_buf = wp.zeros(
+            model.body_count,
+            dtype=wp.spatial_matrix,
+            device=self.device,
+        )
+        self._mass_matrix_view_buf = wp.zeros(
+            (self.num_instances, max_dofs, max_dofs),
+            dtype=wp.float32,
+            device=self.device,
+        )
+        # Flattened (num_worlds*num_per_world,) view-to-model index map,
+        # shared by both jacobian and mass-matrix gathers.
+        self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(

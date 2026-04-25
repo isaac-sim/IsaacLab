@@ -328,7 +328,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
                 break
 
             # Solve IK using jacobian
-            jacobians = wp.to_torch(self.robot_asset.root_view.get_jacobians()).clone()
+            jacobians = wp.to_torch(self.robot_asset.get_jacobians()).clone()
             jacobian = jacobians[env_ids, self.jacobi_body_idx, :, :]
 
             delta_dof_pos = fc._get_delta_dof_pos(

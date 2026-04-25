@@ -143,7 +143,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
-        return wp.to_torch(self._asset.root_view.get_jacobians())[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
+        return wp.to_torch(self._asset.get_jacobians())[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
 
     @property
     def jacobian_b(self) -> torch.Tensor:
@@ -435,9 +435,7 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
-        return wp.to_torch(self._asset.root_view.get_jacobians())[
-            :, self._jacobi_ee_body_idx, :, self._jacobi_joint_idx
-        ]
+        return wp.to_torch(self._asset.get_jacobians())[:, self._jacobi_ee_body_idx, :, self._jacobi_joint_idx]
 
     @property
     def jacobian_b(self) -> torch.Tensor:
@@ -648,18 +646,32 @@ class OperationalSpaceControllerAction(ActionTerm):
     def _compute_dynamic_quantities(self):
         """Computes the dynamic quantities for operational space control.
 
+        Mass matrix and gravity-compensation forces are only fetched when the
+        controller actually consumes them — gated by
+        :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.inertial_dynamics_decoupling`
+        / :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.nullspace_control`
+        and
+        :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.gravity_compensation`
+        respectively. This avoids an unconditional engine call on backends
+        that don't expose the corresponding primitive (Newton has no
+        gravity-compensation API).
+
         Note: For floating-base robots, PhysX prepends 6 virtual DOFs (base position and orientation)
         to the generalized mass matrix and gravity compensation forces. We use ``self._jacobi_joint_idx``
         (which applies the +6 offset for floating-base robots) instead of ``self._joint_ids`` to correctly
         index into these quantities. For fixed-base robots, the two are identical.
         """
-
-        self._mass_matrix[:] = wp.to_torch(self._asset.root_view.get_generalized_mass_matrices())[
-            :, self._jacobi_joint_idx, :
-        ][:, :, self._jacobi_joint_idx]
-        self._gravity[:] = wp.to_torch(self._asset.root_view.get_gravity_compensation_forces())[
-            :, self._jacobi_joint_idx
-        ]
+        # Mass matrix is consumed by both inertial decoupling and (when
+        # nullspace_control is enabled) the null-space torque term of OSC.
+        needs_mass_matrix = self.cfg.controller_cfg.inertial_dynamics_decoupling or (
+            self.cfg.controller_cfg.nullspace_control != "none"
+        )
+        if needs_mass_matrix:
+            self._mass_matrix[:] = wp.to_torch(self._asset.get_mass_matrix())[:, self._jacobi_joint_idx, :][
+                :, :, self._jacobi_joint_idx
+            ]
+        if self.cfg.controller_cfg.gravity_compensation:
+            self._gravity[:] = wp.to_torch(self._asset.get_gravity_compensation_forces())[:, self._jacobi_joint_idx]
 
     def _compute_ee_jacobian(self):
         """Computes the geometric Jacobian of the ee body frame in root frame.

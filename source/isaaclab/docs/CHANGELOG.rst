@@ -1,6 +1,52 @@
 Changelog
 ---------
 
+4.6.13 (2026-04-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab.assets.BaseArticulation.get_jacobians`,
+  :meth:`~isaaclab.assets.BaseArticulation.get_mass_matrix`, and
+  :meth:`~isaaclab.assets.BaseArticulation.get_gravity_compensation_forces`
+  as backend-agnostic accessors used by the task-space controllers
+  (IK, OSC, RMPFlow). Previously the action terms called
+  ``asset.root_view.get_jacobians`` /
+  ``get_generalized_mass_matrices`` /
+  ``get_gravity_compensation_forces`` directly, which only worked on
+  the PhysX backend because Newton's ``ArticulationView`` exposes a
+  different surface (``eval_jacobian`` / ``eval_mass_matrix``, no
+  gravity-compensation primitive).
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.envs.mdp.DifferentialInverseKinematicsAction`
+  to query Jacobians via the new wrapper so
+  ``Isaac-Reach-Franka-IK-Abs-v0`` and ``Isaac-Reach-Franka-IK-Rel-v0``
+  run under both PhysX and Newton backends.
+* Changed :class:`~isaaclab.envs.mdp.OperationalSpaceControllerAction`
+  to fetch mass matrix and gravity-compensation forces only when the
+  controller's
+  :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.inertial_dynamics_decoupling`
+  /
+  :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.gravity_compensation`
+  flags are enabled. Previously both were fetched unconditionally on
+  every step, which caused an ``AttributeError`` on Newton even when
+  the values were unused. With this gating, OSC runs on Newton for
+  any combination of flags whose underlying primitive is implemented
+  by the active backend.
+* Migrated the remaining task-space callers in core
+  (``RMPFlowTaskSpaceAction``, ``PinkTaskSpaceAction``) to the new
+  backend-agnostic wrappers. Direct calls to
+  ``root_view.get_jacobians`` / ``get_generalized_mass_matrices`` /
+  ``get_gravity_compensation_forces`` now exist only inside the PhysX
+  passthrough implementations and the floating-base OSC regression
+  test (which intentionally extracts via the PhysX view to compute a
+  ground-truth comparison).
+
+
 4.6.12 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 

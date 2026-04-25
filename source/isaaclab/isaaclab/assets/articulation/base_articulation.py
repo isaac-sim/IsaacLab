@@ -173,6 +173,63 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
+    @abstractmethod
+    def get_jacobians(self) -> wp.array:
+        """Per-env spatial Jacobians in world frame.
+
+        Each backend implementation returns a 4-D array with shape
+        ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)``, where
+        ``num_jacobi_bodies`` excludes the fixed base body (if any) and
+        ``num_jacobi_joints`` prepends 6 virtual DoFs for floating-base
+        articulations. Task-space controllers (IK, OSC, RMPFlow) slice this
+        array to extract the end-effector Jacobian.
+
+        .. note::
+            Newton and PhysX implementations differ in how the underlying
+            view exposes the Jacobian. Callers should use this method
+            instead of calling ``root_view.get_jacobians()`` directly,
+            which only works on PhysX.
+
+        Returns:
+            The per-env spatial Jacobian as a Warp array. Shape
+            ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)``,
+            dtype ``float32``.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_mass_matrix(self) -> wp.array:
+        """Per-env generalized mass matrix in joint space.
+
+        Used by :class:`~isaaclab.controllers.OperationalSpaceController`
+        when ``inertial_dynamics_decoupling`` is enabled. Backend
+        implementations return shape ``(num_instances, num_jacobi_joints,
+        num_jacobi_joints)`` matching the Jacobian's joint-space dimension.
+
+        Returns:
+            The per-env mass matrix as a Warp array. Shape
+            ``(num_instances, num_jacobi_joints, num_jacobi_joints)``,
+            dtype ``float32``.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_gravity_compensation_forces(self) -> wp.array:
+        """Per-env joint-space gravity compensation torques.
+
+        Used by :class:`~isaaclab.controllers.OperationalSpaceController`
+        when ``gravity_compensation`` is enabled. Backends that lack a
+        native primitive (Newton at present) raise
+        :class:`NotImplementedError`; callers should gate this method
+        behind their own feature flag.
+
+        Returns:
+            The per-env gravity-compensation joint torques as a Warp
+            array. Shape ``(num_instances, num_jacobi_joints)``, dtype
+            ``float32``.
+        """
+        raise NotImplementedError()
+
     @property
     @abstractmethod
     def instantaneous_wrench_composer(self) -> WrenchComposer:

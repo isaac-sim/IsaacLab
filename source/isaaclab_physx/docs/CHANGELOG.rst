@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.5.23 (2026-04-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added PhysX implementations of
+  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians`,
+  :meth:`~isaaclab.assets.BaseArticulation.get_mass_matrix`, and
+  :meth:`~isaaclab.assets.BaseArticulation.get_gravity_compensation_forces`
+  as one-line passthroughs to the corresponding
+  ``physx.ArticulationView`` methods.
+
+
 0.5.22 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 

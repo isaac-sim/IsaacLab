@@ -2604,5 +2604,41 @@ def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, a
     torch.testing.assert_close(updated_gap, new_gap)
 
 
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_gravity_compensation_forces_not_implemented_on_newton(sim, num_articulations, device, articulation_type):
+    """Pin the known Newton gravity-compensation gap.
+
+    Newton's :class:`~newton.selection.ArticulationView` exposes ``eval_fk``,
+    ``eval_jacobian``, and ``eval_mass_matrix`` — but **no**
+    ``eval_gravity_compensation`` primitive. The Newton wrapper at
+    :meth:`isaaclab_newton.assets.Articulation.get_gravity_compensation_forces`
+    is therefore a stub that raises :class:`NotImplementedError`.
+
+    This test is **deliberately written to fail when the gap is closed**.
+    Once upstream Newton (https://github.com/newton-physics/newton) adds an
+    ``eval_gravity_compensation`` API and the wrapper switches to a real
+    implementation, ``pytest.raises`` will report ``DID NOT RAISE`` and the
+    failure will direct the maintainer to:
+
+    1. Replace the ``NotImplementedError`` raise in the wrapper with the
+       proper ``eval_gravity_compensation`` call (mirroring the
+       jacobian / mass-matrix wrappers — pre-allocate buffer, gather kernel,
+       return view-sized output).
+    2. Remove this test or invert it into a positive shape/value assertion.
+    3. Drop the OSC config-time guidance (in code comments and docstrings)
+       about setting ``gravity_compensation=False`` on Newton.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    with pytest.raises(NotImplementedError, match="Newton has no gravity-compensation"):
+        articulation.get_gravity_compensation_forces()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])

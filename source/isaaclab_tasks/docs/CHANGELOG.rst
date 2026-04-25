@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+1.5.25 (2026-04-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the hardcoded ``self.sim.physics = PhysxCfg(...)`` workaround in
+  ``Isaac-Reach-Franka-IK-Abs-v0``, ``Isaac-Reach-Franka-IK-Rel-v0``,
+  and ``Isaac-Reach-Franka-OSC-v0``. The previous comments
+  *"{IK,OSC} control is not supported with Newton physics; use PhysX only"*
+  no longer hold now that the task-space accessors
+  (:meth:`~isaaclab.assets.BaseArticulation.get_jacobians`,
+  :meth:`~isaaclab.assets.BaseArticulation.get_mass_matrix`) provide a
+  backend-agnostic surface and the OSC action term gates its
+  gravity-compensation fetch by config flag. All three tasks now inherit
+  their physics backend from the parent ``ReachPhysicsCfg`` preset, so
+  ``presets=newton`` selects ``NewtonCfg`` and the env runs under Newton
+  without further overrides. The default OSC config keeps
+  ``gravity_compensation=False`` so the Newton path does not hit the
+  upstream-blocked gravity-compensation primitive.
+* Migrated the remaining direct-workflow callers
+  (``Isaac-Factory-*``, ``Isaac-Automate-Assembly-*``,
+  ``Isaac-Automate-Disassembly-*``) and the deploy-task event
+  ``manipulation/deploy/mdp/events.py`` to use the new
+  backend-agnostic accessors. These envs still carry their own
+  PhysX-specific physics overrides (collision cooking, GPU patch
+  counts, etc.) — those are real PhysX tunings unrelated to the
+  Newton-compat workaround and were not removed.
+
+
 1.5.24 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
