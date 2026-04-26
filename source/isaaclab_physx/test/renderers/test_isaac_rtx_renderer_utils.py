@@ -30,6 +30,8 @@ if "omni.usd" not in sys.modules:
 import isaaclab_physx.renderers.isaac_rtx_renderer_utils as rtx_utils  # noqa: E402
 import pytest  # noqa: E402
 
+pytestmark = pytest.mark.isaacsim_ci
+
 # test-specific timeout overrides for _STREAMING_WAIT_TIMEOUT_S
 STREAMING_TIMEOUT_S = 0.1
 STREAMING_TIMEOUT_SHORT_S = 0.01

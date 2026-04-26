@@ -41,6 +41,8 @@ from isaaclab.sensors import save_images_to_file
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 @pytest.mark.skip(reason="Currently takes too long to run")
 def test_tiled_resolutions_tiny():

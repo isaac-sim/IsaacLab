@@ -1672,6 +1672,123 @@ Deprecated retargeters have been moved to ``isaaclab_teleop.deprecated.openxr.re
 compatibility. These will be removed in a future release.
 
 
+Migration off Deprecated Isaac Sim APIs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Isaac Sim 6.0, the legacy ``isaacsim.core.*``, ``isaacsim.sensors.*``, and
+``isaacsim.robot.wheeled_robots`` Python module paths are **deprecated** in favor of their
+``isaacsim.core.experimental.*`` (and ``*.experimental.*``) equivalents. Isaac Lab 3.0 has
+been migrated off the deprecated paths so that Isaac Lab continues to load and run when
+those modules are removed in a future Isaac Sim release.
+
+This is mostly a transparent change for users — Isaac Lab's own public Python API
+(:mod:`isaaclab`, :mod:`isaaclab_physx`, :mod:`isaaclab_tasks`, :mod:`isaaclab_teleop`,
+:mod:`isaaclab_mimic`) is unchanged. The migration is only user-visible if you:
+
+1. Import Isaac Sim symbols **directly** in your project, or
+2. Maintain a custom Kit experience (``.kit`` file) that lists Isaac Sim extension
+   dependencies, or
+3. Imported ``SimulationManager`` from ``isaacsim.core.simulation_manager`` in your own
+   PhysX-backed code.
+
+
+Python module renames
+---------------------
+
+Update direct imports in your own code as follows. **Where Isaac Lab provides an in-tree
+replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`` fallback:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Deprecated Isaac Sim path
+     - Recommended replacement
+   * - ``isaacsim.core.utils.stage``
+     - :mod:`isaaclab.sim.utils.stage` (e.g. ``get_current_stage``,
+       ``create_new_stage``, ``open_stage``, ``save_stage``, ``close_stage``,
+       ``clear_stage``, ``update_stage``, ``use_stage``)
+   * - ``isaacsim.core.utils.prims``
+     - :mod:`isaaclab.sim.utils.prims` (e.g. ``create_prim``, ``delete_prim``,
+       ``change_prim_property``, ``bind_visual_material``,
+       ``bind_physics_material``, ``add_usd_reference``)
+   * - ``isaacsim.core.utils.queries``
+     - :mod:`isaaclab.sim.utils.queries` (e.g. ``find_matching_prims``,
+       ``find_matching_prim_paths``, ``get_first_matching_child_prim``)
+   * - ``isaacsim.core.utils.transforms``
+     - :mod:`isaaclab.sim.utils.transforms`
+   * - ``isaacsim.core.utils.semantics``
+     - :mod:`isaaclab.sim.utils.semantics`
+   * - ``isaacsim.core.utils.extensions.enable_extension``
+     - ``isaacsim.core.experimental.utils.app.enable_extension`` (no Isaac Lab equivalent)
+   * - ``isaacsim.core.utils.viewports.set_camera_view``
+     - ``isaacsim.core.rendering_manager.ViewportManager.set_camera_view`` (or
+       ``omni.kit.viewport.utility.camera_state.ViewportCameraState`` for lower-level control)
+   * - ``isaacsim.core.prims.XFormPrim`` / ``XFormPrimView``
+     - :class:`~isaaclab.sim.views.FrameView` (Isaac Lab in-tree view; see
+       :ref:`migrating-to-isaaclab-3-0` ``Renaming of XformPrimView to FrameView`` above).
+       For ``Articulation`` / ``RigidPrim`` use ``isaacsim.core.experimental.prims``.
+   * - ``isaacsim.core.simulation_manager.SimulationManager``
+     - :class:`isaaclab_physx.physics.PhysxManager` (PhysX backend) or
+       ``isaaclab_newton.physics.NewtonManager`` (Newton backend); see local-alias
+       pattern below.
+   * - ``isaacsim.core.cloner``
+     - :mod:`isaaclab.cloner` (Isaac Lab in-tree cloner)
+   * - ``isaacsim.replicator.mobility_gen``
+     - ``isaacsim.replicator.experimental.mobility_gen``
+   * - ``isaacsim.sensors.<name>``
+     - ``isaacsim.sensors.experimental.<name>``
+   * - ``isaacsim.robot.wheeled_robots``
+     - ``isaacsim.robot.experimental.wheeled_robots`` (and
+       ``isaacsim.robot.wheeled_robots.nodes`` for OmniGraph nodes)
+
+To keep call-site code symmetric across backends when migrating off
+``isaacsim.core.simulation_manager.SimulationManager``, use the local-alias pattern:
+
+.. code-block:: python
+
+   from isaaclab_physx.physics import PhysxManager as SimulationManager
+   # or, for the Newton backend
+   from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+
+Kit experience (``.kit``) updates
+---------------------------------
+
+If you maintain a custom Kit experience derived from one of the Isaac Lab apps under
+``apps/``:
+
+* **Stop registering deprecated extension search paths.** The ``extsDeprecated`` search
+  path entry has been removed from all stock Isaac Lab Kit experiences (headless,
+  rendering, XR variants). Mirror that change in your own experience.
+* **Switch explicit Isaac Sim extension dependencies** to the non-deprecated equivalents
+  listed above (``isaacsim.core.experimental.*``, ``isaacsim.sensors.experimental.*``,
+  ``isaacsim.robot.experimental.wheeled_robots``).
+* **Remove unused Isaac Sim extensions that pull in** ``isaacsim.core.api`` — Isaac Lab
+  no longer depends on those, and keeping them resurrects the deprecated stack.
+
+
+``SimulationManager`` is no longer re-exported
+----------------------------------------------
+
+Earlier internal previews of this migration briefly exposed
+``isaaclab_physx.physics.SimulationManager`` as a public alias of
+:class:`~isaaclab_physx.physics.PhysxManager`. **That alias has been removed**; use
+:class:`~isaaclab_physx.physics.PhysxManager` directly (with ``as SimulationManager`` at
+the import site if you want backend-agnostic call-site code, as shown above).
+
+
+Retired standalone reproducers
+------------------------------
+
+A handful of legacy reproducers under ``source/isaaclab/test/deps/isaacsim`` that
+depended on the deprecated Isaac Sim core extensions have been retired:
+``check_camera.py``, ``check_floating_base_made_fixed.py``,
+``check_legged_robot_clone.py``, ``check_rep_texture_randomizer.py``, and
+``check_ref_count.py``. Use :mod:`isaaclab.sim` together with the new
+``isaacsim.core.experimental.*`` APIs for the same debugging workflows.
+
+
 PhysX Tensors API Module Path
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -40,11 +40,11 @@ import traceback
 
 import torch
 
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.utils.viewports import set_camera_view
+from isaacsim.core.rendering_manager import ViewportManager
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
+from isaaclab import cloner as lab_cloner
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -72,13 +72,15 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     # obtain the current stage
     stage = sim_utils.get_current_stage()
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0, stage=stage)
-    cloner.define_base_env("/World/envs")
-    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
+    # Create environment clones using Lab's cloner utilities
+    env_fmt = "/World/envs/env_{}"
+    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
+    envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     # create source prim
     stage.DefinePrim(envs_prim_paths[0], "Xform")
     # clone the env xform
-    cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
+    lab_cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
     # Define the scene
     # -- Light
     cfg = sim_utils.DistantLightCfg(intensity=2000)
@@ -105,7 +107,8 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
             logging.info(f"Physics scene prim path: {physics_scene_prim_path}")
             break
     # filter collisions within each environment instance
-    cloner.filter_collisions(
+    lab_cloner.filter_collisions(
+        stage,
         physics_scene_prim_path,
         "/World/collisions",
         envs_prim_paths,
@@ -119,7 +122,7 @@ def main():
     # Load kit helper
     sim = SimulationContext(SimulationCfg())
     # Set main camera
-    set_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5])
+    ViewportManager.set_camera_view("/OmniverseKit_Persp", eye=[0.0, 30.0, 25.0], target=[0.0, 0.0, -2.5])
 
     # Parameters
     num_envs = args_cli.num_envs

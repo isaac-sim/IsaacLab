@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-1.5.26 (2026-04-24)
+1.5.28 (2026-04-24)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -19,7 +19,7 @@ Added
   which is the single most important Newton setting for rough terrain.
 * Added Go1 Newton-only leg armature preset to improve rough-terrain
   training stability on lightweight quadrupeds.
-
+  
 Changed
 ^^^^^^^
 
@@ -29,6 +29,31 @@ Changed
   ``distribution="log_uniform"``). Scale-invariant across robot sizes
   with geometric mean 1.0; removes the need for per-robot
   ``(-1.0, 3.0)`` additive overrides on A1/Go1/Go2.
+
+
+1.5.27 (2026-04-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated stack-event utilities to enable optional extensions via
+  ``isaacsim.core.experimental.utils.app.enable_extension`` (non-deprecated Isaac Sim path).
+
+
+1.5.26 (2026-04-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored Franka cube-stack manager-based environment configs (IK-relative, visuomotor, and joint-position
+  variants under ``stack/config/franka/``) to build on :class:`~isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg.StackEnvCfg`,
+  including explicit cube spawns with semantic tags, gripper actions where applicable, end-effector
+  :class:`~isaaclab.sensors.frame_transformer.frame_transformer_cfg.FrameTransformerCfg`, and default Franka poses
+  via articulation ``InitialStateCfg`` instead of a reset-time default-pose event.
+* Changed GR1T2 and Unitree G1 Inspire pick-place environment configs to define ``idle_action`` as a plain Python
+  sequence instead of ``torch.tensor``, dropping the ``torch`` import from those modules.
 
 
 1.5.25 (2026-04-24)
@@ -75,7 +100,6 @@ Fixed
   ``pytest.fail`` message in ``test_rendering_correctness``.
 * Refreshed Newton Warp renderer golden images in ``test_rendering_correctness`` so image baselines match the current
   camera output after Newton shape color alignment and the clear background color change.
-
 
 1.5.21 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~

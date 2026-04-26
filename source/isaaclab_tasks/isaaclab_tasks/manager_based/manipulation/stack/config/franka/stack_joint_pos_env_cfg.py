@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
@@ -23,19 +23,22 @@ from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import StackE
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
 
+# Default arm + gripper joint pose
+_FRANKA_STACK_IK_REL_INIT_JOINT_POS: dict[str, float] = {
+    "panda_joint1": 0.0444,
+    "panda_joint2": -0.1894,
+    "panda_joint3": -0.1107,
+    "panda_joint4": -2.5148,
+    "panda_joint5": 0.0044,
+    "panda_joint6": 2.3775,
+    "panda_joint7": 0.6952,
+    "panda_finger_joint.*": 0.0400,
+}
+
 
 @configclass
 class EventCfg:
     """Configuration for events."""
-
-    # FIXME: Let's not do that and initialize the arm pose correctly in the environment constructor instead.
-    init_franka_arm_pose = EventTerm(
-        func=franka_stack_events.set_default_joint_pose,
-        mode="reset",
-        params={
-            "default_pose": [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 0.0400, 0.0400],
-        },
-    )
 
     randomize_franka_joint_state = EventTerm(
         func=franka_stack_events.randomize_joint_by_gaussian_offset,
@@ -70,14 +73,19 @@ class FrankaCubeStackEnvCfg(StackEnvCfg):
         self.events = EventCfg()
 
         # Set Franka as robot
-        self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.spawn.semantic_tags = [("class", "robot")]
+        self.scene.robot = FRANKA_PANDA_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ArticulationCfg.InitialStateCfg(joint_pos=_FRANKA_STACK_IK_REL_INIT_JOINT_POS),
+        )
 
         # Add semantics to table
         self.scene.table.spawn.semantic_tags = [("class", "table")]
 
         # Add semantics to ground
         self.scene.plane.semantic_tags = [("class", "ground")]
+
+        # Add semantics to robot
+        self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = mdp.JointPositionActionCfg(
