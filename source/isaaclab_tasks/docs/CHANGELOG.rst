@@ -19,7 +19,7 @@ Added
   which is the single most important Newton setting for rough terrain.
 * Added Go1 Newton-only leg armature preset to improve rough-terrain
   training stability on lightweight quadrupeds.
-  
+
 Changed
 ^^^^^^^
 
