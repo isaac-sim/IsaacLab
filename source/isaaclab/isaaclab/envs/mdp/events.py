@@ -2049,7 +2049,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             )
 
         # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.utils.extensions import enable_extension  # noqa: PLC0415
+        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
 
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
@@ -2220,7 +2220,7 @@ class randomize_visual_color(ManagerTermBase):
         super().__init__(cfg, env)
 
         # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.utils.extensions import enable_extension  # noqa: PLC0415
+        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
 
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator

@@ -809,16 +809,23 @@ def test_cartpole(cartpole_env):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def dexsuite_kuka_allegro_lift_env(request):
-    """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; reset, yield, close."""
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.parametrize("test_params", _PHYSICS_RENDERER_AOV_COMBINATIONS)
+def test_dexsuite_kuka_allegro_lift(test_params):
+    """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera).
+
+    The env setup is intentionally inlined (not delegated to a yield fixture) so that
+    ``@pytest.mark.flaky`` reruns the full env-creation + render + validation cycle on
+    each attempt.  With a yield fixture the fixture body runs only once, meaning every
+    retry would see the same cached image — making the flaky mark ineffective.
+    """
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
         DexsuiteKukaAllegroLiftEnvCfg,
     )
 
-    physics_backend, renderer, data_type = request.param
+    physics_backend, renderer, data_type = test_params
 
     # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64.
     override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
@@ -837,28 +844,21 @@ def dexsuite_kuka_allegro_lift_env(request):
     if point_cloud_term is not None:
         point_cloud_term.params["visualize"] = False
 
+    test_name = "dexsuite_kuka"
     env = None
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        _maybe_save_stage("dexsuite_kuka", physics_backend, renderer, data_type)
-        yield physics_backend, renderer, data_type, env
+        _maybe_save_stage(test_name, physics_backend, renderer, data_type)
+        _validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["base_camera"].data.output,
+            max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+        )
     finally:
         if env is not None:
             env.close()
-
-
-@pytest.mark.flaky(max_runs=3, min_passes=1)
-def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
-    """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera)."""
-    physics_backend, renderer, _, env = dexsuite_kuka_allegro_lift_env
-    test_name = "dexsuite_kuka"
-    _validate_camera_outputs(
-        test_name,
-        physics_backend,
-        renderer,
-        env.scene.sensors["base_camera"].data.output,
-        max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
-    )
 
 
 # ---------------------------------------------------------------------------

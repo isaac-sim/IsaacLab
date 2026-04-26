@@ -5,6 +5,10 @@ Augmented Imitation Learning
 
 This section describes how to use Isaac Lab's imitation learning capabilities with the visual augmentation capabilities of `Cosmos <https://www.nvidia.com/en-us/ai/cosmos/>`_ models to generate demonstrations at scale to train visuomotor policies robust against visual variations.
 
+
+.. important::
+   The `Cosmos Transfer1 <https://github.com/nvidia-cosmos/cosmos-transfer1/tree/e4055e39ee9c53165e85275bdab84ed20909714a>`_ model used in this tutorial is `supported <https://huggingface.co/nvidia/Cosmos-Transfer1-7B#software-integration>`_ on Ampere and Hopper GPUs.
+
 Generating Demonstrations
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
