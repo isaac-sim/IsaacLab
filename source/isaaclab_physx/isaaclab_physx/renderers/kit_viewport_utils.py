@@ -26,9 +26,13 @@ def set_kit_renderer_camera_view(
     This does not broadcast to visualizers.
     """
     try:
-        import isaacsim.core.utils.viewports as isaacsim_viewports
+        from isaacsim.core.rendering_manager import ViewportManager
 
-        isaacsim_viewports.set_camera_view(eye=list(eye), target=list(target), camera_prim_path=str(camera_prim_path))
+        ViewportManager.set_camera_view(
+            str(camera_prim_path),
+            eye=list(eye),
+            target=list(target),
+        )
     except (ImportError, ModuleNotFoundError) as exc:
         logger.debug("[kit_viewport] Renderer camera update skipped (no Kit): %s", exc)
     except Exception as exc:

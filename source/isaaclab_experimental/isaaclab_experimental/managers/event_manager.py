@@ -311,21 +311,21 @@ class EventManager(ManagerBase):
             self._apply_interval(float(dt))
             return
 
+        # resolve the environment mask
+        if env_mask_wp is None:
+            if wp.get_device().is_capturing:
+                raise ValueError(f"Event mode '{mode}' requires the environment mask to be provided when capturing.")
+            env_mask_wp = self._env.resolve_env_mask(env_ids=env_ids)
+
         if mode == "reset":
             if global_env_step_count is None:
                 raise ValueError(f"Event mode '{mode}' requires the total number of environment steps to be provided.")
-            if env_mask_wp is None:
-                if wp.get_device().is_capturing:
-                    raise ValueError(
-                        f"Event mode '{mode}' requires the environment mask to be provided when capturing."
-                    )
-                env_mask_wp = self._env.resolve_env_mask(env_ids=env_ids)
             self._apply_reset(env_mask_wp, global_env_step_count)
             return
 
-        # other modes keep the stable convention (env_ids forwarded)
+        # other modes (startup, prestartup, custom) — env_mask forwarded
         for term_cfg in self._mode_term_cfgs[mode]:
-            term_cfg.func(self._env, env_ids, **term_cfg.params)
+            term_cfg.func(self._env, env_mask_wp, **term_cfg.params)
 
     def _apply_interval(self, dt: float) -> None:
         if self._env.rng_state_wp is None:

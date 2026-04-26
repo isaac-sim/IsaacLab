@@ -165,12 +165,24 @@ def _get_visualizer_cfg(visualizer_kind: str):
     if visualizer_kind == "newton":
         __import__("newton")
         nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
-        return NewtonVisualizerCfg(headless=True, window_width=nw, window_height=nh, **cam), NewtonVisualizer
+        return (
+            NewtonVisualizerCfg(
+                headless=True,
+                window_width=nw,
+                window_height=nh,
+                randomly_sample_visible_envs=False,
+                **cam,
+            ),
+            NewtonVisualizer,
+        )
     if visualizer_kind == "viser":
         __import__("newton")
         __import__("viser")
         port = _find_free_tcp_port(host="127.0.0.1")
-        return ViserVisualizerCfg(open_browser=False, port=port, **cam), ViserVisualizer
+        return (
+            ViserVisualizerCfg(open_browser=False, port=port, randomly_sample_visible_envs=False, **cam),
+            ViserVisualizer,
+        )
     if visualizer_kind == "rerun":
         __import__("newton")
         __import__("rerun")
@@ -181,11 +193,12 @@ def _get_visualizer_cfg(visualizer_kind: str):
                 open_browser=False,
                 web_port=web_port,
                 grpc_port=grpc_port,
+                randomly_sample_visible_envs=False,
                 **cam,
             ),
             RerunVisualizer,
         )
-    return KitVisualizerCfg(**cam), KitVisualizer
+    return KitVisualizerCfg(randomly_sample_visible_envs=False, **cam), KitVisualizer
 
 
 def _get_physics_cfg(backend_kind: str):

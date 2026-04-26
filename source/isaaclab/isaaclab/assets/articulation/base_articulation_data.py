@@ -614,7 +614,7 @@ class BaseArticulationData(ABC):
         underlying `PhysX Tensor API`_.
 
         .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
-        .. _PhysX Tensor API: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.impl.api.ArticulationView.get_link_incoming_joint_force
+        .. _PhysX Tensor API: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.api.ArticulationView.get_link_incoming_joint_force
         """
         raise NotImplementedError
 

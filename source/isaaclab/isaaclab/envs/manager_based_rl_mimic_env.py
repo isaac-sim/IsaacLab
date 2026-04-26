@@ -124,6 +124,7 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
             )
         return object_pose_matrix
 
+    @optional_method
     def get_subtask_start_signals(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """
         Gets a dictionary of start signal flags for each subtask in a task. The flag is 1
@@ -140,6 +141,7 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
         """
         raise NotImplementedError
 
+    @optional_method
     def get_subtask_term_signals(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """
         Gets a dictionary of termination signal flags for each subtask in a task. The flag is 1

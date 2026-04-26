@@ -79,20 +79,29 @@ def create_manager_based_rl_env(render_interval: int):
     return ManagerBasedRLEnv(cfg=EnvCfg())
 
 
-def create_direct_rl_env(render_interval: int):
-    """Create a direct RL environment."""
+def create_direct_rl_env(render_interval: int, episode_length_steps: int | None = None):
+    """Create a direct RL environment.
+
+    Args:
+        render_interval: Render interval in physics steps.
+        episode_length_steps: If provided, the episode terminates (via time-out) after this
+            many *env* steps.  Useful for testing post-reset re-render paths.
+    """
+    # Compute episode_length_s from step count when requested
+    _dt = 0.005
+    _decimation = 4
+    _step_dt = _dt * _decimation
+    _episode_length_s = (episode_length_steps * _step_dt) if episode_length_steps is not None else 100.0
 
     @configclass
     class EnvCfg(DirectRLEnvCfg):
         """Configuration for the test environment."""
 
-        decimation: int = 4
+        decimation: int = _decimation
         action_space: int = 0
         observation_space: int = 0
-        episode_length_s: float = 100.0
-        sim: SimulationCfg = SimulationCfg(
-            dt=0.005, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg()
-        )
+        episode_length_s: float = _episode_length_s
+        sim: SimulationCfg = SimulationCfg(dt=_dt, render_interval=render_interval, visualizer_cfgs=KitVisualizerCfg())
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
 
     class Env(DirectRLEnv):
@@ -111,7 +120,8 @@ def create_direct_rl_env(render_interval: int):
             return {}
 
         def _get_dones(self):
-            return torch.zeros(1, dtype=torch.bool), torch.zeros(1, dtype=torch.bool)
+            time_out = self.episode_length_buf >= self.max_episode_length
+            return torch.zeros_like(time_out), time_out
 
     return Env(cfg=EnvCfg())
 
@@ -238,4 +248,236 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
             env.close()
         else:
             # If env creation failed, still clear the singleton
+            SimulationContext.clear_instance()
+
+
+@pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
+def test_env_render_false_skips_rendering(env_type, physics_callback, render_callback):
+    """Test that setting render_enabled=False skips all rendering while physics continues."""
+    physics_cb, get_physics_stats = physics_callback
+    render_cb, get_render_stats = render_callback
+
+    env = None
+    physics_handle = None
+    original_step = None
+    viz = None
+
+    try:
+        # create a new stage
+        sim_utils.create_new_stage()
+
+        # create environment with render_interval=1 so rendering would happen every physics step
+        if env_type == "manager_based_env":
+            env = create_manager_based_env(render_interval=1)
+        elif env_type == "manager_based_rl_env":
+            env = create_manager_based_rl_env(render_interval=1)
+        else:
+            env = create_direct_rl_env(render_interval=1)
+
+        # enable the flag to render the environment
+        env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
+
+        # disable the app from shutting down when the environment is closed
+        env.sim._app_control_on_stop_handle = None  # type: ignore
+
+        # Reset to initialize visualizers
+        env.reset()
+
+        # Ensure the default Kit visualizer is active for rendering callbacks.
+        assert isinstance(env.sim.visualizers[0], KitVisualizer)
+
+        # add physics callback
+        physics_handle = env.sim.physics_manager.register_callback(
+            physics_cb, IsaacEvents.POST_PHYSICS_STEP, name="physics_step"
+        )
+
+        # Wrap visualizer step to track render calls
+        viz = env.sim.visualizers[0]
+        original_step = viz.step
+        render_dt = env.cfg.sim.dt * env.cfg.sim.render_interval
+
+        def wrapped_step(dt):
+            original_step(dt)
+            render_cb(render_dt)
+
+        viz.step = wrapped_step
+
+        # create a zero action tensor for stepping the environment
+        actions = torch.zeros((env.num_envs, 0), device=env.device)
+
+        # Step with render_enabled=False for several steps
+        env.render_enabled = False
+        for i in range(10):
+            env.step(action=actions)
+
+            # Physics should still advance normally
+            _, num_physics_steps = get_physics_stats()
+            assert num_physics_steps == (i + 1) * env.cfg.decimation, "Physics steps mismatch with render_enabled=False"
+
+            # No rendering should have occurred
+            _, num_render_steps = get_render_stats()
+            assert num_render_steps == 0, f"Expected 0 render steps with render_enabled=False, got {num_render_steps}"
+
+    finally:
+        if viz is not None and original_step is not None:
+            viz.step = original_step
+        if physics_handle is not None:
+            physics_handle.deregister()
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
+
+
+@pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
+def test_env_render_flag_mixed_steps(env_type, physics_callback, render_callback):
+    """Test that render_enabled can be toggled between steps and rendering counts are correct."""
+    physics_cb, get_physics_stats = physics_callback
+    render_cb, get_render_stats = render_callback
+
+    env = None
+    physics_handle = None
+    original_step = None
+    viz = None
+
+    try:
+        # create a new stage
+        sim_utils.create_new_stage()
+
+        # create environment with render_interval=1 so every decimation step renders
+        if env_type == "manager_based_env":
+            env = create_manager_based_env(render_interval=1)
+        elif env_type == "manager_based_rl_env":
+            env = create_manager_based_rl_env(render_interval=1)
+        else:
+            env = create_direct_rl_env(render_interval=1)
+
+        # enable the flag to render the environment
+        env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
+
+        # disable the app from shutting down when the environment is closed
+        env.sim._app_control_on_stop_handle = None  # type: ignore
+
+        # Reset to initialize visualizers
+        env.reset()
+
+        # Ensure the default Kit visualizer is active for rendering callbacks.
+        assert isinstance(env.sim.visualizers[0], KitVisualizer)
+
+        # add physics callback
+        physics_handle = env.sim.physics_manager.register_callback(
+            physics_cb, IsaacEvents.POST_PHYSICS_STEP, name="physics_step"
+        )
+
+        # Wrap visualizer step to track render calls
+        viz = env.sim.visualizers[0]
+        original_step = viz.step
+        render_dt = env.cfg.sim.dt * env.cfg.sim.render_interval
+
+        def wrapped_step(dt):
+            original_step(dt)
+            render_cb(render_dt)
+
+        viz.step = wrapped_step
+
+        # create a zero action tensor for stepping the environment
+        actions = torch.zeros((env.num_envs, 0), device=env.device)
+
+        expected_render_steps = 0
+
+        # Step 5 times with render_enabled=True, then 5 with render_enabled=False
+        for i in range(10):
+            should_render = i < 5
+            env.render_enabled = should_render
+            env.step(action=actions)
+
+            # Physics always advances
+            _, num_physics_steps = get_physics_stats()
+            assert num_physics_steps == (i + 1) * env.cfg.decimation, "Physics steps mismatch in mixed test"
+
+            # Rendering only happens in the first 5 steps
+            if should_render:
+                expected_render_steps += env.cfg.decimation  # render_interval=1, so renders every decimation step
+
+            _, num_render_steps = get_render_stats()
+            assert num_render_steps == expected_render_steps, (
+                f"Render steps mismatch at step {i}: expected {expected_render_steps}, got {num_render_steps}"
+            )
+
+    finally:
+        if viz is not None and original_step is not None:
+            viz.step = original_step
+        if physics_handle is not None:
+            physics_handle.deregister()
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
+
+
+def test_env_render_false_with_resets(physics_callback, render_callback):
+    """Test that render_enabled=False skips post-reset re-renders during short episodes.
+
+    Uses a direct RL env with a 3-step episode so that resets occur during the
+    test loop, exercising the post-reset re-render gate.
+    """
+    physics_cb, get_physics_stats = physics_callback
+    render_cb, get_render_stats = render_callback
+
+    env = None
+    physics_handle = None
+    original_step = None
+    viz = None
+
+    try:
+        sim_utils.create_new_stage()
+
+        # 3-step episode: resets will occur at steps 3, 6, 9, ...
+        env = create_direct_rl_env(render_interval=1, episode_length_steps=3)
+
+        env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
+        env.sim._app_control_on_stop_handle = None  # type: ignore
+
+        env.reset()
+        assert isinstance(env.sim.visualizers[0], KitVisualizer)
+
+        physics_handle = env.sim.physics_manager.register_callback(
+            physics_cb, IsaacEvents.POST_PHYSICS_STEP, name="physics_step"
+        )
+
+        viz = env.sim.visualizers[0]
+        original_step = viz.step
+        render_dt = env.cfg.sim.dt * env.cfg.sim.render_interval
+
+        def wrapped_step(dt):
+            original_step(dt)
+            render_cb(render_dt)
+
+        viz.step = wrapped_step
+
+        actions = torch.zeros((env.num_envs, 0), device=env.device)
+
+        # Disable rendering and run past several episode boundaries
+        env.render_enabled = False
+        for i in range(10):
+            env.step(action=actions)
+
+            # Physics always advances
+            _, num_physics_steps = get_physics_stats()
+            assert num_physics_steps == (i + 1) * env.cfg.decimation, f"Physics steps mismatch at step {i} with resets"
+
+            # No Kit rendering should occur — including post-reset re-renders
+            _, num_render_steps = get_render_stats()
+            assert num_render_steps == 0, (
+                f"Expected 0 render steps with render_enabled=False and resets, got {num_render_steps} at step {i}"
+            )
+
+    finally:
+        if viz is not None and original_step is not None:
+            viz.step = original_step
+        if physics_handle is not None:
+            physics_handle.deregister()
+        if env is not None:
+            env.close()
+        else:
             SimulationContext.clear_instance()

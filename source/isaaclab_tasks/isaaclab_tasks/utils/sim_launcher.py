@@ -240,15 +240,17 @@ def launch_simulation(
         # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
         # selection in SettingsManager (works in standalone mode via plain dict) so that
         # SimulationContext._get_cli_visualizer_types() can find it.
-        from isaaclab.app.settings_manager import get_settings_manager
+        from isaaclab.app import AppLauncher
 
         disable_all = "none" in visualizer_types
-        active_types = [] if disable_all else sorted(visualizer_types)
-        visualizer_str = " ".join(active_types)
-        settings = get_settings_manager()
-        settings.set_string("/isaaclab/visualizer/types", visualizer_str)
-        settings.set_bool("/isaaclab/visualizer/explicit", True)
-        settings.set_bool("/isaaclab/visualizer/disable_all", disable_all)
+        if isinstance(launcher_args, argparse.Namespace):
+            AppLauncher.sync_visualizer_cli_settings_to_carb(
+                {**vars(launcher_args), "visualizer_explicit": True, "visualizer_disable_all": disable_all}
+            )
+        elif isinstance(launcher_args, dict):
+            AppLauncher.sync_visualizer_cli_settings_to_carb(
+                {**launcher_args, "visualizer_explicit": True, "visualizer_disable_all": disable_all}
+            )
 
     try:
         yield

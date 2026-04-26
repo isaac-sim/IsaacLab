@@ -34,9 +34,9 @@ app_launcher = AppLauncher(headless=args_cli.headless)
 simulation_app = app_launcher.app
 
 # disable metrics assembler due to scene graph instancing
-from isaacsim.core.utils.extensions import disable_extension
+from isaacsim.core.experimental.utils.app import enable_extension
 
-disable_extension("omni.usd.metrics.assembler.ui")
+enable_extension("omni.usd.metrics.assembler.ui", enabled=False)
 
 """Rest everything else."""
 
