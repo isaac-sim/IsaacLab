@@ -217,6 +217,29 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
 
 
 @configclass
+class NewtonShapeCfg:
+    """Default per-shape collision properties applied to all shapes in a Newton scene.
+
+    Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Only fields Isaac
+    Lab actually overrides are declared here; unspecified fields keep Newton's
+    upstream default. The struct is forwarded onto Newton's upstream
+    ``ShapeConfig`` via :func:`~isaaclab.utils.checked_apply` at builder
+    construction.
+    """
+
+    margin: float = 0.0
+    """Default per-shape collision margin [m].
+
+    A nonzero margin (e.g. ``0.01``) is required for stable contact on
+    triangle-mesh terrain — without it, lightweight robots fail to learn
+    rough-terrain locomotion on Newton. Newton's upstream default is ``0.0``.
+    """
+
+    gap: float = 0.01
+    """Default per-shape contact gap [m]. Newton's upstream default is ``None``."""
+
+
+@configclass
 class NewtonCfg(PhysicsCfg):
     """Configuration for Newton physics manager.
 
@@ -256,4 +279,12 @@ class NewtonCfg(PhysicsCfg):
 
     .. note::
         Must not be set when ``use_mujoco_contacts=True`` (raises :class:`ValueError`).
+    """
+
+    default_shape_cfg: NewtonShapeCfg = NewtonShapeCfg()
+    """Default per-shape collision properties applied to every shape in the scene.
+
+    Forwarded to Newton's :attr:`ModelBuilder.default_shape_cfg` at builder
+    construction via :func:`~isaaclab.utils.checked_apply`. See
+    :class:`NewtonShapeCfg` for the declared fields.
     """

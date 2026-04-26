@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaacsim.core.utils.extensions import enable_extension
+from isaacsim.core.experimental.utils.app import enable_extension
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase

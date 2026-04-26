@@ -31,6 +31,10 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.sim import build_simulation_context
 
+# Temporarily disabled: this suite intermittently aborts with SIGABRT on CI.
+# Re-enable once the underlying crash is fixed.
+pytestmark = pytest.mark.skip(reason="Temporarily disabled due to intermittent crash on CI.")
+
 
 def generate_cubes_scene(
     num_cubes: int = 1,

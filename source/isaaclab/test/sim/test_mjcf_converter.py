@@ -16,11 +16,13 @@ import os
 
 import pytest
 
-from isaacsim.core.utils.extensions import enable_extension, get_extension_path_from_name
+from isaacsim.core.experimental.utils.app import enable_extension, get_extension_path
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
+
+pytestmark = pytest.mark.isaacsim_ci
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +37,7 @@ def test_setup_teardown():
 
     # Setup: Create MJCF config
     enable_extension("isaacsim.asset.importer.mjcf")
-    extension_path = get_extension_path_from_name("isaacsim.asset.importer.mjcf")
+    extension_path = get_extension_path("isaacsim.asset.importer.mjcf")
     config = MjcfConverterCfg(
         asset_path=f"{extension_path}/data/mjcf/nv_ant.xml",
         self_collision=False,
@@ -49,7 +51,6 @@ def test_setup_teardown():
     sim.clear_instance()
 
 
-@pytest.mark.isaacsim_ci
 def test_no_change(test_setup_teardown):
     """Call conversion twice. This should not generate a new USD file."""
     sim, mjcf_config = test_setup_teardown
@@ -67,7 +68,6 @@ def test_no_change(test_setup_teardown):
     assert time_usd_file_created == new_time_usd_file_created
 
 
-@pytest.mark.isaacsim_ci
 def test_config_change(test_setup_teardown):
     """Call conversion twice but change the config in the second call. This should generate a new USD file."""
     sim, mjcf_config = test_setup_teardown
@@ -87,7 +87,6 @@ def test_config_change(test_setup_teardown):
     assert time_usd_file_created != new_time_usd_file_created
 
 
-@pytest.mark.isaacsim_ci
 def test_create_prim_from_usd(test_setup_teardown):
     """Call conversion and create a prim from it."""
     sim, mjcf_config = test_setup_teardown
