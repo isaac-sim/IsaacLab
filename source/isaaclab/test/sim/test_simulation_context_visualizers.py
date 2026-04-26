@@ -183,6 +183,9 @@ class _DummyViserSceneDataProvider:
         self.state_calls.append(None)
         return {"state_call": len(self.state_calls)}
 
+    def get_camera_transforms(self):
+        return {}
+
 
 class _DummyViserViewer:
     def __init__(self):
