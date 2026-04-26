@@ -15,6 +15,19 @@ Changed
 4.6.14 (2026-04-24)
 ~~~~~~~~~~~~~~~~~~~
 
+Changed
+^^^^^^^
+
+* Updated the :class:`~isaaclab.cloner.TemplateCloneCfg` docstring example to import
+  ``get_current_stage`` from :mod:`isaaclab.sim.utils.stage` instead of
+  ``isaacsim.core.experimental.utils.stage``, aligning with the Isaac Lab API.
+* Added a "Migration off Deprecated Isaac Sim APIs" section to the Isaac Lab 3.0
+  migration guide (``docs/source/migration/migrating_to_isaaclab_3-0.rst``) that maps
+  deprecated ``isaacsim.core.*`` paths to their recommended replacements, preferring
+  Isaac Lab in-tree APIs (``isaaclab.sim.utils.*``, :class:`~isaaclab.sim.views.FrameView`,
+  :mod:`~isaaclab.cloner`) over the ``isaacsim.core.experimental.*`` fallbacks where
+  an Isaac Lab API exists.
+
 Fixed
 ^^^^^
 
@@ -32,6 +45,18 @@ Fixed
 4.6.13 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
+Changed
+^^^^^^^
+
+* Updated cross-backend asset interface tests to import :class:`~isaaclab_physx.physics.PhysxManager`
+  (aliased as ``SimulationManager``) instead of ``isaacsim.core.simulation_manager.SimulationManager``.
+* Stopped registering deprecated Isaac Sim extension search paths in Isaac Lab Kit experiences and
+  switched explicit Isaac Sim extension dependencies to non-deprecated ``isaacsim.core.experimental.*``,
+  ``isaacsim.robot.experimental.wheeled_robots``, ``isaacsim.robot.wheeled_robots.nodes``, and
+  ``isaacsim.sensors.experimental.*`` equivalents.
+* Migrated remaining Isaac Lab imports off deprecated Isaac Sim core utility/prim Python module paths
+  to their ``isaacsim.core.experimental.*`` replacements.
+
 Fixed
 ^^^^^
 
@@ -42,6 +67,13 @@ Fixed
   fail to import. ``isaaclab.cli.commands.install`` now probes ``import pinocchio`` after
   installing the Isaac Lab submodules and force-reinstalls the cmeel ``pin``/``pin-pink``/
   ``daqp`` stack when the probe fails.
+
+Removed
+^^^^^^^
+
+* Retired several ``source/isaaclab/test/deps/isaacsim`` standalone reproducers that depended on
+  deprecated Isaac Sim core extensions; use :mod:`isaaclab.sim` and ``isaacsim.core.experimental.*``
+  for similar debugging workflows.
 
 
 4.6.12 (2026-04-23)
@@ -229,7 +261,6 @@ Fixed
   sorting prototype roots before building the clone plan in
   :func:`~isaaclab.cloner.cloner_utils.clone_from_template`, keeping downstream
   order stable across simulation and visualization backends.
-
 
 4.6.6 (2026-04-17)
 ~~~~~~~~~~~~~~~~~~~

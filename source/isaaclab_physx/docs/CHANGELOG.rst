@@ -15,6 +15,14 @@ Fixed
   be constructed without a running Kit instance (regression caught by
   ``test_env_cfg_no_forbidden_imports``).
 
+Changed
+^^^^^^^
+
+* Migrated :func:`~isaaclab_physx.renderers.kit_viewport_utils.set_kit_renderer_camera_view`
+  off the deprecated ``isaacsim.core.utils.viewports.set_camera_view`` to
+  ``isaacsim.core.rendering_manager.ViewportManager.set_camera_view``, matching the
+  pattern used by the Kit perspective video helper.
+
 
 0.5.24 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
@@ -25,6 +33,12 @@ Changed
 * Updated imports of the PhysX tensors API from ``omni.physics.tensors.impl.api`` to
   ``omni.physics.tensors.api`` to track the upstream Isaac Sim module relocation
   (the ``impl`` submodule was removed).
+* Migrated the PhysX scene data provider, PhysX asset micro-benchmarks, and cross-backend asset
+  interface tests off ``isaacsim.core.simulation_manager.SimulationManager`` to
+  :class:`~isaaclab_physx.physics.PhysxManager` (imported as ``SimulationManager`` to mirror the
+  Newton backend's ``NewtonManager as SimulationManager`` convention).
+* Updated optional-extension enablement and Kit perspective capture helpers to use non-deprecated
+  Isaac Sim module paths (``isaacsim.core.experimental.utils.app`` and ``isaacsim.core.rendering_manager``).
 
 
 0.5.23 (2026-04-23)
@@ -100,7 +114,6 @@ Fixed
   :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_shape_colors` on
   the artifact, per-environment, and filtered Newton models in
   :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`.
-
 
 0.5.18 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~

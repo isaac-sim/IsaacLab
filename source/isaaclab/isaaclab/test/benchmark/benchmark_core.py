@@ -119,7 +119,7 @@ class BaseIsaacLabBenchmark:
             if self._use_frametime_recorders:
                 try:
                     # Enable the benchmark services extension first
-                    from isaacsim.core.utils.extensions import enable_extension
+                    from isaacsim.core.experimental.utils.app import enable_extension
 
                     enable_extension("isaacsim.benchmark.services")
 

@@ -14,23 +14,26 @@ keywords = ["experience", "app", "usd"]
 # Isaac Sim extensions
 "isaacsim.app.about" = {}
 "isaacsim.examples.browser" = {}
-"isaacsim.core.api" = {}
 "isaacsim.core.cloner" = {}
+"isaacsim.core.deprecation_manager" = { order = -100 }
+"isaacsim.core.experimental.materials" = {}
+"isaacsim.core.experimental.objects" = {}
+"isaacsim.core.experimental.primdata" = {}
+"isaacsim.core.experimental.prims" = {}
+"isaacsim.core.experimental.utils" = {}
 "isaacsim.core.nodes" = {}
+"isaacsim.core.rendering_manager" = {}
+"isaacsim.core.simulation_manager" = {}
 "isaacsim.core.throttling" = {}
-"isaacsim.core.utils" = {}
 "isaacsim.core.version" = {}
-"isaacsim.gui.menu" = {}
 "isaacsim.gui.property" = {}
 "isaacsim.replicator.behavior" = {}
-"isaacsim.robot.manipulators" = {}
 "isaacsim.robot.policy.examples" = {}
 "isaacsim.robot.schema" = {}
-"isaacsim.robot.wheeled_robots" = {}
-"isaacsim.sensors.camera" = {}
-"isaacsim.sensors.physics" = {}
-"isaacsim.sensors.physx" = {}
-"isaacsim.sensors.rtx" = {}
+"isaacsim.robot.experimental.wheeled_robots" = {}
+"isaacsim.robot.wheeled_robots.nodes" = {}
+"isaacsim.sensors.experimental.physics" = {}
+"isaacsim.sensors.experimental.rtx" = {}
 "isaacsim.simulation_app" = {}
 "isaacsim.storage.native" = {}
 "isaacsim.util.debug_draw" = {}
@@ -273,11 +276,9 @@ folders = [
     "${exe-path}/exts",  # kit extensions
     "${exe-path}/extscore",  # kit core extensions
     "${exe-path}/../exts",  # isaac extensions
-    "${exe-path}/../extsDeprecated",  # deprecated isaac extensions
     "${exe-path}/../extscache",  # isaac cache extensions
     "${exe-path}/../extsPhysics",  # isaac physics extensions
     "${exe-path}/../isaacsim/exts",  # isaac extensions for pip
-    "${exe-path}/../isaacsim/extsDeprecated",  # deprecated isaac extensions
     "${exe-path}/../isaacsim/extscache",  # isaac cache extensions for pip
     "${exe-path}/../isaacsim/extsPhysics",  # isaac physics extensions for pip
     "${app}", # needed to find other app files
