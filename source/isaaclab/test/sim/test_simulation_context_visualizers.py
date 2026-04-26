@@ -357,6 +357,9 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         def get_newton_state(self):
             return {"ok": True}
 
+        def get_camera_transforms(self):
+            return {}
+
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(
         rerun_visualizer, "_ensure_rerun_server", lambda **kwargs: ("rerun+http://127.0.0.1:9876/proxy", False)
