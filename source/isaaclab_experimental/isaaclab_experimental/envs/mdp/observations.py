@@ -94,7 +94,7 @@ def base_pos_z(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntit
     wp.launch(
         kernel=_base_pos_z_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_pos_w, out],
+        inputs=[asset.data.root_pos_w.warp, out],
         device=env.device,
     )
 
@@ -129,7 +129,7 @@ def base_lin_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEnt
     wp.launch(
         kernel=_base_lin_vel_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_link_pose_w, asset.data.root_com_vel_w, out],
+        inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
         device=env.device,
     )
 
@@ -156,7 +156,7 @@ def base_ang_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEnt
     wp.launch(
         kernel=_base_ang_vel_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_link_pose_w, asset.data.root_com_vel_w, out],
+        inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
         device=env.device,
     )
 
@@ -183,7 +183,7 @@ def projected_gravity(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = Sce
     wp.launch(
         kernel=_projected_gravity_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_link_pose_w, asset.data.GRAVITY_VEC_W, out],
+        inputs=[asset.data.root_link_pose_w.warp, asset.data.GRAVITY_VEC_W.warp, out],
         device=env.device,
     )
 
@@ -208,7 +208,7 @@ def joint_pos(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntity
     wp.launch(
         kernel=_joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_pos, joint_ids_wp, out],
+        inputs=[asset.data.joint_pos.warp, joint_ids_wp, out],
         device=env.device,
     )
 
@@ -244,7 +244,7 @@ def joint_pos_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     wp.launch(
         kernel=_joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_pos, asset.data.default_joint_pos, joint_ids_wp, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, joint_ids_wp, out],
         device=env.device,
     )
 
@@ -278,7 +278,7 @@ def joint_pos_limit_normalized(env: ManagerBasedEnv, out, asset_cfg: SceneEntity
     wp.launch(
         kernel=_joint_pos_limit_normalized_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_pos, asset.data.soft_joint_pos_limits, joint_ids_wp, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, joint_ids_wp, out],
         device=env.device,
     )
 
@@ -298,7 +298,7 @@ def joint_vel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEntity
     wp.launch(
         kernel=_joint_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_vel, joint_ids_wp, out],
+        inputs=[asset.data.joint_vel.warp, joint_ids_wp, out],
         device=env.device,
     )
 
@@ -322,7 +322,7 @@ def joint_vel_rel(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     wp.launch(
         kernel=_joint_rel_gather_kernel,
         dim=(env.num_envs, out.shape[1]),
-        inputs=[asset.data.joint_vel, asset.data.default_joint_vel, joint_ids_wp, out],
+        inputs=[asset.data.joint_vel.warp, asset.data.default_joint_vel.warp, joint_ids_wp, out],
         device=env.device,
     )
 

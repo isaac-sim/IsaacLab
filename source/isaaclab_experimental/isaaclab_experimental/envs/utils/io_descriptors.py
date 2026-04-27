@@ -303,7 +303,7 @@ def record_joint_pos_offsets(output: wp.array | None, descriptor: GenericObserva
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
-    descriptor.joint_pos_offsets = wp.to_torch(asset.data.default_joint_pos).clone()[:, ids][0]
+    descriptor.joint_pos_offsets = asset.data.default_joint_pos.torch.clone()[:, ids][0]
 
 
 def record_joint_vel_offsets(output: wp.array | None, descriptor: GenericObservationIODescriptor, **kwargs):
@@ -320,4 +320,4 @@ def record_joint_vel_offsets(output: wp.array | None, descriptor: GenericObserva
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
-    descriptor.joint_vel_offsets = wp.to_torch(asset.data.default_joint_vel).clone()[:, ids][0]
+    descriptor.joint_vel_offsets = asset.data.default_joint_vel.torch.clone()[:, ids][0]

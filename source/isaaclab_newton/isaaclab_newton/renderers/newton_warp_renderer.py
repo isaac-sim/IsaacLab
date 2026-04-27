@@ -117,13 +117,13 @@ class RenderData:
             )
 
     def _from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
-        torch_array = wp.from_torch(tensor)
+        proxy_array = wp.from_torch(tensor)
         if tensor.is_contiguous():
             return wp.array(
-                ptr=torch_array.ptr,
+                ptr=proxy_array.ptr,
                 dtype=dtype,
                 shape=(self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
-                device=torch_array.device,
+                device=proxy_array.device,
                 copy=False,
             )
 
@@ -131,7 +131,7 @@ class RenderData:
         return wp.zeros(
             (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
             dtype=dtype,
-            device=torch_array.device,
+            device=proxy_array.device,
         )
 
     @wp.kernel

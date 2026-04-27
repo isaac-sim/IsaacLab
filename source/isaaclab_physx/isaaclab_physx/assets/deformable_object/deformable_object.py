@@ -21,6 +21,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -407,7 +408,7 @@ class DeformableObject(AssetBase):
         )
         # set into simulation
         self.root_view.set_simulation_nodal_kinematic_targets(
-            self._data.nodal_kinematic_target.view(wp.float32), indices=env_ids
+            self._data.nodal_kinematic_target.warp.view(wp.float32), indices=env_ids
         )
 
     def write_nodal_kinematic_target_to_sim_mask(
@@ -700,35 +701,35 @@ class DeformableObject(AssetBase):
             (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec3f, device=self.device
         )
         # compute default nodal state as vec6f
-        self._data.default_nodal_state_w = wp.zeros(
+        default_nodal_state = wp.zeros(
             (self.num_instances, self.max_sim_vertices_per_body), dtype=vec6f, device=self.device
         )
         wp.launch(
             compute_nodal_state_w,
             dim=(self.num_instances, self.max_sim_vertices_per_body),
             inputs=[nodal_positions, nodal_velocities],
-            outputs=[self._data.default_nodal_state_w],
+            outputs=[default_nodal_state],
             device=self.device,
         )
+        self._data.default_nodal_state_w = ProxyArray(default_nodal_state)
 
         # kinematic targets (only for volume deformables, surface deformables do not support kinematic targets)
         if self._deformable_type == "volume":
             # kinematic targets — allocate our own buffer and copy from PhysX
             kinematic_raw = self.root_view.get_simulation_nodal_kinematic_targets()  # (N, V, 4) float32
             kinematic_view = kinematic_raw.view(wp.vec4f).reshape((self.num_instances, self.max_sim_vertices_per_body))
-            self._data.nodal_kinematic_target = wp.zeros(
+            kinematic_target = wp.zeros(
                 (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec4f, device=self.device
             )
-            wp.copy(self._data.nodal_kinematic_target, kinematic_view)
+            wp.copy(kinematic_target, kinematic_view)
             # set all nodes as non-kinematic targets by default (flag = 1.0)
             wp.launch(
                 set_kinematic_flags_to_one,
                 dim=(self.num_instances * self.max_sim_vertices_per_body,),
-                inputs=[
-                    self._data.nodal_kinematic_target.reshape((self.num_instances * self.max_sim_vertices_per_body,))
-                ],
+                inputs=[kinematic_target.reshape((self.num_instances * self.max_sim_vertices_per_body,))],
                 device=self.device,
             )
+            self._data.nodal_kinematic_target = ProxyArray(kinematic_target)
 
     """
     Internal simulation callbacks.
@@ -750,7 +751,7 @@ class DeformableObject(AssetBase):
         # check where to visualize, kinematic targets only supported for volume deformables
         num_enabled = 0
         if self._deformable_type == "volume":
-            kinematic_target_torch = wp.to_torch(self.data.nodal_kinematic_target)
+            kinematic_target_torch = self.data.nodal_kinematic_target.torch
             targets_enabled = kinematic_target_torch[:, :, 3] == 0.0
             num_enabled = int(torch.sum(targets_enabled).item())
         # get positions if any targets are enabled

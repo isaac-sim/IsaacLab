@@ -99,7 +99,7 @@ def lin_vel_z_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneE
     wp.launch(
         kernel=_lin_vel_z_l2_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_link_pose_w, asset.data.root_com_vel_w, out],
+        inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
         device=env.device,
     )
 
@@ -121,7 +121,7 @@ def ang_vel_xy_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Scene
     wp.launch(
         kernel=_ang_vel_xy_l2_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_link_pose_w, asset.data.root_com_vel_w, out],
+        inputs=[asset.data.root_link_pose_w.warp, asset.data.root_com_vel_w.warp, out],
         device=env.device,
     )
 
@@ -143,7 +143,7 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg =
     wp.launch(
         kernel=_flat_orientation_l2_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_link_pose_w, asset.data.GRAVITY_VEC_W, out],
+        inputs=[asset.data.root_link_pose_w.warp, asset.data.GRAVITY_VEC_W.warp, out],
         device=env.device,
     )
 
@@ -173,7 +173,7 @@ def joint_torques_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
     wp.launch(
         kernel=_sum_sq_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.applied_torque, asset_cfg.joint_mask, out],
+        inputs=[asset.data.applied_torque.warp, asset_cfg.joint_mask, out],
         device=env.device,
     )
 
@@ -197,7 +197,7 @@ def joint_vel_l1(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg) -> None
     wp.launch(
         kernel=_sum_abs_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_vel, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask, out],
         device=env.device,
     )
 
@@ -208,7 +208,7 @@ def joint_vel_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneE
     wp.launch(
         kernel=_sum_sq_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_vel, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_vel.warp, asset_cfg.joint_mask, out],
         device=env.device,
     )
 
@@ -219,7 +219,7 @@ def joint_acc_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = SceneE
     wp.launch(
         kernel=_sum_sq_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_acc, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_acc.warp, asset_cfg.joint_mask, out],
         device=env.device,
     )
 
@@ -246,7 +246,7 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = 
     wp.launch(
         kernel=_sum_abs_diff_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos, asset.data.default_joint_pos, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, asset_cfg.joint_mask, out],
         device=env.device,
     )
 
@@ -284,7 +284,7 @@ def joint_pos_limits(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
     wp.launch(
         kernel=_joint_pos_limits_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos, asset.data.soft_joint_pos_limits, asset_cfg.joint_mask, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.soft_joint_pos_limits.warp, asset_cfg.joint_mask, out],
         device=env.device,
     )
 
@@ -376,7 +376,7 @@ def undesired_contacts(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg
     wp.launch(
         kernel=_undesired_contacts_kernel,
         dim=env.num_envs,
-        inputs=[contact_sensor.data.net_forces_w_history, sensor_cfg.body_ids_wp, threshold, out],
+        inputs=[contact_sensor.data.net_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
         device=env.device,
     )
 
@@ -429,8 +429,8 @@ def track_lin_vel_xy_exp(
         kernel=_track_lin_vel_xy_exp_kernel,
         dim=env.num_envs,
         inputs=[
-            asset.data.root_link_pose_w,
-            asset.data.root_com_vel_w,
+            asset.data.root_link_pose_w.warp,
+            asset.data.root_com_vel_w.warp,
             track_lin_vel_xy_exp._cmd_wp,
             1.0 / (std * std),
             out,
@@ -479,8 +479,8 @@ def track_ang_vel_z_exp(
         kernel=_track_ang_vel_z_exp_kernel,
         dim=env.num_envs,
         inputs=[
-            asset.data.root_link_pose_w,
-            asset.data.root_com_vel_w,
+            asset.data.root_link_pose_w.warp,
+            asset.data.root_com_vel_w.warp,
             track_ang_vel_z_exp._cmd_wp,
             2,
             1.0 / (std * std),

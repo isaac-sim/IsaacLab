@@ -1,6 +1,56 @@
 Changelog
 ---------
 
+0.5.24 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonShapeCfg` exposing
+  per-shape collision defaults (``margin``, ``gap``) via
+  :attr:`~isaaclab_newton.physics.NewtonCfg.default_shape_cfg`.
+  :meth:`~isaaclab_newton.physics.NewtonManager.create_builder` now
+  forwards the wrapper onto Newton's upstream
+  ``ModelBuilder.default_shape_cfg`` via
+  :func:`~isaaclab.utils.checked_apply`. The previous code only set
+  ``gap`` and left ``margin`` at Newton's upstream default of ``0.0``,
+  causing all non-Anymal-D robots to fail to learn rough-terrain
+  locomotion on triangle-mesh terrain. ``RoughPhysicsCfg`` opts in to
+  ``margin=0.01``.
+
+
+0.5.23 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` to match the
+  new :class:`~isaaclab.sim.views.BaseFrameView` ProxyArray return contract.
+  See the ``isaaclab`` 4.6.15 changelog for migration guidance.
+
+
+0.5.22 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Properties on the following data classes now return
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of raw ``wp.array``:
+  :class:`~isaaclab_newton.assets.articulation.ArticulationData`,
+  :class:`~isaaclab_newton.assets.rigid_object.RigidObjectData`,
+  :class:`~isaaclab_newton.assets.rigid_object_collection.RigidObjectCollectionData`,
+  :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensorData`,
+  :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformerData`,
+  :class:`~isaaclab_newton.sensors.imu.ImuData`, and
+  :class:`~isaaclab_newton.sensors.pva.PvaData`.
+  Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view, or ``.warp`` for
+  the underlying ``wp.array``. Implicit torch operations (arithmetic,
+  ``torch.*`` functions) work during the deprecation period but emit a warning.
+
+
 0.5.21 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -192,8 +192,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 composer = self._permanent_wrench_composer
             composer.compose_to_body_frame()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=self.reshape_data_to_view_2d(composer.out_force_b, device=self.device).view(wp.float32),
-                torque_data=self.reshape_data_to_view_2d(composer.out_torque_b, device=self.device).view(wp.float32),
+                force_data=self.reshape_data_to_view_2d(composer.out_force_b.warp, device=self.device).view(wp.float32),
+                torque_data=self.reshape_data_to_view_2d(composer.out_torque_b.warp, device=self.device).view(
+                    wp.float32
+                ),
                 position_data=None,
                 indices=self._env_body_ids_to_view_ids(
                     self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device

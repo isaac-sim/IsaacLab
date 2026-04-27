@@ -5,17 +5,13 @@
 
 import math
 
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
-    EventsCfg,
-    LocomotionVelocityRoughEnvCfg,
-    StartupEventsCfg,
-)
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
 
@@ -214,35 +210,11 @@ class DigitActionsCfg:
 
 
 @configclass
-class DigitNewtonEventsCfg(EventsCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.base_external_force_torque.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")
-        self.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-
-
-@configclass
-class DigitPhysxEventsCfg(DigitNewtonEventsCfg, StartupEventsCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_base_mass.params["asset_cfg"] = SceneEntityCfg("robot", body_names="torso_base")
-        self.base_com = None
-
-
-@configclass
-class DigitEventsCfg(PresetCfg):
-    default = DigitPhysxEventsCfg()
-    newton = DigitNewtonEventsCfg()
-    physx = default
-
-
-@configclass
 class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     rewards: DigitRewards = DigitRewards()
     observations: DigitObservations = DigitObservations()
     terminations: DigitTerminationsCfg = DigitTerminationsCfg()
     actions: DigitActionsCfg = DigitActionsCfg()
-    events: DigitEventsCfg = DigitEventsCfg()
 
     def __post_init__(self):
         super().__post_init__()
@@ -255,6 +227,23 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
+
+        # Digit uses "torso_base" as base body
+        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
+        self.events.base_com.default.params["asset_cfg"].body_names = "torso_base"
+
+        # Override actuator to target only actuated joints. Digit has ball joints (rod constraints)
+        # that MuJoCo represents with 4 DoFs instead of 3, inflating joint_pos to 74 columns while
+        # joint_pos_target stays at 64. Using ".*" gives slice(None) which indexes both buffers
+        # differently. Explicit joint names produce a concrete index tensor that works correctly.
+        self.scene.robot.actuators = {
+            "legs_arms": ImplicitActuatorCfg(
+                joint_names_expr=LEG_JOINT_NAMES + ARM_JOINT_NAMES,
+                stiffness=None,
+                damping=None,
+            ),
+        }
 
         # Commands
         self.commands.base_velocity.ranges.lin_vel_x = (-0.8, 0.8)

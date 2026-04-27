@@ -16,6 +16,8 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 # ---------------------------------------------------------------------------
 # Constants (shared across all MDP parity test files)
 # ---------------------------------------------------------------------------
@@ -64,8 +66,19 @@ def quat_rotate_inv_np(q_xyzw: np.ndarray, v: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def copy_np_to_wp(dest: wp.array, src_np: np.ndarray):
+def proxy_array(*args, **kwargs) -> ProxyArray:
+    """Build a :class:`ProxyArray` directly from ``wp.array`` constructor arguments.
+
+    Lets the parity-test mocks read as ``self.joint_pos = proxy_array(np_data, device=...)``
+    instead of ``ProxyArray(wp.array(np_data, device=...))``.
+    """
+    return ProxyArray(wp.array(*args, **kwargs))
+
+
+def copy_np_to_wp(dest: wp.array | ProxyArray, src_np: np.ndarray):
     """In-place overwrite of a warp array's contents from numpy (preserves pointer)."""
+    if isinstance(dest, ProxyArray):
+        dest = dest.warp
     tmp = wp.array(src_np, dtype=dest.dtype, device=str(dest.device))
     wp.copy(dest, tmp)
 
@@ -162,55 +175,55 @@ class MockArticulationData:
         rng = np.random.RandomState(seed)
 
         # --- Joint state (float32 2D) ---
-        self.joint_pos = wp.array(rng.randn(num_envs, num_joints).astype(np.float32), device=device)
-        self.joint_vel = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 2.0, device=device)
-        self.joint_acc = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 0.5, device=device)
-        self.default_joint_pos = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 0.01, device=device)
-        self.default_joint_vel = wp.array(np.zeros((num_envs, num_joints), dtype=np.float32), device=device)
-        self.applied_torque = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 10.0, device=device)
-        self.computed_torque = wp.array(rng.randn(num_envs, num_joints).astype(np.float32) * 10.0, device=device)
+        self.joint_pos = proxy_array(rng.randn(num_envs, num_joints).astype(np.float32), device=device)
+        self.joint_vel = proxy_array(rng.randn(num_envs, num_joints).astype(np.float32) * 2.0, device=device)
+        self.joint_acc = proxy_array(rng.randn(num_envs, num_joints).astype(np.float32) * 0.5, device=device)
+        self.default_joint_pos = proxy_array(rng.randn(num_envs, num_joints).astype(np.float32) * 0.01, device=device)
+        self.default_joint_vel = proxy_array(np.zeros((num_envs, num_joints), dtype=np.float32), device=device)
+        self.applied_torque = proxy_array(rng.randn(num_envs, num_joints).astype(np.float32) * 10.0, device=device)
+        self.computed_torque = proxy_array(rng.randn(num_envs, num_joints).astype(np.float32) * 10.0, device=device)
 
         # --- Soft joint limits ---
         limits_np = np.zeros((num_envs, num_joints, 2), dtype=np.float32)
         limits_np[:, :, 0] = -3.14
         limits_np[:, :, 1] = 3.14
-        self.soft_joint_pos_limits = wp.array(limits_np, dtype=wp.vec2f, device=device)
-        self.soft_joint_vel_limits = wp.array(np.full((num_envs, num_joints), 10.0, dtype=np.float32), device=device)
+        self.soft_joint_pos_limits = proxy_array(limits_np, dtype=wp.vec2f, device=device)
+        self.soft_joint_vel_limits = proxy_array(np.full((num_envs, num_joints), 10.0, dtype=np.float32), device=device)
 
         # --- Root state ---
         root_pos_np = rng.randn(num_envs, 3).astype(np.float32)
         root_pos_np[:, 2] = np.abs(root_pos_np[:, 2]) + 0.1  # positive heights
-        self.root_pos_w = wp.array(root_pos_np, dtype=wp.vec3f, device=device)
+        self.root_pos_w = proxy_array(root_pos_np, dtype=wp.vec3f, device=device)
 
         # Unit quaternions
         quat_np = rng.randn(num_envs, 4).astype(np.float32)
         quat_np /= np.linalg.norm(quat_np, axis=1, keepdims=True)
-        self.root_quat_w = wp.array(quat_np, dtype=wp.quatf, device=device)
+        self.root_quat_w = proxy_array(quat_np, dtype=wp.quatf, device=device)
 
         # Tier 1 compound: root_link_pose_w (transformf = pos + quat)
         pose_np = np.zeros((num_envs, 7), dtype=np.float32)
         pose_np[:, :3] = root_pos_np
         pose_np[:, 3:] = quat_np
-        self.root_link_pose_w = wp.array(pose_np, dtype=wp.transformf, device=device)
+        self.root_link_pose_w = proxy_array(pose_np, dtype=wp.transformf, device=device)
 
         # World-frame velocities
         lin_vel_w_np = rng.randn(num_envs, 3).astype(np.float32)
         ang_vel_w_np = rng.randn(num_envs, 3).astype(np.float32)
-        self.root_lin_vel_w = wp.array(lin_vel_w_np, dtype=wp.vec3f, device=device)
-        self.root_ang_vel_w = wp.array(ang_vel_w_np, dtype=wp.vec3f, device=device)
+        self.root_lin_vel_w = proxy_array(lin_vel_w_np, dtype=wp.vec3f, device=device)
+        self.root_ang_vel_w = proxy_array(ang_vel_w_np, dtype=wp.vec3f, device=device)
 
         # Tier 1 compound: root_com_vel_w (spatial_vectorf: top=linear, bottom=angular)
         vel_np = np.zeros((num_envs, 6), dtype=np.float32)
         vel_np[:, :3] = lin_vel_w_np
         vel_np[:, 3:] = ang_vel_w_np
-        self.root_com_vel_w = wp.array(vel_np, dtype=wp.spatial_vectorf, device=device)
+        self.root_com_vel_w = proxy_array(vel_np, dtype=wp.spatial_vectorf, device=device)
 
         # Gravity direction constant (1D array to match kernel signatures)
-        self.GRAVITY_VEC_W = wp.array([0.0, 0.0, -1.0], dtype=wp.vec3f, device=device)
+        self.GRAVITY_VEC_W = proxy_array([0.0, 0.0, -1.0], dtype=wp.vec3f, device=device)
 
         # Derived body-frame quantities (consistent with Tier 1 compounds)
-        self.root_lin_vel_b = wp.array(quat_rotate_inv_np(quat_np, lin_vel_w_np), dtype=wp.vec3f, device=device)
-        self.root_ang_vel_b = wp.array(quat_rotate_inv_np(quat_np, ang_vel_w_np), dtype=wp.vec3f, device=device)
+        self.root_lin_vel_b = proxy_array(quat_rotate_inv_np(quat_np, lin_vel_w_np), dtype=wp.vec3f, device=device)
+        self.root_ang_vel_b = proxy_array(quat_rotate_inv_np(quat_np, ang_vel_w_np), dtype=wp.vec3f, device=device)
 
         # --- projected_gravity_b and body-level data ---
         if num_bodies > 0:
@@ -218,40 +231,42 @@ class MockArticulationData:
             grav_np = rng.randn(num_envs, num_bodies, 3).astype(np.float32)
             grav_np[:, :, 2] = -1.0
             grav_np /= np.linalg.norm(grav_np, axis=2, keepdims=True)
-            self.projected_gravity_b = wp.array(grav_np, dtype=wp.vec3f, device=device)
+            self.projected_gravity_b = proxy_array(grav_np, dtype=wp.vec3f, device=device)
 
             # body_pose_w: (num_envs, num_bodies) transformf
             bpose_np = np.zeros((num_envs, num_bodies, 7), dtype=np.float32)
             bpose_np[:, :, :3] = rng.randn(num_envs, num_bodies, 3).astype(np.float32)
             bpose_np[:, :, 3:7] = [0.0, 0.0, 0.0, 1.0]
-            self.body_pose_w = wp.array(bpose_np, dtype=wp.transformf, device=device)
+            self.body_pose_w = proxy_array(bpose_np, dtype=wp.transformf, device=device)
 
             # body_lin_acc_w: (num_envs, num_bodies) vec3f
-            self.body_lin_acc_w = wp.array(
+            self.body_lin_acc_w = proxy_array(
                 rng.randn(num_envs, num_bodies, 3).astype(np.float32), dtype=wp.vec3f, device=device
             )
 
             # body_com_pos_b: (num_envs, num_bodies) vec3f
-            self.body_com_pos_b = wp.array(
+            self.body_com_pos_b = proxy_array(
                 rng.randn(num_envs, num_bodies, 3).astype(np.float32) * 0.01, dtype=wp.vec3f, device=device
             )
         else:
             # Root-level projected_gravity_b: (num_envs,) vec3f — derived from root quat
-            self.projected_gravity_b = wp.array(
+            self.projected_gravity_b = proxy_array(
                 quat_rotate_inv_np(quat_np, np.tile(GRAVITY_DIR_NP, (num_envs, 1))),
                 dtype=wp.vec3f,
                 device=device,
             )
 
         # --- Event-specific data ---
-        self.root_vel_w = wp.array(rng.randn(num_envs, 6).astype(np.float32), dtype=wp.spatial_vectorf, device=device)
+        self.root_vel_w = proxy_array(
+            rng.randn(num_envs, 6).astype(np.float32), dtype=wp.spatial_vectorf, device=device
+        )
 
         default_pose_np = np.zeros((num_envs, 7), dtype=np.float32)
         default_pose_np[:, 0:3] = rng.randn(num_envs, 3).astype(np.float32) * 0.1
         default_pose_np[:, 3:7] = [0.0, 0.0, 0.0, 1.0]
-        self.default_root_pose = wp.array(default_pose_np, dtype=wp.transformf, device=device)
+        self.default_root_pose = proxy_array(default_pose_np, dtype=wp.transformf, device=device)
 
-        self.default_root_vel = wp.array(
+        self.default_root_vel = proxy_array(
             np.zeros((num_envs, 6), dtype=np.float32), dtype=wp.spatial_vectorf, device=device
         )
 
@@ -417,7 +432,7 @@ def mutate_root_state(rng: np.random.RandomState, art_data: MockArticulationData
 
     # Root-level projected_gravity_b (1D) is derived from quat.
     # Multi-body (2D) is mutated separately by callers.
-    if art_data.projected_gravity_b.ndim == 1:
+    if art_data.projected_gravity_b.warp.ndim == 1:
         copy_np_to_wp(
             art_data.projected_gravity_b,
             quat_rotate_inv_np(quat_np, np.tile(GRAVITY_DIR_NP, (num_envs, 1))),
@@ -487,7 +502,7 @@ class MockContactSensorData:
 
     def __init__(self, num_envs=NUM_ENVS, num_history=NUM_HISTORY, num_bodies=NUM_BODIES, device=DEVICE, seed=77):
         rng = np.random.RandomState(seed)
-        self.net_forces_w_history = wp.array(
+        self.net_forces_w_history = proxy_array(
             rng.randn(num_envs, num_history, num_bodies, 3).astype(np.float32),
             dtype=wp.vec3f,
             device=device,

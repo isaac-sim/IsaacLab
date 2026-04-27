@@ -55,7 +55,7 @@ def base_yaw_roll(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEn
     wp.launch(
         kernel=_base_yaw_roll_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_quat_w, out],
+        inputs=[asset.data.root_quat_w.warp, out],
         device=env.device,
     )
 
@@ -83,7 +83,7 @@ def base_up_proj(env: ManagerBasedEnv, out, asset_cfg: SceneEntityCfg = SceneEnt
     wp.launch(
         kernel=_base_up_proj_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_link_pose_w, asset.data.GRAVITY_VEC_W, out],
+        inputs=[asset.data.root_link_pose_w.warp, asset.data.GRAVITY_VEC_W.warp, out],
         device=env.device,
     )
 
@@ -128,7 +128,14 @@ def base_heading_proj(
     wp.launch(
         kernel=_base_heading_proj_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_pos_w, asset.data.root_quat_w, target_pos[0], target_pos[1], target_pos[2], out],
+        inputs=[
+            asset.data.root_pos_w.warp,
+            asset.data.root_quat_w.warp,
+            target_pos[0],
+            target_pos[1],
+            target_pos[2],
+            out,
+        ],
         device=env.device,
     )
 
@@ -174,6 +181,6 @@ def base_angle_to_target(
     wp.launch(
         kernel=_base_angle_to_target_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_pos_w, asset.data.root_quat_w, target_pos[0], target_pos[1], out],
+        inputs=[asset.data.root_pos_w.warp, asset.data.root_quat_w.warp, target_pos[0], target_pos[1], out],
         device=env.device,
     )

@@ -11,7 +11,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
@@ -59,7 +58,7 @@ class InHandReOrientationCommand(CommandTerm):
         # create buffers to store the command
         # -- command: (x, y, z)
         init_pos_offset = torch.tensor(cfg.init_pos_offset, dtype=torch.float, device=self.device)
-        self.pos_command_e = wp.to_torch(self.object.data.default_root_pose)[:, :3] + init_pos_offset
+        self.pos_command_e = self.object.data.default_root_pose.torch[:, :3] + init_pos_offset
         self.pos_command_w = self.pos_command_e + self._env.scene.env_origins
         # -- orientation: (x, y, z, w)
         self.quat_command_w = torch.zeros(self.num_envs, 4, device=self.device)
@@ -97,11 +96,11 @@ class InHandReOrientationCommand(CommandTerm):
         # logs data
         # -- compute the orientation error
         self.metrics["orientation_error"] = math_utils.quat_error_magnitude(
-            wp.to_torch(self.object.data.root_quat_w), self.quat_command_w
+            self.object.data.root_quat_w.torch, self.quat_command_w
         )
         # -- compute the position error
         self.metrics["position_error"] = torch.linalg.norm(
-            wp.to_torch(self.object.data.root_pos_w) - self.pos_command_w, dim=1
+            self.object.data.root_pos_w.torch - self.pos_command_w, dim=1
         )
         # -- compute the number of consecutive successes
         successes = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold

@@ -156,8 +156,8 @@ class RigidObject(BaseRigidObject):
                 composer = self._permanent_wrench_composer
             composer.compose_to_body_frame()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=composer.out_force_b.flatten().view(wp.float32),
-                torque_data=composer.out_torque_b.flatten().view(wp.float32),
+                force_data=composer.out_force_b.warp.flatten().view(wp.float32),
+                torque_data=composer.out_torque_b.warp.flatten().view(wp.float32),
                 position_data=None,
                 indices=self._ALL_INDICES,
                 is_global=False,

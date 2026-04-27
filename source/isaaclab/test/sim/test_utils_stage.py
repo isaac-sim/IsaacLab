@@ -23,6 +23,8 @@ from pxr import Usd
 
 import isaaclab.sim as sim_utils
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 def test_create_new_stage():
     """Test creating a new stage attached to USD context."""

@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_apply_inverse
@@ -75,9 +74,10 @@ def task_done_pick_place_table_frame(
 
     # Get table world pose
     table_pos_w, table_quat_w = table.get_world_poses()
+    table_pos_w, table_quat_w = table_pos_w.torch, table_quat_w.torch
 
     # Broadcast table pose if a single table is shared across all envs
-    object_root_pos_w = wp.to_torch(object.data.root_pos_w)  # [num_envs, 3]
+    object_root_pos_w = object.data.root_pos_w.torch  # [num_envs, 3]
     if table_pos_w.shape[0] == 1 and object_root_pos_w.shape[0] > 1:
         table_pos_w = table_pos_w.expand(object_root_pos_w.shape[0], -1)
         table_quat_w = table_quat_w.expand(object_root_pos_w.shape[0], -1)
@@ -87,10 +87,10 @@ def task_done_pick_place_table_frame(
     object_x = object_to_table_pos[:, 0]
     object_y = object_to_table_pos[:, 1]
     object_height = object_to_table_pos[:, 2]
-    object_vel = torch.abs(wp.to_torch(object.data.root_vel_w))
+    object_vel = torch.abs(object.data.root_vel_w.torch)
 
     # Right wrist position in table frame
-    robot_body_pos_w = wp.to_torch(env.scene["robot"].data.body_pos_w)
+    robot_body_pos_w = env.scene["robot"].data.body_pos_w.torch
     right_eef_idx = env.scene["robot"].data.body_names.index(task_link_name)
     right_wrist_pos_w = robot_body_pos_w[:, right_eef_idx, :] - table_pos_w
     right_wrist_x = quat_apply_inverse(table_quat_w, right_wrist_pos_w)[:, 0]
@@ -146,8 +146,8 @@ def object_too_far_from_robot(
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
 
-    robot_pos = wp.to_torch(robot.data.root_pos_w)[:, :3]
-    object_pos = wp.to_torch(object.data.root_pos_w)[:, :3]
+    robot_pos = robot.data.root_pos_w.torch[:, :3]
+    object_pos = object.data.root_pos_w.torch[:, :3]
 
     distance = torch.norm(robot_pos - object_pos, dim=1)
 

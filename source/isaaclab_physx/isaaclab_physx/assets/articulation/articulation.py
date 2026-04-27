@@ -243,8 +243,8 @@ class Articulation(BaseArticulation):
                 composer = self._permanent_wrench_composer
             composer.compose_to_body_frame()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=composer.out_force_b.flatten().view(wp.float32),
-                torque_data=composer.out_torque_b.flatten().view(wp.float32),
+                force_data=composer.out_force_b.warp.flatten().view(wp.float32),
+                torque_data=composer.out_torque_b.warp.flatten().view(wp.float32),
                 position_data=None,
                 indices=self._ALL_INDICES,
                 is_global=False,
@@ -3076,12 +3076,12 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         # Write fixed tendon properties to the simulation.
         self.root_view.set_fixed_tendon_properties(
-            self.data.fixed_tendon_stiffness,
-            self.data.fixed_tendon_damping,
-            self.data.fixed_tendon_limit_stiffness,
-            self.data.fixed_tendon_pos_limits,
-            self.data.fixed_tendon_rest_length,
-            self.data.fixed_tendon_offset,
+            self.data.fixed_tendon_stiffness.warp,
+            self.data.fixed_tendon_damping.warp,
+            self.data.fixed_tendon_limit_stiffness.warp,
+            self.data.fixed_tendon_pos_limits.warp,
+            self.data.fixed_tendon_rest_length.warp,
+            self.data.fixed_tendon_offset.warp,
             indices=env_ids,
         )
 
@@ -3533,10 +3533,10 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         # Write spatial tendon properties to the simulation.
         self.root_view.set_spatial_tendon_properties(
-            self.data.spatial_tendon_stiffness,
-            self.data.spatial_tendon_damping,
-            self.data.spatial_tendon_limit_stiffness,
-            self.data.spatial_tendon_offset,
+            self.data.spatial_tendon_stiffness.warp,
+            self.data.spatial_tendon_damping.warp,
+            self.data.spatial_tendon_limit_stiffness.warp,
+            self.data.spatial_tendon_offset.warp,
             indices=env_ids,
         )
 
@@ -3756,14 +3756,14 @@ class Articulation(BaseArticulation):
                 joint_ids=joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
-                stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
-                damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
-                armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
-                friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
-                dynamic_friction=wp.to_torch(self._data.joint_dynamic_friction_coeff)[:, joint_ids],
-                viscous_friction=wp.to_torch(self._data.joint_viscous_friction_coeff)[:, joint_ids],
-                effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
-                velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
+                stiffness=self._data.joint_stiffness.torch[:, joint_ids],
+                damping=self._data.joint_damping.torch[:, joint_ids],
+                armature=self._data.joint_armature.torch[:, joint_ids],
+                friction=self._data.joint_friction_coeff.torch[:, joint_ids],
+                dynamic_friction=self._data.joint_dynamic_friction_coeff.torch[:, joint_ids],
+                viscous_friction=self._data.joint_viscous_friction_coeff.torch[:, joint_ids],
+                effort_limit=self._data.joint_effort_limits.torch[:, joint_ids].clone(),
+                velocity_limit=self._data.joint_vel_limits.torch[:, joint_ids],
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
@@ -3945,16 +3945,16 @@ class Articulation(BaseArticulation):
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
-                joint_positions=wp.to_torch(self._data.joint_pos_target)[:, actuator.joint_indices],
-                joint_velocities=wp.to_torch(self._data.joint_vel_target)[:, actuator.joint_indices],
-                joint_efforts=wp.to_torch(self._data.joint_effort_target)[:, actuator.joint_indices],
+                joint_positions=self._data.joint_pos_target.torch[:, actuator.joint_indices],
+                joint_velocities=self._data.joint_vel_target.torch[:, actuator.joint_indices],
+                joint_efforts=self._data.joint_effort_target.torch[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
             # compute joint command from the actuator model
             control_action = actuator.compute(
                 control_action,
-                joint_pos=wp.to_torch(self._data.joint_pos)[:, actuator.joint_indices],
-                joint_vel=wp.to_torch(self._data.joint_vel)[:, actuator.joint_indices],
+                joint_pos=self._data.joint_pos.torch[:, actuator.joint_indices],
+                joint_vel=self._data.joint_vel.torch[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
             joint_indices = actuator.joint_indices
@@ -4014,8 +4014,8 @@ class Articulation(BaseArticulation):
         """
         # check that the default values are within the limits
         joint_pos_limits = wp.to_torch(wp.clone(self.root_view.get_dof_limits(), device=self.device))[0]
-        out_of_range = wp.to_torch(self._data.default_joint_pos)[0] < joint_pos_limits[:, 0]
-        out_of_range |= wp.to_torch(self._data.default_joint_pos)[0] > joint_pos_limits[:, 1]
+        out_of_range = self._data.default_joint_pos.torch[0] < joint_pos_limits[:, 0]
+        out_of_range |= self._data.default_joint_pos.torch[0] > joint_pos_limits[:, 1]
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         # throw error if any of the default joint positions are out of the limits
         if len(violated_indices) > 0:
@@ -4024,14 +4024,14 @@ class Articulation(BaseArticulation):
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = joint_pos_limits[idx]
-                joint_pos = wp.to_torch(self._data.default_joint_pos)[0, idx]
+                joint_pos = self._data.default_joint_pos.torch[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
         joint_max_vel = wp.to_torch(wp.clone(self.root_view.get_dof_max_velocities(), device=self.device))[0]
-        out_of_range = torch.abs(wp.to_torch(self._data.default_joint_vel)[0]) > joint_max_vel
+        out_of_range = torch.abs(self._data.default_joint_vel.torch[0]) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:
             # prepare message for violated joints
@@ -4039,7 +4039,7 @@ class Articulation(BaseArticulation):
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = [-joint_max_vel[idx], joint_max_vel[idx]]
-                joint_vel = wp.to_torch(self._data.default_joint_vel)[0, idx]
+                joint_vel = self._data.default_joint_vel.torch[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
@@ -4070,23 +4070,23 @@ class Articulation(BaseArticulation):
         # -- gains
         # Use data properties which have already been cloned and stored during initialization
         # This avoids issues with indexedarray or empty arrays from root_view
-        stiffnesses = wp.to_torch(self.data.joint_stiffness)[0].cpu().tolist()
-        dampings = wp.to_torch(self.data.joint_damping)[0].cpu().tolist()
+        stiffnesses = self.data.joint_stiffness.torch[0].cpu().tolist()
+        dampings = self.data.joint_damping.torch[0].cpu().tolist()
         # -- properties
-        armatures = wp.to_torch(self.data.joint_armature)[0].cpu().tolist()
+        armatures = self.data.joint_armature.torch[0].cpu().tolist()
         # For friction, use the individual components from data
-        friction_coeff = wp.to_torch(self.data.joint_friction_coeff)[0].cpu()
-        dynamic_friction_coeff = wp.to_torch(self.data.joint_dynamic_friction_coeff)[0].cpu()
-        viscous_friction_coeff = wp.to_torch(self.data.joint_viscous_friction_coeff)[0].cpu()
+        friction_coeff = self.data.joint_friction_coeff.torch[0].cpu()
+        dynamic_friction_coeff = self.data.joint_dynamic_friction_coeff.torch[0].cpu()
+        viscous_friction_coeff = self.data.joint_viscous_friction_coeff.torch[0].cpu()
         static_frictions = friction_coeff.tolist()
         dynamic_frictions = dynamic_friction_coeff.tolist()
         viscous_frictions = viscous_friction_coeff.tolist()
         # -- limits
         # joint_pos_limits is vec2f array, convert to torch and extract [lower, upper] pairs
-        position_limits_torch = wp.to_torch(self.data.joint_pos_limits)[0].cpu()  # shape: (num_joints, 2)
+        position_limits_torch = self.data.joint_pos_limits.torch[0].cpu()  # shape: (num_joints, 2)
         position_limits = [tuple(pos_limit.tolist()) for pos_limit in position_limits_torch]
-        velocity_limits = wp.to_torch(self.data.joint_vel_limits)[0].cpu().tolist()
-        effort_limits = wp.to_torch(self.data.joint_effort_limits)[0].cpu().tolist()
+        velocity_limits = self.data.joint_vel_limits.torch[0].cpu().tolist()
+        effort_limits = self.data.joint_effort_limits.torch[0].cpu().tolist()
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
@@ -4127,15 +4127,15 @@ class Articulation(BaseArticulation):
         if self.num_fixed_tendons > 0:
             # -- gains
             # Use data properties which have already been cloned and stored during initialization
-            ft_stiffnesses = wp.to_torch(self.data.fixed_tendon_stiffness)[0].cpu().tolist()
-            ft_dampings = wp.to_torch(self.data.fixed_tendon_damping)[0].cpu().tolist()
+            ft_stiffnesses = self.data.fixed_tendon_stiffness.torch[0].cpu().tolist()
+            ft_dampings = self.data.fixed_tendon_damping.torch[0].cpu().tolist()
             # -- limits
-            ft_limit_stiffnesses = wp.to_torch(self.data.fixed_tendon_limit_stiffness)[0].cpu().tolist()
+            ft_limit_stiffnesses = self.data.fixed_tendon_limit_stiffness.torch[0].cpu().tolist()
             # fixed_tendon_pos_limits is vec2f array
-            ft_limits_torch = wp.to_torch(self.data.fixed_tendon_pos_limits)[0].cpu()
+            ft_limits_torch = self.data.fixed_tendon_pos_limits.torch[0].cpu()
             ft_limits = [tuple(limit.tolist()) for limit in ft_limits_torch]
-            ft_rest_lengths = wp.to_torch(self.data.fixed_tendon_rest_length)[0].cpu().tolist()
-            ft_offsets = wp.to_torch(self.data.fixed_tendon_offset)[0].cpu().tolist()
+            ft_rest_lengths = self.data.fixed_tendon_rest_length.torch[0].cpu().tolist()
+            ft_offsets = self.data.fixed_tendon_offset.torch[0].cpu().tolist()
             # create table for term information
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
@@ -4179,11 +4179,11 @@ class Articulation(BaseArticulation):
         if self.num_spatial_tendons > 0:
             # -- gains
             # Use data properties which have already been cloned and stored during initialization
-            st_stiffnesses = wp.to_torch(self.data.spatial_tendon_stiffness)[0].cpu().tolist()
-            st_dampings = wp.to_torch(self.data.spatial_tendon_damping)[0].cpu().tolist()
+            st_stiffnesses = self.data.spatial_tendon_stiffness.torch[0].cpu().tolist()
+            st_dampings = self.data.spatial_tendon_damping.torch[0].cpu().tolist()
             # -- limits
-            st_limit_stiffnesses = wp.to_torch(self.data.spatial_tendon_limit_stiffness)[0].cpu().tolist()
-            st_offsets = wp.to_torch(self.data.spatial_tendon_offset)[0].cpu().tolist()
+            st_limit_stiffnesses = self.data.spatial_tendon_limit_stiffness.torch[0].cpu().tolist()
+            st_offsets = self.data.spatial_tendon_offset.torch[0].cpu().tolist()
             # create table for term information
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Spatial Tendon Information (Prim path: {self.cfg.prim_path})"

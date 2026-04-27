@@ -73,7 +73,7 @@ def root_height_below_minimum(
     wp.launch(
         kernel=_root_height_below_min_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_pos_w, minimum_height, out],
+        inputs=[asset.data.root_pos_w.warp, minimum_height, out],
         device=env.device,
     )
 
@@ -109,15 +109,15 @@ def joint_pos_out_of_manual_limit(
             f"joint_pos_out_of_manual_limit requires SceneEntityCfg with resolved joint_mask, "
             f"but got None for asset '{asset_cfg.name}'."
         )
-    if asset.data.joint_pos.shape[1] != asset_cfg.joint_mask.shape[0]:
+    if asset.data.joint_pos.warp.shape[1] != asset_cfg.joint_mask.shape[0]:
         raise ValueError(
             f"joint_mask length ({asset_cfg.joint_mask.shape[0]}) does not match "
-            f"joint_pos dim ({asset.data.joint_pos.shape[1]}) for asset '{asset_cfg.name}'."
+            f"joint_pos dim ({asset.data.joint_pos.warp.shape[1]}) for asset '{asset_cfg.name}'."
         )
     wp.launch(
         kernel=_joint_pos_out_of_manual_limit_kernel,
-        dim=(env.num_envs, asset.data.joint_pos.shape[1]),
-        inputs=[asset.data.joint_pos, asset_cfg.joint_mask, bounds[0], bounds[1], out],
+        dim=(env.num_envs, asset.data.joint_pos.warp.shape[1]),
+        inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask, bounds[0], bounds[1], out],
         device=env.device,
     )
 
@@ -156,6 +156,6 @@ def illegal_contact(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg: S
     wp.launch(
         kernel=_illegal_contact_kernel,
         dim=env.num_envs,
-        inputs=[contact_sensor.data.net_forces_w_history, sensor_cfg.body_ids_wp, threshold, out],
+        inputs=[contact_sensor.data.net_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
         device=env.device,
     )

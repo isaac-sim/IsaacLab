@@ -72,7 +72,7 @@ def add_robots() -> Articulation:
 def run_simulator(sim: sim_utils.SimulationContext, robot: Articulation):
     """Runs the simulator by applying actions to the robot at every time-step"""
     # dummy action
-    actions = robot.data.default_joint_pos.clone()
+    actions = robot.data.default_joint_pos.torch.clone()
 
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -87,12 +87,15 @@ def run_simulator(sim: sim_utils.SimulationContext, robot: Articulation):
             sim_time = 0.0
             ep_step_count = 0
             # reset dof state
-            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+            joint_pos, joint_vel = (
+                robot.data.default_joint_pos.torch.clone(),
+                robot.data.default_joint_vel.torch.clone(),
+            )
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             # reset internals
             robot.reset()
             # reset command
-            actions = torch.rand_like(robot.data.default_joint_pos) + robot.data.default_joint_pos
+            actions = torch.rand_like(robot.data.default_joint_pos.torch) + robot.data.default_joint_pos.torch
             # -- base
             actions[:, 0:3] = 0.0
             # -- gripper

@@ -90,7 +90,7 @@ def randomize_rigid_body_com(
         inputs=[
             env_mask,
             env.rng_state_wp,
-            asset.data.body_com_pos_b,
+            asset.data.body_com_pos_b.warp,
             asset_cfg.body_ids_wp,
             fn._com_lo,
             fn._com_hi,
@@ -99,7 +99,7 @@ def randomize_rigid_body_com(
     )
 
     # Notify the solver that inertial properties changed (COM position affects inertia).
-    asset.set_coms_mask(coms=asset.data.body_com_pos_b, env_mask=env_mask)
+    asset.set_coms_mask(coms=asset.data.body_com_pos_b.warp, env_mask=env_mask)
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +250,7 @@ def push_by_setting_velocity(
         inputs=[
             env_mask,
             env.rng_state_wp,
-            asset.data.root_vel_w,
+            asset.data.root_vel_w.warp,
             push_by_setting_velocity._scratch_vel,
             push_by_setting_velocity._lin_lo,
             push_by_setting_velocity._lin_hi,
@@ -369,8 +369,8 @@ def reset_root_state_uniform(
         inputs=[
             env_mask,
             env.rng_state_wp,
-            asset.data.default_root_pose,
-            asset.data.default_root_vel,
+            asset.data.default_root_pose.warp,
+            asset.data.default_root_vel.warp,
             env.env_origins_wp,
             reset_root_state_uniform._scratch_pose,
             reset_root_state_uniform._scratch_vel,
@@ -474,12 +474,12 @@ def reset_joints_by_offset(
             env_mask,
             asset_cfg.joint_ids_wp,
             env.rng_state_wp,
-            asset.data.default_joint_pos,
-            asset.data.default_joint_vel,
-            asset.data.joint_pos,
-            asset.data.joint_vel,
-            asset.data.soft_joint_pos_limits,
-            asset.data.soft_joint_vel_limits,
+            asset.data.default_joint_pos.warp,
+            asset.data.default_joint_vel.warp,
+            asset.data.joint_pos.warp,
+            asset.data.joint_vel.warp,
+            asset.data.soft_joint_pos_limits.warp,
+            asset.data.soft_joint_vel_limits.warp,
             float(position_range[0]),
             float(position_range[1]),
             float(velocity_range[0]),
@@ -489,8 +489,8 @@ def reset_joints_by_offset(
     )
 
     # Sync derived buffers (_previous_joint_vel, joint_acc) for reset envs.
-    asset.write_joint_position_to_sim_mask(position=asset.data.joint_pos, env_mask=env_mask)
-    asset.write_joint_velocity_to_sim_mask(velocity=asset.data.joint_vel, env_mask=env_mask)
+    asset.write_joint_position_to_sim_mask(position=asset.data.joint_pos.warp, env_mask=env_mask)
+    asset.write_joint_velocity_to_sim_mask(velocity=asset.data.joint_vel.warp, env_mask=env_mask)
 
 
 @wp.kernel
@@ -565,12 +565,12 @@ def reset_joints_by_scale(
             env_mask,
             asset_cfg.joint_ids_wp,
             env.rng_state_wp,
-            asset.data.default_joint_pos,
-            asset.data.default_joint_vel,
-            asset.data.joint_pos,
-            asset.data.joint_vel,
-            asset.data.soft_joint_pos_limits,
-            asset.data.soft_joint_vel_limits,
+            asset.data.default_joint_pos.warp,
+            asset.data.default_joint_vel.warp,
+            asset.data.joint_pos.warp,
+            asset.data.joint_vel.warp,
+            asset.data.soft_joint_pos_limits.warp,
+            asset.data.soft_joint_vel_limits.warp,
             float(position_range[0]),
             float(position_range[1]),
             float(velocity_range[0]),
@@ -580,5 +580,5 @@ def reset_joints_by_scale(
     )
 
     # Sync derived buffers (_previous_joint_vel, joint_acc) for reset envs.
-    asset.write_joint_position_to_sim_mask(position=asset.data.joint_pos, env_mask=env_mask)
-    asset.write_joint_velocity_to_sim_mask(velocity=asset.data.joint_vel, env_mask=env_mask)
+    asset.write_joint_position_to_sim_mask(position=asset.data.joint_pos.warp, env_mask=env_mask)
+    asset.write_joint_velocity_to_sim_mask(velocity=asset.data.joint_vel.warp, env_mask=env_mask)

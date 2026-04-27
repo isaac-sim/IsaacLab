@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+0.3.8 (2026-04-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Switched :class:`~isaaclab_teleop.xr_anchor_utils.XrAnchorSynchronizer` to import
+  ``get_current_stage`` from :mod:`isaaclab.sim.utils.stage` instead of
+  ``isaacsim.core.experimental.utils.stage``, aligning with the Isaac Lab API.
+
+
+0.3.7 (2026-04-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated XR anchor prim creation to use :func:`isaaclab.sim.utils.prims.create_prim`
+  instead of ``isaacsim.core.experimental.prims.XformPrim``.
+
+
 0.3.6 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -44,7 +65,6 @@ Fixed
 * Fixed shutdown hang caused by Kit's pre-shutdown callback calling
   ``stop()`` while the simulation loop was still running.  The callback
   now uses the same graceful teardown path as the XR-disabled handler.
-
 
 0.3.5 (2026-04-06)
 ~~~~~~~~~~~~~~~~~~~

@@ -893,7 +893,7 @@ class ObservationManager(ManagerBase):
             return int(joint_ids_wp.shape[0])
         joint_ids = getattr(asset_cfg, "joint_ids", slice(None))
         if isinstance(joint_ids, slice):
-            return int(getattr(asset, "num_joints", wp.to_torch(asset.data.joint_pos).shape[1]))
+            return int(getattr(asset, "num_joints", asset.data.joint_pos.torch.shape[1]))
         return int(len(joint_ids))
 
     def _resolve_out_dim(self, out_dim: int | str, term_cfg: ObservationTermCfg) -> int:
@@ -917,7 +917,7 @@ class ObservationManager(ManagerBase):
                 return int(joint_ids_wp.shape[0])
             joint_ids = getattr(asset_cfg, "joint_ids", slice(None))
             if isinstance(joint_ids, slice):
-                return int(getattr(asset, "num_joints", wp.to_torch(asset.data.joint_pos).shape[1]))
+                return int(getattr(asset, "num_joints", asset.data.joint_pos.warp.shape[1]))
             return int(len(joint_ids))
 
         if isinstance(out_dim, str) and out_dim.startswith("body:"):

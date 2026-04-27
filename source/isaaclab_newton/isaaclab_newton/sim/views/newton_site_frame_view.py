@@ -16,6 +16,7 @@ from pxr import Gf, Usd, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics.newton_manager import NewtonManager
 
@@ -506,7 +507,7 @@ class NewtonSiteFrameView(BaseFrameView):
     ``set_world_poses`` and ``set_local_poses`` update ``site_local`` --
     neither touches ``body_q``.
 
-    All getters return ``wp.array``.  Setters accept ``wp.array``.
+    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
 
     Raises:
         ValueError: If any matched prim resolves to a Newton physics body
@@ -622,6 +623,10 @@ class NewtonSiteFrameView(BaseFrameView):
         self._quat_buf = wp.zeros(self.count, dtype=wp.vec4f, device=device)
         self._local_pos_buf = wp.zeros(self.count, dtype=wp.vec3f, device=device)
         self._local_quat_buf = wp.zeros(self.count, dtype=wp.vec4f, device=device)
+        self._pos_ta = ProxyArray(self._pos_buf)
+        self._quat_ta = ProxyArray(self._quat_buf)
+        self._local_pos_ta = ProxyArray(self._local_pos_buf)
+        self._local_quat_ta = ProxyArray(self._local_quat_buf)
 
     @staticmethod
     def _resolve_ancestor_body(
@@ -668,19 +673,25 @@ class NewtonSiteFrameView(BaseFrameView):
         """Number of prims in this view."""
         return len(self._prims)
 
+    @property
+    def device(self) -> str:
+        """Device where arrays are allocated (cpu or cuda)."""
+        return self._device
+
     # ------------------------------------------------------------------
     # World poses
     # ------------------------------------------------------------------
 
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
+    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations.
 
         Args:
             indices: Subset of sites to query. ``None`` means all sites.
 
         Returns:
-            A tuple ``(positions, orientations)`` as ``wp.array`` of shapes
-            ``(M, 3)`` and ``(M, 4)`` respectively.
+            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
+            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
+            cached zero-copy ``torch.Tensor`` view.
         """
         state = NewtonManager.get_state_0()
 
@@ -695,7 +706,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 outputs=[pos_buf, quat_buf],
                 device=self._device,
             )
-            return pos_buf, quat_buf
+            return ProxyArray(pos_buf), ProxyArray(quat_buf)
 
         wp.launch(
             _compute_site_world_transforms,
@@ -704,7 +715,7 @@ class NewtonSiteFrameView(BaseFrameView):
             outputs=[self._pos_buf, self._quat_buf],
             device=self._device,
         )
-        return self._pos_buf, self._quat_buf
+        return self._pos_ta, self._quat_ta
 
     def set_world_poses(
         self,
@@ -731,11 +742,11 @@ class NewtonSiteFrameView(BaseFrameView):
         state = NewtonManager.get_state_0()
 
         if positions is None or orientations is None:
-            cur_pos, cur_quat = self.get_world_poses(indices)
+            cur_pos_ta, cur_quat_ta = self.get_world_poses(indices)
             if positions is None:
-                positions = cur_pos
+                positions = cur_pos_ta.warp
             if orientations is None:
-                orientations = cur_quat
+                orientations = cur_quat_ta.warp
 
         if indices is not None:
             wp.launch(
@@ -756,7 +767,7 @@ class NewtonSiteFrameView(BaseFrameView):
     # Local poses (parent-relative)
     # ------------------------------------------------------------------
 
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
+    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get parent-relative positions and orientations.
 
         Computes ``inv(parent_world) * prim_world`` for each site.
@@ -765,8 +776,9 @@ class NewtonSiteFrameView(BaseFrameView):
             indices: Subset of sites to query. ``None`` means all sites.
 
         Returns:
-            A tuple ``(translations, orientations)`` as ``wp.array`` of shapes
-            ``(M, 3)`` and ``(M, 4)`` respectively.
+            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
+            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
+            cached zero-copy ``torch.Tensor`` view.
         """
         state = NewtonManager.get_state_0()
 
@@ -788,7 +800,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 outputs=[pos_buf, quat_buf],
                 device=self._device,
             )
-            return pos_buf, quat_buf
+            return ProxyArray(pos_buf), ProxyArray(quat_buf)
 
         wp.launch(
             _compute_site_local_transforms,
@@ -803,7 +815,7 @@ class NewtonSiteFrameView(BaseFrameView):
             outputs=[self._local_pos_buf, self._local_quat_buf],
             device=self._device,
         )
-        return self._local_pos_buf, self._local_quat_buf
+        return self._local_pos_ta, self._local_quat_ta
 
     def set_local_poses(
         self,
@@ -830,11 +842,11 @@ class NewtonSiteFrameView(BaseFrameView):
         state = NewtonManager.get_state_0()
 
         if translations is None or orientations is None:
-            cur_pos, cur_quat = self.get_local_poses(indices)
+            cur_pos_ta, cur_quat_ta = self.get_local_poses(indices)
             if translations is None:
-                translations = cur_pos
+                translations = cur_pos_ta.warp
             if orientations is None:
-                orientations = cur_quat
+                orientations = cur_quat_ta.warp
 
         if indices is not None:
             wp.launch(

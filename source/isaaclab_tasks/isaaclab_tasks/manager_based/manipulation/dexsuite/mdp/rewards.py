@@ -9,7 +9,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
@@ -57,8 +56,8 @@ def object_ee_distance(
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     obj: RigidObject = env.scene[object_cfg.name]
-    asset_pos = wp.to_torch(asset.data.body_pos_w)[:, asset_cfg.body_ids]
-    object_pos = wp.to_torch(obj.data.root_pos_w)
+    asset_pos = asset.data.body_pos_w.torch[:, asset_cfg.body_ids]
+    object_pos = obj.data.root_pos_w.torch
     distance = torch.linalg.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
     contact_bonus = contacts(env, contact_threshold, thumb_name, finger_names).float().clamp(0.1, 1.0)
     return (1 - torch.tanh(distance / std)) * contact_bonus
@@ -66,7 +65,7 @@ def object_ee_distance(
 
 def _contact_force_mag(sensor: ContactSensor, num_envs: int) -> torch.Tensor:
     """Extract per-environment contact force magnitude from a sensor's force_matrix_w."""
-    force = wp.to_torch(sensor.data.force_matrix_w).view(num_envs, 3)
+    force = sensor.data.force_matrix_w.torch.view(num_envs, 3)
     return torch.linalg.norm(force, dim=-1)
 
 
@@ -153,16 +152,16 @@ class success_reward(ManagerTermBase):
         obj: RigidObject = env.scene[align_asset_cfg.name]
         command = env.command_manager.get_command(command_name)
         des_pos_w, des_quat_w = combine_frame_transforms(
-            wp.to_torch(asset.data.root_pos_w),
-            wp.to_torch(asset.data.root_quat_w),
+            asset.data.root_pos_w.torch,
+            asset.data.root_quat_w.torch,
             command[:, :3],
             command[:, 3:7],
         )
         pos_err, rot_err = compute_pose_error(
             des_pos_w,
             des_quat_w,
-            wp.to_torch(obj.data.root_pos_w),
-            wp.to_torch(obj.data.root_quat_w),
+            obj.data.root_pos_w.torch,
+            obj.data.root_quat_w.torch,
         )
         pos_dist = torch.linalg.norm(pos_err, dim=1)
         contact_mask = contacts(env, contact_threshold, thumb_name, finger_names)
@@ -195,11 +194,11 @@ def position_command_error_tanh(
     command = env.command_manager.get_command(command_name)
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(
-        wp.to_torch(asset.data.root_pos_w),
-        wp.to_torch(asset.data.root_quat_w),
+        asset.data.root_pos_w.torch,
+        asset.data.root_quat_w.torch,
         des_pos_b,
     )
-    distance = torch.linalg.norm(wp.to_torch(obj.data.root_pos_w) - des_pos_w, dim=1)
+    distance = torch.linalg.norm(obj.data.root_pos_w.torch - des_pos_w, dim=1)
     return (1 - torch.tanh(distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()
 
 
@@ -219,8 +218,8 @@ def orientation_command_error_tanh(
     obj: RigidObject = env.scene[align_asset_cfg.name]
     command = env.command_manager.get_command(command_name)
     des_quat_b = command[:, 3:7]
-    root_state = wp.to_torch(asset.data.root_state_w)
+    root_state = asset.data.root_state_w.torch
     des_quat_w = math_utils.quat_mul(root_state[:, 3:7], des_quat_b)
-    quat_distance = math_utils.quat_error_magnitude(wp.to_torch(obj.data.root_quat_w), des_quat_w)
+    quat_distance = math_utils.quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
 
     return (1 - torch.tanh(quat_distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()

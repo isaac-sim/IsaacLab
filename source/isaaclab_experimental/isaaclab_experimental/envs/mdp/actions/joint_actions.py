@@ -272,7 +272,7 @@ class JointPositionAction(JointAction):
         super().__init__(cfg, env)
         # use default joint positions as offset
         if cfg.use_default_offset:
-            defaults_np = self._asset.data.default_joint_pos.numpy()
+            defaults_np = self._asset.data.default_joint_pos.warp.numpy()
             if isinstance(self._joint_ids, slice):
                 offset_vals = defaults_np[0, :].tolist()
             else:

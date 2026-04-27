@@ -103,8 +103,8 @@ def main():
     print("[INFO]: Setup complete...")
 
     # default joint targets
-    robot_1_actions = scene.articulations["robot_1"].data.default_joint_pos.clone()
-    robot_2_actions = scene.articulations["robot_2"].data.default_joint_pos.clone()
+    robot_1_actions = scene.articulations["robot_1"].data.default_joint_pos.torch.clone()
+    robot_2_actions = scene.articulations["robot_2"].data.default_joint_pos.torch.clone()
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
@@ -124,10 +124,10 @@ def main():
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = scene.articulations["robot_1"].data.default_root_state.clone()
+            root_state = scene.articulations["robot_1"].data.default_root_state.torch.clone()
             root_state[:, :3] += scene.env_origins
-            joint_pos = scene.articulations["robot_1"].data.default_joint_pos
-            joint_vel = scene.articulations["robot_1"].data.default_joint_vel
+            joint_pos = scene.articulations["robot_1"].data.default_joint_pos.torch
+            joint_vel = scene.articulations["robot_1"].data.default_joint_vel.torch
             # -- set root state
             # -- robot 1
             scene.articulations["robot_1"].write_root_pose_to_sim(root_state[:, :7])

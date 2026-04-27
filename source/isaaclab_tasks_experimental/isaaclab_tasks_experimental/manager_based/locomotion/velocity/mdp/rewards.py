@@ -63,7 +63,14 @@ def feet_air_time(env: ManagerBasedRLEnv, out, command_name: str, sensor_cfg: Sc
     wp.launch(
         kernel=_feet_air_time_kernel,
         dim=env.num_envs,
-        inputs=[contact_sensor.data.last_air_time, first_contact, sensor_cfg.body_ids_wp, fn._cmd_wp, threshold, out],
+        inputs=[
+            contact_sensor.data.last_air_time.warp,
+            first_contact,
+            sensor_cfg.body_ids_wp,
+            fn._cmd_wp,
+            threshold,
+            out,
+        ],
         device=env.device,
     )
 
@@ -118,8 +125,8 @@ def feet_air_time_positive_biped(env, out, command_name: str, threshold: float, 
         kernel=_feet_air_time_positive_biped_kernel,
         dim=env.num_envs,
         inputs=[
-            contact_sensor.data.current_air_time,
-            contact_sensor.data.current_contact_time,
+            contact_sensor.data.current_air_time.warp,
+            contact_sensor.data.current_contact_time.warp,
             sensor_cfg.body_ids_wp,
             fn._cmd_wp,
             threshold,
@@ -169,10 +176,10 @@ def feet_slide(env, out, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg =
         kernel=_feet_slide_kernel,
         dim=env.num_envs,
         inputs=[
-            asset.data.body_lin_vel_w,
-            contact_sensor.data.net_forces_w_history,
+            asset.data.body_lin_vel_w.warp,
+            contact_sensor.data.net_forces_w_history.warp,
             sensor_cfg.body_ids_wp,
-            contact_sensor.data.net_forces_w_history.shape[1],
+            contact_sensor.data.net_forces_w_history.warp.shape[1],
             out,
         ],
         device=env.device,
@@ -227,7 +234,7 @@ def track_lin_vel_xy_yaw_frame_exp(
     wp.launch(
         kernel=_track_lin_vel_xy_yaw_frame_exp_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_quat_w, asset.data.root_lin_vel_w, fn._cmd_wp, 1.0 / (std * std), out],
+        inputs=[asset.data.root_quat_w.warp, asset.data.root_lin_vel_w.warp, fn._cmd_wp, 1.0 / (std * std), out],
         device=env.device,
     )
 
@@ -263,7 +270,7 @@ def track_ang_vel_z_world_exp(
     wp.launch(
         kernel=_track_ang_vel_z_world_exp_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_ang_vel_w, fn._cmd_wp, 1.0 / (std * std), out],
+        inputs=[asset.data.root_ang_vel_w.warp, fn._cmd_wp, 1.0 / (std * std), out],
         device=env.device,
     )
 
@@ -307,6 +314,6 @@ def stand_still_joint_deviation_l1(
     wp.launch(
         kernel=_stand_still_joint_deviation_l1_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.joint_pos, asset.data.default_joint_pos, fn._cmd_wp, command_threshold, out],
+        inputs=[asset.data.joint_pos.warp, asset.data.default_joint_pos.warp, fn._cmd_wp, command_threshold, out],
         device=env.device,
     )
