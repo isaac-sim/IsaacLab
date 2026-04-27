@@ -170,7 +170,7 @@ RUN groupadd --non-unique --gid 1000 isaaclab \
 
 RUN chown -R isaaclab:isaaclab \
         ${ISAACLAB_PATH} \
-        ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages \
+        ${ISAACSIM_ROOT_PATH}/kit/python \
         ${DOCKER_USER_HOME} \
         /home/isaaclab
 
