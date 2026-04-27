@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.5.26 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sensors.JointWrenchSensor`.
+
+
 0.5.25 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 

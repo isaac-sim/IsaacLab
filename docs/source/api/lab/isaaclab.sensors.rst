@@ -36,6 +36,8 @@
     MultiMeshRayCasterCameraCfg
     Imu
     ImuCfg
+    JointWrenchSensor
+    JointWrenchSensorCfg
 
 Sensor Base
 -----------
@@ -185,6 +187,20 @@ Inertia Measurement Unit
     :show-inheritance:
 
 .. autoclass:: ImuCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+Joint Wrench Sensor
+-------------------
+
+.. autoclass:: JointWrenchSensor
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: JointWrenchSensorCfg
     :members:
     :inherited-members:
     :show-inheritance:
