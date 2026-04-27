@@ -3321,10 +3321,13 @@ class Articulation(BaseArticulation):
         # For fixed-base articulations, Newton fills row 0 with the fixed-root
         # joint (zero motion subspace). PhysX excludes that row and reindexes
         # bodies by -1. The gather kernel below applies a corresponding offset.
+        # Output buffers are sized using THIS articulation's body / DoF counts
+        # (not the model-wide ``max_*``) so heterogeneous scenes do not
+        # leak zero-padded rows/cols into the returned tensor.
         self._jacobian_link_offset = 1 if self.is_fixed_base else 0
-        num_jacobi_bodies = max_links - self._jacobian_link_offset
+        num_jacobi_bodies = self.num_bodies - self._jacobian_link_offset
         self._jacobian_view_buf = wp.zeros(
-            (self.num_instances, num_jacobi_bodies, 6, max_dofs),
+            (self.num_instances, num_jacobi_bodies, 6, self.num_joints),
             dtype=wp.float32,
             device=self.device,
         )
@@ -3345,7 +3348,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         self._mass_matrix_view_buf = wp.zeros(
-            (self.num_instances, max_dofs, max_dofs),
+            (self.num_instances, self.num_joints, self.num_joints),
             dtype=wp.float32,
             device=self.device,
         )

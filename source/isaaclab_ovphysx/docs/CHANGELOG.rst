@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.1.2 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``NotImplementedError`` stubs for the new
+  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians`,
+  :meth:`~isaaclab.assets.BaseArticulation.get_mass_matrix`, and
+  :meth:`~isaaclab.assets.BaseArticulation.get_gravity_compensation_forces`
+  abstract methods. ovphysx has no view-level access to these
+  quantities, so the stubs simply preserve the abstract contract —
+  instantiating :class:`isaaclab_ovphysx.assets.Articulation` no longer
+  fails with ``TypeError: Can't instantiate abstract class``.
+
+
 0.1.1 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~
 
