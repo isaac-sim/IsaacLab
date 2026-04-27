@@ -154,7 +154,12 @@ RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* &&
 # ownership of /isaac-sim; we only chown the paths the new user needs to
 # write to so we don't trigger an OverlayFS copy-up of the multi-GB Isaac
 # Sim install. /isaac-sim stays mode 755 so isaaclab can still read+exec it.
-RUN useradd -ms /bin/bash -l --uid 1000 isaaclab -d /home/isaaclab
+# --non-unique (-o) is required because some base image revisions already
+# carry a user at uid 1000 (e.g. an `ubuntu`/`kit`-style account); the file
+# system only cares about the numeric uid, so two names mapping to it is
+# fine. Resolving "isaaclab" via /etc/passwd still returns our /home/isaaclab
+# entry, so build-time ${HOME}/.bashrc writes land where we own the path.
+RUN useradd -m -l -s /bin/bash --non-unique --uid 1000 isaaclab -d /home/isaaclab
 
 RUN chown -R isaaclab:isaaclab \
         ${ISAACLAB_PATH} \
