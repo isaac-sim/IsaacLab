@@ -10,11 +10,19 @@ Inspired by ProxyArray from mujocolab/mjlab (BSD-3-Clause).
 
 from __future__ import annotations
 
+import os
 import warnings
 from typing import ClassVar
 
 import torch
 import warp as wp
+
+_QUATF_ACCESS_WARN_ENV = "WARN_ON_TORCH_QUATF_ACCESS"
+"""Environment variable that, when set to ``"1"``, makes :attr:`ProxyArray.torch`
+emit a :class:`UserWarning` on every read of a ``wp.quatf``-typed array. Used as a
+runtime aid for tracking down call sites that may still assume Isaac Lab 2.x's
+``(w, x, y, z)`` quaternion convention after the migration to Isaac Lab 3.x's
+``(x, y, z, w)`` convention. See the Isaac Lab 3.0 migration guide for details."""
 
 
 class ProxyArray:
@@ -72,6 +80,9 @@ class ProxyArray:
         # Bypass __setattr__ for the two internal fields — everything else raises.
         object.__setattr__(self, "_warp", wp_array)
         object.__setattr__(self, "_torch_cache", None)
+        # Cached once at construction so the .torch read path stays a constant-time
+        # check; only used when the WARN_ON_TORCH_QUATF_ACCESS env var is set.
+        object.__setattr__(self, "_is_quatf", wp_array.dtype is wp.quatf)
 
     def __setattr__(self, name: str, value) -> None:
         """Forbid mutation of ProxyArray instances except for the internal torch cache.
@@ -87,6 +98,16 @@ class ProxyArray:
             f"ProxyArray is immutable; cannot set attribute {name!r}."
             " Construct a new ProxyArray instead of mutating an existing one."
         )
+
+    @staticmethod
+    def _quatf_access_warning_enabled() -> bool:
+        """Return ``True`` when the ``WARN_ON_TORCH_QUATF_ACCESS`` env var is set to ``"1"``.
+
+        Read on every :attr:`torch` access to keep the flag dynamic — a single
+        ``os.environ`` lookup is cheap relative to the warp/torch interop work
+        that follows.
+        """
+        return os.environ.get(_QUATF_ACCESS_WARN_ENV, "0") == "1"
 
     # ------------------------------------------------------------------
     # Core accessors
@@ -104,7 +125,24 @@ class ProxyArray:
         The tensor is created on first access via :func:`warp.to_torch` and cached
         for subsequent calls. Since this is a zero-copy view, modifications to the
         tensor are visible through the warp array and vice versa.
+
+        When the underlying warp array has dtype ``wp.quatf`` and the
+        ``WARN_ON_TORCH_QUATF_ACCESS`` environment variable is set to ``"1"``,
+        each read emits a :class:`UserWarning` pointing at the call site. This
+        is a runtime aid for migrating Isaac Lab 2.x code (which used the
+        ``(w, x, y, z)`` quaternion convention) to Isaac Lab 3.x's
+        ``(x, y, z, w)`` convention.
         """
+        if self._is_quatf and self._quatf_access_warning_enabled():
+            warnings.warn(
+                "Reading .torch on a wp.quatf-typed ProxyArray. The Isaac Lab"
+                " quaternion convention changed from (w, x, y, z) in 2.x to"
+                " (x, y, z, w) in 3.x. If your code assumes the old order,"
+                " this is likely the source of incorrect rotations."
+                f" Unset {_QUATF_ACCESS_WARN_ENV} to silence this warning.",
+                UserWarning,
+                stacklevel=2,
+            )
         if self._torch_cache is None:
             self._torch_cache = wp.to_torch(self._warp)
         return self._torch_cache

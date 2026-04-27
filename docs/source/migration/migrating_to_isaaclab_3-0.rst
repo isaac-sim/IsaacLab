@@ -889,6 +889,56 @@ Best Practices for Migration
 
 6. **Check documentation** - Update any docs or comments that mention quaternion format.
 
+
+Using the Runtime Quaternion Access Detector
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The quaternion finder tool above covers hard-coded values in source files,
+but it cannot see quaternions that are *read* from asset/sensor data at
+runtime. For those, Isaac Lab ships a
+runtime detector hook on :class:`~isaaclab.utils.warp.ProxyArray` that flags
+every ``.torch`` access on a ``wp.quatf``-typed property and points at the
+exact call site. Use it after the source-level migration to catch the cases
+the finder tool can't reach.
+
+Enable it by setting an environment variable before launching your script:
+
+.. code-block:: bash
+
+   export WARN_ON_TORCH_QUATF_ACCESS=1
+   ./isaaclab.sh -p my_script.py
+
+Every read of ``.torch`` on a ``ProxyArray`` whose underlying ``wp.array`` has
+dtype ``wp.quatf`` then emits a :class:`UserWarning` with the message:
+
+.. code-block:: text
+
+   Reading .torch on a wp.quatf-typed ProxyArray. The Isaac Lab quaternion
+   convention changed from (w, x, y, z) in 2.x to (x, y, z, w) in 3.x. If
+   your code assumes the old order, this is likely the source of incorrect
+   rotations. Unset WARN_ON_TORCH_QUATF_ACCESS to silence this warning.
+
+The warning's traceback points at the exact line that performed the access
+(via ``stacklevel=2``), so you can walk through the matches in your code and
+confirm each one uses the new ``(x, y, z, w)`` order.
+
+Typical workflow:
+
+1. Run a representative scene or task with the env var set.
+2. Triage every warning location — check whether the call site assumes
+   ``(w, x, y, z)`` (Lab 2.x) or ``(x, y, z, w)`` (Lab 3.x).
+3. Migrate the call sites that still expect the old order.
+4. Re-run with the env var still set; the warnings should be gone (or only
+   come from intentionally-handled call sites).
+5. Unset the env var for production runs — the detector adds an
+   ``os.environ`` lookup per ``.torch`` access, which is cheap but not free.
+
+The detector covers only ``ProxyArray.torch`` reads. Direct accesses on the
+underlying ``wp.array`` (via ``ProxyArray.warp``) are not flagged, because
+warp uses ``(x, y, z, w)`` natively and so a warp-side read is unaffected
+by the convention change.
+
+
 API Changes
 ~~~~~~~~~~~
 

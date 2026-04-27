@@ -169,6 +169,61 @@ class TestProxyArrayStructuredTypes:
         assert ta.torch.shape == (4, 5, 3)
 
 
+class TestProxyArrayQuatfTorchAccessWarning:
+    """Tests for the WARN_ON_TORCH_QUATF_ACCESS opt-in runtime detector."""
+
+    def test_default_no_warning(self, device, monkeypatch):
+        """No env var → quatf .torch access is silent."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        monkeypatch.delenv("WARN_ON_TORCH_QUATF_ACCESS", raising=False)
+        ta = ProxyArray(wp.zeros(4, dtype=wp.quatf, device=device))
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _ = ta.torch
+            assert [x for x in w if issubclass(x.category, UserWarning)] == []
+
+    def test_env_set_warns_on_quatf(self, device, monkeypatch):
+        """WARN_ON_TORCH_QUATF_ACCESS=1 → quatf .torch read emits a UserWarning at the call site."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        monkeypatch.setenv("WARN_ON_TORCH_QUATF_ACCESS", "1")
+        ta = ProxyArray(wp.zeros(4, dtype=wp.quatf, device=device))
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _ = ta.torch  # the .torch read on this line is what should be reported
+            user_warns = [x for x in w if issubclass(x.category, UserWarning)]
+            assert len(user_warns) == 1
+            assert "quatf" in str(user_warns[0].message)
+            assert "(w, x, y, z)" in str(user_warns[0].message)
+            assert "(x, y, z, w)" in str(user_warns[0].message)
+            # stacklevel=2 → the warning's filename is this test file, not proxy_array.py
+            assert user_warns[0].filename == __file__
+
+    def test_env_set_does_not_warn_on_non_quatf(self, device, monkeypatch):
+        """The detector only fires for wp.quatf — float32 / vec3f / transformf are silent."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        monkeypatch.setenv("WARN_ON_TORCH_QUATF_ACCESS", "1")
+        for dtype in (wp.float32, wp.vec3f, wp.transformf, wp.spatial_vectorf):
+            ta = ProxyArray(wp.zeros(4, dtype=dtype, device=device))
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                _ = ta.torch
+                assert [x for x in w if issubclass(x.category, UserWarning)] == []
+
+    def test_env_zero_does_not_warn(self, device, monkeypatch):
+        """WARN_ON_TORCH_QUATF_ACCESS=0 → silent (only ``"1"`` enables the detector)."""
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        monkeypatch.setenv("WARN_ON_TORCH_QUATF_ACCESS", "0")
+        ta = ProxyArray(wp.zeros(4, dtype=wp.quatf, device=device))
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            _ = ta.torch
+            assert [x for x in w if issubclass(x.category, UserWarning)] == []
+
+
 class TestProxyArrayConvenienceProperties:
     """Tests for convenience properties: shape, dtype, device, len, repr."""
 
