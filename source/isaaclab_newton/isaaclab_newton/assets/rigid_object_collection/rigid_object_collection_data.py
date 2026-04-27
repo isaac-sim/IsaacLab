@@ -211,9 +211,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 shared_kernels.get_body_link_vel_from_body_com_vel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
-                    self.body_com_vel_w,
-                    self.body_link_pose_w,
-                    self.body_com_pos_b,
+                    self.body_com_vel_w.warp,
+                    self.body_link_pose_w.warp,
+                    self.body_com_pos_b.warp,
                 ],
                 outputs=[
                     self._body_link_vel_w.data,
@@ -238,8 +238,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 shared_kernels.get_body_com_pose_from_body_link_pose,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
-                    self.body_link_pose_w,
-                    self.body_com_pos_b,
+                    self.body_link_pose_w.warp,
+                    self.body_com_pos_b.warp,
                 ],
                 outputs=[
                     self._body_com_pose_w.data,
@@ -275,7 +275,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 dim=(self.num_instances, self.num_bodies),
                 device=self.device,
                 inputs=[
-                    self.body_com_vel_w,
+                    self.body_com_vel_w.warp,
                     SimulationManager.get_dt(),
                     self._previous_body_com_vel,
                 ],
@@ -306,7 +306,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
-                    self.body_com_pos_b,
+                    self.body_com_pos_b.warp,
                 ],
                 outputs=[
                     self._body_com_pose_b.data,
@@ -359,7 +359,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.GRAVITY_VEC_W, self.body_link_quat_w],
+                inputs=[self.GRAVITY_VEC_W.warp, self.body_link_quat_w.warp],
                 outputs=[self._projected_gravity_b.data],
                 device=self.device,
             )
@@ -380,7 +380,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             wp.launch(
                 shared_kernels.body_heading_w,
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.FORWARD_VEC_B, self.body_link_quat_w],
+                inputs=[self.FORWARD_VEC_B.warp, self.body_link_quat_w.warp],
                 outputs=[self._heading_w.data],
                 device=self.device,
             )
@@ -400,7 +400,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_lin_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_lin_vel_w.warp, self.body_link_quat_w.warp],
                 outputs=[self._body_link_lin_vel_b.data],
                 device=self.device,
             )
@@ -420,7 +420,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_link_ang_vel_w, self.body_link_quat_w],
+                inputs=[self.body_link_ang_vel_w.warp, self.body_link_quat_w.warp],
                 outputs=[self._body_link_ang_vel_b.data],
                 device=self.device,
             )
@@ -440,7 +440,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_lin_vel_w, self.body_link_quat_w],
+                inputs=[self.body_com_lin_vel_w.warp, self.body_link_quat_w.warp],
                 outputs=[self._body_com_lin_vel_b.data],
                 device=self.device,
             )
@@ -460,7 +460,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             wp.launch(
                 shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
-                inputs=[self.body_com_ang_vel_w, self.body_link_quat_w],
+                inputs=[self.body_com_ang_vel_w.warp, self.body_link_quat_w.warp],
                 outputs=[self._body_com_ang_vel_b.data],
                 device=self.device,
             )
@@ -848,8 +848,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
-                    self.body_link_pose_w,
-                    self.body_com_vel_w,
+                    self.body_link_pose_w.warp,
+                    self.body_com_vel_w.warp,
                 ],
                 outputs=[
                     self._body_state_w.data,
@@ -874,8 +874,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
-                    self.body_link_pose_w,
-                    self.body_link_vel_w,
+                    self.body_link_pose_w.warp,
+                    self.body_link_vel_w.warp,
                 ],
                 outputs=[
                     self._body_link_state_w.data,
@@ -900,8 +900,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
-                    self.body_com_pose_w,
-                    self.body_com_vel_w,
+                    self.body_com_pose_w.warp,
+                    self.body_com_vel_w.warp,
                 ],
                 outputs=[
                     self._body_com_state_w.data,
