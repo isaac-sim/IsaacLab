@@ -25,6 +25,8 @@ from isaaclab.cloner.cloner_utils import resolve_visualizer_clone_fn
 from isaaclab.physics.scene_data_requirements import SceneDataRequirement, VisualizerPrebuiltArtifacts
 from isaaclab.sim import build_simulation_context
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 @pytest.fixture(params=["cpu", "cuda"])
 def sim(request):

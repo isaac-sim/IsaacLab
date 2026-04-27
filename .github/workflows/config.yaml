@@ -1,0 +1,10 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Shared image config for CI workflows. Loaded by the `config` job in each
+# workflow via yq and exposed as job outputs (see e.g. .github/workflows/build.yaml).
+isaacsim_image_name: nvcr.io/nvidian/isaac-sim
+isaacsim_image_tag: latest-develop
+isaaclab_image_name: nvcr.io/nvidian/isaac-lab

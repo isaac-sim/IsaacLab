@@ -2045,7 +2045,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             )
 
         # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.utils.extensions import enable_extension  # noqa: PLC0415
+        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
 
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
@@ -2128,9 +2128,18 @@ class randomize_visual_texture_material(ManagerTermBase):
                 if prim.IsInstanceable():
                     prim.SetInstanceable(False)
 
+            # Resolve OmniPBR.mdl to an absolute path so that pxr.Ar.GetResolver().Resolve()
+            # returns a valid path. Kit's omni_usd_resolver intentionally returns "" for builtin
+            # MDL short-names (OMNI_USD_RESOLVER_MDL_BUILTIN_BYPASS=1), which causes Replicator
+            # >= 1.13.0 to pass an empty resolved path into UsdMdl.RegistryUtils, raising a
+            # 'rtx::neuraylib::MdlModuleId' is Invalid error.
+            import carb.tokens  # noqa: PLC0415
+
+            omni_pbr_mdl = carb.tokens.get_tokens_interface().resolve("${kit}/mdl/core/Base/OmniPBR.mdl")
+
             # TODO: Should we specify the value when creating the material?
             self.material_prims = rep.functional.create_batch.material(
-                mdl="OmniPBR.mdl", bind_prims=prims_group, count=num_prims, project_uvw=True
+                mdl=omni_pbr_mdl, bind_prims=prims_group, count=num_prims, project_uvw=True
             )
 
     def __call__(
@@ -2207,7 +2216,7 @@ class randomize_visual_color(ManagerTermBase):
         super().__init__(cfg, env)
 
         # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.utils.extensions import enable_extension  # noqa: PLC0415
+        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
 
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
@@ -2277,9 +2286,18 @@ class randomize_visual_color(ManagerTermBase):
                 if prim.IsInstanceable():
                     prim.SetInstanceable(False)
 
+            # Resolve OmniPBR.mdl to an absolute path so that pxr.Ar.GetResolver().Resolve()
+            # returns a valid path. Kit's omni_usd_resolver intentionally returns "" for builtin
+            # MDL short-names (OMNI_USD_RESOLVER_MDL_BUILTIN_BYPASS=1), which causes Replicator
+            # >= 1.13.0 to pass an empty resolved path into UsdMdl.RegistryUtils, raising a
+            # 'rtx::neuraylib::MdlModuleId' is Invalid error.
+            import carb.tokens  # noqa: PLC0415
+
+            omni_pbr_mdl = carb.tokens.get_tokens_interface().resolve("${kit}/mdl/core/Base/OmniPBR.mdl")
+
             # TODO: Should we specify the value when creating the material?
             self.material_prims = rep.functional.create_batch.material(
-                mdl="OmniPBR.mdl", bind_prims=prims_group, count=num_prims, project_uvw=True
+                mdl=omni_pbr_mdl, bind_prims=prims_group, count=num_prims, project_uvw=True
             )
 
     def __call__(

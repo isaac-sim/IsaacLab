@@ -379,11 +379,11 @@ def sim(request):
         yield sim
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-@pytest.mark.isaacsim_ci
 def test_initialization_floating_base_non_root(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test initialization for a floating-base with articulation root on a rigid body.
 
@@ -429,11 +429,11 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
         articulation.update(sim.cfg.dt)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_initialization_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test initialization for a floating-base with articulation root on provided prim path.
 
@@ -480,10 +480,10 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
         articulation.update(sim.cfg.dt)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
 def test_initialization_fixed_base(sim, num_articulations, device, articulation_type):
     """Test initialization for fixed base.
 
@@ -538,11 +538,11 @@ def test_initialization_fixed_base(sim, num_articulations, device, articulation_
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
-@pytest.mark.isaacsim_ci
 def test_initialization_fixed_base_single_joint(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test initialization for fixed base articulation with a single joint.
 
@@ -597,10 +597,10 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["shadow_hand"])
-@pytest.mark.isaacsim_ci
 def test_initialization_hand_with_tendons(sim, num_articulations, device, articulation_type):
     """Test initialization for fixed base articulated hand with tendons.
 
@@ -647,11 +647,11 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device, articu
         articulation.update(sim.cfg.dt)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_initialization_floating_base_made_fixed_base(
     sim, num_articulations, device, add_ground_plane, articulation_type
 ):
@@ -702,11 +702,11 @@ def test_initialization_floating_base_made_fixed_base(
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
 def test_initialization_fixed_base_made_floating_base(
     sim, num_articulations, device, add_ground_plane, articulation_type
 ):
@@ -749,11 +749,11 @@ def test_initialization_fixed_base_made_floating_base(
         articulation.update(sim.cfg.dt)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
 def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test that the default joint position from configuration is out of range.
 
@@ -782,9 +782,9 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
         sim.reset()
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
 def test_out_of_range_default_joint_vel(sim, device, articulation_type):
     """Test that the default joint velocity from configuration is out of range.
 
@@ -807,11 +807,11 @@ def test_out_of_range_default_joint_vel(sim, device, articulation_type):
         sim.reset()
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
 def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test write_joint_limits_to_sim API and when default pos falls outside of the new limits.
 
@@ -888,7 +888,6 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane, arti
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
 def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Validate joint effort limits via joint_effort_out_of_limit()."""
     # Create articulation
@@ -919,10 +918,10 @@ def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane, a
     assert torch.all(out)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_external_force_buffer(sim, num_articulations, device, articulation_type):
     """Test if external force buffer correctly updates in the force value is zero case.
 
@@ -1005,10 +1004,10 @@ def test_external_force_buffer(sim, num_articulations, device, articulation_type
         articulation.update(sim.cfg.dt)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_external_force_on_single_body(sim, num_articulations, device, articulation_type):
     """Test application of external force on the base of the articulation.
 
@@ -1064,10 +1063,10 @@ def test_external_force_on_single_body(sim, num_articulations, device, articulat
             assert articulation.data.root_pos_w.torch[i, 2].item() < 0.2
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_external_force_on_single_body_at_position(sim, num_articulations, device, articulation_type):
     """Test application of external force on the base of the articulation at a given position.
 
@@ -1160,10 +1159,10 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             assert articulation.data.root_pos_w.torch[i, 2].item() < 0.2
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_external_force_on_multiple_bodies(sim, num_articulations, device, articulation_type):
     """Test application of external force on the legs of the articulation.
 
@@ -1221,10 +1220,10 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, artic
             assert articulation.data.root_ang_vel_w.torch[i, 2].item() > 0.1
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, device, articulation_type):
     """Test application of external force on the legs of the articulation at a given position.
 
@@ -1316,10 +1315,10 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
             assert torch.abs(articulation.data.root_ang_vel_w.torch[i, 2]).item() > 0.1
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-@pytest.mark.isaacsim_ci
 def test_loading_gains_from_usd(sim, num_articulations, device, articulation_type):
     """Test that gains are loaded from USD file if actuator model has them as None.
 
@@ -1379,11 +1378,11 @@ def test_loading_gains_from_usd(sim, num_articulations, device, articulation_typ
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-@pytest.mark.isaacsim_ci
 def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test that gains are loaded from the configuration correctly.
 
@@ -1415,10 +1414,10 @@ def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-@pytest.mark.isaacsim_ci
 def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulation_type):
     """Test that gains are loaded from the configuration dictionary correctly.
 
@@ -1449,13 +1448,13 @@ def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulatio
     torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("vel_limit_sim", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
 @pytest.mark.parametrize("add_ground_plane", [False])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
-@pytest.mark.isaacsim_ci
 def test_setting_velocity_limit_implicit(
     sim, num_articulations, device, vel_limit_sim, vel_limit, add_ground_plane, articulation_type
 ):
@@ -1522,12 +1521,12 @@ def test_setting_velocity_limit_implicit(
     torch.testing.assert_close(newton_vel_limit, expected_velocity_limit)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("vel_limit_sim", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
-@pytest.mark.isaacsim_ci
 def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_limit_sim, vel_limit, articulation_type):
     """Test setting of velocity limit for explicit actuators."""
     articulation_cfg = generate_articulation_cfg(
@@ -1579,12 +1578,12 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     torch.testing.assert_close(newton_vel_limit, expected_vel_limit)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_limit_sim", [1e5, None])
 @pytest.mark.parametrize("effort_limit", [1e2, 80.0, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
-@pytest.mark.isaacsim_ci
 def test_setting_effort_limit_implicit(
     sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type
 ):
@@ -1637,12 +1636,12 @@ def test_setting_effort_limit_implicit(
     torch.testing.assert_close(newton_effort_limit, expected_effort_limit)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_limit_sim", [1e5, None])
 @pytest.mark.parametrize("effort_limit", [80.0, 1e2, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
-@pytest.mark.isaacsim_ci
 def test_setting_effort_limit_explicit(
     sim, num_articulations, device, effort_limit_sim, effort_limit, articulation_type
 ):
@@ -1704,10 +1703,10 @@ def test_setting_effort_limit_explicit(
     torch.testing.assert_close(newton_effort_limit, expected_effort_limit)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-@pytest.mark.isaacsim_ci
 def test_reset(sim, num_articulations, device, articulation_type):
     """Test that reset method works properly."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
@@ -1749,11 +1748,11 @@ def test_reset(sim, num_articulations, device, articulation_type):
         assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == num_bodies * 3
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
 def test_apply_joint_command(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test applying of joint position target functions correctly for a robotic arm."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
@@ -1790,11 +1789,11 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane, a
     assert not torch.allclose(articulation.data.joint_pos.torch, joint_pos)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
-@pytest.mark.isaacsim_ci
 def test_body_root_state(sim, num_articulations, device, with_offset, articulation_type):
     """Test for reading the `body_state_w` property.
 
@@ -1916,13 +1915,13 @@ def test_body_root_state(sim, num_articulations, device, with_offset, articulati
             torch.testing.assert_close(body_com_vel_w, body_link_vel_w)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_write_root_state(
     sim, num_articulations, device, with_offset, state_location, gravity_enabled, articulation_type
 ):
@@ -2007,11 +2006,11 @@ def test_write_root_state(
             torch.testing.assert_close(rand_state[..., 7:], articulation.data.root_link_vel_w.torch)
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
 @pytest.mark.xfail(reason="Newton body_parent_f uses different convention than PhysX get_link_incoming_joint_force")
-@pytest.mark.isaacsim_ci
 def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, device, articulation_type):
     """Test the data.body_incoming_joint_wrench_b buffer is populated correctly and statically correct for single joint.
 
@@ -2109,9 +2108,9 @@ def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, devic
     )
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-@pytest.mark.isaacsim_ci
 def test_setting_articulation_root_prim_path(sim, device, articulation_type):
     """Test that the articulation root prim path can be set explicitly."""
     sim._app_control_on_stop_handle = None
@@ -2129,9 +2128,9 @@ def test_setting_articulation_root_prim_path(sim, device, articulation_type):
     assert articulation._is_initialized
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-@pytest.mark.isaacsim_ci
 def test_setting_invalid_articulation_root_prim_path(sim, device, articulation_type):
     """Test that the articulation root prim path can be set explicitly."""
     sim._app_control_on_stop_handle = None
@@ -2148,11 +2147,11 @@ def test_setting_invalid_articulation_root_prim_path(sim, device, articulation_t
         sim.reset()
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_write_joint_state_data_consistency(sim, num_articulations, device, gravity_enabled, articulation_type):
     """Test the setters for root_state using both the link frame and center of mass as reference frame.
 
@@ -2312,7 +2311,6 @@ def test_spatial_tendons(sim, num_articulations, device, articulation_type):
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
 def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test applying of joint position target functions correctly for a robotic arm."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
@@ -2461,11 +2459,11 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
         )
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
 def test_set_material_properties(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test getting and setting material properties (friction/restitution) via view-level APIs."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
@@ -2523,7 +2521,6 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_randomize_rigid_body_com(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test that randomize_rigid_body_com modifies CoM and affects simulation dynamics."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
@@ -2548,7 +2545,6 @@ def test_randomize_rigid_body_com(sim, num_articulations, device, add_ground_pla
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
 def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, add_ground_plane, articulation_type):
     """Test that Newton collider offset randomization (shape_margin, shape_gap) takes effect."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)

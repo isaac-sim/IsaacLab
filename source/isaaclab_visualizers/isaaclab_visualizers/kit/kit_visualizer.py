@@ -11,7 +11,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from pxr import Usd, UsdGeom, Vt
+from pxr import Gf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -340,17 +340,22 @@ class KitVisualizer(BaseVisualizer):
 
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Apply eye/target camera view to the active viewport."""
-        import isaacsim.core.utils.viewports as isaacsim_viewports
+        if self._viewport_api is None:
+            return
 
-        camera_path = None
-        if self._viewport_api is not None:
-            camera_path = self._viewport_api.get_active_camera()
+        try:
+            from omni.kit.viewport.utility.camera_state import ViewportCameraState
+        except ImportError as exc:
+            logger.warning("[KitVisualizer] Viewport camera update skipped: %s", exc)
+            return
+
+        camera_path = self._viewport_api.get_active_camera()
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"
-        kwargs = {"eye": list(position), "target": list(target), "camera_prim_path": camera_path}
-        if self._viewport_api is not None:
-            kwargs["viewport_api"] = self._viewport_api
-        isaacsim_viewports.set_camera_view(**kwargs)
+
+        camera_state = ViewportCameraState(camera_path, self._viewport_api)
+        camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), True)
+        camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:
         """Apply configured camera pose from eye/lookat."""

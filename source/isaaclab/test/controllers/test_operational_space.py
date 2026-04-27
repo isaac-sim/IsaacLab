@@ -17,10 +17,9 @@ import torch
 import warp as wp
 from flaky import flaky
 
-from isaacsim.core.cloner import GridCloner
-
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
@@ -82,18 +81,15 @@ def sim():
         translation=[0, 0, 1],
     )
 
-    # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0, stage=stage)
-    cloner.define_base_env("/World/envs")
-    env_prim_paths = cloner.generate_paths("/World/envs/env", num_envs)
+    # Create environment clones using Isaac Lab's cloner utilities
+    env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+    env_fmt = "/World/envs/env_{}"
+    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
+    env_origins, _ = cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
     # create source prim
     stage.DefinePrim(env_prim_paths[0], "Xform")
     # clone the env xform
-    cloner.clone(
-        source_prim_path=env_prim_paths[0],
-        prim_paths=env_prim_paths,
-        replicate_physics=True,
-    )
+    cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
     robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     robot_cfg.actuators["panda_shoulder"].stiffness = 0.0

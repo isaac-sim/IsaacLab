@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.5.24 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonShapeCfg` exposing
+  per-shape collision defaults (``margin``, ``gap``) via
+  :attr:`~isaaclab_newton.physics.NewtonCfg.default_shape_cfg`.
+  :meth:`~isaaclab_newton.physics.NewtonManager.create_builder` now
+  forwards the wrapper onto Newton's upstream
+  ``ModelBuilder.default_shape_cfg`` via
+  :func:`~isaaclab.utils.checked_apply`. The previous code only set
+  ``gap`` and left ``margin`` at Newton's upstream default of ``0.0``,
+  causing all non-Anymal-D robots to fail to learn rough-terrain
+  locomotion on triangle-mesh terrain. ``RoughPhysicsCfg`` opts in to
+  ``margin=0.01``.
+
+
 0.5.23 (2026-04-24)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -68,6 +87,9 @@ Changed
   :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
   to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
   applied after body-frame composition.
+* Updated the PhysX Tensor API docstring link in :class:`~isaaclab_newton.assets.ArticulationData`
+  from ``omni.physics.tensors.impl.api`` to ``omni.physics.tensors.api`` to track the upstream
+  Isaac Sim module relocation (the ``impl`` submodule was removed).
 
 
 0.5.18 (2026-04-21)
