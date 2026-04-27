@@ -9,7 +9,8 @@ import fcntl
 import logging
 import os
 import tempfile
-from typing import TYPE_CHECKING
+
+import numpy as np
 
 # deformables only supported on PhysX backend
 from isaaclab_physx.sim import schemas as schemas_physx
@@ -32,13 +33,34 @@ from isaaclab.sim.utils import (
     set_prim_visibility,
 )
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.mesh import validate_triangle_mesh_data
 from isaaclab.utils.version import has_kit
 
-if TYPE_CHECKING:
-    from . import from_files_cfg
+from . import from_files_cfg
 
 # import logger
 logger = logging.getLogger(__name__)
+
+_USD_FILE_EXTENSIONS = (".usd", ".usda", ".usdc")
+
+
+def _resolve_triangle_mesh_data(mesh_source) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    """Resolve an in-memory mesh source into vertices, triangle faces, and optional colors."""
+    if isinstance(mesh_source, from_files_cfg.MeshFileCfg.TriangleMeshCfg):
+        vertices = mesh_source.vertices
+        faces = mesh_source.faces
+        vertex_colors = mesh_source.vertex_colors
+    elif isinstance(mesh_source, from_files_cfg.MeshFileCfg.TrimeshObjectCfg):
+        vertices = mesh_source.mesh.vertices
+        faces = mesh_source.mesh.faces
+        vertex_colors = mesh_source.mesh.visual.vertex_colors
+    else:
+        raise TypeError(
+            "Unsupported mesh source type. Expected a mesh file path, MeshFileCfg.TriangleMeshCfg, or "
+            f"MeshFileCfg.TrimeshObjectCfg. Got: {type(mesh_source).__name__}."
+        )
+
+    return validate_triangle_mesh_data(vertices, faces, vertex_colors)
 
 
 @clone
@@ -167,6 +189,129 @@ def spawn_from_mjcf(
     mjcf_loader = converters.MjcfConverter(cfg)
     # spawn asset from the generated usd file
     return _spawn_from_usd_file(prim_path, mjcf_loader.usd_path, cfg, translation, orientation)
+
+
+@clone
+def spawn_from_mesh(
+    prim_path: str,
+    cfg: from_files_cfg.MeshFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Spawn a mesh source into the scene.
+
+    In-memory mesh sources are authored at ``prim_path/mesh``. Mesh file paths
+    are converted or referenced as USD assets.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the mesh at.
+        cfg: The mesh spawner configuration with the mesh source.
+        translation: Translation to apply to the mesh root [m]. Defaults to None.
+        orientation: Orientation ``(x, y, z, w)`` to apply to the mesh root. Defaults to None.
+        **kwargs: Additional keyword arguments for compatibility with other spawners.
+
+    Returns:
+        The source root prim of the spawned mesh.
+    """
+    del kwargs
+    stage = get_current_stage()
+    if stage.GetPrimAtPath(prim_path).IsValid():
+        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+
+    if isinstance(cfg.mesh, str):
+        mesh_path = cfg.mesh
+        if os.path.splitext(mesh_path)[1].lower() in _USD_FILE_EXTENSIONS:
+            usd_cfg = from_files_cfg.UsdFileCfg(
+                usd_path=mesh_path,
+                scale=cfg.scale,
+                visual_material_path=cfg.visual_material_path,
+                visual_material=cfg.visual_material,
+                physics_material_path=cfg.physics_material_path,
+                physics_material=cfg.physics_material,
+                mass_props=cfg.mass_props,
+                rigid_props=cfg.rigid_props,
+                collision_props=cfg.collision_props,
+            )
+            root_prim = _spawn_from_usd_file(prim_path, mesh_path, usd_cfg, translation, orientation)
+            if cfg.collision_props is not None and cfg.mesh_collision_props is not None:
+                schemas.modify_mesh_collision_properties(prim_path, cfg.mesh_collision_props, stage=stage)
+        else:
+            converter_cfg = converters.MeshConverterCfg(
+                asset_path=mesh_path,
+                mass_props=cfg.mass_props,
+                rigid_props=cfg.rigid_props,
+                collision_props=cfg.collision_props,
+                mesh_collision_props=cfg.mesh_collision_props if cfg.collision_props is not None else None,
+            )
+            mesh_converter = converters.MeshConverter(converter_cfg)
+            usd_cfg = from_files_cfg.UsdFileCfg(
+                usd_path=mesh_converter.usd_path,
+                scale=cfg.scale,
+                visual_material_path=cfg.visual_material_path,
+                visual_material=cfg.visual_material,
+                physics_material_path=cfg.physics_material_path,
+                physics_material=cfg.physics_material,
+            )
+            root_prim = _spawn_from_usd_file(prim_path, mesh_converter.usd_path, usd_cfg, translation, orientation)
+    else:
+        vertices, faces, vertex_colors = _resolve_triangle_mesh_data(cfg.mesh)
+        root_prim = create_prim(
+            prim_path, "Xform", translation=translation, orientation=orientation, scale=cfg.scale, stage=stage
+        )
+        mesh_prim = create_prim(
+            f"{prim_path}/mesh",
+            "Mesh",
+            attributes={
+                "points": vertices,
+                "faceVertexIndices": faces.flatten(),
+                "faceVertexCounts": np.full(faces.shape[0], 3),
+                "subdivisionScheme": "bilinear",
+            },
+            stage=stage,
+        )
+
+        if cfg.collision_props is not None:
+            if cfg.mesh_collision_props is not None:
+                schemas.define_mesh_collision_properties(
+                    str(mesh_prim.GetPrimPath()), cfg.mesh_collision_props, stage=stage
+                )
+            schemas.define_collision_properties(str(mesh_prim.GetPrimPath()), cfg.collision_props, stage=stage)
+
+        if vertex_colors is not None:
+            color_prim_attr = mesh_prim.GetAttribute("primvars:displayColor")
+            color_prim_var = UsdGeom.Primvar(color_prim_attr)
+            color_prim_var.SetInterpolation(UsdGeom.Tokens.vertex)
+            color_prim_attr.Set(vertex_colors[:, :3])
+            display_prim_attr = mesh_prim.GetAttribute("primvars:displayOpacity")
+            display_prim_var = UsdGeom.Primvar(display_prim_attr)
+            display_prim_var.SetInterpolation(UsdGeom.Tokens.vertex)
+            display_prim_attr.Set(vertex_colors[:, 3])
+
+        if cfg.visual_material is not None:
+            material_path = (
+                f"{prim_path}/{cfg.visual_material_path}"
+                if not cfg.visual_material_path.startswith("/")
+                else cfg.visual_material_path
+            )
+            cfg.visual_material.func(material_path, cfg.visual_material)
+            bind_visual_material(str(mesh_prim.GetPrimPath()), material_path, stage=stage)
+
+        if cfg.physics_material is not None:
+            material_path = (
+                f"{prim_path}/{cfg.physics_material_path}"
+                if not cfg.physics_material_path.startswith("/")
+                else cfg.physics_material_path
+            )
+            cfg.physics_material.func(material_path, cfg.physics_material)
+            bind_physics_material(str(mesh_prim.GetPrimPath()), material_path, stage=stage)
+
+        if cfg.mass_props is not None:
+            schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
+        if cfg.rigid_props is not None:
+            schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
+
+    return root_prim
 
 
 def spawn_ground_plane(

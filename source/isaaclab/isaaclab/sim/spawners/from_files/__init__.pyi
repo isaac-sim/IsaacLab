@@ -8,8 +8,10 @@ __all__ = [
     "spawn_from_urdf",
     "spawn_from_usd",
     "spawn_from_usd_with_compliant_contact_material",
+    "spawn_from_mesh",
     "spawn_ground_plane",
     "GroundPlaneCfg",
+    "MeshFileCfg",
     "MjcfFileCfg",
     "UrdfFileCfg",
     "UsdFileCfg",
@@ -21,10 +23,12 @@ from .from_files import (
     spawn_from_urdf,
     spawn_from_usd,
     spawn_from_usd_with_compliant_contact_material,
+    spawn_from_mesh,
     spawn_ground_plane,
 )
 from .from_files_cfg import (
     GroundPlaneCfg,
+    MeshFileCfg,
     MjcfFileCfg,
     UrdfFileCfg,
     UsdFileCfg,

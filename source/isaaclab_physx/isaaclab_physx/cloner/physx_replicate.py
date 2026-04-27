@@ -26,8 +26,9 @@ def physx_replicate(
     """Replicate prims via PhysX replicator with per-row mapping.
 
     Builds per-source destination lists from ``mapping`` and calls PhysX ``replicate``.
-    Rows covering all environments use ``useEnvIds=True``; partial rows use ``False``.
-    The replicator is registered for the call and then unregistered.
+    Homogeneous rows cloned from ``env_0`` to all other GPU environments use
+    ``useEnvIds=True``; partial rows use ``False``. The replicator is registered
+    for the call and then unregistered.
 
     ``attach_fn`` excludes ``/World/template`` and ``/World/envs`` so that PhysX does
     not independently parse prims that the replicator will handle.  The source prim
@@ -101,8 +102,7 @@ def physx_replicate(
                     _stage_id,
                     src,
                     len(current_worlds),
-                    # TODO: envIds needs to support heterogeneous setup. for now, we rely on USD collision filtering
-                    useEnvIds=False,  # (len(current_worlds) == num_envs - 1) and device != "cpu",
+                    useEnvIds=(len(current_worlds) == num_envs - 1) and device != "cpu",
                     useFabricForReplication=use_fabric,
                 )
             # unregister only AFTER all replicate() calls completed

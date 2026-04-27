@@ -16,8 +16,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 
-from .utils import create_prim_from_mesh
-
 if TYPE_CHECKING:
     from .terrain_importer_cfg import TerrainImporterCfg
 
@@ -248,9 +246,14 @@ class TerrainImporter:
         self.terrain_prim_paths.append(prim_path)
 
         # import the mesh
-        create_prim_from_mesh(
-            prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
+        mesh_cfg = sim_utils.MeshFileCfg(
+            mesh=sim_utils.MeshFileCfg.TrimeshObjectCfg(mesh=mesh),
+            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            mesh_collision_props=sim_utils.TriangleMeshPropertiesCfg(),
+            visual_material=self.cfg.visual_material,
+            physics_material=self.cfg.physics_material,
         )
+        mesh_cfg.func(prim_path, mesh_cfg)
 
     def import_usd(self, name: str, usd_path: str):
         """Import a mesh from a USD file.

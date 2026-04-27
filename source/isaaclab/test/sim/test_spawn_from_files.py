@@ -13,11 +13,14 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import pytest
+import trimesh
 
 import omni.kit.app
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
@@ -97,6 +100,164 @@ def test_spawn_ground_plane(sim):
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/World/ground_plane").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+
+_TRIANGLE_VERTICES = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]
+_TRIANGLE_FACES = [(0, 1, 2)]
+
+
+def _triangle_mesh_cfg(**kwargs):
+    return sim_utils.MeshFileCfg(
+        mesh=sim_utils.MeshFileCfg.TriangleMeshCfg(vertices=_TRIANGLE_VERTICES, faces=_TRIANGLE_FACES),
+        **kwargs,
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_mesh_file_with_trimesh_object(sim):
+    """Test spawning an in-memory mesh with object-style collision and rigid properties."""
+    cfg = sim_utils.MeshFileCfg(
+        mesh=sim_utils.MeshFileCfg.TrimeshObjectCfg(mesh=trimesh.creation.box()),
+        scale=(1.5, 1.0, 0.5),
+        mesh_collision_props=sim_utils.ConvexHullPropertiesCfg(),
+        collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(rigid_body_enabled=True, disable_gravity=True),
+        mass_props=sim_utils.MassPropertiesCfg(mass=2.0),
+    )
+    prim = cfg.func("/World/Object", cfg)
+
+    assert prim.IsValid()
+    assert sim.stage.GetPrimAtPath("/World/Object").IsValid()
+    assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+    root_prim = sim.stage.GetPrimAtPath("/World/Object")
+    assert root_prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
+    assert root_prim.GetAttribute("physics:mass").Get() == pytest.approx(2.0)
+
+    mesh_prim = sim.stage.GetPrimAtPath("/World/Object/mesh")
+    assert mesh_prim.IsValid()
+    assert UsdPhysics.CollisionAPI(mesh_prim).GetCollisionEnabledAttr().Get() is True
+    assert (
+        UsdPhysics.MeshCollisionAPI(mesh_prim).GetApproximationAttr().Get() == MESH_APPROXIMATION_TOKENS["convexHull"]
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_mesh_file_with_triangle_mesh_data(sim):
+    """Test spawning generated triangle mesh data as a visual-only mesh."""
+    cfg = sim_utils.MeshFileCfg(
+        mesh=sim_utils.MeshFileCfg.TriangleMeshCfg(
+            vertices=_TRIANGLE_VERTICES,
+            faces=_TRIANGLE_FACES,
+            vertex_colors=[(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+        )
+    )
+    prim = cfg.func("/World/VisualMesh", cfg)
+
+    assert prim.IsValid()
+    mesh_prim = sim.stage.GetPrimAtPath("/World/VisualMesh/mesh")
+    assert mesh_prim.IsValid()
+    assert not UsdPhysics.CollisionAPI(mesh_prim)
+    assert not UsdPhysics.MeshCollisionAPI(mesh_prim)
+
+
+def _create_test_mesh_usd(path):
+    """Create a small USD mesh asset for tests."""
+    stage = Usd.Stage.CreateNew(str(path))
+    root_prim = stage.DefinePrim("/ConvertedMesh", "Xform")
+    stage.SetDefaultPrim(root_prim)
+    UsdGeom.Xform.Define(stage, "/ConvertedMesh/geometry")
+    mesh_prim = UsdGeom.Mesh.Define(stage, "/ConvertedMesh/geometry/mesh")
+    mesh_prim.GetPointsAttr().Set(_TRIANGLE_VERTICES)
+    mesh_prim.GetFaceVertexCountsAttr().Set([3])
+    mesh_prim.GetFaceVertexIndicesAttr().Set([0, 1, 2])
+    stage.GetRootLayer().Save()
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_mesh_file_with_asset_path(sim, tmp_path, monkeypatch):
+    """Test spawning a mesh file path through the mesh converter path."""
+    import isaaclab.sim.spawners.from_files.from_files as from_files_module
+
+    obj_path = tmp_path / "triangle.obj"
+    obj_path.write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+    converted_usd_path = tmp_path / "triangle.usd"
+    _create_test_mesh_usd(converted_usd_path)
+    captured = {}
+
+    class FakeMeshConverter:
+        def __init__(self, cfg):
+            captured["cfg"] = cfg
+            self.usd_path = str(converted_usd_path)
+
+    monkeypatch.setattr(from_files_module.converters, "MeshConverter", FakeMeshConverter)
+
+    cfg = sim_utils.MeshFileCfg(
+        mesh=str(obj_path),
+        collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+        mesh_collision_props=sim_utils.ConvexHullPropertiesCfg(),
+    )
+
+    prim = cfg.func("/World/FileMesh", cfg)
+
+    assert prim.IsValid()
+    mesh_prim = sim.stage.GetPrimAtPath("/World/FileMesh/geometry/mesh")
+    assert mesh_prim.IsValid()
+    assert captured["cfg"].asset_path == str(obj_path)
+    assert captured["cfg"].collision_props == cfg.collision_props
+    assert captured["cfg"].mesh_collision_props == cfg.mesh_collision_props
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("parent_suffix", ["", "/Terrain"])
+def test_spawn_mesh_file_clones_regex_parent_with_suffix(sim, parent_suffix):
+    """Test regex cloning with existing and newly-created concrete parent suffixes."""
+    sim_utils.create_prim(f"/World/envs/env_0{parent_suffix}", "Xform")
+    sim_utils.create_prim(f"/World/envs/env_1{parent_suffix}", "Xform")
+    cfg = _triangle_mesh_cfg()
+
+    prim = cfg.func("/World/envs/env_.*/Terrain/Ground", cfg)
+
+    assert prim.GetPath().pathString == "/World/envs/env_0/Terrain/Ground"
+    assert sim.stage.GetPrimAtPath("/World/envs/env_0/Terrain/Ground/mesh").IsValid()
+    assert sim.stage.GetPrimAtPath("/World/envs/env_1/Terrain/Ground/mesh").IsValid()
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_mesh_file_replaces_leaf_regex(sim):
+    """Test leaf regex replacement keeps the existing clone behavior."""
+    sim_utils.create_prim("/World/template/Object", "Xform")
+    cfg = _triangle_mesh_cfg()
+
+    prim = cfg.func("/World/template/Object/proto_asset_.*", cfg)
+
+    assert prim.GetPath().pathString == "/World/template/Object/proto_asset_0"
+    assert sim.stage.GetPrimAtPath("/World/template/Object/proto_asset_0/mesh").IsValid()
+    assert not sim.stage.GetPrimAtPath("/World/template/Object/proto_asset_.*/mesh").IsValid()
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_mesh_file_does_not_create_regex_suffix(sim):
+    """Test clone fallback does not create unmatched regex suffix paths."""
+    sim_utils.create_prim("/World/envs/env_0", "Xform")
+    cfg = _triangle_mesh_cfg()
+
+    with pytest.raises(RuntimeError):
+        cfg.func("/World/envs/env_.*/Terrain_.*/Ground", cfg)
+
+
+@pytest.mark.isaacsim_ci
+def test_create_prim_from_mesh_uses_triangle_collision(sim):
+    """Test terrain mesh helper keeps the historical triangle-mesh collider."""
+    from isaaclab.terrains.utils import create_prim_from_mesh
+
+    prim = create_prim_from_mesh("/World/Terrain", trimesh.creation.box())
+
+    assert prim.IsValid()
+    mesh_prim = sim.stage.GetPrimAtPath("/World/Terrain/mesh")
+    assert mesh_prim.IsValid()
+    assert UsdPhysics.CollisionAPI(mesh_prim).GetCollisionEnabledAttr().Get() is True
+    assert UsdPhysics.MeshCollisionAPI(mesh_prim).GetApproximationAttr().Get() == MESH_APPROXIMATION_TOKENS["none"]
 
 
 @pytest.mark.isaacsim_ci

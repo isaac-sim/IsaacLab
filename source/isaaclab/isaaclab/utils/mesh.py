@@ -6,6 +6,8 @@
 
 """Utility functions for working with meshes."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 
 import numpy as np
@@ -17,7 +19,9 @@ __all__ = [
     "create_trimesh_from_geom_mesh",
     "create_trimesh_from_geom_shape",
     "convert_faces_to_triangles",
+    "normalize_vertex_colors",
     "PRIMITIVE_MESH_TYPES",
+    "validate_triangle_mesh_data",
 ]
 
 
@@ -95,6 +99,72 @@ def convert_faces_to_triangles(faces: np.ndarray, point_counts: np.ndarray) -> n
 
         vertex_counter += num_points
     return np.asarray(all_faces)
+
+
+def normalize_vertex_colors(vertex_colors: np.ndarray | list[tuple[float, ...]] | None) -> np.ndarray | None:
+    """Normalize optional vertex colors to RGBA floats in ``[0, 1]``.
+
+    Args:
+        vertex_colors: RGB or RGBA vertex colors. Values can be in ``[0, 1]`` or ``[0, 255]``.
+
+    Returns:
+        RGBA vertex colors with shape ``(num_vertices, 4)``, or None when no colors are provided.
+
+    Raises:
+        ValueError: If the colors are not shaped as RGB or RGBA values.
+    """
+    if vertex_colors is None:
+        return None
+
+    colors = np.asarray(vertex_colors)
+    if colors.size == 0:
+        return None
+    if colors.ndim != 2 or colors.shape[1] not in (3, 4):
+        raise ValueError(
+            f"Expected vertex colors with shape (num_vertices, 3) or (num_vertices, 4). Got: {colors.shape}."
+        )
+
+    colors = colors.astype(np.float32)
+    if np.max(colors) > 1.0:
+        colors /= 255.0
+    if colors.shape[1] == 3:
+        colors = np.concatenate([colors, np.ones((colors.shape[0], 1), dtype=np.float32)], axis=1)
+    return colors
+
+
+def validate_triangle_mesh_data(
+    vertices: np.ndarray | list[tuple[float, float, float]],
+    faces: np.ndarray | list[tuple[int, int, int]],
+    vertex_colors: np.ndarray | list[tuple[float, ...]] | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    """Validate and normalize triangle mesh arrays.
+
+    Args:
+        vertices: Mesh vertices [m], shape ``(num_vertices, 3)``.
+        faces: Triangle vertex indices, shape ``(num_faces, 3)``.
+        vertex_colors: Optional RGB or RGBA vertex colors.
+
+    Returns:
+        A tuple containing normalized vertices, faces, and optional RGBA vertex colors.
+
+    Raises:
+        ValueError: If vertices, faces, or colors have unsupported shapes.
+    """
+    vertices = np.asarray(vertices, dtype=np.float32)
+    if vertices.ndim != 2 or vertices.shape[1] != 3:
+        raise ValueError(f"Expected mesh vertices with shape (num_vertices, 3). Got: {vertices.shape}.")
+
+    faces = np.asarray(faces, dtype=np.int64)
+    if faces.ndim != 2 or faces.shape[1] != 3:
+        raise ValueError(f"Expected triangular mesh faces with shape (num_faces, 3). Got: {faces.shape}.")
+
+    vertex_colors = normalize_vertex_colors(vertex_colors)
+    if vertex_colors is not None and vertex_colors.shape[0] != vertices.shape[0]:
+        raise ValueError(
+            "Expected one vertex color per mesh vertex. "
+            f"Got {vertex_colors.shape[0]} colors for {vertices.shape[0]} vertices."
+        )
+    return vertices, faces, vertex_colors
 
 
 """

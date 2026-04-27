@@ -143,6 +143,48 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
     )
 
 
+@pytest.mark.parametrize(
+    "active_env_ids,device,expected_use_env_ids",
+    [
+        ([0, 1, 2, 3], "cuda:0", True),
+        ([0, 1, 2, 3], "cpu", False),
+        ([0, 2, 3], "cuda:0", False),
+    ],
+)
+def test_physx_replicate_env_id_selection(sim, active_env_ids, device, expected_use_env_ids):
+    """physx_replicate enables PhysX env IDs only for full homogeneous GPU replication."""
+    from unittest.mock import MagicMock, patch
+
+    num_envs = 4
+    stage = sim_utils.get_current_stage()
+    for i in range(num_envs):
+        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
+
+    mapping = torch.zeros((1, num_envs), dtype=torch.bool)
+    mapping[0, active_env_ids] = True
+
+    replicate_calls: list[bool] = []
+    mock_rep = MagicMock()
+    mock_rep.replicate.side_effect = lambda _sid, _src, _num_worlds, **kw: replicate_calls.append(kw["useEnvIds"])
+
+    def _fake_register(_stage_id, attach_fn, attach_end_fn, rename_fn):
+        attach_fn(_stage_id)
+        attach_end_fn(_stage_id)
+
+    mock_rep.register_replicator.side_effect = _fake_register
+    with patch("isaaclab_physx.cloner.physx_replicate.get_physx_replicator_interface", return_value=mock_rep):
+        physx_replicate(
+            stage,
+            sources=["/World/envs/env_0"],
+            destinations=["/World/envs/env_{}"],
+            env_ids=torch.arange(num_envs, dtype=torch.long),
+            mapping=mapping,
+            device=device,
+        )
+
+    assert replicate_calls == [expected_use_env_ids]
+
+
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_physx_replicate_isolated_source_loaded_without_replication(sim, device):
     """A single-env source (worlds=[self]) is correctly loaded after physx_replicate.

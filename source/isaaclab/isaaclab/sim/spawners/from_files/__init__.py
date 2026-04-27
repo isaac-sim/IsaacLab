@@ -3,12 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module for spawners that spawn assets from files.
+"""Sub-module for spawners that spawn assets from files or in-memory mesh data.
 
 Currently, the following spawners are supported:
 
 * :class:`UsdFileCfg`: Spawn an asset from a USD file.
 * :class:`UrdfFileCfg`: Spawn an asset from a URDF file.
+* :class:`MeshFileCfg`: Spawn a mesh file path or in-memory mesh data.
 * :class:`GroundPlaneCfg`: Spawn a ground plane using the grid-world USD file.
 
 """

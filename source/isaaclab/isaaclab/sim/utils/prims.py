@@ -33,10 +33,41 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
+_VALID_PRIM_PATH_REGEX = re.compile(r"^[a-zA-Z0-9/_]+$")
+
 
 """
 General Utils
 """
+
+
+def _resolve_clone_parent_paths(root_path: str) -> list[str]:
+    """Resolve concrete parent paths for clone spawning.
+
+    If a regex prefix matches and the remaining suffix is concrete, append the
+    suffix to each matched parent path.
+    """
+    if root_path == "" or _VALID_PRIM_PATH_REGEX.match(root_path) is not None:
+        return [root_path]
+
+    root_parts = root_path.strip("/").split("/")
+    for prefix_len in range(len(root_parts), 0, -1):
+        prefix_path = "/" + "/".join(root_parts[:prefix_len])
+        if _VALID_PRIM_PATH_REGEX.match(prefix_path) is not None:
+            continue
+
+        source_parent_paths = find_matching_prim_paths(prefix_path)
+        if not source_parent_paths:
+            continue
+
+        suffix = "/".join(root_parts[prefix_len:])
+        if suffix:
+            if _VALID_PRIM_PATH_REGEX.match(f"/{suffix}") is None:
+                continue
+            return [f"{parent_path}/{suffix}" for parent_path in source_parent_paths]
+        return source_parent_paths
+
+    raise RuntimeError(f"Unable to find source prim path: '{root_path}'. Please create the prim before spawning.")
 
 
 def create_prim(
@@ -654,35 +685,8 @@ def clone(func: Callable) -> Callable:
         # resolve: {SPAWN_NS}/AssetName
         # note: this assumes that the spawn namespace already exists in the stage
         root_path, asset_path = prim_path.rsplit("/", 1)
-        # check if input is a regex expression
-        # note: a valid prim path can only contain alphanumeric characters, underscores, and forward slashes
-        is_regex_expression = re.match(r"^[a-zA-Z0-9/_]+$", root_path) is None
-
-        # resolve matching prims for source prim path expression
-        if is_regex_expression and root_path != "":
-            source_prim_paths = find_matching_prim_paths(root_path)
-            # if no matching prims are found, raise an error
-            if len(source_prim_paths) == 0:
-                raise RuntimeError(
-                    f"Unable to find source prim path: '{root_path}'. Please create the prim before spawning."
-                )
-        else:
-            source_prim_paths = [root_path]
-
-        # Build a prototype prim path to spawn once, then copy to ALL matching parents.
-        #
-        # Octi: Leaf note wild card and root not wild card should be treated differently:
-        #   (A) ".*" in root_path  e.g. /World/Origin_0.*/CameraSensor
-        #       source_prim_paths holds ALL matching parent prims already in the stage.
-        #       We spawn the child once at source_prim_paths[0] as the prototype, then
-        #       Sdf.CopySpec it to every remaining parent so every parent ends up with
-        #       the child prim.
-        #
-        #   (B) ".*" in asset_path only  e.g. /World/template/Object/proto_asset_.*
-        #       No matching prims exist yet; source_prim_paths == [root_path] (one entry).
-        #       Replacing ".*" → "0" in asset_path gives the intended name proto_asset_0.
-        #       No copy step runs because there is only one parent.
-        #
+        # Build a prototype prim path to spawn once, then copy to all matching parents.
+        source_prim_paths = _resolve_clone_parent_paths(root_path)
         prim_spawn_path = f"{source_prim_paths[0]}/{asset_path.replace('.*', '0')}"
         # spawn single instance
         prim = func(prim_spawn_path, cfg, *args, **kwargs)
@@ -715,7 +719,10 @@ def clone(func: Callable) -> Callable:
             with Sdf.ChangeBlock():
                 for src_parent in source_prim_paths[1:]:
                     dest_path = f"{src_parent}/{sanitized_asset}"
-                    Sdf.CreatePrimInLayer(rl, dest_path)
+                    current_path = ""
+                    for path_part in dest_path.strip("/").split("/"):
+                        current_path = f"{current_path}/{path_part}"
+                        Sdf.CreatePrimInLayer(rl, current_path)
                     Sdf.CopySpec(rl, Sdf.Path(prim_spawn_path), rl, Sdf.Path(dest_path))
         # return the source prim
         return prim

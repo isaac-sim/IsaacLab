@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.30 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_physx.cloner.physx_replicate.physx_replicate`
+  to enable PhysX environment IDs only for homogeneous GPU replication while
+  preserving non-env-ID replication for CPU and partial mappings.
+
+
 0.5.29 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 

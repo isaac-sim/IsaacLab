@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+4.6.26 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sim.MeshFileCfg` and
+  :func:`~isaaclab.sim.spawn_from_mesh` for spawning mesh file paths,
+  in-memory ``trimesh.Trimesh`` objects, or triangle vertex and face data.
+
+Changed
+^^^^^^^
+
+* Updated terrain mesh importing to use :class:`~isaaclab.sim.MeshFileCfg`
+  with explicit triangle-mesh collision and regex prim-path cloning.
+
+
 4.6.25 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 

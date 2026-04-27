@@ -78,56 +78,21 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
         visual_material: The visual material to apply. Defaults to None.
         physics_material: The physics material to apply. Defaults to None.
     """
-    # need to import these here to prevent isaacsim launching when importing this module
-    from pxr import UsdGeom
-
     import isaaclab.sim as sim_utils
 
-    # create parent prim
-    sim_utils.create_prim(prim_path, "Xform")
-    # create mesh prim
-    prim = sim_utils.create_prim(
-        f"{prim_path}/mesh",
-        "Mesh",
+    mesh_cfg = sim_utils.MeshFileCfg(
+        mesh=sim_utils.MeshFileCfg.TrimeshObjectCfg(mesh=mesh),
+        collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+        mesh_collision_props=sim_utils.TriangleMeshPropertiesCfg(),
+        visual_material=kwargs.get("visual_material"),
+        physics_material=kwargs.get("physics_material"),
+    )
+    return mesh_cfg.func(
+        prim_path,
+        mesh_cfg,
         translation=kwargs.get("translation"),
         orientation=kwargs.get("orientation"),
-        attributes={
-            "points": mesh.vertices,
-            "faceVertexIndices": mesh.faces.flatten(),
-            "faceVertexCounts": np.asarray([3] * len(mesh.faces)),
-            "subdivisionScheme": "bilinear",
-        },
     )
-    # apply collider properties
-    collider_cfg = sim_utils.CollisionPropertiesCfg(collision_enabled=True)
-    sim_utils.define_collision_properties(prim.GetPrimPath(), collider_cfg)
-    # add rgba color to the mesh primvars
-    if mesh.visual.vertex_colors is not None:
-        # obtain color from the mesh
-        rgba_colors = np.asarray(mesh.visual.vertex_colors).astype(np.float32) / 255.0
-        # displayColor is a primvar attribute that is used to color the mesh
-        color_prim_attr = prim.GetAttribute("primvars:displayColor")
-        color_prim_var = UsdGeom.Primvar(color_prim_attr)
-        color_prim_var.SetInterpolation(UsdGeom.Tokens.vertex)
-        color_prim_attr.Set(rgba_colors[:, :3])
-        # displayOpacity is a primvar attribute that is used to set the opacity of the mesh
-        display_prim_attr = prim.GetAttribute("primvars:displayOpacity")
-        display_prim_var = UsdGeom.Primvar(display_prim_attr)
-        display_prim_var.SetInterpolation(UsdGeom.Tokens.vertex)
-        display_prim_var.Set(rgba_colors[:, 3])
-
-    # create visual material
-    if kwargs.get("visual_material") is not None:
-        visual_material_cfg: sim_utils.VisualMaterialCfg = kwargs.get("visual_material")
-        # spawn the material
-        visual_material_cfg.func(f"{prim_path}/visualMaterial", visual_material_cfg)
-        sim_utils.bind_visual_material(prim.GetPrimPath(), f"{prim_path}/visualMaterial")
-    # create physics material
-    if kwargs.get("physics_material") is not None:
-        physics_material_cfg: sim_utils.RigidBodyMaterialCfg = kwargs.get("physics_material")
-        # spawn the material
-        physics_material_cfg.func(f"{prim_path}/physicsMaterial", physics_material_cfg)
-        sim_utils.bind_physics_material(prim.GetPrimPath(), f"{prim_path}/physicsMaterial")
 
 
 def find_flat_patches(

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 # deformables only supported on PhysX backend
 from isaaclab_physx.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg
@@ -16,6 +17,10 @@ from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+if TYPE_CHECKING:
+    import numpy as np
+    import trimesh
 
 
 @configclass
@@ -232,3 +237,69 @@ class GroundPlaneCfg(SpawnerCfg):
 
     physics_material: materials.RigidBodyMaterialCfg = materials.RigidBodyMaterialCfg()
     """Physics material properties. Defaults to the default rigid body material."""
+
+
+@configclass
+class MeshFileCfg(RigidObjectSpawnerCfg):
+    """Create a USD mesh prim from a mesh source.
+
+    By default, this spawner creates a visual-only mesh. Set the inherited
+    :attr:`collision_props` field to enable collision, and use
+    :attr:`mesh_collision_props` to select triangle, convex, or SDF collision.
+    """
+
+    @configclass
+    class TriangleMeshCfg:
+        """Triangle mesh data to spawn directly as a USD mesh prim."""
+
+        vertices: np.ndarray | list[tuple[float, float, float]] = MISSING
+        """Mesh vertices [m], shape ``(num_vertices, 3)``."""
+
+        faces: np.ndarray | list[tuple[int, int, int]] = MISSING
+        """Triangle vertex indices, shape ``(num_faces, 3)``."""
+
+        vertex_colors: (
+            np.ndarray | list[tuple[float, float, float]] | list[tuple[float, float, float, float]] | None
+        ) = None
+        """Optional RGB or RGBA vertex colors."""
+
+    @configclass
+    class TrimeshObjectCfg:
+        """In-memory trimesh object to spawn directly as a USD mesh prim."""
+
+        mesh: trimesh.Trimesh = MISSING
+        """In-memory mesh object."""
+
+    func: Callable | str = "{DIR}.from_files:spawn_from_mesh"
+
+    mesh: str | TriangleMeshCfg | TrimeshObjectCfg = MISSING
+    """Mesh source to spawn.
+
+    Strings are treated as mesh file paths and converted to USD with
+    :class:`~isaaclab.sim.MeshConverterCfg`, except USD files which are
+    referenced directly. Use :class:`TriangleMeshCfg` or
+    :class:`TrimeshObjectCfg` for in-memory meshes.
+    """
+
+    scale: tuple[float, float, float] | None = None
+    """Scale of the mesh root. Defaults to None, in which case the scale is not modified."""
+
+    mesh_collision_props: schemas.MeshCollisionPropertiesCfg | None = None
+    """Mesh collision approximation properties to apply to the mesh prim.
+
+    This field is used only when :attr:`collision_props` is not None. Use
+    :class:`~isaaclab.sim.TriangleMeshPropertiesCfg` for terrain and convex or
+    SDF approximations for dynamic rigid objects.
+    """
+
+    visual_material_path: str = "visualMaterial"
+    """Path to the visual material to use for the mesh prim."""
+
+    visual_material: materials.VisualMaterialCfg | None = None
+    """Visual material properties."""
+
+    physics_material_path: str = "physicsMaterial"
+    """Path to the physics material to use for the mesh prim."""
+
+    physics_material: materials.PhysicsMaterialCfg | None = None
+    """Physics material properties."""

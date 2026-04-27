@@ -28,7 +28,9 @@ __all__ = [
     "create_trimesh_from_geom_mesh",
     "create_trimesh_from_geom_shape",
     "convert_faces_to_triangles",
+    "normalize_vertex_colors",
     "PRIMITIVE_MESH_TYPES",
+    "validate_triangle_mesh_data",
     "ModifierCfg",
     "ModifierBase",
     "DigitalFilter",
@@ -78,7 +80,9 @@ from .mesh import (
     create_trimesh_from_geom_mesh,
     create_trimesh_from_geom_shape,
     convert_faces_to_triangles,
+    normalize_vertex_colors,
     PRIMITIVE_MESH_TYPES,
+    validate_triangle_mesh_data,
 )
 from .modifiers import (
     ModifierCfg,
