@@ -147,19 +147,26 @@ RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* &&
     ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
     rm get-pip.py
 
-# Create a non-root runtime user with uid 1000 to match the CI runner host
-# user that owns the bind-mounted /workspace/isaaclab. Without this match,
-# runtime `mkdir tests` etc. fail with EACCES on the bind-mount overlay.
-# The base image already provisions an isaac-sim user (uid 1234) which keeps
-# ownership of /isaac-sim; we only chown the paths the new user needs to
-# write to so we don't trigger an OverlayFS copy-up of the multi-GB Isaac
-# Sim install. /isaac-sim stays mode 755 so isaaclab can still read+exec it.
-# --non-unique (-o) is required because some base image revisions already
-# carry a user at uid 1000 (e.g. an `ubuntu`/`kit`-style account); the file
-# system only cares about the numeric uid, so two names mapping to it is
-# fine. Resolving "isaaclab" via /etc/passwd still returns our /home/isaaclab
-# entry, so build-time ${HOME}/.bashrc writes land where we own the path.
-RUN useradd -m -l -s /bin/bash --non-unique --uid 1000 isaaclab -d /home/isaaclab
+# Create a non-root runtime user with uid/gid 1000 to match the CI runner
+# host user that owns the bind-mounted /workspace/isaaclab. Without this
+# match, runtime `mkdir tests` etc. fail with EACCES on the bind-mount
+# overlay. The base image already provisions an isaac-sim user (uid 1234)
+# which keeps ownership of /isaac-sim; we only chown the paths the new user
+# needs to write to so we don't trigger an OverlayFS copy-up of the multi-GB
+# Isaac Sim install. /isaac-sim stays mode 755 so isaaclab can still
+# read+exec it.
+#
+# --non-unique (-o) on both groupadd and useradd is required because some
+# base image revisions already carry a group/user at gid/uid 1000 (e.g. an
+# `ubuntu`/`kit`-style account). The file system only cares about numeric
+# IDs, so two names mapping to the same numeric ID is fine; resolving
+# "isaaclab" via /etc/passwd still returns our /home/isaaclab entry, so
+# build-time ${HOME}/.bashrc writes land where we own the path. We pin the
+# group's GID explicitly to 1000 (instead of letting useradd auto-pick one
+# when the default GID is taken) so that the BuildKit pip cache mount's
+# `gid=1000` matches the user's primary group.
+RUN groupadd --non-unique --gid 1000 isaaclab \
+ && useradd  --non-unique --uid 1000 --gid 1000 -m -l -s /bin/bash -d /home/isaaclab isaaclab
 
 RUN chown -R isaaclab:isaaclab \
         ${ISAACLAB_PATH} \
