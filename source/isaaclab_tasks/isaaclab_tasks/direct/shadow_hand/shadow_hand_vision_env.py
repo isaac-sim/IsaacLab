@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -130,9 +129,7 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         obs = torch.cat((state_obs, image_obs), dim=-1)
         # asymmetric critic states — Newton does not implement body_incoming_joint_wrench_b
         try:
-            self.fingertip_force_sensors = wp.to_torch(self.hand.data.body_incoming_joint_wrench_b)[
-                :, self.finger_bodies
-            ]
+            self.fingertip_force_sensors = self.hand.data.body_incoming_joint_wrench_b.torch[:, self.finger_bodies]
         except NotImplementedError:
             self.fingertip_force_sensors = torch.zeros(
                 self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device

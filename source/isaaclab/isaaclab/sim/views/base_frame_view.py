@@ -11,6 +11,8 @@ import abc
 
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 
 class BaseFrameView(abc.ABC):
     """Abstract interface for reading and writing world-space transforms of multiple prims.
@@ -20,7 +22,7 @@ class BaseFrameView(abc.ABC):
     :class:`~isaaclab.sim.views.FrameView` selects the correct
     implementation at runtime based on the active physics backend.
 
-    All getters return ``wp.array``.  Setters accept ``wp.array``.
+    All pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
     """
 
     @property
@@ -29,15 +31,23 @@ class BaseFrameView(abc.ABC):
         """Number of prims in this view."""
         ...
 
+    @property
     @abc.abstractmethod
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
+    def device(self) -> str:
+        """Device where arrays are allocated (``"cpu"`` or ``"cuda:0"``)."""
+        ...
+
+    @abc.abstractmethod
+    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations for prims in the view.
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A tuple ``(positions (M, 3), orientations (M, 4))`` as ``wp.array``.
+            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
+            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
+            cached zero-copy ``torch.Tensor`` view.
         """
         ...
 
@@ -58,14 +68,16 @@ class BaseFrameView(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[wp.array, wp.array]:
+    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get local-space positions and orientations for prims in the view.
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
 
         Returns:
-            A tuple ``(translations (M, 3), orientations (M, 4))`` as ``wp.array``.
+            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
+            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
+            cached zero-copy ``torch.Tensor`` view.
         """
         ...
 

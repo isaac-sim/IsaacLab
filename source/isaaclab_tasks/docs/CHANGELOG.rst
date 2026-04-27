@@ -1,6 +1,81 @@
 Changelog
 ---------
 
+1.5.29 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled Newton rough-terrain locomotion training on the remaining
+  quadrupeds (Go1, Go2, A1, Anymal-B, Anymal-C), bipeds (H1, Cassie),
+  Digit, and G1 on top of Octi's Anymal-D work cherry-picked from
+  PR #5225.
+* Hoisted the per-env Anymal-D ``RoughPhysicsCfg`` (MJWarp solver +
+  collision pipeline) into the shared
+  :class:`~isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg.LocomotionVelocityRoughEnvCfg`
+  so every rough-terrain env inherits identical physics. The shared
+  preset opts in to ``default_shape_cfg=NewtonShapeCfg(margin=0.01)``,
+  which is the single most important Newton setting for rough terrain.
+* Added Go1 Newton-only leg armature preset to improve rough-terrain
+  training stability on lightweight quadrupeds.
+
+Changed
+^^^^^^^
+
+* Replaced the additive ``(-5, 5)`` kg default on
+  ``EventsCfg.add_base_mass`` with a multiplicative ``(1/1.25, 1.25)``
+  log-uniform scale (``operation="scale"``,
+  ``distribution="log_uniform"``). Scale-invariant across robot sizes
+  with geometric mean 1.0; removes the need for per-robot
+  ``(-1.0, 3.0)`` additive overrides on A1/Go1/Go2.
+
+
+1.5.28 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated stack-event utilities to enable optional extensions via
+  ``isaacsim.core.experimental.utils.app.enable_extension`` (non-deprecated Isaac Sim path).
+
+
+1.5.27 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored Franka cube-stack manager-based environment configs (IK-relative, visuomotor, and joint-position
+  variants under ``stack/config/franka/``) to build on :class:`~isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg.StackEnvCfg`,
+  including explicit cube spawns with semantic tags, gripper actions where applicable, end-effector
+  :class:`~isaaclab.sensors.frame_transformer.frame_transformer_cfg.FrameTransformerCfg`, and default Franka poses
+  via articulation ``InitialStateCfg`` instead of a reset-time default-pose event.
+* Changed GR1T2 and Unitree G1 Inspire pick-place environment configs to define ``idle_action`` as a plain Python
+  sequence instead of ``torch.tensor``, dropping the ``torch`` import from those modules.
+
+
+1.5.26 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated golden images ``source/isaaclab_tasks/test/golden_images/**/*.png`` to Git LFS.
+
+
+1.5.25 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated all data property accesses from ``wp.to_torch(data.property)`` to
+  ``data.property.torch`` to match the new :class:`~isaaclab.utils.warp.ProxyArray`
+  return type introduced in ``isaaclab`` 4.6.13.
+
+
 1.5.24 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -36,7 +111,6 @@ Fixed
   ``pytest.fail`` message in ``test_rendering_correctness``.
 * Refreshed Newton Warp renderer golden images in ``test_rendering_correctness`` so image baselines match the current
   camera output after Newton shape color alignment and the clear background color change.
-
 
 1.5.21 (2026-04-13)
 ~~~~~~~~~~~~~~~~~~~

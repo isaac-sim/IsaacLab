@@ -2006,9 +2006,9 @@ class Articulation(BaseArticulation):
             all_joints = len(jids_t) == self._num_joints
 
             # warp -> torch (zero-copy on same device via DLPack)
-            jp_target_full = wp.to_torch(self._data.joint_pos_target)
-            jv_target_full = wp.to_torch(self._data.joint_vel_target)
-            je_target_full = wp.to_torch(self._data.joint_effort_target)
+            jp_target_full = self._data.joint_pos_target.torch
+            jv_target_full = self._data.joint_vel_target.torch
+            je_target_full = self._data.joint_effort_target.torch
             jp_target = jp_target_full if all_joints else jp_target_full[:, jids_t]
             jv_target = jv_target_full if all_joints else jv_target_full[:, jids_t]
             je_target = je_target_full if all_joints else je_target_full[:, jids_t]
@@ -2019,8 +2019,8 @@ class Articulation(BaseArticulation):
                 joint_efforts=je_target,
             )
 
-            jp_cur_full = wp.to_torch(self._data.joint_pos)
-            jv_cur_full = wp.to_torch(self._data.joint_vel)
+            jp_cur_full = self._data.joint_pos.torch
+            jv_cur_full = self._data.joint_vel.torch
             jp_cur = jp_cur_full if all_joints else jp_cur_full[:, jids_t]
             jv_cur = jv_cur_full if all_joints else jv_cur_full[:, jids_t]
 
@@ -2057,14 +2057,14 @@ class Articulation(BaseArticulation):
                 return f"[{v[0]:.1e}, {v[1]:.1e}]"
             return f"[{v[0]:.3f}, {v[1]:.3f}]"
 
-        stiffnesses = self.data.joint_stiffness.numpy()[0].tolist()
-        dampings = self.data.joint_damping.numpy()[0].tolist()
-        armatures = self.data.joint_armature.numpy()[0].tolist()
-        frictions = self.data.joint_friction_coeff.numpy()[0].tolist()
-        pos_limits_np = self.data.joint_pos_limits.numpy().reshape(self._num_instances, self._num_joints, 2)
+        stiffnesses = self.data.joint_stiffness.warp.numpy()[0].tolist()
+        dampings = self.data.joint_damping.warp.numpy()[0].tolist()
+        armatures = self.data.joint_armature.warp.numpy()[0].tolist()
+        frictions = self.data.joint_friction_coeff.warp.numpy()[0].tolist()
+        pos_limits_np = self.data.joint_pos_limits.warp.numpy().reshape(self._num_instances, self._num_joints, 2)
         position_limits = [tuple(pos_limits_np[0, j].tolist()) for j in range(self._num_joints)]
-        velocity_limits = self.data.joint_vel_limits.numpy()[0].tolist()
-        effort_limits = self.data.joint_effort_limits.numpy()[0].tolist()
+        velocity_limits = self.data.joint_vel_limits.warp.numpy()[0].tolist()
+        effort_limits = self.data.joint_effort_limits.warp.numpy()[0].tolist()
 
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
@@ -2105,15 +2105,15 @@ class Articulation(BaseArticulation):
         logger.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
         if self.num_fixed_tendons > 0:
-            ft_stiffnesses = self.data.fixed_tendon_stiffness.numpy()[0].tolist()
-            ft_dampings = self.data.fixed_tendon_damping.numpy()[0].tolist()
-            ft_limit_stiffnesses = self.data.fixed_tendon_limit_stiffness.numpy()[0].tolist()
-            ft_limits_np = self.data.fixed_tendon_pos_limits.numpy().reshape(
+            ft_stiffnesses = self.data.fixed_tendon_stiffness.warp.numpy()[0].tolist()
+            ft_dampings = self.data.fixed_tendon_damping.warp.numpy()[0].tolist()
+            ft_limit_stiffnesses = self.data.fixed_tendon_limit_stiffness.warp.numpy()[0].tolist()
+            ft_limits_np = self.data.fixed_tendon_pos_limits.warp.numpy().reshape(
                 self._num_instances, self.num_fixed_tendons, 2
             )
             ft_limits = [tuple(ft_limits_np[0, t].tolist()) for t in range(self.num_fixed_tendons)]
-            ft_rest_lengths = self.data.fixed_tendon_rest_length.numpy()[0].tolist()
-            ft_offsets = self.data.fixed_tendon_offset.numpy()[0].tolist()
+            ft_rest_lengths = self.data.fixed_tendon_rest_length.warp.numpy()[0].tolist()
+            ft_offsets = self.data.fixed_tendon_offset.warp.numpy()[0].tolist()
 
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
@@ -2149,10 +2149,10 @@ class Articulation(BaseArticulation):
             )
 
         if self.num_spatial_tendons > 0:
-            st_stiffnesses = self.data.spatial_tendon_stiffness.numpy()[0].tolist()
-            st_dampings = self.data.spatial_tendon_damping.numpy()[0].tolist()
-            st_limit_stiffnesses = self.data.spatial_tendon_limit_stiffness.numpy()[0].tolist()
-            st_offsets = self.data.spatial_tendon_offset.numpy()[0].tolist()
+            st_stiffnesses = self.data.spatial_tendon_stiffness.warp.numpy()[0].tolist()
+            st_dampings = self.data.spatial_tendon_damping.warp.numpy()[0].tolist()
+            st_limit_stiffnesses = self.data.spatial_tendon_limit_stiffness.warp.numpy()[0].tolist()
+            st_offsets = self.data.spatial_tendon_offset.warp.numpy()[0].tolist()
 
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Spatial Tendon Information (Prim path: {self.cfg.prim_path})"

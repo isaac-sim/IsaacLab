@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -169,8 +168,8 @@ class JointPositionToLimitsAction(ActionTerm):
             # rescale within the joint limits
             actions = math_utils.unscale_transform(
                 actions,
-                wp.to_torch(self._asset.data.soft_joint_pos_limits)[:, self._joint_ids, 0],
-                wp.to_torch(self._asset.data.soft_joint_pos_limits)[:, self._joint_ids, 1],
+                self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 0],
+                self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 1],
             )
             self._processed_actions[:] = actions[:]
 
@@ -271,10 +270,10 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
         # check if specific environment ids are provided
         if env_ids is None:
             super().reset(slice(None))
-            self._prev_applied_actions[:] = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
+            self._prev_applied_actions[:] = self._asset.data.joint_pos.torch[:, self._joint_ids]
         else:
             super().reset(env_ids)
-            curr_applied_actions = wp.to_torch(self._asset.data.joint_pos)[env_ids[:, None], self._joint_ids].view(
+            curr_applied_actions = self._asset.data.joint_pos.torch[env_ids[:, None], self._joint_ids].view(
                 len(env_ids), -1
             )
             self._prev_applied_actions[env_ids, :] = curr_applied_actions
@@ -288,8 +287,8 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
         # clamp the targets
         self._processed_actions[:] = torch.clamp(
             ema_actions,
-            wp.to_torch(self._asset.data.soft_joint_pos_limits)[:, self._joint_ids, 0],
-            wp.to_torch(self._asset.data.soft_joint_pos_limits)[:, self._joint_ids, 1],
+            self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 0],
+            self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 1],
         )
         # update previous targets
         self._prev_applied_actions[:] = self._processed_actions[:]

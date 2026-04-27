@@ -21,6 +21,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -1101,6 +1102,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         # container for data access
         self._data = RigidObjectCollectionData(self._root_view, self.num_bodies, self.device)
+
+        # Register callback to rebind simulation data after a full reset (model/state recreation).
+        self._physics_ready_handle = SimulationManager.register_callback(
+            lambda _: self._data._create_simulation_bindings(),
+            PhysicsEvent.PHYSICS_READY,
+            name=f"rigid_object_collection_rebind_{self.cfg.rigid_objects}",
+        )
 
         # create buffers
         self._create_buffers()

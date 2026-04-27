@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import warp as wp
+from isaaclab.utils.warp import ProxyArray
 
 
 class BaseImuData(ABC):
@@ -24,7 +24,7 @@ class BaseImuData(ABC):
 
     @property
     @abstractmethod
-    def ang_vel_b(self) -> wp.array:
+    def ang_vel_b(self) -> ProxyArray:
         """IMU frame angular velocity relative to the world expressed in IMU frame [rad/s].
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -33,7 +33,7 @@ class BaseImuData(ABC):
 
     @property
     @abstractmethod
-    def lin_acc_b(self) -> wp.array:
+    def lin_acc_b(self) -> ProxyArray:
         """Linear acceleration (proper) in the IMU frame [m/s^2].
 
         Zero in freefall, +g upward at rest.

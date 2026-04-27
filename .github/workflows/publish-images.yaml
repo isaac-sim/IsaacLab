@@ -1,0 +1,200 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Publish Docker Images
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - release/**
+
+# Concurrency control to prevent parallel runs
+concurrency:
+  group: publish-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+
+jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
+
+  build-and-push-images:
+    needs: [config]
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    environment:
+      name: postmerge-production
+      url: https://github.com/${{ github.repository }}
+    env:
+        DOCKER_HOST: unix:///var/run/docker.sock
+        DOCKER_TLS_CERTDIR: ""
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: linux/arm64
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64
+        driver-opts: |
+          image=moby/buildkit:buildx-stable-1
+
+    - name: Login to NGC
+      run: |
+        # Only attempt NGC login if API key is available
+        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+          echo "🔵 Logging into NGC registry..."
+          if ! docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io; then
+            echo "🔴 Failed to log into NGC registry"
+            exit 1
+          fi
+          echo "🟢 Successfully logged into NGC registry"
+        else
+          echo "🟠 NGC_API_KEY not set - skipping NGC login (normal when secrets are not configured)"
+        fi
+
+    - name: Build and Push Docker Images
+      run: |
+        BRANCH_NAME="${{ github.ref_name }}"
+        IMAGE_BASE_VERSION="${{ needs.config.outputs.isaacsim_image_tag }}"
+        SHA="${{ github.sha }}"
+        IMAGE="${{ needs.config.outputs.isaaclab_image_name }}"
+
+        echo "Branch: $BRANCH_NAME"
+        echo "Commit: $SHA"
+        echo "IsaacSim base image: ${{ needs.config.outputs.isaacsim_image_name }}:$IMAGE_BASE_VERSION"
+        echo "Target Isaac Lab image: $IMAGE"
+
+        # Build the list of tags based on the branch.
+        #
+        # Tagging scheme:
+        #   - Every build:        $IMAGE:<full-sha>             (immutable, retained for re-testing)
+        #   - Push to develop:    $IMAGE:latest-develop         (moves to newest develop build)
+        #   - Push to release/X:  $IMAGE:latest-release-X       (moves to newest build on that release branch)
+        #   - Push to main:       $IMAGE:latest                 (moves to newest main build)
+        #                         $IMAGE:v<VERSION>             (from the VERSION file, e.g. v3.0.0)
+        TAGS=("$IMAGE:$SHA")
+
+        case "$BRANCH_NAME" in
+          develop)
+            TAGS+=("$IMAGE:latest-develop")
+            ;;
+          main)
+            TAGS+=("$IMAGE:latest")
+            VERSION="$(tr -d '[:space:]' < VERSION)"
+            if [ -n "$VERSION" ]; then
+              TAGS+=("$IMAGE:v$VERSION")
+            else
+              echo "🛑 ERROR: VERSION file is empty or missing. Cannot tag build with version tag."
+              exit 1
+            fi
+            ;;
+          release/*)
+            # Sanitize the part after release/ for use as a Docker tag suffix.
+            RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX")
+            ;;
+          *)
+            # Other tracked branches only get the immutable sha tag.
+            echo "Branch '$BRANCH_NAME' has no moving tag; only $IMAGE:$SHA will be published."
+            ;;
+        esac
+
+        # Determine if multiarch is supported by inspecting the base image manifest
+        echo "🔵 Checking if base image supports multiarch..."
+        BASE_IMAGE_FULL="${{ needs.config.outputs.isaacsim_image_name }}:${IMAGE_BASE_VERSION}"
+        ARCHITECTURES=$(docker manifest inspect "$BASE_IMAGE_FULL" 2>/dev/null | grep -o '"architecture": "[^"]*"' | cut -d'"' -f4 | sort -u)
+
+        if [ -z "$ARCHITECTURES" ]; then
+          echo "🟠 Could not inspect base image manifest: $BASE_IMAGE_FULL - defaulting to linux/amd64 only"
+          BUILD_PLATFORMS="linux/amd64"
+        else
+          echo "Base image architectures found:"
+          echo "$ARCHITECTURES" | sed 's/^/  - /'
+
+          HAS_AMD64=$(echo "$ARCHITECTURES" | grep -c "amd64" || true)
+          HAS_ARM64=$(echo "$ARCHITECTURES" | grep -c "arm64" || true)
+
+          if [ "$HAS_AMD64" -gt 0 ] && [ "$HAS_ARM64" -gt 0 ]; then
+            echo "🟢 Base image supports multiarch (amd64 + arm64)"
+            BUILD_PLATFORMS="linux/amd64,linux/arm64"
+          elif [ "$HAS_AMD64" -gt 0 ]; then
+            echo "Base image only supports amd64"
+            BUILD_PLATFORMS="linux/amd64"
+          elif [ "$HAS_ARM64" -gt 0 ]; then
+            echo "Base image only supports arm64"
+            BUILD_PLATFORMS="linux/arm64"
+          else
+            echo "🟠 Unknown architecture support for $BASE_IMAGE_FULL - defaulting to linux/amd64"
+            BUILD_PLATFORMS="linux/amd64"
+          fi
+        fi
+
+        echo "Target platforms: $BUILD_PLATFORMS"
+        echo "Tags to publish:"
+        printf '  - %s\n' "${TAGS[@]}"
+
+        # Compose -t flags for buildx
+        TAG_ARGS=()
+        for t in "${TAGS[@]}"; do
+          TAG_ARGS+=("-t" "$t")
+        done
+
+        echo "🔵 Building and pushing image with tags listed above..."
+        if ! docker buildx build \
+          --platform "$BUILD_PLATFORMS" \
+          --progress=plain \
+          "${TAG_ARGS[@]}" \
+          --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ needs.config.outputs.isaacsim_image_name }} \
+          --build-arg ISAACSIM_VERSION_ARG="$IMAGE_BASE_VERSION" \
+          --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
+          --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
+          --build-arg DOCKER_USER_HOME_ARG=/root \
+          --cache-from type=gha \
+          --cache-to type=gha,mode=max \
+          -f docker/Dockerfile.base \
+          --push .; then
+          echo "🔴 docker buildx build/push failed for tags:"
+          printf '  - %s\n' "${TAGS[@]}"
+          exit 1
+        fi
+
+        for t in "${TAGS[@]}"; do
+          echo "🟢 Successfully built and pushed: $t (platforms: $BUILD_PLATFORMS)"
+        done

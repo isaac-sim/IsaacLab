@@ -291,9 +291,8 @@ def test_raycaster_offset_does_not_affect_pos_w():
     sim.reset()
     sensor.update(dt)
 
-    # data.pos_w / data.ray_hits_w are wp.array after the ray caster warp-backend
-    # migration (PR #4967); convert to torch views for indexing.
-    pos_w = wp.to_torch(sensor.data.pos_w)[0].cpu()
+    # data.pos_w / data.ray_hits_w return ProxyArray wrappers; use .torch for tensor indexing.
+    pos_w = sensor.data.pos_w.torch[0].cpu()
 
     # pos_w.z should be near the body height, NOT body_height + offset
     assert abs(pos_w[2].item() - body_pos[2]) < 1.0, (
@@ -302,7 +301,7 @@ def test_raycaster_offset_does_not_affect_pos_w():
     )
 
     # ray_hits should be near z=0 (ground plane)
-    hits_z = wp.to_torch(sensor.data.ray_hits_w)[0, :, 2].cpu()
+    hits_z = sensor.data.ray_hits_w.torch[0, :, 2].cpu()
     valid = hits_z[~torch.isinf(hits_z)]
     if len(valid) > 0:
         assert valid.abs().max().item() < 2.0, (

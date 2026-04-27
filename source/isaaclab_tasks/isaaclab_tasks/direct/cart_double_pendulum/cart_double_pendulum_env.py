@@ -9,7 +9,6 @@ import math
 from collections.abc import Sequence
 
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
@@ -75,8 +74,8 @@ class CartDoublePendulumEnv(DirectMARLEnv):
         self._pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
         self._pendulum_dof_idx, _ = self.robot.find_joints(self.cfg.pendulum_dof_name)
 
-        self.joint_pos = wp.to_torch(self.robot.data.joint_pos)
-        self.joint_vel = wp.to_torch(self.robot.data.joint_vel)
+        self.joint_pos = self.robot.data.joint_pos.torch
+        self.joint_vel = self.robot.data.joint_vel.torch
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot_cfg)
@@ -149,8 +148,8 @@ class CartDoublePendulumEnv(DirectMARLEnv):
         return total_reward
 
     def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
-        self.joint_pos = wp.to_torch(self.robot.data.joint_pos)
-        self.joint_vel = wp.to_torch(self.robot.data.joint_vel)
+        self.joint_pos = self.robot.data.joint_pos.torch
+        self.joint_vel = self.robot.data.joint_vel.torch
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
@@ -165,7 +164,7 @@ class CartDoublePendulumEnv(DirectMARLEnv):
             env_ids = self.robot._ALL_INDICES
         super()._reset_idx(env_ids)
 
-        joint_pos = wp.to_torch(self.robot.data.default_joint_pos)[env_ids]
+        joint_pos = self.robot.data.default_joint_pos.torch[env_ids]
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
             self.cfg.initial_pole_angle_range[0] * math.pi,
             self.cfg.initial_pole_angle_range[1] * math.pi,
@@ -178,10 +177,10 @@ class CartDoublePendulumEnv(DirectMARLEnv):
             joint_pos[:, self._pendulum_dof_idx].shape,
             joint_pos.device,
         )
-        joint_vel = wp.to_torch(self.robot.data.default_joint_vel)[env_ids]
+        joint_vel = self.robot.data.default_joint_vel.torch[env_ids]
 
-        default_root_pose = wp.to_torch(self.robot.data.default_root_pose)[env_ids]
-        default_root_vel = wp.to_torch(self.robot.data.default_root_vel)[env_ids]
+        default_root_pose = self.robot.data.default_root_pose.torch[env_ids]
+        default_root_vel = self.robot.data.default_root_vel.torch[env_ids]
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
         self.joint_pos[env_ids] = joint_pos

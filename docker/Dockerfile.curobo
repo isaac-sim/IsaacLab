@@ -46,12 +46,15 @@ RUN apt-get update && \
     git \
     wget
 
-# Install packages needed to build imgui-bundle on arm64 as no prebuilt pip wheel is provided
+# arm64-only build deps:
+# - imgui-bundle has no prebuilt arm64 wheel; needs GL/X11 dev headers.
+# - swig is required for the nlopt source build (see arm64 nlopt step below).
 RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         apt-get update && \
         apt-get install -y --no-install-recommends \
         libgl1-mesa-dev libopengl-dev libglx-dev \
-        libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
+        libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev \
+        swig; \
     fi
 
 # Detect Ubuntu version and install CUDA 12.8 via NVIDIA network repo (cuda-keyring)
@@ -144,6 +147,16 @@ RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* &&
     wget -q https://bootstrap.pypa.io/get-pip.py && \
     ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
     rm get-pip.py
+
+# On arm64, pre-install nlopt 2.6.2 (transitively pinned by isaacteleop[retargeters]).
+# There is no aarch64 wheel for this version, and pip's isolated build env hides the
+# system numpy from nlopt's cmake-based build, so we install it manually with
+# --no-build-isolation. The subsequent isaaclab.sh --install will see nlopt as
+# already satisfied and skip the from-source rebuild that would otherwise fail.
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
+    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+        ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation nlopt==2.6.2; \
+    fi
 
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
