@@ -516,13 +516,14 @@ Multirotor
 .. table::
     :widths: 33 37 30
 
-    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+
-    | World                                  | Environment ID                              | Description                                                                            |
-    +========================================+=============================================+========================================================================================+
-    | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |
-    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+
-    | |arl_robot_navigation|                 | |arl_robot_navigation-link|                 | Navigate through 3D obstacles with the ARL robot using depth camera sensing.           |
-    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+-----------------------+
+    | World                                  | Environment ID                              | Description                                                                            | Presets               |
+    +========================================+=============================================+========================================================================================+=======================+
+    | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |                       |
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+=======================+
+    | |arl_robot_navigation|                 | |arl_robot_navigation-link|                 | Navigate through 3D obstacles with the ARL robot using depth camera sensing.           |                       |
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+=======================+
+
 
 Others
 ~~~~~~
@@ -959,10 +960,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - ``newton``, ``physx``
     * - Isaac-Navigation-3DObstacles-ARL-Robot-1-v0
       - Isaac-Navigation-3DObstacles-ARL-Robot-1-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
+      - ``newton``, ``physx``
     * - Isaac-Open-Drawer-Franka-IK-Abs-v0
       -
       - Manager Based
