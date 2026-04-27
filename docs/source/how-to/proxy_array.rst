@@ -61,13 +61,18 @@ treat it as a ``torch.Tensor`` temporarily:
    result = torch.sum(robot.data.joint_pos)           # via __torch_function__
    value = robot.data.joint_pos[0, 3]                 # via __getitem__
    result = robot.data.joint_pos + 1.0                # via __add__
+   legacy = wp.to_torch(robot.data.joint_pos)         # temporary shim
 
    # Preferred (no warning):
    result = torch.sum(robot.data.joint_pos.torch)
    value = robot.data.joint_pos.torch[0, 3]
    result = robot.data.joint_pos.torch + 1.0
+   tensor = robot.data.joint_pos.torch
 
-The bridge will be removed in a future release. Migrate to explicit ``.torch`` access now.
+The ``wp.to_torch()`` compatibility path is a temporary shim for code that was migrated
+before ``ProxyArray`` exposed explicit accessors. It returns the same zero-copy tensor as
+``.torch`` and emits a one-time ``DeprecationWarning``. The shim and the other deprecation
+bridges will be removed in a future release. Migrate to explicit ``.torch`` access now.
 
 
 Migrating from Isaac Lab 2.x
@@ -88,8 +93,10 @@ In Isaac Lab 2.x, data properties returned ``torch.Tensor`` directly. In 3.0, th
 
 .. note::
 
-   Passing a ``ProxyArray`` to ``wp.to_torch()`` will raise an ``AttributeError``.
-   Use ``.torch`` instead.
+   Passing a ``ProxyArray`` to ``wp.to_torch()`` is temporarily supported by a compatibility
+   shim and returns the same cached zero-copy tensor as ``.torch``. This path emits a
+   one-time ``DeprecationWarning`` and will be removed in a future release. Use ``.torch``
+   in new code.
 
 
 Backend Differences
@@ -103,10 +110,10 @@ model differs:
   then cache the result. The underlying GPU buffers are stable and pre-allocated — the
   ``ProxyArray`` wrapper is created once and reused safely across steps.
 
-**Newton (auto-refresh with rebind):**
+**Newton (auto-refresh with wrapper replacement):**
   The simulation automatically refreshes GPU buffers each step. On full simulation resets,
-  buffers may be re-created. The Newton backend calls :meth:`ProxyArray.rebind` to update
-  the wrapper when the underlying warp array changes, invalidating the cached torch tensor.
+  buffers may be re-created. The Newton backend creates new ``ProxyArray`` wrappers for the
+  new warp arrays, invalidating any previously cached torch tensors.
 
 In both cases, ``.torch`` always returns a view of the current simulation state for the
 current step.

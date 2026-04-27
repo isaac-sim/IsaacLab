@@ -133,8 +133,8 @@ def main():
     print(ray_caster)
 
     # Get the initial positions of the balls
-    ball_initial_poses = balls.data.root_pose_w.clone()
-    ball_initial_velocities = balls.data.root_vel_w.clone()
+    ball_initial_poses = balls.data.root_pose_w.torch.clone()
+    ball_initial_velocities = balls.data.root_vel_w.torch.clone()
 
     # Create a counter for resetting the scene
     step_count = 0

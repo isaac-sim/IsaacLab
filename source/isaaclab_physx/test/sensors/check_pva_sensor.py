@@ -147,8 +147,8 @@ def main():
     # Get the ball initial positions
     sim.step(render=not args_cli.headless)
     balls.update(sim.get_physics_dt())
-    ball_initial_positions = balls.data.root_pos_w.clone()
-    ball_initial_orientations = balls.data.root_quat_w.clone()
+    ball_initial_positions = balls.data.root_pos_w.torch.clone()
+    ball_initial_orientations = balls.data.root_quat_w.torch.clone()
 
     # Create a counter for resetting the scene
     step_count = 0

@@ -146,8 +146,8 @@ class HumanoidAmpEnv(DirectRLEnv):
         default_root_vel = self.robot.data.default_root_vel.torch[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
         root_state = torch.cat([default_root_pose, default_root_vel], dim=-1)
-        joint_pos = self.robot.data.default_joint_pos[env_ids].clone()
-        joint_vel = self.robot.data.default_joint_vel[env_ids].clone()
+        joint_pos = self.robot.data.default_joint_pos.torch[env_ids].clone()
+        joint_vel = self.robot.data.default_joint_vel.torch[env_ids].clone()
         return root_state, joint_pos, joint_vel
 
     def _reset_strategy_random(

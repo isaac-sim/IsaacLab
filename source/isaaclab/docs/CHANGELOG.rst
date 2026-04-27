@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+4.6.21 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ProxyArray migration guidance and static regression checks to cover
+  deprecated ``wp.to_torch(proxy_array)`` usage and direct tensor/wp.array
+  method calls on data properties.
+
+
 4.6.20 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -103,9 +114,9 @@ Removed
 Changed
 ^^^^^^^
 
-* Renamed :class:`~isaaclab.utils.warp.ProxyArray` to
+* Renamed the ``TorchArray`` wrapper to
   :class:`~isaaclab.utils.warp.ProxyArray` and its module from
-  ``isaaclab.utils.warp.proxy_array`` to
+  ``isaaclab.utils.warp.torch_array`` to
   ``isaaclab.utils.warp.proxy_array``. The new name better describes
   the class as a proxy around a :class:`wp.array` exposing both
   ``.warp`` and ``.torch`` accessors, rather than a torch-first type.

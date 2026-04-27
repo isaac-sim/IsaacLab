@@ -972,22 +972,21 @@ quaternions in XYZW format:
 - And all other quaternion utilities
 
 
-Warp Backend for Asset and Sensor Data
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ProxyArray Backend for Asset and Sensor Data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All ``.data.*`` properties on asset and sensor classes now return ``wp.array`` instead of
-``torch.Tensor``. This change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
+All ``.data.*`` properties on asset and sensor classes now return
+:class:`~isaaclab.utils.warp.ProxyArray` instead of ``torch.Tensor``. ``ProxyArray`` wraps
+the underlying ``wp.array`` and exposes explicit ``.torch`` and ``.warp`` accessors. This
+change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
 :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
 :class:`~isaaclab_physx.assets.DeformableObject`) and all sensor classes
 (:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
 :class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
 
-To convert back to ``torch.Tensor`` for use with PyTorch operations, wrap the property
-access with ``wp.to_torch()``:
+To use a data property as a ``torch.Tensor``, append ``.torch``:
 
 .. code-block:: python
-
-   import warp as wp
 
    # Before (Isaac Lab 2.x)
    root_pos = robot.data.root_pos_w             # torch.Tensor
@@ -995,14 +994,14 @@ access with ``wp.to_torch()``:
    contact_forces = sensor.data.net_forces_w     # torch.Tensor
 
    # After (Isaac Lab 3.x)
-   root_pos = robot.data.root_pos_w              # wp.array
-   joint_pos = robot.data.joint_pos              # wp.array
-   contact_forces = sensor.data.net_forces_w     # wp.array
+   root_pos = robot.data.root_pos_w              # ProxyArray
+   joint_pos = robot.data.joint_pos              # ProxyArray
+   contact_forces = sensor.data.net_forces_w     # ProxyArray
 
-   # To use with torch operations, wrap with wp.to_torch()
-   root_pos_torch = wp.to_torch(robot.data.root_pos_w)        # torch.Tensor
-   joint_pos_torch = wp.to_torch(robot.data.joint_pos)        # torch.Tensor
-   contact_torch = wp.to_torch(sensor.data.net_forces_w)      # torch.Tensor
+   # To use with torch operations, access .torch
+   root_pos_torch = robot.data.root_pos_w.torch        # torch.Tensor
+   joint_pos_torch = robot.data.joint_pos.torch        # torch.Tensor
+   contact_torch = sensor.data.net_forces_w.torch      # torch.Tensor
 
 Common patterns that need updating:
 
@@ -1012,19 +1011,19 @@ Common patterns that need updating:
    # Before:
    pos = robot.data.root_pos_w.clone()
    # After:
-   pos = wp.to_torch(robot.data.root_pos_w).clone()
+   pos = robot.data.root_pos_w.torch.clone()
 
    # Creating zero tensors with matching shape
    # Before:
    zeros = torch.zeros_like(robot.data.root_pos_w)
    # After:
-   zeros = torch.zeros_like(wp.to_torch(robot.data.root_pos_w))
+   zeros = torch.zeros_like(robot.data.root_pos_w.torch)
 
    # Assertions in tests
    # Before:
    torch.testing.assert_close(robot.data.root_pos_w, expected)
    # After:
-   torch.testing.assert_close(wp.to_torch(robot.data.root_pos_w), expected)
+   torch.testing.assert_close(robot.data.root_pos_w.torch, expected)
 
 .. list-table:: Affected classes
    :header-rows: 1
@@ -1059,20 +1058,10 @@ Common patterns that need updating:
 
 .. note::
 
-   An automated migration tool is provided at ``scripts/tools/wrap_warp_to_torch.py``.
-   It scans Python files for ``.data.<property>`` accesses and wraps them with
-   ``wp.to_torch()``. Usage:
-
-   .. code-block:: bash
-
-      # Dry run (preview changes)
-      python scripts/tools/wrap_warp_to_torch.py path/to/your/code --dry-run
-
-      # Apply changes in-place
-      python scripts/tools/wrap_warp_to_torch.py path/to/your/code
-
-   Always review the changes after running the tool, as some accesses (e.g., those
-   already passed to warp-native functions) should not be wrapped.
+   ``wp.to_torch(proxy_array)`` is temporarily supported by a compatibility shim. It returns
+   the same zero-copy tensor as ``proxy_array.torch`` and emits a one-time
+   ``DeprecationWarning``. This shim exists for older migration code and will be removed in a
+   future release; prefer ``.torch`` in new code.
 
 
 Ray Caster Warp Backend
@@ -1091,25 +1080,23 @@ RayCasterData Return Types
 
 The :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
 :attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
-:attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` properties now return ``wp.array`` instead of
-``torch.Tensor``. This follows the same pattern as the general warp backend migration described
-above.
+:attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` properties now return
+:class:`~isaaclab.utils.warp.ProxyArray` instead of ``torch.Tensor``. This follows the same
+pattern as the general ProxyArray backend migration described above.
 
 .. code-block:: python
-
-   import warp as wp
 
    # Before (Isaac Lab 2.x)
    ray_hits = ray_caster.data.ray_hits_w        # torch.Tensor
    sensor_pos = ray_caster.data.pos_w            # torch.Tensor
 
    # After (Isaac Lab 3.x)
-   ray_hits = ray_caster.data.ray_hits_w         # wp.array
-   sensor_pos = ray_caster.data.pos_w            # wp.array
+   ray_hits = ray_caster.data.ray_hits_w         # ProxyArray
+   sensor_pos = ray_caster.data.pos_w            # ProxyArray
 
-   # To use with torch operations, wrap with wp.to_torch()
-   ray_hits_torch = wp.to_torch(ray_caster.data.ray_hits_w)
-   sensor_pos_torch = wp.to_torch(ray_caster.data.pos_w)
+   # To use with torch operations, access .torch
+   ray_hits_torch = ray_caster.data.ray_hits_w.torch
+   sensor_pos_torch = ray_caster.data.pos_w.torch
 
 
 Ray Alignment Configuration
@@ -1724,12 +1711,11 @@ compatibility. These will be removed in a future release.
 
 .. _torcharray-migration:
 
-Data Properties Return ``ProxyArray`` Instead of ``wp.array``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ProxyArray Interop and Temporary Compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All asset and sensor data class properties now return :class:`~isaaclab.utils.warp.ProxyArray`
-instead of raw ``warp.array``. ``ProxyArray`` is a lightweight wrapper with explicit ``.torch``
-and ``.warp`` accessors:
+Asset and sensor data class properties return :class:`~isaaclab.utils.warp.ProxyArray`, a
+lightweight wrapper with explicit ``.torch`` and ``.warp`` accessors:
 
 .. code-block:: python
 
@@ -1767,12 +1753,12 @@ and ``.warp`` accessors:
    or passing to non-torch libraries).
 2. Warp kernel calls need no changes — ``ProxyArray`` works transparently.
 3. If you need the underlying ``warp.array`` (e.g., for ``ptr``, ``strides``), use ``.warp``.
+4. Replace legacy ``wp.to_torch(proxy_array)`` calls with ``proxy_array.torch``.
 
 .. note::
 
-   The ``__torch_function__`` deprecation bridge will be removed in a future release.
-   We recommend migrating to explicit ``.torch`` access now, but your code will not break
-   immediately.
+   The ``__torch_function__`` bridge and the temporary ``wp.to_torch(proxy_array)`` shim will
+   be removed in a future release. We recommend migrating to explicit ``.torch`` access now.
 
 For a complete guide, see :doc:`/source/how-to/proxy_array`.
 

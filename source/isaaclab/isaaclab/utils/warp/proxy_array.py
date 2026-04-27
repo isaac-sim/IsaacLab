@@ -34,9 +34,9 @@ class ProxyArray:
     * A ``.torch`` property that returns a cached, zero-copy :class:`torch.Tensor` view
       (via :func:`warp.to_torch`).
     * Convenience properties (``shape``, ``dtype``, ``device``) delegated to the warp array.
-    * A deprecation bridge (``__torch_function__`` and arithmetic/comparison operators) that
-      allows existing code using ``ProxyArray`` as if it were a ``torch.Tensor`` to keep working
-      while emitting a one-time :class:`DeprecationWarning`.
+    * A deprecation bridge for common torch functions, indexing, and arithmetic/comparison
+      operators while emitting a one-time :class:`DeprecationWarning`. Tensor instance methods
+      such as ``clone()`` are not forwarded; use explicit ``.torch`` access for those.
 
     Example:
 
