@@ -26,6 +26,9 @@ from typing import TYPE_CHECKING, Literal
 
 import warp as wp
 from newton import CollisionPipeline, Contacts, Control, Model, State
+from newton._src.solvers.vbd.rigid_vbd_kernels import (
+    evaluate_body_particle_contact as _evaluate_body_particle_contact,
+)
 from newton.solvers import SolverFeatherstone, SolverMuJoCo, SolverVBD
 
 if TYPE_CHECKING:
@@ -56,21 +59,27 @@ def _kernel_body_particle_reaction(
     particle_q_prev: wp.array(dtype=wp.vec3),
     particle_radius: wp.array(dtype=wp.float32),
     body_q: wp.array(dtype=wp.transform),
+    body_q_prev: wp.array(dtype=wp.transform),
     body_qd: wp.array(dtype=wp.spatial_vector),
     body_com: wp.array(dtype=wp.vec3),
     shape_body: wp.array(dtype=wp.int32),
     shape_material_mu: wp.array(dtype=wp.float32),
     soft_contact_ke: float,
+    soft_contact_kd: float,
     soft_contact_mu: float,
     friction_epsilon: float,
     dt: float,
     body_f: wp.array(dtype=wp.spatial_vector),
 ):
-    """Newton's-third-law reaction (normal + Coulomb friction) from soft particles onto rigid bodies.
+    """Newton's-third-law reaction from soft particles onto rigid bodies.
 
-    Mirrors the complete contact model from ``evaluate_body_particle_contact()``
-    in ``newton/_src/solvers/vbd/rigid_vbd_kernels.py``. One thread per contact
-    slot; threads beyond the actual contact count early-exit.
+    Delegates to Newton's ``evaluate_body_particle_contact()`` for the contact
+    force computation (normal + damping + Coulomb friction) so the model stays
+    in sync with the VBD solver. The force on the particle is negated and
+    applied as a wrench on the rigid body via ``body_f``.
+
+    One thread per contact slot; threads beyond the actual contact count
+    early-exit.
     """
     tid = wp.tid()
     if tid >= contact_count[0]:
@@ -82,41 +91,34 @@ def _kernel_body_particle_reaction(
     if body_idx < 0:
         return
 
+    # Delegate to Newton's canonical contact model
+    f_on_particle, _ = _evaluate_body_particle_contact(
+        p_idx,
+        particle_q[p_idx],
+        particle_q_prev[p_idx],
+        tid,
+        soft_contact_ke,
+        soft_contact_kd,
+        soft_contact_mu,
+        friction_epsilon,
+        particle_radius,
+        shape_material_mu,
+        shape_body,
+        body_q,
+        body_q_prev,
+        body_qd,
+        body_com,
+        contact_shape,
+        contact_body_pos,
+        contact_body_vel,
+        contact_normal,
+        dt,
+    )
+
+    # Newton's third law: negate particle force → rigid body wrench
     X_wb = body_q[body_idx]
     bx = wp.transform_point(X_wb, contact_body_pos[tid])
-    n = contact_normal[tid]
-
-    penetration = -(wp.dot(n, particle_q[p_idx] - bx) - particle_radius[p_idx])
-    if penetration <= 0.0:
-        return
-
-    normal_load = soft_contact_ke * penetration
-    f_on_particle = n * normal_load
-
     com_w = wp.transform_point(X_wb, body_com[body_idx])
-    mu = wp.sqrt(soft_contact_mu * shape_material_mu[s_idx])
-
-    if mu > 0.0:
-        body_v_s = body_qd[body_idx]
-        body_lin_v = wp.spatial_top(body_v_s)
-        body_ang_v = wp.spatial_bottom(body_v_s)
-        r = bx - com_w
-        bv = body_lin_v + wp.cross(body_ang_v, r) + wp.transform_vector(X_wb, contact_body_vel[tid])
-
-        dx = particle_q[p_idx] - particle_q_prev[p_idx]
-        relative_translation = dx - bv * dt
-
-        dot_nu = wp.dot(n, relative_translation)
-        u_t = relative_translation - n * dot_nu
-        u_norm = wp.length(u_t)
-        eps_u = friction_epsilon * dt
-
-        if u_norm > 0.0:
-            if u_norm > eps_u:
-                f1_over_x = 1.0 / u_norm
-            else:
-                f1_over_x = (-u_norm / eps_u + 2.0) / eps_u
-            f_on_particle = f_on_particle - (mu * normal_load * f1_over_x) * u_t
 
     reaction = -f_on_particle
     torque = wp.cross(bx - com_w, reaction)
@@ -276,9 +278,13 @@ class CoupledSolver:
         # 2. Collision detection BEFORE rigid step
         self.collision_pipeline.collide(state_in, self.contacts)
 
-        # 3. Inject contact reaction forces into body_f
+        # 3. Inject contact reaction forces into body_f.
+        #    state_out holds the previous substep's body_q (states swap each
+        #    substep), used for finite-difference body velocity in friction.
+        #    particle_q_prev = state_in.particle_q (same as particle_q) so
+        #    particle dx=0, consistent with VBD which hasn't iterated yet.
         if state_in.body_f is not None:
-            self._apply_reactions(state_in, dt)
+            self._apply_reactions(state_in, state_out, dt)
 
         # 4. Rigid-body step (reads body_f for soft-contact reactions)
         self._rigid_step(state_in, state_out, control, dt)
@@ -300,20 +306,21 @@ class CoupledSolver:
 
         model.particle_count = saved_particle_count
 
-    def _apply_reactions(self, state: State, dt: float) -> None:
+    def _apply_reactions(self, state: State, state_prev: State, dt: float) -> None:
         """Launch the reaction kernel to inject normal + friction forces into body_f.
 
-        .. note::
-            ``particle_q_prev`` receives the same array as ``particle_q``, so the
-            friction term's relative displacement (``dx = q - q_prev``) is always
-            zero. Friction is therefore computed from body velocity only. Maintaining
-            a separate ``q_prev`` snapshot would give physically correct Coulomb
-            friction but requires an extra buffer copy per substep. Acceptable for
-            now since one-way coupling is the primary use case.
+        Args:
+            state: Current state with particle positions and body state.
+            state_prev: Previous substep state whose ``body_q`` provides
+                the reference poses for finite-difference body velocity.
+            dt: Substep timestep [s].
         """
         model = self._model
         contacts = self.contacts
 
+        # particle_q_prev = state.particle_q (same array): dx=0 for particles,
+        # consistent with VBD which snapshots particle_q_prev = particle_q at
+        # the start of its step before any iteration.
         wp.launch(
             _kernel_body_particle_reaction,
             dim=_MAX_REACTION_CONTACTS,
@@ -328,11 +335,13 @@ class CoupledSolver:
                 state.particle_q,
                 model.particle_radius,
                 state.body_q,
+                state_prev.body_q,
                 state.body_qd,
                 model.body_com,
                 model.shape_body,
                 model.shape_material_mu,
                 float(model.soft_contact_ke),
+                float(model.soft_contact_kd),
                 float(model.soft_contact_mu),
                 float(self.vbd.friction_epsilon),
                 float(dt),
