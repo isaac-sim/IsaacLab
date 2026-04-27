@@ -157,16 +157,16 @@ class TestEventParity:
             warp_env, mask, position_range=(0.0, 0.0), velocity_range=(0.0, 0.0), asset_cfg=cfg
         )
         wp.synchronize()
-        warp_pos = wp.to_torch(art_data.joint_pos).clone()
-        warp_vel = wp.to_torch(art_data.joint_vel).clone()
+        warp_pos = art_data.joint_pos.torch.clone()
+        warp_vel = art_data.joint_vel.torch.clone()
 
         # Run stable version (writes via write_joint_position_to_sim_index — which our mock
         # does not implement, so we compute the expected result directly)
-        defaults_t = wp.to_torch(art_data.default_joint_pos).clone()
-        limits_t = wp.to_torch(art_data.soft_joint_pos_limits)
-        vel_limits_t = wp.to_torch(art_data.soft_joint_vel_limits)
+        defaults_t = art_data.default_joint_pos.torch.clone()
+        limits_t = art_data.soft_joint_pos_limits.torch
+        vel_limits_t = art_data.soft_joint_vel_limits.torch
         expected_pos = defaults_t.clamp(limits_t[..., 0], limits_t[..., 1])
-        expected_vel = wp.to_torch(art_data.default_joint_vel).clone().clamp(-vel_limits_t, vel_limits_t)
+        expected_vel = art_data.default_joint_vel.torch.clone().clamp(-vel_limits_t, vel_limits_t)
 
         assert_close(warp_pos, expected_pos)
         assert_close(warp_vel, expected_vel)
@@ -185,15 +185,15 @@ class TestEventParity:
             warp_env, mask, position_range=(1.0, 1.0), velocity_range=(1.0, 1.0), asset_cfg=cfg
         )
         wp.synchronize()
-        warp_pos = wp.to_torch(art_data.joint_pos).clone()
-        warp_vel = wp.to_torch(art_data.joint_vel).clone()
+        warp_pos = art_data.joint_pos.torch.clone()
+        warp_vel = art_data.joint_vel.torch.clone()
 
         # Expected: default * 1.0, clamped to limits
-        defaults_t = wp.to_torch(art_data.default_joint_pos).clone()
-        limits_t = wp.to_torch(art_data.soft_joint_pos_limits)
-        vel_limits_t = wp.to_torch(art_data.soft_joint_vel_limits)
+        defaults_t = art_data.default_joint_pos.torch.clone()
+        limits_t = art_data.soft_joint_pos_limits.torch
+        vel_limits_t = art_data.soft_joint_vel_limits.torch
         expected_pos = defaults_t.clamp(limits_t[..., 0], limits_t[..., 1])
-        expected_vel = wp.to_torch(art_data.default_joint_vel).clone().clamp(-vel_limits_t, vel_limits_t)
+        expected_vel = art_data.default_joint_vel.torch.clone().clamp(-vel_limits_t, vel_limits_t)
 
         assert_close(warp_pos, expected_pos)
         assert_close(warp_vel, expected_vel)
@@ -234,7 +234,7 @@ class TestEventCapturedDataMutation:
         wp.synchronize()
 
         # With zero offset, joint_pos should equal new defaults (clamped to limits [-3.14, 3.14])
-        result = wp.to_torch(art_data.joint_pos)
+        result = art_data.joint_pos.torch
         expected = torch.full((NUM_ENVS, NUM_JOINTS), 0.5, device=DEVICE)
         assert_close(result, expected)
 
@@ -259,7 +259,7 @@ class TestEventCapturedDataMutation:
         wp.capture_launch(cap.graph)
         wp.synchronize()
 
-        result = wp.to_torch(art_data.joint_pos)
+        result = art_data.joint_pos.torch
         expected = torch.full((NUM_ENVS, NUM_JOINTS), 0.25, device=DEVICE)
         assert_close(result, expected)
 
@@ -333,7 +333,7 @@ class TestEventCapturedDataMutation:
         )
         wp.synchronize()
 
-        result = wp.to_torch(art_data.joint_pos)
+        result = art_data.joint_pos.torch
         # Masked envs: reset to 0 (defaults + 0 offset)
         assert_close(result[: NUM_ENVS // 2], torch.zeros(NUM_ENVS // 2, NUM_JOINTS, device=DEVICE))
         # Unmasked envs: still 999.0

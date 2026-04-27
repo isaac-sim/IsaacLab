@@ -121,7 +121,7 @@ class TestJointActions:
         term.apply_actions()
 
         # Processed = raw * 1.0 + default_joint_pos[0]
-        defaults = wp.to_torch(art_data.default_joint_pos)[0]
+        defaults = art_data.default_joint_pos.torch[0]
         raw = wp.to_torch(actions_wp)
         expected = raw + defaults.unsqueeze(0)
         assert_close(term.processed_actions, expected)
@@ -211,7 +211,7 @@ class TestJointActionMathParity:
         term.process_actions(actions_wp, action_offset=0)
 
         raw = wp.to_torch(actions_wp)
-        defaults = wp.to_torch(art_data.default_joint_pos)[0]
+        defaults = art_data.default_joint_pos.torch[0]
         expected = raw * 1.0 + defaults.unsqueeze(0)
         assert_close(term.processed_actions, expected)
 
@@ -222,6 +222,6 @@ class TestJointActionMathParity:
         term.process_actions(actions_wp, action_offset=0)
 
         raw = wp.to_torch(actions_wp)
-        defaults = wp.to_torch(art_data.default_joint_pos)[0]
+        defaults = art_data.default_joint_pos.torch[0]
         expected = raw * 2.0 + defaults.unsqueeze(0)
         assert_close(term.processed_actions, expected)
