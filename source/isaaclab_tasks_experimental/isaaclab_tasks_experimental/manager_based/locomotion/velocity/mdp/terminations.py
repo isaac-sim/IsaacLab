@@ -61,6 +61,6 @@ def terrain_out_of_bounds(
     wp.launch(
         kernel=_terrain_out_of_bounds_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_pos_w, fn._half_width, fn._half_height, distance_buffer, out],
+        inputs=[asset.data.root_pos_w.warp, fn._half_width, fn._half_height, distance_buffer, out],
         device=env.device,
     )

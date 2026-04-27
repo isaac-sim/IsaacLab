@@ -60,9 +60,9 @@ def position_command_error(env: ManagerBasedRLEnv, out, command_name: str, asset
         kernel=_position_command_error_kernel,
         dim=env.num_envs,
         inputs=[
-            asset.data.root_pos_w,
-            asset.data.root_quat_w,
-            asset.data.body_pos_w,
+            asset.data.root_pos_w.warp,
+            asset.data.root_quat_w.warp,
+            asset.data.body_pos_w.warp,
             fn._cmd_wp,
             asset_cfg.body_ids[0],
             out,
@@ -111,9 +111,9 @@ def position_command_error_tanh(
         kernel=_position_command_error_tanh_kernel,
         dim=env.num_envs,
         inputs=[
-            asset.data.root_pos_w,
-            asset.data.root_quat_w,
-            asset.data.body_pos_w,
+            asset.data.root_pos_w.warp,
+            asset.data.root_quat_w.warp,
+            asset.data.body_pos_w.warp,
             fn._cmd_wp,
             asset_cfg.body_ids[0],
             1.0 / std,
@@ -161,6 +161,6 @@ def orientation_command_error(env: ManagerBasedRLEnv, out, command_name: str, as
     wp.launch(
         kernel=_orientation_command_error_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_quat_w, asset.data.body_quat_w, fn._cmd_wp, asset_cfg.body_ids[0], out],
+        inputs=[asset.data.root_quat_w.warp, asset.data.body_quat_w.warp, fn._cmd_wp, asset_cfg.body_ids[0], out],
         device=env.device,
     )

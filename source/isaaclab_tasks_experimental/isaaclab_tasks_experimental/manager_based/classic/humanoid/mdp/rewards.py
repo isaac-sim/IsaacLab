@@ -60,7 +60,7 @@ def upright_posture_bonus(
     wp.launch(
         kernel=_upright_posture_bonus_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_link_pose_w, asset.data.GRAVITY_VEC_W, threshold, out],
+        inputs=[asset.data.root_link_pose_w.warp, asset.data.GRAVITY_VEC_W.warp, threshold, out],
         device=env.device,
     )
 
@@ -102,7 +102,14 @@ def move_to_target_bonus(
     wp.launch(
         kernel=_move_to_target_bonus_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_pos_w, asset.data.root_quat_w, target_pos[0], target_pos[1], threshold, out],
+        inputs=[
+            asset.data.root_pos_w.warp,
+            asset.data.root_quat_w.warp,
+            target_pos[0],
+            target_pos[1],
+            threshold,
+            out,
+        ],
         device=env.device,
     )
 
@@ -172,7 +179,7 @@ class progress_reward(ManagerTermBase):
             dim=self.num_envs,
             inputs=[
                 env_mask,
-                asset.data.root_pos_w,
+                asset.data.root_pos_w.warp,
                 self._target_pos[0],
                 self._target_pos[1],
                 self._target_pos[2],
@@ -194,7 +201,7 @@ class progress_reward(ManagerTermBase):
         wp.launch(
             kernel=_progress_reward_kernel,
             dim=env.num_envs,
-            inputs=[asset.data.root_pos_w, target_pos[0], target_pos[1], inv_dt, self.potentials, out],
+            inputs=[asset.data.root_pos_w.warp, target_pos[0], target_pos[1], inv_dt, self.potentials, out],
             device=env.device,
         )
 
@@ -256,8 +263,8 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
             kernel=_joint_pos_limits_penalty_ratio_kernel,
             dim=env.num_envs,
             inputs=[
-                asset.data.joint_pos,
-                asset.data.soft_joint_pos_limits,
+                asset.data.joint_pos.warp,
+                asset.data.soft_joint_pos_limits.warp,
                 self._gear_ratio_scaled_wp,
                 threshold,
                 1.0 / (1.0 - threshold),
@@ -309,6 +316,6 @@ class power_consumption(ManagerTermBase):
         wp.launch(
             kernel=_power_consumption_kernel,
             dim=env.num_envs,
-            inputs=[env.action_manager.action, asset.data.joint_vel, self._gear_ratio_scaled_wp, out],
+            inputs=[env.action_manager.action, asset.data.joint_vel.warp, self._gear_ratio_scaled_wp, out],
             device=env.device,
         )
