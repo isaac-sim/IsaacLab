@@ -9,7 +9,7 @@ What These Features Do
 
 **Fabric Cloning**
 
-- Clones environments using Fabric library (see `USD Fabric USDRT Documentation <https://docs.omniverse.nvidia.com/kit/docs/usdrt/latest/docs/usd_fabric_usdrt.html>`_)
+- Clones environments using Fabric library (see `USD Fabric USDRT Documentation <https://docs.omniverse.nvidia.com/kit/docs/usdrt.scenegraph/latest/usd_fabric_usdrt.html>`_)
 - Partially supported and enabled by default on some environments (see `Limitations`_ section for a list)
 
 **Stage in Memory**
