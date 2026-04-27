@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import pytest
 import warp as wp
 
 from isaaclab.physics.scene_data_types import (

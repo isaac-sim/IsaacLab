@@ -10,7 +10,6 @@ from __future__ import annotations
 import math
 
 import numpy as np
-import pytest
 import warp as wp
 
 from isaaclab.physics.scene_data_conversion import ConversionDispatcher
@@ -164,7 +163,9 @@ class TestConvertVec3QuatToMat44:
             count=1,
             device=DEVICE,
             positions=wp.from_numpy(np.array([[0.0, 0.0, 0.0]], dtype=np.float32), dtype=wp.vec3, device=DEVICE),
-            orientations=wp.from_numpy(np.array([[0.0, 0.0, 0.0, 1.0]], dtype=np.float32), dtype=wp.quatf, device=DEVICE),
+            orientations=wp.from_numpy(
+                np.array([[0.0, 0.0, 0.0, 1.0]], dtype=np.float32), dtype=wp.quatf, device=DEVICE
+            ),
         )
         target = _alloc_mat44f(1)
         ConversionDispatcher.convert(source, target)
@@ -179,7 +180,9 @@ class TestConvertVec3QuatToVec3Mat33:
             count=1,
             device=DEVICE,
             positions=wp.from_numpy(np.array([[5.0, 6.0, 7.0]], dtype=np.float32), dtype=wp.vec3, device=DEVICE),
-            orientations=wp.from_numpy(np.array([[0.0, 0.0, 0.0, 1.0]], dtype=np.float32), dtype=wp.quatf, device=DEVICE),
+            orientations=wp.from_numpy(
+                np.array([[0.0, 0.0, 0.0, 1.0]], dtype=np.float32), dtype=wp.quatf, device=DEVICE
+            ),
         )
         target = _alloc_vec3_mat33(1)
         ConversionDispatcher.convert(source, target)
@@ -247,15 +250,32 @@ class TestBaseProviderDefaults:
         from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
 
         class Stub(BaseSceneDataProvider):
-            def update(self, env_ids=None): pass
-            def get_newton_model(self): return None
-            def get_newton_state(self, env_ids=None): return None
-            def get_usd_stage(self): return None
-            def get_metadata(self): return {}
-            def get_transforms(self): return None
-            def get_velocities(self): return None
-            def get_contacts(self): return None
-            def get_camera_transforms(self): return None
+            def update(self, env_ids=None):
+                pass
+
+            def get_newton_model(self):
+                return None
+
+            def get_newton_state(self, env_ids=None):
+                return None
+
+            def get_usd_stage(self):
+                return None
+
+            def get_metadata(self):
+                return {}
+
+            def get_transforms(self):
+                return None
+
+            def get_velocities(self):
+                return None
+
+            def get_contacts(self):
+                return None
+
+            def get_camera_transforms(self):
+                return None
 
         provider = Stub()
         assert provider.get_body_transforms(TransformFormat.TRANSFORM) is None

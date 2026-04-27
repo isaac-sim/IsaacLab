@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 import warp as wp
 
 from isaaclab.physics.scene_data_buffers import TransformBufferPool
@@ -26,12 +25,8 @@ DEVICE = "cuda:0"
 
 def _make_source_vec3_quat(n=4):
     """Create a Vec3QuatTransforms with test data."""
-    positions = wp.from_numpy(
-        np.array([[1.0, 2.0, 3.0]] * n, dtype=np.float32), dtype=wp.vec3, device=DEVICE
-    )
-    quats = wp.from_numpy(
-        np.array([[0.0, 0.0, 0.0, 1.0]] * n, dtype=np.float32), dtype=wp.quatf, device=DEVICE
-    )
+    positions = wp.from_numpy(np.array([[1.0, 2.0, 3.0]] * n, dtype=np.float32), dtype=wp.vec3, device=DEVICE)
+    quats = wp.from_numpy(np.array([[0.0, 0.0, 0.0, 1.0]] * n, dtype=np.float32), dtype=wp.quatf, device=DEVICE)
     return Vec3QuatTransforms(
         count=n,
         device=DEVICE,
@@ -131,12 +126,8 @@ class TestGenerationCache:
         pool = TransformBufferPool()
         source = _make_source_vec3_quat()
 
-        result1 = pool.get_or_convert(
-            source, TransformFormat.TRANSFORM, generation=1
-        )
-        result2 = pool.get_or_convert(
-            source, TransformFormat.TRANSFORM, generation=1
-        )
+        result1 = pool.get_or_convert(source, TransformFormat.TRANSFORM, generation=1)
+        result2 = pool.get_or_convert(source, TransformFormat.TRANSFORM, generation=1)
         assert result1 is result2
 
     def test_different_generation_reconverts(self):
@@ -144,12 +135,8 @@ class TestGenerationCache:
         pool = TransformBufferPool()
         source = _make_source_vec3_quat()
 
-        result1 = pool.get_or_convert(
-            source, TransformFormat.TRANSFORM, generation=1
-        )
-        result2 = pool.get_or_convert(
-            source, TransformFormat.TRANSFORM, generation=2
-        )
+        result1 = pool.get_or_convert(source, TransformFormat.TRANSFORM, generation=1)
+        result2 = pool.get_or_convert(source, TransformFormat.TRANSFORM, generation=2)
         assert isinstance(result1, TransformArrayData)
         assert isinstance(result2, TransformArrayData)
 
@@ -160,15 +147,11 @@ class TestBufferReuse:
         pool = TransformBufferPool()
         source = _make_source_vec3_quat()
 
-        result1 = pool.get_or_convert(
-            source, TransformFormat.TRANSFORM, generation=1
-        )
+        result1 = pool.get_or_convert(source, TransformFormat.TRANSFORM, generation=1)
         assert isinstance(result1, TransformArrayData)
         ptr1 = result1.transforms.ptr
 
-        result2 = pool.get_or_convert(
-            source, TransformFormat.TRANSFORM, generation=2
-        )
+        result2 = pool.get_or_convert(source, TransformFormat.TRANSFORM, generation=2)
         assert isinstance(result2, TransformArrayData)
         ptr2 = result2.transforms.ptr
 
@@ -179,15 +162,11 @@ class TestBufferReuse:
         pool = TransformBufferPool()
 
         source_small = _make_source_vec3_quat(n=2)
-        result1 = pool.get_or_convert(
-            source_small, TransformFormat.TRANSFORM, generation=1
-        )
+        result1 = pool.get_or_convert(source_small, TransformFormat.TRANSFORM, generation=1)
         assert isinstance(result1, TransformArrayData)
 
         source_large = _make_source_vec3_quat(n=8)
-        result2 = pool.get_or_convert(
-            source_large, TransformFormat.TRANSFORM, generation=2
-        )
+        result2 = pool.get_or_convert(source_large, TransformFormat.TRANSFORM, generation=2)
         assert isinstance(result2, TransformArrayData)
         assert result2.count == 8
 

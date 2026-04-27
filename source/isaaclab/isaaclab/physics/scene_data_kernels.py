@@ -49,10 +49,22 @@ def _transform_to_mat44f(t: wp.transformf) -> wp.mat44f:  # type: ignore
     """Convert a packed transform to a 4x4 matrix (row-major, float32)."""
     m44 = wp.math.transform_to_matrix(t)
     return wp.mat44f(  # type: ignore
-        m44[0, 0], m44[0, 1], m44[0, 2], m44[0, 3],
-        m44[1, 0], m44[1, 1], m44[1, 2], m44[1, 3],
-        m44[2, 0], m44[2, 1], m44[2, 2], m44[2, 3],
-        m44[3, 0], m44[3, 1], m44[3, 2], m44[3, 3],
+        m44[0, 0],
+        m44[0, 1],
+        m44[0, 2],
+        m44[0, 3],
+        m44[1, 0],
+        m44[1, 1],
+        m44[1, 2],
+        m44[1, 3],
+        m44[2, 0],
+        m44[2, 1],
+        m44[2, 2],
+        m44[2, 3],
+        m44[3, 0],
+        m44[3, 1],
+        m44[3, 2],
+        m44[3, 3],
     )
 
 
@@ -61,9 +73,15 @@ def _mat44f_to_transform(m: wp.mat44f) -> wp.transformf:  # type: ignore
     """Convert a 4x4 matrix (row-major, float32) to a packed transform."""
     pos = wp.vec3(m[0, 3], m[1, 3], m[2, 3])
     rot = wp.mat33f(  # type: ignore
-        m[0, 0], m[0, 1], m[0, 2],
-        m[1, 0], m[1, 1], m[1, 2],
-        m[2, 0], m[2, 1], m[2, 2],
+        m[0, 0],
+        m[0, 1],
+        m[0, 2],
+        m[1, 0],
+        m[1, 1],
+        m[1, 2],
+        m[2, 0],
+        m[2, 1],
+        m[2, 2],
     )
     q = wp.quat_from_matrix(rot)
     return wp.transformf(pos, q)
@@ -149,10 +167,22 @@ def vec3_quat_to_mat44d_kernel(
     t = wp.transformf(src_pos[tid], src_ori[tid])
     m = wp.math.transform_to_matrix(t)
     dst_mat[oid] = wp.mat44d(  # type: ignore
-        wp.float64(m[0, 0]), wp.float64(m[0, 1]), wp.float64(m[0, 2]), wp.float64(m[0, 3]),
-        wp.float64(m[1, 0]), wp.float64(m[1, 1]), wp.float64(m[1, 2]), wp.float64(m[1, 3]),
-        wp.float64(m[2, 0]), wp.float64(m[2, 1]), wp.float64(m[2, 2]), wp.float64(m[2, 3]),
-        wp.float64(m[3, 0]), wp.float64(m[3, 1]), wp.float64(m[3, 2]), wp.float64(m[3, 3]),
+        wp.float64(m[0, 0]),
+        wp.float64(m[0, 1]),
+        wp.float64(m[0, 2]),
+        wp.float64(m[0, 3]),
+        wp.float64(m[1, 0]),
+        wp.float64(m[1, 1]),
+        wp.float64(m[1, 2]),
+        wp.float64(m[1, 3]),
+        wp.float64(m[2, 0]),
+        wp.float64(m[2, 1]),
+        wp.float64(m[2, 2]),
+        wp.float64(m[2, 3]),
+        wp.float64(m[3, 0]),
+        wp.float64(m[3, 1]),
+        wp.float64(m[3, 2]),
+        wp.float64(m[3, 3]),
     )
 
 
@@ -222,10 +252,22 @@ def vec3_mat33_to_mat44f_kernel(
     p = src_pos[tid]
     r = src_rot[tid]
     dst_mat[oid] = wp.mat44f(  # type: ignore
-        r[0, 0], r[0, 1], r[0, 2], p[0],
-        r[1, 0], r[1, 1], r[1, 2], p[1],
-        r[2, 0], r[2, 1], r[2, 2], p[2],
-        0.0, 0.0, 0.0, 1.0,
+        r[0, 0],
+        r[0, 1],
+        r[0, 2],
+        p[0],
+        r[1, 0],
+        r[1, 1],
+        r[1, 2],
+        p[1],
+        r[2, 0],
+        r[2, 1],
+        r[2, 2],
+        p[2],
+        0.0,
+        0.0,
+        0.0,
+        1.0,
     )
 
 
@@ -302,10 +344,22 @@ def transform_to_mat44d_kernel(
     oid = _output_idx(tid, index_map, index_map_len)
     m = wp.math.transform_to_matrix(src_tf[tid])
     dst_mat[oid] = wp.mat44d(  # type: ignore
-        wp.float64(m[0, 0]), wp.float64(m[0, 1]), wp.float64(m[0, 2]), wp.float64(m[0, 3]),
-        wp.float64(m[1, 0]), wp.float64(m[1, 1]), wp.float64(m[1, 2]), wp.float64(m[1, 3]),
-        wp.float64(m[2, 0]), wp.float64(m[2, 1]), wp.float64(m[2, 2]), wp.float64(m[2, 3]),
-        wp.float64(m[3, 0]), wp.float64(m[3, 1]), wp.float64(m[3, 2]), wp.float64(m[3, 3]),
+        wp.float64(m[0, 0]),
+        wp.float64(m[0, 1]),
+        wp.float64(m[0, 2]),
+        wp.float64(m[0, 3]),
+        wp.float64(m[1, 0]),
+        wp.float64(m[1, 1]),
+        wp.float64(m[1, 2]),
+        wp.float64(m[1, 3]),
+        wp.float64(m[2, 0]),
+        wp.float64(m[2, 1]),
+        wp.float64(m[2, 2]),
+        wp.float64(m[2, 3]),
+        wp.float64(m[3, 0]),
+        wp.float64(m[3, 1]),
+        wp.float64(m[3, 2]),
+        wp.float64(m[3, 3]),
     )
 
 
@@ -344,9 +398,15 @@ def mat44f_to_vec3_mat33_kernel(
     m = src_mat[tid]
     dst_pos[oid] = wp.vec3(m[0, 3], m[1, 3], m[2, 3])
     dst_rot[oid] = wp.mat33f(  # type: ignore
-        m[0, 0], m[0, 1], m[0, 2],
-        m[1, 0], m[1, 1], m[1, 2],
-        m[2, 0], m[2, 1], m[2, 2],
+        m[0, 0],
+        m[0, 1],
+        m[0, 2],
+        m[1, 0],
+        m[1, 1],
+        m[1, 2],
+        m[2, 0],
+        m[2, 1],
+        m[2, 2],
     )
 
 
@@ -395,9 +455,15 @@ def mat44d_to_vec3_quat_kernel(
     m = src_mat[tid]
     dst_pos[oid] = wp.vec3(float(m[0, 3]), float(m[1, 3]), float(m[2, 3]))
     rot = wp.mat33f(  # type: ignore
-        float(m[0, 0]), float(m[0, 1]), float(m[0, 2]),
-        float(m[1, 0]), float(m[1, 1]), float(m[1, 2]),
-        float(m[2, 0]), float(m[2, 1]), float(m[2, 2]),
+        float(m[0, 0]),
+        float(m[0, 1]),
+        float(m[0, 2]),
+        float(m[1, 0]),
+        float(m[1, 1]),
+        float(m[1, 2]),
+        float(m[2, 0]),
+        float(m[2, 1]),
+        float(m[2, 2]),
     )
     dst_ori[oid] = wp.quat_from_matrix(rot)
 
@@ -415,9 +481,15 @@ def mat44d_to_transform_kernel(
     m = src_mat[tid]
     pos = wp.vec3(float(m[0, 3]), float(m[1, 3]), float(m[2, 3]))
     rot = wp.mat33f(  # type: ignore
-        float(m[0, 0]), float(m[0, 1]), float(m[0, 2]),
-        float(m[1, 0]), float(m[1, 1]), float(m[1, 2]),
-        float(m[2, 0]), float(m[2, 1]), float(m[2, 2]),
+        float(m[0, 0]),
+        float(m[0, 1]),
+        float(m[0, 2]),
+        float(m[1, 0]),
+        float(m[1, 1]),
+        float(m[1, 2]),
+        float(m[2, 0]),
+        float(m[2, 1]),
+        float(m[2, 2]),
     )
     q = wp.quat_from_matrix(rot)
     dst_tf[oid] = wp.transformf(pos, q)

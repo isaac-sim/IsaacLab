@@ -16,7 +16,6 @@ from __future__ import annotations
 import math
 
 import numpy as np
-import pytest
 import warp as wp
 
 from isaaclab.physics import scene_data_kernels as K
@@ -39,8 +38,9 @@ def _rotation_quat_z90():
 def _make_test_data(n=4):
     """Create test positions and XYZW quaternions as numpy arrays."""
     positions = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0], [0.1, 0.2, 0.3]], dtype=np.float32)[:n]
-    quats = np.array([_identity_quat(), _rotation_quat_z90(), _identity_quat(), _rotation_quat_z90()],
-                     dtype=np.float32)[:n]
+    quats = np.array(
+        [_identity_quat(), _rotation_quat_z90(), _identity_quat(), _rotation_quat_z90()], dtype=np.float32
+    )[:n]
     return positions, quats
 
 
@@ -81,7 +81,9 @@ class TestTransformToVec3Quat:
 
         out_pos = wp.zeros(4, dtype=wp.vec3, device=DEVICE)
         out_ori = wp.zeros(4, dtype=wp.quatf, device=DEVICE)
-        wp.launch(K.transform_to_vec3_quat_kernel, dim=4, inputs=[tf, out_pos, out_ori, _empty_imap(), 0], device=DEVICE)
+        wp.launch(
+            K.transform_to_vec3_quat_kernel, dim=4, inputs=[tf, out_pos, out_ori, _empty_imap(), 0], device=DEVICE
+        )
         wp.synchronize_device(DEVICE)
 
         np.testing.assert_allclose(out_pos.numpy(), positions_np, atol=ATOL)
@@ -303,9 +305,7 @@ class TestQuaternionSwizzle:
 
 class TestMatrixTranspose:
     def test_mat44f_transpose_roundtrip(self):
-        m_np = np.array(
-            [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]], dtype=np.float32
-        )
+        m_np = np.array([[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]], dtype=np.float32)
         src = wp.from_numpy(m_np, dtype=wp.mat44f, device=DEVICE)
         mid = wp.zeros(1, dtype=wp.mat44f, device=DEVICE)
         dst = wp.zeros(1, dtype=wp.mat44f, device=DEVICE)
@@ -317,9 +317,7 @@ class TestMatrixTranspose:
         np.testing.assert_allclose(dst.numpy(), m_np, atol=ATOL)
 
     def test_mat44f_transpose_values(self):
-        m_np = np.array(
-            [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]], dtype=np.float32
-        )
+        m_np = np.array([[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]], dtype=np.float32)
         src = wp.from_numpy(m_np, dtype=wp.mat44f, device=DEVICE)
         dst = wp.zeros(1, dtype=wp.mat44f, device=DEVICE)
 

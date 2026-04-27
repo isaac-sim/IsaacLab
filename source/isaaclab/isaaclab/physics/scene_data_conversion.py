@@ -80,7 +80,7 @@ class ConversionDispatcher:
         return True
 
     @staticmethod
-    def convert(
+    def convert(  # noqa: C901
         source: TransformData,
         target: TransformData,
         *,
@@ -120,7 +120,9 @@ class ConversionDispatcher:
             sp, so = source.positions, source.orientations
             if dst_fmt == TransformFormat.VEC3_QUAT:
                 assert isinstance(target, Vec3QuatTransforms)
-                _launch(K.vec3_quat_to_vec3_quat_kernel, [sp, so, target.positions, target.orientations, imap, imap_len])
+                _launch(
+                    K.vec3_quat_to_vec3_quat_kernel, [sp, so, target.positions, target.orientations, imap, imap_len]
+                )
             elif dst_fmt == TransformFormat.VEC3_MAT33:
                 assert isinstance(target, Vec3Mat33Transforms)
                 _launch(K.vec3_quat_to_vec3_mat33_kernel, [sp, so, target.positions, target.rotations, imap, imap_len])
@@ -140,7 +142,9 @@ class ConversionDispatcher:
             sp, sr = source.positions, source.rotations
             if dst_fmt == TransformFormat.VEC3_QUAT:
                 assert isinstance(target, Vec3QuatTransforms)
-                _launch(K.vec3_mat33_to_vec3_quat_kernel, [sp, sr, target.positions, target.orientations, imap, imap_len])
+                _launch(
+                    K.vec3_mat33_to_vec3_quat_kernel, [sp, sr, target.positions, target.orientations, imap, imap_len]
+                )
             elif dst_fmt == TransformFormat.VEC3_MAT33:
                 assert isinstance(target, Vec3Mat33Transforms)
                 _launch(K.vec3_mat33_to_vec3_mat33_kernel, [sp, sr, target.positions, target.rotations, imap, imap_len])
