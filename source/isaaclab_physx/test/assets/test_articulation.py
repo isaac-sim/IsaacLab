@@ -2285,5 +2285,84 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     torch.testing.assert_close(materials_check, materials)
 
 
+##
+# Shape-contract regression tests for the new BaseArticulation accessors.
+# Mirror the Newton-side tests so both backends can be diffed against the
+# same documented contract. These are PhysX's reference shapes — when the
+# Newton-side tests pass with the same expected_shape formulas, the
+# cross-backend contract holds.
+##
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articulation_type):
+    """PhysX reference: fixed-base ``get_jacobians`` is ``(N, num_bodies-1, 6, num_joints)``."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.is_fixed_base
+
+    J = wp.to_torch(articulation.get_jacobians())
+    expected = (num_articulations, articulation.num_bodies - 1, 6, articulation.num_joints)
+    assert J.shape == torch.Size(expected), f"expected {expected}, got {tuple(J.shape)}"
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations, device, articulation_type):
+    """PhysX reference: fixed-base ``get_mass_matrix`` shape + non-singular."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    M = wp.to_torch(articulation.get_mass_matrix())
+    expected = (num_articulations, articulation.num_joints, articulation.num_joints)
+    assert M.shape == torch.Size(expected), f"expected {expected}, got {tuple(M.shape)}"
+
+    # Each diagonal entry is the joint's effective inertia and must be positive
+    # for any physical articulation. Padded zero rows/cols (the bug) would show
+    # up here as zero diagonal entries — much more sensitive than checking the
+    # determinant, which can be small for a well-conditioned 9x9 just from
+    # numerical cancellation.
+    diag = M.diagonal(dim1=-2, dim2=-1)
+    assert (diag > 1e-6).all(), f"mass matrix has non-positive diagonal entries: min={diag.min()}"
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """PhysX reference: floating-base ``get_jacobians``.
+
+    PhysX prepends 6 virtual DoFs in the joint dim for floating-base, so the
+    expected shape is ``(N, num_bodies, 6, num_joints + 6)``. Newton's
+    ``ArticulationView.joint_dof_count`` already counts the floating-base
+    DoFs inline, so its expected shape is ``(N, num_bodies, 6, num_joints)``
+    — the cross-backend joint-dim contract differs by the 6 virtual DoFs;
+    ``num_joints`` itself differs in value between the two.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert not articulation.is_fixed_base
+
+    J = wp.to_torch(articulation.get_jacobians())
+    expected = (num_articulations, articulation.num_bodies, 6, articulation.num_joints + 6)
+    assert J.shape == torch.Size(expected), f"expected {expected}, got {tuple(J.shape)}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])

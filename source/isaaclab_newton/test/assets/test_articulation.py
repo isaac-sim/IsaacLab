@@ -2639,5 +2639,205 @@ def test_get_gravity_compensation_forces_not_implemented_on_newton(sim, num_arti
     articulation.get_gravity_compensation_forces()
 
 
+##
+# Shape-contract regression tests for the new BaseArticulation accessors.
+# These pin the public shape contract so future regressions (e.g., reverting
+# to model-wide max sizing or to the wrong fixed-base row offset) fail fast.
+##
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articulation_type):
+    """Fixed-base ``get_jacobians`` must drop the fixed-root row.
+
+    Contract: shape ``(N, num_bodies - 1, 6, num_joints)``. Catches
+    regressions of (a) the link_offset fix that drops Newton's row 0 for
+    fixed-base, and (b) the per-articulation output sizing — using
+    model-wide ``max_links`` here would over-allocate in heterogeneous
+    scenes.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.is_fixed_base, "panda fixture must be fixed-base for this test"
+
+    J = wp.to_torch(articulation.get_jacobians())
+
+    expected_shape = (num_articulations, articulation.num_bodies - 1, 6, articulation.num_joints)
+    assert J.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(J.shape)}"
+    assert J.dtype == torch.float32
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations, device, articulation_type):
+    """Fixed-base ``get_mass_matrix`` shape + non-singularity.
+
+    Contract: shape ``(N, num_joints, num_joints)`` and the matrix must be
+    non-singular. The non-singularity check catches the heterogeneous
+    padding bug — if the wrapper accidentally returns ``model.max_dofs``
+    sized output, the padded zero rows/cols make the matrix rank-deficient.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    M = wp.to_torch(articulation.get_mass_matrix())
+
+    expected_shape = (num_articulations, articulation.num_joints, articulation.num_joints)
+    assert M.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(M.shape)}"
+    assert M.dtype == torch.float32
+
+    # Each diagonal entry is a joint's effective inertia and must be strictly
+    # positive for any physical articulation. Padded zero rows/cols (the
+    # heterogeneous bug) would surface as zero diagonal entries — much more
+    # sensitive than checking the determinant, which can be small purely from
+    # numerical conditioning of a well-formed 9x9 mass matrix (Franka det
+    # is ~1e-13 in practice).
+    diag = M.diagonal(dim1=-2, dim2=-1)
+    assert (diag > 1e-6).all(), f"mass matrix has non-positive diagonal entries: min={diag.min()}"
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Floating-base ``get_jacobians`` keeps every body row (no offset).
+
+    Contract for floating-base: shape ``(N, num_bodies, 6, num_joints)`` —
+    no fixed-root row to drop, and Newton's joint dim equals
+    ``num_joints`` for the view (the floating-base joint's 6 DoFs are
+    counted inside ``joint_dof_count`` already).
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert not articulation.is_fixed_base, "anymal fixture must be floating-base for this test"
+
+    J = wp.to_torch(articulation.get_jacobians())
+
+    expected_shape = (num_articulations, articulation.num_bodies, 6, articulation.num_joints)
+    assert J.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(J.shape)}"
+    assert J.dtype == torch.float32
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_get_mass_matrix_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Floating-base ``get_mass_matrix`` shape ``(N, num_joints, num_joints)``."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    M = wp.to_torch(articulation.get_mass_matrix())
+
+    expected_shape = (num_articulations, articulation.num_joints, articulation.num_joints)
+    assert M.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(M.shape)}"
+    assert M.dtype == torch.float32
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, articulation_type):
+    """Mixed-articulation scene: each view returns ITS OWN asset's shape.
+
+    Direct regression test for the Codex round-2 finding. With Franka
+    (9 DoFs) and Anymal-C (18 DoFs) co-resident in the model,
+    ``model.max_dofs_per_articulation == 18`` and
+    ``model.max_joints_per_articulation == anymal.num_bodies``. The Franka
+    view's ``get_jacobians`` / ``get_mass_matrix`` outputs must use
+    Franka's per-asset counts, NOT the model-wide maxima — otherwise
+    Franka's mass matrix would carry zero-padded rows/cols and be
+    singular.
+
+    Uses the ``anymal`` ``SIM_CFGs`` entry (more capable solver settings)
+    for the host sim; the ``articulation_type`` parametrize is only there
+    so the ``sim`` fixture picks a config — the test itself constructs
+    both Anymal and Franka articulations directly.
+    """
+    # ``num_per_type=1`` keeps the actuator-default replication path off —
+    # Newton's USD default loader hits a (1, num_joints) vs (num_envs,
+    # num_joints) shape mismatch with multi-instance multi-type scenes; one
+    # of each is the minimum heterogeneous setup that still exercises the
+    # per-articulation shape gate without that pre-existing quirk.
+    num_per_type = 1
+
+    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_.*/Robot")
+    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_.*/Robot")
+
+    for i in range(num_per_type):
+        sim_utils.create_prim(f"/World/Env_franka_{i}", "Xform", translation=(2.5 * i, 0.0, 0.0))
+        sim_utils.create_prim(f"/World/Env_anymal_{i}", "Xform", translation=(2.5 * i, 5.0, 0.0))
+
+    franka = Articulation(franka_cfg)
+    anymal = Articulation(anymal_cfg)
+    sim.reset()
+    assert franka.is_initialized and anymal.is_initialized
+    assert franka.is_fixed_base and not anymal.is_fixed_base
+
+    # Sanity: the model-wide maxima are larger than at least one view's
+    # per-asset count, so a regression to model-wide sizing would manifest
+    # as wrong shapes here. Assert that precondition explicitly so the test
+    # fails clearly if the fixture stops being heterogeneous.
+    model = SimulationManager.get_model()
+    assert model.max_dofs_per_articulation > min(franka.num_joints, anymal.num_joints), (
+        "scene is no longer heterogeneous; this test relies on model.max_dofs > one view's num_joints"
+    )
+
+    franka_J = wp.to_torch(franka.get_jacobians())
+    anymal_J = wp.to_torch(anymal.get_jacobians())
+
+    # Each view's output uses its OWN per-asset count, not the model-wide max.
+    assert franka_J.shape == torch.Size((num_per_type, franka.num_bodies - 1, 6, franka.num_joints)), (
+        f"Franka jacobian leaked model-wide shape: got {tuple(franka_J.shape)}"
+    )
+    assert anymal_J.shape == torch.Size((num_per_type, anymal.num_bodies, 6, anymal.num_joints)), (
+        f"Anymal jacobian leaked model-wide shape: got {tuple(anymal_J.shape)}"
+    )
+
+    sim.step()
+    franka.update(sim.cfg.dt)
+    anymal.update(sim.cfg.dt)
+
+    franka_M = wp.to_torch(franka.get_mass_matrix())
+    anymal_M = wp.to_torch(anymal.get_mass_matrix())
+
+    assert franka_M.shape == torch.Size((num_per_type, franka.num_joints, franka.num_joints))
+    assert anymal_M.shape == torch.Size((num_per_type, anymal.num_joints, anymal.num_joints))
+
+    # Each view's mass matrix must have positive diagonals — padded zero
+    # rows/cols (the round-2 bug) would surface as zero diagonals on the
+    # smaller-DoF view. Using a per-diagonal check here instead of det()
+    # because det of a real Franka mass matrix is naturally ~1e-13.
+    assert (franka_M.diagonal(dim1=-2, dim2=-1) > 1e-6).all(), (
+        "Franka mass matrix has non-positive diagonal under heterogeneous scene"
+    )
+    assert (anymal_M.diagonal(dim1=-2, dim2=-1) > 1e-6).all(), (
+        "Anymal mass matrix has non-positive diagonal under heterogeneous scene"
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--maxfail=1"])
