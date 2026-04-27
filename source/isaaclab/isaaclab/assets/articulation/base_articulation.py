@@ -173,16 +173,16 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
-    @abstractmethod
     def get_jacobians(self) -> wp.array:
         """Per-env spatial Jacobians in world frame.
 
         Each backend implementation returns a 4-D array with shape
         ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)``, where
         ``num_jacobi_bodies`` excludes the fixed base body (if any) and
-        ``num_jacobi_joints`` prepends 6 virtual DoFs for floating-base
-        articulations. Task-space controllers (IK, OSC, RMPFlow) slice this
-        array to extract the end-effector Jacobian.
+        ``num_jacobi_joints`` is the per-articulation generalized DoF
+        count (see backend-specific note below). Task-space controllers
+        (IK, OSC, RMPFlow) slice this array to extract the end-effector
+        Jacobian.
 
         .. note::
             Newton and PhysX implementations differ in how the underlying
@@ -190,45 +190,74 @@ class BaseArticulation(AssetBase):
             instead of calling ``root_view.get_jacobians()`` directly,
             which only works on PhysX.
 
+        .. note::
+            Floating-base joint-dim convention differs across backends.
+            PhysX prepends 6 virtual DoFs to the joint dimension, so its
+            Jacobian shape is ``(N, num_bodies, 6, num_joints + 6)`` where
+            ``num_joints`` counts only the actuated joints. Newton already
+            counts the floating-base joint's 6 DoFs inside
+            ``ArticulationView.joint_dof_count``, so the Newton wrapper
+            returns ``(N, num_bodies, 6, num_joints)``. The total
+            joint-dim is the same on both backends; only how
+            :attr:`num_joints` is reported differs. Floating-base
+            task-space callers should verify their joint indexing against
+            the active backend's DoF ordering.
+
+        This method is concrete with a ``NotImplementedError`` body so
+        out-of-tree backends that subclass ``BaseArticulation`` do not
+        break at instantiation; they fail only when this accessor is
+        actually invoked, matching the deprecation policy in AGENTS.md.
+
         Returns:
             The per-env spatial Jacobian as a Warp array. Shape
             ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)``,
             dtype ``float32``.
         """
-        raise NotImplementedError()
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement get_jacobians."
+            " Concrete IsaacLab backends (PhysX, Newton) override this method."
+        )
 
-    @abstractmethod
     def get_mass_matrix(self) -> wp.array:
         """Per-env generalized mass matrix in joint space.
 
         Used by :class:`~isaaclab.controllers.OperationalSpaceController`
-        when ``inertial_dynamics_decoupling`` is enabled. Backend
-        implementations return shape ``(num_instances, num_jacobi_joints,
-        num_jacobi_joints)`` matching the Jacobian's joint-space dimension.
+        when ``inertial_dynamics_decoupling`` is enabled or when
+        ``nullspace_control != "none"``. Backend implementations return
+        shape ``(num_instances, num_jacobi_joints, num_jacobi_joints)``
+        matching the Jacobian's joint-space dimension.
+
+        Concrete with ``NotImplementedError`` for the same backwards-
+        compatibility reason as :meth:`get_jacobians`.
 
         Returns:
             The per-env mass matrix as a Warp array. Shape
             ``(num_instances, num_jacobi_joints, num_jacobi_joints)``,
             dtype ``float32``.
         """
-        raise NotImplementedError()
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement get_mass_matrix."
+            " Concrete IsaacLab backends (PhysX, Newton) override this method."
+        )
 
-    @abstractmethod
     def get_gravity_compensation_forces(self) -> wp.array:
         """Per-env joint-space gravity compensation torques.
 
         Used by :class:`~isaaclab.controllers.OperationalSpaceController`
         when ``gravity_compensation`` is enabled. Backends that lack a
-        native primitive (Newton at present) raise
-        :class:`NotImplementedError`; callers should gate this method
-        behind their own feature flag.
+        native primitive (Newton at present) override this method to
+        raise :class:`NotImplementedError`; callers should gate this
+        method behind their own feature flag.
 
         Returns:
             The per-env gravity-compensation joint torques as a Warp
             array. Shape ``(num_instances, num_jacobi_joints)``, dtype
             ``float32``.
         """
-        raise NotImplementedError()
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement get_gravity_compensation_forces."
+            " The PhysX backend implements this; Newton does not (no upstream primitive)."
+        )
 
     @property
     @abstractmethod

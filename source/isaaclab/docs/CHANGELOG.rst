@@ -17,7 +17,12 @@ Added
   ``get_gravity_compensation_forces`` directly, which only worked on
   the PhysX backend because Newton's ``ArticulationView`` exposes a
   different surface (``eval_jacobian`` / ``eval_mass_matrix``, no
-  gravity-compensation primitive).
+  gravity-compensation primitive). The base-class methods are
+  intentionally concrete (raise ``NotImplementedError``) rather than
+  ``@abstractmethod`` so out-of-tree
+  :class:`~isaaclab.assets.BaseArticulation` subclasses continue to
+  instantiate; they only fail when these accessors are actually
+  invoked, matching the deprecation policy in ``AGENTS.md``.
 
 Changed
 ^^^^^^^
