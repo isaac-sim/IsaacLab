@@ -602,8 +602,8 @@ def test_pose_inv():
     # Check against a single matrix
     for _ in range(100):
         test_mat = math_utils.generate_random_transformation_matrix(pos_boundary=10, rot_boundary=(2 * np.pi))
-        result = np.array(math_utils.pose_inv(test_mat))
-        expected = np.linalg.inv(np.array(test_mat))
+        result = math_utils.pose_inv(test_mat).detach().cpu().numpy()
+        expected = np.linalg.inv(test_mat.detach().cpu().numpy())
         np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
     # Check against a batch of matrices
@@ -613,8 +613,8 @@ def test_pose_inv():
             for _ in range(100)
         ]
     )
-    result = np.array(math_utils.pose_inv(test_mats))
-    expected = np.linalg.inv(np.array(test_mats))
+    result = math_utils.pose_inv(test_mats).detach().cpu().numpy()
+    expected = np.linalg.inv(test_mats.detach().cpu().numpy())
     np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
 
