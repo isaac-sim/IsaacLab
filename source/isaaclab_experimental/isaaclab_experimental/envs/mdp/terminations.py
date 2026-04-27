@@ -109,14 +109,14 @@ def joint_pos_out_of_manual_limit(
             f"joint_pos_out_of_manual_limit requires SceneEntityCfg with resolved joint_mask, "
             f"but got None for asset '{asset_cfg.name}'."
         )
-    if asset.data.joint_pos.shape[1] != asset_cfg.joint_mask.shape[0]:
+    if asset.data.joint_pos.warp.shape[1] != asset_cfg.joint_mask.shape[0]:
         raise ValueError(
             f"joint_mask length ({asset_cfg.joint_mask.shape[0]}) does not match "
-            f"joint_pos dim ({asset.data.joint_pos.shape[1]}) for asset '{asset_cfg.name}'."
+            f"joint_pos dim ({asset.data.joint_pos.warp.shape[1]}) for asset '{asset_cfg.name}'."
         )
     wp.launch(
         kernel=_joint_pos_out_of_manual_limit_kernel,
-        dim=(env.num_envs, asset.data.joint_pos.shape[1]),
+        dim=(env.num_envs, asset.data.joint_pos.warp.shape[1]),
         inputs=[asset.data.joint_pos.warp, asset_cfg.joint_mask, bounds[0], bounds[1], out],
         device=env.device,
     )
