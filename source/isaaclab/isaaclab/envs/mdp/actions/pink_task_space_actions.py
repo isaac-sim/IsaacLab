@@ -326,10 +326,15 @@ class PinkInverseKinematicsAction(ActionTerm):
     def _apply_gravity_compensation(self) -> None:
         """Apply gravity compensation to arm joints if not disabled in props."""
         if not self._asset.cfg.spawn.rigid_props.disable_gravity:
-            # Get gravity compensation forces using cached tensor
             if self._asset.is_fixed_base:
-                gravity = torch.zeros_like(
-                    wp.to_torch(self._asset.get_gravity_compensation_forces())[:, self._controlled_joint_ids_tensor]
+                # Fixed-base path intentionally applies zero extra gravity comp;
+                # build the zeros tensor directly so we don't invoke the
+                # backend's gravity-comp accessor (which Newton doesn't
+                # implement) just for shape inference.
+                gravity = torch.zeros(
+                    (self.num_envs, len(self._controlled_joint_ids_tensor)),
+                    device=self.device,
+                    dtype=torch.float32,
                 )
             else:
                 # If floating base, then need to skip the first 6 joints (base)

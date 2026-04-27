@@ -563,7 +563,7 @@ def concat_joint_pos_limits_lower_and_upper(
 def gather_jacobian_rows(
     src: wp.array4d(dtype=wp.float32),
     art_ids: wp.array(dtype=wp.int32),
-    link_offset: int,
+    link_offset: wp.int32,
     dst: wp.array4d(dtype=wp.float32),
 ):
     """Copy per-view articulation jacobian rows from a model-sized buffer into a view-sized buffer.

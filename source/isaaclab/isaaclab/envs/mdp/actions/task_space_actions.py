@@ -379,6 +379,15 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._mass_matrix = torch.zeros(self.num_envs, self._num_DoF, self._num_DoF, device=self.device)
         self._gravity = torch.zeros(self.num_envs, self._num_DoF, device=self.device)
 
+        # Cache the per-step fetch decisions: cfg is immutable after init, so
+        # mass-matrix and gravity-comp needs are constant across steps.
+        # Mass matrix is consumed by inertial-decoupling and (when nullspace
+        # control is enabled) the null-space torque term in OSC.compute().
+        self._needs_mass_matrix = self.cfg.controller_cfg.inertial_dynamics_decoupling or (
+            self.cfg.controller_cfg.nullspace_control != "none"
+        )
+        self._needs_gravity = self.cfg.controller_cfg.gravity_compensation
+
         # create tensors for the ee states
         self._ee_pose_w = torch.zeros(self.num_envs, 7, device=self.device)
         self._ee_pose_b = torch.zeros(self.num_envs, 7, device=self.device)
@@ -525,14 +534,18 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._compute_ee_velocity()
         self._compute_ee_force()
         self._compute_joint_states()
-        # Calculate the joint efforts
+        # Calculate the joint efforts. Pass ``None`` for mass matrix / gravity
+        # when the controller cfg doesn't require them, instead of forwarding
+        # the (stale-zero) buffers — the controller's own ``None`` checks then
+        # raise immediately on any misconfiguration rather than silently
+        # operating on zeros.
         self._joint_efforts[:] = self._osc.compute(
             jacobian_b=self._jacobian_b,
             current_ee_pose_b=self._ee_pose_b,
             current_ee_vel_b=self._ee_vel_b,
             current_ee_force_b=self._ee_force_b,
-            mass_matrix=self._mass_matrix,
-            gravity=self._gravity,
+            mass_matrix=self._mass_matrix if self._needs_mass_matrix else None,
+            gravity=self._gravity if self._needs_gravity else None,
             current_joint_pos=self._joint_pos,
             current_joint_vel=self._joint_vel,
             nullspace_joint_pos_target=self._nullspace_joint_pos_target,
@@ -661,16 +674,11 @@ class OperationalSpaceControllerAction(ActionTerm):
         (which applies the +6 offset for floating-base robots) instead of ``self._joint_ids`` to correctly
         index into these quantities. For fixed-base robots, the two are identical.
         """
-        # Mass matrix is consumed by both inertial decoupling and (when
-        # nullspace_control is enabled) the null-space torque term of OSC.
-        needs_mass_matrix = self.cfg.controller_cfg.inertial_dynamics_decoupling or (
-            self.cfg.controller_cfg.nullspace_control != "none"
-        )
-        if needs_mass_matrix:
+        if self._needs_mass_matrix:
             self._mass_matrix[:] = wp.to_torch(self._asset.get_mass_matrix())[:, self._jacobi_joint_idx, :][
                 :, :, self._jacobi_joint_idx
             ]
-        if self.cfg.controller_cfg.gravity_compensation:
+        if self._needs_gravity:
             self._gravity[:] = wp.to_torch(self._asset.get_gravity_compensation_forces())[:, self._jacobi_joint_idx]
 
     def _compute_ee_jacobian(self):
