@@ -22,12 +22,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Offsets are valid on Linux 64-bit (x86_64 and aarch64). Function pointers are
-# 8 bytes on both, no padding between same-size fields, so the vtable layout is
-# architecture-independent. Windows/macOS would need a different shared-library
-# name and are out of scope here (same constraint as
-# :mod:`isaaclab_newton.physics._cubric`).
-
 # carb::Framework vtable (carb/Framework.h)
 #   0: loadPluginsEx, 8: unloadAllPlugins, 16: acquireInterfaceWithClient,
 #  24: tryAcquireInterfaceWithClient  ← used here
