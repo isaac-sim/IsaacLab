@@ -7,8 +7,9 @@
 
 Supports two coupling modes (selected via :attr:`CoupledSolverCfg.coupling_mode`):
 
-- ``"one_way"`` (default): Rigid solver advances first, then VBD reads the updated
-  body poses for cloth-body contacts. The rigid solver does not feel particle contact forces.
+- ``"one_way"`` (default): Contact detection runs first so VBD can use the contacts,
+  then the rigid solver advances independently. The rigid solver does not feel
+  particle contact forces.
 - ``"two_way"``: Same-substep two-way coupling with normal + Coulomb friction forces.
   Contact detection runs first, reaction forces (normal and tangential friction) are
   injected into ``body_f``, then the rigid solver reads ``body_f`` and feels resistance
@@ -152,8 +153,8 @@ class CoupledSolver:
     **one_way** (default):
 
     1. Clear forces.
-    2. Rigid step (Featherstone or MuJoCo).
-    3. Collision detection.
+    2. Collision detection.
+    3. Rigid step (Featherstone or MuJoCo) -- does not read soft-contact reactions.
     4. VBD step (particles only).
 
     **two_way** (same-substep two-way coupling with normal + friction):
@@ -252,19 +253,19 @@ class CoupledSolver:
             self._step_two_way(state_in, state_out, control, dt)
 
     def _step_one_way(self, state_in: State, state_out: State, control: Control, dt: float) -> None:
-        """One-way coupling: rigid step, then collide, then VBD."""
+        """One-way coupling: collide, then rigid step, then VBD."""
         # 1. Clear forces
         state_in.clear_forces()
         state_out.clear_forces()
 
-        # 2. Rigid-body step
+        # 2. Collision detection (cloth-body contacts)
+        self.collision_pipeline.collide(state_in, self.contacts)
+
+        # 3. Rigid-body step (does not read soft-contact reactions)
         self._rigid_step(state_in, state_out, control, dt)
 
-        # 3. Clear spurious particle forces from rigid step
+        # 4. Clear spurious particle forces from rigid step
         state_in.particle_f.zero_()
-
-        # 4. Collision detection (cloth-body contacts)
-        self.collision_pipeline.collide(state_in, self.contacts)
 
         # 5. VBD step -- particles only, reads updated rigid poses
         self.vbd.step(state_in, state_out, control, self.contacts, dt)
@@ -279,7 +280,7 @@ class CoupledSolver:
         self.collision_pipeline.collide(state_in, self.contacts)
 
         # 3. Inject contact reaction forces into body_f.
-        #    state_out holds the previous substep's body_q (states swap each
+        #    state_out holds the previous previous substep's body_q (states swap each
         #    substep), used for finite-difference body velocity in friction.
         #    particle_q_prev = state_in.particle_q (same as particle_q) so
         #    particle dx=0, consistent with VBD which hasn't iterated yet.
@@ -299,11 +300,13 @@ class CoupledSolver:
         """Advance rigid bodies with the configured sub-solver."""
         model = self._model
 
+        # set particle_count = 0 to disable particle simulation in robot solver
         saved_particle_count = model.particle_count
         model.particle_count = 0
 
         self.rigid_solver.step(state_in, state_out, control, None, dt)
 
+        # restore original settings
         model.particle_count = saved_particle_count
 
     def _apply_reactions(self, state: State, state_prev: State, dt: float) -> None:
@@ -332,7 +335,7 @@ class CoupledSolver:
                 contacts.soft_contact_body_vel,
                 contacts.soft_contact_normal,
                 state.particle_q,
-                state.particle_q,
+                state_prev.particle_q,
                 model.particle_radius,
                 state.body_q,
                 state_prev.body_q,
