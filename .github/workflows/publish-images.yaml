@@ -114,6 +114,7 @@ jobs:
         case "$BRANCH_NAME" in
           develop)
             TAGS+=("$IMAGE:latest-develop")
+            TAGS+=("$IMAGE:latest-develop-${{ github.run_number }}-${SHA:0:8}")
             ;;
           main)
             TAGS+=("$IMAGE:latest")
