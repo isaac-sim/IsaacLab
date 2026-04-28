@@ -434,7 +434,7 @@ To quantify this behavior, we plotted the step response of the impedance control
 
 .. note::
 
-    **Flexiv Rizon 4s**: Domain randomization for actuator gains and joint friction is not included in the Rizon 4s ``EventCfg`` (``config/rizon_4s/joint_pos_env_cfg.py``). The Rizon 4s real-world controller is significantly more stable and precise than the UR10e's, with negligible stiction and steady-state error. As a result, the simulation policy transfers well to the real robot without needing these additional randomizations.
+    **Flexiv Rizon 4s**: Domain randomization for actuator gains and joint friction is not included in the Rizon 4s ``EventCfg`` (``config/rizon_4s/joint_pos_env_cfg.py``). We found the Rizon 4s real-world controller is more stable and precise than the UR10e's, with negligible stiction and steady-state error. As a result, the simulation policy transfers well to the real robot without needing these additional randomizations.
 
 **Compensating for Stiction with Action Scaling:**
 
@@ -559,8 +559,6 @@ Randomizing the robot's initial configuration helps the policy handle different 
                 },
             )
 
-        The Rizon 4s currently uses zero grasp pose randomization. Position randomization can be re-enabled once the base grasp behavior is verified on real hardware.
-
 Reward Shaping
 ~~~~~~~~~~~~~~
 
@@ -610,7 +608,7 @@ The Rizon 4s configuration adds two reward terms that measure the distance betwe
         },
     )
 
-These terms encourage the Rizon 4s policy to keep the gripper properly aligned with the gear during insertion. The distance is ~0 when the EE is correctly grasping the gear, and increases when the gripper drifts away. The ``weight_ramp_steps`` parameter linearly ramps the reward weight from zero over the first 250k environment steps, allowing the policy to first learn coarse approach behavior before the grasp quality reward becomes active.
+These terms encourage the Rizon 4s policy to keep the gripper properly aligned with the gear during insertion. The distance is ~0 when the EE is correctly grasping the gear, and increases when the gripper drifts away. The ``weight_ramp_steps`` parameter linearly ramps the reward weight from zero over the first 512k environment steps, allowing the policy to first learn coarse approach/insertion behavior before the grasp quality reward becomes active.
 
 .. list-table:: Reward Terms Comparison
    :widths: 40 15 15
