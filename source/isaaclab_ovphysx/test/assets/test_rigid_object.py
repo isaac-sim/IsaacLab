@@ -21,6 +21,8 @@ if not hasattr(_TT_module, "RIGID_BODY_ROOT_POSE"):
         allow_module_level=True,
     )
 
+import warp as wp  # noqa: E402
+from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData  # noqa: E402
 from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet  # noqa: E402
 
@@ -45,3 +47,34 @@ def test_data_basic_counts():
     assert data._num_bodies == 1
     assert data._device.startswith("cuda") or data._device == "cpu"
     assert data.is_primed is False
+
+
+def test_root_link_pose_reads_from_binding():
+    data, bindings = _make_data(num_instances=4)
+    data.is_primed = True
+    pose_buf = bindings.bindings[TT.RIGID_BODY_ROOT_POSE]._data  # numpy (4, 7)
+    pose_buf[0] = [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
+    out = data.root_link_pose_w
+    out_np = wp.to_torch(out.warp).cpu().numpy()
+    assert out_np[0, 0] == 1.0
+    assert out_np[0, 6] == 1.0
+
+
+def test_root_link_quat_slice_matches_pose():
+    data, bindings = _make_data(num_instances=2)
+    data.is_primed = True
+    bindings.bindings[TT.RIGID_BODY_ROOT_POSE]._data[1, 3:7] = [0.5, 0.5, 0.5, 0.5]
+    quat = data.root_link_quat_w
+    quat_np = wp.to_torch(quat.warp).cpu().numpy()
+    assert quat_np[1, 0] == pytest.approx(0.5)
+    assert quat_np[1, 3] == pytest.approx(0.5)
+
+
+def test_root_lin_vel_w_reads_from_binding():
+    data, bindings = _make_data(num_instances=2)
+    data.is_primed = True
+    bindings.bindings[TT.RIGID_BODY_ROOT_VELOCITY]._data[0] = [1.5, 2.5, 3.5, 0.1, 0.2, 0.3]
+    out = data.root_lin_vel_w
+    out_np = wp.to_torch(out.warp).cpu().numpy()
+    assert out_np[0, 0] == pytest.approx(1.5)
+    assert out_np[0, 2] == pytest.approx(3.5)

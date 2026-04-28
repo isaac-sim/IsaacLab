@@ -12,7 +12,11 @@ import warp as wp
 
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
+
+from isaaclab_ovphysx import tensor_types as TT
+from isaaclab_ovphysx.assets.kernels import _compose_root_com_pose
 
 
 class RigidObjectData(BaseRigidObjectData):
@@ -39,6 +43,29 @@ class RigidObjectData(BaseRigidObjectData):
         self._timestamps: dict[str, float] = {}
         self._default_root_pose: wp.array | None = None
         self._default_root_velocity: wp.array | None = None
+        # Cached TimestampedBuffers for root state (allocated lazily on first access).
+        self._root_link_pose_w_buf: TimestampedBuffer | None = None
+        self._root_link_vel_w_buf: TimestampedBuffer | None = None
+        self._root_com_pose_w_buf: TimestampedBuffer | None = None
+        self._root_com_vel_w_buf: TimestampedBuffer | None = None
+        # Body-COM-in-body-frame buffer (shape (N,1), dtype=wp.transformf).
+        self._body_com_pose_b_buf: TimestampedBuffer | None = None
+        # Float32 view cache so binding.read() always sees the same object.
+        self._read_view_cache: dict = {}
+        # ProxyArray wrappers (created once from the underlying buffer.data).
+        self._root_link_pose_w_ta: ProxyArray | None = None
+        self._root_link_vel_w_ta: ProxyArray | None = None
+        self._root_com_pose_w_ta: ProxyArray | None = None
+        self._root_com_vel_w_ta: ProxyArray | None = None
+        # Sliced view ProxyArrays.
+        self._root_link_pos_w_ta: ProxyArray | None = None
+        self._root_link_quat_w_ta: ProxyArray | None = None
+        self._root_lin_vel_w_ta: ProxyArray | None = None
+        self._root_ang_vel_w_ta: ProxyArray | None = None
+        self._root_com_pos_w_ta: ProxyArray | None = None
+        self._root_com_quat_w_ta: ProxyArray | None = None
+        self._root_com_lin_vel_w_ta: ProxyArray | None = None
+        self._root_com_ang_vel_w_ta: ProxyArray | None = None
 
     # --- counts -------------------------------------------------------
     @property
@@ -120,6 +147,113 @@ class RigidObjectData(BaseRigidObjectData):
             wp.from_numpy(np_vel, dtype=wp.spatial_vectorf, device=device),
         )
 
+    # --- internal helpers: buffer allocation ----------------------------
+    def _ensure_root_buffers(self) -> None:
+        """Allocate root-state TimestampedBuffers on first use.
+
+        Called lazily from root-state properties so that the buffers are
+        only created after ``_num_instances`` and ``_device`` are set by
+        the owning :class:`RigidObject`.
+        """
+        if self._root_link_pose_w_buf is not None:
+            return
+        N = self._num_instances
+        dev = self._device
+        self._root_link_pose_w_buf = TimestampedBuffer(N, dev, wp.transformf)
+        self._root_link_vel_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
+        self._root_com_pose_w_buf = TimestampedBuffer(N, dev, wp.transformf)
+        self._root_com_vel_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
+        # (N, 1) 2-D buffer for body_com_pose_b, required by _compose_root_com_pose.
+        self._body_com_pose_b_buf = TimestampedBuffer((N, 1), dev, wp.transformf)
+
+    # --- internal helpers: read from bindings --------------------------
+    def _get_binding(self, tensor_type: int):
+        """Return the binding for the given tensor type, or None."""
+        return self._bindings.get(tensor_type)
+
+    def _get_read_view(self, tensor_type: int, wp_array: wp.array, floats_per_elem: int = 0) -> wp.array | None:
+        """Return a stable float32 view of *wp_array* sized to the binding shape.
+
+        Cached so that binding.read() always sees the same object.
+        """
+        cache_key = (tensor_type, wp_array.ptr)
+        cached = self._read_view_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        binding = self._get_binding(tensor_type)
+        if binding is None:
+            self._read_view_cache[cache_key] = None
+            return None
+        if floats_per_elem > 0:
+            view = wp.array(
+                ptr=wp_array.ptr,
+                shape=binding.shape,
+                dtype=wp.float32,
+                device=str(wp_array.device),
+                copy=False,
+            )
+        else:
+            view = wp_array
+        self._read_view_cache[cache_key] = view
+        return view
+
+    def _read_transform_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
+        """Read a pose binding (float32 view of transformf buffer), skipping if fresh."""
+        if buf.timestamp >= self._sim_time:
+            return
+        view = self._get_read_view(tensor_type, buf.data, 7)
+        if view is None:
+            return
+        self._get_binding(tensor_type).read(view)
+        buf.timestamp = self._sim_time
+
+    def _read_spatial_vector_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
+        """Read a velocity binding (float32 view of spatial_vectorf buffer), skipping if fresh."""
+        if buf.timestamp >= self._sim_time:
+            return
+        view = self._get_read_view(tensor_type, buf.data, 6)
+        if view is None:
+            return
+        self._get_binding(tensor_type).read(view)
+        buf.timestamp = self._sim_time
+
+    # --- internal helpers: slice extraction ----------------------------
+    def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
+        return wp.array(
+            ptr=transform.ptr,
+            shape=transform.shape,
+            dtype=wp.vec3f,
+            strides=transform.strides,
+            device=self._device,
+        )
+
+    def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
+        return wp.array(
+            ptr=transform.ptr + 3 * 4,
+            shape=transform.shape,
+            dtype=wp.quatf,
+            strides=transform.strides,
+            device=self._device,
+        )
+
+    def _get_lin_vel_from_spatial_vector(self, sv: wp.array) -> wp.array:
+        return wp.array(
+            ptr=sv.ptr,
+            shape=sv.shape,
+            dtype=wp.vec3f,
+            strides=sv.strides,
+            device=self._device,
+        )
+
+    def _get_ang_vel_from_spatial_vector(self, sv: wp.array) -> wp.array:
+        return wp.array(
+            ptr=sv.ptr + 3 * 4,
+            shape=sv.shape,
+            dtype=wp.vec3f,
+            strides=sv.strides,
+            device=self._device,
+        )
+
     # --- abstract property stubs (implemented by subsequent tasks) ----
     @property
     def default_root_pose(self) -> ProxyArray:
@@ -135,19 +269,75 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_pose_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root link pose ``[pos, quat]`` in simulation world frame [m, -].
+        Shape is (num_instances,), dtype = wp.transformf.
+        In torch this resolves to (num_instances, 7).
+
+        This quantity is the pose of the rigid body's actor frame relative to
+        the world. The orientation is provided in (x, y, z, w) format.
+        """
+        self._ensure_root_buffers()
+        self._read_transform_binding(TT.RIGID_BODY_ROOT_POSE, self._root_link_pose_w_buf)
+        if self._root_link_pose_w_ta is None:
+            self._root_link_pose_w_ta = ProxyArray(self._root_link_pose_w_buf.data)
+        return self._root_link_pose_w_ta
 
     @property
     def root_link_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame [m/s, rad/s].
+        Shape is (num_instances,), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, 6).
+
+        This quantity contains the linear and angular velocities of the rigid
+        body's actor frame relative to the world.
+        """
+        self._ensure_root_buffers()
+        self._read_spatial_vector_binding(TT.RIGID_BODY_ROOT_VELOCITY, self._root_link_vel_w_buf)
+        if self._root_link_vel_w_ta is None:
+            self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w_buf.data)
+        return self._root_link_vel_w_ta
 
     @property
     def root_com_pose_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root center of mass pose ``[pos, quat]`` in simulation world frame [m, -].
+        Shape is (num_instances,), dtype = wp.transformf.
+        In torch this resolves to (num_instances, 7).
+
+        This quantity is the pose of the rigid body's center of mass frame
+        relative to the world. The orientation is provided in (x, y, z, w) format.
+        """
+        self._ensure_root_buffers()
+        # Refresh body-frame COM offset from the RIGID_BODY_COM_POSE binding.
+        if self._body_com_pose_b_buf.timestamp < self._sim_time:
+            self._read_transform_binding(TT.RIGID_BODY_COM_POSE, self._body_com_pose_b_buf)
+        if self._root_com_pose_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                _compose_root_com_pose,
+                dim=self._num_instances,
+                inputs=[self.root_link_pose_w, self._body_com_pose_b_buf.data],
+                outputs=[self._root_com_pose_w_buf.data],
+                device=self._device,
+            )
+            self._root_com_pose_w_buf.timestamp = self._sim_time
+        if self._root_com_pose_w_ta is None:
+            self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w_buf.data)
+        return self._root_com_pose_w_ta
 
     @property
     def root_com_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame
+        [m/s, rad/s].
+        Shape is (num_instances,), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, 6).
+
+        For a single rigid body the COM velocity equals the root link velocity
+        read from the RIGID_BODY_ROOT_VELOCITY binding.
+        """
+        self._ensure_root_buffers()
+        self._read_spatial_vector_binding(TT.RIGID_BODY_ROOT_VELOCITY, self._root_com_vel_w_buf)
+        if self._root_com_vel_w_ta is None:
+            self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w_buf.data)
+        return self._root_com_vel_w_ta
 
     @property
     def root_state_w(self) -> ProxyArray:
@@ -231,35 +421,91 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_pos_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root link position in simulation world frame [m].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        parent = self.root_link_pose_w
+        if self._root_link_pos_w_ta is None:
+            self._root_link_pos_w_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
+        return self._root_link_pos_w_ta
 
     @property
     def root_link_quat_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root link orientation (x, y, z, w) in simulation world frame [-].
+        Shape is (num_instances,), dtype = wp.quatf.
+        In torch this resolves to (num_instances, 4).
+        """
+        parent = self.root_link_pose_w
+        if self._root_link_quat_w_ta is None:
+            self._root_link_quat_w_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
+        return self._root_link_quat_w_ta
 
     @property
     def root_link_lin_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root link linear velocity in simulation world frame [m/s].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        parent = self.root_link_vel_w
+        if self._root_lin_vel_w_ta is None:
+            self._root_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+        return self._root_lin_vel_w_ta
 
     @property
     def root_link_ang_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root link angular velocity in simulation world frame [rad/s].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        parent = self.root_link_vel_w
+        if self._root_ang_vel_w_ta is None:
+            self._root_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+        return self._root_ang_vel_w_ta
 
     @property
     def root_com_pos_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root center of mass position in simulation world frame [m].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        parent = self.root_com_pose_w
+        if self._root_com_pos_w_ta is None:
+            self._root_com_pos_w_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
+        return self._root_com_pos_w_ta
 
     @property
     def root_com_quat_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root center of mass orientation (x, y, z, w) in simulation world frame [-].
+        Shape is (num_instances,), dtype = wp.quatf.
+        In torch this resolves to (num_instances, 4).
+        """
+        parent = self.root_com_pose_w
+        if self._root_com_quat_w_ta is None:
+            self._root_com_quat_w_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
+        return self._root_com_quat_w_ta
 
     @property
     def root_com_lin_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root center of mass linear velocity in simulation world frame [m/s].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        parent = self.root_com_vel_w
+        if self._root_com_lin_vel_w_ta is None:
+            self._root_com_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+        return self._root_com_lin_vel_w_ta
 
     @property
     def root_com_ang_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root center of mass angular velocity in simulation world frame [rad/s].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        parent = self.root_com_vel_w
+        if self._root_com_ang_vel_w_ta is None:
+            self._root_com_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+        return self._root_com_ang_vel_w_ta
 
     @property
     def body_link_pos_w(self) -> ProxyArray:
