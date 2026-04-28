@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -189,8 +190,7 @@ class ContactSensor(BaseContactSensor):
 
         # Build filter patterns (flat: len = n_sensors * filters_per_sensor).
         filter_globs = [
-            re.sub(r"\.\*", "*", re.sub(r"\{ENV_REGEX_NS\}", "*", expr))
-            for expr in self.cfg.filter_prim_paths_expr
+            re.sub(r"\.\*", "*", re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for expr in self.cfg.filter_prim_paths_expr
         ]
         filters_per_sensor = len(filter_globs)
         if filters_per_sensor > 0:
@@ -227,7 +227,8 @@ class ContactSensor(BaseContactSensor):
         if self.cfg.track_pose:
             single_pose_pattern = f"{base_glob}/*"
             self._pose_binding = physx_instance.create_tensor_binding(
-                pattern=single_pose_pattern, tensor_type=TT.RIGID_BODY_POSE,
+                pattern=single_pose_pattern,
+                tensor_type=TT.RIGID_BODY_POSE,
             )
             if self._pose_binding.count != expected_sensors:
                 raise RuntimeError(
@@ -264,7 +265,9 @@ class ContactSensor(BaseContactSensor):
         self._net_forces_flat_buf = wp.zeros((flat_count, 3), dtype=wp.float32, device=self._device)
         if self._num_filter_shapes > 0:
             self._force_matrix_flat_buf = wp.zeros(
-                (flat_count, self._num_filter_shapes, 3), dtype=wp.float32, device=self._device,
+                (flat_count, self._num_filter_shapes, 3),
+                dtype=wp.float32,
+                device=self._device,
             )
         else:
             self._force_matrix_flat_buf = None
@@ -423,15 +426,11 @@ class ContactSensor(BaseContactSensor):
         # Drop strong references; ovphysx native handles are torn down on the
         # next reset() of OvPhysxManager.
         if self._contact_binding is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._contact_binding.destroy()
-            except Exception:
-                pass
         self._contact_binding = None
         if self._pose_binding is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._pose_binding.destroy()
-            except Exception:
-                pass
         self._pose_binding = None
         self._physx_instance = None
