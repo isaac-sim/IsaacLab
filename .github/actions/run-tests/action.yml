@@ -78,6 +78,12 @@ runs:
           local shard_count="${12}"
           local volume_mount_source="${13}"
 
+          # Kill the container and exit immediately if the runner is cancelled.
+          # shellcheck disable=SC2064
+          trap "echo '::warning::Signal received, killing container ${container_name}...'; \
+                docker kill '${container_name}' 2>/dev/null || true; \
+                exit 130" INT TERM
+
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
             echo "With pytest options: $pytest_options"
@@ -267,6 +273,13 @@ runs:
 
         # Call the function with provided parameters
         run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}"
+
+    - name: Kill container on cancellation
+      if: cancelled()
+      shell: bash
+      run: |
+        docker kill "${{ inputs.container-name }}" 2>/dev/null || true
+        docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
 
     - name: Write job summary
       if: always()

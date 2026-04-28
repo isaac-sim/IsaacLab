@@ -86,7 +86,7 @@ on:
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
