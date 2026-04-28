@@ -142,6 +142,10 @@ class UniformVelocityCommand(CommandTerm):
             (mean_error_xy < self.cfg.vel_xy_success_threshold) & (mean_error_yaw < self.cfg.vel_yaw_success_threshold)
         ).float()
         extras = super().reset(env_ids)
+        # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
+        # / wandb card across tasks); pop it from the returned dict so CommandManager does
+        # not additionally log it under ``Metrics/<term_name>/success_rate``.
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
         self._error_xy_sum[env_ids] = 0.0
         self._error_yaw_sum[env_ids] = 0.0
         self._step_count[env_ids] = 0.0
