@@ -13,16 +13,46 @@ the base rigid object class advertises. All rigid object interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Launch Isaac Sim Simulator first (when available)."""
 
-from isaaclab.app import AppLauncher
-
-HEADLESS = True
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
+import os
+import sys
 from unittest.mock import MagicMock
+
+# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
+# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
+# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
+# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
+# set (bare Python, no Kit at all).
+_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
+    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+)
+
+if not _kitless:
+    from isaaclab.app import AppLauncher
+
+    simulation_app = AppLauncher(headless=True).app
+else:
+    simulation_app = None
+    # Stub out Kit/Omniverse modules that are unavailable in the kitless
+    # ovphysx wheel environment so downstream isaaclab_physx imports don't fail.
+    for _mod in (
+        "isaacsim.core",
+        "isaacsim.core.simulation_manager",
+        "omni",
+        "omni.physics",
+        "omni.physics.tensors",
+        "omni.physx",
+        "omni.kit",
+        "omni.kit.app",
+        "omni.timeline",
+        "omni.usd",
+        "carb",
+        "pxr",
+        "pxr.Sdf",
+        "pxr.UsdUtils",
+    ):
+        sys.modules.setdefault(_mod, MagicMock())
 
 import numpy as np
 import pytest

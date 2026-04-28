@@ -20,9 +20,13 @@ import sys
 from unittest.mock import MagicMock
 
 # When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
-# will try to boot Kit and hang. Skip it entirely when LD_PRELOAD is cleared
-# (the signature of run_ovphysx.sh) or when EXP_PATH is not set.
-_kitless = os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+# will try to boot Kit and hang. Skip it entirely: run_ovphysx.sh sets
+# LD_PRELOAD to the ovphysx libcarb.so, which is the signature of a kitless
+# ovphysx run. Also guard the case where neither LD_PRELOAD nor EXP_PATH is
+# set (bare Python, no Kit at all).
+_kitless = "ovphysx" in os.environ.get("LD_PRELOAD", "") or (
+    os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+)
 
 if not _kitless:
     from isaaclab.app import AppLauncher
@@ -30,7 +34,24 @@ if not _kitless:
     simulation_app = AppLauncher(headless=True).app
 else:
     simulation_app = None
-    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
+    # Stub out Kit/Omniverse modules that are unavailable in the kitless
+    # ovphysx wheel environment so downstream isaaclab_physx imports don't fail.
+    for _mod in (
+        "isaacsim.core",
+        "isaacsim.core.simulation_manager",
+        "omni",
+        "omni.physics",
+        "omni.physics.tensors",
+        "omni.physx",
+        "omni.kit",
+        "omni.kit.app",
+        "omni.timeline",
+        "omni.usd",
+        "carb",
+        "pxr",
+        "pxr.Sdf",
+        "pxr.UsdUtils",
+    ):
         sys.modules.setdefault(_mod, MagicMock())
 
 import numpy as np
