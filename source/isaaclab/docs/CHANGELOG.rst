@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+4.6.22 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks` configuration option
+  to skip shape/dtype validation in setter and writer methods, reducing per-call overhead
+  in production workloads.
+
+Fixed
+^^^^^
+
+* Fixed cross-backend asset interface regression tests to cover tensor views passed to
+  backend index resolution helpers.
+
+
 4.6.21 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -401,9 +418,6 @@ Changed
 Added
 ^^^^^
 
-* Added :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks` configuration option
-  to skip shape/dtype validation in setter and writer methods, reducing per-call overhead
-  in production workloads.
 * Added :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_shape_colors`
   to align Newton ``shape_color`` with authored USD where OmniPBR inputs or
   ``primvars:displayColor`` apply. Set ``ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS``

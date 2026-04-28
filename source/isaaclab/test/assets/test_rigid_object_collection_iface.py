@@ -124,12 +124,6 @@ def create_physx_rigid_object_collection(
     )
     object.__setattr__(collection, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device))
 
-    # Single-slot caches for _resolve_* methods
-    object.__setattr__(collection, "_cached_env_ids_ptr", -1)
-    object.__setattr__(collection, "_cached_env_ids_wp", None)
-    object.__setattr__(collection, "_cached_body_ids_ptr", -1)
-    object.__setattr__(collection, "_cached_body_ids_wp", None)
-
     return collection, mock_view
 
 
@@ -212,12 +206,6 @@ def create_newton_rigid_object_collection(
     object.__setattr__(collection, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
     object.__setattr__(collection, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
 
-    # Single-slot caches for _resolve_* methods
-    object.__setattr__(collection, "_cached_env_ids_ptr", -1)
-    object.__setattr__(collection, "_cached_env_ids_wp", None)
-    object.__setattr__(collection, "_cached_body_ids_ptr", -1)
-    object.__setattr__(collection, "_cached_body_ids_wp", None)
-
     return collection, mock_view
 
 
@@ -283,6 +271,9 @@ _default_dims = pytest.mark.parametrize("num_instances", [1, 2, 100])
 _default_bodies = pytest.mark.parametrize("num_bodies", [1, 3])
 
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+_index_resolution_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +352,37 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
     for i in selected:
         mask_np[i] = True
     return wp.array(mask_np, dtype=wp.bool, device=device)
+
+
+# ---------------------------------------------------------------------------
+# Tests: Index resolution helpers
+# ---------------------------------------------------------------------------
+
+
+class TestCollectionIndexResolution:
+    """Test backend-specific index resolution helpers."""
+
+    @_index_resolution_backends
+    def test_resolve_env_ids_handles_tensor_view_shape(self, backend):
+        obj, _ = get_rigid_object_collection(backend, num_instances=4, device="cpu")
+
+        env_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        resolved_full = obj._resolve_env_ids(env_ids)
+        resolved_view = obj._resolve_env_ids(env_ids[:2])
+
+        assert resolved_full.shape[0] == 4
+        assert resolved_view.shape[0] == 2
+
+    @_index_resolution_backends
+    def test_resolve_body_ids_handles_tensor_view_shape(self, backend):
+        obj, _ = get_rigid_object_collection(backend, num_bodies=4, device="cpu")
+
+        body_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        resolved_full = obj._resolve_body_ids(body_ids)
+        resolved_view = obj._resolve_body_ids(body_ids[:2])
+
+        assert resolved_full.shape[0] == 4
+        assert resolved_view.shape[0] == 2
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.5.25 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed dead state-buffer output parameters from 8 root pose/velocity warp kernels
+  in :mod:`~isaaclab_newton.assets.kernels`, reducing kernel argument marshalling
+  overhead.
+* Added fused :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_index`
+  and :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_mask` that
+  write joint position and velocity in a single kernel launch instead of two.
+
+
 0.5.24 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -117,15 +131,6 @@ Fixed
 Changed
 ^^^^^^^
 
-* Removed dead state-buffer output parameters from 8 root pose/velocity warp kernels
-  in :mod:`~isaaclab_newton.assets.kernels`, reducing kernel argument marshalling
-  overhead.
-* Added fused :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_index`
-  and :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_mask` that
-  write joint position and velocity in a single kernel launch instead of two.
-* Added single-slot ``data_ptr()`` caches to ``_resolve_env_ids``,
-  ``_resolve_joint_ids``, and ``_resolve_body_ids`` to eliminate redundant
-  ``wp.from_torch`` wrapper allocations.
 * Changed Newton Warp tiled camera outputs to clear with a light linear gray
   (0xFFEEEEEE, 93% gray, fully opaque) background via ``SensorTiledCamera.ClearData``
   in :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`.

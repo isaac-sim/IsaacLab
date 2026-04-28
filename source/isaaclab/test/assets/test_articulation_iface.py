@@ -193,14 +193,6 @@ def create_physx_articulation(
     object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
     object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
 
-    # Single-slot caches for _resolve_* methods
-    object.__setattr__(articulation, "_cached_env_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_env_ids_wp", None)
-    object.__setattr__(articulation, "_cached_joint_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_joint_ids_wp", None)
-    object.__setattr__(articulation, "_cached_body_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_body_ids_wp", None)
-
     # Cached .view(wp.float32) wrappers
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
     object.__setattr__(articulation, "_root_com_vel_w_f32", None)
@@ -429,14 +421,6 @@ def create_newton_articulation(
         wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
     )
 
-    # Single-slot caches for _resolve_* methods
-    object.__setattr__(articulation, "_cached_env_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_env_ids_wp", None)
-    object.__setattr__(articulation, "_cached_joint_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_joint_ids_wp", None)
-    object.__setattr__(articulation, "_cached_body_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_body_ids_wp", None)
-
     return articulation, mock_view
 
 
@@ -532,6 +516,52 @@ _default_dims = pytest.mark.parametrize(
 )
 
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+_index_resolution_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
+
+
+# ---------------------------------------------------------------------------
+# Tests: Index resolution helpers
+# ---------------------------------------------------------------------------
+
+
+class TestArticulationIndexResolution:
+    """Test backend-specific index resolution helpers."""
+
+    @_index_resolution_backends
+    def test_resolve_env_ids_handles_tensor_view_shape(self, backend):
+        art, _ = get_articulation(backend, num_instances=4, device="cpu")
+
+        env_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        resolved_full = art._resolve_env_ids(env_ids)
+        resolved_view = art._resolve_env_ids(env_ids[:2])
+
+        assert resolved_full.shape[0] == 4
+        assert resolved_view.shape[0] == 2
+
+    @_index_resolution_backends
+    def test_resolve_joint_ids_handles_tensor_view_shape(self, backend):
+        art, _ = get_articulation(backend, num_joints=4, device="cpu")
+
+        joint_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        resolved_full = art._resolve_joint_ids(joint_ids)
+        resolved_view = art._resolve_joint_ids(joint_ids[:2])
+
+        assert resolved_full.shape[0] == 4
+        assert resolved_view.shape[0] == 2
+
+    @_index_resolution_backends
+    def test_resolve_body_ids_handles_tensor_view_shape(self, backend):
+        art, _ = get_articulation(backend, num_bodies=4, device="cpu")
+
+        body_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        resolved_full = art._resolve_body_ids(body_ids)
+        resolved_view = art._resolve_body_ids(body_ids[:2])
+
+        assert resolved_full.shape[0] == 4
+        assert resolved_view.shape[0] == 2
+
 
 # ---------------------------------------------------------------------------
 # Tests: Articulation properties

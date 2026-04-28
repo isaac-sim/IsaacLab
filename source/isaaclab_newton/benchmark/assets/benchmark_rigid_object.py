@@ -149,12 +149,6 @@ def create_test_rigid_object(
     object.__setattr__(rigid_object, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
     object.__setattr__(rigid_object, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
 
-    # Single-slot caches for _resolve_* methods
-    object.__setattr__(rigid_object, "_cached_env_ids_ptr", -1)
-    object.__setattr__(rigid_object, "_cached_env_ids_wp", None)
-    object.__setattr__(rigid_object, "_cached_body_ids_ptr", -1)
-    object.__setattr__(rigid_object, "_cached_body_ids_wp", None)
-
     # set information about rigid body into data
     data.body_names = body_names
 

@@ -160,14 +160,6 @@ def create_test_articulation(
     object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
     object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
 
-    # Single-slot caches for _resolve_* methods
-    object.__setattr__(articulation, "_cached_env_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_env_ids_wp", None)
-    object.__setattr__(articulation, "_cached_joint_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_joint_ids_wp", None)
-    object.__setattr__(articulation, "_cached_body_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_body_ids_wp", None)
-
     # Cached .view() wrappers
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
     object.__setattr__(articulation, "_root_com_vel_w_f32", None)

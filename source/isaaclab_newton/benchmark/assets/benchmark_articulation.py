@@ -181,14 +181,6 @@ def create_test_articulation(
         wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
     )
 
-    # Single-slot caches for _resolve_* methods
-    object.__setattr__(articulation, "_cached_env_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_env_ids_wp", None)
-    object.__setattr__(articulation, "_cached_joint_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_joint_ids_wp", None)
-    object.__setattr__(articulation, "_cached_body_ids_ptr", -1)
-    object.__setattr__(articulation, "_cached_body_ids_wp", None)
-
     return articulation, mock_view
 
 

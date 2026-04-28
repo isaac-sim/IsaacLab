@@ -156,12 +156,6 @@ def create_test_collection(
         wp.zeros((num_instances, num_bodies), dtype=wp.spatial_vectorf, device=device),
     )
 
-    # Single-slot caches for _resolve_* methods
-    object.__setattr__(collection, "_cached_env_ids_ptr", -1)
-    object.__setattr__(collection, "_cached_env_ids_wp", None)
-    object.__setattr__(collection, "_cached_body_ids_ptr", -1)
-    object.__setattr__(collection, "_cached_body_ids_wp", None)
-
     return collection, mock_view
 
 
