@@ -1,0 +1,51 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Backend-specific tests for the OVPhysX RigidObject and RigidObjectData."""
+
+from __future__ import annotations
+
+import pytest
+
+# Wheel-gated: skip the entire file if the ovphysx wheel does not
+# expose RIGID_BODY_* TensorTypes yet. Use a hasattr check rather
+# than chained .attr because importorskip().attr raises AttributeError
+# rather than skipping when the module imports but the attribute is
+# absent.
+_TT_module = pytest.importorskip("isaaclab_ovphysx.tensor_types")
+if not hasattr(_TT_module, "RIGID_BODY_ROOT_POSE"):
+    pytest.skip(
+        "ovphysx wheel does not yet expose RIGID_BODY_* TensorTypes",
+        allow_module_level=True,
+    )
+
+import torch  # noqa: E402
+import warp as wp  # noqa: E402
+
+from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
+from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData  # noqa: E402
+from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet  # noqa: E402
+
+
+def _make_data(num_instances: int = 4, device: str = "cuda:0"):
+    bindings = MockOvPhysxBindingSet(
+        num_instances=num_instances,
+        num_joints=0,
+        num_bodies=1,
+        asset_kind="rigid_object",
+    )
+    bindings.set_random_data()
+    data = RigidObjectData(bindings.bindings, device)
+    data._num_instances = num_instances
+    data._num_bodies = 1
+    return data, bindings
+
+
+def test_data_basic_counts():
+    data, _ = _make_data(num_instances=8)
+    assert data._num_instances == 8
+    assert data._num_bodies == 1
+    assert data._device.startswith("cuda") or data._device == "cpu"
+    assert data.is_primed is False
