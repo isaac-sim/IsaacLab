@@ -274,3 +274,57 @@ class ContactSensor(BaseContactSensor):
             self._poses_flat_buf = wp.zeros((flat_count, 7), dtype=wp.float32, device=self._device)
         else:
             self._poses_flat_buf = None
+
+    def _update_buffers_impl(self, env_mask: wp.array | None = None) -> None:
+        """Read contact data from ovphysx and update sensor buffers."""
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
+
+        # Pull aggregate forces into the pre-allocated flat buffer:
+        # shape [num_envs * num_sensors, 3] float32 -> [num_envs * num_sensors] vec3f.
+        self._contact_binding.read_net_forces(self._net_forces_flat_buf)
+        net_forces_flat = self._net_forces_flat_buf.view(wp.vec3f)
+
+        if self._force_matrix_flat_buf is not None:
+            self._contact_binding.read_force_matrix(self._force_matrix_flat_buf)
+            force_matrix_flat = self._force_matrix_flat_buf.view(wp.vec3f)
+        else:
+            force_matrix_flat = None
+
+        wp.launch(
+            update_net_forces_kernel,
+            dim=(self._num_envs, self._num_sensors),
+            inputs=[
+                net_forces_flat,
+                force_matrix_flat,
+                env_mask,
+                self._num_sensors,
+                self._num_filter_shapes,
+                self._history_length,
+                self.cfg.force_threshold,
+                self._timestamp,
+                self._timestamp_last_update,
+            ],
+            outputs=[
+                self._data._net_forces_w,
+                self._data._net_forces_w_history,
+                self._data._force_matrix_w,
+                self._data._force_matrix_w_history,
+                self._data._current_air_time,
+                self._data._current_contact_time,
+                self._data._last_air_time,
+                self._data._last_contact_time,
+            ],
+            device=self._device,
+        )
+
+        if self.cfg.track_pose:
+            # Read pose into [num_envs * num_sensors, 7] float32 -> view as transformf.
+            self._pose_binding.read(self._poses_flat_buf)
+            poses_flat = self._poses_flat_buf.view(wp.transformf)
+            wp.launch(
+                split_flat_pose_to_pos_quat,
+                dim=(self._num_envs, self._num_sensors),
+                inputs=[poses_flat, env_mask, self._num_sensors],
+                outputs=[self._data._pos_w, self._data._quat_w],
+                device=self._device,
+            )
