@@ -400,7 +400,10 @@ class IsaacTeleopDevice:
             ``True`` when the loop is running and cache is seeded; ``False``
             when no synchronous action was produced yet.
         """
-        action = self._advance_sync(target_T_world)
+        action = self._session_lifecycle.step(
+            anchor_world_matrix_fn=self._anchor_manager.get_world_matrix,
+            target_T_world=target_T_world,
+        )
         if action is None:
             return False
         self._cached_action = action
