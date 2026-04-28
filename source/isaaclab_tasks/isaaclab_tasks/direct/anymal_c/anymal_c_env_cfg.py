@@ -112,6 +112,12 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     undesired_contact_reward_scale = -1.0
     flat_orientation_reward_scale = -5.0
 
+    # success criteria (per-step velocity tracking; episode success rate = fraction of steps within both thresholds)
+    vel_xy_success_threshold: float = 0.5
+    """Threshold on the XY velocity error norm below which tracking is considered successful [m/s]."""
+    vel_yaw_success_threshold: float = 0.5
+    """Threshold on the yaw velocity error below which tracking is considered successful [rad/s]."""
+
 
 @configclass
 class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):

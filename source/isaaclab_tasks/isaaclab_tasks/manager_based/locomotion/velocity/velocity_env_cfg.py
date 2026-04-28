@@ -364,6 +364,10 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material
+        # this threshold is set such that a working policy should reach
+        # at least 70-80% success rate on the training completion.
+        self.commands.base_velocity.vel_xy_success_threshold = 0.6
+        self.commands.base_velocity.vel_yaw_success_threshold = 0.6
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.height_scanner is not None:

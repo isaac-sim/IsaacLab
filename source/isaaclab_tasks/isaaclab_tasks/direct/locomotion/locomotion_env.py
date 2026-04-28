@@ -223,6 +223,11 @@ class LocomotionEnv(DirectRLEnv):
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
             env_ids = wp.to_torch(self.robot._ALL_INDICES)
+
+        # Log survival success rate (survived = timed out without falling)
+        survived = self.reset_time_outs[env_ids].float()
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
+
         self.robot.reset(env_ids)
         super()._reset_idx(env_ids)
 

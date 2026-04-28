@@ -83,6 +83,14 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     ranges: Ranges = MISSING
     """Distribution ranges for the velocity commands."""
 
+    vel_xy_success_threshold: float = 0.6
+    """Threshold on the XY velocity error norm below which tracking is considered successful [m/s].
+    Defaults to 0.5 (a flat-terrain-friendly value; rough terrain may want to relax to ~1.0)."""
+
+    vel_yaw_success_threshold: float = 0.6
+    """Threshold on the yaw velocity error below which tracking is considered successful [rad/s].
+    Defaults to 0.5 (a flat-terrain-friendly value; rough terrain may want to relax to ~1.0)."""
+
     goal_vel_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/velocity_goal"
     )
@@ -174,6 +182,12 @@ class UniformPoseCommandCfg(CommandTermCfg):
     ranges: Ranges = MISSING
     """Ranges for the commands."""
 
+    position_success_threshold: float | None = None
+    """If set, position-error norm below this value (per step) flags the episode as successful.
+
+    The episode-level binary "ever within threshold" is mean-reduced across environments and
+    logged under ``Metrics/success_rate``. Defaults to ``None`` (success tracking disabled)."""
+
     goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
     """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
@@ -220,6 +234,12 @@ class UniformPose2dCommandCfg(CommandTermCfg):
 
     ranges: Ranges = MISSING
     """Distribution ranges for the position commands."""
+
+    position_success_threshold: float | None = None
+    """If set, XY position-error norm below this value (per step) flags the episode as successful.
+
+    The episode-level binary "ever within threshold" is mean-reduced across environments and
+    logged under ``Metrics/success_rate``. Defaults to ``None`` (success tracking disabled)."""
 
     goal_pose_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/pose_goal"
