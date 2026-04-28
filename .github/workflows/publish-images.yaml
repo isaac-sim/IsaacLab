@@ -109,7 +109,7 @@ jobs:
         #   - Push to release/X:  $IMAGE:latest-release-X       (moves to newest build on that release branch)
         #   - Push to main:       $IMAGE:latest                 (moves to newest main build)
         #                         $IMAGE:v<VERSION>             (from the VERSION file, e.g. v3.0.0)
-        TAGS=("$IMAGE:$SHA")
+        TAGS=()
 
         case "$BRANCH_NAME" in
           develop)
@@ -133,8 +133,8 @@ jobs:
             TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX-${{ github.run_number }}-${SHA:0:8}")
             ;;
           *)
-            # Other tracked branches only get the immutable sha tag.
-            echo "Branch '$BRANCH_NAME' has no moving tag; only $IMAGE:$SHA will be published."
+            echo "Branch '$BRANCH_NAME' is not configured for publishing; skipping."
+            exit 0
             ;;
         esac
 
