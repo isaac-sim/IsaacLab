@@ -28,7 +28,11 @@ PER_TEST_TIMEOUTS = {
     "test_pickplace_stack_environments.py": 10000,  # This test runs through PickPlace and Stack environments
     "test_factory_environments.py": 1000,  # This test runs through Factory environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
-    "test_generate_dataset.py": 1000,  # This test runs annotation for 10 demos and generation until one succeeds
+    "test_generate_dataset_franka_state.py": 10000,  # This test runs annotation for 10 demos and generation for 1 demo
+    "test_generate_dataset_franka_visuomotor.py": 10000,  # This test runs generation until one succeeds
+    "test_generate_dataset_gr1t2_nutpour.py": 10000,  # This test runs generation until one succeeds
+    "test_generate_dataset_gr1t2_pickplace.py": 10000,  # This test runs generation until one succeeds
+    "test_generate_dataset_skillgen.py": 10000,  # This test runs generation for skillgen
     "test_pink_ik.py": 1000,  # This test runs through all the pink IK environments through various motions
     "test_environments_training.py": (
         10000
@@ -56,6 +60,7 @@ PER_TEST_TIMEOUTS = {
     "test_multirotor.py": 1000,
     "test_shadow_hand_vision_presets.py": 5000,
     "test_environments_newton.py": 5000,
+    "test_surface_gripper.py": 3000,
 }
 """A dictionary of tests and their timeouts in seconds.
 

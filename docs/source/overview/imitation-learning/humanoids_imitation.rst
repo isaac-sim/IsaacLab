@@ -11,7 +11,7 @@ This page covers data generation and imitation learning workflows for humanoid r
 
 .. important::
 
-   Complete the tutorial in :ref:`Teleoperation and Imitation Learning with Isaac Lab Mimic <teleoperation-imitation-learning>`
+   Complete the tutorial in :ref:`Synthetic Data Generation and Imitation Learning with Isaac Lab Mimic <teleoperation-imitation-learning>`
    before proceeding with the following demonstrations to
    understand the data collection, annotation, and generation steps of Isaac Lab Mimic.
 
@@ -114,7 +114,7 @@ You can replay the collected demonstrations by running the following command:
 Annotate the demonstrations
 """""""""""""""""""""""""""
 
-Unlike the :ref:`Franka stacking task <generating-additional-demonstrations>`, the GR-1 pick and place task uses manual annotation to define subtasks.
+Unlike the :ref:`Franka stacking task <generate-additional-demonstrations>`, the GR-1 pick and place task uses manual annotation to define subtasks.
 
 The pick and place task has one subtask for the left arm (pick) and two subtasks for the right arm (idle, place).
 Annotations denote the end of a subtask. For the pick and place task, this means there are no annotations for the left arm and one annotation for the right arm (the end of the final subtask is always implicit).
@@ -563,7 +563,7 @@ To generate the locomanipulation dataset, use the following command:
    ./isaaclab.sh -p \
        scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
        --device cpu \
-       --kit_args="--enable isaacsim.replicator.mobility_gen" \
+       --kit_args="--enable isaacsim.replicator.experimental.mobility_gen" \
        --task="Isaac-G1-SteeringWheel-Locomanipulation" \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
        --num_runs 1 \
@@ -736,7 +736,7 @@ Download the files and place them under ``<PATH_TO_USD_ASSET>``, then run the fo
 
    ./isaaclab.sh -p scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
        --device cpu \
-       --kit_args="--enable isaacsim.replicator.mobility_gen" \
+       --kit_args="--enable isaacsim.replicator.experimental.mobility_gen" \
        --task="Isaac-G1-SteeringWheel-Locomanipulation" \
        --dataset <DATASET_FOLDER>/dataset_annotated_g1_locomanip.hdf5 \
        --num_runs 1 \

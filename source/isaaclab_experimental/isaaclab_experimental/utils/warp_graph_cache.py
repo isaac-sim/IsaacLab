@@ -14,8 +14,12 @@ import warp as wp
 class WarpGraphCache:
     """Caches Warp CUDA graphs by stage name: captures on first call, replays after.
 
-    On the first call for a given stage, the function is recorded into a CUDA
-    graph and then **immediately replayed** so the graph is validated right away.
+    On the very first call for a given stage, an **eager warm-up** run
+    executes *before* graph capture.  This lets one-time initialisation
+    code (memory allocations, torch dtype casts, ``hasattr`` guards, etc.)
+    run outside the capture context.  Only the steady-state kernel
+    launches are then recorded into the graph.
+
     The return value from the capture run is cached and returned on every
     subsequent replay, ensuring captured stages return the same references
     (e.g. tensor views) as eager stages.
@@ -55,13 +59,17 @@ class WarpGraphCache:
         if kwargs is None:
             kwargs = {}
         graph = self._graphs.get(stage)
-        if graph is None:
-            with wp.ScopedCapture() as capture:
-                result = fn(*args, **kwargs)
-            self._graphs[stage] = capture.graph
-            self._results[stage] = result
-        wp.capture_launch(self._graphs[stage])
-        return self._results[stage]
+        if graph is not None:
+            wp.capture_launch(graph)
+            return self._results[stage]
+        # Warm-up: run eagerly to flush first-call allocations / hasattr guards.
+        fn(*args, **kwargs)
+        # Capture: allocations already done, only wp.launch calls are recorded.
+        with wp.ScopedCapture() as capture:
+            result = fn(*args, **kwargs)
+        self._graphs[stage] = capture.graph
+        self._results[stage] = result
+        return result
 
     def invalidate(self, stage: str | None = None) -> None:
         """Drop cached graph(s). If *stage* is ``None``, drop all."""

@@ -28,7 +28,7 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from pxr import Sdf
+from pxr import Sdf, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
@@ -289,6 +289,30 @@ class PhysxManager(PhysicsManager):
         cls._timeline.stop()
         # Pump events so timeline callbacks fire synchronously
         omni.kit.app.get_app().update()
+
+    @classmethod
+    def wait_for_playing(cls) -> None:
+        """Block until the timeline is playing, keeping the GUI responsive.
+
+        After resume, forces a fabric re-sync so articulation meshes unfreeze.
+        See: https://github.com/isaac-sim/IsaacLab/issues/4279
+        """
+        if cls._timeline.is_playing():
+            return
+        app = omni.kit.app.get_app()
+        while not cls._timeline.is_playing():
+            app.update()
+            if cls._timeline.is_stopped():
+                break
+        # Force fabric to re-sync articulation transforms after resume.
+        # detach/attach resets the FabricManager, then we immediately push
+        # current poses so the first render after resume shows correct state.
+        if not cls._timeline.is_stopped():
+            cls._re_sync_fabric()
+            if cls._view is not None:
+                cls._view.update_articulations_kinematic()
+            if cls._update_fabric is not None:
+                cls._update_fabric(0.0, 0.0)
 
     @classmethod
     def close(cls) -> None:
@@ -584,6 +608,42 @@ class PhysxManager(PhysicsManager):
             sim.set_setting(f"/physics/{key}", not use_fabric)  # type: ignore[union-attr]
         sim.set_setting("/isaaclab/fabric_enabled", use_fabric)  # type: ignore[union-attr]
         sim.set_setting("/physics/visualizationDisplaySimulationOutput", False)  # type: ignore[union-attr]
+
+    @classmethod
+    def _re_sync_fabric(cls) -> None:
+        """Force the PhysX fabric extension to re-synchronize after a pause/resume transition.
+
+        Starting with PhysX fabric 107.3.21 (Isaac Sim 5.1), the FabricManager skips writing
+        initial articulation poses to fabric on subsequent resumes, causing articulation meshes
+        to freeze visually while physics continues to run.
+
+        The workaround detaches and re-attaches the USD stage on the fabric interface, forcing
+        the FabricManager to fully reinitialize and write transforms into fabric so that Hydra
+        picks them up.
+        """
+        if cls._fabric is None:
+            return
+        sim = PhysicsManager._sim
+        if sim is None:
+            return
+        stage = sim.stage
+        if stage is None:
+            return
+        stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
+        if stage_id <= 0:
+            return
+        try:
+            cls._fabric.detach_stage()
+        except Exception:
+            logger.warning("Failed to detach fabric stage during re-sync. Articulation visuals may be stale.")
+            return
+        try:
+            cls._fabric.attach_stage(stage_id)
+        except Exception:
+            logger.error(
+                "Could not re-attach fabric stage. Articulation visuals will be broken until next reset.",
+                exc_info=True,
+            )
 
     @classmethod
     def _warmup_and_create_views(cls) -> None:

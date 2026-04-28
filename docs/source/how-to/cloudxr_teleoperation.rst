@@ -9,10 +9,9 @@ Setting up Isaac Teleop with CloudXR
 teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
 pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
 
-This guide walks you through installing Isaac Teleop, starting the CloudXR runtime, connecting an
-XR device, and running your first teleoperation session. For the canonical step-by-step flow (install
-package, run CloudXR server, connect headset, run teleop example), refer to the `Isaac Teleop Quick
-Start <https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
+This guide walks you through setting up CloudXR, connecting an XR device, and running your first
+teleoperation session. For additional details see the `Isaac Teleop Quick Start
+<https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
 
 .. tip::
 
@@ -68,28 +67,9 @@ Install Isaac Teleop
    The CloudXR runtime links against Vulkan at runtime. If your system already has the
    NVIDIA driver installed, ``libvulkan1`` may already be present.
 
-#. Activate the **same** virtual environment you use for Isaac Lab, then install the
-   ``isaacteleop`` package with the extras you need:
-
-   .. code-block:: bash
-
-      pip install "isaacteleop[retargeters,ui,cloudxr]~=1.0.0" --extra-index-url https://pypi.nvidia.com
-
-   The extras provide the following functionality:
-
-   * ``retargeters`` -- hand retargeting libraries (dex-retargeting, scipy, torch, etc.)
-   * ``ui`` -- retargeter tuning UI (imgui)
-   * ``cloudxr`` -- CloudXR runtime and WSS proxy (websockets)
-
-   .. tip::
-
-      The pip package includes the CloudXR runtime, the WSS proxy, and all bundled native
-      libraries -- no separate clone or build step is needed. For advanced configuration,
-      building from source, or plugin development, see the
-      `Isaac Teleop GitHub <https://github.com/NVIDIA/IsaacTeleop>`_.
-
-   For version and compatibility details, see the
-   `Isaac Teleop releases <https://github.com/NVIDIA/IsaacTeleop/releases>`_.
+#. ``isaacteleop`` is installed automatically as a dependency of ``isaaclab_teleop``.
+   No separate pip install step is required. For building from source or plugin
+   development, see the `Isaac Teleop GitHub <https://github.com/NVIDIA/IsaacTeleop>`_.
 
 #. Configure the firewall to allow CloudXR traffic. The required ports depend on the
    client type.
@@ -125,108 +105,13 @@ Install Isaac Teleop
    documentation.
 
 
-.. _start-cloudxr-runtime:
-
-Start the CloudXR Runtime
--------------------------
-
-In a dedicated terminal, activate the Isaac Lab virtual environment and start the CloudXR
-runtime:
-
-.. code-block:: bash
-
-   python -m isaacteleop.cloudxr
-
-This single command performs the following:
-
-* **EULA acceptance** -- on first run you will be prompted to accept the NVIDIA CloudXR
-  EULA. The acceptance is stored in ``~/.cloudxr/run/eula_accepted`` and is not requested
-  again.
-* **CloudXR runtime** -- loads the bundled CloudXR native libraries and starts the
-  runtime service.
-* **WSS proxy** -- starts a WebSocket Secure (WSS) proxy on port **48322** that terminates
-  TLS for CloudXR.js web clients. A self-signed certificate is generated automatically in
-  ``~/.cloudxr/certs/`` if one does not already exist.
-
-Keep this terminal running for the duration of your teleoperation session.
-
-.. _cloudxr-runtime-configuration:
-
-.. rubric:: Runtime Configuration
-
-**Install directory** -- by default the runtime stores its OpenXR libraries, IPC socket,
-logs, certificates, and a generated ``cloudxr.env`` file under ``~/.cloudxr/run/``. To use a
-different location, pass the ``--cloudxr-install-dir`` flag:
-
-.. code-block:: bash
-
-   python -m isaacteleop.cloudxr --cloudxr-install-dir=~/my_cloudxr
-
-**CloudXR environment config** -- runtime behavior can be customized by passing a
-``.env``-style configuration file with the ``--cloudxr-env-config`` flag:
-
-.. code-block:: bash
-
-   python -m isaacteleop.cloudxr --cloudxr-env-config=~/custom.env
-
-Common configuration options:
-
-.. important::
-
-   **Using optical hand tracking from the XR headset?** By default the runtime expects
-   hand tracking data from an external push device (e.g. Manus gloves). If you are using
-   the headset's built-in optical hand tracking (the most common setup for Quest 3 and
-   Pico 4 Ultra, and Apple Vision Pro), you **must** set the following in your ``.env`` config file:
-
-   .. code-block:: text
-
-      NV_CXR_ENABLE_PUSH_DEVICES=0
-
-   Without this, the runtime will not process hand tracking data from the headset and your
-   hands will not appear in the simulation.
-
-* **Apple Vision Pro** -- the Vision Pro uses the CloudXR native framework rather than
-  WebXR. To connect with an Apple Vision Pro, set:
-
-  .. code-block:: text
-
-     NV_DEVICE_PROFILE=auto-native
-
-Multiple options can be combined in the same file, one per line. Both flags can be used
-together.
-
-.. note::
-
-   The previous Docker Compose workflow (used with Isaac Lab 2.3 and CloudXR 5.0.1) is
-   still supported for legacy environments but is deprecated in favor of the pip-based
-   Isaac Teleop workflow described here. See the ``docker/`` directory in the Isaac Lab
-   repository for the legacy Docker Compose files.
-
-
 .. _run-isaac-lab-with-the-cloudxr-runtime:
 
 Run Isaac Lab with CloudXR
 --------------------------
 
-Open a **new** terminal and source the environment file generated by the CloudXR runtime on
-its first start. This sets the ``XR_RUNTIME_JSON`` and ``NV_CXR_RUNTIME_DIR`` variables that
-Isaac Sim needs to locate the OpenXR runtime:
-
-.. code-block:: bash
-
-   # Activate the Isaac Lab virtual environment (conda or uv)
-   source ~/.cloudxr/run/cloudxr.env
-
-If you specified a custom install directory with ``--cloudxr-install-dir``, source
-``cloudxr.env`` from that directory instead.
-
-.. tip::
-
-   You can add the ``source`` line to your shell profile (e.g. ``~/.bashrc``) so the
-   CloudXR environment is configured automatically in every new terminal.
-
-With the CloudXR runtime running in a separate terminal (see :ref:`start-cloudxr-runtime`),
-launch an Isaac Lab teleoperation script:
+The CloudXR runtime launches automatically when a teleop script is started. No separate
+terminal or ``source`` step is needed. Launch a teleoperation script directly:
 
 .. code-block:: bash
 
@@ -234,6 +119,20 @@ launch an Isaac Lab teleoperation script:
        --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
        --visualizer kit \
        --xr
+
+To switch the CloudXR device profile at launch time (e.g. from Quest to Apple Vision Pro),
+use the ``--cloudxr_env`` flag:
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --visualizer kit \
+       --xr \
+       --cloudxr_env avp
+
+For details on the shipped ``.env`` profiles and how to customise them, see
+:ref:`isaac-teleop-cloudxr-profiles` in the feature guide.
 
 Then in the Isaac Sim UI:
 
@@ -276,22 +175,16 @@ choose the tab that matches your hardware.
 
       Meta Quest 3 and Pico 4 Ultra connect to Isaac Lab via the
       `CloudXR.js <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_
-      WebXR client. The built-in WSS proxy started by ``python -m isaacteleop.cloudxr``
-      provides the HTTPS connection that the web client requires.
-
-      .. important::
-
-         If you are using the headset's built-in optical hand tracking (instead of
-         Manus gloves), make sure you started the CloudXR runtime with
-         ``NV_CXR_ENABLE_PUSH_DEVICES=0`` in your env config. See
-         :ref:`cloudxr-runtime-configuration` for details.
+      WebXR client. The built-in environments default to the ``cloudxrjs-cloudxr.env`` profile
+      (``auto-webrtc``), which is the correct setting for these devices.
 
       .. note::
 
          Pico 4 Ultra requires Pico OS 15.4.4U or later and must use HTTPS mode.
 
-      #. Ensure the CloudXR runtime and WSS proxy are running
-         (see :ref:`start-cloudxr-runtime`).
+      #. Launch the teleop script as shown in
+         :ref:`run-isaac-lab-with-the-cloudxr-runtime`. The CloudXR runtime and WSS proxy
+         start automatically.
 
       #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
          `<https://nvidia.github.io/IsaacTeleop/client>`_.
@@ -342,16 +235,17 @@ choose the tab that matches your hardware.
 
       .. important::
 
-         The CloudXR runtime must be started with ``NV_DEVICE_PROFILE=auto-native`` to
-         accept connections from the Apple Vision Pro. Create a ``.env`` file containing
-         ``NV_DEVICE_PROFILE=auto-native`` and pass it when starting the runtime:
+         Apple Vision Pro requires the ``auto-native`` device profile. Pass the ``avp``
+         shorthand when launching the teleop script:
 
          .. code-block:: bash
 
-            echo "NV_DEVICE_PROFILE=auto-native" > ~/custom.env
-            python -m isaacteleop.cloudxr --cloudxr-env-config=~/custom.env
+            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+                --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+                --visualizer kit --xr \
+                --cloudxr_env avp
 
-         See :ref:`cloudxr-runtime-configuration` for details.
+         See :ref:`isaac-teleop-cloudxr-profiles` for details on the shipped profiles.
 
       .. _build-apple-vision-pro:
 
@@ -466,6 +360,26 @@ Manus Gloves
 Manus gloves provide high-fidelity finger tracking via the Manus SDK. This is useful when optical
 hand tracking from the headset is occluded or when higher-precision finger data is needed.
 
+.. important::
+
+   Manus gloves and other external push-device peripherals require
+   ``NV_CXR_ENABLE_PUSH_DEVICES=1``. The shipped ``.env`` profiles set this to ``0``
+   (optimised for headset optical hand tracking). To use Manus gloves, create a custom
+   ``.env`` file with the value set to ``1`` and pass it via ``--cloudxr_env``:
+
+   .. code-block:: bash
+
+      # Copy a shipped profile and enable push devices
+      cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+      sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+
+      ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+          --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+          --visualizer kit --xr \
+          --cloudxr_env ~/manus.env
+
+   See :ref:`isaac-teleop-cloudxr-profiles` for full details on customising profiles.
+
 .. note::
 
    Manus glove support has been migrated into Isaac Teleop as a native plugin. The previous
@@ -498,32 +412,23 @@ Teleoperation runs in a **single container**. Build the image yourself and run a
 Do **not** use Docker Compose, which is a multi-container setup as we had in Isaac Lab 2.x. All
 components run inside one container with Isaac Lab in this release.
 
-Inside the container, install Isaac Teleop (once per container or image), then start the CloudXR
-runtime and the teleop script. You must accept the NVIDIA CloudXR EULA; pass ``--accept-eula``
-when starting the runtime so there is no interactive prompt.
+The CloudXR runtime auto-launches when a teleop script is started, so no separate
+runtime command is needed.
 
-#. Install Isaac Teleop with CloudXR and retargeters support:
+Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      ./isaaclab.sh -p -m pip install 'isaacteleop[retargeters,cloudxr]~=1.0.0' --extra-index-url https://pypi.nvidia.com
-
-#. Start the CloudXR runtime in the background, load the environment, and run the teleop script
-   (e.g. ``record_demos.py`` to record demonstrations):
-
-   .. code-block:: bash
-
-      ./isaaclab.sh -p -m isaacteleop.cloudxr --accept-eula &
-      source ~/.cloudxr/run/cloudxr.env
-      ./isaaclab.sh -p scripts/tools/record_demos.py \
-        --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
-        --num_demos 5 \
-        --dataset_file ./datasets/dataset.hdf5 \
-        --xr --visualizer kit
+   ./isaaclab.sh -p scripts/tools/record_demos.py \
+     --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+     --num_demos 5 \
+     --dataset_file ./datasets/dataset.hdf5 \
+     --xr --visualizer kit
 
 Then in the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**.
 
-For a fully headless experience, replace ``--visualizer kit`` with ``--headless`` when running docker and XR teleop session will run automatically.
+For a fully headless experience, replace ``--visualizer kit`` with ``--headless`` and the XR
+teleop session will run automatically.
 
 .. admonition:: Next Steps
 

@@ -39,8 +39,6 @@ simulation_app = app_launcher.app
 
 import random
 
-import warp as wp
-
 from pxr import Gf, Sdf
 
 import isaaclab.sim as sim_utils
@@ -242,28 +240,28 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             count = 0
             # reset the scene entities
             # object
-            root_pose = wp.to_torch(rigid_object.data.default_root_pose).clone()
+            root_pose = rigid_object.data.default_root_pose.torch.clone()
             root_pose[:, :3] += scene.env_origins
             rigid_object.write_root_pose_to_sim_index(root_pose=root_pose)
-            root_vel = wp.to_torch(rigid_object.data.default_root_vel).clone()
+            root_vel = rigid_object.data.default_root_vel.torch.clone()
             rigid_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
             # object collection
-            default_pose_w = wp.to_torch(rigid_object_collection.data.default_body_pose).clone()
+            default_pose_w = rigid_object_collection.data.default_body_pose.torch.clone()
             default_pose_w[..., :3] += scene.env_origins.unsqueeze(1)
             rigid_object_collection.write_body_pose_to_sim_index(body_poses=default_pose_w)
-            default_vel_w = wp.to_torch(rigid_object_collection.data.default_body_vel).clone()
+            default_vel_w = rigid_object_collection.data.default_body_vel.torch.clone()
             rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=default_vel_w)
             # robot
             # -- root state
-            root_pose = wp.to_torch(robot.data.default_root_pose).clone()
+            root_pose = robot.data.default_root_pose.torch.clone()
             root_pose[:, :3] += scene.env_origins
             robot.write_root_pose_to_sim_index(root_pose=root_pose)
-            root_vel = wp.to_torch(robot.data.default_root_vel).clone()
+            root_vel = robot.data.default_root_vel.torch.clone()
             robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
             # -- joint state
             joint_pos, joint_vel = (
-                wp.to_torch(robot.data.default_joint_pos).clone(),
-                wp.to_torch(robot.data.default_joint_vel).clone(),
+                robot.data.default_joint_pos.torch.clone(),
+                robot.data.default_joint_vel.torch.clone(),
             )
             robot.write_joint_position_to_sim_index(position=joint_pos)
             robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
@@ -272,7 +270,7 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene):
             print("[INFO]: Resetting scene state...")
 
         # Apply action to robot
-        robot.set_joint_position_target_index(target=wp.to_torch(robot.data.default_joint_pos))
+        robot.set_joint_position_target_index(target=robot.data.default_joint_pos.torch)
         # Write data to sim
         scene.write_data_to_sim()
         # Perform step

@@ -20,6 +20,8 @@ from newton.viewer import ViewerRerun
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
+
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
@@ -145,16 +147,10 @@ class RerunVisualizer(BaseVisualizer):
 
         self._scene_data_provider = scene_data_provider
         metadata = scene_data_provider.get_metadata()
+        num_envs = int(metadata.get("num_envs", 0))
         self._env_ids = self._compute_visualized_env_ids()
-        if self._env_ids:
-            get_filtered_model = getattr(scene_data_provider, "get_newton_model_for_env_ids", None)
-            if callable(get_filtered_model):
-                self._model = get_filtered_model(self._env_ids)
-            else:
-                self._model = scene_data_provider.get_newton_model()
-        else:
-            self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state(self._env_ids)
+        self._model = scene_data_provider.get_newton_model()
+        self._state = scene_data_provider.get_newton_state()
 
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
@@ -185,22 +181,30 @@ class RerunVisualizer(BaseVisualizer):
         viewer_url = _rerun_web_viewer_url(viewer_host, web_port, rerun_address)
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
-        self._viewer.set_model(self._model, max_worlds=self.cfg.max_worlds)
+        self._viewer.set_model(self._model)
+        apply_viewer_visible_worlds(
+            self._viewer,
+            env_ids=self._env_ids,
+            max_visible_envs=self.cfg.max_visible_envs,
+            num_envs=num_envs,
+        )
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-        self._apply_camera_pose(self._resolve_initial_camera_pose())
+        initial_pose = self._resolve_initial_camera_pose()
+        self._apply_camera_pose(initial_pose)
         self._viewer.up_axis = 2
         self._viewer.scaling = 1.0
         self._viewer._paused = False
 
-        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+        _resolved = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        num_visualized_envs = len(_resolved) if _resolved is not None else num_envs
         self._log_initialization_table(
             logger=logger,
             title="RerunVisualizer Configuration",
             rows=[
-                ("camera_position", self.cfg.camera_position),
-                ("camera_target", self.cfg.camera_target),
-                ("camera_source", self.cfg.camera_source),
+                ("eye", self.cfg.eye),
+                ("lookat", self.cfg.lookat),
+                ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("endpoint", f"http://{viewer_host}:{web_port}"),
                 ("viewer_url", viewer_url),
@@ -227,10 +231,10 @@ class RerunVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
 
-        if self.cfg.camera_source == "usd_path":
+        if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = self._scene_data_provider.get_newton_state(self._env_ids)
+        self._state = self._scene_data_provider.get_newton_state()
 
         if not self._viewer.is_paused():
             self._viewer.begin_frame(self._sim_time)
@@ -275,11 +279,15 @@ class RerunVisualizer(BaseVisualizer):
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
         """Resolve initial camera pose from config or USD camera path."""
-        if self.cfg.camera_source == "usd_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
+        if self.cfg.cam_source == "prim_path":
+            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
             if pose is not None:
                 return pose
-        return self.cfg.camera_position, self.cfg.camera_target
+            raise RuntimeError(
+                "[RerunVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
+                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
+            )
+        return self._resolve_cfg_camera_pose("RerunVisualizer")
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply camera pose to rerun's 3D view controls.
@@ -307,7 +315,7 @@ class RerunVisualizer(BaseVisualizer):
 
     def _update_camera_from_usd_path(self) -> None:
         """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.camera_usd_path)
+        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
         if pose is None:
             return
         if self._last_camera_pose == pose:

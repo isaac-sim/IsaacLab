@@ -104,17 +104,14 @@ You can also configure custom visualizers in the code by defining ``VisualizerCf
     sim_cfg = SimulationCfg(
         visualizer_cfgs=[
             KitVisualizerCfg(
-                viewport_name="Visualizer Viewport",
-                create_viewport=True,
-                dock_position="SAME",
-                window_width=1280,
-                window_height=720,
-                camera_position=(0.0, 0.0, 20.0), # high top down view
-                camera_target=(0.0, 0.0, 0.0),
+                # Omit create_viewport (default False) to use the active viewport; set
+                # create_viewport=True and optionally viewport_name to add a dedicated window.
+                eye=(0.0, 0.0, 20.0), # high top down view
+                lookat=(0.0, 0.0, 0.0),
             ),
             NewtonVisualizerCfg(
-                camera_position=(5.0, 5.0, 5.0), # closer quarter view
-                camera_target=(0.0, 0.0, 0.0),
+                eye=(5.0, 5.0, 5.0), # closer quarter view
+                lookat=(0.0, 0.0, 0.0),
                 show_joints=True,
             ),
             RerunVisualizerCfg(
@@ -141,6 +138,21 @@ The effective visualizer mode is resolved from both CLI and ``SimulationCfg.visu
 
 For the migration-focused summary and deprecation context, see
 :doc:`/source/migration/migrating_to_isaaclab_3-0`.
+
+Partial Visualization
+~~~~~~~~~~~~~~~~~~~~~
+
+Visualizers can be configured to visualize just a subset of environments.
+This is called partial visualization.
+
+There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments for partial visualization:
+
+- ``max_visible_envs`` caps how many envs are shown.
+- ``visible_env_indices`` explicitly selects the envs to visualize.
+- ``randomly_sample_visible_envs`` (default ``True``): when ``visible_env_indices`` is unset and ``max_visible_envs`` is set,
+  enables randomly sampling the selected envs. If disabled, the first ``max_visible_envs`` envs are selected.
+
+Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
 
 .. _visualization-common-modes:
 
@@ -193,20 +205,18 @@ Omniverse Visualizer
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
     visualizer_cfg = KitVisualizerCfg(
-        # Viewport settings
-        viewport_name="Visualizer Viewport",      # Viewport window name
-        create_viewport=True,                     # Create new viewport vs. use existing
-        dock_position="SAME",                     # Docking: 'LEFT', 'RIGHT', 'BOTTOM', 'SAME'
-        window_width=1280,                        # Viewport width in pixels
-        window_height=720,                        # Viewport height in pixels
+        # Viewport: default is create_viewport=False (use active viewport).
+        # Set create_viewport=True to create a docked window; viewport_name=None uses the default name.
+        create_viewport=False,
+        dock_position="SAME",
+        window_width=1280,
+        window_height=720,
 
-        # Camera settings
-        camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
-        camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
+        eye=(8.0, 8.0, 3.0),
+        lookat=(0.0, 0.0, 0.0),
 
-        # Feature toggles
-        enable_markers=True,                      # Enable visualization markers
-        enable_live_plots=True,                   # Enable live plots (auto-expands frames)
+        enable_markers=True,
+        enable_live_plots=True,
     )
 
 
@@ -217,7 +227,7 @@ Newton Visualizer
 
 - Lightweight OpenGL rendering with low overhead
 - Visualization markers (joints, contacts, springs, COM)
-- Training and rendering pause controls
+- Simulation and rendering pause controls
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 
@@ -255,8 +265,8 @@ Newton Visualizer
         window_height=1080,                       # Window height in pixels
 
         # Camera settings
-        camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
-        camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
+        eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
+        lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -303,8 +313,8 @@ Rerun Visualizer
         bind_address="0.0.0.0",                  # Endpoint host formatting/reuse checks
 
         # Camera settings
-        camera_position=(8.0, 8.0, 3.0),         # Initial camera position (x, y, z)
-        camera_target=(0.0, 0.0, 0.0),           # Camera look-at target
+        eye=(8.0, 8.0, 3.0),                     # Initial camera position (x, y, z)
+        lookat=(0.0, 0.0, 0.0),                  # Camera look-at target
 
         # History settings
         keep_historical_data=False,               # Keep transforms for time scrubbing
@@ -350,7 +360,7 @@ server, allowing you to view and interact with the scene from any browser.
         open_browser=True,
         label="Isaac Lab Simulation",
         share=False,
-        max_worlds=64,
+        max_visible_envs=16,
     )
 
 **Configuration options:**
@@ -361,7 +371,6 @@ server, allowing you to view and interact with the scene from any browser.
 - ``share`` (bool, default ``False``): Request a public share URL from Viser for remote viewing.
 - ``record_to_viser`` (str or None, default ``None``): Path to save a ``.viser`` recording file.
 - ``verbose`` (bool, default ``True``): Print viewer server startup information.
-- ``max_worlds`` (int or None, default ``None``): Maximum number of environments rendered.
 
 .. note::
 
@@ -371,7 +380,7 @@ server, allowing you to view and interact with the scene from any browser.
 Performance Note
 ----------------
 
-To reduce overhead when visualizing large-scale environments, consider:
+When visualizing large-scale environments, consider:
 
 - Using Newton instead of Omniverse or Rerun
 - Reducing window sizes
@@ -391,12 +400,6 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 .. code-block:: bash
 
     python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun --num_envs 512
-
-
-.. note::
-
-    A future feature will support visualizing only a subset of environments, which will improve visualization performance
-    and reduce resource usage while maintaining full-scale training in the background.
 
 
 **Rerun Visualizer FPS Control**

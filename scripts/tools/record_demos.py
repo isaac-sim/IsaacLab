@@ -64,6 +64,21 @@ parser.add_argument(
     default=10,
     help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
 )
+parser.add_argument(
+    "--cloudxr_env",
+    type=str,
+    default="cloudxrjs",
+    help=(
+        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico, default) or 'avp' (Apple Vision Pro)."
+        " Set to 'none' to disable CloudXR auto-launch entirely."
+    ),
+)
+parser.add_argument(
+    "--auto_launch_cloudxr",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="Auto-launch the CloudXR runtime when --cloudxr_env is set. Use --no-auto_launch_cloudxr to disable.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -111,8 +126,25 @@ from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subta
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
+
+_CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
+
+
+def _resolve_cloudxr_env(value: str | None) -> str | None:
+    """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
+
+    Accepts ``"cloudxrjs"`` (Quest/Pico), ``"avp"`` (Apple Vision Pro),
+    ``"none"`` / ``None`` (disable), or an arbitrary file path.
+    """
+    if value is None or value.strip() == "" or value.lower() == "none":
+        return None
+    if not _CLOUDXR_ENV_SHORTHANDS:
+        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV
+
+        _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
+        _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
+    return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
 
 
 class RateLimiter:
@@ -280,6 +312,8 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                 env_cfg.isaac_teleop,
                 sim_device=args_cli.device,
                 callbacks=callbacks,
+                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
+                auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
             )
 
         elif hasattr(env_cfg, "teleop_devices") and args_cli.teleop_device in env_cfg.teleop_devices.devices:
@@ -372,26 +406,34 @@ def process_success_condition(env: gym.Env, success_term: object | None, success
 
 
 def handle_reset(
-    env: gym.Env, success_step_count: int, instruction_display: InstructionDisplay, label_text: str
+    env: gym.Env,
+    success_step_count: int,
+    instruction_display: InstructionDisplay,
+    label_text: str,
+    teleop_interface: object | None = None,
 ) -> int:
     """Handle resetting the environment.
 
-    Resets the environment, recorder manager, and related state variables.
-    Updates the instruction display with current status.
+    Resets the environment, recorder manager, teleop device, and related
+    state variables.  Updates the instruction display with current status.
 
     Args:
-        env: The environment instance to reset
-        success_step_count: Current count of consecutive successful steps
-        instruction_display: The display object to update
-        label_text: Text to display showing current recording status
+        env: The environment instance to reset.
+        success_step_count: Current count of consecutive successful steps.
+        instruction_display: The display object to update.
+        label_text: Text to display showing current recording status.
+        teleop_interface: Optional teleop device to reset (resets XR anchor
+            and retargeter cross-step state).
 
     Returns:
-        int: Reset success step count (0)
+        Reset success step count (0).
     """
     print("Resetting environment...")
     env.sim.reset()
     env.recorder_manager.reset()
     env.reset()
+    if teleop_interface is not None and hasattr(teleop_interface, "reset"):
+        teleop_interface.reset()
     success_step_count = 0
     instruction_display.show_demo(label_text)
     return success_step_count
@@ -442,7 +484,9 @@ def run_simulation_loop(
         running_recording_instance = False
         print("Recording paused")
 
-    # Set up teleoperation callbacks
+    # Set up teleoperation callbacks.  For IsaacTeleop the primary control
+    # path is poll_control_events(); these callbacks are bridged automatically
+    # and also serve native (keyboard / spacemouse) devices.
     teleoperation_callbacks = {
         "R": reset_recording_instance,
         "START": start_recording_instance,
@@ -451,7 +495,6 @@ def run_simulation_loop(
     }
 
     teleop_interface = setup_teleop_device(teleoperation_callbacks, use_isaac_teleop)
-    teleop_interface.add_callback("R", reset_recording_instance)
 
     label_text = f"Recorded {current_recorded_demo_count} successful demonstrations."
     instruction_display = setup_ui(label_text, env)
@@ -470,10 +513,21 @@ def run_simulation_loop(
         stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
         print(f"{stack_name} recording started.")
 
+        if use_isaac_teleop:
+            from isaaclab_teleop import poll_control_events
+
         with contextlib.suppress(KeyboardInterrupt), torch.inference_mode():
             while simulation_app.is_running():
                 # Get teleop command (may be None while waiting for session start)
                 action = teleop_interface.advance()
+
+                if use_isaac_teleop:
+                    ctrl = poll_control_events(teleop_interface)
+                    if ctrl.is_active is not None:
+                        running_recording_instance = ctrl.is_active
+                    if ctrl.should_reset:
+                        should_reset_recording_instance = True
+
                 if action is None:
                     env.sim.render()
                     continue
@@ -524,7 +578,9 @@ def run_simulation_loop(
 
                 # Handle reset if requested
                 if should_reset_recording_instance:
-                    success_step_count = handle_reset(env, success_step_count, instruction_display, label_text)
+                    success_step_count = handle_reset(
+                        env, success_step_count, instruction_display, label_text, teleop_interface
+                    )
                     should_reset_recording_instance = False
 
                 # Check if simulation is stopped

@@ -33,7 +33,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -91,15 +90,15 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_pose = wp.to_torch(robot.data.default_root_pose).clone()
+            root_pose = robot.data.default_root_pose.torch.clone()
             root_pose[:, :3] += origins
             robot.write_root_pose_to_sim_index(root_pose=root_pose)
-            root_vel = wp.to_torch(robot.data.default_root_vel).clone()
+            root_vel = robot.data.default_root_vel.torch.clone()
             robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
             # set joint positions with some noise
             joint_pos, joint_vel = (
-                wp.to_torch(robot.data.default_joint_pos).clone(),
-                wp.to_torch(robot.data.default_joint_vel).clone(),
+                robot.data.default_joint_pos.torch.clone(),
+                robot.data.default_joint_vel.torch.clone(),
             )
             joint_pos += torch.rand_like(joint_pos) * 0.1
             robot.write_joint_position_to_sim_index(position=joint_pos)
@@ -109,7 +108,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             print("[INFO]: Resetting robot state...")
         # Apply random action
         # -- generate random joint efforts
-        efforts = torch.randn_like(wp.to_torch(robot.data.joint_pos)) * 5.0
+        efforts = torch.randn_like(robot.data.joint_pos.torch) * 5.0
         # -- apply action to the robot
         robot.set_joint_effort_target_index(target=efforts)
         # -- write data to sim

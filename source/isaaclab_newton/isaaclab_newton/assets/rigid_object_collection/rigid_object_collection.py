@@ -21,6 +21,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -187,40 +188,23 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_ENV_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to a consolidated 2D buffer
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._instantaneous_wrench_composer.composed_force,
-                        self._instantaneous_wrench_composer.composed_torque,
-                        self._wrench_buffer,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
-                # Apply permanent wrench to a consolidated 2D buffer
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._permanent_wrench_composer.composed_force,
-                        self._permanent_wrench_composer.composed_torque,
-                        self._wrench_buffer,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._permanent_wrench_composer
+            composer.compose_to_body_frame()
+            wp.launch(
+                shared_kernels.update_wrench_array_with_force_and_torque,
+                dim=(self.num_instances, self.num_bodies),
+                device=self.device,
+                inputs=[
+                    composer.out_force_b,
+                    composer.out_torque_b,
+                    self._wrench_buffer,
+                    self._ALL_ENV_MASK,
+                    self._ALL_BODY_MASK,
+                ],
+            )
             # Write the wrench buffer directly to the Newton binding (already 2D)
             wp.copy(self._data._sim_bind_body_external_wrench, self._wrench_buffer)
         self._instantaneous_wrench_composer.reset()
@@ -1118,6 +1102,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         # container for data access
         self._data = RigidObjectCollectionData(self._root_view, self.num_bodies, self.device)
+
+        # Register callback to rebind simulation data after a full reset (model/state recreation).
+        self._physics_ready_handle = SimulationManager.register_callback(
+            lambda _: self._data._create_simulation_bindings(),
+            PhysicsEvent.PHYSICS_READY,
+            name=f"rigid_object_collection_rebind_{self.cfg.rigid_objects}",
+        )
 
         # create buffers
         self._create_buffers()

@@ -72,8 +72,8 @@ pausing and stepping the simulator. All these operations are handled through the
 context**. It takes care of various timeline events and also configures the physics scene for
 simulation.
 
-In Isaac Lab, the :class:`sim.SimulationContext` class inherits from Isaac Sim's
-:class:`isaacsim.core.api.simulation_context.SimulationContext` to allow configuring the simulation
+In Isaac Lab, the :class:`sim.SimulationContext` class wraps Isaac Sim's simulation stack
+to allow configuring the simulation
 through Python's ``dataclass`` object and handle certain intricacies of the simulation stepping.
 
 For this tutorial, we set the physics and rendering time step to 0.01 seconds. This is done
@@ -139,7 +139,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py
+   ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
 
 
 The simulation should be playing, and the stage should be rendering. To stop the simulation,
@@ -156,7 +156,7 @@ following:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless
+   ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz none
 
 
 Now that we have a basic understanding of how to run a simulation, let's move on to the

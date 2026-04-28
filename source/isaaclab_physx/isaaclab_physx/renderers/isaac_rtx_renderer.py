@@ -8,9 +8,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import weakref
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -19,23 +20,48 @@ import warp as wp
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer
+from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
-from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update, ensure_rtx_hydra_engine_attached
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
+    from isaaclab.sensors.camera.camera_data import CameraData
 
     from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
-# Constants from Camera (SIMPLE_SHADING_MODES, etc.) - avoid circular import
+# RTX simple-shading constants.
+#
+# Simple shading is driven by Kit's RTX "Minimal" render mode via the
+# ``/rtx/minimal/mode`` carb setting (key ``omni:rtx:minimal:mode``), with
+# integer values:
+#   0 = No Rendering (black output; only other AOVs are produced)
+#   1 = Constant Diffuse (single constant color for all surfaces)
+#   2 = Texture Diffuse  (diffuse shading using texture colors)
+#   3 = Diffuse/Glossy/Emission (full material shading)
+#
+# The public data-type names we expose (``simple_shading_*``) are kept stable
+# for backwards compatibility and map onto the Kit integer values below.
 SIMPLE_SHADING_AOV = "SimpleShadingSD"
 SIMPLE_SHADING_MODES = {
-    "simple_shading_constant_diffuse": 0,
-    "simple_shading_diffuse_mdl": 1,
-    "simple_shading_full_mdl": 2,
+    "simple_shading_constant_diffuse": 1,
+    "simple_shading_diffuse_mdl": 2,
+    "simple_shading_full_mdl": 3,
 }
-SIMPLE_SHADING_MODE_SETTING = "/rtx/sdg/simpleShading/mode"
+SIMPLE_SHADING_MODE_SETTING = "/rtx/minimal/mode"
+
+
+def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
+    """Build the instance-mapping semantics predicate from :attr:`isaaclab.sensors.camera.CameraCfg.semantic_filter`.
+
+    Replicator's semantic/instance segmentation annotators consume this via the synthetic-data pipeline.
+    """
+    if isinstance(semantic_filter, list):
+        return ":*; ".join(semantic_filter) + ":*"
+    return semantic_filter
 
 
 @dataclass
@@ -46,6 +72,7 @@ class IsaacRtxRenderData:
     render_product_paths: list[str]
     output_data: dict[str, torch.Tensor] | None = None
     sensor: SensorBase | None = None
+    renderer_info: dict[str, Any] = field(default_factory=dict)
 
 
 class IsaacRtxRenderer(BaseRenderer):
@@ -56,6 +83,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
+        ensure_rtx_hydra_engine_attached()
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Isaac RTX - uses USD scene directly without export.
@@ -66,7 +94,28 @@ class IsaacRtxRenderer(BaseRenderer):
         """Create render product and annotators for the tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         import omni.replicator.core as rep
+        from omni.syntheticdata import SyntheticData
         from pxr import UsdGeom
+
+        settings = get_settings_manager()
+        isaac_sim_version = get_isaac_sim_version()
+
+        if isaac_sim_version.major >= 6:
+            needs_color_render = "rgb" in sensor.cfg.data_types or "rgba" in sensor.cfg.data_types
+            if not needs_color_render:
+                settings.set_bool("/rtx/sdg/force/disableColorRender", True)
+            if settings.get("/isaaclab/has_gui"):
+                settings.set_bool("/rtx/sdg/force/disableColorRender", False)
+        else:
+            if "albedo" in sensor.cfg.data_types:
+                logger.warning(
+                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
+                )
+            if any(dt in SIMPLE_SHADING_MODES for dt in sensor.cfg.data_types):
+                logger.warning(
+                    "Simple shading annotators are only supported in Isaac Sim 6.0+."
+                    " The simple shading data types will be ignored."
+                )
 
         # Get camera prim paths from sensor view
         view = sensor._view
@@ -82,6 +131,11 @@ class IsaacRtxRenderer(BaseRenderer):
             cameras=cam_prim_paths, tile_resolution=(sensor.cfg.width, sensor.cfg.height)
         )
         render_product_paths = [rp.path]
+
+        # Synthetic-data instance mapping filter for segmentation; before annotator attach.
+        SyntheticData.Get().set_instance_mapping_semantic_filter(
+            _camera_semantic_filter_predicate(sensor.cfg.semantic_filter)
+        )
 
         # Register simple shading if needed
         if any(data_type in SIMPLE_SHADING_MODES for data_type in sensor.cfg.data_types):
@@ -159,6 +213,12 @@ class IsaacRtxRenderer(BaseRenderer):
         requested = [dt for dt in sensor.cfg.data_types if dt in SIMPLE_SHADING_MODES]
         if not requested:
             return None
+        if len(requested) > 1:
+            logger.warning(
+                "Multiple simple shading modes requested (%s). Using '%s' only.",
+                requested,
+                requested[0],
+            )
         return SIMPLE_SHADING_MODES[requested[0]]
 
     def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, torch.Tensor]):
@@ -211,8 +271,7 @@ class IsaacRtxRenderer(BaseRenderer):
             output = annotator.get_data()
             if isinstance(output, dict):
                 tiled_data_buffer = output["data"]
-                if hasattr(sensor, "_data") and sensor._data is not None:
-                    sensor._data.info[data_type] = output["info"]
+                render_data.renderer_info[data_type] = output["info"]
             else:
                 tiled_data_buffer = output
 
@@ -280,10 +339,12 @@ class IsaacRtxRenderer(BaseRenderer):
                     0.0 if cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 )
 
-    def write_output(self, render_data: IsaacRtxRenderData, output_name: str, output_data: torch.Tensor):
-        """No-op for Isaac RTX - all outputs written in render().
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""
-        pass
+    def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
+        """Populate per-output metadata collected during render(). Pixel data already written in render().
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
+        for output_name, info in render_data.renderer_info.items():
+            if info is not None:
+                camera_data.info[output_name] = info
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators from render product.
