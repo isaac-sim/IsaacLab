@@ -476,22 +476,22 @@ class keypoint_ee_gear_error(ManagerTermBase):
         gear_type_manager: randomize_gear_type = env._gear_type_manager
         self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
-        eef_pos = wp.to_torch(self.robot_asset.data.body_link_pos_w)[:, self.eef_idx]
-        eef_quat = wp.to_torch(self.robot_asset.data.body_link_quat_w)[:, self.eef_idx]
+        eef_pos = self.robot_asset.data.body_link_pos_w.torch[:, self.eef_idx]
+        eef_quat = self.robot_asset.data.body_link_quat_w.torch[:, self.eef_idx]
 
         all_gear_pos = torch.stack(
             [
-                wp.to_torch(self.gear_assets["gear_small"].data.root_link_pos_w),
-                wp.to_torch(self.gear_assets["gear_medium"].data.root_link_pos_w),
-                wp.to_torch(self.gear_assets["gear_large"].data.root_link_pos_w),
+                self.gear_assets["gear_small"].data.root_link_pos_w.torch,
+                self.gear_assets["gear_medium"].data.root_link_pos_w.torch,
+                self.gear_assets["gear_large"].data.root_link_pos_w.torch,
             ],
             dim=1,
         )
         all_gear_quat = torch.stack(
             [
-                wp.to_torch(self.gear_assets["gear_small"].data.root_link_quat_w),
-                wp.to_torch(self.gear_assets["gear_medium"].data.root_link_quat_w),
-                wp.to_torch(self.gear_assets["gear_large"].data.root_link_quat_w),
+                self.gear_assets["gear_small"].data.root_link_quat_w.torch,
+                self.gear_assets["gear_medium"].data.root_link_quat_w.torch,
+                self.gear_assets["gear_large"].data.root_link_quat_w.torch,
             ],
             dim=1,
         )
@@ -625,22 +625,22 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
         gear_type_manager: randomize_gear_type = env._gear_type_manager
         self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
-        eef_pos = wp.to_torch(self.robot_asset.data.body_link_pos_w)[:, self.eef_idx]
-        eef_quat = wp.to_torch(self.robot_asset.data.body_link_quat_w)[:, self.eef_idx]
+        eef_pos = self.robot_asset.data.body_link_pos_w.torch[:, self.eef_idx]
+        eef_quat = self.robot_asset.data.body_link_quat_w.torch[:, self.eef_idx]
 
         all_gear_pos = torch.stack(
             [
-                wp.to_torch(self.gear_assets["gear_small"].data.root_link_pos_w),
-                wp.to_torch(self.gear_assets["gear_medium"].data.root_link_pos_w),
-                wp.to_torch(self.gear_assets["gear_large"].data.root_link_pos_w),
+                self.gear_assets["gear_small"].data.root_link_pos_w.torch,
+                self.gear_assets["gear_medium"].data.root_link_pos_w.torch,
+                self.gear_assets["gear_large"].data.root_link_pos_w.torch,
             ],
             dim=1,
         )
         all_gear_quat = torch.stack(
             [
-                wp.to_torch(self.gear_assets["gear_small"].data.root_link_quat_w),
-                wp.to_torch(self.gear_assets["gear_medium"].data.root_link_quat_w),
-                wp.to_torch(self.gear_assets["gear_large"].data.root_link_quat_w),
+                self.gear_assets["gear_small"].data.root_link_quat_w.torch,
+                self.gear_assets["gear_medium"].data.root_link_quat_w.torch,
+                self.gear_assets["gear_large"].data.root_link_quat_w.torch,
             ],
             dim=1,
         )
