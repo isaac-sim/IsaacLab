@@ -104,16 +104,18 @@ jobs:
         # Build the list of tags based on the branch.
         #
         # Tagging scheme:
-        #   - Every build:        $IMAGE:<full-sha>             (immutable, retained for re-testing)
-        #   - Push to develop:    $IMAGE:latest-develop         (moves to newest develop build)
-        #   - Push to release/X:  $IMAGE:latest-release-X       (moves to newest build on that release branch)
-        #   - Push to main:       $IMAGE:latest                 (moves to newest main build)
-        #                         $IMAGE:v<VERSION>             (from the VERSION file, e.g. v3.0.0)
-        TAGS=("$IMAGE:$SHA")
+        #   - Push to develop:    $IMAGE:latest-develop                          (moves to newest develop build)
+        #                         $IMAGE:latest-develop-<run#>-<sha-stub>        (immutable per-build)
+        #   - Push to release/X:  $IMAGE:latest-release-X                        (moves to newest build on that release branch)
+        #                         $IMAGE:latest-release-X-<run#>-<sha-stub>      (immutable per-build)
+        #   - Push to main:       $IMAGE:latest                                  (moves to newest main build)
+        #                         $IMAGE:v<VERSION>                              (from the VERSION file, e.g. v3.0.0)
+        TAGS=()
 
         case "$BRANCH_NAME" in
           develop)
             TAGS+=("$IMAGE:latest-develop")
+            TAGS+=("$IMAGE:latest-develop-${{ github.run_number }}-${SHA:0:8}")
             ;;
           main)
             TAGS+=("$IMAGE:latest")
@@ -129,10 +131,11 @@ jobs:
             # Sanitize the part after release/ for use as a Docker tag suffix.
             RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
             TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX")
+            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX-${{ github.run_number }}-${SHA:0:8}")
             ;;
           *)
-            # Other tracked branches only get the immutable sha tag.
-            echo "Branch '$BRANCH_NAME' has no moving tag; only $IMAGE:$SHA will be published."
+            echo "Branch '$BRANCH_NAME' is not configured for publishing; skipping."
+            exit 0
             ;;
         esac
 

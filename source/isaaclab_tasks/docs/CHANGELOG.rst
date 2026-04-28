@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.30 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Kamino solver physics presets to direct and manager-based environment
+  configs: cartpole and ant.
+
+
 1.5.29 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
