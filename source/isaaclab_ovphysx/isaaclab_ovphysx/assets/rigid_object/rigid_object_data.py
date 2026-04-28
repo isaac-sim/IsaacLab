@@ -14,8 +14,6 @@ from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectD
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_ovphysx import tensor_types as TT  # noqa: F401  (used by subsequent tasks)
-
 
 class RigidObjectData(BaseRigidObjectData):
     """OVPhysX implementation of :class:`~isaaclab.assets.BaseRigidObjectData`.
@@ -36,7 +34,7 @@ class RigidObjectData(BaseRigidObjectData):
         self._device = device
         self._num_instances: int = 0
         self._num_bodies: int = 1
-        self.is_primed: bool = False
+        self._is_primed: bool = False
         self._sim_time: float = 0.0
         self._timestamps: dict[str, float] = {}
         self._default_root_pose: wp.array | None = None
@@ -54,6 +52,28 @@ class RigidObjectData(BaseRigidObjectData):
     @property
     def device(self) -> str:
         return self._device
+
+    @property
+    def is_primed(self) -> bool:
+        """Whether the rigid object data is fully instantiated and ready to use."""
+        return self._is_primed
+
+    @is_primed.setter
+    def is_primed(self, value: bool) -> None:
+        """Set whether the rigid object data is fully instantiated and ready to use.
+
+        .. note::
+            Once this quantity is set to True, it cannot be changed.
+
+        Args:
+            value: The primed state.
+
+        Raises:
+            ValueError: If the rigid object data is already primed.
+        """
+        if self._is_primed:
+            raise ValueError("The rigid object data is already primed.")
+        self._is_primed = True
 
     # --- update / cache invalidation ----------------------------------
     def update(self, dt: float) -> None:
@@ -80,23 +100,24 @@ class RigidObjectData(BaseRigidObjectData):
         N = self._num_instances
         device = self._device
         # Pose: (px, py, pz, qx, qy, qz, qw)
-        pose_np = np.broadcast_to(
-            np.asarray([*cfg.init_state.pos, *cfg.init_state.rot], dtype=np.float32),
-            (N, 7),
-        ).copy()
-        pose_arr = wp.from_numpy(pose_np, dtype=wp.float32, device=device)
-        # Reinterpret-cast (N, 7) float32 → (N,) transformf — same trick as articulation.
-        self._default_root_pose = wp.array(
-            ptr=pose_arr.ptr, shape=(N,), dtype=wp.transformf, device=device, copy=False,
+        np_pose = np.tile(
+            np.array(tuple(cfg.init_state.pos) + tuple(cfg.init_state.rot), dtype=np.float32),
+            (N, 1),
+        )
+        self._default_root_pose = wp.zeros(N, dtype=wp.transformf, device=device)
+        wp.copy(
+            self._default_root_pose,
+            wp.from_numpy(np_pose, dtype=wp.transformf, device=device),
         )
         # Velocity: (vx, vy, vz, wx, wy, wz)
-        vel_np = np.broadcast_to(
-            np.asarray([*cfg.init_state.lin_vel, *cfg.init_state.ang_vel], dtype=np.float32),
-            (N, 6),
-        ).copy()
-        vel_arr = wp.from_numpy(vel_np, dtype=wp.float32, device=device)
-        self._default_root_velocity = wp.array(
-            ptr=vel_arr.ptr, shape=(N,), dtype=wp.spatial_vectorf, device=device, copy=False,
+        np_vel = np.tile(
+            np.array(tuple(cfg.init_state.lin_vel) + tuple(cfg.init_state.ang_vel), dtype=np.float32),
+            (N, 1),
+        )
+        self._default_root_velocity = wp.zeros(N, dtype=wp.spatial_vectorf, device=device)
+        wp.copy(
+            self._default_root_velocity,
+            wp.from_numpy(np_vel, dtype=wp.spatial_vectorf, device=device),
         )
 
     # --- abstract property stubs (implemented by subsequent tasks) ----

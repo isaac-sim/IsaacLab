@@ -21,10 +21,6 @@ if not hasattr(_TT_module, "RIGID_BODY_ROOT_POSE"):
         allow_module_level=True,
     )
 
-import torch  # noqa: E402
-import warp as wp  # noqa: E402
-
-from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData  # noqa: E402
 from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet  # noqa: E402
 
