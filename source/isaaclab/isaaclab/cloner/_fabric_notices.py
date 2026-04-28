@@ -22,12 +22,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# carb::Framework vtable, x86_64 (carb/Framework.h)
+# Offsets are valid on Linux 64-bit (x86_64 and aarch64). Function pointers are
+# 8 bytes on both, no padding between same-size fields, so the vtable layout is
+# architecture-independent. Windows/macOS would need a different shared-library
+# name and are out of scope here (same constraint as
+# :mod:`isaaclab_newton.physics._cubric`).
+
+# carb::Framework vtable (carb/Framework.h)
 #   0: loadPluginsEx, 8: unloadAllPlugins, 16: acquireInterfaceWithClient,
 #  24: tryAcquireInterfaceWithClient  ← used here
 _FW_OFF_TRY_ACQUIRE = 24
 
-# omni::fabric::IFabricUsd vtable, x86_64 (omni/fabric/usd/interface/IFabricUsd.h)
+# omni::fabric::IFabricUsd vtable (omni/fabric/usd/interface/IFabricUsd.h)
 #  0..88: prefetch / export / type-conversion entry points
 #  96: setEnableChangeNotifies(FabricId, bool)
 # 104: getEnableChangeNotifies(FabricId) -> bool
