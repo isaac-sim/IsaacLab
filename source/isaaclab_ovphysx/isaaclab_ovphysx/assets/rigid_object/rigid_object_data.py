@@ -16,7 +16,13 @@ from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ovphysx import tensor_types as TT
-from isaaclab_ovphysx.assets.kernels import _compose_root_com_pose
+from isaaclab_ovphysx.assets.kernels import (
+    _compose_root_com_pose,
+    _compute_heading,
+    _projected_gravity,
+    _world_vel_to_body_ang,
+    _world_vel_to_body_lin,
+)
 
 
 class RigidObjectData(BaseRigidObjectData):
@@ -50,6 +56,15 @@ class RigidObjectData(BaseRigidObjectData):
         self._root_com_vel_w_buf: TimestampedBuffer | None = None
         # Body-COM-in-body-frame buffer (shape (N,1), dtype=wp.transformf).
         self._body_com_pose_b_buf: TimestampedBuffer | None = None
+        # Body acceleration buffer (allocated lazily; None until _ensure_derived_buffers).
+        self._body_acc_w_buf: TimestampedBuffer | None = None
+        # Derived-property buffers (allocated lazily on first access).
+        self._projected_gravity_b_buf: TimestampedBuffer | None = None
+        self._heading_w_buf: TimestampedBuffer | None = None
+        self._root_link_lin_vel_b_buf: TimestampedBuffer | None = None
+        self._root_link_ang_vel_b_buf: TimestampedBuffer | None = None
+        self._root_com_lin_vel_b_buf: TimestampedBuffer | None = None
+        self._root_com_ang_vel_b_buf: TimestampedBuffer | None = None
         # Float32 view cache so binding.read() always sees the same object.
         self._read_view_cache: dict = {}
         # ProxyArray wrappers (created once from the underlying buffer.data).
@@ -66,6 +81,35 @@ class RigidObjectData(BaseRigidObjectData):
         self._root_com_quat_w_ta: ProxyArray | None = None
         self._root_com_lin_vel_w_ta: ProxyArray | None = None
         self._root_com_ang_vel_w_ta: ProxyArray | None = None
+        # Body-state singleton-dim ProxyArrays ((N,1,k) views of root buffers).
+        self._body_link_pose_w_ta: ProxyArray | None = None
+        self._body_link_vel_w_ta: ProxyArray | None = None
+        self._body_com_pose_w_ta: ProxyArray | None = None
+        self._body_com_vel_w_ta: ProxyArray | None = None
+        self._body_link_pos_w_ta: ProxyArray | None = None
+        self._body_link_quat_w_ta: ProxyArray | None = None
+        self._body_link_lin_vel_w_ta: ProxyArray | None = None
+        self._body_link_ang_vel_w_ta: ProxyArray | None = None
+        self._body_com_pos_w_ta: ProxyArray | None = None
+        self._body_com_quat_w_ta: ProxyArray | None = None
+        self._body_com_lin_vel_w_ta: ProxyArray | None = None
+        self._body_com_ang_vel_w_ta: ProxyArray | None = None
+        # Body acceleration ProxyArrays.
+        self._body_acc_w_ta: ProxyArray | None = None
+        self._body_link_lin_acc_w_ta: ProxyArray | None = None
+        self._body_link_ang_acc_w_ta: ProxyArray | None = None
+        self._body_com_lin_acc_w_ta: ProxyArray | None = None
+        self._body_com_ang_acc_w_ta: ProxyArray | None = None
+        # Derived-property ProxyArrays.
+        self._projected_gravity_b_ta: ProxyArray | None = None
+        self._heading_w_ta: ProxyArray | None = None
+        self._root_link_lin_vel_b_ta: ProxyArray | None = None
+        self._root_link_ang_vel_b_ta: ProxyArray | None = None
+        self._root_com_lin_vel_b_ta: ProxyArray | None = None
+        self._root_com_ang_vel_b_ta: ProxyArray | None = None
+        # Gravity and forward constants (allocated lazily in _ensure_derived_buffers).
+        self.GRAVITY_VEC_W: ProxyArray | None = None
+        self.FORWARD_VEC_B: ProxyArray | None = None
 
     # --- counts -------------------------------------------------------
     @property
@@ -124,6 +168,13 @@ class RigidObjectData(BaseRigidObjectData):
             self._root_com_pose_w_buf,
             self._root_com_vel_w_buf,
             self._body_com_pose_b_buf,
+            self._body_acc_w_buf,
+            self._projected_gravity_b_buf,
+            self._heading_w_buf,
+            self._root_link_lin_vel_b_buf,
+            self._root_link_ang_vel_b_buf,
+            self._root_com_lin_vel_b_buf,
+            self._root_com_ang_vel_b_buf,
         ):
             if buf is not None:
                 buf.timestamp = -1.0
@@ -175,6 +226,71 @@ class RigidObjectData(BaseRigidObjectData):
         self._root_com_vel_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
         # (N, 1) 2-D buffer for body_com_pose_b, required by _compose_root_com_pose.
         self._body_com_pose_b_buf = TimestampedBuffer((N, 1), dev, wp.transformf)
+
+    def _ensure_derived_buffers(self) -> None:
+        """Allocate derived-property and body-acceleration TimestampedBuffers on first use.
+
+        Also initialises :attr:`GRAVITY_VEC_W` and :attr:`FORWARD_VEC_B` on first call,
+        mirroring the per-instance tiled constants used by
+        :class:`~isaaclab_ovphysx.assets.articulation.ArticulationData`.
+        """
+        if self._projected_gravity_b_buf is not None:
+            return
+        N = self._num_instances
+        dev = self._device
+        # Body acceleration (spatial vector per instance, same shape as ROOT_VELOCITY).
+        self._body_acc_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
+        # Derived scalar / vector outputs.
+        self._projected_gravity_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        self._heading_w_buf = TimestampedBuffer(N, dev, wp.float32)
+        self._root_link_lin_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        self._root_link_ang_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        self._root_com_lin_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        self._root_com_ang_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        # Gravity and forward constants (tiled per-instance, matching articulation pattern).
+        # Guard against no sim context in mock/test environments.
+        from isaaclab.physics import PhysicsManager
+
+        gravity = (0.0, 0.0, -9.81)
+        if PhysicsManager._sim is not None and hasattr(PhysicsManager._sim, "cfg"):
+            gravity = PhysicsManager._sim.cfg.gravity
+        gravity_np = np.array(gravity, dtype=np.float32)
+        gravity_mag = np.linalg.norm(gravity_np)
+        if gravity_mag == 0.0:
+            gravity_dir = np.array([0.0, 0.0, -1.0], dtype=np.float32)
+        else:
+            gravity_dir = gravity_np / gravity_mag
+        gravity_dir_tiled = np.tile(gravity_dir, (N, 1))
+        forward_tiled = np.tile(np.array([1.0, 0.0, 0.0], dtype=np.float32), (N, 1))
+        self.GRAVITY_VEC_W = ProxyArray(wp.from_numpy(gravity_dir_tiled, dtype=wp.vec3f, device=dev))
+        self.FORWARD_VEC_B = ProxyArray(wp.from_numpy(forward_tiled, dtype=wp.vec3f, device=dev))
+
+    # --- internal helpers: singleton-dim reshape -----------------------
+    def _reshape_to_body_view(self, arr: wp.array, dtype) -> wp.array:
+        """Return a zero-copy (N, 1) view of a 1-D (N,) warp array.
+
+        For ``num_bodies=1`` this turns every root buffer into a body-tensor
+        with the singleton body dimension that the base API expects, so that
+        downstream torch callers see shape ``(N, 1, k)`` without any copy.
+
+        Args:
+            arr: 1-D warp array of shape ``(N,)``.
+            dtype: The warp scalar/struct dtype (e.g. ``wp.transformf``).
+
+        Returns:
+            A zero-copy warp array of shape ``(N, 1)`` with ``dtype``.
+        """
+        N = arr.shape[0]
+        elem_bytes = wp.types.type_size_in_bytes(dtype)
+        stride_n = elem_bytes  # tightly packed 1-D source
+        return wp.array(
+            ptr=arr.ptr,
+            shape=(N, 1),
+            dtype=dtype,
+            strides=(stride_n, stride_n),
+            device=self._device,
+            copy=False,
+        )
 
     # --- internal helpers: read from bindings --------------------------
     def _get_binding(self, tensor_type: int):
@@ -363,19 +479,64 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_link_pose_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Body link pose ``[pos, quat]`` in simulation world frame [m, -].
+        Shape is (num_instances, num_bodies), dtype = wp.transformf.
+        In torch this resolves to (num_instances, num_bodies, 7).
+
+        For a single rigid body ``num_bodies=1``, this is a zero-copy
+        ``(N, 1)`` view of :attr:`root_link_pose_w`.
+        """
+        _ = self.root_link_pose_w  # ensure root buffer is fresh
+        if self._body_link_pose_w_ta is None:
+            view = self._reshape_to_body_view(self._root_link_pose_w_buf.data, wp.transformf)
+            self._body_link_pose_w_ta = ProxyArray(view)
+        return self._body_link_pose_w_ta
 
     @property
     def body_link_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame [m/s, rad/s].
+        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, num_bodies, 6).
+
+        For a single rigid body ``num_bodies=1``, this is a zero-copy
+        ``(N, 1)`` view of :attr:`root_link_vel_w`.
+        """
+        _ = self.root_link_vel_w  # ensure root buffer is fresh
+        if self._body_link_vel_w_ta is None:
+            view = self._reshape_to_body_view(self._root_link_vel_w_buf.data, wp.spatial_vectorf)
+            self._body_link_vel_w_ta = ProxyArray(view)
+        return self._body_link_vel_w_ta
 
     @property
     def body_com_pose_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Body center-of-mass pose ``[pos, quat]`` in simulation world frame [m, -].
+        Shape is (num_instances, num_bodies), dtype = wp.transformf.
+        In torch this resolves to (num_instances, num_bodies, 7).
+
+        For a single rigid body ``num_bodies=1``, this is a zero-copy
+        ``(N, 1)`` view of :attr:`root_com_pose_w`.
+        """
+        _ = self.root_com_pose_w  # ensure root COM buffer is fresh
+        if self._body_com_pose_w_ta is None:
+            view = self._reshape_to_body_view(self._root_com_pose_w_buf.data, wp.transformf)
+            self._body_com_pose_w_ta = ProxyArray(view)
+        return self._body_com_pose_w_ta
 
     @property
     def body_com_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Body center-of-mass velocity ``[lin_vel, ang_vel]`` in simulation world frame
+        [m/s, rad/s].
+        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, num_bodies, 6).
+
+        For a single rigid body ``num_bodies=1``, this is a zero-copy
+        ``(N, 1)`` view of :attr:`root_com_vel_w`.
+        """
+        _ = self.root_com_vel_w  # ensure root COM vel buffer is fresh
+        if self._body_com_vel_w_ta is None:
+            view = self._reshape_to_body_view(self._root_com_vel_w_buf.data, wp.spatial_vectorf)
+            self._body_com_vel_w_ta = ProxyArray(view)
+        return self._body_com_vel_w_ta
 
     @property
     def body_state_w(self) -> ProxyArray:
@@ -390,8 +551,43 @@ class RigidObjectData(BaseRigidObjectData):
         raise NotImplementedError
 
     @property
+    def body_link_acc_w(self) -> ProxyArray:
+        """Body link acceleration ``[lin_acc, ang_acc]`` in simulation world frame
+        [m/s^2, rad/s^2].
+        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, num_bodies, 6).
+
+        Requires the ovphysx wheel to expose ``RIGID_BODY_ACCELERATION``.
+
+        Raises:
+            NotImplementedError: If the ``RIGID_BODY_ACCELERATION`` binding is absent,
+                e.g. when running with a wheel that does not yet provide this tensor type.
+        """
+        self._ensure_derived_buffers()
+        if TT.RIGID_BODY_ACCELERATION not in self._bindings or self._bindings[TT.RIGID_BODY_ACCELERATION] is None:
+            raise NotImplementedError(
+                "body acceleration requires ovphysx wheel with RIGID_BODY_ACCELERATION; "
+                "see docs/superpowers/specs/2026-04-27-ovphysx-rigid-body-tensortypes-gap.md"
+            )
+        self._read_spatial_vector_binding(TT.RIGID_BODY_ACCELERATION, self._body_acc_w_buf)
+        if self._body_acc_w_ta is None:
+            view = self._reshape_to_body_view(self._body_acc_w_buf.data, wp.spatial_vectorf)
+            self._body_acc_w_ta = ProxyArray(view)
+        return self._body_acc_w_ta
+
+    @property
     def body_com_acc_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Body center-of-mass acceleration ``[lin_acc, ang_acc]`` in simulation world frame
+        [m/s^2, rad/s^2].
+        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, num_bodies, 6).
+
+        For a single rigid body ``num_bodies=1``, identical to :attr:`body_link_acc_w`.
+
+        Raises:
+            NotImplementedError: If the ``RIGID_BODY_ACCELERATION`` binding is absent.
+        """
+        return self.body_link_acc_w
 
     @property
     def body_com_pose_b(self) -> ProxyArray:
@@ -407,27 +603,126 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def projected_gravity_b(self) -> ProxyArray:
-        raise NotImplementedError
+        """Projection of the gravity direction on the root body frame [-].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        self._ensure_derived_buffers()
+        if self._projected_gravity_b_buf.timestamp < self._sim_time:
+            wp.launch(
+                _projected_gravity,
+                dim=self._num_instances,
+                inputs=[self.GRAVITY_VEC_W, self.root_link_pose_w],
+                outputs=[self._projected_gravity_b_buf.data],
+                device=self._device,
+            )
+            self._projected_gravity_b_buf.timestamp = self._sim_time
+        if self._projected_gravity_b_ta is None:
+            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b_buf.data)
+        return self._projected_gravity_b_ta
 
     @property
     def heading_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Yaw heading of the root body frame [rad].
+        Shape is (num_instances,), dtype = wp.float32.
+
+        .. note::
+            Computed assuming the forward direction in the body frame is along x,
+            i.e. :math:`(1, 0, 0)`.
+        """
+        self._ensure_derived_buffers()
+        if self._heading_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                _compute_heading,
+                dim=self._num_instances,
+                inputs=[self.FORWARD_VEC_B, self.root_link_pose_w],
+                outputs=[self._heading_w_buf.data],
+                device=self._device,
+            )
+            self._heading_w_buf.timestamp = self._sim_time
+        if self._heading_w_ta is None:
+            self._heading_w_ta = ProxyArray(self._heading_w_buf.data)
+        return self._heading_w_ta
 
     @property
     def root_link_lin_vel_b(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root link linear velocity in the root body frame [m/s].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        self._ensure_derived_buffers()
+        if self._root_link_lin_vel_b_buf.timestamp < self._sim_time:
+            wp.launch(
+                _world_vel_to_body_lin,
+                dim=self._num_instances,
+                inputs=[self.root_link_pose_w, self.root_link_vel_w],
+                outputs=[self._root_link_lin_vel_b_buf.data],
+                device=self._device,
+            )
+            self._root_link_lin_vel_b_buf.timestamp = self._sim_time
+        if self._root_link_lin_vel_b_ta is None:
+            self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b_buf.data)
+        return self._root_link_lin_vel_b_ta
 
     @property
     def root_link_ang_vel_b(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root link angular velocity in the root body frame [rad/s].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        self._ensure_derived_buffers()
+        if self._root_link_ang_vel_b_buf.timestamp < self._sim_time:
+            wp.launch(
+                _world_vel_to_body_ang,
+                dim=self._num_instances,
+                inputs=[self.root_link_pose_w, self.root_link_vel_w],
+                outputs=[self._root_link_ang_vel_b_buf.data],
+                device=self._device,
+            )
+            self._root_link_ang_vel_b_buf.timestamp = self._sim_time
+        if self._root_link_ang_vel_b_ta is None:
+            self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b_buf.data)
+        return self._root_link_ang_vel_b_ta
 
     @property
     def root_com_lin_vel_b(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root center-of-mass linear velocity in the root body frame [m/s].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        self._ensure_derived_buffers()
+        if self._root_com_lin_vel_b_buf.timestamp < self._sim_time:
+            wp.launch(
+                _world_vel_to_body_lin,
+                dim=self._num_instances,
+                inputs=[self.root_link_pose_w, self.root_com_vel_w],
+                outputs=[self._root_com_lin_vel_b_buf.data],
+                device=self._device,
+            )
+            self._root_com_lin_vel_b_buf.timestamp = self._sim_time
+        if self._root_com_lin_vel_b_ta is None:
+            self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b_buf.data)
+        return self._root_com_lin_vel_b_ta
 
     @property
     def root_com_ang_vel_b(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root center-of-mass angular velocity in the root body frame [rad/s].
+        Shape is (num_instances,), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, 3).
+        """
+        self._ensure_derived_buffers()
+        if self._root_com_ang_vel_b_buf.timestamp < self._sim_time:
+            wp.launch(
+                _world_vel_to_body_ang,
+                dim=self._num_instances,
+                inputs=[self.root_link_pose_w, self.root_com_vel_w],
+                outputs=[self._root_com_ang_vel_b_buf.data],
+                device=self._device,
+            )
+            self._root_com_ang_vel_b_buf.timestamp = self._sim_time
+        if self._root_com_ang_vel_b_ta is None:
+            self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b_buf.data)
+        return self._root_com_ang_vel_b_ta
 
     @property
     def root_link_pos_w(self) -> ProxyArray:
@@ -519,43 +814,119 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_link_pos_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Position of all bodies in simulation world frame [m].
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, num_bodies, 3).
+        """
+        parent = self.body_link_pose_w
+        if self._body_link_pos_w_ta is None:
+            self._body_link_pos_w_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
+        return self._body_link_pos_w_ta
 
     @property
     def body_link_quat_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Orientation (x, y, z, w) of all bodies in simulation world frame [-].
+        Shape is (num_instances, num_bodies), dtype = wp.quatf.
+        In torch this resolves to (num_instances, num_bodies, 4).
+        """
+        parent = self.body_link_pose_w
+        if self._body_link_quat_w_ta is None:
+            self._body_link_quat_w_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
+        return self._body_link_quat_w_ta
 
     @property
     def body_link_lin_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Linear velocity of all bodies in simulation world frame [m/s].
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, num_bodies, 3).
+        """
+        parent = self.body_link_vel_w
+        if self._body_link_lin_vel_w_ta is None:
+            self._body_link_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+        return self._body_link_lin_vel_w_ta
 
     @property
     def body_link_ang_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Angular velocity of all bodies in simulation world frame [rad/s].
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, num_bodies, 3).
+        """
+        parent = self.body_link_vel_w
+        if self._body_link_ang_vel_w_ta is None:
+            self._body_link_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+        return self._body_link_ang_vel_w_ta
 
     @property
     def body_com_pos_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Center-of-mass position of all bodies in simulation world frame [m].
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, num_bodies, 3).
+        """
+        parent = self.body_com_pose_w
+        if self._body_com_pos_w_ta is None:
+            self._body_com_pos_w_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
+        return self._body_com_pos_w_ta
 
     @property
     def body_com_quat_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Center-of-mass orientation (x, y, z, w) of all bodies in simulation world frame [-].
+        Shape is (num_instances, num_bodies), dtype = wp.quatf.
+        In torch this resolves to (num_instances, num_bodies, 4).
+        """
+        parent = self.body_com_pose_w
+        if self._body_com_quat_w_ta is None:
+            self._body_com_quat_w_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
+        return self._body_com_quat_w_ta
 
     @property
     def body_com_lin_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Center-of-mass linear velocity of all bodies in simulation world frame [m/s].
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, num_bodies, 3).
+        """
+        parent = self.body_com_vel_w
+        if self._body_com_lin_vel_w_ta is None:
+            self._body_com_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+        return self._body_com_lin_vel_w_ta
 
     @property
     def body_com_ang_vel_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Center-of-mass angular velocity of all bodies in simulation world frame [rad/s].
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, num_bodies, 3).
+        """
+        parent = self.body_com_vel_w
+        if self._body_com_ang_vel_w_ta is None:
+            self._body_com_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+        return self._body_com_ang_vel_w_ta
 
     @property
     def body_com_lin_acc_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Center-of-mass linear acceleration of all bodies in simulation world frame [m/s^2].
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, num_bodies, 3).
+
+        Raises:
+            NotImplementedError: If the ``RIGID_BODY_ACCELERATION`` binding is absent.
+        """
+        parent = self.body_com_acc_w
+        if self._body_com_lin_acc_w_ta is None:
+            self._body_com_lin_acc_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+        return self._body_com_lin_acc_w_ta
 
     @property
     def body_com_ang_acc_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Center-of-mass angular acceleration of all bodies in simulation world frame [rad/s^2].
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, num_bodies, 3).
+
+        Raises:
+            NotImplementedError: If the ``RIGID_BODY_ACCELERATION`` binding is absent.
+        """
+        parent = self.body_com_acc_w
+        if self._body_com_ang_acc_w_ta is None:
+            self._body_com_ang_acc_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+        return self._body_com_ang_acc_w_ta
 
     @property
     def body_com_pos_b(self) -> ProxyArray:

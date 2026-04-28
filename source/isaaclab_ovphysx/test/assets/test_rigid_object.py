@@ -93,3 +93,33 @@ def test_invalidate_caches_forces_rebuild_within_same_sim_step():
     data._invalidate_caches()
     second = wp.to_torch(data.root_link_pose_w.warp).cpu().numpy()
     assert second[0, 0] == pytest.approx(99.0)
+
+
+def test_body_link_pose_w_is_root_with_singleton_body_dim():
+    data, bindings = _make_data(num_instances=3)
+    data.is_primed = True
+    bindings.bindings[TT.RIGID_BODY_ROOT_POSE]._data[2] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    body = data.body_link_pose_w
+    body_np = wp.to_torch(body.warp).cpu().numpy()
+    assert body_np.shape == (3, 1, 7)
+    assert body_np[2, 0, 0] == 1.0
+
+
+def test_body_acc_w_raises_when_wheel_missing_acceleration_binding():
+    data, bindings = _make_data(num_instances=2)
+    data.is_primed = True
+    # Simulate wheel without RIGID_BODY_ACCELERATION by removing the binding.
+    bindings.bindings.pop(TT.RIGID_BODY_ACCELERATION, None)
+    data._bindings = bindings.bindings
+    with pytest.raises(NotImplementedError, match="RIGID_BODY_ACCELERATION"):
+        _ = data.body_link_acc_w
+
+
+def test_projected_gravity_b_identity_at_world_aligned_orientation():
+    data, bindings = _make_data(num_instances=1)
+    data.is_primed = True
+    bindings.bindings[TT.RIGID_BODY_ROOT_POSE]._data[0] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    g = data.projected_gravity_b
+    g_np = wp.to_torch(g.warp).cpu().numpy()
+    # World gravity is (0, 0, -9.81); identity rotation → body-frame gravity equals world.
+    assert g_np[0, 2] == pytest.approx(-9.81, rel=1e-4)
