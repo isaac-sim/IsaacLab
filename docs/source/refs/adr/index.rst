@@ -8,3 +8,4 @@ design decisions in Isaac Lab.
    :maxdepth: 1
 
    0001-scene-data-provider-redesign
+   0002-capability-based-provider-extensibility

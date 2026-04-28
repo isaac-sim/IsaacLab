@@ -3,7 +3,20 @@ ADR-0001: Scene Data Provider Redesign
 
 :Status: Accepted
 :Date: 2026-04-22
+:Last Updated: 2026-04-28
 :Authors: Nathan Cournia, Daniela Hasenbring
+
+.. note::
+
+   The transport-surface and consumer-requirement framing in this ADR is
+   generalised by :doc:`0002-capability-based-provider-extensibility`, which
+   moves the typed transform API onto a ``GpuTransformBuffer`` capability
+   protocol and replaces the implicit "single GPU buffer" channel with a
+   type-keyed capability registry. The format/dispatcher/buffer-pool design
+   described below is preserved unchanged; only the location of the API
+   (now the ``GpuTransformBuffer`` protocol rather than
+   :class:`BaseSceneDataProvider`) and the consumer requirement mechanism
+   change.
 
 Context
 -------
@@ -167,9 +180,63 @@ making the SDP fully format-agnostic. This was rejected as overly complex
 for the four well-known formats used in Isaac Lab, and it would prevent
 compile-time type checking of Warp kernel inputs.
 
+Post-merge clarifications
+-------------------------
+
+The following components landed alongside the typed-format work but were
+not described in the original ADR text. They are included here for
+completeness; their futures are addressed in
+:doc:`0002-capability-based-provider-extensibility`.
+
+``SceneDataRequirement`` and ``VisualizerPrebuiltArtifacts``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``isaaclab.physics.scene_data_requirements`` ships a string-keyed
+mechanism for declaring what each in-tree consumer needs from the SDP:
+
+- ``SceneDataRequirement`` carries booleans (``requires_newton_model``,
+  ``requires_usd_stage``) and a ``preferred_transform_formats`` set.
+- ``VisualizerPrebuiltArtifacts`` carries a Newton ``Model`` and ``State``
+  produced during scene clone and consumed by providers as a fast path
+  instead of rebuilding from USD.
+- ``_VISUALIZER_REQUIREMENTS`` and ``_RENDERER_REQUIREMENTS`` map
+  string consumer-type names (``"kit"``, ``"newton"``, ``"rerun"``,
+  ``"viser"``, ``"isaac_rtx"``, ``"newton_warp"``, ``"ovrtx"``) to
+  concrete requirements.
+
+This mechanism is the precursor to the capability-based requirement
+declarations introduced in ADR-0002 and is removed by that work.
+
+PhysX→Newton sync bridge
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+:class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`
+maintains an optional Newton ``Model`` and ``State`` to support
+Newton-flavoured consumers (NewtonWarp renderer, Newton/Rerun/Viser
+visualizers) running against PhysX physics. The provider's
+``_needs_newton_sync`` flag is set to ``True`` when any registered
+consumer's ``SceneDataRequirement`` has ``requires_newton_model=True``,
+and each :meth:`update` call copies PhysX body transforms into the
+synthetic Newton state so consumers reading
+:meth:`get_newton_state` see PhysX-driven motion.
+
+ADR-0002 makes this generic: the bridge runs whenever a consumer queries
+the ``NewtonState`` capability, regardless of which provider is active.
+
+``SceneDataProvider`` factory class
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``isaaclab.physics.scene_data_provider.SceneDataProvider`` is a thin
+factory that resolves a concrete provider subclass at construction time
+based on the active physics backend. It is part of the public API
+(:py:`from isaaclab.physics import SceneDataProvider`) and is unchanged
+by ADR-0002.
+
 References
 ----------
 
+- :doc:`0002-capability-based-provider-extensibility` — the capability
+  framework that supersedes this ADR's transport/consumer framing.
 - Proof-of-concept implementation:
   ``daniela-hase/IsaacLab`` branch ``dev/scene-data-provider-api``
 - Design meeting (2026-03-09): ``isaac-lab-render-standup.20260309.md``
