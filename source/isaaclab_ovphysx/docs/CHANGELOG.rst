@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+0.2.0 (2026-04-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_ovphysx.assets.RigidObject` and
+  :class:`~isaaclab_ovphysx.assets.RigidObjectData` for single-actor rigid
+  body simulation against the OVPhysX backend, satisfying the
+  :class:`~isaaclab.assets.BaseRigidObject` and
+  :class:`~isaaclab.assets.BaseRigidObjectData` contracts.
+* Added ``RIGID_BODY_*`` :class:`TensorType` aliases (``RIGID_BODY_POSE``,
+  ``RIGID_BODY_VELOCITY``, ``RIGID_BODY_ACCELERATION``,
+  ``RIGID_BODY_WRENCH``, ``RIGID_BODY_MASS``, ``RIGID_BODY_INV_MASS``,
+  ``RIGID_BODY_COM_POSE``, ``RIGID_BODY_INERTIA``, ``RIGID_BODY_INV_INERTIA``)
+  in :mod:`isaaclab_ovphysx.tensor_types`. Three of these
+  (``RIGID_BODY_ACCELERATION``, ``RIGID_BODY_INV_MASS``,
+  ``RIGID_BODY_INV_INERTIA``) require an ``ovphysx`` wheel update
+  exposing the matching :class:`TensorType` enum values; the remaining
+  six already ship with the current wheel.
+* Added ``asset_kind="rigid_object"`` mode to
+  ``isaaclab_ovphysx.test.mock_interfaces.views.MockOvPhysxBindingSet``
+  for kitless mock-based testing of the new asset.
+
+Changed
+^^^^^^^
+
+* Moved shared frame-conversion and wrench-composition Warp kernels from
+  ``isaaclab_ovphysx.assets.articulation.kernels`` to a new
+  ``isaaclab_ovphysx.assets.kernels`` module. Articulation imports were
+  updated to point at the new location; downstream code referencing the
+  articulation-private kernels module needs the same import update.
+  Newly-added kernel ``_compose_root_link_pose_from_com`` for the
+  COM-pose write path also lives in the shared module.
+
+
 0.1.2 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~
 
