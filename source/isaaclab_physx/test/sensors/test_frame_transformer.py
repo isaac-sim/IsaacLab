@@ -153,21 +153,28 @@ def test_frame_transformer_feet_wrt_base(sim):
         # # reset
         if count % 25 == 0:
             # reset root state
-            root_state = scene.articulations["robot"].data.default_root_state.torch.clone()
+            root_state = torch.cat(
+                (
+                    scene.articulations["robot"].data.default_root_pose.torch,
+                    scene.articulations["robot"].data.default_root_vel.torch,
+                ),
+                dim=-1,
+            ).clone()
             root_state[:, :3] += scene.env_origins
             joint_pos = scene.articulations["robot"].data.default_joint_pos.torch
             joint_vel = scene.articulations["robot"].data.default_joint_vel.torch
             # -- set root state
             # -- robot
-            scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
-            scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene.articulations["robot"].write_root_pose_to_sim_index(root_pose=root_state[:, :7])
+            scene.articulations["robot"].write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:])
+            scene.articulations["robot"].write_joint_position_to_sim_index(position=joint_pos)
+            scene.articulations["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
             # reset buffers
             scene.reset()
 
         # set joint targets
         robot_actions = default_actions + 0.5 * torch.randn_like(default_actions)
-        scene.articulations["robot"].set_joint_position_target(robot_actions)
+        scene.articulations["robot"].set_joint_position_target_index(target=robot_actions)
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -251,21 +258,28 @@ def test_frame_transformer_feet_wrt_thigh(sim):
         # # reset
         if count % 25 == 0:
             # reset root state
-            root_state = scene.articulations["robot"].data.default_root_state.torch.clone()
+            root_state = torch.cat(
+                (
+                    scene.articulations["robot"].data.default_root_pose.torch,
+                    scene.articulations["robot"].data.default_root_vel.torch,
+                ),
+                dim=-1,
+            ).clone()
             root_state[:, :3] += scene.env_origins
             joint_pos = scene.articulations["robot"].data.default_joint_pos.torch
             joint_vel = scene.articulations["robot"].data.default_joint_vel.torch
             # -- set root state
             # -- robot
-            scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
-            scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene.articulations["robot"].write_root_pose_to_sim_index(root_pose=root_state[:, :7])
+            scene.articulations["robot"].write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:])
+            scene.articulations["robot"].write_joint_position_to_sim_index(position=joint_pos)
+            scene.articulations["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
             # reset buffers
             scene.reset()
 
         # set joint targets
         robot_actions = default_actions + 0.5 * torch.randn_like(default_actions)
-        scene.articulations["robot"].set_joint_position_target(robot_actions)
+        scene.articulations["robot"].set_joint_position_target_index(target=robot_actions)
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -329,21 +343,28 @@ def test_frame_transformer_robot_body_to_external_cube(sim):
         # # reset
         if count % 25 == 0:
             # reset root state
-            root_state = scene.articulations["robot"].data.default_root_state.torch.clone()
+            root_state = torch.cat(
+                (
+                    scene.articulations["robot"].data.default_root_pose.torch,
+                    scene.articulations["robot"].data.default_root_vel.torch,
+                ),
+                dim=-1,
+            ).clone()
             root_state[:, :3] += scene.env_origins
             joint_pos = scene.articulations["robot"].data.default_joint_pos.torch
             joint_vel = scene.articulations["robot"].data.default_joint_vel.torch
             # -- set root state
             # -- robot
-            scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
-            scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene.articulations["robot"].write_root_pose_to_sim_index(root_pose=root_state[:, :7])
+            scene.articulations["robot"].write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:])
+            scene.articulations["robot"].write_joint_position_to_sim_index(position=joint_pos)
+            scene.articulations["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
             # reset buffers
             scene.reset()
 
         # set joint targets
         robot_actions = default_actions + 0.5 * torch.randn_like(default_actions)
-        scene.articulations["robot"].set_joint_position_target(robot_actions)
+        scene.articulations["robot"].set_joint_position_target_index(target=robot_actions)
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -425,12 +446,18 @@ def test_frame_transformer_offset_frames(sim):
         # # reset
         if count % 25 == 0:
             # reset root state
-            root_state = scene["cube"].data.default_root_state.torch.clone()
+            root_state = torch.cat(
+                (
+                    scene["cube"].data.default_root_pose.torch,
+                    scene["cube"].data.default_root_vel.torch,
+                ),
+                dim=-1,
+            ).clone()
             root_state[:, :3] += scene.env_origins
             # -- set root state
             # -- cube
-            scene["cube"].write_root_pose_to_sim(root_state[:, :7])
-            scene["cube"].write_root_velocity_to_sim(root_state[:, 7:])
+            scene["cube"].write_root_pose_to_sim_index(root_pose=root_state[:, :7])
+            scene["cube"].write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:])
             # reset buffers
             scene.reset()
 
@@ -513,21 +540,28 @@ def test_frame_transformer_all_bodies(sim):
         # # reset
         if count % 25 == 0:
             # reset root state
-            root_state = scene.articulations["robot"].data.default_root_state.torch.clone()
+            root_state = torch.cat(
+                (
+                    scene.articulations["robot"].data.default_root_pose.torch,
+                    scene.articulations["robot"].data.default_root_vel.torch,
+                ),
+                dim=-1,
+            ).clone()
             root_state[:, :3] += scene.env_origins
             joint_pos = scene.articulations["robot"].data.default_joint_pos.torch
             joint_vel = scene.articulations["robot"].data.default_joint_vel.torch
             # -- set root state
             # -- robot
-            scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
-            scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            scene.articulations["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene.articulations["robot"].write_root_pose_to_sim_index(root_pose=root_state[:, :7])
+            scene.articulations["robot"].write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:])
+            scene.articulations["robot"].write_joint_position_to_sim_index(position=joint_pos)
+            scene.articulations["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
             # reset buffers
             scene.reset()
 
         # set joint targets
         robot_actions = default_actions + 0.5 * torch.randn_like(default_actions)
-        scene.articulations["robot"].set_joint_position_target(robot_actions)
+        scene.articulations["robot"].set_joint_position_target_index(target=robot_actions)
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -708,22 +742,38 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
         # Reset periodically
         if count % 10 == 0:
             # Reset robot
-            root_state = scene.articulations["robot"].data.default_root_state.torch.clone()
+            root_state = torch.cat(
+                (
+                    scene.articulations["robot"].data.default_root_pose.torch,
+                    scene.articulations["robot"].data.default_root_vel.torch,
+                ),
+                dim=-1,
+            ).clone()
             root_state[:, :3] += scene.env_origins
-            scene.articulations["robot"].write_root_pose_to_sim(root_state[:, :7])
-            scene.articulations["robot"].write_root_velocity_to_sim(root_state[:, 7:])
-            scene.articulations["robot"].write_joint_state_to_sim(
-                scene.articulations["robot"].data.default_joint_pos.torch,
-                scene.articulations["robot"].data.default_joint_vel.torch,
+            scene.articulations["robot"].write_root_pose_to_sim_index(root_pose=root_state[:, :7])
+            scene.articulations["robot"].write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:])
+            scene.articulations["robot"].write_joint_position_to_sim_index(
+                position=scene.articulations["robot"].data.default_joint_pos.torch
+            )
+            scene.articulations["robot"].write_joint_velocity_to_sim_index(
+                velocity=scene.articulations["robot"].data.default_joint_vel.torch
             )
             # Reset robot_1
-            root_state_1 = scene.articulations["robot_1"].data.default_root_state.torch.clone()
+            root_state_1 = torch.cat(
+                (
+                    scene.articulations["robot_1"].data.default_root_pose.torch,
+                    scene.articulations["robot_1"].data.default_root_vel.torch,
+                ),
+                dim=-1,
+            ).clone()
             root_state_1[:, :3] += scene.env_origins
-            scene.articulations["robot_1"].write_root_pose_to_sim(root_state_1[:, :7])
-            scene.articulations["robot_1"].write_root_velocity_to_sim(root_state_1[:, 7:])
-            scene.articulations["robot_1"].write_joint_state_to_sim(
-                scene.articulations["robot_1"].data.default_joint_pos.torch,
-                scene.articulations["robot_1"].data.default_joint_vel.torch,
+            scene.articulations["robot_1"].write_root_pose_to_sim_index(root_pose=root_state_1[:, :7])
+            scene.articulations["robot_1"].write_root_velocity_to_sim_index(root_velocity=root_state_1[:, 7:])
+            scene.articulations["robot_1"].write_joint_position_to_sim_index(
+                position=scene.articulations["robot_1"].data.default_joint_pos.torch
+            )
+            scene.articulations["robot_1"].write_joint_velocity_to_sim_index(
+                velocity=scene.articulations["robot_1"].data.default_joint_vel.torch
             )
             scene.reset()
 

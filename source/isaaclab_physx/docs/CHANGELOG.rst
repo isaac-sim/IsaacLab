@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.28 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed PhysX backend tests to use current contact sensor and asset API names,
+  removing deprecation warnings from scoped test runs.
+
+
 0.5.27 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
