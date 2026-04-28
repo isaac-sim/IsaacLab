@@ -191,6 +191,50 @@ BODY_INV_INERTIA = _TT.ARTICULATION_BODY_INV_INERTIA
 Shape is ``[N, L, 9]``, dtype ``float32``.
 """
 
+# ---------------------------------------------------------------------------
+# Rigid-body TensorTypes
+# ---------------------------------------------------------------------------
+# Shapes assume N = number of rigid actor instances matched by the binding
+# pattern. Components and units are stated per alias below.
+
+RIGID_BODY_ROOT_POSE = _TT.RIGID_BODY_ROOT_POSE
+"""Rigid actor root transform — read/write, GPU. Shape ``(N, 7)``,
+components ``(px, py, pz, qx, qy, qz, qw)`` [m, dimensionless]."""
+
+RIGID_BODY_ROOT_VELOCITY = _TT.RIGID_BODY_ROOT_VELOCITY
+"""Rigid actor root spatial velocity — read/write, GPU. Shape ``(N, 6)``,
+components ``(vx, vy, vz, wx, wy, wz)`` [m/s, rad/s]."""
+
+RIGID_BODY_ACCELERATION = _TT.RIGID_BODY_ACCELERATION
+"""Rigid actor spatial acceleration — read-only, GPU. Shape ``(N, 6)``,
+components ``(ax, ay, az, αx, αy, αz)`` [m/s², rad/s²]."""
+
+RIGID_BODY_WRENCH = _TT.RIGID_BODY_WRENCH
+"""External wrench applied at a world-frame point — write-only, GPU.
+Shape ``(N, 9)``, components ``(fx, fy, fz, tx, ty, tz, px, py, pz)``
+[N, N·m, m]. Cleared after each sim step (instantaneous semantics)."""
+
+RIGID_BODY_MASS = _TT.RIGID_BODY_MASS
+"""Rigid actor mass — read/write, CPU. Shape ``(N, 1)`` [kg]."""
+
+RIGID_BODY_INV_MASS = _TT.RIGID_BODY_INV_MASS
+"""Rigid actor inverse mass — read-only, CPU. Shape ``(N, 1)`` [1/kg].
+Zero indicates an immovable actor."""
+
+RIGID_BODY_COM_POSE = _TT.RIGID_BODY_COM_POSE
+"""Center-of-mass pose in actor-link frame — read/write, CPU. Shape
+``(N, 7)``, components ``(px, py, pz, qx, qy, qz, qw)`` [m, dimensionless]."""
+
+RIGID_BODY_INERTIA = _TT.RIGID_BODY_INERTIA
+"""Rigid actor inertia tensor in COM frame — read/write, CPU. Shape
+``(N, 9)``, row-major flatten of the 3×3 inertia matrix
+``(Ixx, Ixy, Ixz, Iyx, Iyy, Iyz, Izx, Izy, Izz)`` [kg·m²]."""
+
+RIGID_BODY_INV_INERTIA = _TT.RIGID_BODY_INV_INERTIA
+"""Rigid actor inverse inertia tensor in COM frame — read-only, CPU.
+Shape ``(N, 9)``, row-major flatten of the 3×3 matrix [1/(kg·m²)].
+Zero rows indicate locked rotational DOFs."""
+
 """
 Dynamics tensors (GPU)
 """
@@ -330,5 +374,11 @@ _CPU_ONLY_TYPES: frozenset[TensorType] = frozenset(
         SPATIAL_TENDON_DAMPING,
         SPATIAL_TENDON_LIMIT_STIFFNESS,
         SPATIAL_TENDON_OFFSET,
+        # New rigid-body CPU-only entries
+        RIGID_BODY_MASS,
+        RIGID_BODY_INV_MASS,
+        RIGID_BODY_COM_POSE,
+        RIGID_BODY_INERTIA,
+        RIGID_BODY_INV_INERTIA,
     }
 )
