@@ -3683,7 +3683,7 @@ class Articulation(BaseArticulation):
                 self._root_view.get_attribute("mujoco.tendon_type", SimulationManager.get_model())
             )
             self._fixed_tendon_type_mask = self._spatial_tendon_type_mask ^ 1
-            self._tendon_names = np.array(self._root_view.model.mujoco.tendon_label).reshape_like
+            self._tendon_names = np.array(self._root_view.model.mujoco.tendon_label)
 
             self._fixed_tendon_names = list(self._tendon_names[self._fixed_tendon_type_mask.cpu()])
             self._num_fixed_tendons = self._fixed_tendon_type_mask.sum()
