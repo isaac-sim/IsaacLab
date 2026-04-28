@@ -2645,7 +2645,7 @@ class Articulation(BaseArticulation):
                     fixed_tendon_ids,
                 ],
                 outputs=[
-                    self.data.fixed_tendon_damping,
+                    self.data.fixed_tendon_stiffness,
                 ],
                 device=self.device,
             )
@@ -2885,7 +2885,7 @@ class Articulation(BaseArticulation):
                     fixed_tendon_ids,
                 ],
                 outputs=[
-                    self.data.fixed_tendon_damping,
+                    self.data._tendon_rest_length,
                 ],
                 device=self.device,
             )
@@ -2899,7 +2899,7 @@ class Articulation(BaseArticulation):
                     fixed_tendon_ids,
                 ],
                 outputs=[
-                    self.data.fixed_tendon_damping,
+                    self.data._tendon_rest_length,
                 ],
                 device=self.device,
             )
@@ -2994,10 +2994,77 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
-    def write_fixed_tendon_properties_to_sim_index(
+
+    def _write_tendon_properties_to_sim_mask(
         self,
         *,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        tendon_mask : wp.array | None = None,
+        env_mask:  wp.array | None = None,
+    ) -> None:
+        """Write tendon properties into the simulation using mask.
+
+        Args:
+            tendon_mask: The tendon mask to write the properties for. Defaults to None
+                (all tendons). Shape is (num_tendons,)
+            env_mask: Environment indices. If None, then all indices are used. Shape is (num_instances,)
+        """
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(env_mask.shape[0], tendon_mask.shape[0]),
+            inputs=[
+                self.data._tendon_damping,
+                env_mask,
+                tendon_mask,
+            ],
+            outputs=[
+                self.data._sim_bind_tendon_damping,
+            ],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(env_mask.shape[0], tendon_mask.shape[0]),
+            inputs=[
+                self.data._tendon_stiffness,
+                env_mask,
+                tendon_mask,
+            ],
+            outputs=[
+                self.data._sim_bind_tendon_stiffness,
+            ],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(env_mask.shape[0], tendon_mask.shape[0]),
+            inputs=[
+                self.data._tendon_rest_length,
+                env_mask,
+                tendon_mask,
+            ],
+            outputs=[
+                self.data._sim_bind_tendon_rest_length,
+            ],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(env_mask.shape[0], tendon_mask.shape[0]),
+            inputs=[
+                self.data._tendon_pos_limits,
+                env_mask,
+                tendon_mask,
+            ],
+            outputs=[
+                self.data._sim_bind_tendon_pos_limits
+            ],
+            device=self.device,
+        )
+
+    def write_fixed_tendon_properties_to_sim_index(
+            self,
+            *,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Write fixed tendon properties into the simulation using indices.
 
@@ -3010,31 +3077,7 @@ class Articulation(BaseArticulation):
                 (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        env_ids = self._resolve_env_ids(env_ids)
-        self._root_view.set_attribute(
-            "mujoco.tendon_stiffness",
-            SimulationManager.get_model(),
-            self.data.fixed_tendon_stiffness,
-            env_ids
-        )
-        self._root_view.set_attribute(
-            "mujoco.tendon_damping",
-            SimulationManager.get_model(),
-            self.data.fixed_tendon_damping,
-            env_ids
-        )
-        self._root_view.set_attribute(
-            "mujoco.tendon_springlength",
-            SimulationManager.get_model(),
-            self.data.fixed_tendon_rest_length,
-            env_ids
-        )
-        self._root_view.set_attribute(
-            "mujoco.tendon_range",
-            SimulationManager.get_model(),
-            self.data.fixed_tendon_pos_limits,
-            env_ids
-        )
+        raise NotImplementedError()
 
     def write_fixed_tendon_properties_to_sim_mask(
         self,
@@ -3050,8 +3093,9 @@ class Articulation(BaseArticulation):
         Args:
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_ids = self._resolve_mask(env_mask)
-        self.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
+        env_mask = self._resolve_mask(env_mask)
+
+        self._write_tendon_properties_to_sim_mask(self._fixed_tendon_type_mask, env_mask)
 
     def set_spatial_tendon_stiffness_index(
         self,
@@ -3375,6 +3419,7 @@ class Articulation(BaseArticulation):
         self._process_tendons()
         # create buffers
         self._create_buffers()
+
         # process configuration
         self._process_cfg()
         self._process_actuators_cfg()
@@ -3402,12 +3447,6 @@ class Articulation(BaseArticulation):
         self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
-        self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(self.num_fixed_tendons, dtype=np.int32), device=self.device)
-        self._ALL_FIXED_TENDON_MASK = wp.ones((self.num_fixed_tendons,), dtype=wp.bool, device=self.device)
-        self._ALL_SPATIAL_TENDON_INDICES = wp.array(
-            np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
-        )
-        self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -3640,20 +3679,30 @@ class Articulation(BaseArticulation):
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
         if self._root_view.tendon_count > 0:
-            self._tendon_type = wp.to_torch(
+            self._spatial_tendon_type_mask = wp.to_torch(
                 self._root_view.get_attribute("mujoco.tendon_type", SimulationManager.get_model())
             )
-            self._tendon_names = np.array(self._root_view.model.mujoco.tendon_label)
+            self._fixed_tendon_type_mask = self._spatial_tendon_type_mask ^ 1
+            self._tendon_names = np.array(self._root_view.model.mujoco.tendon_label).reshape_like
 
-            self._fixed_tendon_names = list(self._tendon_names[(self._tendon_type.cpu() == 0).flatten()])
-            self._num_fixed_tendons = (self._tendon_type == 0).sum()
-            self._spatial_tendon_names = list(self._tendon_names[(self._tendon_type == 1)])
-            self._num_spatial_tendons = (self._tendon_type == 1).sum()
+            self._fixed_tendon_names = list(self._tendon_names[self._fixed_tendon_type_mask.cpu()])
+            self._num_fixed_tendons = self._fixed_tendon_type_mask.sum()
+            self._spatial_tendon_names = list(self._tendon_names[self._spatial_tendon_type_mask.cpu()])
+            self._num_spatial_tendons = self._spatial_tendon_type_mask.sum()
         else:
             self._fixed_tendon_names = []
             self._num_fixed_tendons = 0
             self._spatial_tendon_names = []
             self._num_spatial_tendons = 0
+            self._fixed_tendon_ids = None
+            self._spatial_tendon_ids = None
+
+        self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(self.num_fixed_tendons, dtype=np.int32), device=self.device)
+        self._ALL_FIXED_TENDON_MASK = wp.ones((self.num_fixed_tendons,), dtype=wp.bool, device=self.device)
+        self._ALL_SPATIAL_TENDON_INDICES = wp.array(
+            np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
+        )
+        self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.

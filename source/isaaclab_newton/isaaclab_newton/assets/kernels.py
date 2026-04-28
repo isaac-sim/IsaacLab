@@ -1119,29 +1119,6 @@ def write_2d_data_to_buffer_with_mask(
     if env_mask[i] and joint_mask[j]:
         out_data[i, j] = in_data[i, j]
 
-@wp.kernel
-def write_2d_data_to_flat_buffer_with_indices(
-    in_data: wp.array(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    joint_ids: wp.array(dtype=wp.int32),
-    stride: int,
-    out_data: wp.array(dtype=wp.float32),
-):
-    """Write flattened 2D float data to a flat buffer at specified indices.
-
-    This kernel copies float data from an input array to a flat output buffer at the specified
-    environment and joint/body indices.
-
-    Args:
-        in_data: Input array containing float data. Shape is (num_envs*stride,)
-        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        joint_ids: Input array of joint/body indices to write to. Shape is (num_selected_joints,).
-        stride: number of indices in each env
-        out_data: Output array where data is written. Shape is (num_envs*stride,).
-    """
-    i, j = wp.tid()
-    out_data[env_ids[i]*stride+joint_ids[j]] = in_data[env_ids[i]*stride+joint_ids[j]]
-
 
 @wp.kernel
 def write_body_inertia_to_buffer_index(
