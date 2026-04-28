@@ -35,7 +35,7 @@ class TestArticulationData:
         data.update(dt=0.25)
 
         np.testing.assert_allclose(
-            data.joint_acc.numpy(),
+            data.joint_acc.warp.numpy(),
             np.array([[4.0, -8.0]], dtype=np.float32),
             atol=1e-6,
             err_msg="Joint acceleration should be computed as delta_velocity / dt.",

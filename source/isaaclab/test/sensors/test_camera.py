@@ -29,6 +29,8 @@ from pxr import Gf, Usd, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 
+pytestmark = pytest.mark.isaacsim_ci
+
 # sample camera poses
 POSITION = (2.5, 2.5, 2.5)
 # Quaternions in xyzw format
@@ -827,7 +829,6 @@ def setup_camera_device(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_camera_multi_regex_init(setup_camera_device, device):
     """Test multi-camera initialization with regex prim paths and content validation."""
     sim, camera_cfg, dt = setup_camera_device
@@ -869,7 +870,6 @@ def test_camera_multi_regex_init(setup_camera_device, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_camera_all_annotators(setup_camera_device, device):
     """Test all supported annotators produce correct shapes, dtypes, content, and info."""
     sim, camera_cfg, dt = setup_camera_device
@@ -947,7 +947,6 @@ def test_camera_all_annotators(setup_camera_device, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_camera_segmentation_non_colorize(setup_camera_device, device):
     """Test segmentation outputs with colorization disabled produce correct dtypes and info."""
     sim, camera_cfg, dt = setup_camera_device
@@ -978,7 +977,6 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_camera_normals_unit_length(setup_camera_device, device):
     """Test that normals output vectors have approximately unit length."""
     sim, camera_cfg, dt = setup_camera_device
@@ -1008,7 +1006,6 @@ def test_camera_normals_unit_length(setup_camera_device, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_camera_data_types_ordering(setup_camera_device, device):
     """Test that requesting specific data types produces the expected output keys."""
     sim, camera_cfg, dt = setup_camera_device
@@ -1042,7 +1039,6 @@ def test_camera_data_types_ordering(setup_camera_device, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 def test_camera_frame_offset(setup_camera_device, device):
     """Test that camera reflects scene color changes without frame-offset lag."""
     sim, camera_cfg, dt = setup_camera_device

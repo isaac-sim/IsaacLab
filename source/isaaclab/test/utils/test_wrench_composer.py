@@ -137,7 +137,7 @@ def test_wrench_composer_add_force(device: str, num_envs: int, num_bodies: int):
         # Compose to body frame before checking output
         wrench_composer.compose_to_body_frame()
         # Get composed force from wrench composer
-        composed_force_np = wrench_composer.out_force_b.numpy()
+        composed_force_np = wrench_composer.out_force_b.warp.numpy()
         assert np.allclose(composed_force_np, hand_calculated_composed_force_np, atol=1, rtol=1e-7)
 
 
@@ -176,7 +176,7 @@ def test_wrench_composer_add_torque(device: str, num_envs: int, num_bodies: int)
         # Compose to body frame before checking output
         wrench_composer.compose_to_body_frame()
         # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.out_torque_b.numpy()
+        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
         assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
 
 
@@ -232,10 +232,10 @@ def test_add_forces_at_positions(device: str, num_envs: int, num_bodies: int):
         # Compose to body frame before checking output
         wrench_composer.compose_to_body_frame()
         # Get composed force from wrench composer
-        composed_force_np = wrench_composer.out_force_b.numpy()
+        composed_force_np = wrench_composer.out_force_b.warp.numpy()
         assert np.allclose(composed_force_np, hand_calculated_composed_force_np, atol=1, rtol=1e-7)
         # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.out_torque_b.numpy()
+        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
         assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
 
 
@@ -281,7 +281,7 @@ def test_add_torques_at_position(device: str, num_envs: int, num_bodies: int):
         # Compose to body frame before checking output
         wrench_composer.compose_to_body_frame()
         # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.out_torque_b.numpy()
+        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
         assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
 
 
@@ -341,10 +341,10 @@ def test_add_forces_and_torques_at_position(device: str, num_envs: int, num_bodi
         # Compose to body frame before checking output
         wrench_composer.compose_to_body_frame()
         # Get composed force from wrench composer
-        composed_force_np = wrench_composer.out_force_b.numpy()
+        composed_force_np = wrench_composer.out_force_b.warp.numpy()
         assert np.allclose(composed_force_np, hand_calculated_composed_force_np, atol=1, rtol=1e-7)
         # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.out_torque_b.numpy()
+        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
         assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
 
 
@@ -388,8 +388,8 @@ def test_wrench_composer_reset(device: str, num_envs: int, num_bodies: int):
         assert np.allclose(wrench_composer.global_force_at_com_w.numpy(), zeros, atol=1, rtol=1e-7)
         assert np.allclose(wrench_composer.local_force_b.numpy(), zeros, atol=1, rtol=1e-7)
         assert np.allclose(wrench_composer.local_torque_b.numpy(), zeros, atol=1, rtol=1e-7)
-        assert np.allclose(wrench_composer.out_force_b.numpy(), zeros, atol=1, rtol=1e-7)
-        assert np.allclose(wrench_composer.out_torque_b.numpy(), zeros, atol=1, rtol=1e-7)
+        assert np.allclose(wrench_composer.out_force_b.warp.numpy(), zeros, atol=1, rtol=1e-7)
+        assert np.allclose(wrench_composer.out_torque_b.warp.numpy(), zeros, atol=1, rtol=1e-7)
 
 
 # ============================================================================
@@ -433,7 +433,7 @@ def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int
         wrench_composer.compose_to_body_frame()
 
         # Verify
-        composed_force_np = wrench_composer.out_force_b.numpy()
+        composed_force_np = wrench_composer.out_force_b.warp.numpy()
         assert np.allclose(composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5), (
             f"Global force rotation failed.\nExpected:\n{expected_forces_local}\nGot:\n{composed_force_np}"
         )
@@ -475,7 +475,7 @@ def test_global_torques_with_rotation(device: str, num_envs: int, num_bodies: in
         wrench_composer.compose_to_body_frame()
 
         # Verify
-        composed_torque_np = wrench_composer.out_torque_b.numpy()
+        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
         assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5), (
             f"Global torque rotation failed.\nExpected:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
         )
@@ -533,13 +533,13 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
         wrench_composer.compose_to_body_frame()
 
         # Verify forces
-        composed_force_np = wrench_composer.out_force_b.numpy()
+        composed_force_np = wrench_composer.out_force_b.warp.numpy()
         assert np.allclose(composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4), (
             f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
         )
 
         # Verify torques
-        composed_torque_np = wrench_composer.out_torque_b.numpy()
+        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
         assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4), (
             f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
         )
@@ -576,13 +576,13 @@ def test_local_vs_global_identity_quaternion(device: str):
 
     # Results should be identical
     assert np.allclose(
-        wrench_composer_local.out_force_b.numpy(),
-        wrench_composer_global.out_force_b.numpy(),
+        wrench_composer_local.out_force_b.warp.numpy(),
+        wrench_composer_global.out_force_b.warp.numpy(),
         atol=1e-6,
     )
     assert np.allclose(
-        wrench_composer_local.out_torque_b.numpy(),
-        wrench_composer_global.out_torque_b.numpy(),
+        wrench_composer_local.out_torque_b.warp.numpy(),
+        wrench_composer_global.out_torque_b.warp.numpy(),
         atol=1e-6,
     )
 
@@ -614,7 +614,7 @@ def test_90_degree_rotation_global_force(device: str):
     # Compose to body frame before checking output
     wrench_composer.compose_to_body_frame()
 
-    composed_force_np = wrench_composer.out_force_b.numpy()
+    composed_force_np = wrench_composer.out_force_b.warp.numpy()
     assert np.allclose(composed_force_np, expected_force_local, atol=1e-5), (
         f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
     )
@@ -659,7 +659,7 @@ def test_composition_mixed_local_and_global(device: str):
     # Compose to body frame before checking output
     wrench_composer.compose_to_body_frame()
 
-    composed_force_np = wrench_composer.out_force_b.numpy()
+    composed_force_np = wrench_composer.out_force_b.warp.numpy()
     assert np.allclose(composed_force_np, expected_total, atol=1e-4, rtol=1e-5), (
         f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
     )
@@ -703,8 +703,8 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
         wrench_composer.compose_to_body_frame()
 
         # Verify
-        composed_force_np = wrench_composer.out_force_b.numpy()
-        composed_torque_np = wrench_composer.out_torque_b.numpy()
+        composed_force_np = wrench_composer.out_force_b.warp.numpy()
+        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
 
         assert np.allclose(composed_force_np, expected_forces, atol=1e-4, rtol=1e-5)
         assert np.allclose(composed_torque_np, expected_torques, atol=1e-4, rtol=1e-5)
@@ -746,8 +746,8 @@ def test_global_force_at_link_origin_no_torque(device: str):
     # Compose to body frame before checking output
     wrench_composer.compose_to_body_frame()
 
-    composed_force_np = wrench_composer.out_force_b.numpy()
-    composed_torque_np = wrench_composer.out_torque_b.numpy()
+    composed_force_np = wrench_composer.out_force_b.warp.numpy()
+    composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
 
     assert np.allclose(composed_force_np, expected_forces, atol=1e-4, rtol=1e-5)
     assert np.allclose(composed_torque_np, expected_torques, atol=1e-4, rtol=1e-5)
@@ -816,12 +816,12 @@ def test_add_raw_buffers_from(device: str, num_envs: int, num_bodies: int):
     composer_a.compose_to_body_frame()
     composer_ref.compose_to_body_frame()
 
-    assert np.allclose(composer_a.out_force_b.numpy(), composer_ref.out_force_b.numpy(), atol=1e-4, rtol=1e-5), (
-        "add_raw_buffers_from force mismatch vs direct accumulation"
-    )
-    assert np.allclose(composer_a.out_torque_b.numpy(), composer_ref.out_torque_b.numpy(), atol=1e-4, rtol=1e-5), (
-        "add_raw_buffers_from torque mismatch vs direct accumulation"
-    )
+    assert np.allclose(
+        composer_a.out_force_b.warp.numpy(), composer_ref.out_force_b.warp.numpy(), atol=1e-4, rtol=1e-5
+    ), "add_raw_buffers_from force mismatch vs direct accumulation"
+    assert np.allclose(
+        composer_a.out_torque_b.warp.numpy(), composer_ref.out_torque_b.warp.numpy(), atol=1e-4, rtol=1e-5
+    ), "add_raw_buffers_from torque mismatch vs direct accumulation"
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -905,11 +905,11 @@ def test_add_forces_mask(device: str, num_envs: int, num_bodies: int):
         composer_idx.compose_to_body_frame()
         composer_mask.compose_to_body_frame()
 
-        assert np.allclose(composer_idx.out_force_b.numpy(), composer_mask.out_force_b.numpy(), atol=1e-4, rtol=1e-5), (
-            f"Mask vs index force mismatch (envs={num_envs}, bodies={num_bodies})"
-        )
         assert np.allclose(
-            composer_idx.out_torque_b.numpy(), composer_mask.out_torque_b.numpy(), atol=1e-4, rtol=1e-5
+            composer_idx.out_force_b.warp.numpy(), composer_mask.out_force_b.warp.numpy(), atol=1e-4, rtol=1e-5
+        ), f"Mask vs index force mismatch (envs={num_envs}, bodies={num_bodies})"
+        assert np.allclose(
+            composer_idx.out_torque_b.warp.numpy(), composer_mask.out_torque_b.warp.numpy(), atol=1e-4, rtol=1e-5
         ), f"Mask vs index torque mismatch (envs={num_envs}, bodies={num_bodies})"
 
 
@@ -955,12 +955,12 @@ def test_add_forces_mask_global(device: str, num_envs: int, num_bodies: int):
     composer_idx.compose_to_body_frame()
     composer_mask.compose_to_body_frame()
 
-    assert np.allclose(composer_idx.out_force_b.numpy(), composer_mask.out_force_b.numpy(), atol=1e-4, rtol=1e-5), (
-        "Mask vs index global force mismatch"
-    )
-    assert np.allclose(composer_idx.out_torque_b.numpy(), composer_mask.out_torque_b.numpy(), atol=1e-4, rtol=1e-5), (
-        "Mask vs index global torque mismatch"
-    )
+    assert np.allclose(
+        composer_idx.out_force_b.warp.numpy(), composer_mask.out_force_b.warp.numpy(), atol=1e-4, rtol=1e-5
+    ), "Mask vs index global force mismatch"
+    assert np.allclose(
+        composer_idx.out_torque_b.warp.numpy(), composer_mask.out_torque_b.warp.numpy(), atol=1e-4, rtol=1e-5
+    ), "Mask vs index global torque mismatch"
 
 
 # ============================================================================
@@ -992,7 +992,7 @@ def test_set_forces_overwrites_previous_add(device: str):
     composer.compose_to_body_frame()
 
     # Output should match forces_b only (forces_a should be gone)
-    assert np.allclose(composer.out_force_b.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
+    assert np.allclose(composer.out_force_b.warp.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
         "set_forces did not clear previous add"
     )
 
@@ -1160,7 +1160,7 @@ def test_composed_force_emits_deprecation_warning(device: str):
         result = composer.composed_force
 
     # Should return the same data as out_force_b
-    assert np.allclose(result.numpy(), composer.out_force_b.numpy(), atol=1e-7)
+    assert np.allclose(result.warp.numpy(), composer.out_force_b.warp.numpy(), atol=1e-7)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1179,7 +1179,7 @@ def test_composed_torque_emits_deprecation_warning(device: str):
     with pytest.warns(DeprecationWarning, match="composed_torque.*is deprecated"):
         result = composer.composed_torque
 
-    assert np.allclose(result.numpy(), composer.out_torque_b.numpy(), atol=1e-7)
+    assert np.allclose(result.warp.numpy(), composer.out_torque_b.warp.numpy(), atol=1e-7)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1199,7 +1199,7 @@ def test_deprecated_add_forces_and_torques_emits_warning(device: str):
         )
 
     composer.compose_to_body_frame()
-    assert np.allclose(composer.out_force_b.numpy(), forces_np, atol=1e-4, rtol=1e-5)
+    assert np.allclose(composer.out_force_b.warp.numpy(), forces_np, atol=1e-4, rtol=1e-5)
 
 
 # ============================================================================
@@ -1231,7 +1231,7 @@ def test_set_forces_mask_overwrites_previous_add(device: str):
     composer.compose_to_body_frame()
 
     # Output should match forces_b only (forces_a should be gone)
-    assert np.allclose(composer.out_force_b.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
+    assert np.allclose(composer.out_force_b.warp.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
         "set_forces_and_torques_mask did not clear previous add"
     )
 
@@ -1343,12 +1343,12 @@ def test_set_forces_mask_matches_set_forces_index(device: str):
     composer_idx.compose_to_body_frame()
     composer_mask.compose_to_body_frame()
 
-    assert np.allclose(composer_idx.out_force_b.numpy(), composer_mask.out_force_b.numpy(), atol=1e-4, rtol=1e-5), (
-        "set mask vs index force mismatch"
-    )
-    assert np.allclose(composer_idx.out_torque_b.numpy(), composer_mask.out_torque_b.numpy(), atol=1e-4, rtol=1e-5), (
-        "set mask vs index torque mismatch"
-    )
+    assert np.allclose(
+        composer_idx.out_force_b.warp.numpy(), composer_mask.out_force_b.warp.numpy(), atol=1e-4, rtol=1e-5
+    ), "set mask vs index force mismatch"
+    assert np.allclose(
+        composer_idx.out_torque_b.warp.numpy(), composer_mask.out_torque_b.warp.numpy(), atol=1e-4, rtol=1e-5
+    ), "set mask vs index torque mismatch"
 
 
 # ============================================================================
@@ -1376,7 +1376,7 @@ def test_out_force_b_triggers_lazy_composition(device: str):
 
     # Do NOT call compose_to_body_frame -- rely on lazy composition
     expected_forces_local = quat_rotate_inv_np(link_quat_np, forces_global_np)
-    composed_force_np = composer.out_force_b.numpy()
+    composed_force_np = composer.out_force_b.warp.numpy()
 
     assert np.allclose(composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5), (
         "Lazy composition via out_force_b failed"
@@ -1403,7 +1403,7 @@ def test_out_torque_b_triggers_lazy_composition(device: str):
 
     # Do NOT call compose_to_body_frame -- rely on lazy composition
     expected_torques_local = quat_rotate_inv_np(link_quat_np, torques_global_np)
-    composed_torque_np = composer.out_torque_b.numpy()
+    composed_torque_np = composer.out_torque_b.warp.numpy()
 
     assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5), (
         "Lazy composition via out_torque_b failed"
@@ -1444,7 +1444,7 @@ def test_lazy_composition_tracks_dirty_flag(device: str):
 
     # Verify accumulated result (2x forces)
     expected = 2.0 * forces_np
-    assert np.allclose(composer.out_force_b.numpy(), expected, atol=1e-4, rtol=1e-5)
+    assert np.allclose(composer.out_force_b.warp.numpy(), expected, atol=1e-4, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1481,13 +1481,13 @@ def test_compose_is_idempotent(device: str):
 
     # First compose
     composer.compose_to_body_frame()
-    force_first = composer.out_force_b.numpy().copy()
-    torque_first = composer.out_torque_b.numpy().copy()
+    force_first = composer.out_force_b.warp.numpy().copy()
+    torque_first = composer.out_torque_b.warp.numpy().copy()
 
     # Second compose (no writes in between)
     composer.compose_to_body_frame()
-    force_second = composer.out_force_b.numpy()
-    torque_second = composer.out_torque_b.numpy()
+    force_second = composer.out_force_b.warp.numpy()
+    torque_second = composer.out_torque_b.warp.numpy()
 
     np.testing.assert_array_equal(force_first, force_second)
     np.testing.assert_array_equal(torque_first, torque_second)
@@ -1544,12 +1544,13 @@ def test_global_force_with_com_offset(device: str):
     expected_torque = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
     expected_torque[..., 1] = 10.0
 
-    assert np.allclose(composer.out_torque_b.numpy(), expected_torque, atol=1e-4, rtol=1e-5), (
-        f"CoM offset torque correction failed.\nExpected:\n{expected_torque}\nGot:\n{composer.out_torque_b.numpy()}"
+    actual_torque = composer.out_torque_b.warp.numpy()
+    assert np.allclose(actual_torque, expected_torque, atol=1e-4, rtol=1e-5), (
+        f"CoM offset torque correction failed.\nExpected:\n{expected_torque}\nGot:\n{actual_torque}"
     )
 
     # Force should be unchanged (identity rotation)
-    assert np.allclose(composer.out_force_b.numpy(), forces_np, atol=1e-4, rtol=1e-5)
+    assert np.allclose(composer.out_force_b.warp.numpy(), forces_np, atol=1e-4, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1593,7 +1594,7 @@ def test_global_force_at_com_no_torque_with_com_offset(device: str):
 
     # Torque = cross(com, F) - cross(com, F) = 0
     expected_torque = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-    assert np.allclose(composer.out_torque_b.numpy(), expected_torque, atol=1e-4, rtol=1e-5), (
+    assert np.allclose(composer.out_torque_b.warp.numpy(), expected_torque, atol=1e-4, rtol=1e-5), (
         "Force at CoM should produce zero torque regardless of CoM offset"
     )
 
@@ -1642,12 +1643,12 @@ def test_com_offset_with_rotation(device: str):
     expected_torque_b = quat_rotate_inv_np(link_quat_np, torque_w)
     expected_force_b = quat_rotate_inv_np(link_quat_np, forces_np)
 
-    assert np.allclose(composer.out_force_b.numpy(), expected_force_b, atol=1e-3, rtol=1e-4), (
+    assert np.allclose(composer.out_force_b.warp.numpy(), expected_force_b, atol=1e-3, rtol=1e-4), (
         "Force mismatch with CoM offset + rotation"
     )
-    assert np.allclose(composer.out_torque_b.numpy(), expected_torque_b, atol=1e-3, rtol=1e-4), (
+    assert np.allclose(composer.out_torque_b.warp.numpy(), expected_torque_b, atol=1e-3, rtol=1e-4), (
         f"Torque mismatch with CoM offset + rotation.\n"
-        f"Expected:\n{expected_torque_b}\nGot:\n{composer.out_torque_b.numpy()}"
+        f"Expected:\n{expected_torque_b}\nGot:\n{composer.out_torque_b.warp.numpy()}"
     )
 
 
@@ -1673,7 +1674,7 @@ def test_deprecated_set_forces_and_torques_emits_warning(device: str):
         )
 
     composer.compose_to_body_frame()
-    assert np.allclose(composer.out_force_b.numpy(), forces_np, atol=1e-4, rtol=1e-5)
+    assert np.allclose(composer.out_force_b.warp.numpy(), forces_np, atol=1e-4, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1699,6 +1700,6 @@ def test_deprecated_set_forces_and_torques_clears_previous(device: str):
         )
 
     composer.compose_to_body_frame()
-    assert np.allclose(composer.out_force_b.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
+    assert np.allclose(composer.out_force_b.warp.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
         "Deprecated set_forces_and_torques did not replace previous values"
     )

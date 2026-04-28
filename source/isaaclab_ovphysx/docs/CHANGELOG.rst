@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.1.2 (2026-04-27)
+0.1.3 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -15,6 +15,21 @@ Added
   quantities, so the stubs simply preserve the abstract contract —
   instantiating :class:`isaaclab_ovphysx.assets.Articulation` no longer
   fails with ``TypeError: Can't instantiate abstract class``.
+
+
+0.1.2 (2026-04-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Wrapped :attr:`~isaaclab_ovphysx.assets.ArticulationData.GRAVITY_VEC_W` and
+  :attr:`~isaaclab_ovphysx.assets.ArticulationData.FORWARD_VEC_B` in
+  :class:`~isaaclab.utils.warp.ProxyArray` to match the PhysX and Newton
+  backends. Public observations such as
+  :func:`~isaaclab.envs.mdp.observations.projected_gravity` access
+  ``asset.data.GRAVITY_VEC_W.torch``; the previous raw ``wp.array`` lacked
+  ``.torch`` and raised ``AttributeError`` on the ovphysx backend.
 
 
 0.1.1 (2026-04-21)

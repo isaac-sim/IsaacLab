@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -32,8 +31,8 @@ class CartpoleEnv(DirectRLEnv):
         self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
 
-        self.joint_pos = wp.to_torch(self.cartpole.data.joint_pos)
-        self.joint_vel = wp.to_torch(self.cartpole.data.joint_vel)
+        self.joint_pos = self.cartpole.data.joint_pos.torch
+        self.joint_vel = self.cartpole.data.joint_vel.torch
 
     def _setup_scene(self):
         self.cartpole = Articulation(self.cfg.robot_cfg)
@@ -85,8 +84,8 @@ class CartpoleEnv(DirectRLEnv):
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        self.joint_pos = wp.to_torch(self.cartpole.data.joint_pos)
-        self.joint_vel = wp.to_torch(self.cartpole.data.joint_vel)
+        self.joint_pos = self.cartpole.data.joint_pos.torch
+        self.joint_vel = self.cartpole.data.joint_vel.torch
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
@@ -98,18 +97,18 @@ class CartpoleEnv(DirectRLEnv):
             env_ids = self.cartpole._ALL_INDICES
         super()._reset_idx(env_ids)
 
-        joint_pos = wp.to_torch(self.cartpole.data.default_joint_pos)[env_ids].clone()
+        joint_pos = self.cartpole.data.default_joint_pos.torch[env_ids].clone()
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
             self.cfg.initial_pole_angle_range[0] * math.pi,
             self.cfg.initial_pole_angle_range[1] * math.pi,
             joint_pos[:, self._pole_dof_idx].shape,
             joint_pos.device,
         )
-        joint_vel = wp.to_torch(self.cartpole.data.default_joint_vel)[env_ids].clone()
+        joint_vel = self.cartpole.data.default_joint_vel.torch[env_ids].clone()
 
-        default_root_pose = wp.to_torch(self.cartpole.data.default_root_pose)[env_ids].clone()
+        default_root_pose = self.cartpole.data.default_root_pose.torch[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
-        default_root_vel = wp.to_torch(self.cartpole.data.default_root_vel)[env_ids].clone()
+        default_root_vel = self.cartpole.data.default_root_vel.torch[env_ids].clone()
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel

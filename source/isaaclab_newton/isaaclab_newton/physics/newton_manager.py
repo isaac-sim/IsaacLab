@@ -36,8 +36,11 @@ from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverN
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
+
+from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -421,16 +424,26 @@ class NewtonManager(PhysicsManager):
     def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:
         """Create a :class:`ModelBuilder` configured with default settings.
 
+        Forwards :class:`NewtonShapeCfg` defaults onto Newton's upstream
+        ``ModelBuilder.default_shape_cfg`` via :func:`~isaaclab.utils.checked_apply`.
+        Falls back to wrapper defaults when no Newton config is active so
+        rough-terrain margin/gap still apply during early construction.
+
         Args:
             up_axis: Override for the up-axis. Defaults to ``None``, which uses
                 the manager's ``_up_axis``.
             **kwargs: Forwarded to :class:`ModelBuilder`.
 
         Returns:
-            New builder with up-axis and gap defaults applied.
+            New builder with up-axis and per-shape defaults (gap, margin) applied.
         """
         builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
-        builder.default_shape_cfg.gap = 0.01
+        # Resolve which NewtonShapeCfg to apply: user override if active config
+        # is NewtonCfg, else the wrapper's own defaults so callers from non-Newton
+        # contexts (tests, early construction) still get the rough-terrain margin.
+        cfg = PhysicsManager._cfg
+        shape_cfg = cfg.default_shape_cfg if isinstance(cfg, NewtonCfg) else NewtonShapeCfg()
+        checked_apply(shape_cfg, builder.default_shape_cfg)
         return builder
 
     @classmethod
