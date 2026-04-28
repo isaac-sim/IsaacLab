@@ -57,7 +57,7 @@ def _kernel_body_particle_reaction(
     contact_body_vel: wp.array(dtype=wp.vec3),
     contact_normal: wp.array(dtype=wp.vec3),
     particle_q: wp.array(dtype=wp.vec3),
-    particle_q_prev: wp.array(dtype=wp.vec3),
+    particle_qd: wp.array(dtype=wp.vec3),
     particle_radius: wp.array(dtype=wp.float32),
     body_q: wp.array(dtype=wp.transform),
     body_q_prev: wp.array(dtype=wp.transform),
@@ -81,6 +81,12 @@ def _kernel_body_particle_reaction(
 
     One thread per contact slot; threads beyond the actual contact count
     early-exit.
+
+    The "previous" particle position required by the contact model is
+    reconstructed from the current velocity (``particle_q - particle_qd * dt``)
+    rather than read from a stored previous-state array. VBD mutates
+    ``particle_q`` in place during its iteration, so the swapped state's
+    ``particle_q`` is no longer a reliable snapshot of the prior substep.
     """
     tid = wp.tid()
     if tid >= contact_count[0]:
@@ -92,11 +98,16 @@ def _kernel_body_particle_reaction(
     if body_idx < 0:
         return
 
+    # Reconstruct previous particle position from velocity so that
+    # dx = particle_qd * dt regardless of what VBD wrote into stored states.
+    p_pos = particle_q[p_idx]
+    p_pos_prev = p_pos - particle_qd[p_idx] * dt
+
     # Delegate to Newton's canonical contact model
     f_on_particle, _ = _evaluate_body_particle_contact(
         p_idx,
-        particle_q[p_idx],
-        particle_q_prev[p_idx],
+        p_pos,
+        p_pos_prev,
         tid,
         soft_contact_ke,
         soft_contact_kd,
@@ -280,10 +291,11 @@ class CoupledSolver:
         self.collision_pipeline.collide(state_in, self.contacts)
 
         # 3. Inject contact reaction forces into body_f.
-        #    state_out holds the previous previous substep's body_q (states swap each
+        #    state_out holds the previous substep's body_q (states swap each
         #    substep), used for finite-difference body velocity in friction.
-        #    particle_q_prev = state_in.particle_q (same as particle_q) so
-        #    particle dx=0, consistent with VBD which hasn't iterated yet.
+        #    particle_q_prev is reconstructed from particle_qd inside the
+        #    kernel because VBD mutates particle_q in place, so the swapped
+        #    state's particle_q is not a clean prior-substep snapshot.
         if state_in.body_f is not None:
             self._apply_reactions(state_in, state_out, dt)
 
@@ -313,7 +325,7 @@ class CoupledSolver:
         """Launch the reaction kernel to inject normal + friction forces into body_f.
 
         Args:
-            state: Current state with particle positions and body state.
+            state: Current state with particle positions/velocities and body state.
             state_prev: Previous substep state whose ``body_q`` provides
                 the reference poses for finite-difference body velocity.
             dt: Substep timestep [s].
@@ -321,9 +333,10 @@ class CoupledSolver:
         model = self._model
         contacts = self.contacts
 
-        # particle_q_prev = state.particle_q (same array): dx=0 for particles,
-        # consistent with VBD which snapshots particle_q_prev = particle_q at
-        # the start of its step before any iteration.
+        # The kernel reconstructs particle_q_prev from particle_qd internally:
+        # state_prev.particle_q is unreliable because VBD mutates particle_q
+        # in place during its iteration, so the swapped state's particle_q is
+        # not a clean snapshot of the prior substep.
         wp.launch(
             _kernel_body_particle_reaction,
             dim=_MAX_REACTION_CONTACTS,
@@ -335,7 +348,7 @@ class CoupledSolver:
                 contacts.soft_contact_body_vel,
                 contacts.soft_contact_normal,
                 state.particle_q,
-                state_prev.particle_q,
+                state.particle_qd,
                 model.particle_radius,
                 state.body_q,
                 state_prev.body_q,
