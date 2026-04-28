@@ -328,3 +328,110 @@ class ContactSensor(BaseContactSensor):
                 outputs=[self._data._pos_w, self._data._quat_w],
                 device=self._device,
             )
+
+    """
+    Operations
+    """
+
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        super().reset(None, env_mask)
+
+        wp.launch(
+            reset_contact_sensor_kernel,
+            dim=(self._num_envs, self._num_sensors),
+            inputs=[
+                self._history_length,
+                self._num_filter_shapes,
+                env_mask,
+                self._data._net_forces_w,
+                self._data._net_forces_w_history,
+                self._data._force_matrix_w,
+            ],
+            outputs=[
+                self._data._current_air_time,
+                self._data._last_air_time,
+                self._data._current_contact_time,
+                self._data._last_contact_time,
+                self._data._friction_forces_w,
+                self._data._contact_pos_w,
+            ],
+            device=self._device,
+        )
+
+    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+        """Boolean mask (as float) of bodies that established contact within ``dt`` [s].
+
+        Args:
+            dt: Time window since contact establishment [s].
+            abs_tol: Absolute tolerance for the comparison [s].
+
+        Returns:
+            Boolean tensor (1.0/0.0) of shape ``(num_envs, num_sensors)``.
+
+        Raises:
+            RuntimeError: If :attr:`ContactSensorCfg.track_air_time` is False.
+        """
+        if not self.cfg.track_air_time:
+            raise RuntimeError(
+                "The contact sensor is not configured to track contact time."
+                " Please enable 'track_air_time' in the sensor configuration."
+            )
+        wp.launch(
+            compute_first_transition_kernel,
+            dim=(self._num_envs, self._num_sensors),
+            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            outputs=[self._data._first_transition],
+            device=self._device,
+        )
+        return self._data._first_transition_ta
+
+    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+        """Boolean mask (as float) of bodies that broke contact within ``dt`` [s].
+
+        Args:
+            dt: Time window since contact break [s].
+            abs_tol: Absolute tolerance for the comparison [s].
+
+        Returns:
+            Boolean tensor (1.0/0.0) of shape ``(num_envs, num_sensors)``.
+
+        Raises:
+            RuntimeError: If :attr:`ContactSensorCfg.track_air_time` is False.
+        """
+        if not self.cfg.track_air_time:
+            raise RuntimeError(
+                "The contact sensor is not configured to track air time."
+                " Please enable 'track_air_time' in the sensor configuration."
+            )
+        wp.launch(
+            compute_first_transition_kernel,
+            dim=(self._num_envs, self._num_sensors),
+            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            outputs=[self._data._first_transition],
+            device=self._device,
+        )
+        return self._data._first_transition_ta
+
+    """
+    Internal simulation callbacks.
+    """
+
+    def _invalidate_initialize_callback(self, event) -> None:
+        """Release native handles when the simulation stops."""
+        super()._invalidate_initialize_callback(event)
+        # Drop strong references; ovphysx native handles are torn down on the
+        # next reset() of OvPhysxManager.
+        if self._contact_binding is not None:
+            try:
+                self._contact_binding.destroy()
+            except Exception:
+                pass
+        self._contact_binding = None
+        if self._pose_binding is not None:
+            try:
+                self._pose_binding.destroy()
+            except Exception:
+                pass
+        self._pose_binding = None
+        self._physx_instance = None
