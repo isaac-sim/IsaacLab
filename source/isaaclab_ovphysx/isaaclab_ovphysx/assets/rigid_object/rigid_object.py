@@ -860,6 +860,11 @@ class RigidObject(BaseRigidObject):
         """
         # Ensure the COM-offset buffer is populated.
         self._data._ensure_root_buffers()
+        # Force a fresh read: the caller may have mutated the RIGID_BODY_COM_POSE binding
+        # after the last lazy read (e.g. via set_coms_index), so we cannot rely on the
+        # cached buffer being current.  The frame-conversion result is only correct if it
+        # uses the binding value that is current at write time.
+        self._data._body_com_pose_b_buf.timestamp = -1.0
         self._data._read_transform_binding(TT.RIGID_BODY_COM_POSE, self._data._body_com_pose_b_buf)
         # Convert the user-supplied com_pose_w to a warp transformf array on device.
         N = self._num_instances

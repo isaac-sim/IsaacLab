@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.2.1 (2026-04-27)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a stale-buffer bug in :meth:`~isaaclab_ovphysx.assets.RigidObject._com_pose_to_link_pose`
+  where the ``RIGID_BODY_COM_POSE`` binding was read once by :class:`~isaaclab.utils.wrench_composer.WrenchComposer`
+  during construction (via a ``hasattr`` property probe) and then cached with
+  timestamp equal to the initial ``_sim_time``. Subsequent writes through
+  :meth:`~isaaclab_ovphysx.assets.RigidObject.write_root_com_pose_to_sim_index` used the stale
+  body-frame COM offset, producing an incorrect frame conversion. The buffer is
+  now unconditionally refreshed at write time.
+
+
 0.2.0 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~
 
