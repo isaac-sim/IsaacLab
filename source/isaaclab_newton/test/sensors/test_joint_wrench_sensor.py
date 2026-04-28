@@ -114,7 +114,6 @@ def test_data_before_init_is_none():
     data = JointWrenchSensorData()
     assert data.force is None
     assert data.torque is None
-    assert data.body_names == []
 
 
 # ---------------------------------------------------------------------------
@@ -134,9 +133,9 @@ def test_initialization_and_shapes(sim):
     # revolute_articulation has one joint whose child is "Arm".
     num_envs = 2
     num_joints = 1
-    assert wp.to_torch(sensor.data.force).shape == (num_envs, num_joints, 3)
-    assert wp.to_torch(sensor.data.torque).shape == (num_envs, num_joints, 3)
-    assert sensor.data.body_names == ["Arm"]
+    assert sensor.data.force.torch.shape == (num_envs, num_joints, 3)
+    assert sensor.data.torque.torch.shape == (num_envs, num_joints, 3)
+    assert sensor.body_names == ["Arm"]
 
 
 def test_multi_body_articulation(sim):
@@ -150,10 +149,10 @@ def test_multi_body_articulation(sim):
 
     num_envs = 2
     num_joints = 2
-    assert wp.to_torch(sensor.data.force).shape == (num_envs, num_joints, 3)
-    assert wp.to_torch(sensor.data.torque).shape == (num_envs, num_joints, 3)
-    assert len(sensor.data.body_names) == 2
-    assert "rail" not in [n.lower() for n in sensor.data.body_names]
+    assert sensor.data.force.torch.shape == (num_envs, num_joints, 3)
+    assert sensor.data.torque.torch.shape == (num_envs, num_joints, 3)
+    assert len(sensor.body_names) == 2
+    assert "rail" not in [n.lower() for n in sensor.body_names]
 
 
 # ---------------------------------------------------------------------------
@@ -173,8 +172,8 @@ def test_force_magnitude_matches_weight_at_rest(sim):
         sim.step()
         scene.update(sim.get_physics_dt())
 
-    force = wp.to_torch(sensor.data.force)[0, 0]  # (3,)
-    torque = wp.to_torch(sensor.data.torque)[0, 0]
+    force = sensor.data.force.torch[0, 0]  # (3,)
+    torque = sensor.data.torque.torch[0, 0]
 
     assert torch.isfinite(force).all(), f"Force contains non-finite values: {force}"
     assert torch.isfinite(torque).all(), f"Torque contains non-finite values: {torque}"
@@ -224,7 +223,7 @@ def test_reset_zeros_buffers(sim):
         sim.step()
         scene.update(sim.get_physics_dt())
 
-    assert torch.any(wp.to_torch(sensor.data.force) != 0), "Expected non-zero data before reset"
+    assert torch.any(sensor.data.force.torch != 0), "Expected non-zero data before reset"
 
     sensor.reset()
 
@@ -245,7 +244,7 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim):
         sim.step()
         scene.update(sim.get_physics_dt())
 
-    force_before = wp.to_torch(sensor.data.force).clone()
+    force_before = sensor.data.force.torch.clone()
     assert torch.any(force_before != 0), "Expected non-zero data before reset"
 
     sensor.reset(env_ids=[0, 2])

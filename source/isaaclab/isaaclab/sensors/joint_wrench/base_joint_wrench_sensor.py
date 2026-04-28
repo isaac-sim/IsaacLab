@@ -50,6 +50,12 @@ class BaseJointWrenchSensor(SensorBase):
     def data(self) -> BaseJointWrenchSensorData:
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def body_names(self) -> list[str]:
+        """Ordered names of the bodies whose incoming joint wrench is reported."""
+        raise NotImplementedError
+
     """
     Implementation - Abstract methods to be implemented by backend-specific subclasses.
     """

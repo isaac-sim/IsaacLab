@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
 
@@ -17,13 +17,13 @@ if TYPE_CHECKING:
 
 @configclass
 class JointWrenchSensorCfg(SensorBaseCfg):
-    """Configuration for a joint reaction wrench sensor.
-
-    The sensor always exposes wrenches in the ``INCOMING_JOINT_FRAME``
-    convention: child-side joint frame, child-side joint anchor as reference
-    point. This matches what a real 6-axis F/T sensor mounted at the joint
-    would measure. Backends convert to this convention internally so the
-    public surface is backend-independent.
-    """
+    """Configuration for a joint reaction wrench sensor."""
 
     class_type: type[JointWrenchSensor] | str = "{DIR}.joint_wrench_sensor:JointWrenchSensor"
+
+    convention: Literal["incoming_joint_frame"] = "incoming_joint_frame"
+    """Coordinate convention for the reported wrench. Defaults to ``"incoming_joint_frame"``.
+
+    - ``"incoming_joint_frame"`` — child-side joint frame, child-side joint anchor as reference point.
+      Matches what a real 6-axis F/T sensor mounted at the joint would measure.
+    """

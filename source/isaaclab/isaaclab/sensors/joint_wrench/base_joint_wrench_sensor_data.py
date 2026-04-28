@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import warp as wp
+from isaaclab.utils.warp import ProxyArray
 
 
 class BaseJointWrenchSensorData(ABC):
@@ -17,7 +17,7 @@ class BaseJointWrenchSensorData(ABC):
 
     @property
     @abstractmethod
-    def force(self) -> wp.array | None:
+    def force(self) -> ProxyArray | None:
         """Linear component of the joint reaction wrench [N].
 
         Shape is ``(num_envs, num_joints)``, dtype :class:`wp.vec3f`. In torch
@@ -28,17 +28,11 @@ class BaseJointWrenchSensorData(ABC):
 
     @property
     @abstractmethod
-    def torque(self) -> wp.array | None:
+    def torque(self) -> ProxyArray | None:
         """Angular component of the joint reaction wrench [N·m].
 
         Shape is ``(num_envs, num_joints)``, dtype :class:`wp.vec3f`. In torch
         this resolves to ``(num_envs, num_joints, 3)``. ``None`` before the
         simulation is initialized.
         """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def body_names(self) -> list[str]:
-        """Ordered names of the bodies whose incoming joint wrench is reported."""
         raise NotImplementedError

@@ -8,6 +8,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensorData
+from isaaclab.utils.warp import ProxyArray
 
 
 class JointWrenchSensorData(BaseJointWrenchSensorData):
@@ -17,34 +18,36 @@ class JointWrenchSensorData(BaseJointWrenchSensorData):
         self._force: wp.array | None = None
         self._torque: wp.array | None = None
         self._body_names: list[str] = []
+        self._force_ta: ProxyArray | None = None
+        self._torque_ta: ProxyArray | None = None
 
     @property
-    def force(self) -> wp.array | None:
+    def force(self) -> ProxyArray | None:
         """Linear component of the joint reaction wrench [N].
 
         Shape is ``(num_envs, num_joints)``, dtype :class:`wp.vec3f`. In torch
         this resolves to ``(num_envs, num_joints, 3)``. ``None`` before the
         simulation is initialized.
         """
-        return self._force
+        if self._force is None:
+            return None
+        if self._force_ta is None:
+            self._force_ta = ProxyArray(self._force)
+        return self._force_ta
 
     @property
-    def torque(self) -> wp.array | None:
+    def torque(self) -> ProxyArray | None:
         """Angular component of the joint reaction wrench [N·m].
 
         Shape is ``(num_envs, num_joints)``, dtype :class:`wp.vec3f`. In torch
         this resolves to ``(num_envs, num_joints, 3)``. ``None`` before the
         simulation is initialized.
         """
-        return self._torque
-
-    @property
-    def body_names(self) -> list[str]:
-        """Ordered names of the bodies whose incoming joint wrench is reported.
-
-        Empty before the simulation is initialized.
-        """
-        return self._body_names
+        if self._torque is None:
+            return None
+        if self._torque_ta is None:
+            self._torque_ta = ProxyArray(self._torque)
+        return self._torque_ta
 
     def create_buffers(self, num_envs: int, num_joints: int, device: str) -> None:
         """Allocate internal buffers.
@@ -56,3 +59,5 @@ class JointWrenchSensorData(BaseJointWrenchSensorData):
         """
         self._force = wp.zeros((num_envs, num_joints), dtype=wp.vec3f, device=device)
         self._torque = wp.zeros((num_envs, num_joints), dtype=wp.vec3f, device=device)
+        self._force_ta = None
+        self._torque_ta = None

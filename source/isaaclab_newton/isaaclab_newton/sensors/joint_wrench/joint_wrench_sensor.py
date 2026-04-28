@@ -51,6 +51,9 @@ class JointWrenchSensor(BaseJointWrenchSensor):
     def __init__(self, cfg: JointWrenchSensorCfg):
         """Initialize the Newton joint-wrench sensor.
 
+        Requests the ``body_parent_f`` extended state attribute from :class:`NewtonManager` so the
+        model builder allocates it during simulation startup.
+
         Args:
             cfg: The configuration parameters.
         """
@@ -79,6 +82,11 @@ class JointWrenchSensor(BaseJointWrenchSensor):
     """
     Properties
     """
+
+    @property
+    def body_names(self) -> list[str]:
+        """Ordered names of the bodies whose incoming joint wrench is reported."""
+        return self._data._body_names
 
     @property
     def data(self) -> JointWrenchSensorData:
