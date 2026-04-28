@@ -123,6 +123,9 @@ class RigidObjectData(BaseRigidObjectData):
         # Gravity and forward constants (allocated lazily in _ensure_derived_buffers).
         self.GRAVITY_VEC_W: ProxyArray | None = None
         self.FORWARD_VEC_B: ProxyArray | None = None
+        # Default-state ProxyArray wrappers (created once from _default_root_pose/velocity).
+        self._default_root_pose_ta: ProxyArray | None = None
+        self._default_root_vel_ta: ProxyArray | None = None
 
     # --- counts -------------------------------------------------------
     @property
@@ -435,14 +438,30 @@ class RigidObjectData(BaseRigidObjectData):
             device=self._device,
         )
 
-    # --- abstract property stubs (implemented by subsequent tasks) ----
+    # --- default-state properties ------------------------------------
     @property
     def default_root_pose(self) -> ProxyArray:
-        raise NotImplementedError
+        """Default root pose ``[pos, quat]`` in simulation world frame [m, -].
+        Shape is (num_instances,), dtype = wp.transformf.
+        In torch this resolves to (num_instances, 7).
+
+        Populated from :attr:`RigidObjectCfg.init_state` during initialisation.
+        """
+        if self._default_root_pose_ta is None:
+            self._default_root_pose_ta = ProxyArray(self._default_root_pose)
+        return self._default_root_pose_ta
 
     @property
     def default_root_vel(self) -> ProxyArray:
-        raise NotImplementedError
+        """Default root velocity ``[lin_vel, ang_vel]`` in simulation world frame [m/s, rad/s].
+        Shape is (num_instances,), dtype = wp.spatial_vectorf.
+        In torch this resolves to (num_instances, 6).
+
+        Populated from :attr:`RigidObjectCfg.init_state` during initialisation.
+        """
+        if self._default_root_vel_ta is None:
+            self._default_root_vel_ta = ProxyArray(self._default_root_velocity)
+        return self._default_root_vel_ta
 
     @property
     def default_root_state(self) -> ProxyArray:

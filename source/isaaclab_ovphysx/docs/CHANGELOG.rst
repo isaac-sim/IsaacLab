@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+0.2.2 (2026-04-27)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a shape mismatch in :meth:`~isaaclab_ovphysx.assets.RigidObject._write_root_state`
+  where a full write with more rows than ``num_instances`` produced a ``ValueError`` inside
+  the binding instead of the expected ``RuntimeError``. Added an explicit row-count guard
+  on the full-write path so callers receive a clear ``RuntimeError`` on bad shapes.
+* Fixed :meth:`~isaaclab_ovphysx.assets.RigidObject._write_root_state` for 1-D bindings
+  (e.g. ``RIGID_BODY_MASS``) on the index/mask sub-write paths: the source array is now
+  normalised to 1-D so that boolean-mask scatter in :class:`MockTensorBinding` and the
+  real OVPhysX binding receive a flat buffer rather than a ``(K, 1)`` 2-D array.
+* Fixed :meth:`~isaaclab_ovphysx.assets.RigidObject.write_root_com_pose_to_sim_index` and
+  :meth:`~isaaclab_ovphysx.assets.RigidObject.write_root_com_pose_to_sim_mask` to raise
+  ``RuntimeError`` on full-write calls when the input has more rows than ``num_instances``
+  (previously the extra rows were silently truncated by ``_com_pose_to_link_pose``).
+* Implemented :attr:`~isaaclab_ovphysx.assets.RigidObjectData.default_root_pose` and
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.default_root_vel` properties that were
+  left as ``NotImplementedError`` stubs; they now return the :class:`~isaaclab.utils.ProxyArray`
+  wrappers populated from ``RigidObjectCfg.init_state``.
+
 0.2.1 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~
 

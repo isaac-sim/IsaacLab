@@ -335,6 +335,13 @@ class RigidObject(BaseRigidObject):
                 (len(env_ids),) with dtype ``wp.transformf``.
             env_ids: Environment indices. If None, then all indices are used.
         """
+        N = self._num_instances
+        if env_ids is None and hasattr(root_pose, "shape") and len(root_pose.shape) > 0:
+            if root_pose.shape[0] != N:
+                raise RuntimeError(
+                    f"Shape mismatch: expected {N} rows (num_instances) but data has"
+                    f" {root_pose.shape[0]} rows. Expected data.shape[0] == {N}."
+                )
         link_pose = self._com_pose_to_link_pose(root_pose)
         self._write_root_state(TT.RIGID_BODY_POSE, link_pose, env_ids)
 
@@ -355,6 +362,13 @@ class RigidObject(BaseRigidObject):
                 (num_instances,) with dtype ``wp.transformf``.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
+        N = self._num_instances
+        if hasattr(root_pose, "shape") and len(root_pose.shape) > 0:
+            if root_pose.shape[0] != N:
+                raise RuntimeError(
+                    f"Shape mismatch: expected {N} rows (num_instances) but data has"
+                    f" {root_pose.shape[0]} rows. Expected data.shape[0] == {N}."
+                )
         link_pose = self._com_pose_to_link_pose(root_pose)
         self._write_root_state(TT.RIGID_BODY_POSE, link_pose, mask=env_mask)
 
@@ -792,11 +806,32 @@ class RigidObject(BaseRigidObject):
         is_1d = len(binding.shape) == 1
 
         if env_ids is None and _ids_gpu is None and mask is None:
+            # Full write: data must cover all N instances.
+            data_rows = data.shape[0] if hasattr(data, "shape") and len(data.shape) > 0 else 1
+            if data_rows != N:
+                raise RuntimeError(
+                    f"Shape mismatch: binding has {N} rows (num_instances) but data"
+                    f" has {data_rows} rows. Expected data.shape[0] == {N}."
+                )
             binding.write(self._to_flat_f32(data))
             self._invalidate_root_caches(tensor_type)
             return
 
-        src = self._to_flat_f32(data) if is_1d else self._as_gpu_f32_2d(data, C)
+        if is_1d:
+            # 1-D binding: ensure the source array is 1-D so that the binding's
+            # index/mask scatter operates on a flat buffer.  The caller may pass
+            # data as (K,) or (K, 1); normalise to (K,) here.
+            _src_raw = self._to_flat_f32(data)
+            n_elems = _src_raw.shape[0]
+            src = wp.array(
+                ptr=_src_raw.ptr,
+                shape=(n_elems,),
+                dtype=wp.float32,
+                device=self._device,
+                copy=False,
+            )
+        else:
+            src = self._as_gpu_f32_2d(data, C)
 
         if env_ids is not None or _ids_gpu is not None:
             if _ids_gpu is None:
