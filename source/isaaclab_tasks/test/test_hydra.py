@@ -625,6 +625,22 @@ def test_lazy_preset_selection_requires_installed_module():
         resolve_presets(EnvWithLazyBackendCfg(), {"optional_backend"})
 
 
+def test_lazy_preset_is_hashable_with_kwargs():
+    """Lazy presets remain hashable after defining equality."""
+    lazy_backend = lazy_preset(
+        "test_hydra_optional_backend:OptionalBackendCfg",
+        error_hint="Install the optional backend package.",
+        nested={"values": [1, 2]},
+    )
+    matching_lazy_backend = lazy_preset(
+        "test_hydra_optional_backend:OptionalBackendCfg",
+        error_hint="Install the optional backend package.",
+        nested={"values": [1, 2]},
+    )
+
+    assert len({lazy_backend, matching_lazy_backend}) == 1
+
+
 def test_lazy_preset_path_selection_materializes_module(monkeypatch):
     """Path selection imports and instantiates an available lazy preset."""
 

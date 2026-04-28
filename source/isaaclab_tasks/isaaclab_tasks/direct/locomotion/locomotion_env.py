@@ -79,8 +79,8 @@ class LocomotionEnv(DirectRLEnv):
         self.action_scale = self.cfg.action_scale
         # Resolve the joint gears based on the physics type, since they do not have the same joint ordering.
         if isinstance(self.cfg.joint_gears, dict):
-            physics_type = type(self.cfg.sim.physics).__name__
-            if isinstance(self.cfg.sim.physics, PhysxCfg) or physics_type == "OvPhysxCfg":
+            physics_type_names = {cls.__name__ for cls in type(self.cfg.sim.physics).__mro__}
+            if isinstance(self.cfg.sim.physics, PhysxCfg) or "OvPhysxCfg" in physics_type_names:
                 joint_gears = self.cfg.joint_gears["physx"]
             elif isinstance(self.cfg.sim.physics, NewtonCfg):
                 joint_gears = self.cfg.joint_gears["newton"]

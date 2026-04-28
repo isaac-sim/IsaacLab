@@ -59,6 +59,23 @@ class PresetCfg:
     pass
 
 
+def _make_hashable(value) -> object:
+    """Convert common container values into hashable equivalents."""
+    if isinstance(value, dict):
+        return tuple(sorted(((key, _make_hashable(item)) for key, item in value.items()), key=repr))
+    if isinstance(value, (list, tuple)):
+        return tuple(_make_hashable(item) for item in value)
+    if isinstance(value, set):
+        return tuple(sorted((_make_hashable(item) for item in value), key=repr))
+    try:
+        hash(value)
+    except TypeError:
+        if hasattr(value, "__dict__"):
+            return (type(value), _make_hashable(vars(value)))
+        return repr(value)
+    return value
+
+
 class _LazyPreset:
     """Lazy preset alternative backed by an import path."""
 
@@ -76,6 +93,9 @@ class _LazyPreset:
             and self.error_hint == other.error_hint
             and self.kwargs == other.kwargs
         )
+
+    def __hash__(self) -> int:
+        return hash((self.import_path, self.error_hint, _make_hashable(self.kwargs)))
 
     def load(self, preset_name: str) -> object:
         module_name, _, attr_name = self.import_path.partition(":")
