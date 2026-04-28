@@ -66,6 +66,15 @@ try:
 except ImportError:
     pass
 
+try:
+    from isaaclab_ovphysx.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
+    from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
+    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
+
+    BACKENDS.append("ovphysx")
+except (ImportError, AttributeError):
+    pass
+
 
 def create_physx_rigid_object(
     num_instances: int = 2,
@@ -190,6 +199,57 @@ def create_newton_rigid_object(
     return rigid_object, mock_view
 
 
+def create_ovphysx_rigid_object(
+    num_instances: int = 2,
+    device: str = "cuda:0",
+):
+    """Create a test OvPhysX RigidObject instance with mocked tensor bindings."""
+    body_names = ["base_link"]
+
+    obj = object.__new__(OvPhysxRigidObject)
+
+    obj.cfg = RigidObjectCfg(prim_path="/World/object")
+
+    # Create mock binding set
+    mock_bindings = MockOvPhysxBindingSet(
+        num_instances=num_instances,
+        num_joints=0,
+        num_bodies=1,
+        body_names=body_names,
+        asset_kind="rigid_object",
+    )
+    mock_bindings.set_random_data()
+
+    object.__setattr__(obj, "_device", device)
+    object.__setattr__(obj, "_ovphysx", MagicMock())
+    object.__setattr__(obj, "_bindings", mock_bindings.bindings)
+    object.__setattr__(obj, "_num_instances", num_instances)
+    object.__setattr__(obj, "_num_bodies", 1)
+    object.__setattr__(obj, "_body_names", body_names)
+
+    # Create RigidObjectData
+    data = OvPhysxRigidObjectData(mock_bindings.bindings, device)
+    data._num_instances = num_instances
+    data._num_bodies = 1
+    data._process_cfg(obj.cfg)
+    data._is_primed = True
+    object.__setattr__(obj, "_data", data)
+
+    # Wrench composers
+    mock_inst_wrench = MockWrenchComposer(obj)
+    mock_perm_wrench = MockWrenchComposer(obj)
+    object.__setattr__(obj, "_instantaneous_wrench_composer", mock_inst_wrench)
+    object.__setattr__(obj, "_permanent_wrench_composer", mock_perm_wrench)
+
+    # Prevent __del__ / _clear_callbacks from raising
+    object.__setattr__(obj, "_initialize_handle", None)
+    object.__setattr__(obj, "_invalidate_initialize_handle", None)
+    object.__setattr__(obj, "_prim_deletion_handle", None)
+    object.__setattr__(obj, "_debug_vis_handle", None)
+
+    return obj, mock_bindings
+
+
 def create_mock_rigid_object(
     num_instances: int = 2,
     device: str = "cuda:0",
@@ -210,6 +270,8 @@ def get_rigid_object(
 ):
     if backend == "physx":
         return create_physx_rigid_object(num_instances, device)
+    elif backend == "ovphysx":
+        return create_ovphysx_rigid_object(num_instances, device)
     elif backend == "newton":
         return create_newton_rigid_object(num_instances, device)
     elif backend.lower() == "mock":
