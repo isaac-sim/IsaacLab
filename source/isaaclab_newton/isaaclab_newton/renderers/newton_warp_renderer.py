@@ -25,6 +25,7 @@ from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 if TYPE_CHECKING:
     from isaaclab.physics import BaseSceneDataProvider
     from isaaclab.sensors import SensorBase
+    from isaaclab.sensors.camera.camera_data import CameraData
 
 logger = logging.getLogger(__name__)
 
@@ -116,13 +117,13 @@ class RenderData:
             )
 
     def _from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
-        torch_array = wp.from_torch(tensor)
+        proxy_array = wp.from_torch(tensor)
         if tensor.is_contiguous():
             return wp.array(
-                ptr=torch_array.ptr,
+                ptr=proxy_array.ptr,
                 dtype=dtype,
                 shape=(self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
-                device=torch_array.device,
+                device=proxy_array.device,
                 copy=False,
             )
 
@@ -130,7 +131,7 @@ class RenderData:
         return wp.zeros(
             (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
             dtype=dtype,
-            device=torch_array.device,
+            device=proxy_array.device,
         )
 
     @wp.kernel
@@ -221,15 +222,21 @@ class NewtonWarpRenderer(BaseRenderer):
             depth_image=render_data.outputs.depth_image,
             normal_image=render_data.outputs.normals_image,
             shape_index_image=render_data.outputs.instance_segmentation_image,
+            # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
+            clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
         )
 
-    def write_output(self, render_data: RenderData, output_name: str, output_data: torch.Tensor):
-        """Copy a specific output to the given buffer.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.write_output`."""
-        image_data = render_data.get_output(output_name)
-        if image_data is not None:
-            if image_data.ptr != output_data.data_ptr():
-                wp.copy(wp.from_torch(output_data), image_data)
+    def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
+        """Copy rendered outputs to the camera data buffers.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
+        for output_name in camera_data.output:
+            if output_name == "rgb":
+                continue
+            image_data = render_data.get_output(output_name)
+            if image_data is not None:
+                output_data = camera_data.output[output_name]
+                if image_data.ptr != output_data.data_ptr():
+                    wp.copy(wp.from_torch(output_data), image_data)
 
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.

@@ -28,7 +28,7 @@ def _build_newton_builder_from_mapping(
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     simplify_meshes: bool = True,
-) -> tuple[ModelBuilder, object]:
+) -> tuple[ModelBuilder, object, dict]:
     """Build a Newton model builder from clone mapping inputs.
 
     Args:
@@ -42,7 +42,9 @@ def _build_newton_builder_from_mapping(
         simplify_meshes: Whether to run convex-hull mesh approximation.
 
     Returns:
-        Tuple of the populated Newton model builder and stage metadata returned by ``add_usd``.
+        Tuple of the populated Newton model builder, stage metadata returned
+        by ``add_usd``, and a site index map for
+        :attr:`NewtonManager._cl_site_index_map`.
     """
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
@@ -52,7 +54,7 @@ def _build_newton_builder_from_mapping(
 
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
-    builder = ModelBuilder(up_axis=up_axis)
+    builder = NewtonManager.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(
         stage,
         ignore_paths=["/World/envs"] + sources,
@@ -64,7 +66,7 @@ def _build_newton_builder_from_mapping(
     env0_pos = positions[0]
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
-        p = ModelBuilder(up_axis=up_axis)
+        p = NewtonManager.create_builder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
         p.add_usd(
             stage,
@@ -77,6 +79,16 @@ def _build_newton_builder_from_mapping(
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
         protos[src_path] = p
 
+    # Inject registered sites into prototypes (and global sites into main builder)
+    global_sites, proto_sites = NewtonManager._cl_inject_sites(builder, protos)
+
+    # Global sites: (int, None)
+    global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
+
+    # Local sites: per-world sublists, populated in the loop below
+    num_worlds = mapping.size(1)
+    local_site_map: dict[str, list[list[int]]] = {}
+
     # create a separate world for each environment (heterogeneous spawning)
     # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
     for col, _ in enumerate(env_ids.tolist()):
@@ -85,14 +97,27 @@ def _build_newton_builder_from_mapping(
         # add all active sources for this world
         delta_pos = (positions[col] - env0_pos).tolist()
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
+            proto = protos[sources[row]]
+            offset = builder.shape_count
             builder.add_builder(
-                protos[sources[row]],
+                proto,
                 xform=wp.transform(delta_pos, quaternions[col].tolist()),
             )
+            # Compute final shape indices for sites in this proto
+            for label, proto_shape_indices in proto_sites.get(id(proto), {}).items():
+                if label not in local_site_map:
+                    local_site_map[label] = [[] for _ in range(num_worlds)]
+                for proto_shape_idx in proto_shape_indices:
+                    local_site_map[label][col].append(offset + proto_shape_idx)
         # end the world context
         builder.end_world()
 
-    return builder, stage_info
+    site_index_map = {
+        **global_site_map,
+        **{label: (None, per_world) for label, per_world in local_site_map.items()},
+    }
+
+    return builder, stage_info, site_index_map
 
 
 def _rename_builder_labels(
@@ -155,7 +180,7 @@ def newton_physics_replicate(
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
-    builder, stage_info = _build_newton_builder_from_mapping(
+    builder, stage_info, site_index_map = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
         env_ids=env_ids,
@@ -166,6 +191,7 @@ def newton_physics_replicate(
         simplify_meshes=simplify_meshes,
     )
     _rename_builder_labels(builder, sources, destinations, env_ids, mapping)
+    NewtonManager._cl_site_index_map = site_index_map
     NewtonManager.set_builder(builder)
     NewtonManager._num_envs = mapping.size(1)
     return builder, stage_info
@@ -203,7 +229,7 @@ def newton_visualizer_prebuild(
     Returns:
         Tuple of finalized Newton model and state.
     """
-    builder, _ = _build_newton_builder_from_mapping(
+    builder, _, _site_index_map = _build_newton_builder_from_mapping(
         stage=stage,
         sources=sources,
         env_ids=env_ids,

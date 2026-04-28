@@ -100,13 +100,13 @@ class QuadcopterEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         desired_pos_b, _ = subtract_frame_transforms(
-            wp.to_torch(self._robot.data.root_pos_w), wp.to_torch(self._robot.data.root_quat_w), self._desired_pos_w
+            self._robot.data.root_pos_w.torch, self._robot.data.root_quat_w.torch, self._desired_pos_w
         )
         obs = torch.cat(
             [
-                wp.to_torch(self._robot.data.root_lin_vel_b),
-                wp.to_torch(self._robot.data.root_ang_vel_b),
-                wp.to_torch(self._robot.data.projected_gravity_b),
+                self._robot.data.root_lin_vel_b.torch,
+                self._robot.data.root_ang_vel_b.torch,
+                self._robot.data.projected_gravity_b.torch,
                 desired_pos_b,
             ],
             dim=-1,
@@ -115,9 +115,9 @@ class QuadcopterEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        lin_vel = torch.sum(torch.square(wp.to_torch(self._robot.data.root_lin_vel_b)), dim=1)
-        ang_vel = torch.sum(torch.square(wp.to_torch(self._robot.data.root_ang_vel_b)), dim=1)
-        distance_to_goal = torch.linalg.norm(self._desired_pos_w - wp.to_torch(self._robot.data.root_pos_w), dim=1)
+        lin_vel = torch.sum(torch.square(self._robot.data.root_lin_vel_b.torch), dim=1)
+        ang_vel = torch.sum(torch.square(self._robot.data.root_ang_vel_b.torch), dim=1)
+        distance_to_goal = torch.linalg.norm(self._desired_pos_w - self._robot.data.root_pos_w.torch, dim=1)
         distance_to_goal_mapped = 1 - torch.tanh(distance_to_goal / 0.8)
         rewards = {
             "lin_vel": lin_vel * self.cfg.lin_vel_reward_scale * self.step_dt,
@@ -133,7 +133,7 @@ class QuadcopterEnv(DirectRLEnv):
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         died = torch.logical_or(
-            wp.to_torch(self._robot.data.root_pos_w)[:, 2] < 0.1, wp.to_torch(self._robot.data.root_pos_w)[:, 2] > 2.0
+            self._robot.data.root_pos_w.torch[:, 2] < 0.1, self._robot.data.root_pos_w.torch[:, 2] > 2.0
         )
         return died, time_out
 
@@ -143,7 +143,7 @@ class QuadcopterEnv(DirectRLEnv):
 
         # Logging
         final_distance_to_goal = torch.linalg.norm(
-            self._desired_pos_w[env_ids] - wp.to_torch(self._robot.data.root_pos_w)[env_ids], dim=1
+            self._desired_pos_w[env_ids] - self._robot.data.root_pos_w.torch[env_ids], dim=1
         ).mean()
         extras = dict()
         for key in self._episode_sums.keys():
@@ -170,10 +170,10 @@ class QuadcopterEnv(DirectRLEnv):
         self._desired_pos_w[env_ids, :2] += self._terrain.env_origins[env_ids, :2]
         self._desired_pos_w[env_ids, 2] = torch.zeros_like(self._desired_pos_w[env_ids, 2]).uniform_(0.5, 1.5)
         # Reset robot state
-        joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
-        joint_vel = wp.to_torch(self._robot.data.default_joint_vel)[env_ids]
-        default_root_pose = wp.to_torch(self._robot.data.default_root_pose)[env_ids]
-        default_root_vel = wp.to_torch(self._robot.data.default_root_vel)[env_ids]
+        joint_pos = self._robot.data.default_joint_pos.torch[env_ids]
+        joint_vel = self._robot.data.default_joint_vel.torch[env_ids]
+        default_root_pose = self._robot.data.default_root_pose.torch[env_ids]
+        default_root_vel = self._robot.data.default_root_vel.torch[env_ids]
         default_root_pose[:, :3] += self._terrain.env_origins[env_ids]
         self._robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)

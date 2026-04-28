@@ -37,6 +37,8 @@ from isaaclab_tasks.utils.hydra import (  # noqa: E402
 )
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg  # noqa: E402
 
+pytestmark = pytest.mark.isaacsim_ci
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -51,6 +53,39 @@ _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__
 # If the difference between two pixels is less than this threshold, consider them "equal" (i.e. within the tolerance).
 #
 _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
+
+# The max percentage of pixels allowed to differ. If the percentage exceeds this value, the test will fail.
+# The value is set case by case based on the screen space taken up by the env in camera output images. It
+# needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
+_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
+    "cartpole": 1.0,
+    # Shadow-hand renderings (incl. ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0``) show up to
+    # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 7.0 gives
+    # headroom above that without masking real regressions, which the SSIM gate still catches.
+    "shadow_hand": 7.0,
+    "dexsuite_kuka": 10.0,  # texture anti-aliasing on the ground
+}
+
+# Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
+# robust to uniform per-pixel noise that penalises structural changes (geometry shifts, swapped colours, missing
+# materials, etc.), so it complements the per-pixel L2 gate by catching regressions that survive a loosened pixel
+# threshold.
+_SSIM_THRESHOLD = 0.985
+
+# Per-env SSIM overrides. Envs not listed fall back to ``_SSIM_THRESHOLD``. Loosened individually
+# (not globally) to keep the strict gate active everywhere it already passes.
+_SSIM_THRESHOLD_BY_ENV_NAME = {
+    # Dexsuite renders the observation point cloud markers whose sample positions depend on the
+    # global numpy/torch RNG, so a handful of pixels flip between runs. That translates to SSIM
+    # drops just under 0.982 on the worst variant without any structural regression.
+    "dexsuite_kuka": 0.98,
+}
+
+# Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
+# outputs where the per-pixel value distribution is highly non-uniform after normalisation (e.g. depth, where we
+# divide by the max value so tiny absolute differences near the far plane dominate windowed variance). For these
+# data types we still compute SSIM for reporting, but only the per-pixel L2 gate is used to decide pass/fail.
+_SSIM_DISABLED_DATA_TYPES: set[str] = {"depth", "distance_to_camera", "distance_to_image_plane"}
 
 _OVRTX_DISABLED = pytest.mark.skip(
     reason="OVRTX is optional and experimental feature and temporarily is excluded from testing."
@@ -106,7 +141,8 @@ def _attach_comparison_properties(request):
     for entry in _COMPARISON_SCORES[initial_count:]:
         label = f"{entry['backend']}-{entry['renderer']}-{entry['aov']}"
         request.node.user_properties.append((f"diff_pct:{label}", f"{entry['diff_pct']:.2f}"))
-        request.node.user_properties.append((f"ssim:{label}", f"{entry['ssim']:.4f}"))
+        ssim_value = f"{entry['ssim']:.4f}" if entry.get("ssim_checked", True) else f"{entry['ssim']:.4f} (N/A)"
+        request.node.user_properties.append((f"ssim:{label}", ssim_value))
         request.node.user_properties.append((f"threshold:{label}", f"{entry['threshold']:.1f}"))
         if entry.get("img_result_path"):
             request.node.user_properties.append((f"img_result:{label}", entry["img_result_path"]))
@@ -238,6 +274,26 @@ _PHYSICS_RENDERER_AOV_COMBINATIONS = [
 # ---------------------------------------------------------------------------
 
 
+def _maybe_save_stage(test_name: str, physics_backend: str, renderer: str, data_type: str) -> None:
+    """If ``ISAAC_LAB_SAVE_STAGES`` is set, dump the current USD stage to that directory.
+
+    The file name is ``<test_name>-<physics_backend>-<renderer>-<data_type>.usda`` so each
+    parametrization gets its own stage. The export is a no-op when the environment variable
+    is unset, so this is safe to call unconditionally from fixtures.
+    """
+    out_dir = os.environ.get("ISAAC_LAB_SAVE_STAGES")
+    if not out_dir:
+        return
+
+    import isaaclab.sim as sim_utils
+
+    os.makedirs(out_dir, exist_ok=True)
+    safe_test_name = test_name.replace("/", "_")
+    stage_path = os.path.join(out_dir, f"{safe_test_name}-{physics_backend}-{renderer}-{data_type}.usda")
+    sim_utils.save_stage(stage_path, save_and_reload_in_place=False)
+    print(f"[ISAAC_LAB_SAVE_STAGES] wrote {stage_path}")
+
+
 def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     """Apply override args to env_cfg using parse_overrides and apply_overrides.
 
@@ -323,6 +379,12 @@ def _generate_html_report() -> None:
             actual_img_html = f'<a href="{actual_fname}"><img src="{actual_fname}" width="120" loading="lazy"></a>'
             golden_img_html = f'<a href="{golden_fname}"><img src="{golden_fname}" width="120" loading="lazy"></a>'
 
+        ssim_checked = entry.get("ssim_checked", True)
+        ssim_cell_class = "" if ssim_checked else ' class="ssim-disabled"'
+        entry_ssim_threshold = entry.get("ssim_threshold", _SSIM_THRESHOLD)
+        ssim_threshold_cell = f"{entry_ssim_threshold:.4f}" if ssim_checked else "N/A"
+        ssim_title = "" if ssim_checked else ' title="SSIM gate disabled for this data type; score is informational."'
+
         rows.append(
             f'<tr class="{status_class}">'
             f"<td>{entry['test']}</td>"
@@ -331,7 +393,8 @@ def _generate_html_report() -> None:
             f"<td>{entry['aov']}</td>"
             f"<td>{entry['diff_pct']:.2f}</td>"
             f"<td>{entry['threshold']:.1f}</td>"
-            f"<td>{entry['ssim']:.4f}</td>"
+            f"<td{ssim_cell_class}{ssim_title}>{entry['ssim']:.4f}</td>"
+            f"<td{ssim_cell_class}{ssim_title}>{ssim_threshold_cell}</td>"
             f'<td class="status-{status_class}">{status_text}</td>'
             f"<td>{actual_img_html}</td>"
             f"<td>{golden_img_html}</td>"
@@ -355,6 +418,7 @@ def _generate_html_report() -> None:
         "  tr.pass:hover, tr.fail:hover { filter: brightness(0.96); }\n"
         "  .status-pass { color: #2a7a2a; font-weight: bold; }\n"
         "  .status-fail { color: #cc0000; font-weight: bold; }\n"
+        "  .ssim-disabled { color: #999; font-style: italic; }\n"
         "  img { display: block; max-width: 120px; height: auto; }\n"
         "</style>\n"
         "</head>\n"
@@ -368,8 +432,9 @@ def _generate_html_report() -> None:
         "<th>Renderer</th>"
         "<th>AOV</th>"
         "<th>PixelDiff&nbsp;%</th>"
-        "<th>Threshold&nbsp;%</th>"
+        "<th>PixelDiff Threshold&nbsp;%</th>"
         "<th>SSIM</th>"
+        "<th>SSIM Threshold</th>"
         "<th>Status</th>"
         "<th>ACTUAL</th>"
         "<th>GOLDEN</th>"
@@ -463,13 +528,24 @@ def _compare_images(
     result_image: Image.Image,
     golden_image: Image.Image,
     max_different_pixels_percentage: float,
+    check_ssim: bool = True,
+    ssim_threshold: float = _SSIM_THRESHOLD,
 ) -> tuple[bool, str | None, float, float]:
-    """Compare result and golden images using pixel L2 norm (pass/fail) and SSIM (reference).
+    """Compare result and golden images. Fails if either the per-pixel L2 gate or the SSIM gate is breached.
+
+    Two independent gates must pass:
+
+    * Per-pixel L2 count: catches localised artefacts (e.g. a patch of broken shading, a few recoloured
+      pixels) that leave global SSIM nearly unchanged.
+    * SSIM: catches structural regressions (geometry shifts, large-area colour changes, missing materials)
+      that survive a loose per-pixel threshold. Disabled for data types where SSIM is unreliable
+      (see :data:`_SSIM_DISABLED_DATA_TYPES`); the score is still computed and returned for reporting.
 
     Args:
         result_image: Result image as PIL Image to compare with golden image.
         golden_image: Golden image as PIL Image to compare with result image.
         max_different_pixels_percentage: Maximum percentage of pixels allowed to exceed pixel_diff_threshold.
+        check_ssim: If True, enforce the SSIM gate; if False, compute SSIM for reporting only.
 
     Returns:
         (passed, error_message_or_None, diff_percentage, ssim_score).
@@ -483,7 +559,6 @@ def _compare_images(
 
     diff_pct = _pixel_diff_percentage(result_image, golden_image)
 
-    # SSIM (reference only, not used for pass/fail).
     result_tensor = torch.from_numpy(np.array(result_image, dtype=np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
     golden_tensor = torch.from_numpy(np.array(golden_image, dtype=np.float32) / 255.0).permute(2, 0, 1).unsqueeze(0)
     ssim_score = _ssim(result_tensor, golden_tensor)
@@ -492,7 +567,16 @@ def _compare_images(
         return (
             False,
             f"The percentage of different pixels ({diff_pct:.2f}%) exceeds the threshold of"
-            f" {max_different_pixels_percentage:.2f}%. SSIM={ssim_score:.4f} (reference).",
+            f" {max_different_pixels_percentage:.2f}%. SSIM={ssim_score:.4f}.",
+            diff_pct,
+            ssim_score,
+        )
+
+    if check_ssim and ssim_score < ssim_threshold:
+        return (
+            False,
+            f"SSIM ({ssim_score:.4f}) is below the threshold of {ssim_threshold:.4f}."
+            f" Different pixels: {diff_pct:.2f}%.",
             diff_pct,
             ssim_score,
         )
@@ -521,15 +605,20 @@ def _validate_camera_outputs(
     golden_image_dir = os.path.join(_GOLDEN_IMAGES_DIRECTORY, test_name)
     os.makedirs(golden_image_dir, exist_ok=True)
 
+    # Per-env SSIM threshold (falls back to the global default). Kept in sync with the pixel-diff
+    # pattern so loosening a gate is always a localised, explicit decision.
+    ssim_threshold = _SSIM_THRESHOLD_BY_ENV_NAME.get(test_name, _SSIM_THRESHOLD)
+
+    failed_data_types = {}
+
     for data_type, tensor in camera_outputs.items():
         # Replace inf/nan with zero so they do not break comparison; ensure the tensor has at least one non-zero value.
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
         max_val = corrected.max()
-        assert max_val > 0, (
-            f"[{test_name}] Camera output '{data_type}' has no non-zero pixels. "
-            f"Shape: {corrected.shape}, dtype: {corrected.dtype}."
-        )
+        if max_val <= 0:
+            failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
+            continue
 
         # convert tensors to a tiled image.
         normalized = _normalize_tensor(corrected, data_type)
@@ -543,20 +632,24 @@ def _validate_camera_outputs(
         # first run creates baseline and fails; second run validates.
         golden_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}.png")
         if not os.path.exists(golden_path):
+            failed_data_types[data_type] = f"Golden image not found at {golden_path}."
             result_image.save(golden_path)
-            pytest.fail(
-                f"[{test_name}] Golden image not found at {golden_path}. Saved result image to {golden_path}. "
-                "Please run the test again to validate the consistency of rendering outputs."
-            )
+            continue
 
         try:
             golden_image = Image.open(golden_path)
         except Exception as e:
-            pytest.fail(f"Error opening golden image: {e}")
+            failed_data_types[data_type] = f"Error opening golden image: {e}"
+            continue
 
         # validate the consistency of rendering outputs.
+        check_ssim = data_type not in _SSIM_DISABLED_DATA_TYPES
         succeeded, error_message, diff_pct, ssim_score = _compare_images(
-            result_image, golden_image, max_different_pixels_percentage
+            result_image,
+            golden_image,
+            max_different_pixels_percentage,
+            check_ssim=check_ssim,
+            ssim_threshold=ssim_threshold,
         )
 
         entry = {
@@ -566,7 +659,9 @@ def _validate_camera_outputs(
             "aov": data_type,
             "diff_pct": diff_pct,
             "ssim": ssim_score,
+            "ssim_checked": check_ssim,
             "threshold": max_different_pixels_percentage,
+            "ssim_threshold": ssim_threshold,
             "passed": succeeded,
             "img_result_path": None,
             "img_golden_path": None,
@@ -579,12 +674,16 @@ def _validate_camera_outputs(
 
         _COMPARISON_SCORES.append(entry)
 
-        assert succeeded, (
-            f"[{test_name}] Camera output does not match the golden image "
-            f"(physics={physics_backend}, renderer={renderer}, data_type={data_type}).\n"
-            f"Mismatch details: {error_message}\n"
-            f"Images were written to {_COMPARISON_IMAGES_DIR}."
-        )
+        if not succeeded:
+            failed_data_types[data_type] = error_message
+
+    if failed_data_types:
+        reason = f"{test_name} (physics={physics_backend}, renderer={renderer}) failed for the following data types:\n"
+        for data_type, error_message in failed_data_types.items():
+            reason += f"- {data_type}: {error_message}\n"
+        reason += f"Comparison images were written to {_COMPARISON_IMAGES_DIR}."
+
+        pytest.fail(reason)
 
 
 def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
@@ -636,7 +735,6 @@ def shadow_hand_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
 
     if data_type == "depth":
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
@@ -645,7 +743,7 @@ def shadow_hand_env(request):
     env = None
     try:
         env = ShadowHandVisionEnv(env_cfg)
-        env.reset()
+        _maybe_save_stage("shadow_hand", physics_backend, renderer, data_type)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -655,13 +753,13 @@ def shadow_hand_env(request):
 def test_shadow_hand(shadow_hand_env):
     """Camera output must contain at least one non-zero pixel (Shadow Hand vision env)."""
     physics_backend, renderer, _, env = shadow_hand_env
-
+    test_name = "shadow_hand"
     _validate_camera_outputs(
-        "shadow_hand",
+        test_name,
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=8.0,
+        max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
     )
 
 
@@ -684,12 +782,11 @@ def cartpole_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
 
     env = None
     try:
         env = CartpoleCameraEnv(env_cfg)
-        env.reset()
+        _maybe_save_stage("cartpole", physics_backend, renderer, data_type)
         yield physics_backend, renderer, data_type, env
     finally:
         if env is not None:
@@ -699,13 +796,13 @@ def cartpole_env(request):
 def test_cartpole(cartpole_env):
     """Camera output must contain at least one non-zero pixel (Cartpole camera env)."""
     physics_backend, renderer, _, env = cartpole_env
-
+    test_name = "cartpole"
     _validate_camera_outputs(
-        "cartpole",
+        test_name,
         physics_backend,
         renderer,
         env._tiled_camera.data.output,
-        max_different_pixels_percentage=2.0,
+        max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
     )
 
 
@@ -714,20 +811,23 @@ def test_cartpole(cartpole_env):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(params=_PHYSICS_RENDERER_AOV_COMBINATIONS)
-def dexsuite_kuka_allegro_lift_env(request):
-    """Build Dexsuite Kuka-Allegro Lift (single camera) for backend/renderer/data_type; reset, yield, close."""
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+@pytest.mark.parametrize("test_params", _PHYSICS_RENDERER_AOV_COMBINATIONS)
+def test_dexsuite_kuka_allegro_lift(test_params):
+    """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera).
+
+    The env setup is intentionally inlined (not delegated to a yield fixture) so that
+    ``@pytest.mark.flaky`` reruns the full env-creation + render + validation cycle on
+    each attempt.  With a yield fixture the fixture body runs only once, meaning every
+    retry would see the same cached image — making the flaky mark ineffective.
+    """
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
         DexsuiteKukaAllegroLiftEnvCfg,
     )
 
-    physics_backend, renderer, data_type = request.param
-
-    if renderer == "newton_renderer" and data_type == "rgb":
-        # TODO: re-enable the test case once the issue is resolved.
-        pytest.skip("Newton Warp produces inconsistent RGB colors run-to-run; skipping test.")
+    physics_backend, renderer, data_type = test_params
 
     # Dexsuite data type has explicit resolution suffix (64, 128, 256). We only test 64x64.
     override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
@@ -736,29 +836,31 @@ def dexsuite_kuka_allegro_lift_env(request):
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.seed = 42
 
+    # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
+    # The underlying point sampling uses the global numpy/torch RNG, so marker positions shift
+    # across processes and show up as random red dots in the rendered camera output. Since this
+    # test only cares about rendering correctness of the scene itself, we hide the markers here
+    # rather than making the sampler deterministic globally.
+    point_cloud_term = getattr(env_cfg.observations.perception, "object_point_cloud", None)
+    if point_cloud_term is not None:
+        point_cloud_term.params["visualize"] = False
+
+    test_name = "dexsuite_kuka"
     env = None
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.reset()
-        yield physics_backend, renderer, data_type, env
+        _maybe_save_stage(test_name, physics_backend, renderer, data_type)
+        _validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["base_camera"].data.output,
+            max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+        )
     finally:
         if env is not None:
             env.close()
-
-
-def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
-    """Camera output must contain at least one non-zero pixel (Dexsuite Kuka-Allegro Lift, single camera)."""
-    physics_backend, renderer, _, env = dexsuite_kuka_allegro_lift_env
-
-    _validate_camera_outputs(
-        "dexsuite_kuka",
-        physics_backend,
-        renderer,
-        env.scene.sensors["base_camera"].data.output,
-        max_different_pixels_percentage=10.0,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -766,25 +868,32 @@ def test_dexsuite_kuka_allegro_lift(dexsuite_kuka_allegro_lift_env):
 # ---------------------------------------------------------------------------
 
 # Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank rendering.
+# The max different pixels percentage is set based on the screen space taken up by the env.
 _RENDER_CORRECTNESS_TASK_IDS = [
-    "Isaac-Cartpole-Albedo-Camera-Direct-v0",
-    "Isaac-Cartpole-Camera-Presets-Direct-v0",
-    "Isaac-Cartpole-Depth-Camera-Direct-v0",
-    "Isaac-Cartpole-RGB-Camera-Direct-v0",
-    "Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0",
-    "Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0",
-    "Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0",
-    "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
+    ("Isaac-Cartpole-Albedo-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-Camera-Presets-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-Depth-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-RGB-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-SimpleShading-Constant-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-SimpleShading-Diffuse-Camera-Direct-v0", "cartpole"),
+    ("Isaac-Cartpole-SimpleShading-Full-Camera-Direct-v0", "cartpole"),
+    pytest.param(
+        "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
+        "shadow_hand",
+        # The Shadow-Vision render is right at the SSIM/diff-pixel tolerance and intermittently
+        # exceeds the 3% diff threshold by a fraction of a percent. Allow up to 3 attempts and
+        # require at least one pass while we tighten the validation tolerances for this scene.
+        marks=pytest.mark.flaky(max_runs=3, min_passes=1),
+    ),
 ]
 
 
-@pytest.mark.parametrize("task_id", _RENDER_CORRECTNESS_TASK_IDS)
-def test_registered_tasks(task_id):
+@pytest.mark.parametrize("task_id, env_name", _RENDER_CORRECTNESS_TASK_IDS)
+def test_registered_tasks(task_id, env_name):
     """Camera output must be non-empty for each registered task with camera-based observations."""
     env = None
     try:
         env_cfg = parse_env_cfg(task_id, num_envs=4)
-        env_cfg.seed = 42
 
         env = gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped
@@ -792,7 +901,7 @@ def test_registered_tasks(task_id):
         if sim is not None:
             sim._app_control_on_stop_handle = None
 
-        env.reset()
+        _maybe_save_stage(f"registered_tasks_{task_id}", "default_physics", "default_renderer", "stage")
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)
@@ -805,7 +914,7 @@ def test_registered_tasks(task_id):
             "default_physics",
             "default_renderer",
             camera_outputs,
-            max_different_pixels_percentage=5.0,
+            max_different_pixels_percentage=_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name],
         )
     finally:
         if env is not None:

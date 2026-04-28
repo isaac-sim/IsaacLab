@@ -29,16 +29,29 @@ except OSError:
 from newton import Axis, CollisionPipeline, Contacts, Control, Model, ModelBuilder, State, eval_fk
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
-from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
+from newton.sensors import SensorFrameTransform
+from newton.sensors import SensorIMU as NewtonSensorIMU
+from newton.solvers import SolverBase, SolverFeatherstone, SolverKamino, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils import checked_apply
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
+
+from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
+    from .newton_collision_cfg import NewtonCollisionPipelineCfg
+
 logger = logging.getLogger(__name__)
+
+# Tagged union for entries in _cl_site_index_map.
+# _GlobalSite: (global_shape_idx, None)           — body_pattern was None
+# _LocalSite:  (None, [[env0_idx, ...], ...])     — per-world site indices
 
 
 @wp.kernel(enable_backward=False)
@@ -57,6 +70,34 @@ def _set_fabric_transforms(
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
     fabric_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
+
+
+@wp.kernel(enable_backward=False)
+def _or_reset_masks_from_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    articulation_ids: wp.array2d(dtype=int),
+    world_mask: wp.array(dtype=wp.int32),
+    fk_mask: wp.array(dtype=wp.bool),
+):
+    """OR env_mask into world_mask and set corresponding articulation bits in fk_mask."""
+    world, arti = wp.tid()
+    if env_mask[world]:
+        world_mask[world] = wp.int32(1)
+        fk_mask[articulation_ids[world, arti]] = True
+
+
+@wp.kernel(enable_backward=False)
+def _scatter_reset_masks_from_ids(
+    env_ids: wp.array(dtype=int),
+    articulation_ids: wp.array2d(dtype=int),
+    world_mask: wp.array(dtype=wp.int32),
+    fk_mask: wp.array(dtype=wp.bool),
+):
+    """Scatter-set world_mask and fk_mask from sparse env_ids."""
+    i, arti = wp.tid()
+    world = env_ids[i]
+    world_mask[world] = wp.int32(1)
+    fk_mask[articulation_ids[world, arti]] = True
 
 
 class NewtonManager(PhysicsManager):
@@ -91,8 +132,16 @@ class NewtonManager(PhysicsManager):
     _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
     _collision_pipeline = None
+    _collision_cfg: NewtonCollisionPipelineCfg | None = None
     _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
+    _newton_frame_transform_sensors: list = []  # List of SensorFrameTransform
+    _newton_imu_sensors: list = []  # List of NewtonSensorIMU
+    _pending_extended_state_attributes: set[str] = set()
+    _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
+    # Per-world reset masks (allocated in start_simulation, consumed in step)
+    _world_reset_mask: wp.array | None = None  # (num_envs,) wp.int32 — for SolverKamino.reset(world_mask=...)
+    _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
 
     # CUDA graphing
     _graph = None
@@ -115,6 +164,19 @@ class NewtonManager(PhysicsManager):
 
     # Views list for assets to register their views
     _views: list = []
+
+    # CL: Cloning / Replication logic
+    # TODO: These attributes support cloning-specific logic and should be moved into a cloner class
+    # Pending site requests from sensors.
+    # Key: (body_pattern, xform_floats), Value: (label, wp.transform)
+    # identical (body_pattern, transform) reuses the same site.
+    _cl_pending_sites: dict[tuple[str | None, tuple[float, ...]], tuple[str, wp.transform]] = {}
+
+    # Maps each site label to its resolved global or local site entry.
+    _GlobalSite = tuple[int, None]
+    _LocalSite = tuple[None, list[list[int]]]
+    _SiteEntry = _GlobalSite | _LocalSite
+    _cl_site_index_map: dict[str, _SiteEntry] = {}
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -156,13 +218,38 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def forward(cls) -> None:
-        """Update articulation kinematics without stepping physics."""
+        """Update articulation kinematics without stepping physics.
+
+        Runs Newton's generic forward kinematics (``eval_fk``) over **all**
+        articulations to compute body poses from joint coordinates. This is
+        the full (unmasked) FK path used during initial setup. For incremental
+        per-environment updates after resets, see :meth:`invalidate_fk` which
+        accumulates masks consumed by :meth:`step`.
+        """
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
 
     @classmethod
     def pre_render(cls) -> None:
         """Flush deferred Fabric writes before cameras/visualizers read the scene."""
         cls.sync_transforms_to_usd()
+
+    @classmethod
+    def _forward_kamino(cls, world_mask: wp.array | None = None) -> None:
+        """Kamino-specific forward kinematics via ``solver.reset()``.
+
+        Kamino's ``joint_q`` / ``joint_u`` include coordinates for **all** joints
+        (including free joints), so we pass Newton's full state arrays directly.
+
+        Args:
+            world_mask: Per-world mask indicating which worlds to reset.
+                Shape ``(num_worlds,)``, dtype ``wp.int32``. If None, resets all worlds.
+        """
+        cls._solver.reset(
+            state_out=cls._state_0,
+            joint_q=cls._state_0.joint_q,
+            joint_u=cls._state_0.joint_qd,
+            world_mask=world_mask,
+        )
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
@@ -278,6 +365,14 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
+        # Kamino: run solver.reset() with the accumulated world mask to reinitialise
+        # internal state (warm-start containers, constraint multipliers) for reset worlds.
+        # Note: runs every step. solver.reset() with an all-False world_mask is a no-op
+        # (kernels check mask per-world and skip). The cost of a no-op launch is negligible
+        # compared to the complexity of maintaining a separate boolean guard.
+        if isinstance(cls._solver, SolverKamino):
+            cls._forward_kamino(world_mask=cls._world_reset_mask)
+
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
@@ -294,9 +389,26 @@ class NewtonManager(PhysicsManager):
             cls._graph_capture_pending = False
             cls._graph = cls._capture_relaxed_graph(device)
             if cls._graph is not None:
+                # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
+                # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
+                # first step() inside graph capture. Replay once to pin those
+                # memory-pool addresses before any eager solver.reset() call.
+                if isinstance(cls._solver, SolverKamino):
+                    wp.capture_launch(cls._graph)
                 logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
             else:
                 logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
+
+        # Ensure body_q is up-to-date before collision detection.
+        # After env resets, joint_q is written but body_q (used by
+        # broadphase/narrowphase) is stale until FK runs.
+        # Only runs FK for dirtied articulations via the accumulated mask.
+        if cls._needs_collision_pipeline:
+            eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, cls._fk_reset_mask)
+
+        # Zero both masks after consumption
+        cls._world_reset_mask.zero_()
+        cls._fk_reset_mask.zero_()
 
         # Step simulation (graphed or not; _graph is None when capture is disabled or failed)
         if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device:  # type: ignore[union-attr]
@@ -307,8 +419,8 @@ class NewtonManager(PhysicsManager):
             with wp.ScopedDevice(device):
                 cls._simulate()
 
-        # Debug convergence info
-        if cfg is not None and cfg.debug_mode:  # type: ignore[union-attr]
+        # Debug convergence info (MuJoCo-specific; Kamino uses its own metrics API)
+        if cfg is not None and cfg.debug_mode and isinstance(cls._solver, SolverMuJoCo):  # type: ignore[union-attr]
             convergence_data = cls.get_solver_convergence_steps()
             logger.info(f"Solver convergence data: {convergence_data}")
             if convergence_data["max"] == cls._solver.mjw_model.opt.iterations:
@@ -356,8 +468,14 @@ class NewtonManager(PhysicsManager):
         cls._contacts = None
         cls._needs_collision_pipeline = False
         cls._collision_pipeline = None
+        cls._collision_cfg = None
         cls._newton_contact_sensors = {}
+        cls._newton_frame_transform_sensors = []
+        cls._newton_imu_sensors = []
         cls._report_contacts = False
+        # Per-world reset masks
+        cls._world_reset_mask = None
+        cls._fk_reset_mask = None
         cls._graph = None
         cls._graph_capture_pending = False
         cls._newton_stage_path = None
@@ -365,6 +483,10 @@ class NewtonManager(PhysicsManager):
         cls._transforms_dirty = False
         cls._up_axis = "Z"
         cls._model_changes = set()
+        cls._cl_pending_sites = {}
+        cls._cl_site_index_map = {}
+        cls._pending_extended_state_attributes = set()
+        cls._pending_extended_contact_attributes = set()
         cls._views = []
 
     @classmethod
@@ -373,9 +495,241 @@ class NewtonManager(PhysicsManager):
         cls._builder = builder
 
     @classmethod
+    def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:
+        """Create a :class:`ModelBuilder` configured with default settings.
+
+        Forwards :class:`NewtonShapeCfg` defaults onto Newton's upstream
+        ``ModelBuilder.default_shape_cfg`` via :func:`~isaaclab.utils.checked_apply`.
+        Falls back to wrapper defaults when no Newton config is active so
+        rough-terrain margin/gap still apply during early construction.
+
+        Args:
+            up_axis: Override for the up-axis. Defaults to ``None``, which uses
+                the manager's ``_up_axis``.
+            **kwargs: Forwarded to :class:`ModelBuilder`.
+
+        Returns:
+            New builder with up-axis and per-shape defaults (gap, margin) applied.
+        """
+        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
+        # Resolve which NewtonShapeCfg to apply: user override if active config
+        # is NewtonCfg, else the wrapper's own defaults so callers from non-Newton
+        # contexts (tests, early construction) still get the rough-terrain margin.
+        cfg = PhysicsManager._cfg
+        shape_cfg = cfg.default_shape_cfg if isinstance(cfg, NewtonCfg) else NewtonShapeCfg()
+        checked_apply(shape_cfg, builder.default_shape_cfg)
+        return builder
+
+    @classmethod
+    def cl_register_site(cls, body_pattern: str | None, xform: wp.transform) -> str:
+        """Register a site request for injection into prototypes before replication.
+
+        Sensors call this during ``__init__``. Sites are injected into prototype
+        builders by :meth:`_cl_inject_sites` (called from ``newton_replicate``)
+        before ``add_builder``, so they replicate correctly per-world.
+
+        Identical ``(body_pattern, transform)`` registrations share sites.
+
+        The *body_pattern* is matched against prototype-local body labels
+        (e.g. ``"Robot/link.*"``) when replication is active, or against the
+        flat builder's body labels in the fallback path. Wildcard patterns
+        that match multiple bodies create one site per matched body.
+
+        Args:
+            body_pattern: Regex pattern matched against body labels in the
+                prototype builder (e.g. ``"Robot/link0"`` or ``"Robot/finger.*"``
+                for multi-body wildcards), or ``None`` for global sites
+                (world-origin reference, etc.).
+            xform: Site transform relative to body.
+
+        Returns:
+            Assigned site label suffix.
+        """
+        xform_key = tuple(xform)
+        key = (body_pattern, xform_key)
+        if key in cls._cl_pending_sites:
+            return cls._cl_pending_sites[key][0]
+        label = f"ft_{len(cls._cl_pending_sites)}"
+        cls._cl_pending_sites[key] = (label, xform)
+        return label
+
+    @classmethod
+    def request_extended_state_attribute(cls, attr: str) -> None:
+        """Request an extended state attribute (e.g. ``"body_qdd"``).
+
+        Sensors call this during ``__init__``, before model finalization.
+        Attributes are forwarded to the builder in :meth:`start_simulation`
+        so that subsequent ``model.state()`` calls allocate them.
+
+        Args:
+            attr: State attribute name (must be in ``State.EXTENDED_ATTRIBUTES``).
+        """
+        cls._pending_extended_state_attributes.add(attr)
+
+    @classmethod
+    def request_extended_contact_attribute(cls, attr: str) -> None:
+        """Request an extended contact attribute (e.g. ``"force"``).
+
+        Sensors call this during ``__init__``, before model finalization.
+        Attributes are forwarded to the model in :meth:`start_simulation`
+        so that subsequent ``Contacts`` creation includes them.
+
+        Args:
+            attr: Contact attribute name.
+        """
+        cls._pending_extended_contact_attributes.add(attr)
+
+    @classmethod
+    def _cl_inject_sites(
+        cls,
+        main_builder: ModelBuilder,
+        proto_builders: dict[str, ModelBuilder],
+    ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]]]:
+        """Inject registered sites into prototype builders before replication.
+
+        Non-global sites are matched against prototype body labels using
+        :func:`resolve_matching_names` (regex). Global sites
+        (``body_pattern is None``) are added to *main_builder* with
+        ``body=-1``.
+
+        Returns proto-local shape indices so that ``newton_replicate`` can
+        compute final indices during replication without a second pattern match.
+
+        Pending requests are cleared after processing.
+
+        Args:
+            main_builder: Top-level builder that receives global sites.
+            proto_builders: ``{src_path: ModelBuilder}`` prototype builders.
+
+        Returns:
+            Tuple of ``(global_sites, proto_sites)`` where *global_sites* maps
+            ``{label: main_builder_shape_idx}`` and *proto_sites* maps
+            ``{id(proto): {label: [proto_local_shape_idx, ...]}}``.
+        """
+        global_sites: dict[str, int] = {}
+        proto_sites: dict[int, dict[str, list[int]]] = {}
+
+        for (body_pattern, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+            if body_pattern is None:
+                site_idx = main_builder.add_site(body=-1, xform=xform, label=label)
+                global_sites[label] = site_idx
+                continue
+
+            any_matched = False
+            for src_prefix, proto in proto_builders.items():
+                body_labels = list(proto.body_label)
+                matched_indices, matched_names = resolve_matching_names(
+                    body_pattern, body_labels, raise_when_no_match=False
+                )
+                if not matched_indices:  # Pattern has no matches in this prototype
+                    continue
+
+                any_matched = True
+                proto_id = id(proto)
+                site_indices: list[int] = []
+                for body_idx, body_name in zip(matched_indices, matched_names):
+                    site_label = f"{body_name}/{label}"
+                    proto_site_idx = proto.add_site(body=body_idx, xform=xform, label=site_label)
+                    site_indices.append(proto_site_idx)
+                    logger.debug(f"Injected site '{site_label}' into prototype")
+                proto_sites.setdefault(proto_id, {})[label] = site_indices
+
+            if not any_matched:
+                raise ValueError(
+                    f"Site '{label}' with body_pattern '{body_pattern}' matched no prototype bodies "
+                    f"across {len(proto_builders)} prototype(s). "
+                    f"Check that the pattern matches a body label in the prototype builder."
+                )
+
+        cls._cl_pending_sites.clear()
+        return global_sites, proto_sites
+
+    @classmethod
+    def _cl_inject_sites_fallback(cls) -> None:
+        """Inject pending sites into the flat builder (no-replication path).
+
+        Populates :attr:`_cl_site_index_map` with the unified per-world structure:
+
+        - Global sites (``body_pattern is None``): ``(shape_idx, None)``
+        - Local sites: ``(None, [[idx, ...]])`` — one sublist for the single world.
+        """
+        builder = cls._builder
+        body_labels = list(builder.body_label)
+
+        for (body_pattern, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+            if body_pattern is None:
+                site_idx = builder.add_site(body=-1, xform=xform, label=label)
+                cls._cl_site_index_map[label] = (site_idx, None)
+            else:
+                try:
+                    matched_indices, matched_names = resolve_matching_names(body_pattern, body_labels)
+                except ValueError as e:
+                    raise ValueError(
+                        f"Site '{label}' with body_pattern '{body_pattern}' matched no bodies "
+                        f"in the flat builder. Available body labels: {body_labels}."
+                    ) from e
+
+                site_indices: list[int] = []
+                for body_idx in matched_indices:
+                    site_label = f"{builder.body_label[body_idx]}/{label}"
+                    site_idx = builder.add_site(body=body_idx, xform=xform, label=site_label)
+                    site_indices.append(site_idx)
+
+                # Single world (no replication): one-element outer list
+                cls._cl_site_index_map[label] = (None, [site_indices])
+
+        cls._cl_pending_sites.clear()
+
+    @classmethod
     def add_model_change(cls, change: SolverNotifyFlags) -> None:
         """Register a model change to notify the solver."""
         cls._model_changes.add(change)
+
+    @classmethod
+    def invalidate_fk(
+        cls,
+        env_mask: wp.array | None = None,
+        env_ids: wp.array | None = None,
+        articulation_ids: wp.array | None = None,
+    ) -> None:
+        """Mark environments as needing FK recomputation and solver reset.
+
+        Called by asset write methods that modify joint coordinates or root
+        transforms. The masks are consumed in :meth:`step` before physics
+        stepping.
+
+        Args:
+            env_mask: Boolean mask of dirtied environments. Shape ``(num_envs,)``.
+                Used by ``_mask`` write methods.
+            env_ids: Integer indices of dirtied environments.
+                Used by ``_index`` write methods.
+            articulation_ids: Mapping from ``(world, arti)`` to model articulation
+                index. Shape ``(world_count, count_per_world)``. Obtained from
+                ``ArticulationView.articulation_ids``.
+        """
+        if cls._world_reset_mask is None or cls._fk_reset_mask is None:
+            return
+
+        if articulation_ids is not None and env_mask is not None:
+            wp.launch(
+                _or_reset_masks_from_mask,
+                dim=articulation_ids.shape,
+                inputs=[env_mask, articulation_ids],
+                outputs=[cls._world_reset_mask, cls._fk_reset_mask],
+                device=PhysicsManager._device,
+            )
+        elif articulation_ids is not None and env_ids is not None:
+            wp.launch(
+                _scatter_reset_masks_from_ids,
+                dim=(env_ids.shape[0], articulation_ids.shape[1]),
+                inputs=[env_ids, articulation_ids],
+                outputs=[cls._world_reset_mask, cls._fk_reset_mask],
+                device=PhysicsManager._device,
+            )
+        else:
+            # Fallback: no topology info — mark everything dirty
+            cls._world_reset_mask.fill_(1)
+            cls._fk_reset_mask.fill_(True)
 
     @classmethod
     def start_simulation(cls) -> None:
@@ -394,19 +748,35 @@ class NewtonManager(PhysicsManager):
         logger.info("Dispatching MODEL_INIT callbacks")
         cls.dispatch_event(PhysicsEvent.MODEL_INIT)
 
+        # Inject any pending site requests (no-replication fallback path).
+        # In the replication path, _cl_inject_sites() already ran from newton_replicate.
+        cls._cl_inject_sites_fallback()
+
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
-        # Set smaller contact margin for manipulation examples (default 10cm is too large)
+        # Forward pending extended attribute requests to builder and clear them
+        if cls._pending_extended_state_attributes:
+            cls._builder.request_state_attributes(*cls._pending_extended_state_attributes)
+            cls._pending_extended_state_attributes = set()
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:"):
             cls._model = cls._builder.finalize(device=device)
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
+            replace_newton_shape_colors(cls._model)
+
+        if cls._pending_extended_contact_attributes:
+            cls._model.request_contact_attributes(*cls._pending_extended_contact_attributes)
+            cls._pending_extended_contact_attributes = set()
         cls._state_0 = cls._model.state()
         cls._state_1 = cls._model.state()
         cls._control = cls._model.control()
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
+
+        # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset)
+        cls._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.int32, device=device)
+        cls._fk_reset_mask = wp.zeros(cls._model.articulation_count, dtype=wp.bool, device=device)
 
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -481,10 +851,18 @@ class NewtonManager(PhysicsManager):
                 schema_resolvers=schema_resolvers,
             )
 
+            # Inject registered sites into the proto before replication
+            global_sites, proto_sites = cls._cl_inject_sites(builder, {proto_path: proto})
+            global_site_map: dict[str, tuple[int, None]] = {label: (idx, None) for label, idx in global_sites.items()}
+            num_worlds = len(env_paths)
+            local_site_map: dict[str, list[list[int]]] = {}
+            site_entries = proto_sites.get(id(proto), {})
+
             # Add each env as a separate Newton world
             xform_cache = UsdGeom.XformCache()
-            for _, env_path in env_paths:
+            for col, (_, env_path) in enumerate(env_paths):
                 builder.begin_world()
+                offset = builder.shape_count
                 world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
                 translation = world_xform.ExtractTranslation()
                 rotation = world_xform.ExtractRotationQuat()
@@ -496,8 +874,17 @@ class NewtonManager(PhysicsManager):
                     rotation.GetReal(),
                 )
                 builder.add_builder(proto, xform=wp.transform(pos, quat))
+                for label, proto_shape_indices in site_entries.items():
+                    if label not in local_site_map:
+                        local_site_map[label] = [[] for _ in range(num_worlds)]
+                    for proto_shape_idx in proto_shape_indices:
+                        local_site_map[label][col].append(offset + proto_shape_idx)
                 builder.end_world()
 
+            cls._cl_site_index_map = {
+                **global_site_map,
+                **{label: (None, per_world) for label, per_world in local_site_map.items()},
+            }
             cls._num_envs = len(env_paths)
 
         cls.set_builder(builder)
@@ -512,7 +899,11 @@ class NewtonManager(PhysicsManager):
         if cls._needs_collision_pipeline:
             # Newton collision pipeline: create pipeline and generate contacts
             if cls._collision_pipeline is None:
-                cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+                if cls._collision_cfg is not None:
+                    cls._collision_pipeline = CollisionPipeline(cls._model, **cls._collision_cfg.to_pipeline_args())
+                else:
+                    cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
 
@@ -569,22 +960,30 @@ class NewtonManager(PhysicsManager):
             elif cls._solver_type == "featherstone":
                 cls._use_single_state = False
                 cls._solver = SolverFeatherstone(cls._model, **cfg_dict)
+            elif cls._solver_type == "kamino":
+                cls._use_single_state = False
+                cls._solver = SolverKamino(cls._model, solver_cfg.to_solver_config())
             else:
                 raise ValueError(f"Invalid solver type: {cls._solver_type}")
+
+            # Store collision pipeline config
+            cls._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
 
             # Determine if we need external collision detection
             # - SolverMuJoCo with use_mujoco_contacts=True: uses internal MuJoCo collision detection
             # - SolverMuJoCo with use_mujoco_contacts=False: needs Newton's unified collision pipeline
+            # - SolverKamino with use_collision_detector=True: uses internal Kamino collision detection
+            # - SolverKamino with use_collision_detector=False: needs Newton's unified collision pipeline
             # - Other solvers (XPBD, Featherstone): always need Newton's unified collision pipeline
             if isinstance(cls._solver, SolverMuJoCo):
-                # Handle both dict and object configs
-                if hasattr(solver_cfg, "use_mujoco_contacts"):
-                    use_mujoco_contacts = solver_cfg.use_mujoco_contacts
-                elif isinstance(solver_cfg, dict):
-                    use_mujoco_contacts = solver_cfg.get("use_mujoco_contacts", False)
-                else:
-                    use_mujoco_contacts = getattr(solver_cfg, "use_mujoco_contacts", False)
-                cls._needs_collision_pipeline = not use_mujoco_contacts
+                cls._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
+                if solver_cfg.use_mujoco_contacts and cls._collision_cfg is not None:
+                    raise ValueError(
+                        "NewtonManager: collision_cfg cannot be set when use_mujoco_contacts=True."
+                        " Either set use_mujoco_contacts=False or remove collision_cfg."
+                    )
+            elif isinstance(cls._solver, SolverKamino):
+                cls._needs_collision_pipeline = not solver_cfg.use_collision_detector
             else:
                 cls._needs_collision_pipeline = True
 
@@ -617,6 +1016,13 @@ class NewtonManager(PhysicsManager):
                         cls._simulate()
                     cls._graph = capture.graph
                     logger.info("Newton CUDA graph captured (standard Warp mode)")
+
+                    # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
+                    # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
+                    # first step() inside graph capture. Replay once to pin those
+                    # memory-pool addresses before any eager solver.reset() call.
+                    if isinstance(cls._solver, SolverKamino):
+                        wp.capture_launch(cls._graph)
                 else:
                     # RTX is active during initialization — cudaImportExternalMemory and other
                     # non-capturable RTX ops run on background CUDA streams right now.
@@ -663,7 +1069,7 @@ class NewtonManager(PhysicsManager):
         - Call ``wp.capture_end(stream=fresh_stream)`` to finalise the Warp-level capture.
         - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
 
-        Warmup run pre-allocates all MuJoCo-Warp scratch buffers so no ``cudaMalloc`` occurs during
+        Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
         capture.  ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is
         excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
@@ -673,7 +1079,7 @@ class NewtonManager(PhysicsManager):
             logger.warning("libcudart not available; cannot use relaxed graph capture")
             return None
 
-        # Warmup: pre-allocate all MuJoCo-Warp scratch buffers so the capture window has
+        # Warmup: pre-allocate all solver scratch buffers so the capture window has
         # no new cudaMalloc calls (which are forbidden inside graph capture).
         with wp.ScopedDevice(device):
             cls._simulate_physics_only()
@@ -783,6 +1189,17 @@ class NewtonManager(PhysicsManager):
                     cls._state_0, cls._state_1 = cls._state_1, cls._state_0
                 cls._state_0.clear_forces()
 
+        # Update frame transform sensors
+        if cls._newton_frame_transform_sensors:
+            for sensor in cls._newton_frame_transform_sensors:
+                sensor.update(cls._state_0)
+
+        # Update IMU sensors
+        if cls._newton_imu_sensors:
+            for sensor in cls._newton_imu_sensors:
+                sensor.update(cls._state_0)
+
+        # Populate contacts for contact sensors
         if cls._report_contacts:
             eval_contacts = contacts if contacts is not None else cls._contacts
             cls._solver.update_contacts(eval_contacts, cls._state_0)
@@ -931,3 +1348,52 @@ class NewtonManager(PhysicsManager):
             cls._initialize_contacts()
 
         return sensor_key
+
+    @classmethod
+    def add_frame_transform_sensor(cls, shapes: list[int], reference_sites: list[int]) -> int:
+        """Add a frame transform sensor for measuring relative transforms.
+
+        Creates a :class:`SensorFrameTransform` from pre-resolved shape and reference
+        site indices, appends it to the internal list, and returns its index.
+
+        Args:
+            shapes: Ordered list of shape indices to measure.
+            reference_sites: 1:1 list of reference site indices (same length as shapes).
+
+        Returns:
+            Index of the newly created sensor in :attr:`_newton_frame_transform_sensors`.
+        """
+        sensor = SensorFrameTransform(
+            cls._model,
+            shapes=shapes,
+            reference_sites=reference_sites,
+        )
+        idx = len(cls._newton_frame_transform_sensors)
+        cls._newton_frame_transform_sensors.append(sensor)
+        logger.info(f"Added frame transform sensor (index={idx}, shapes={len(shapes)})")
+        return idx
+
+    @classmethod
+    def add_imu_sensor(cls, sites: list[int]) -> int:
+        """Add an IMU sensor for measuring acceleration and angular velocity at sites.
+
+        Creates a ``newton.sensors.SensorIMU`` from pre-resolved site indices,
+        appends it to the internal list, and returns its index.
+
+        Args:
+            sites: Ordered list of site indices (one per environment).
+
+        Returns:
+            Index of the newly created sensor in the internal IMU sensor list.
+        """
+        if cls._model is None:
+            raise RuntimeError("add_imu_sensor called before model finalization (start_simulation).")
+        sensor = NewtonSensorIMU(
+            cls._model,
+            sites=sites,
+            request_state_attributes=False,  # Already requested via NewtonManager
+        )
+        idx = len(cls._newton_imu_sensors)
+        cls._newton_imu_sensors.append(sensor)
+        logger.info(f"Added IMU sensor (index={idx}, sites={len(sites)})")
+        return idx

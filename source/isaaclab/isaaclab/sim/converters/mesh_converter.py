@@ -9,7 +9,7 @@ import os
 
 import omni
 import omni.kit.commands
-from isaacsim.core.utils.extensions import enable_extension
+from isaacsim.core.experimental.utils.app import enable_extension
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase

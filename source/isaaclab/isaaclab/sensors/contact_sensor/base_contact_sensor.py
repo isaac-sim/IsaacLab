@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 
 import isaaclab.utils.string as string_utils
+from isaaclab.utils.warp import ProxyArray
 
 from ..sensor_base import SensorBase
 from .base_contact_sensor_data import BaseContactSensorData
@@ -136,7 +137,7 @@ class BaseContactSensor(SensorBase):
         return string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
 
     @abstractmethod
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
+    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have established contact within the last :attr:`dt` seconds
@@ -164,7 +165,7 @@ class BaseContactSensor(SensorBase):
         raise NotImplementedError(f"Compute first contact is not implemented for {self.__class__.__name__}.")
 
     @abstractmethod
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
+    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have broken contact within the last :attr:`dt` seconds

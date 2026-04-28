@@ -143,40 +143,23 @@ class RigidObject(BaseRigidObject):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to the simulation
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._instantaneous_wrench_composer.composed_force,
-                        self._instantaneous_wrench_composer.composed_torque,
-                        self._data._sim_bind_body_external_wrench,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
-                # Apply permanent wrench to the simulation
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._permanent_wrench_composer.composed_force,
-                        self._permanent_wrench_composer.composed_torque,
-                        self._data._sim_bind_body_external_wrench,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._permanent_wrench_composer
+            composer.compose_to_body_frame()
+            wp.launch(
+                shared_kernels.update_wrench_array_with_force_and_torque,
+                dim=(self.num_instances, self.num_bodies),
+                device=self.device,
+                inputs=[
+                    composer.out_force_b,
+                    composer.out_torque_b,
+                    self._data._sim_bind_body_external_wrench,
+                    self._ALL_ENV_MASK,
+                    self._ALL_BODY_MASK,
+                ],
+            )
         self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float) -> None:
@@ -326,6 +309,9 @@ class RigidObject(BaseRigidObject):
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
                 or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -350,6 +336,7 @@ class RigidObject(BaseRigidObject):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -372,6 +359,9 @@ class RigidObject(BaseRigidObject):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -396,6 +386,7 @@ class RigidObject(BaseRigidObject):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -419,6 +410,9 @@ class RigidObject(BaseRigidObject):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
                 or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -450,6 +444,7 @@ class RigidObject(BaseRigidObject):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -473,6 +468,9 @@ class RigidObject(BaseRigidObject):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -501,6 +499,7 @@ class RigidObject(BaseRigidObject):
             self.data._root_link_state_w.timestamp = -1.0
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -527,6 +526,9 @@ class RigidObject(BaseRigidObject):
                 Shape is (len(env_ids), 6) or (num_instances, 6),
                 or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -552,6 +554,7 @@ class RigidObject(BaseRigidObject):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -577,6 +580,9 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -601,6 +607,7 @@ class RigidObject(BaseRigidObject):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -627,6 +634,9 @@ class RigidObject(BaseRigidObject):
                 Shape is (len(env_ids), 6) or (num_instances, 6),
                 or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -659,6 +669,7 @@ class RigidObject(BaseRigidObject):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -684,6 +695,9 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
@@ -714,6 +728,7 @@ class RigidObject(BaseRigidObject):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
 
     """
     Operations - Setters.

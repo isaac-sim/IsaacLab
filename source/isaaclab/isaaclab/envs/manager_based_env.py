@@ -21,11 +21,13 @@ from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
 
 from .common import VecEnvObs
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .ui import ViewportCameraController
 from .utils.io_descriptors import export_articulations_data, export_scene_data
+from .utils.video_recorder import VideoRecorder
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -151,6 +153,14 @@ class ManagerBasedEnv:
         # counter for simulation steps
         self._sim_step_counter = 0
 
+        # -- controls camera/Kit rendering in step().
+        # When False, the Kit app loop (app.update()) and camera/RTX sensor updates are
+        # skipped, but standalone visualizers (Newton, Rerun, Viser) continue to update.
+        # This is because Kit bundles camera rendering with its app loop and the two
+        # cannot be separated.  Non-Kit visualizers have independent step() methods
+        # that do not trigger camera or GUI updates, so they remain active.
+        self.render_enabled: bool = True
+
         # allocate dictionary to store metrics
         self.extras = {}
 
@@ -165,10 +175,10 @@ class ManagerBasedEnv:
         # viewport is not available in other rendering modes so the function will throw a warning
         # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
         # non-rendering modes.
-        # Initialize when GUI is available OR when visualizers are active (headless rendering)
-        # Visualizers support camera updates via sim.set_camera_view() which forwards to all active visualizers
-        has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
-        if self.sim.has_gui or has_visualizers:
+        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
+        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
+        has_visualizers = self.sim.has_active_visualizers()
+        if (self.sim.has_gui or has_visualizers) and has_kit():
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -181,6 +191,16 @@ class ManagerBasedEnv:
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
+
+        # Instantiate the video recorder before sim.reset() so that any fallback TiledCamera
+        # (used for state-based envs without an observation camera) is spawned into the USD
+        # stage and registered for the PHYSICS_READY callback before physics initialises.
+        # env_render_mode and camera_position/camera_target are forwarded by subclasses (e.g. ManagerBasedRLEnv)
+        # into cfg.video_recorder before calling super().__init__().
+        if self.cfg.video_recorder is not None:
+            self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
+        else:
+            self.video_recorder = None
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -482,6 +502,17 @@ class ManagerBasedEnv:
         simulation steps per environment step) and the :attr:`ManagerBasedEnvCfg.sim.dt` (physics time-step).
         Based on these parameters, the environment time-step is computed as the product of the two.
 
+        Rendering can be controlled per-step via :attr:`render_enabled`.
+
+        When ``render_enabled`` is False:
+
+        - The Kit app loop (``app.update()``) is **skipped**, which also disables
+          camera/RTX sensor rendering and GUI viewport updates.  Kit bundles these
+          operations together, so they cannot be separated.
+        - Standalone visualizers (Newton, Rerun, Viser) **continue to update**
+          normally because their ``step()`` methods are independent of the Kit
+          app loop.
+
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
@@ -506,11 +537,11 @@ class ManagerBasedEnv:
             self.scene.write_data_to_sim()
             # simulate
             self.sim.step(render=False)
-            # render between steps only if the GUI or an RTX sensor needs it
-            # note: we assume the render interval to be the shortest accepted rendering interval.
-            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+            # render between steps only if the GUI or an RTX sensor needs it.
+            # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
+            # but standalone visualizers (Newton, Rerun, Viser) still update.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render()
+                self.sim.render(skip_app_pumping=not self.render_enabled)
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 

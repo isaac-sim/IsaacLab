@@ -76,6 +76,14 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
 
+        # Forward render_mode and viewer camera to VideoRecorderCfg before super().__init__()
+        # creates the VideoRecorder, so fallback cameras are only spawned when --video is active
+        # (env_render_mode="rgb_array") and the perspective view matches the task viewport.
+        if cfg.video_recorder is not None:
+            cfg.video_recorder.env_render_mode = render_mode
+            cfg.video_recorder.camera_position = tuple(float(x) for x in cfg.viewer.eye)
+            cfg.video_recorder.camera_target = tuple(float(x) for x in cfg.viewer.lookat)
+
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)
         # store the render mode
@@ -163,6 +171,18 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         6. Compute the observations.
         7. Return the observations, rewards, resets and extras.
 
+        Rendering can be controlled per-step via :attr:`render_enabled`.
+
+        When ``render_enabled`` is False:
+
+        - The Kit app loop (``app.update()``) is **skipped**, which also disables
+          camera/RTX sensor rendering and GUI viewport updates.  Kit bundles these
+          operations together, so they cannot be separated.
+        - Standalone visualizers (Newton, Rerun, Viser) **continue to update**
+          normally because their ``step()`` methods are independent of the Kit
+          app loop.
+        - Post-reset re-renders for RTX sensors are also skipped.
+
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
@@ -188,11 +208,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # simulate
             self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
-            # render between steps only if the GUI or an RTX sensor needs it
-            # note: we assume the render interval to be the shortest accepted rendering interval.
-            #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
+            # render between steps only if the GUI or an RTX sensor needs it.
+            # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
+            # but standalone visualizers (Newton, Rerun, Viser) still update.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render()
+                self.sim.render(skip_app_pumping=not self.render_enabled)
             # update buffers at sim dt
             self.scene.update(dt=self.physics_dt)
 
@@ -221,7 +241,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self._reset_idx(reset_env_ids)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 
@@ -270,35 +290,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if self.render_mode == "human" or self.render_mode is None:
             return None
         elif self.render_mode == "rgb_array":
-            # check that if any render could have happened
-            # Check for GUI, offscreen rendering, or visualizers
-            has_visualizers = bool(self.sim.get_setting("/isaaclab/visualizer"))
-            if not (self.sim.has_gui or self.sim.has_offscreen_render or has_visualizers):
-                raise RuntimeError(
-                    f"Cannot render '{self.render_mode}' - no GUI and offscreen rendering not enabled."
-                    " If running headless, make sure --enable_cameras is set."
-                )
-            # create the annotator if it does not exist
-            if not hasattr(self, "_rgb_annotator"):
-                import omni.replicator.core as rep
-
-                # create render product
-                self._render_product = rep.create.render_product(
-                    self.cfg.viewer.cam_prim_path, self.cfg.viewer.resolution
-                )
-                # create rgb annotator -- used to read data from the render product
-                self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
-                self._rgb_annotator.attach([self._render_product])
-            # obtain the rgb data
-            rgb_data = self._rgb_annotator.get_data()
-            # convert to numpy array
-            rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
-            # return the rgb data
-            # note: initially the renerer is warming up and returns empty data
-            if rgb_data.size == 0:
-                return np.zeros((self.cfg.viewer.resolution[1], self.cfg.viewer.resolution[0], 3), dtype=np.uint8)
-            else:
-                return rgb_data[:, :, :3]
+            if self.video_recorder is None:
+                return None
+            return self.video_recorder.render_rgb_array()
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."

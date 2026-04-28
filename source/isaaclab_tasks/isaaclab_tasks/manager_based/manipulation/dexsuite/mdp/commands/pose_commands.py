@@ -12,7 +12,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import CommandTerm
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
@@ -108,13 +107,13 @@ class ObjectUniformPoseCommand(CommandTerm):
     def _update_metrics(self):
         # transform command from base frame to simulation world frame
         self.pose_command_w[:, :3], self.pose_command_w[:, 3:] = combine_frame_transforms(
-            wp.to_torch(self.robot.data.root_pos_w),
-            wp.to_torch(self.robot.data.root_quat_w),
+            self.robot.data.root_pos_w.torch,
+            self.robot.data.root_quat_w.torch,
             self.pose_command_b[:, :3],
             self.pose_command_b[:, 3:],
         )
         # compute the error
-        object_root_pose_w = wp.to_torch(self.object.data.root_link_pose_w)
+        object_root_pose_w = self.object.data.root_link_pose_w.torch
         pos_error, rot_error = compute_pose_error(
             self.pose_command_w[:, :3],
             self.pose_command_w[:, 3:],
@@ -129,7 +128,7 @@ class ObjectUniformPoseCommand(CommandTerm):
             success_id &= self.metrics["orientation_error"] < 0.5
         if self.success_vis_asset is not None:
             self.success_visualizer.visualize(
-                wp.to_torch(self.success_vis_asset.data.root_pos_w), marker_indices=success_id.int()
+                self.success_vis_asset.data.root_pos_w.torch, marker_indices=success_id.int()
             )
 
     def _resample_command(self, env_ids: Sequence[int]):
@@ -176,11 +175,11 @@ class ObjectUniformPoseCommand(CommandTerm):
             # -- goal pose
             self.goal_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
             # -- current object pose
-            obj_pos = wp.to_torch(self.object.data.root_pos_w)
-            obj_quat = wp.to_torch(self.object.data.root_quat_w)
+            obj_pos = self.object.data.root_pos_w.torch
+            obj_quat = self.object.data.root_quat_w.torch
             self.curr_visualizer.visualize(obj_pos, obj_quat)
         else:
-            obj_pos = wp.to_torch(self.object.data.root_pos_w)
+            obj_pos = self.object.data.root_pos_w.torch
             distance = torch.linalg.norm(self.pose_command_w[:, :3] - obj_pos, dim=1)
             success_id = (distance < 0.05).int()
             # note: since marker indices for position is 1(far) and 2(near), we can simply shift the success_id by 1.

@@ -11,6 +11,7 @@ import math
 import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensorData
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.sensors.kernels import concat_pos_and_quat_to_pose_kernel
 
@@ -21,11 +22,13 @@ class ContactSensorData(BaseContactSensorData):
     """Data container for the PhysX contact reporting sensor."""
 
     @property
-    def pose_w(self) -> wp.array | None:
+    def pose_w(self) -> ProxyArray | None:
         """Pose of the sensor origin in world frame.
 
         None if :attr:`ContactSensorCfg.track_pose` is False.
         """
+        if self._pose_w is None:
+            return None
         wp.launch(
             concat_pos_and_quat_to_pose_kernel,
             dim=(self._num_envs, self._num_sensors),
@@ -33,10 +36,12 @@ class ContactSensorData(BaseContactSensorData):
             outputs=[self._pose_w],
             device=self._device,
         )
-        return self._pose_w
+        if self._pose_w_ta is None:
+            self._pose_w_ta = ProxyArray(self._pose_w)
+        return self._pose_w_ta
 
     @property
-    def pos_w(self) -> wp.array | None:
+    def pos_w(self) -> ProxyArray | None:
         """Position of the sensor origin in world frame.
 
         Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
@@ -44,10 +49,14 @@ class ContactSensorData(BaseContactSensorData):
 
         None if :attr:`ContactSensorCfg.track_pose` is False.
         """
-        return self._pos_w
+        if self._pos_w is None:
+            return None
+        if self._pos_w_ta is None:
+            self._pos_w_ta = ProxyArray(self._pos_w)
+        return self._pos_w_ta
 
     @property
-    def quat_w(self) -> wp.array | None:
+    def quat_w(self) -> ProxyArray | None:
         """Orientation of the sensor origin in world frame.
 
         Shape is (num_instances, num_sensors), dtype = wp.quatf. In torch this resolves to
@@ -55,28 +64,40 @@ class ContactSensorData(BaseContactSensorData):
 
         None if :attr:`ContactSensorCfg.track_pose` is False.
         """
-        return self._quat_w
+        if self._quat_w is None:
+            return None
+        if self._quat_w_ta is None:
+            self._quat_w_ta = ProxyArray(self._quat_w)
+        return self._quat_w_ta
 
     @property
-    def net_forces_w(self) -> wp.array | None:
+    def net_forces_w(self) -> ProxyArray | None:
         """The net normal contact forces in world frame.
 
         Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
         (num_instances, num_sensors, 3).
         """
-        return self._net_forces_w
+        if self._net_forces_w is None:
+            return None
+        if self._net_forces_w_ta is None:
+            self._net_forces_w_ta = ProxyArray(self._net_forces_w)
+        return self._net_forces_w_ta
 
     @property
-    def net_forces_w_history(self) -> wp.array | None:
+    def net_forces_w_history(self) -> ProxyArray | None:
         """History of net normal contact forces.
 
         Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
         (num_instances, history_length, num_sensors, 3).
         """
-        return self._net_forces_w_history
+        if self._net_forces_w_history is None:
+            return None
+        if self._net_forces_w_history_ta is None:
+            self._net_forces_w_history_ta = ProxyArray(self._net_forces_w_history)
+        return self._net_forces_w_history_ta
 
     @property
-    def force_matrix_w(self) -> wp.array | None:
+    def force_matrix_w(self) -> ProxyArray | None:
         """Normal contact forces filtered between sensor and filtered bodies.
 
         Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
@@ -84,10 +105,14 @@ class ContactSensorData(BaseContactSensorData):
 
         None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
         """
-        return self._force_matrix_w
+        if self._force_matrix_w is None:
+            return None
+        if self._force_matrix_w_ta is None:
+            self._force_matrix_w_ta = ProxyArray(self._force_matrix_w)
+        return self._force_matrix_w_ta
 
     @property
-    def force_matrix_w_history(self) -> wp.array | None:
+    def force_matrix_w_history(self) -> ProxyArray | None:
         """History of filtered contact forces.
 
         Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
@@ -95,10 +120,14 @@ class ContactSensorData(BaseContactSensorData):
 
         None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty.
         """
-        return self._force_matrix_w_history
+        if self._force_matrix_w_history is None:
+            return None
+        if self._force_matrix_w_history_ta is None:
+            self._force_matrix_w_history_ta = ProxyArray(self._force_matrix_w_history)
+        return self._force_matrix_w_history_ta
 
     @property
-    def contact_pos_w(self) -> wp.array | None:
+    def contact_pos_w(self) -> ProxyArray | None:
         """Average position of contact points.
 
         Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
@@ -106,10 +135,14 @@ class ContactSensorData(BaseContactSensorData):
 
         None if :attr:`ContactSensorCfg.track_contact_points` is False.
         """
-        return self._contact_pos_w
+        if self._contact_pos_w is None:
+            return None
+        if self._contact_pos_w_ta is None:
+            self._contact_pos_w_ta = ProxyArray(self._contact_pos_w)
+        return self._contact_pos_w_ta
 
     @property
-    def friction_forces_w(self) -> wp.array | None:
+    def friction_forces_w(self) -> ProxyArray | None:
         """Sum of friction forces.
 
         Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
@@ -117,47 +150,67 @@ class ContactSensorData(BaseContactSensorData):
 
         None if :attr:`ContactSensorCfg.track_friction_forces` is False.
         """
-        return self._friction_forces_w
+        if self._friction_forces_w is None:
+            return None
+        if self._friction_forces_w_ta is None:
+            self._friction_forces_w_ta = ProxyArray(self._friction_forces_w)
+        return self._friction_forces_w_ta
 
     @property
-    def last_air_time(self) -> wp.array | None:
+    def last_air_time(self) -> ProxyArray | None:
         """Time spent in air before last contact.
 
         Shape is (num_instances, num_sensors), dtype = wp.float32.
 
         None if :attr:`ContactSensorCfg.track_air_time` is False.
         """
-        return self._last_air_time
+        if self._last_air_time is None:
+            return None
+        if self._last_air_time_ta is None:
+            self._last_air_time_ta = ProxyArray(self._last_air_time)
+        return self._last_air_time_ta
 
     @property
-    def current_air_time(self) -> wp.array | None:
+    def current_air_time(self) -> ProxyArray | None:
         """Time spent in air since last detach.
 
         Shape is (num_instances, num_sensors), dtype = wp.float32.
 
         None if :attr:`ContactSensorCfg.track_air_time` is False.
         """
-        return self._current_air_time
+        if self._current_air_time is None:
+            return None
+        if self._current_air_time_ta is None:
+            self._current_air_time_ta = ProxyArray(self._current_air_time)
+        return self._current_air_time_ta
 
     @property
-    def last_contact_time(self) -> wp.array | None:
+    def last_contact_time(self) -> ProxyArray | None:
         """Time spent in contact before last detach.
 
         Shape is (num_instances, num_sensors), dtype = wp.float32.
 
         None if :attr:`ContactSensorCfg.track_air_time` is False.
         """
-        return self._last_contact_time
+        if self._last_contact_time is None:
+            return None
+        if self._last_contact_time_ta is None:
+            self._last_contact_time_ta = ProxyArray(self._last_contact_time)
+        return self._last_contact_time_ta
 
     @property
-    def current_contact_time(self) -> wp.array | None:
+    def current_contact_time(self) -> ProxyArray | None:
         """Time spent in contact since last contact.
 
         Shape is (num_instances, num_sensors), dtype = wp.float32.
 
         None if :attr:`ContactSensorCfg.track_air_time` is False.
         """
-        return self._current_contact_time
+        if self._current_contact_time is None:
+            return None
+        if self._current_contact_time_ta is None:
+            self._current_contact_time_ta = ProxyArray(self._current_contact_time)
+        return self._current_contact_time_ta
 
     def create_buffers(
         self,
@@ -221,12 +274,14 @@ class ContactSensorData(BaseContactSensorData):
             self._last_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._current_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._first_transition = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._first_transition_ta = ProxyArray(self._first_transition)
         else:
             self._last_air_time = None
             self._current_air_time = None
             self._last_contact_time = None
             self._current_contact_time = None
             self._first_transition = None
+            self._first_transition_ta = None
 
         # Track contact points if requested - filled with NaN
         if track_contact_points:
@@ -246,3 +301,18 @@ class ContactSensorData(BaseContactSensorData):
             )
         else:
             self._friction_forces_w = None
+
+        # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
+        self._pose_w_ta: ProxyArray | None = None
+        self._pos_w_ta: ProxyArray | None = None
+        self._quat_w_ta: ProxyArray | None = None
+        self._net_forces_w_ta: ProxyArray | None = None
+        self._net_forces_w_history_ta: ProxyArray | None = None
+        self._force_matrix_w_ta: ProxyArray | None = None
+        self._force_matrix_w_history_ta: ProxyArray | None = None
+        self._contact_pos_w_ta: ProxyArray | None = None
+        self._friction_forces_w_ta: ProxyArray | None = None
+        self._last_air_time_ta: ProxyArray | None = None
+        self._current_air_time_ta: ProxyArray | None = None
+        self._last_contact_time_ta: ProxyArray | None = None
+        self._current_contact_time_ta: ProxyArray | None = None

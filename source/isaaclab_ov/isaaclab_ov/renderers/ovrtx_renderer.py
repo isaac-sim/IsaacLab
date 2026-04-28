@@ -37,7 +37,13 @@ import warp as wp
 # By setting OVRTX_SKIP_USD_CHECK, we prevent the C library from loading the pxr Python package.
 os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
+import ovrtx
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
+from packaging.version import Version
+
+# In previous versions of ovrtx, there was a bug where we would have to set read_gpu_transforms to False.
+# In later versions, we can read transforms from GPU.
+_OVRTX_READ_GPU_TRANSFORMS = Version(ovrtx.__version__) > Version("0.2.0")
 
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
@@ -46,8 +52,8 @@ from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     DEVICE,
     create_camera_transforms_kernel,
-    extract_depth_tile_from_tiled_buffer_kernel,
-    extract_tile_from_tiled_buffer_kernel,
+    extract_all_depth_tiles_kernel,
+    extract_all_rgba_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
@@ -59,6 +65,7 @@ from .ovrtx_usd import (
 
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
+    from isaaclab.sensors.camera.camera_data import CameraData
 
 
 class OVRTXRenderData:
@@ -170,7 +177,7 @@ class OVRTXRenderer(BaseRenderer):
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
             log_level=self.cfg.log_level,
-            read_gpu_transforms=False,
+            read_gpu_transforms=_OVRTX_READ_GPU_TRANSFORMS,
         )
         self._renderer = Renderer(OVRTX_CONFIG)
         assert self._renderer, "Renderer should be valid after creation"
@@ -387,18 +394,21 @@ class OVRTXRenderer(BaseRenderer):
                 wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.copy(wp_transforms_view, camera_transforms)
 
-    def write_output(
+    def read_output(
         self,
         render_data: OVRTXRenderData,
-        output_name: str,
-        output_data: torch.Tensor,
+        camera_data: CameraData,
     ) -> None:
-        """Copy from render_data warp buffer to output tensor."""
-        if output_name not in render_data.warp_buffers:
-            return
-        src = render_data.warp_buffers[output_name]
-        if src.ptr != output_data.data_ptr():
-            wp.copy(dest=wp.from_torch(output_data), src=src)
+        """Copy from render_data warp buffers to camera data output tensors."""
+        for output_name in camera_data.output:
+            if output_name == "rgb":
+                continue
+            src = render_data.warp_buffers.get(output_name)
+            if src is None:
+                continue
+            output_data = camera_data.output[output_name]
+            if src.ptr != output_data.data_ptr():
+                wp.copy(dest=wp.from_torch(output_data), src=src)
 
     def _generate_random_colors_from_ids(self, input_ids: wp.array) -> wp.array:
         """Generate pseudo-random colors from semantic IDs."""
@@ -424,46 +434,38 @@ class OVRTXRenderer(BaseRenderer):
         buffer_key: str,
         suffix: str = "",
     ) -> None:
-        """Extract per-env RGBA tiles from tiled buffer into output_buffers."""
-        for env_idx in range(render_data.num_envs):
-            tile_x = env_idx % render_data.num_cols
-            tile_y = env_idx // render_data.num_cols
-            wp.launch(
-                kernel=extract_tile_from_tiled_buffer_kernel,
-                dim=(render_data.height, render_data.width),
-                inputs=[
-                    tiled_data,
-                    output_buffers[buffer_key][env_idx],
-                    tile_x,
-                    tile_y,
-                    render_data.width,
-                    render_data.height,
-                ],
-                device=DEVICE,
-            )
+        """Extract per-env RGBA tiles from tiled buffer into output_buffers (single kernel launch)."""
+        wp.launch(
+            kernel=extract_all_rgba_tiles_kernel,
+            dim=(render_data.num_envs, render_data.height, render_data.width),
+            inputs=[
+                tiled_data,
+                output_buffers[buffer_key],
+                render_data.num_cols,
+                render_data.width,
+                render_data.height,
+            ],
+            device=DEVICE,
+        )
 
     def _extract_depth_tiles(
         self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
     ) -> None:
-        """Extract per-env depth tiles into output_buffers."""
-        for env_idx in range(render_data.num_envs):
-            tile_x = env_idx % render_data.num_cols
-            tile_y = env_idx // render_data.num_cols
-            for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
-                if depth_type in output_buffers:
-                    wp.launch(
-                        kernel=extract_depth_tile_from_tiled_buffer_kernel,
-                        dim=(render_data.height, render_data.width),
-                        inputs=[
-                            tiled_depth_data,
-                            output_buffers[depth_type][env_idx],
-                            tile_x,
-                            tile_y,
-                            render_data.width,
-                            render_data.height,
-                        ],
-                        device=DEVICE,
-                    )
+        """Extract per-env depth tiles into output_buffers (single kernel launch)."""
+        for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
+            if depth_type in output_buffers:
+                wp.launch(
+                    kernel=extract_all_depth_tiles_kernel,
+                    dim=(render_data.num_envs, render_data.height, render_data.width),
+                    inputs=[
+                        tiled_depth_data,
+                        output_buffers[depth_type],
+                        render_data.num_cols,
+                        render_data.width,
+                        render_data.height,
+                    ],
+                    device=DEVICE,
+                )
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""

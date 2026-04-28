@@ -12,16 +12,15 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import math
 import os
 import tempfile
 import warnings
 import xml.etree.ElementTree as ET
 
-import numpy as np
 import pytest
 
 import omni.kit.app
-from isaacsim.core.prims import Articulation
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -110,43 +109,62 @@ def test_create_prim_from_usd(sim_config):
 
 @pytest.mark.isaacsim_ci
 def test_config_drive_type(sim_config):
-    """Change the drive mechanism of the robot to be position."""
+    """Verify that ``target_type='position'`` plus uniform PD gains are written into every joint's DriveAPI.
+
+    Reads the converter's USD output directly via :class:`pxr.UsdPhysics.DriveAPI` so the assertion does
+    not depend on a running PhysX simulation. Revolute joints are checked in N·m/deg (the USD storage
+    convention) and prismatic joints in N/m.
+    """
     sim, config = sim_config
-    # Create directory to dump results
     test_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(test_dir, "output", "urdf_converter")
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
 
-    # change the config
+    stiffness = 42.0
+    damping = 4.2
+
     config.force_usd_conversion = True
     config.joint_drive.target_type = "position"
-    config.joint_drive.gains.stiffness = 42.0
-    config.joint_drive.gains.damping = 4.2
+    config.joint_drive.gains.stiffness = stiffness
+    config.joint_drive.gains.damping = damping
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
-    # check the drive type of the robot
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
 
-    # access the robot
-    robot = Articulation(prim_path, reset_xform_properties=False)
-    # play the simulator and initialize the robot
-    sim.reset()
-    robot.initialize()
+    from pxr import Usd, UsdPhysics
 
-    # check drive values for the robot (read from physx)
-    drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_allclose(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
-    np.testing.assert_allclose(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
+    stage = Usd.Stage.Open(urdf_converter.usd_path)
 
-    # check drive values for the robot (read from usd)
-    # Note: Disable the app control callback to prevent hanging during sim.stop()
-    sim._disable_app_control_on_stop_handle = True
-    sim.stop()
-    drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_allclose(drive_stiffness.cpu().numpy(), config.joint_drive.gains.stiffness)
-    np.testing.assert_allclose(drive_damping.cpu().numpy(), config.joint_drive.gains.damping)
+    revolute_count = 0
+    prismatic_count = 0
+    for prim in stage.Traverse():
+        is_revolute = prim.IsA(UsdPhysics.RevoluteJoint)
+        is_prismatic = prim.IsA(UsdPhysics.PrismaticJoint)
+        if not (is_revolute or is_prismatic):
+            continue
+        instance_name = "angular" if is_revolute else "linear"
+        drive = UsdPhysics.DriveAPI.Get(prim, instance_name)
+        actual_stiffness = drive.GetStiffnessAttr().Get()
+        actual_damping = drive.GetDampingAttr().Get()
+
+        if is_revolute:
+            expected_stiffness = stiffness * math.pi / 180.0
+            expected_damping = damping * math.pi / 180.0
+            revolute_count += 1
+        else:
+            expected_stiffness = stiffness
+            expected_damping = damping
+            prismatic_count += 1
+
+        assert abs(actual_stiffness - expected_stiffness) < 1e-4, (
+            f"Joint {prim.GetName()}: expected stiffness {expected_stiffness}, got {actual_stiffness}"
+        )
+        assert abs(actual_damping - expected_damping) < 1e-4, (
+            f"Joint {prim.GetName()}: expected damping {expected_damping}, got {actual_damping}"
+        )
+
+    # Franka Panda has 7 revolute arm joints and 2 prismatic finger joints.
+    assert revolute_count == 7, f"Expected 7 revolute joints, got {revolute_count}"
+    assert prismatic_count == 2, f"Expected 2 prismatic joints, got {prismatic_count}"
 
 
 @pytest.mark.isaacsim_ci
@@ -405,7 +423,7 @@ def test_drive_type_acceleration(sim_config):
 
 @pytest.mark.isaacsim_ci
 def test_target_type_none_zeros_gains(sim_config):
-    """Verify that target_type='none' sets stiffness and damping to 0."""
+    """Verify that ``target_type='none'`` zeros the DriveAPI stiffness and damping on every joint."""
     sim, config = sim_config
     test_dir = os.path.dirname(os.path.abspath(__file__))
     output_dir = os.path.join(test_dir, "output", "urdf_target_none")
@@ -416,15 +434,27 @@ def test_target_type_none_zeros_gains(sim_config):
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
 
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
-    robot = Articulation(prim_path, reset_xform_properties=False)
-    sim.reset()
-    robot.initialize()
+    from pxr import Usd, UsdPhysics
 
-    drive_stiffness, drive_damping = robot.get_gains()
-    np.testing.assert_allclose(drive_stiffness.cpu().numpy(), 0.0, atol=1e-6)
-    np.testing.assert_allclose(drive_damping.cpu().numpy(), 0.0, atol=1e-6)
+    stage = Usd.Stage.Open(urdf_converter.usd_path)
+
+    joint_count = 0
+    for prim in stage.Traverse():
+        is_revolute = prim.IsA(UsdPhysics.RevoluteJoint)
+        is_prismatic = prim.IsA(UsdPhysics.PrismaticJoint)
+        if not (is_revolute or is_prismatic):
+            continue
+        instance_name = "angular" if is_revolute else "linear"
+        drive = UsdPhysics.DriveAPI.Get(prim, instance_name)
+        assert abs(drive.GetStiffnessAttr().Get()) < 1e-6, (
+            f"Joint {prim.GetName()}: expected zero stiffness, got {drive.GetStiffnessAttr().Get()}"
+        )
+        assert abs(drive.GetDampingAttr().Get()) < 1e-6, (
+            f"Joint {prim.GetName()}: expected zero damping, got {drive.GetDampingAttr().Get()}"
+        )
+        joint_count += 1
+
+    assert joint_count > 0, "No joints found in the output USD"
 
 
 @pytest.mark.isaacsim_ci
@@ -474,8 +504,6 @@ def test_per_joint_dict_gains(sim_config):
 
         if "panda_joint" in name and "finger" not in name:
             # arm joint (revolute) — USD stores in Nm/deg, so expected = value * pi/180
-            import math
-
             expected_s = arm_stiffness * math.pi / 180.0
             expected_d = arm_damping * math.pi / 180.0
             assert abs(stiffness_attr.Get() - expected_s) < 0.01, (
