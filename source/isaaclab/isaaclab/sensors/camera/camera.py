@@ -18,10 +18,9 @@ from pxr import UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-from isaaclab.sim.views import FrameView
-from isaaclab.utils import to_camel_case
+from isaaclab.renderers import BaseRenderer, Renderer
+from isaaclab.sim.views.usd_frame_view import UsdFrameView
+from isaaclab.utils import has_kit, to_camel_case
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
@@ -405,9 +404,11 @@ class Camera(SensorBase):
         # references to prims located in the stage.
         sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
 
-        # Create a view for the sensor with Fabric enabled for fast pose queries.
-        # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
-        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True)
+        # Camera poses must be written to USD because the RTX renderer reads camera
+        # transforms via HydraTexture from USD, not from Fabric's worldMatrix.
+        # PrepareForReuse marks Fabric attributes dirty but this is not sufficient
+        # for cameras — use UsdFrameView to ensure poses reach the renderer.
+        self._view = UsdFrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
