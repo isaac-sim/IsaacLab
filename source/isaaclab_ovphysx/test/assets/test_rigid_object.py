@@ -354,64 +354,90 @@ def test_external_force_buffer_composition(sim_ctx_cpu, num_cubes):
     assert cube_object._permanent_wrench_composer.out_force_b.torch[0, 0, 0].item() == pytest.approx(2.0)
 
 
-_FORCE_BALANCE_GAP = (
-    "test_external_force_on_single_body: force-balanced body drifts by ~0.57 m "
-    "over 20 sim steps instead of staying within 0.1 m of its initial height. "
-    "The upward force (mass * g) read from body_mass.torch is not correctly "
-    "balancing gravity in the real OVPhysX CPU backend — likely the wrench "
-    "magnitude, the mass value returned by the RIGID_BODY_MASS binding, or "
-    "the wrench application timing differs from the PhysX backend. "
-    "Needs investigation: compare DexCube mass, gravity vector, and wrench "
-    "write path against the PhysX reference implementation."
-)
-
-
-@pytest.mark.xfail(reason=_FORCE_BALANCE_GAP, strict=False)
 @pytest.mark.parametrize("num_cubes", [2, 4])
 def test_external_force_on_single_body(sim_ctx_cpu, num_cubes):
     """Test application of external force on the base of the object.
 
-    Real-backend port of PhysX's test_external_force_on_single_body.
-    Applies a force equal to the object's weight on env_0 only and verifies
-    that env_0 maintains height while env_1+ fall under gravity.
+    Real-backend port of Newton's test_external_force_on_single_body.
+    Matches Newton's pattern: 5 outer iterations with reset between each,
+    5 inner sim steps per iteration, force applied to every 2nd cube
+    (indices 0::2), alternating global/local frame each outer iteration.
 
-    XFail: force-balanced body drifts more than expected on the real OVPhysX CPU
-    backend. See _FORCE_BALANCE_GAP for details.
+    Every 2nd cube (0::2) has a force equal to its weight applied upward;
+    the others (1::2) fall freely under gravity.  After each 5-step block:
+
+    - ``root_link_pos_w[0::2, 2]`` must remain within 10 mm of 1.0 m.
+    - ``root_link_pos_w[1::2, 2]`` must be strictly less than 1.0 m.
+
+    Note: Newton uses ``assert_close`` (atol=1e-5) by reading the exact PhysX
+    mass from ``body_mass.torch``.  Here we fall back to the USD-reported mass
+    via ``UsdPhysics.MassAPI`` because the ``RIGID_BODY_MASS`` TensorType is
+    not yet registered in ``RigidObject._bindings`` (see production gap note
+    in :meth:`~isaaclab_ovphysx.assets.RigidObject._initialize_impl`).  The
+    USD mass may differ slightly from PhysX's internal value, so we allow
+    atol=1e-2 (10 mm) instead of Newton's 1e-5 tolerance.
     """
     cube_object, origins = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
 
     body_ids, _ = cube_object.find_bodies(".*")
-    mass = cube_object.data.body_mass.torch[:, 0]
-    gravity_magnitude = 9.81  # [m/s^2]
 
-    forces = torch.zeros(num_cubes, len(body_ids), 3, device="cpu")
-    torques = torch.zeros(num_cubes, len(body_ids), 3, device="cpu")
-    # Apply upward force on env_0 to balance gravity.
-    forces[0, :, 2] = mass[0] * gravity_magnitude
+    # ``body_mass.torch`` returns zeros because the RIGID_BODY_MASS TensorType
+    # is not registered in RigidObject._bindings at init time.  Read the mass
+    # directly from the USD stage via UsdPhysics.MassAPI as a workaround.
+    from pxr import UsdPhysics
 
-    cube_object.reset()
+    stage = sim_ctx_cpu.stage
+    prim = stage.GetPrimAtPath("/World/Cube_0")
+    usd_mass = UsdPhysics.MassAPI(prim).GetMassAttr().Get()  # kg
 
-    for _ in range(20):
+    # Sample a force equal to the weight of the object.
+    # Every 2nd cube (0::2) has the upward force applied — matches Newton's pattern.
+    external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device="cpu")
+    external_wrench_b[0::2, :, 2] = 9.81 * usd_mass
+
+    # 5 outer iterations, each with a reset — matches Newton's structure exactly.
+    for i in range(5):
+        # Reset root state.
+        root_pose = cube_object.data.default_root_pose.torch.clone()
+        root_vel = cube_object.data.default_root_vel.torch.clone()
+
+        # Shift positions so cubes don't overlap (matches Newton's origins shift).
+        root_pose[:, :3] = origins.to("cpu")
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
+        cube_object.reset()
+
+        # Alternate between global and local frame each outer iteration.
+        is_global = i % 2 == 0
+        if is_global:
+            positions = cube_object.data.body_com_pos_w.torch[:, body_ids, :3]
+        else:
+            positions = None
+
+        # Set the permanent wrench once per outer iteration.
         cube_object.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=forces,
-            torques=torques,
+            forces=external_wrench_b[..., :3],
+            torques=external_wrench_b[..., 3:],
+            positions=positions,
             body_ids=body_ids,
+            is_global=is_global,
         )
-        cube_object.write_data_to_sim()
-        sim_ctx_cpu.step()
-        cube_object.update(sim_ctx_cpu.get_physics_dt())
 
-    pos_w = cube_object.data.root_link_pos_w.torch
-    # env_0 should maintain its initial height (force-balanced).
-    assert abs(pos_w[0, 2].item() - origins[0, 2].item()) < 0.1, (
-        f"Env 0 z={pos_w[0, 2]:.4f} deviated from origin z={origins[0, 2]:.4f}"
-    )
-    # env_1+ should have fallen due to gravity.
-    if num_cubes > 1:
-        assert pos_w[1, 2].item() < origins[1, 2].item() - 0.05, (
-            f"Env 1 z={pos_w[1, 2]:.4f} should have fallen below origin z={origins[1, 2]:.4f}"
-        )
+        # 5 inner simulation steps.
+        for _ in range(5):
+            cube_object.write_data_to_sim()
+            sim_ctx_cpu.step()
+            cube_object.update(sim_ctx_cpu.get_physics_dt())
+
+        pos_w = cube_object.data.root_link_pos_w.torch
+        # Force-balanced cubes (0::2) should stay within 10 mm of initial height.
+        # Note: Newton uses assert_close (atol=1e-5) with the exact PhysX mass;
+        # we use atol=1e-2 because body_mass.torch returns 0 so we fall back to
+        # USD-reported mass which may differ from PhysX's internal value.
+        torch.testing.assert_close(pos_w[0::2, 2], torch.ones(num_cubes // 2, device="cpu"), atol=1e-2, rtol=0.0)
+        # Unforced cubes (1::2) must have fallen (free-fall ≈ 35 mm over 5 steps).
+        assert torch.all(pos_w[1::2, 2] < 1.0)
 
 
 @pytest.mark.parametrize("num_cubes", [2, 4])
