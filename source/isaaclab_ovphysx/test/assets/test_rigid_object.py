@@ -409,3 +409,52 @@ def test_write_data_to_sim_applies_composed_wrench():
     assert written.shape == (2, 9)
     assert written[0, 0] == pytest.approx(1.0)
     assert written[1, 0] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Task 13 — Lifecycle methods
+# ---------------------------------------------------------------------------
+
+
+def test_reset_writes_default_pose_and_clears_wrench_composers():
+    import torch
+
+    obj, bindings = _make_rigid_object_shell(num_instances=4)
+    obj._create_buffers()
+    obj._process_cfg()
+    bindings.bindings[TT.RIGID_BODY_POSE]._data[:] = 0.0  # dirty state
+
+    obj.reset(env_ids=torch.tensor([0, 2], dtype=torch.int32, device=obj._device), env_mask=None)
+
+    written = bindings.bindings[TT.RIGID_BODY_POSE]._data
+    cfg_pos = obj.cfg.init_state.pos
+    assert written[0, 0] == pytest.approx(cfg_pos[0])
+    assert written[2, 0] == pytest.approx(cfg_pos[0])
+    # Untouched envs remain zeroed
+    assert written[1, 0] == 0.0
+    # Instantaneous wrench composer should be reset (active=False after reset)
+    assert obj._instantaneous_wrench_composer.active is False
+
+
+def test_find_bodies_matches_single_name():
+    obj, _ = _make_rigid_object_shell(num_instances=1)
+    ids, names = obj.find_bodies(name_keys=["base_link"])
+    assert ids == [0]
+    assert names == ["base_link"]
+
+
+def test_find_bodies_returns_all_when_no_filter():
+    obj, _ = _make_rigid_object_shell(num_instances=1)
+    ids, names = obj.find_bodies(name_keys=None)
+    assert ids == [0]
+    assert names == ["base_link"]
+
+
+def test_update_delegates_to_data():
+    obj, _ = _make_rigid_object_shell(num_instances=2)
+    obj._create_buffers()
+    obj._process_cfg()
+    obj._data.is_primed = True
+    before = obj._data._sim_time
+    obj.update(0.5)
+    assert obj._data._sim_time == pytest.approx(before + 0.5)
