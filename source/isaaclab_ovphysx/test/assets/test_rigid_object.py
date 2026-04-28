@@ -322,3 +322,59 @@ def test_write_root_state_to_sim_deprecated_writes_pose_and_velocity():
 
     assert pose_binding._data[2, 0] == pytest.approx(11.0)
     assert vel_binding._data[2, 0] == pytest.approx(3.0)
+
+
+# ---------------------------------------------------------------------------
+# Task 11 — Body property setters
+# ---------------------------------------------------------------------------
+
+
+def test_set_masses_index_writes_through_cpu_binding():
+    obj, bindings = _make_rigid_object_shell(num_instances=3, device="cpu")
+    obj._create_buffers()
+    masses = wp.from_numpy(np.array([7.5], dtype=np.float32), dtype=wp.float32, device=obj._device)
+    import torch as _torch
+
+    env_ids = _torch.tensor([1], dtype=_torch.int32, device=obj._device)
+    body_ids = _torch.tensor([0], dtype=_torch.int32, device=obj._device)
+
+    obj.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids)
+
+    # RIGID_BODY_MASS is shape (N,) per Marco's contract
+    assert bindings.bindings[TT.RIGID_BODY_MASS]._data[1] == pytest.approx(7.5)
+
+
+def test_set_inertias_index_writes_through_cpu_binding():
+    obj, bindings = _make_rigid_object_shell(num_instances=2, device="cpu")
+    obj._create_buffers()
+    inertia = wp.from_numpy(
+        np.array([[1, 0, 0, 0, 2, 0, 0, 0, 3]], dtype=np.float32),
+        dtype=wp.float32,
+        device=obj._device,
+    )
+    import torch as _torch
+
+    env_ids = _torch.tensor([0], dtype=_torch.int32, device=obj._device)
+    body_ids = _torch.tensor([0], dtype=_torch.int32, device=obj._device)
+
+    obj.set_inertias_index(inertias=inertia, body_ids=body_ids, env_ids=env_ids)
+
+    assert bindings.bindings[TT.RIGID_BODY_INERTIA]._data[0, 4] == pytest.approx(2.0)
+
+
+def test_set_coms_index_writes_through_cpu_binding():
+    obj, bindings = _make_rigid_object_shell(num_instances=2, device="cpu")
+    obj._create_buffers()
+    com = wp.from_numpy(
+        np.array([[0.1, 0.2, 0.3, 0.0, 0.0, 0.0, 1.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device=obj._device,
+    )
+    import torch as _torch
+
+    env_ids = _torch.tensor([1], dtype=_torch.int32, device=obj._device)
+    body_ids = _torch.tensor([0], dtype=_torch.int32, device=obj._device)
+
+    obj.set_coms_index(coms=com, body_ids=body_ids, env_ids=env_ids)
+
+    assert bindings.bindings[TT.RIGID_BODY_COM_POSE]._data[1, 0] == pytest.approx(0.1)

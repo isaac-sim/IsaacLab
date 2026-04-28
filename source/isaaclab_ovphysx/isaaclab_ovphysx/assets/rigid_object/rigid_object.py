@@ -393,14 +393,17 @@ class RigidObject(BaseRigidObject):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set masses of all bodies.
+        """Set rigid actor masses for a subset of environments.
 
         Args:
-            masses: Masses of all bodies [kg]. Shape is (len(env_ids), len(body_ids)).
-            body_ids: The body indices to set the masses for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
+            masses: Mass values [kg]. Shape is ``(len(env_ids),)``.
+            body_ids: Accepted for contract parity with :class:`BaseRigidObject`;
+                ignored because a rigid object has a single body.
+            env_ids: Indices of environments to write to. ``None`` writes to
+                all environments.
         """
-        raise NotImplementedError("set_masses_index() is implemented in Task 11.")
+        self._write_root_state(TT.RIGID_BODY_MASS, masses, env_ids=env_ids)
+        self._data._invalidate_caches(env_ids)
 
     def set_masses_mask(
         self,
@@ -409,14 +412,17 @@ class RigidObject(BaseRigidObject):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set masses of all bodies.
+        """Set rigid actor masses for environments selected by mask.
 
         Args:
-            masses: Masses of all bodies [kg]. Shape is (num_instances, num_bodies).
-            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            masses: Mass values [kg]. Shape is ``(num_instances,)``.
+            body_mask: Accepted for contract parity with :class:`BaseRigidObject`;
+                ignored because a rigid object has a single body.
+            env_mask: Boolean environment mask. ``None`` writes to all
+                environments. Shape is ``(num_instances,)``.
         """
-        raise NotImplementedError("set_masses_mask() is implemented in Task 11.")
+        self._write_root_state(TT.RIGID_BODY_MASS, masses, mask=env_mask)
+        self._data._invalidate_caches()
 
     def set_coms_index(
         self,
@@ -425,15 +431,18 @@ class RigidObject(BaseRigidObject):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set center of mass positions of all bodies.
+        """Set rigid actor center-of-mass poses for a subset of environments.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (len(env_ids), len(body_ids), 3).
-            body_ids: The body indices to set the center of mass positions for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the center of mass positions for. Defaults to None
-                (all environments).
+            coms: Center-of-mass poses in the body frame [m, -].
+                Shape is ``(len(env_ids), 7)``.
+            body_ids: Accepted for contract parity with :class:`BaseRigidObject`;
+                ignored because a rigid object has a single body.
+            env_ids: Indices of environments to write to. ``None`` writes to
+                all environments.
         """
-        raise NotImplementedError("set_coms_index() is implemented in Task 11.")
+        self._write_root_state(TT.RIGID_BODY_COM_POSE, coms, env_ids=env_ids)
+        self._data._invalidate_caches(env_ids)
 
     def set_coms_mask(
         self,
@@ -442,15 +451,18 @@ class RigidObject(BaseRigidObject):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set center of mass positions of all bodies.
+        """Set rigid actor center-of-mass poses for environments selected by mask.
 
         Args:
-            coms: Center of mass positions of all bodies. Shape is (num_instances, num_bodies, 3)
-                or (num_instances, num_bodies) with dtype wp.vec3f.
-            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            coms: Center-of-mass poses in the body frame [m, -].
+                Shape is ``(num_instances, 7)``.
+            body_mask: Accepted for contract parity with :class:`BaseRigidObject`;
+                ignored because a rigid object has a single body.
+            env_mask: Boolean environment mask. ``None`` writes to all
+                environments. Shape is ``(num_instances,)``.
         """
-        raise NotImplementedError("set_coms_mask() is implemented in Task 11.")
+        self._write_root_state(TT.RIGID_BODY_COM_POSE, coms, mask=env_mask)
+        self._data._invalidate_caches()
 
     def set_inertias_index(
         self,
@@ -459,14 +471,18 @@ class RigidObject(BaseRigidObject):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set inertias of all bodies.
+        """Set rigid actor inertia tensors for a subset of environments.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9).
-            body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
+            inertias: Inertia tensors [kg·m²], row-major flattened.
+                Shape is ``(len(env_ids), 9)``.
+            body_ids: Accepted for contract parity with :class:`BaseRigidObject`;
+                ignored because a rigid object has a single body.
+            env_ids: Indices of environments to write to. ``None`` writes to
+                all environments.
         """
-        raise NotImplementedError("set_inertias_index() is implemented in Task 11.")
+        self._write_root_state(TT.RIGID_BODY_INERTIA, inertias, env_ids=env_ids)
+        self._data._invalidate_caches(env_ids)
 
     def set_inertias_mask(
         self,
@@ -475,14 +491,18 @@ class RigidObject(BaseRigidObject):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set inertias of all bodies.
+        """Set rigid actor inertia tensors for environments selected by mask.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
-            body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            inertias: Inertia tensors [kg·m²], row-major flattened.
+                Shape is ``(num_instances, 9)``.
+            body_mask: Accepted for contract parity with :class:`BaseRigidObject`;
+                ignored because a rigid object has a single body.
+            env_mask: Boolean environment mask. ``None`` writes to all
+                environments. Shape is ``(num_instances,)``.
         """
-        raise NotImplementedError("set_inertias_mask() is implemented in Task 11.")
+        self._write_root_state(TT.RIGID_BODY_INERTIA, inertias, mask=env_mask)
+        self._data._invalidate_caches()
 
     # ------------------------------------------------------------------
     # Deprecated writers
@@ -664,6 +684,9 @@ class RigidObject(BaseRigidObject):
           GPU scratch buffer, then write with indices.
         - Masked write: data is always full ``[N,...]``, pass directly with mask.
 
+        1-D bindings (e.g. ``RIGID_BODY_MASS`` of shape ``(N,)``) are handled
+        by treating them as ``(N, 1)`` internally.
+
         Args:
             tensor_type: The TensorType constant (e.g. ``RIGID_BODY_POSE``).
             data: State data to write.
@@ -675,20 +698,29 @@ class RigidObject(BaseRigidObject):
         binding = self._get_binding(tensor_type)
         if binding is None:
             return
-        N, C = binding.shape
+        if len(binding.shape) == 1:
+            N, C = binding.shape[0], 1
+        else:
+            N, C = binding.shape[0], binding.shape[1]
+
+        is_1d = len(binding.shape) == 1
 
         if env_ids is None and _ids_gpu is None and mask is None:
             binding.write(self._to_flat_f32(data))
             self._invalidate_root_caches(tensor_type)
             return
 
-        src = self._as_gpu_f32_2d(data, C)
+        src = self._to_flat_f32(data) if is_1d else self._as_gpu_f32_2d(data, C)
 
         if env_ids is not None or _ids_gpu is not None:
             if _ids_gpu is None:
                 _ids_gpu = self._env_ids_to_gpu_warp(env_ids)
             K = _ids_gpu.shape[0]
-            if src.shape[0] == N:
+            if is_1d:
+                # 1-D binding (e.g. RIGID_BODY_MASS): pass data flat; the
+                # binding write() handles index scatter natively.
+                binding.write(src, indices=_ids_gpu)
+            elif src.shape[0] == N:
                 binding.write(src, indices=_ids_gpu)
             else:
                 scratch = self._get_write_scratch(tensor_type, binding)
