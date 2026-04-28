@@ -34,7 +34,7 @@ class VBDSolverCfg(NewtonSolverCfg):
     """
 
     particle_enable_self_contact: bool = False
-    """Whether to enable cloth self-contact."""
+    """Whether to enable VBD deformable's self-contact."""
 
     particle_self_contact_radius: float = 0.005
     """Particle radius used for self-contact detection [m]."""
@@ -131,8 +131,8 @@ class NewtonModelCfg:
     soft_contact_ke: float = 1.0e3
     """Body-particle contact stiffness [N/m].
 
-    Controls how stiff the penalty force is when cloth/soft-body particles
-    contact rigid body shapes. The effective stiffness per contact is the
+    Controls the stiffness of the penalty force of contacts between cloth/soft-body particles
+    and rigid body shapes, and self-contacts of cloth/soft-body particles. The effective stiffness per contact is the
     average of this value and the rigid shape's material stiffness.
     """
 
