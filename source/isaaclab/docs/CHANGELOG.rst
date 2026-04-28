@@ -7,11 +7,13 @@ Changelog
 Changed
 ^^^^^^^
 
-* Renderer backends now own output-buffer allocation via a new
-  ``BaseRenderer.create_output_buffers`` hook. Backends are the source of truth
-  for shape, dtype, and any aliasing (e.g. ``rgb`` as a view into ``rgba``).
-  Requested data types the backend cannot produce are dropped with a single
-  warning, instead of being silently discarded later.
+* :class:`~isaaclab.renderers.BaseRenderer` now publishes a renderer-owned
+  output contract via ``supported_output_types() -> {RenderBufferKind: RenderBufferSpec}``.
+  :class:`~isaaclab.sensors.camera.CameraData` allocates buffers for the
+  intersection of the requested ``data_types`` and the contract; ``rgb`` is
+  exposed as a view into ``rgba`` when both are published. Requested types
+  the active backend cannot produce are dropped with a single warning instead
+  of being silently discarded later.
 * :class:`~isaaclab_ov.renderers.OVRTXRenderer` now writes rendered tiles
   directly into the torch storage backing ``camera.data.output``, eliminating
   the per-frame ``wp.copy`` bridge.

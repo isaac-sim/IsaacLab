@@ -27,7 +27,7 @@ from isaaclab.utils.math import (
 )
 
 from ..sensor_base import SensorBase
-from .camera_data import CameraData, CameraDataType
+from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -107,13 +107,11 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
 
-        # TODO: Camera should not branch on a specific renderer_type string. Replace with a
-        # generic opt-in flag on RendererCfg (e.g. ``requires_kit_rtx_sensors_flag``) that
-        # RTX-family cfgs set to True, so this branch carries no renderer-specific knowledge.
-        # The flag must flip at scene-construction time (before sim.reset()) because
-        # SimulationContext.is_rendering and several env classes branch on it pre-reset;
-        # flipping inside the renderer's __init__ (which only runs at sim.reset()) would
-        # silently break that timing.
+        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
+        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
+        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
+        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
+        # and several env classes read it before the renderer's __init__ runs.
         if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
             get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
@@ -454,7 +452,7 @@ class Camera(SensorBase):
         unsupported: list[str] = []
         for name in self.cfg.data_types:
             try:
-                if CameraDataType(name) in specs:
+                if RenderBufferKind(name) in specs:
                     known.append(name)
                 else:
                     unsupported.append(name)

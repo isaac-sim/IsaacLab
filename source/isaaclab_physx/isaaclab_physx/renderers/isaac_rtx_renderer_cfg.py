@@ -59,7 +59,7 @@ class IsaacRtxRendererCfg(RendererCfg):
     """
 
     colorize_instance_segmentation: bool = True
-    """Whether to colorize the instance ID segmentation images. Defaults to True.
+    """Whether to colorize the instance segmentation images. Defaults to True.
 
     If True, instance segmentation is converted to an image where instance IDs are mapped to colors.
     and returned as a ``uint8`` 4-channel array. If False, the output is returned as a ``int32`` array.
@@ -88,5 +88,5 @@ class IsaacRtxRendererCfg(RendererCfg):
 
     - ``"max"``: Values are clipped to the maximum value.
     - ``"zero"``: Values are clipped to zero.
-    - ``"none``: No clipping is applied. Values will be returned as ``inf``.
+    - ``"none"``: No clipping is applied. Values will be returned as ``inf``.
     """

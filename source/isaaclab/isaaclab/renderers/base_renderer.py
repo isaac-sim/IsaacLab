@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from .output_contract import CameraDataType, OutputSpec
+from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
     import torch
@@ -23,13 +23,13 @@ class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
     @abstractmethod
-    def supported_output_types(self) -> dict[CameraDataType, OutputSpec]:
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Per-output layout (channels + dtype) this renderer can produce.
 
         Outputs absent from the mapping are not produced by this backend.
 
         Returns:
-            Mapping from supported :class:`CameraDataType` to its :class:`OutputSpec`.
+            Mapping from supported :class:`RenderBufferKind` to its :class:`RenderBufferSpec`.
         """
         pass
 

@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     import torch
 
 
-class CameraDataType(StrEnum):
-    """Canonical names for the per-pixel data types a renderer can publish.
+class RenderBufferKind(StrEnum):
+    """Canonical names for the per-pixel render buffer kinds a renderer can publish.
 
     String values match the vocabulary used by
     :attr:`isaaclab.sensors.camera.CameraCfg.data_types`.
@@ -44,11 +44,11 @@ class CameraDataType(StrEnum):
 
 
 @dataclass(frozen=True)
-class OutputSpec:
-    """Per-pixel layout (channels + dtype) for one renderer output type."""
+class RenderBufferSpec:
+    """Per-pixel layout (channels + dtype) for one render buffer kind."""
 
     channels: int
     """Number of per-pixel channels (last dimension of the allocated tensor)."""
 
     dtype: torch.dtype
-    """Torch dtype the renderer writes for this output type."""
+    """Torch dtype the renderer writes for this render buffer kind."""

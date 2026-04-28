@@ -22,7 +22,7 @@ from packaging import version
 from pxr import Sdf
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer, CameraDataType, OutputSpec
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
@@ -95,40 +95,40 @@ class IsaacRtxRenderer(BaseRenderer):
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
 
-    def supported_output_types(self) -> dict[CameraDataType, OutputSpec]:
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output Replicator layout this RTX backend writes.
 
         ``ALBEDO`` and the three ``SIMPLE_SHADING_*`` outputs require Isaac Sim 6.0+
         and are omitted on older versions. The three segmentation outputs report
-        ``OutputSpec(4, uint8)`` when the matching ``self.cfg.colorize_*`` flag is
-        set, otherwise ``OutputSpec(1, int32)``.
+        ``RenderBufferSpec(4, uint8)`` when the matching ``self.cfg.colorize_*`` flag is
+        set, otherwise ``RenderBufferSpec(1, int32)``.
         """
         sim_major = get_isaac_sim_version().major
 
-        specs: dict[CameraDataType, OutputSpec] = {
+        specs: dict[RenderBufferKind, RenderBufferSpec] = {
             # Replicator's native layout for color output is rgba/uint8;
             # ``Camera`` aliases ``rgb`` as a view into ``rgba`` storage.
-            CameraDataType.RGBA: OutputSpec(4, torch.uint8),
-            CameraDataType.RGB: OutputSpec(3, torch.uint8),
-            CameraDataType.DEPTH: OutputSpec(1, torch.float32),
-            CameraDataType.DISTANCE_TO_IMAGE_PLANE: OutputSpec(1, torch.float32),
-            CameraDataType.DISTANCE_TO_CAMERA: OutputSpec(1, torch.float32),
-            CameraDataType.NORMALS: OutputSpec(3, torch.float32),
-            CameraDataType.MOTION_VECTORS: OutputSpec(2, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
+            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, torch.float32),
         }
 
         if sim_major >= 6:
-            specs[CameraDataType.ALBEDO] = OutputSpec(4, torch.uint8)
+            specs[RenderBufferKind.ALBEDO] = RenderBufferSpec(4, torch.uint8)
             for shading_type in SIMPLE_SHADING_MODES:
-                specs[CameraDataType(shading_type)] = OutputSpec(3, torch.uint8)
+                specs[RenderBufferKind(shading_type)] = RenderBufferSpec(3, torch.uint8)
 
         seg_specs = (
-            (CameraDataType.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
-            (CameraDataType.INSTANCE_SEGMENTATION_FAST, self.cfg.colorize_instance_segmentation),
-            (CameraDataType.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
+            (RenderBufferKind.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
+            (RenderBufferKind.INSTANCE_SEGMENTATION_FAST, self.cfg.colorize_instance_segmentation),
+            (RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
         )
         for name, colorize in seg_specs:
-            specs[name] = OutputSpec(4, torch.uint8) if colorize else OutputSpec(1, torch.int32)
+            specs[name] = RenderBufferSpec(4, torch.uint8) if colorize else RenderBufferSpec(1, torch.int32)
 
         return specs
 

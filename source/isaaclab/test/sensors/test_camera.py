@@ -1087,7 +1087,7 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["rgba", "depth", "normals"]
 
-    from isaaclab.sensors.camera.camera_data import CameraDataType, OutputSpec
+    from isaaclab.sensors.camera.camera_data import RenderBufferKind, RenderBufferSpec
 
     class _PartialRenderer(BaseRenderer):
         """Publishes only ``rgba`` in its supported-output contract."""
@@ -1096,7 +1096,7 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
             self.cfg = cfg
 
         def supported_output_types(self):
-            return {CameraDataType.RGBA: OutputSpec(4, torch.uint8)}
+            return {RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8)}
 
         def prepare_stage(self, stage, num_envs):
             pass

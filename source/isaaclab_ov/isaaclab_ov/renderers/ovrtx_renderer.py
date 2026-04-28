@@ -39,7 +39,7 @@ os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 
-from isaaclab.renderers import BaseRenderer, CameraDataType, OutputSpec
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
@@ -90,17 +90,17 @@ class OVRTXRenderer(BaseRenderer):
 
     cfg: OVRTXRendererCfg
 
-    def supported_output_types(self) -> dict[CameraDataType, OutputSpec]:
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         return {
-            CameraDataType.RGBA: OutputSpec(4, torch.uint8),
-            CameraDataType.RGB: OutputSpec(3, torch.uint8),
-            CameraDataType.ALBEDO: OutputSpec(4, torch.uint8),
-            CameraDataType.SEMANTIC_SEGMENTATION: OutputSpec(4, torch.uint8),
-            CameraDataType.DEPTH: OutputSpec(1, torch.float32),
-            CameraDataType.DISTANCE_TO_IMAGE_PLANE: OutputSpec(1, torch.float32),
-            CameraDataType.DISTANCE_TO_CAMERA: OutputSpec(1, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
         }
 
     def __init__(self, cfg: OVRTXRendererCfg):
