@@ -182,6 +182,7 @@ Table of Contents
    source/refs/changelog
    source/refs/license
    source/refs/bibliography
+   source/refs/adr/index
 
 .. toctree::
     :hidden:
