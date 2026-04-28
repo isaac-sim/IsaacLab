@@ -218,8 +218,7 @@ def orientation_command_error_tanh(
     obj: RigidObject = env.scene[align_asset_cfg.name]
     command = env.command_manager.get_command(command_name)
     des_quat_b = command[:, 3:7]
-    root_link_quat_w = asset.data.root_link_quat_w.torch
-    des_quat_w = math_utils.quat_mul(root_link_quat_w, des_quat_b)
+    des_quat_w = math_utils.quat_mul(asset.data.root_link_quat_w.torch, des_quat_b)
     quat_distance = math_utils.quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
 
     return (1 - torch.tanh(quat_distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()

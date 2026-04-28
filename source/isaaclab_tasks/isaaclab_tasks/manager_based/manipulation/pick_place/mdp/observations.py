@@ -101,9 +101,10 @@ def get_all_robot_link_velocity(env: ManagerBasedRLEnv) -> torch.Tensor:
 def get_all_robot_link_state(
     env: ManagerBasedRLEnv,
 ) -> torch.Tensor:
+    # TODO: Remove this compatibility helper in IsaacLab 4.0.
     warnings.warn(
-        "`get_all_robot_link_state` is deprecated. Use `get_all_robot_link_pose` "
-        "and `get_all_robot_link_velocity` instead.",
+        "`get_all_robot_link_state` is deprecated and will be removed in IsaacLab 4.0. "
+        "Use `get_all_robot_link_pose` and `get_all_robot_link_velocity` instead.",
         DeprecationWarning,
         stacklevel=2,
     )

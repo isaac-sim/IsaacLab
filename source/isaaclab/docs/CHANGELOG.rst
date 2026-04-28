@@ -4,13 +4,6 @@ Changelog
 4.6.22 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
-Added
-^^^^^
-
-* Added :func:`~isaaclab.envs.mdp.body_link_pose_w` and
-  :func:`~isaaclab.envs.mdp.body_link_vel_w` observation terms for reading
-  explicit body link pose and velocity fields.
-
 Changed
 ^^^^^^^
 
