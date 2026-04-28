@@ -112,11 +112,14 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     undesired_contact_reward_scale = -1.0
     flat_orientation_reward_scale = -5.0
 
-    # success criteria (per-step velocity tracking; episode success rate = fraction of steps within both thresholds)
+    # success criteria — episode success_rate = per-env binary check that the *episode-mean*
+    # error stayed below both thresholds, mean-reduced across resetting envs. Matches the
+    # manager-based ``UniformVelocityCommandCfg`` defaults so flat/rough/direct curves are
+    # comparable on the unified ``Metrics/success_rate`` card.
     vel_xy_success_threshold: float = 0.5
-    """Threshold on the XY velocity error norm below which tracking is considered successful [m/s]."""
-    vel_yaw_success_threshold: float = 0.5
-    """Threshold on the yaw velocity error below which tracking is considered successful [rad/s]."""
+    """Threshold on the per-episode mean XY velocity error norm [m/s]."""
+    vel_yaw_success_threshold: float = 0.4
+    """Threshold on the per-episode mean yaw velocity error [rad/s]."""
 
 
 @configclass

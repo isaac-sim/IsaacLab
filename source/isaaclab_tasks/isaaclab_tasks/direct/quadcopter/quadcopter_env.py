@@ -56,7 +56,6 @@ class QuadcopterEnv(DirectRLEnv):
 
         # per-env count of steps meeting the success condition
         self._success_step_count = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self._last_episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
         # Logging
         self._episode_sums = {
@@ -163,8 +162,9 @@ class QuadcopterEnv(DirectRLEnv):
         extras["Episode_Termination/time_out"] = torch.count_nonzero(self.reset_time_outs[env_ids]).item()
         extras["Metrics/final_distance_to_goal"] = final_distance_to_goal.item()
         success_step_threshold = int(self.max_episode_length * self.cfg.success_step_ratio)
-        self._last_episode_success[env_ids] = self._success_step_count[env_ids] >= success_step_threshold
-        extras["Metrics/success_rate"] = self._last_episode_success[env_ids].float().mean().item()
+        extras["Metrics/success_rate"] = (
+            (self._success_step_count[env_ids] >= success_step_threshold).float().mean().item()
+        )
         self._success_step_count[env_ids] = 0
         self.extras["log"].update(extras)
 

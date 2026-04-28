@@ -83,13 +83,16 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     ranges: Ranges = MISSING
     """Distribution ranges for the velocity commands."""
 
-    vel_xy_success_threshold: float = 0.6
-    """Threshold on the XY velocity error norm below which tracking is considered successful [m/s].
-    Defaults to 0.5 (a flat-terrain-friendly value; rough terrain may want to relax to ~1.0)."""
+    vel_xy_success_threshold: float = 0.5
+    """Threshold on the per-episode mean XY velocity error norm below which an episode counts as
+    successful [m/s]. Empirically this 0.5 m/s cap holds across quadrupeds and bipeds.
+    ``success_rate`` is the per-env binary ``mean_episode_error_xy < threshold`` AND
+    ``mean_episode_error_yaw < threshold``, averaged across the resetting envs."""
 
-    vel_yaw_success_threshold: float = 0.6
-    """Threshold on the yaw velocity error below which tracking is considered successful [rad/s].
-    Defaults to 0.5 (a flat-terrain-friendly value; rough terrain may want to relax to ~1.0)."""
+    vel_yaw_success_threshold: float = 0.4
+    """Threshold on the per-episode mean yaw velocity error below which an episode counts as
+    successful [rad/s]. Defaults to 0.4 for quadrupeds; biped configs (h1, cassie, g1) override
+    to 0.8 in their own ``__post_init__`` because biped yaw control is empirically harder."""
 
     goal_vel_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/velocity_goal"

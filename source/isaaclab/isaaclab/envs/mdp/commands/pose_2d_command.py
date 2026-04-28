@@ -58,7 +58,7 @@ class UniformPose2dCommand(CommandTerm):
         self.pos_command_b = torch.zeros_like(self.pos_command_w)
         self.heading_command_b = torch.zeros_like(self.heading_command_w)
         # -- metrics
-        self.metrics["error_pos_2d"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["error_pos"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_heading"] = torch.zeros(self.num_envs, device=self.device)
         # -- per-episode sticky success bit (only used when cfg.position_success_threshold is set)
         self._track_success = cfg.position_success_threshold is not None
@@ -86,12 +86,12 @@ class UniformPose2dCommand(CommandTerm):
 
     def _update_metrics(self):
         # logs data
-        self.metrics["error_pos_2d"] = torch.linalg.norm(
+        self.metrics["error_pos"] = torch.linalg.norm(
             self.pos_command_w[:, :2] - self.robot.data.root_pos_w.torch[:, :2], dim=1
         )
         self.metrics["error_heading"] = torch.abs(wrap_to_pi(self.heading_command_w - self.robot.data.heading_w.torch))
         if self._track_success:
-            self._succeeded |= self.metrics["error_pos_2d"] < self.cfg.position_success_threshold
+            self._succeeded |= self.metrics["error_pos"] < self.cfg.position_success_threshold
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
         extras = super().reset(env_ids)

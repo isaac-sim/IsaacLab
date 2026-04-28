@@ -58,6 +58,10 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+
+        # biped yaw control is harder than quadruped — relax the per-episode-mean yaw
+        # threshold to 0.8 rad/s (defaults work for quadrupeds).
+        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
