@@ -389,11 +389,10 @@ class ContactSensor(BaseContactSensor):
         # Number of filter objects.
         self._num_filter_objects = force_matrix_shape[1] if len(force_matrix_shape) > 1 else 0
 
-        # Store reshaped Newton force views for copying data.
-        self._newton_total_force_view = self.contact_view.total_force.reshape((self._num_envs, self._num_sensors))
-        self._newton_force_matrix_view = (
-            force_matrix.reshape((self._num_envs, self._num_sensors, -1)) if self._num_filter_objects > 0 else None
-        )
+        # Store flat Newton force views for copying data. These may be non-contiguous
+        # views, so the copy kernel indexes them without reshaping.
+        self._newton_total_force_view = self.contact_view.total_force
+        self._newton_force_matrix_view = force_matrix if self._num_filter_objects > 0 else None
 
         # prepare data buffers
         logger.info(
@@ -438,6 +437,7 @@ class ContactSensor(BaseContactSensor):
             dim=(self._num_envs, self._num_sensors, max(self._num_filter_objects, 1)),
             inputs=[
                 env_mask,
+                self._num_sensors,
                 self._newton_total_force_view,
                 self._newton_force_matrix_view,
             ],
