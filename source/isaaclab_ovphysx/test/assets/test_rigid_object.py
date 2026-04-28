@@ -12,31 +12,6 @@ but runs kitless under ./scripts/run_ovphysx.sh — no AppLauncher needed.
 SimulationContext is instantiated directly (it does not require Kit), and
 UsdFileCfg(usd_path=ISAAC_NUCLEUS_DIR/...) downloads Nucleus assets via
 omni.client (which works standalone in Kit's Python).
-
-Known production-code bug (OVPhysX RigidObject._initialize_impl)
------------------------------------------------------------------
-``RigidObject._initialize_impl()`` contains:
-
-    self._body_names = list(root_pose.body_names) if hasattr(root_pose, "body_names") else ["base_link"]
-
-The ovphysx ``TensorBinding.body_names`` property raises ``RuntimeError``
-(not ``AttributeError``) for non-articulation tensor types such as
-``RIGID_BODY_POSE``.  Python's ``hasattr()`` only suppresses
-``AttributeError``; any other exception propagates.  As a result
-``_initialize_impl()`` raises ``RuntimeError`` for every ``RigidObject``
-backed by the live ovphysx backend.
-
-All tests that exercise the full ``RigidObject`` lifecycle are therefore
-marked ``xfail`` with the constant ``_INIT_IMPL_BUG`` reason.
-
-Fix required (IsaacLab-side, not wheel-side):
-
-    try:
-        self._body_names = list(root_pose.body_names)
-    except (AttributeError, RuntimeError):
-        self._body_names = ["base_link"]
-
-Tracking: issue #5316.
 """
 
 from __future__ import annotations
@@ -78,18 +53,6 @@ from isaaclab.sim import (  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 wp.init()
-
-# ---------------------------------------------------------------------------
-# Production-bug xfail reason (used by all _initialize_impl-dependent tests)
-# ---------------------------------------------------------------------------
-_INIT_IMPL_BUG = (
-    "RigidObject._initialize_impl bug: hasattr(root_pose, 'body_names') propagates "
-    "RuntimeError from the ovphysx TensorBinding.body_names property instead of "
-    "returning False, because Python hasattr() only catches AttributeError. "
-    "Fix: wrap in try/except (AttributeError, RuntimeError) in "
-    "rigid_object.py:_initialize_impl line ~1007. "
-    "Tracking: issue #5316."
-)
 
 # ---------------------------------------------------------------------------
 # Scene-builder helper (real backend, Nucleus assets)
@@ -207,15 +170,12 @@ def live_manager_cpu():
 # ===========================================================================
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_initialization(sim_ctx_cpu, num_cubes):
     """Test initialization for prim with rigid body API at the provided prim path.
 
     Real-backend port of PhysX's test_initialization.  SimulationContext drives
     OvPhysxManager; UsdFileCfg spawns DexCubes from Nucleus.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -228,13 +188,9 @@ def test_initialization(sim_ctx_cpu, num_cubes):
     assert cube_object.data.body_inertia.torch.shape == (num_cubes, 1, 9)
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_initialization_body_names(sim_ctx_cpu, num_cubes):
-    """Test that body_names is populated correctly after initialization.
-
-    Blocked by: _INIT_IMPL_BUG.
-    """
+    """Test that body_names is populated correctly after initialization."""
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
 
@@ -243,13 +199,9 @@ def test_initialization_body_names(sim_ctx_cpu, num_cubes):
     assert cube_object.num_bodies == 1
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_initialization_data_not_none(sim_ctx_cpu, num_cubes):
-    """Test that data container is populated after initialization.
-
-    Blocked by: _INIT_IMPL_BUG.
-    """
+    """Test that data container is populated after initialization."""
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
 
@@ -257,13 +209,9 @@ def test_initialization_data_not_none(sim_ctx_cpu, num_cubes):
     assert cube_object.data.is_primed
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_initialization_wrench_composers(sim_ctx_cpu, num_cubes):
-    """Test that wrench composers are created during initialization.
-
-    Blocked by: _INIT_IMPL_BUG.
-    """
+    """Test that wrench composers are created during initialization."""
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
 
@@ -273,7 +221,6 @@ def test_initialization_wrench_composers(sim_ctx_cpu, num_cubes):
     assert not cube_object._permanent_wrench_composer.active
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_initialization_with_kinematic_enabled(sim_ctx_cpu, num_cubes):
     """Test that initialization for prim with kinematic flag enabled.
@@ -281,8 +228,6 @@ def test_initialization_with_kinematic_enabled(sim_ctx_cpu, num_cubes):
     Real-backend port of PhysX's test_initialization_with_kinematic_enabled.
     After sim.reset(), the kinematic body should hold its initial pose across
     sim.step() calls (it does not respond to gravity).
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True)
     sim_ctx_cpu.reset()
@@ -302,16 +247,13 @@ def test_initialization_with_kinematic_enabled(sim_ctx_cpu, num_cubes):
 @pytest.mark.xfail(
     reason=(
         "test_initialization_with_no_rigid_body: requires RuntimeError when "
-        "no RigidBodyAPI prim matches. Also blocked by _INIT_IMPL_BUG."
+        "no RigidBodyAPI prim matches the given glob pattern."
     ),
     strict=False,
 )
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_initialization_with_no_rigid_body(sim_ctx_cpu, num_cubes):
-    """Test that initialization fails when no rigid body is found at the path.
-
-    Blocked by: _INIT_IMPL_BUG and requires live OvPhysxManager RuntimeError.
-    """
+    """Test that initialization fails when no rigid body is found at the path."""
     cube_cfg = RigidObjectCfg(prim_path="/World/NonExistent_*", spawn=None)
     cube = RigidObject(cube_cfg)
     with pytest.raises(RuntimeError):
@@ -322,16 +264,13 @@ def test_initialization_with_no_rigid_body(sim_ctx_cpu, num_cubes):
 @pytest.mark.xfail(
     reason=(
         "test_initialization_with_articulation_root: requires RuntimeError when "
-        "an ArticulationRoot prim is found. Also blocked by _INIT_IMPL_BUG."
+        "an ArticulationRoot prim is found at the given path."
     ),
     strict=False,
 )
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_initialization_with_articulation_root(sim_ctx_cpu, num_cubes):
-    """Test that initialization fails when an articulation root is found.
-
-    Blocked by: _INIT_IMPL_BUG and requires live OvPhysxManager RuntimeError.
-    """
+    """Test that initialization fails when an articulation root is found."""
     raise NotImplementedError("Requires articulation prim setup — see xfail reason.")
 
 
@@ -340,7 +279,6 @@ def test_initialization_with_articulation_root(sim_ctx_cpu, num_cubes):
 # ===========================================================================
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [2, 4])
 def test_external_force_buffer(sim_ctx_cpu, num_cubes):
     """Test if external force buffer correctly updates when force value is zero.
@@ -348,8 +286,6 @@ def test_external_force_buffer(sim_ctx_cpu, num_cubes):
     Real-backend port of PhysX's test_external_force_buffer. After
     sim.reset() triggers _initialize_impl, the WrenchComposer buffer
     bookkeeping is verified directly — no physics integration is asserted.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -384,14 +320,11 @@ def test_external_force_buffer(sim_ctx_cpu, num_cubes):
         cube_object.update(sim_ctx_cpu.get_physics_dt())
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [2, 4])
 def test_external_force_buffer_composition(sim_ctx_cpu, num_cubes):
     """Test that set/add_forces_and_torques_index compose correctly.
 
     Real-backend port. set() replaces, add() accumulates.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -421,7 +354,19 @@ def test_external_force_buffer_composition(sim_ctx_cpu, num_cubes):
     assert cube_object._permanent_wrench_composer.out_force_b.torch[0, 0, 0].item() == pytest.approx(2.0)
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
+_FORCE_BALANCE_GAP = (
+    "test_external_force_on_single_body: force-balanced body drifts by ~0.57 m "
+    "over 20 sim steps instead of staying within 0.1 m of its initial height. "
+    "The upward force (mass * g) read from body_mass.torch is not correctly "
+    "balancing gravity in the real OVPhysX CPU backend — likely the wrench "
+    "magnitude, the mass value returned by the RIGID_BODY_MASS binding, or "
+    "the wrench application timing differs from the PhysX backend. "
+    "Needs investigation: compare DexCube mass, gravity vector, and wrench "
+    "write path against the PhysX reference implementation."
+)
+
+
+@pytest.mark.xfail(reason=_FORCE_BALANCE_GAP, strict=False)
 @pytest.mark.parametrize("num_cubes", [2, 4])
 def test_external_force_on_single_body(sim_ctx_cpu, num_cubes):
     """Test application of external force on the base of the object.
@@ -430,7 +375,8 @@ def test_external_force_on_single_body(sim_ctx_cpu, num_cubes):
     Applies a force equal to the object's weight on env_0 only and verifies
     that env_0 maintains height while env_1+ fall under gravity.
 
-    Blocked by: _INIT_IMPL_BUG (also requires live sim step).
+    XFail: force-balanced body drifts more than expected on the real OVPhysX CPU
+    backend. See _FORCE_BALANCE_GAP for details.
     """
     cube_object, origins = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -468,15 +414,12 @@ def test_external_force_on_single_body(sim_ctx_cpu, num_cubes):
         )
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [2, 4])
 def test_external_force_on_single_body_at_position(sim_ctx_cpu, num_cubes):
     """Test application of external force at a specific position.
 
     Real-backend port of PhysX's test_external_force_on_single_body_at_position.
     A force applied off-center should produce angular velocity.
-
-    Blocked by: _INIT_IMPL_BUG (also requires live sim step).
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -507,7 +450,6 @@ def test_external_force_on_single_body_at_position(sim_ctx_cpu, num_cubes):
 # ===========================================================================
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_set_rigid_object_state(sim_ctx_cpu, num_cubes):
     """Test writing and reading back root pose and velocity.
@@ -515,8 +457,6 @@ def test_set_rigid_object_state(sim_ctx_cpu, num_cubes):
     Real-backend port of PhysX's test_set_rigid_object_state. Writes random
     pose/velocity via write_root_pose/velocity_to_sim_index and verifies the
     binding holds the written values.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -558,15 +498,12 @@ def test_set_rigid_object_state(sim_ctx_cpu, num_cubes):
             np.testing.assert_allclose(stored_pose, expected_pose, rtol=1e-4, atol=1e-4)
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_set_rigid_object_state_physics(sim_ctx_cpu, num_cubes):
     """Test that written state persists across sim steps with gravity disabled.
 
     Real-backend port of PhysX's test_set_rigid_object_state. Writes a
     specific position, steps the sim with gravity=0, and reads back.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -587,14 +524,11 @@ def test_set_rigid_object_state_physics(sim_ctx_cpu, num_cubes):
     assert pos.shape == (num_cubes, 3)
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_reset_rigid_object(sim_ctx_cpu, num_cubes):
     """Test resetting the state of the rigid object clears wrench composers.
 
     Real-backend port of PhysX's test_reset_rigid_object.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -639,50 +573,35 @@ _MATERIAL_GAP = (
 @pytest.mark.xfail(reason=_MATERIAL_GAP, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_rigid_body_set_material_properties(sim_ctx_cpu, num_cubes):
-    """XFail: material TensorType / view API not yet available in ovphysx.
-
-    Also blocked by: _INIT_IMPL_BUG.
-    """
+    """XFail: material TensorType / view API not yet available in ovphysx."""
     raise NotImplementedError("Requires material TensorType — see xfail reason.")
 
 
 @pytest.mark.xfail(reason=_MATERIAL_GAP, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_set_material_properties_via_view(sim_ctx_cpu, num_cubes):
-    """XFail: root_view.set_material_properties() not available on OVPhysX.
-
-    Also blocked by: _INIT_IMPL_BUG.
-    """
+    """XFail: root_view.set_material_properties() not available on OVPhysX."""
     raise NotImplementedError("Requires material view API — see xfail reason.")
 
 
 @pytest.mark.xfail(reason=_MATERIAL_GAP, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_rigid_body_no_friction(sim_ctx_cpu, num_cubes):
-    """XFail: requires live sim + material friction API.
-
-    Also blocked by: _INIT_IMPL_BUG.
-    """
+    """XFail: requires live sim + material friction API."""
     raise NotImplementedError("Requires material API + sim step — see xfail reason.")
 
 
 @pytest.mark.xfail(reason=_MATERIAL_GAP, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_rigid_body_with_static_friction(sim_ctx_cpu, num_cubes):
-    """XFail: requires live sim + material friction API.
-
-    Also blocked by: _INIT_IMPL_BUG.
-    """
+    """XFail: requires live sim + material friction API."""
     raise NotImplementedError("Requires material API + sim step — see xfail reason.")
 
 
 @pytest.mark.xfail(reason=_MATERIAL_GAP, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_rigid_body_with_restitution(sim_ctx_cpu, num_cubes):
-    """XFail: requires live sim + material restitution API.
-
-    Also blocked by: _INIT_IMPL_BUG.
-    """
+    """XFail: requires live sim + material restitution API."""
     raise NotImplementedError("Requires material API + sim step — see xfail reason.")
 
 
@@ -691,7 +610,6 @@ def test_rigid_body_with_restitution(sim_ctx_cpu, num_cubes):
 # ===========================================================================
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_rigid_body_set_mass(sim_ctx_cpu, num_cubes):
     """Test getting and setting mass of rigid object via the binding.
@@ -699,8 +617,6 @@ def test_rigid_body_set_mass(sim_ctx_cpu, num_cubes):
     Real-backend port of PhysX's test_rigid_body_set_mass. Uses
     set_masses_index instead of root_view.set_masses() (the root_view is
     a dict on OVPhysX).
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -723,13 +639,9 @@ def test_rigid_body_set_mass(sim_ctx_cpu, num_cubes):
     assert torch.allclose(refreshed.squeeze(-1), new_masses.squeeze(-1), atol=1e-4)
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_rigid_body_set_inertia(sim_ctx_cpu, num_cubes):
-    """Test setting inertia of rigid object via the binding.
-
-    Blocked by: _INIT_IMPL_BUG.
-    """
+    """Test setting inertia of rigid object via the binding."""
     import numpy as np
 
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
@@ -758,15 +670,12 @@ def test_rigid_body_set_inertia(sim_ctx_cpu, num_cubes):
 # ===========================================================================
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 def test_gravity_vec_w_direction(sim_ctx_cpu, num_cubes):
     """Test that gravity vector direction is set correctly for the rigid object.
 
     Real-backend port of PhysX's test_gravity_vec_w. Verifies the direction
     only (the magnitude is not checked since GRAVITY_VEC_W is a unit-vector).
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -780,7 +689,6 @@ def test_gravity_vec_w_direction(sim_ctx_cpu, num_cubes):
     assert g_cpu[0, 2].item() == pytest.approx(-1.0, abs=1e-5)
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 def test_gravity_vec_w_body_acc(sim_ctx_cpu, num_cubes, gravity_enabled):
@@ -788,8 +696,6 @@ def test_gravity_vec_w_body_acc(sim_ctx_cpu, num_cubes, gravity_enabled):
 
     Real-backend port: after N sim steps with gravity enabled, the COM
     acceleration should approach g; with gravity disabled it should be ~0.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -807,7 +713,6 @@ def test_gravity_vec_w_body_acc(sim_ctx_cpu, num_cubes, gravity_enabled):
 # ===========================================================================
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("with_offset", [True, False])
 def test_body_root_state_properties_shapes(sim_ctx_cpu, num_cubes, with_offset):
@@ -815,8 +720,6 @@ def test_body_root_state_properties_shapes(sim_ctx_cpu, num_cubes, with_offset):
 
     Real-backend port of shape-checks from PhysX's
     test_body_root_state_properties.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -831,7 +734,6 @@ def test_body_root_state_properties_shapes(sim_ctx_cpu, num_cubes, with_offset):
     assert cube_object.data.body_com_vel_w.torch.shape == (num_cubes, 1, 6)
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("with_offset", [True, False])
 def test_body_root_state_properties_physics(sim_ctx_cpu, num_cubes, with_offset):
@@ -839,8 +741,6 @@ def test_body_root_state_properties_physics(sim_ctx_cpu, num_cubes, with_offset)
 
     Real-backend port: spin the object and verify link vs COM
     position/velocity differences with non-zero COM offset.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -858,7 +758,6 @@ def test_body_root_state_properties_physics(sim_ctx_cpu, num_cubes, with_offset)
 # ===========================================================================
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
@@ -866,8 +765,6 @@ def test_write_root_state(sim_ctx_cpu, num_cubes, with_offset, state_location):
     """Test the setters for root_state using link frame and COM as reference.
 
     Real-backend port of PhysX's test_write_root_state.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
@@ -884,7 +781,6 @@ def test_write_root_state(sim_ctx_cpu, num_cubes, with_offset, state_location):
         cube_object.write_root_link_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
 
 
-@pytest.mark.xfail(reason=_INIT_IMPL_BUG, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("with_offset", [True])
 @pytest.mark.parametrize("state_location", ["com", "link", "root"])
@@ -892,8 +788,6 @@ def test_write_state_functions_data_consistency(sim_ctx_cpu, num_cubes, with_off
     """Test that link and COM data are mutually consistent after write + step.
 
     Real-backend port: write → step → verify link/COM consistency.
-
-    Blocked by: _INIT_IMPL_BUG.
     """
     cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()

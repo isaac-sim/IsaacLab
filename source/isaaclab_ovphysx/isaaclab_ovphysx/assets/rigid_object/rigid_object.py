@@ -985,7 +985,11 @@ class RigidObject(BaseRigidObject):
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._ovphysx = physx_instance
-        self._device = str(self._ovphysx.device) if hasattr(self._ovphysx, "device") else "cuda:0"
+        # Derive the device from PhysicsManager (which mirrors SimulationContext.cfg.device).
+        # The ovphysx PhysX object does not expose a .device property; reading it would
+        # raise AttributeError (masked by hasattr) and fall back to "cuda:0" even when the
+        # simulation is running on CPU, causing a device mismatch in binding.read().
+        self._device = OvPhysxManager.get_device()
         self._binding_pattern = self.cfg.prim_path
 
         # Step 4: Eagerly create the GPU bindings so failures surface at init.
@@ -1004,7 +1008,18 @@ class RigidObject(BaseRigidObject):
         root_pose = self._bindings[TT.RIGID_BODY_POSE]
         self._num_instances = root_pose.count
         self._num_bodies = 1
-        self._body_names = list(root_pose.body_names) if hasattr(root_pose, "body_names") else ["base_link"]
+        try:
+            body_names_value = root_pose.body_names
+            # body_names may be an empty list for non-articulation bindings; fall
+            # back to the documented single-body default in that case.
+            self._body_names = list(body_names_value) if body_names_value else ["base_link"]
+        except (AttributeError, TypeError):
+            # ovphysx TensorBinding raises TypeError (not AttributeError) when
+            # body_names is queried on a non-articulation tensor type such as
+            # RIGID_BODY_POSE: "Articulation metadata … is not available for
+            # tensor type 'RIGID_BODY_POSE'."  For a single-body rigid object
+            # the default ["base_link"] is always correct.
+            self._body_names = ["base_link"]
 
         # Step 6: Create the data container.
         self._data = RigidObjectData(self._bindings, self._device)

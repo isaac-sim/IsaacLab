@@ -1,6 +1,25 @@
 Changelog
 ---------
 
+0.2.3 (2026-04-27)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_ovphysx.assets.RigidObject._initialize_impl` where
+  ``hasattr(root_pose, "body_names")`` only suppresses ``AttributeError`` but
+  the real ovphysx ``TensorBinding.body_names`` raises ``TypeError`` for
+  non-articulation tensor types (e.g. ``RIGID_BODY_POSE``), propagating the
+  exception instead of falling back to ``["base_link"]``. Replaced the
+  ``hasattr`` guard with a ``try/except (AttributeError, TypeError)`` block.
+* Fixed :meth:`~isaaclab_ovphysx.assets.RigidObject._initialize_impl` where
+  ``self._device`` was derived from ``self._ovphysx.device`` (a property that
+  the real ovphysx ``PhysX`` object does not expose), causing a silent fallback
+  to ``"cuda:0"`` even when the simulation runs on CPU. The device is now read
+  from :meth:`~isaaclab_ovphysx.physics.OvPhysxManager.get_device`, which
+  mirrors ``SimulationContext.cfg.device`` and is always correct.
+
 0.2.2 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~
 
