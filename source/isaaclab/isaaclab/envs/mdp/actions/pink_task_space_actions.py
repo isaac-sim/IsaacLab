@@ -324,17 +324,20 @@ class PinkInverseKinematicsAction(ActionTerm):
         )
 
     def _apply_gravity_compensation(self) -> None:
-        """Apply gravity compensation to arm joints if not disabled in props."""
+        """Apply gravity compensation to arm joints if not disabled in props.
+
+        This calls :meth:`~isaaclab.assets.BaseArticulation.get_gravity_compensation_forces`,
+        which raises :class:`NotImplementedError` on the Newton backend (no upstream
+        primitive). That is intentional — if a user opts into gravity compensation on
+        Newton via ``enable_gravity_compensation=True``, they should see a loud failure
+        rather than silently receive zeros. To use Pink IK on Newton, keep
+        ``enable_gravity_compensation=False``.
+        """
         if not self._asset.cfg.spawn.rigid_props.disable_gravity:
+            # Get gravity compensation forces using cached tensor
             if self._asset.is_fixed_base:
-                # Fixed-base path intentionally applies zero extra gravity comp;
-                # build the zeros tensor directly so we don't invoke the
-                # backend's gravity-comp accessor (which Newton doesn't
-                # implement) just for shape inference.
-                gravity = torch.zeros(
-                    (self.num_envs, len(self._controlled_joint_ids_tensor)),
-                    device=self.device,
-                    dtype=torch.float32,
+                gravity = torch.zeros_like(
+                    wp.to_torch(self._asset.get_gravity_compensation_forces())[:, self._controlled_joint_ids_tensor]
                 )
             else:
                 # If floating base, then need to skip the first 6 joints (base)
