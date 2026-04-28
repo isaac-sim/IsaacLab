@@ -34,8 +34,13 @@ TRACE_JSON_PATH = Path(__file__).resolve().parents[1] / "nsys_trace.json"
 
 def _load_trace_entries() -> list[dict]:
     """Return the parsed JSON entries from the trace file."""
-    with TRACE_JSON_PATH.open() as f:
-        return json.load(f)
+    if not TRACE_JSON_PATH.exists():
+        raise RuntimeError(f"nsys trace JSON not found at {TRACE_JSON_PATH}")
+    try:
+        with TRACE_JSON_PATH.open() as f:
+            return json.load(f)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"nsys trace JSON at {TRACE_JSON_PATH} is malformed: {exc}") from exc
 
 
 def _function_name_and_module(entry_module: str, func_spec) -> tuple[str, str]:
@@ -87,6 +92,7 @@ def _is_own_public_method(cls: type, name: str, member: object) -> bool:
         return False
     if name not in cls.__dict__:
         return False
+    # Skip dunders and private helpers from the unreferenced-method check; the JSON curates inclusions explicitly.
     if name.startswith("_"):
         return False
     return True
