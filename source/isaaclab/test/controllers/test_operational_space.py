@@ -17,10 +17,9 @@ import torch
 import warp as wp
 from flaky import flaky
 
-from isaacsim.core.cloner import GridCloner
-
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
@@ -82,18 +81,15 @@ def sim():
         translation=[0, 0, 1],
     )
 
-    # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0, stage=stage)
-    cloner.define_base_env("/World/envs")
-    env_prim_paths = cloner.generate_paths("/World/envs/env", num_envs)
+    # Create environment clones using Isaac Lab's cloner utilities
+    env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+    env_fmt = "/World/envs/env_{}"
+    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
+    env_origins, _ = cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
     # create source prim
     stage.DefinePrim(env_prim_paths[0], "Xform")
     # clone the env xform
-    cloner.clone(
-        source_prim_path=env_prim_paths[0],
-        prim_paths=env_prim_paths,
-        replicate_physics=True,
-    )
+    cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
     robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     robot_cfg.actuators["panda_shoulder"].stiffness = 0.0
@@ -1460,7 +1456,7 @@ def _run_op_space_controller(
     robot.update(dt=sim_dt)
 
     # Get the center of the robot soft joint limits
-    joint_centers = torch.mean(wp.to_torch(robot.data.soft_joint_pos_limits)[:, arm_joint_ids, :], dim=-1)
+    joint_centers = torch.mean(robot.data.soft_joint_pos_limits.torch[:, arm_joint_ids, :], dim=-1)
 
     # get the updated states
     (
@@ -1500,8 +1496,8 @@ def _run_op_space_controller(
                     osc, ee_pose_b, ee_target_pose_b, ee_force_b, command, pos_mask, rot_mask, force_mask, frame
                 )
             # reset joint state to default
-            default_joint_pos = wp.to_torch(robot.data.default_joint_pos).clone()
-            default_joint_vel = wp.to_torch(robot.data.default_joint_vel).clone()
+            default_joint_pos = robot.data.default_joint_pos.torch.clone()
+            default_joint_vel = robot.data.default_joint_vel.torch.clone()
             robot.write_joint_state_to_sim(default_joint_pos, default_joint_vel)
             robot.set_joint_effort_target(zero_joint_efforts)  # Set zero torques in the initial step
             robot.write_data_to_sim()
@@ -1599,28 +1595,24 @@ def _update_states(
     gravity = wp.to_torch(robot.root_view.get_gravity_compensation_forces())[:, arm_joint_ids]
     # Convert the Jacobian from world to root frame
     jacobian_b = jacobian_w.clone()
-    root_rot_matrix = matrix_from_quat(quat_inv(wp.to_torch(robot.data.root_quat_w)))
+    root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w.torch))
     jacobian_b[:, :3, :] = torch.bmm(root_rot_matrix, jacobian_b[:, :3, :])
     jacobian_b[:, 3:, :] = torch.bmm(root_rot_matrix, jacobian_b[:, 3:, :])
 
     # Compute current pose of the end-effector
-    root_pose_w = wp.to_torch(robot.data.root_pose_w)
-    ee_pose_w = wp.to_torch(robot.data.body_pose_w)[:, ee_frame_idx]
+    root_pose_w = robot.data.root_pose_w.torch
+    ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
     ee_pos_b, ee_quat_b = subtract_frame_transforms(
         root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
     )
     ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
 
     # Compute the current velocity of the end-effector
-    ee_vel_w = wp.to_torch(robot.data.body_vel_w)[
-        :, ee_frame_idx, :
-    ]  # Extract end-effector velocity in the world frame
-    root_vel_w = wp.to_torch(robot.data.root_vel_w)  # Extract root velocity in the world frame
+    ee_vel_w = robot.data.body_vel_w.torch[:, ee_frame_idx, :]  # Extract end-effector velocity in the world frame
+    root_vel_w = robot.data.root_vel_w.torch  # Extract root velocity in the world frame
     relative_vel_w = ee_vel_w - root_vel_w  # Compute the relative velocity in the world frame
-    ee_lin_vel_b = quat_apply_inverse(
-        wp.to_torch(robot.data.root_quat_w), relative_vel_w[:, 0:3]
-    )  # From world to root frame
-    ee_ang_vel_b = quat_apply_inverse(wp.to_torch(robot.data.root_quat_w), relative_vel_w[:, 3:6])
+    ee_lin_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 0:3])  # From world to root frame
+    ee_ang_vel_b = quat_apply_inverse(robot.data.root_quat_w.torch, relative_vel_w[:, 3:6])
     ee_vel_b = torch.cat([ee_lin_vel_b, ee_ang_vel_b], dim=-1)
 
     # Calculate the contact force
@@ -1630,14 +1622,14 @@ def _update_states(
         contact_forces.update(sim_dt)  # update contact sensor
         # Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and
         # taking the max of three surfaces as only one should be the contact of interest
-        ee_force_w, _ = torch.max(torch.mean(wp.to_torch(contact_forces.data.net_forces_w_history), dim=1), dim=1)
+        ee_force_w, _ = torch.max(torch.mean(contact_forces.data.net_forces_w_history.torch, dim=1), dim=1)
 
     # This is a simplification, only for the sake of testing.
     ee_force_b = ee_force_w
 
     # Get joint positions and velocities
-    joint_pos = wp.to_torch(robot.data.joint_pos)[:, arm_joint_ids]
-    joint_vel = wp.to_torch(robot.data.joint_vel)[:, arm_joint_ids]
+    joint_pos = robot.data.joint_pos.torch[:, arm_joint_ids]
+    joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
 
     return (
         jacobian_b,

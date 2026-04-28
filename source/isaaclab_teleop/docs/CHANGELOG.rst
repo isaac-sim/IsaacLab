@@ -1,6 +1,71 @@
 Changelog
 ---------
 
+0.3.8 (2026-04-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Switched :class:`~isaaclab_teleop.xr_anchor_utils.XrAnchorSynchronizer` to import
+  ``get_current_stage`` from :mod:`isaaclab.sim.utils.stage` instead of
+  ``isaacsim.core.experimental.utils.stage``, aligning with the Isaac Lab API.
+
+
+0.3.7 (2026-04-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated XR anchor prim creation to use :func:`isaaclab.sim.utils.prims.create_prim`
+  instead of ``isaacsim.core.experimental.prims.XformPrim``.
+
+
+0.3.6 (2026-04-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopCfg.control_channel_uuid` for
+  receiving teleop control commands (start/stop/reset) from the headset via
+  an OpenXR message channel.  The channel is managed by TeleopCore's native
+  ``teleop_control_pipeline`` mechanism.
+
+* Added :class:`~isaaclab_teleop.teleop_message_processor.TeleopMessageProcessor`
+  retargeter that converts raw message-channel payloads into boolean control
+  signals for :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`.
+
+* Added :func:`~isaaclab_teleop.poll_control_events` helper,
+  :class:`~isaaclab_teleop.ControlEvents` dataclass, and
+  :class:`~isaaclab_teleop.SupportsControlEvents` protocol for polling
+  start/stop/reset signals from any teleop device in a single call.
+
+* Added :attr:`~isaaclab_teleop.IsaacTeleopDevice.last_control_events`
+  property exposing the most recent control events from the message channel.
+  Control events are automatically bridged to legacy
+  :meth:`~isaaclab_teleop.IsaacTeleopDevice.add_callback` callbacks.
+
+Changed
+^^^^^^^
+
+* :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset` now injects a
+  ``reset`` :class:`ExecutionEvents` into TeleopCore's ``ComputeContext``
+  on the next pipeline step, resetting retargeter cross-step state.
+  Previously only the XR anchor was reset.
+
+Fixed
+^^^^^
+
+* Fixed ``record_demos.py`` not resetting the teleop device when a
+  success condition triggers an environment reset.  Retargeters now
+  reinitialize their state on success-triggered resets.
+
+* Fixed shutdown hang caused by Kit's pre-shutdown callback calling
+  ``stop()`` while the simulation loop was still running.  The callback
+  now uses the same graceful teardown path as the XR-disabled handler.
+
 0.3.5 (2026-04-06)
 ~~~~~~~~~~~~~~~~~~~
 

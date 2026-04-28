@@ -38,7 +38,7 @@ from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 _mock_physics_sim_view = MagicMock()
 _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
 
-from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
@@ -266,9 +266,11 @@ def collection_iface(request):
 # ---------------------------------------------------------------------------
 
 
-def _check_wp_array(arr, *, expected_shape: tuple, expected_dtype: type, name: str):
-    """Assert that `arr` is a wp.array with the expected shape and dtype."""
-    assert isinstance(arr, wp.array), f"{name}: expected wp.array, got {type(arr)}"
+def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name: str):
+    """Assert that `arr` is a ProxyArray with the expected shape and dtype."""
+    from isaaclab.utils.warp import ProxyArray
+
+    assert isinstance(arr, ProxyArray), f"{name}: expected ProxyArray, got {type(arr)}"
     assert arr.shape == expected_shape, f"{name}: expected shape {expected_shape}, got {arr.shape}"
     assert arr.dtype == expected_dtype, f"{name}: expected dtype {expected_dtype}, got {arr.dtype}"
 
@@ -455,7 +457,7 @@ class TestCollectionDataBodyState:
     def test_body_link_pose_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_link_pose_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.transformf,
@@ -469,7 +471,7 @@ class TestCollectionDataBodyState:
     def test_body_link_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_link_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.spatial_vectorf,
@@ -483,7 +485,7 @@ class TestCollectionDataBodyState:
     def test_body_com_pose_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_pose_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.transformf,
@@ -497,7 +499,7 @@ class TestCollectionDataBodyState:
     def test_body_com_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.spatial_vectorf,
@@ -511,7 +513,7 @@ class TestCollectionDataBodyState:
     def test_body_com_acc_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_acc_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.spatial_vectorf,
@@ -525,7 +527,7 @@ class TestCollectionDataBodyState:
     def test_body_com_pose_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_pose_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.transformf,
@@ -548,7 +550,7 @@ class TestCollectionDataSliced:
     def test_body_link_pos_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_link_pos_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -562,7 +564,7 @@ class TestCollectionDataSliced:
     def test_body_link_quat_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_link_quat_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.quatf,
@@ -576,7 +578,7 @@ class TestCollectionDataSliced:
     def test_body_link_lin_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_link_lin_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -590,7 +592,7 @@ class TestCollectionDataSliced:
     def test_body_link_ang_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_link_ang_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -604,7 +606,7 @@ class TestCollectionDataSliced:
     def test_body_com_pos_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_pos_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -618,7 +620,7 @@ class TestCollectionDataSliced:
     def test_body_com_quat_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_quat_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.quatf,
@@ -632,7 +634,7 @@ class TestCollectionDataSliced:
     def test_body_com_lin_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_lin_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -646,7 +648,7 @@ class TestCollectionDataSliced:
     def test_body_com_ang_vel_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_ang_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -660,7 +662,7 @@ class TestCollectionDataSliced:
     def test_body_com_lin_acc_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_lin_acc_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -674,7 +676,7 @@ class TestCollectionDataSliced:
     def test_body_com_ang_acc_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_ang_acc_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -688,7 +690,7 @@ class TestCollectionDataSliced:
     def test_body_com_pos_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_pos_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -702,7 +704,7 @@ class TestCollectionDataSliced:
     def test_body_com_quat_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_quat_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.quatf,
@@ -725,7 +727,7 @@ class TestCollectionDataDerived:
     def test_projected_gravity_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.projected_gravity_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -739,7 +741,7 @@ class TestCollectionDataDerived:
     def test_heading_w(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.heading_w, expected_shape=(num_instances, num_bodies), expected_dtype=wp.float32, name="heading_w"
         )
 
@@ -750,7 +752,7 @@ class TestCollectionDataDerived:
     def test_body_link_lin_vel_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_link_lin_vel_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -764,7 +766,7 @@ class TestCollectionDataDerived:
     def test_body_link_ang_vel_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_link_ang_vel_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -778,7 +780,7 @@ class TestCollectionDataDerived:
     def test_body_com_lin_vel_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_lin_vel_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -792,7 +794,7 @@ class TestCollectionDataDerived:
     def test_body_com_ang_vel_b(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_com_ang_vel_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -815,7 +817,7 @@ class TestCollectionDataMass:
     def test_body_mass(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_mass, expected_shape=(num_instances, num_bodies), expected_dtype=wp.float32, name="body_mass"
         )
 
@@ -826,7 +828,7 @@ class TestCollectionDataMass:
     def test_body_inertia(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.body_inertia,
             expected_shape=(num_instances, num_bodies, 9),
             expected_dtype=wp.float32,
@@ -849,7 +851,7 @@ class TestCollectionDataDefaults:
     def test_default_body_pose(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.default_body_pose,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.transformf,
@@ -863,7 +865,7 @@ class TestCollectionDataDefaults:
     def test_default_body_vel(self, backend, num_instances, num_bodies, device, collection_iface):
         obj, _ = collection_iface
         obj.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             obj.data.default_body_vel,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.spatial_vectorf,

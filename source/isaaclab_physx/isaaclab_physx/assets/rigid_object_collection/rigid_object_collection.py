@@ -15,7 +15,7 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
+import omni.physics.tensors.api as physx
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -186,42 +186,22 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_ENV_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self.reshape_data_to_view_2d(
-                        self._instantaneous_wrench_composer.composed_force, device=self.device
-                    ).view(wp.float32),
-                    torque_data=self.reshape_data_to_view_2d(
-                        self._instantaneous_wrench_composer.composed_torque, device=self.device
-                    ).view(wp.float32),
-                    position_data=None,
-                    indices=self._env_body_ids_to_view_ids(
-                        self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
-                    ),
-                    is_global=False,
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
-                # Apply permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self.reshape_data_to_view_2d(
-                        self._permanent_wrench_composer.composed_force, device=self.device
-                    ).view(wp.float32),
-                    torque_data=self.reshape_data_to_view_2d(
-                        self._permanent_wrench_composer.composed_torque, device=self.device
-                    ).view(wp.float32),
-                    position_data=None,
-                    indices=self._env_body_ids_to_view_ids(
-                        self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
-                    ),
-                    is_global=False,
-                )
+                composer = self._permanent_wrench_composer
+            composer.compose_to_body_frame()
+            self.root_view.apply_forces_and_torques_at_position(
+                force_data=self.reshape_data_to_view_2d(composer.out_force_b.warp, device=self.device).view(wp.float32),
+                torque_data=self.reshape_data_to_view_2d(composer.out_torque_b.warp, device=self.device).view(
+                    wp.float32
+                ),
+                position_data=None,
+                indices=self._env_body_ids_to_view_ids(
+                    self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
+                ),
+                is_global=False,
+            )
         self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float) -> None:

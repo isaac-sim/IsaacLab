@@ -96,7 +96,7 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
 
     # ---- Core provider API -------------------------------------------------------------------
 
-    def update(self, env_ids: list[int] | None = None) -> None:
+    def update(self) -> None:
         """Sync Newton body transforms to USD Fabric when a Kit viewport is active.
 
         Called at render cadence by :meth:`~isaaclab.sim.SimulationContext.update_scene_data_provider`,
@@ -104,9 +104,6 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         :meth:`~isaaclab_newton.physics.NewtonManager.sync_transforms_to_usd` when a Kit
         (or other USD-based) visualizer is in use. When both sim and rendering backend
         are Newton (or Rerun), the sync is skipped to avoid unnecessary slowdown.
-
-        Args:
-            env_ids: Optional environment id selection. Unused in this provider.
         """
         if not self._needs_usd_sync:
             return
@@ -127,12 +124,8 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
 
         return NewtonManager.get_model()
 
-    def get_newton_state(self, env_ids: list[int] | None = None) -> Any | None:
+    def get_newton_state(self) -> Any | None:
         """Return Newton state from NewtonManager.
-
-        Args:
-            env_ids: Optional list of environment IDs. Currently returns the full
-                state for all environments (env_ids filtering is not yet implemented).
 
         Returns:
             The current Newton state (state_0) from NewtonManager.
@@ -149,16 +142,9 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         """
         return self.get_newton_model()
 
-    def get_state(self, env_ids: list[int] | None = None) -> Any | None:
-        """Alias for :meth:`get_newton_state` for visualizer compatibility.
-
-        Args:
-            env_ids: Optional list of environment ids.
-
-        Returns:
-            Newton state object, or ``None`` when unavailable.
-        """
-        return self.get_newton_state(env_ids)
+    def get_state(self) -> Any | None:
+        """Alias for :meth:`get_newton_state` for visualizer compatibility."""
+        return self.get_newton_state()
 
     def get_usd_stage(self) -> Any | None:
         """Return the USD stage handle.

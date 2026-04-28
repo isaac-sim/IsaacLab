@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
@@ -35,7 +34,7 @@ def goal_quat_diff(
 
     # obtain the orientations
     goal_quat_w = command_term.command[:, 3:7]
-    asset_quat_w = wp.to_torch(asset.data.root_quat_w)
+    asset_quat_w = asset.data.root_quat_w.torch
 
     # compute quaternion difference
     quat = math_utils.quat_mul(asset_quat_w, math_utils.quat_conjugate(goal_quat_w))

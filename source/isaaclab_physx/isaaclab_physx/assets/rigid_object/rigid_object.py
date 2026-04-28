@@ -26,7 +26,7 @@ from isaaclab_physx.physics import PhysxManager as SimulationManager
 from .rigid_object_data import RigidObjectData
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.impl.api as physx
+    import omni.physics.tensors.api as physx
 
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
@@ -150,30 +150,22 @@ class RigidObject(BaseRigidObject):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._get_inst_wrench_force_f32(),
-                    torque_data=self._get_inst_wrench_torque_f32(),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
+                get_force_data = self._get_inst_wrench_force_f32
+                get_torque_data = self._get_inst_wrench_torque_f32
             else:
-                # Apply permanent wrench to the simulation
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._get_perm_wrench_force_f32(),
-                    torque_data=self._get_perm_wrench_torque_f32(),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
-                )
+                composer = self._permanent_wrench_composer
+                get_force_data = self._get_perm_wrench_force_f32
+                get_torque_data = self._get_perm_wrench_torque_f32
+            composer.compose_to_body_frame()
+            self.root_view.apply_forces_and_torques_at_position(
+                force_data=get_force_data(),
+                torque_data=get_torque_data(),
+                position_data=None,
+                indices=self._ALL_INDICES,
+                is_global=False,
+            )
         self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float) -> None:
@@ -1084,13 +1076,15 @@ class RigidObject(BaseRigidObject):
     def _get_inst_wrench_force_f32(self) -> wp.array:
         """Get a cached flattened float32 view of instantaneous wrench force. Invalidated in ``_create_buffers``."""
         if self._inst_wrench_force_f32 is None:
-            self._inst_wrench_force_f32 = self._instantaneous_wrench_composer.composed_force.flatten().view(wp.float32)
+            self._inst_wrench_force_f32 = self._instantaneous_wrench_composer.out_force_b.warp.flatten().view(
+                wp.float32
+            )
         return self._inst_wrench_force_f32
 
     def _get_inst_wrench_torque_f32(self) -> wp.array:
         """Get a cached flattened float32 view of instantaneous wrench torque. Invalidated in ``_create_buffers``."""
         if self._inst_wrench_torque_f32 is None:
-            self._inst_wrench_torque_f32 = self._instantaneous_wrench_composer.composed_torque.flatten().view(
+            self._inst_wrench_torque_f32 = self._instantaneous_wrench_composer.out_torque_b.warp.flatten().view(
                 wp.float32
             )
         return self._inst_wrench_torque_f32
@@ -1098,13 +1092,13 @@ class RigidObject(BaseRigidObject):
     def _get_perm_wrench_force_f32(self) -> wp.array:
         """Get a cached flattened float32 view of permanent wrench force. Invalidated in ``_create_buffers``."""
         if self._perm_wrench_force_f32 is None:
-            self._perm_wrench_force_f32 = self._permanent_wrench_composer.composed_force.flatten().view(wp.float32)
+            self._perm_wrench_force_f32 = self._permanent_wrench_composer.out_force_b.warp.flatten().view(wp.float32)
         return self._perm_wrench_force_f32
 
     def _get_perm_wrench_torque_f32(self) -> wp.array:
         """Get a cached flattened float32 view of permanent wrench torque. Invalidated in ``_create_buffers``."""
         if self._perm_wrench_torque_f32 is None:
-            self._perm_wrench_torque_f32 = self._permanent_wrench_composer.composed_torque.flatten().view(wp.float32)
+            self._perm_wrench_torque_f32 = self._permanent_wrench_composer.out_torque_b.warp.flatten().view(wp.float32)
         return self._perm_wrench_torque_f32
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:

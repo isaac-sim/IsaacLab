@@ -20,6 +20,7 @@ from newton.sensors import SensorContact as NewtonContactSensor
 
 import isaaclab.utils.string as string_utils
 from isaaclab.sensors.contact_sensor.base_contact_sensor import BaseContactSensor
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -207,7 +208,7 @@ class ContactSensor(BaseContactSensor):
             )
         return string_utils.resolve_matching_names(name_keys, sensor_names, preserve_order)
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
+    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if sensors that have established contact within the last :attr:`dt` seconds.
 
         This function checks if the sensors have established contact within the last :attr:`dt` seconds
@@ -246,9 +247,9 @@ class ContactSensor(BaseContactSensor):
             outputs=[self._data._first_transition],
             device=self._device,
         )
-        return self._data._first_transition
+        return self._data._first_transition_ta
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> wp.array:
+    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if sensors that have broken contact within the last :attr:`dt` seconds.
 
         This function checks if the sensors have broken contact within the last :attr:`dt` seconds
@@ -288,7 +289,7 @@ class ContactSensor(BaseContactSensor):
             outputs=[self._data._first_transition],
             device=self._device,
         )
-        return self._data._first_transition
+        return self._data._first_transition_ta
 
     """
     Implementation.

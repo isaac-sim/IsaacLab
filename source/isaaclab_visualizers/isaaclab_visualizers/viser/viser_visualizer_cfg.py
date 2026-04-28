@@ -35,9 +35,3 @@ class ViserVisualizerCfg(VisualizerCfg):
 
     record_to_viser: str | None = None
     """Path to save a .viser recording file. None = no recording."""
-
-    max_worlds: int | None = None
-    """Maximum number of worlds/environments rendered by the viewer.
-
-    Set to ``None`` to leave this option disabled.
-    """

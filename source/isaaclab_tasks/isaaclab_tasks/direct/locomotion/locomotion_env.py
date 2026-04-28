@@ -133,14 +133,14 @@ class LocomotionEnv(DirectRLEnv):
 
     def _compute_intermediate_values(self):
         self.torso_position, self.torso_rotation = (
-            wp.to_torch(self.robot.data.root_pos_w),
-            wp.to_torch(self.robot.data.root_quat_w),
+            self.robot.data.root_pos_w.torch,
+            self.robot.data.root_quat_w.torch,
         )
         self.velocity, self.ang_velocity = (
-            wp.to_torch(self.robot.data.root_lin_vel_w),
-            wp.to_torch(self.robot.data.root_ang_vel_w),
+            self.robot.data.root_lin_vel_w.torch,
+            self.robot.data.root_ang_vel_w.torch,
         )
-        self.dof_pos, self.dof_vel = wp.to_torch(self.robot.data.joint_pos), wp.to_torch(self.robot.data.joint_vel)
+        self.dof_pos, self.dof_vel = self.robot.data.joint_pos.torch, self.robot.data.joint_vel.torch
 
         (
             self.up_proj,
@@ -163,8 +163,8 @@ class LocomotionEnv(DirectRLEnv):
             self.velocity,
             self.ang_velocity,
             self.dof_pos,
-            wp.to_torch(self.robot.data.soft_joint_pos_limits)[0, :, 0],
-            wp.to_torch(self.robot.data.soft_joint_pos_limits)[0, :, 1],
+            self.robot.data.soft_joint_pos_limits.torch[0, :, 0],
+            self.robot.data.soft_joint_pos_limits.torch[0, :, 1],
             self.inv_start_rot,
             self.basis_vec0,
             self.basis_vec1,
@@ -226,10 +226,10 @@ class LocomotionEnv(DirectRLEnv):
         self.robot.reset(env_ids)
         super()._reset_idx(env_ids)
 
-        joint_pos = wp.to_torch(self.robot.data.default_joint_pos)[env_ids].clone()
-        joint_vel = wp.to_torch(self.robot.data.default_joint_vel)[env_ids].clone()
-        default_root_pose = wp.to_torch(self.robot.data.default_root_pose)[env_ids].clone()
-        default_root_vel = wp.to_torch(self.robot.data.default_root_vel)[env_ids].clone()
+        joint_pos = self.robot.data.default_joint_pos.torch[env_ids].clone()
+        joint_vel = self.robot.data.default_joint_vel.torch[env_ids].clone()
+        default_root_pose = self.robot.data.default_root_pose.torch[env_ids].clone()
+        default_root_vel = self.robot.data.default_root_vel.torch[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
         self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)

@@ -256,40 +256,23 @@ class Articulation(BaseArticulation):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to the simulation
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._instantaneous_wrench_composer.composed_force,
-                        self._instantaneous_wrench_composer.composed_torque,
-                        self._data._sim_bind_body_external_wrench,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
-                # Apply permanent wrench to the simulation
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._permanent_wrench_composer.composed_force,
-                        self._permanent_wrench_composer.composed_torque,
-                        self._data._sim_bind_body_external_wrench,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._permanent_wrench_composer
+            composer.compose_to_body_frame()
+            wp.launch(
+                shared_kernels.update_wrench_array_with_force_and_torque,
+                dim=(self.num_instances, self.num_bodies),
+                device=self.device,
+                inputs=[
+                    composer.out_force_b,
+                    composer.out_torque_b,
+                    self._data._sim_bind_body_external_wrench,
+                    self._ALL_ENV_MASK,
+                    self._ALL_BODY_MASK,
+                ],
+            )
         self._instantaneous_wrench_composer.reset()
 
         # apply actuator models
@@ -3324,9 +3307,9 @@ class Articulation(BaseArticulation):
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
-        self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
-        self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
-        self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
+        self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
+        self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
+        self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
@@ -3438,12 +3421,12 @@ class Articulation(BaseArticulation):
                 joint_ids=joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
-                stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
-                damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
-                armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
-                friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
-                effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
-                velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
+                stiffness=self._data.joint_stiffness.torch[:, joint_ids],
+                damping=self._data.joint_damping.torch[:, joint_ids],
+                armature=self._data.joint_armature.torch[:, joint_ids],
+                friction=self._data.joint_friction_coeff.torch[:, joint_ids],
+                effort_limit=self._data.joint_effort_limits.torch[:, joint_ids].clone(),
+                velocity_limit=self._data.joint_vel_limits.torch[:, joint_ids],
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
@@ -3570,16 +3553,16 @@ class Articulation(BaseArticulation):
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
-                joint_positions=wp.to_torch(self._data.joint_pos_target)[:, actuator.joint_indices],
-                joint_velocities=wp.to_torch(self._data.joint_vel_target)[:, actuator.joint_indices],
-                joint_efforts=wp.to_torch(self._data.joint_effort_target)[:, actuator.joint_indices],
+                joint_positions=self._data.joint_pos_target.torch[:, actuator.joint_indices],
+                joint_velocities=self._data.joint_vel_target.torch[:, actuator.joint_indices],
+                joint_efforts=self._data.joint_effort_target.torch[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
             # compute joint command from the actuator model
             control_action = actuator.compute(
                 control_action,
-                joint_pos=wp.to_torch(self._data.joint_pos)[:, actuator.joint_indices],
-                joint_vel=wp.to_torch(self._data.joint_vel)[:, actuator.joint_indices],
+                joint_pos=self._data.joint_pos.torch[:, actuator.joint_indices],
+                joint_vel=self._data.joint_vel.torch[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
             joint_indices = actuator.joint_indices
@@ -3642,9 +3625,9 @@ class Articulation(BaseArticulation):
             return
 
         # check that the default values are within the limits
-        joint_pos_limits_lower = wp.to_torch(self._data.joint_pos_limits_lower)[0]
-        joint_pos_limits_upper = wp.to_torch(self._data.joint_pos_limits_upper)[0]
-        default_joint_pos = wp.to_torch(self._data.default_joint_pos)[0]
+        joint_pos_limits_lower = self._data.joint_pos_limits_lower.torch[0]
+        joint_pos_limits_upper = self._data.joint_pos_limits_upper.torch[0]
+        default_joint_pos = self._data.default_joint_pos.torch[0]
         out_of_range = default_joint_pos < joint_pos_limits_lower
         out_of_range |= default_joint_pos > joint_pos_limits_upper
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
@@ -3661,8 +3644,8 @@ class Articulation(BaseArticulation):
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
-        joint_max_vel = wp.to_torch(self._data.joint_vel_limits)[0]
-        default_joint_vel = wp.to_torch(self._data.default_joint_vel)[0]
+        joint_max_vel = self._data.joint_vel_limits.torch[0]
+        default_joint_vel = self._data.default_joint_vel.torch[0]
         out_of_range = torch.abs(default_joint_vel) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:
@@ -3702,19 +3685,19 @@ class Articulation(BaseArticulation):
         # -- gains
         # Use data properties which have already been cloned and stored during initialization
         # This avoids issues with indexedarray or empty arrays from root_view
-        stiffnesses = wp.to_torch(self.data.joint_stiffness)[0].cpu().tolist()
-        dampings = wp.to_torch(self.data.joint_damping)[0].cpu().tolist()
+        stiffnesses = self.data.joint_stiffness.torch[0].cpu().tolist()
+        dampings = self.data.joint_damping.torch[0].cpu().tolist()
         # -- properties
-        armatures = wp.to_torch(self.data.joint_armature)[0].cpu().tolist()
+        armatures = self.data.joint_armature.torch[0].cpu().tolist()
         # For friction, use the individual components from data
-        friction_coeff = wp.to_torch(self.data.joint_friction_coeff)[0].cpu()
+        friction_coeff = self.data.joint_friction_coeff.torch[0].cpu()
         static_frictions = friction_coeff.tolist()
         # -- limits
         # joint_pos_limits is vec2f array, convert to torch and extract [lower, upper] pairs
-        position_limits_torch = wp.to_torch(self.data.joint_pos_limits)[0].cpu()  # shape: (num_joints, 2)
+        position_limits_torch = self.data.joint_pos_limits.torch[0].cpu()  # shape: (num_joints, 2)
         position_limits = [tuple(pos_limit.tolist()) for pos_limit in position_limits_torch]
-        velocity_limits = wp.to_torch(self.data.joint_vel_limits)[0].cpu().tolist()
-        effort_limits = wp.to_torch(self.data.joint_effort_limits)[0].cpu().tolist()
+        velocity_limits = self.data.joint_vel_limits.torch[0].cpu().tolist()
+        effort_limits = self.data.joint_effort_limits.torch[0].cpu().tolist()
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"

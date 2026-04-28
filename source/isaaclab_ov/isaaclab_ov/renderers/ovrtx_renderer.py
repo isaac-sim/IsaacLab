@@ -37,7 +37,13 @@ import warp as wp
 # By setting OVRTX_SKIP_USD_CHECK, we prevent the C library from loading the pxr Python package.
 os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
+import ovrtx
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
+from packaging.version import Version
+
+# In previous versions of ovrtx, there was a bug where we would have to set read_gpu_transforms to False.
+# In later versions, we can read transforms from GPU.
+_OVRTX_READ_GPU_TRANSFORMS = Version(ovrtx.__version__) > Version("0.2.0")
 
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
@@ -171,7 +177,7 @@ class OVRTXRenderer(BaseRenderer):
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
             log_level=self.cfg.log_level,
-            read_gpu_transforms=False,
+            read_gpu_transforms=_OVRTX_READ_GPU_TRANSFORMS,
         )
         self._renderer = Renderer(OVRTX_CONFIG)
         assert self._renderer, "Renderer should be valid after creation"

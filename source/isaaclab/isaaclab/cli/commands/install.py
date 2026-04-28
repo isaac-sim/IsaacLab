@@ -77,6 +77,119 @@ def _install_system_deps() -> None:
             run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
 
+def _torch_first_on_sys_path_is_prebundle(python_exe: str, *, env: dict[str, str]) -> bool:
+    """Return True when the first ``torch`` on ``sys.path`` comes from a prebundle directory.
+
+    Checks whether the first directory on ``sys.path`` that contains a
+    ``torch`` package lives under a ``pip_prebundle`` path (e.g.
+    ``omni.isaac.ml_archive/pip_prebundle``).  This catches the prebundle
+    regardless of whether the extension lives under ``exts/``,
+    ``extsDeprecated/``, or any other search path.
+
+    Does not import ``torch`` (that can fail on missing ``libcudnn`` while the
+    prebundle still appears earlier on ``sys.path`` than ``site-packages``).
+    """
+    probe = """import os, sys
+for p in sys.path:
+    if not p:
+        continue
+    if os.path.isfile(os.path.join(p, "torch", "__init__.py")):
+        norm = os.path.normpath(p)
+        sys.exit(1 if "pip_prebundle" in norm else 0)
+sys.exit(0)
+"""
+    result = run_command(
+        [python_exe, "-c", probe],
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 1
+
+
+def _maybe_uninstall_prebundled_torch(
+    python_exe: str,
+    pip_cmd: list[str],
+    using_uv: bool,
+    *,
+    probe_env: dict[str, str],
+) -> None:
+    """Uninstall pip torch stack when ``sys.path`` would load ``torch`` from a prebundle first."""
+    if not _torch_first_on_sys_path_is_prebundle(python_exe, env=probe_env):
+        return
+    print_info(
+        "The first ``torch`` on ``sys.path`` is under a prebundle directory (e.g. "
+        "``omni.isaac.ml_archive/pip_prebundle``). Uninstalling pip "
+        "``torch``/``torchvision``/``torchaudio`` before continuing."
+    )
+    uninstall_flags = ["-y"] if not using_uv else []
+    run_command(
+        pip_cmd + ["uninstall"] + uninstall_flags + ["torch", "torchvision", "torchaudio"],
+        check=False,
+    )
+
+
+# Pinocchio stack required by isaaclab.controllers.pink_ik. Installed via the cmeel
+# ``pin`` wheel, which provides the ``pinocchio`` Python module under
+# ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
+# ``cmeel.pth`` hook.
+_PINOCCHIO_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.7.2")
+
+
+def _ensure_pinocchio_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
+    """Ensure ``pinocchio`` is importable, force-installing the cmeel pin stack if not.
+
+    Recent Isaac Sim base images preinstall ``pin-pink`` into the kit's bundled
+    ``site-packages`` without its ``pin`` (cmeel pinocchio) dependency.  Pip then
+    treats the ``pin-pink`` requirement as satisfied and never resolves the
+    transitive ``pin`` dep, leaving ``import pinocchio`` broken.  This probes
+    for ``pinocchio`` at runtime and force-installs the cmeel stack when needed
+    so the pink IK controller and its tests work out of the box.
+
+    Only runs on Linux x86_64 / aarch64 — the same platforms that have
+    pinocchio listed in :mod:`isaaclab`'s ``setup.py`` install requirements.
+    Skipped on Windows and macOS (no cmeel wheels) and on unsupported
+    architectures so the rest of ``--install`` behaves unchanged there.
+
+    A force-reinstall failure (e.g. transient PyPI / NVIDIA Artifactory issue)
+    is logged as a warning rather than aborting ``--install``: pinocchio is only
+    needed by the optional pink IK controller, so the rest of Isaac Lab should
+    still install cleanly.
+    """
+    import platform
+
+    if platform.system() != "Linux":
+        return
+    if platform.machine() not in {"x86_64", "AMD64", "aarch64", "arm64"}:
+        return
+
+    probe_result = run_command(
+        [python_exe, "-c", "import pinocchio"],
+        env=probe_env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if probe_result.returncode == 0:
+        return
+
+    print_info(
+        "``import pinocchio`` failed — the kit-bundled ``pin-pink`` likely shipped without its"
+        " ``pin`` dep. Force-installing the cmeel pinocchio stack."
+    )
+    install_result = run_command(
+        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINOCCHIO_STACK],
+        check=False,
+    )
+    if install_result.returncode != 0:
+        print_warning(
+            "Force-installing the cmeel pinocchio stack failed (returncode "
+            f"{install_result.returncode}). The pink IK controller and its tests will not be"
+            " usable until ``pin pin-pink==3.1.0 daqp==0.7.2`` is installed manually."
+        )
+
+
 def _ensure_cuda_torch() -> None:
     """Ensure correct PyTorch and CUDA versions are installed."""
     python_exe = extract_python_exe()
@@ -305,6 +418,9 @@ _PREBUNDLE_REPOINT_PACKAGES: list[str] = [
     "newton_actuators",
     "warp",
     "mujoco_warp",
+    "websockets",
+    "viser",
+    "imgui_bundle",
 ]
 """Package directory names in Isaac Sim prebundle directories to repoint.
 
@@ -352,7 +468,25 @@ def _repoint_prebundle_packages() -> None:
         print_warning(f"site-packages directory not found: {site_packages} — skipping prebundle repoint.")
         return
 
-    prebundle_dirs = list(isaacsim_path.rglob("pip_prebundle"))
+    # Discover pip_prebundle directories from both the Isaac Sim tree and
+    # Omniverse cache roots. Some Isaac Sim directories are symlinked into
+    # ~/.local/share/ov and may be missed by a plain rglob() on _isaac_sim.
+    candidate_roots: set[Path] = set()
+    for root in (
+        isaacsim_path,
+        isaacsim_path.resolve(),
+        isaacsim_path / "extscache",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts" / "v2",
+    ):
+        if root.exists():
+            candidate_roots.add(root)
+            candidate_roots.add(root.resolve())
+
+    prebundle_dirs: set[Path] = set()
+    for root in candidate_roots:
+        prebundle_dirs.update(root.rglob("pip_prebundle"))
+
     if not prebundle_dirs:
         print_debug("No pip_prebundle directories found under Isaac Sim.")
         return
@@ -366,6 +500,17 @@ def _repoint_prebundle_packages() -> None:
             if not venv_pkg.exists():
                 continue
             if not prebundled.exists() and not prebundled.is_symlink():
+                continue
+
+            # The 'nvidia' directory is a Python namespace package shared across many
+            # distributions (nvidia-cudnn-cu12, nvidia-cublas-cu12, nvidia-srl, …).
+            # When using Isaac Sim's built-in Python, site-packages/nvidia only contains
+            # 'srl'; replacing the whole prebundle nvidia/ with that symlink strips away
+            # the CUDA shared libraries (libcudnn.so.9, etc.) that torch needs.
+            # Only repoint the nvidia namespace when the target actually provides the
+            # CUDA subpackages (cudnn is the minimal required indicator).
+            if pkg_name == "nvidia" and not (venv_pkg / "cudnn").exists():
+                print_debug(f"Skipping repoint of {prebundled}: {venv_pkg} lacks CUDA subpackages (cudnn missing).")
                 continue
 
             try:
@@ -482,12 +627,6 @@ def command_install(install_type: str = "all") -> None:
                 if name == "newton" and "isaaclab_visualizers" not in isaaclab_submodules:
                     isaaclab_submodules.append("isaaclab_visualizers")
                     submodule_extras["isaaclab_visualizers"] = "[newton]"
-                # newton and physx are tightly coupled; always install both together.
-                # todo: remove once we move to UV and pyproject.toml-based packaging
-                if name == "newton" and "isaaclab_physx" not in isaaclab_submodules:
-                    isaaclab_submodules.append("isaaclab_physx")
-                if name == "physx" and "isaaclab_newton" not in isaaclab_submodules:
-                    isaaclab_submodules.append("isaaclab_newton")
             else:
                 valid = sorted(VALID_ISAACLAB_SUBMODULES) + sorted(VALID_RL_FRAMEWORKS) + ["isaacsim"]
                 print_warning(f"Unknown Isaac Lab submodule '{name}'. Valid values: {', '.join(valid)}. Skipping.")
@@ -528,6 +667,12 @@ def command_install(install_type: str = "all") -> None:
     pip_cmd = get_pip_command(python_exe)
     using_uv = pip_cmd[0] == "uv"
 
+    # Probe with the user's original PYTHONPATH (before pip-time filtering) so we detect
+    # Isaac Sim's setup_python_env.sh ordering that prefers extsDeprecated/ml_archive.
+    probe_env = {**os.environ}
+    if saved_pythonpath is not None:
+        probe_env["PYTHONPATH"] = saved_pythonpath
+
     try:
         # Upgrade pip first to avoid compatibility issues (skip when using uv).
         if not using_uv:
@@ -536,6 +681,9 @@ def command_install(install_type: str = "all") -> None:
 
         # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
         run_command(pip_cmd + ["install", "setuptools<82.0.0"])
+
+        # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
+        _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
 
         # Install Isaac Sim if requested.
         if install_isaacsim:
@@ -554,6 +702,11 @@ def command_install(install_type: str = "all") -> None:
         # In some rare cases, torch might not be installed properly by setup.py, add one more check here.
         # Can prevent that from happening.
         _ensure_cuda_torch()
+
+        # Ensure ``pinocchio`` is actually importable.  The kit-bundled ``pin-pink`` in recent
+        # Isaac Sim images ships without its cmeel ``pin`` dependency, so the transitive
+        # requirement from ``pip install -e source/isaaclab`` can be silently skipped.
+        _ensure_pinocchio_installed(python_exe, pip_cmd, probe_env=probe_env)
 
         # Repoint prebundled packages in Isaac Sim to the environment's copies so
         # the active venv/conda versions are always loaded regardless of PYTHONPATH

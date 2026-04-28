@@ -98,6 +98,49 @@ The following classes have been moved to ``isaaclab_physx``:
    installation steps are required.
 
 
+Renaming of ``XformPrimView`` to ``FrameView``
+-----------------------------------------------
+
+Isaac Lab's ``XformPrimView`` and related classes have been renamed to ``FrameView`` to
+better reflect their purpose and avoid confusion with Isaac Sim's ``XFormPrim`` class
+hierarchy. The old ``XformPrimView`` name is kept as a deprecated alias.
+
+The rename applies across all backends:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Isaac Lab 2.x
+     - Isaac Lab 3.0
+   * - ``BaseXformPrimView``
+     - :class:`~isaaclab.sim.views.BaseFrameView`
+   * - ``UsdXformPrimView``
+     - :class:`~isaaclab.sim.views.UsdFrameView`
+   * - ``XformPrimView``
+     - :class:`~isaaclab.sim.views.FrameView`
+   * - ``FabricXformPrimView``
+     - :class:`~isaaclab_physx.sim.views.FabricFrameView`
+   * - ``NewtonSiteXformPrimView``
+     - :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`
+
+For most users, the only change needed is updating imports:
+
+.. code-block:: python
+
+   # Before
+   from isaaclab.sim.views import XformPrimView
+
+   # After
+   from isaaclab.sim.views import FrameView
+
+The :class:`~isaaclab.sim.views.FrameView` factory automatically dispatches to the correct
+backend (:class:`~isaaclab_physx.sim.views.FabricFrameView` for PhysX,
+:class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` for Newton) based on the active
+physics backend. The deprecated ``XformPrimView`` alias continues to work but will be
+removed in a future release.
+
+
 Unchanged Imports
 -----------------
 
@@ -846,6 +889,56 @@ Best Practices for Migration
 
 6. **Check documentation** - Update any docs or comments that mention quaternion format.
 
+
+Using the Runtime Quaternion Access Detector
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The quaternion finder tool above covers hard-coded values in source files,
+but it cannot see quaternions that are *read* from asset/sensor data at
+runtime. For those, Isaac Lab ships a
+runtime detector hook on :class:`~isaaclab.utils.warp.ProxyArray` that flags
+every ``.torch`` access on a ``wp.quatf``-typed property and points at the
+exact call site. Use it after the source-level migration to catch the cases
+the finder tool can't reach.
+
+Enable it by setting an environment variable before launching your script:
+
+.. code-block:: bash
+
+   export WARN_ON_TORCH_QUATF_ACCESS=1
+   ./isaaclab.sh -p my_script.py
+
+Every read of ``.torch`` on a ``ProxyArray`` whose underlying ``wp.array`` has
+dtype ``wp.quatf`` then emits a :class:`UserWarning` with the message:
+
+.. code-block:: text
+
+   Reading .torch on a wp.quatf-typed ProxyArray. The Isaac Lab quaternion
+   convention changed from (w, x, y, z) in 2.x to (x, y, z, w) in 3.x. If
+   your code assumes the old order, this is likely the source of incorrect
+   rotations. Unset WARN_ON_TORCH_QUATF_ACCESS to silence this warning.
+
+The warning's traceback points at the exact line that performed the access
+(via ``stacklevel=2``), so you can walk through the matches in your code and
+confirm each one uses the new ``(x, y, z, w)`` order.
+
+Typical workflow:
+
+1. Run a representative scene or task with the env var set.
+2. Triage every warning location — check whether the call site assumes
+   ``(w, x, y, z)`` (Lab 2.x) or ``(x, y, z, w)`` (Lab 3.x).
+3. Migrate the call sites that still expect the old order.
+4. Re-run with the env var still set; the warnings should be gone (or only
+   come from intentionally-handled call sites).
+5. Unset the env var for production runs — the detector adds an
+   ``os.environ`` lookup per ``.torch`` access, which is cheap but not free.
+
+The detector covers only ``ProxyArray.torch`` reads. Direct accesses on the
+underlying ``wp.array`` (via ``ProxyArray.warp``) are not flagged, because
+warp uses ``(x, y, z, w)`` natively and so a warp-side read is unaffected
+by the convention change.
+
+
 API Changes
 ~~~~~~~~~~~
 
@@ -879,22 +972,21 @@ quaternions in XYZW format:
 - And all other quaternion utilities
 
 
-Warp Backend for Asset and Sensor Data
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ProxyArray Backend for Asset and Sensor Data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-All ``.data.*`` properties on asset and sensor classes now return ``wp.array`` instead of
-``torch.Tensor``. This change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
+All ``.data.*`` properties on asset and sensor classes now return
+:class:`~isaaclab.utils.warp.ProxyArray` instead of ``torch.Tensor``. ``ProxyArray`` wraps
+the underlying ``wp.array`` and exposes explicit ``.torch`` and ``.warp`` accessors. This
+change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
 :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
 :class:`~isaaclab_physx.assets.DeformableObject`) and all sensor classes
 (:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
 :class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
 
-To convert back to ``torch.Tensor`` for use with PyTorch operations, wrap the property
-access with ``wp.to_torch()``:
+To use a data property as a ``torch.Tensor``, append ``.torch``:
 
 .. code-block:: python
-
-   import warp as wp
 
    # Before (Isaac Lab 2.x)
    root_pos = robot.data.root_pos_w             # torch.Tensor
@@ -902,14 +994,14 @@ access with ``wp.to_torch()``:
    contact_forces = sensor.data.net_forces_w     # torch.Tensor
 
    # After (Isaac Lab 3.x)
-   root_pos = robot.data.root_pos_w              # wp.array
-   joint_pos = robot.data.joint_pos              # wp.array
-   contact_forces = sensor.data.net_forces_w     # wp.array
+   root_pos = robot.data.root_pos_w              # ProxyArray
+   joint_pos = robot.data.joint_pos              # ProxyArray
+   contact_forces = sensor.data.net_forces_w     # ProxyArray
 
-   # To use with torch operations, wrap with wp.to_torch()
-   root_pos_torch = wp.to_torch(robot.data.root_pos_w)        # torch.Tensor
-   joint_pos_torch = wp.to_torch(robot.data.joint_pos)        # torch.Tensor
-   contact_torch = wp.to_torch(sensor.data.net_forces_w)      # torch.Tensor
+   # To use with torch operations, access .torch
+   root_pos_torch = robot.data.root_pos_w.torch        # torch.Tensor
+   joint_pos_torch = robot.data.joint_pos.torch        # torch.Tensor
+   contact_torch = sensor.data.net_forces_w.torch      # torch.Tensor
 
 Common patterns that need updating:
 
@@ -919,19 +1011,19 @@ Common patterns that need updating:
    # Before:
    pos = robot.data.root_pos_w.clone()
    # After:
-   pos = wp.to_torch(robot.data.root_pos_w).clone()
+   pos = robot.data.root_pos_w.torch.clone()
 
    # Creating zero tensors with matching shape
    # Before:
    zeros = torch.zeros_like(robot.data.root_pos_w)
    # After:
-   zeros = torch.zeros_like(wp.to_torch(robot.data.root_pos_w))
+   zeros = torch.zeros_like(robot.data.root_pos_w.torch)
 
    # Assertions in tests
    # Before:
    torch.testing.assert_close(robot.data.root_pos_w, expected)
    # After:
-   torch.testing.assert_close(wp.to_torch(robot.data.root_pos_w), expected)
+   torch.testing.assert_close(robot.data.root_pos_w.torch, expected)
 
 .. list-table:: Affected classes
    :header-rows: 1
@@ -955,23 +1047,142 @@ Common patterns that need updating:
      - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.FrameTransformer`
      - ``isaaclab_physx``
+   * - :class:`~isaaclab.sensors.RayCaster`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.RayCasterCamera`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.MultiMeshRayCaster`
+     - ``isaaclab``
+   * - :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`
+     - ``isaaclab``
 
 .. note::
 
-   An automated migration tool is provided at ``scripts/tools/wrap_warp_to_torch.py``.
-   It scans Python files for ``.data.<property>`` accesses and wraps them with
-   ``wp.to_torch()``. Usage:
+   ``wp.to_torch(proxy_array)`` is temporarily supported by a compatibility shim. It returns
+   the same zero-copy tensor as ``proxy_array.torch`` and emits a one-time
+   ``DeprecationWarning``. This shim exists for older migration code and will be removed in a
+   future release; prefer ``.torch`` in new code.
 
-   .. code-block:: bash
 
-      # Dry run (preview changes)
-      python scripts/tools/wrap_warp_to_torch.py path/to/your/code --dry-run
+Ray Caster Warp Backend
+~~~~~~~~~~~~~~~~~~~~~~~
 
-      # Apply changes in-place
-      python scripts/tools/wrap_warp_to_torch.py path/to/your/code
+The :class:`~isaaclab.sensors.RayCaster`, :class:`~isaaclab.sensors.RayCasterCamera`,
+:class:`~isaaclab.sensors.MultiMeshRayCaster`, and
+:class:`~isaaclab.sensors.MultiMeshRayCasterCamera` sensors have been transitioned from a
+PyTorch/USD-based backend to a native Warp kernel pipeline. This improves performance by
+eliminating per-step tensor allocations and torch-to-warp conversions, but introduces several
+breaking changes.
 
-   Always review the changes after running the tool, as some accesses (e.g., those
-   already passed to warp-native functions) should not be wrapped.
+
+RayCasterData Return Types
+--------------------------
+
+The :attr:`~isaaclab.sensors.RayCasterData.pos_w`,
+:attr:`~isaaclab.sensors.RayCasterData.quat_w`, and
+:attr:`~isaaclab.sensors.RayCasterData.ray_hits_w` properties now return
+:class:`~isaaclab.utils.warp.ProxyArray` instead of ``torch.Tensor``. This follows the same
+pattern as the general ProxyArray backend migration described above.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   ray_hits = ray_caster.data.ray_hits_w        # torch.Tensor
+   sensor_pos = ray_caster.data.pos_w            # torch.Tensor
+
+   # After (Isaac Lab 3.x)
+   ray_hits = ray_caster.data.ray_hits_w         # ProxyArray
+   sensor_pos = ray_caster.data.pos_w            # ProxyArray
+
+   # To use with torch operations, access .torch
+   ray_hits_torch = ray_caster.data.ray_hits_w.torch
+   sensor_pos_torch = ray_caster.data.pos_w.torch
+
+
+Ray Alignment Configuration
+----------------------------
+
+The ``attach_yaw_only`` boolean parameter on :class:`~isaaclab.sensors.RayCasterCfg` has been
+deprecated in favor of the new ``ray_alignment`` parameter, which accepts one of three string
+values:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - Old (2.x)
+     - New (3.0)
+     - Behavior
+   * - ``attach_yaw_only=False``
+     - ``ray_alignment="base"``
+     - Rays follow the full sensor orientation.
+   * - ``attach_yaw_only=True``
+     - ``ray_alignment="yaw"``
+     - Rays follow only the yaw component of the sensor orientation.
+   * - *(not available)*
+     - ``ray_alignment="world"``
+     - Rays are always cast in the world frame (no rotation applied).
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   cfg = RayCasterCfg(attach_yaw_only=True, ...)
+
+   # After (Isaac Lab 3.x)
+   cfg = RayCasterCfg(ray_alignment="yaw", ...)
+
+
+Raycasting Kernel Signature Change
+-----------------------------------
+
+The :func:`~isaaclab.utils.warp.kernels.raycast_dynamic_meshes_kernel` Warp kernel now requires
+an ``env_mask`` parameter as its first argument. This is a ``wp.array(dtype=wp.bool)`` that
+controls which environments are updated. The public Python wrapper
+:func:`~isaaclab.utils.warp.ops.raycast_dynamic_meshes` has been updated to inject an all-True
+mask automatically, so code using the wrapper is unaffected.
+
+If you call the kernel directly, update your launch call:
+
+.. code-block:: python
+
+   import warp as wp
+
+   # Before (Isaac Lab 2.x)
+   wp.launch(
+       raycast_dynamic_meshes_kernel,
+       dim=(num_meshes, num_envs, num_rays),
+       inputs=[ray_starts, ray_directions, mesh_ids, ...],
+   )
+
+   # After (Isaac Lab 3.x) -- env_mask is now the first input
+   env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+   wp.launch(
+       raycast_dynamic_meshes_kernel,
+       dim=(num_meshes, num_envs, num_rays),
+       inputs=[env_mask, ray_starts, ray_directions, mesh_ids, ...],
+   )
+
+
+RayCaster.meshes Cache Key
+--------------------------
+
+The :attr:`~isaaclab.sensors.RayCaster.meshes` class variable, which caches warp meshes across
+all :class:`~isaaclab.sensors.RayCaster` instances, is now keyed by ``(prim_path, device)`` tuples
+instead of by ``prim_path`` alone. This prevents a mesh that was built on one device (e.g. CPU)
+from being reused by a sensor running on a different device (e.g. CUDA), which caused illegal
+memory accesses on systems without unified memory.
+
+Code that reads or writes this cache directly must update both the type annotation and the key:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   meshes: ClassVar[dict[str, wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[prim_path]
+
+   # After (Isaac Lab 3.x)
+   meshes: ClassVar[dict[tuple[str, str], wp.Mesh]] = {}
+   wp_mesh = RayCaster.meshes[(prim_path, device)]
 
 
 Write Method Index/Mask Split
@@ -1496,6 +1707,204 @@ The old classes still exist and will issue ``DeprecationWarning`` when used:
 
 Deprecated retargeters have been moved to ``isaaclab_teleop.deprecated.openxr.retargeters`` for
 compatibility. These will be removed in a future release.
+
+
+.. _torcharray-migration:
+
+ProxyArray Interop and Temporary Compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Asset and sensor data class properties return :class:`~isaaclab.utils.warp.ProxyArray`, a
+lightweight wrapper with explicit ``.torch`` and ``.warp`` accessors:
+
+.. code-block:: python
+
+   # BEFORE (2.x) — properties returned torch.Tensor directly
+   joint_pos = robot.data.joint_pos          # torch.Tensor
+   root_pos = robot.data.root_pos_w          # torch.Tensor
+
+   # AFTER (3.0) — properties return ProxyArray, use .torch for the tensor
+   joint_pos = robot.data.joint_pos.torch    # cached zero-copy torch.Tensor
+   root_pos = robot.data.root_pos_w.torch    # cached zero-copy torch.Tensor
+   joint_pos_warp = robot.data.joint_pos.warp  # the underlying warp.array
+
+**Automatic interop — in many cases, no changes are needed:**
+
+- **Warp kernels:** ``ProxyArray`` implements ``__cuda_array_interface__``, so it can be passed
+  directly to ``wp.launch()`` without calling ``.warp``:
+
+  .. code-block:: python
+
+     # Just works — no .warp needed
+     wp.launch(my_kernel, inputs=[robot.data.joint_pos], ...)
+
+- **Torch functions:** ``ProxyArray`` implements ``__torch_function__``, so ``torch.*`` operations
+  accept it directly. During the deprecation period this emits a one-time warning, but works:
+
+  .. code-block:: python
+
+     # Works (emits DeprecationWarning once, then silent)
+     mean_pos = torch.mean(robot.data.joint_pos, dim=1)
+     clipped = torch.clamp(robot.data.joint_pos, -3.14, 3.14)
+
+**What to change:**
+
+1. Append ``.torch`` where you need an explicit ``torch.Tensor`` (e.g., for indexing, slicing,
+   or passing to non-torch libraries).
+2. Warp kernel calls need no changes — ``ProxyArray`` works transparently.
+3. If you need the underlying ``warp.array`` (e.g., for ``ptr``, ``strides``), use ``.warp``.
+4. Replace legacy ``wp.to_torch(proxy_array)`` calls with ``proxy_array.torch``.
+
+.. note::
+
+   The ``__torch_function__`` bridge and the temporary ``wp.to_torch(proxy_array)`` shim will
+   be removed in a future release. We recommend migrating to explicit ``.torch`` access now.
+
+For a complete guide, see :doc:`/source/how-to/proxy_array`.
+
+
+Migration off Deprecated Isaac Sim APIs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Isaac Sim 6.0, the legacy ``isaacsim.core.*``, ``isaacsim.sensors.*``, and
+``isaacsim.robot.wheeled_robots`` Python module paths are **deprecated** in favor of their
+``isaacsim.core.experimental.*`` (and ``*.experimental.*``) equivalents. Isaac Lab 3.0 has
+been migrated off the deprecated paths so that Isaac Lab continues to load and run when
+those modules are removed in a future Isaac Sim release.
+
+This is mostly a transparent change for users — Isaac Lab's own public Python API
+(:mod:`isaaclab`, :mod:`isaaclab_physx`, :mod:`isaaclab_tasks`, :mod:`isaaclab_teleop`,
+:mod:`isaaclab_mimic`) is unchanged. The migration is only user-visible if you:
+
+1. Import Isaac Sim symbols **directly** in your project, or
+2. Maintain a custom Kit experience (``.kit`` file) that lists Isaac Sim extension
+   dependencies, or
+3. Imported ``SimulationManager`` from ``isaacsim.core.simulation_manager`` in your own
+   PhysX-backed code.
+
+
+Python module renames
+---------------------
+
+Update direct imports in your own code as follows. **Where Isaac Lab provides an in-tree
+replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`` fallback:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Deprecated Isaac Sim path
+     - Recommended replacement
+   * - ``isaacsim.core.utils.stage``
+     - :mod:`isaaclab.sim.utils.stage` (e.g. ``get_current_stage``,
+       ``create_new_stage``, ``open_stage``, ``save_stage``, ``close_stage``,
+       ``clear_stage``, ``update_stage``, ``use_stage``)
+   * - ``isaacsim.core.utils.prims``
+     - :mod:`isaaclab.sim.utils.prims` (e.g. ``create_prim``, ``delete_prim``,
+       ``change_prim_property``, ``bind_visual_material``,
+       ``bind_physics_material``, ``add_usd_reference``)
+   * - ``isaacsim.core.utils.queries``
+     - :mod:`isaaclab.sim.utils.queries` (e.g. ``find_matching_prims``,
+       ``find_matching_prim_paths``, ``get_first_matching_child_prim``)
+   * - ``isaacsim.core.utils.transforms``
+     - :mod:`isaaclab.sim.utils.transforms`
+   * - ``isaacsim.core.utils.semantics``
+     - :mod:`isaaclab.sim.utils.semantics`
+   * - ``isaacsim.core.utils.extensions.enable_extension``
+     - ``isaacsim.core.experimental.utils.app.enable_extension`` (no Isaac Lab equivalent)
+   * - ``isaacsim.core.utils.viewports.set_camera_view``
+     - ``isaacsim.core.rendering_manager.ViewportManager.set_camera_view`` (or
+       ``omni.kit.viewport.utility.camera_state.ViewportCameraState`` for lower-level control)
+   * - ``isaacsim.core.prims.XFormPrim`` / ``XFormPrimView``
+     - :class:`~isaaclab.sim.views.FrameView` (Isaac Lab in-tree view; see
+       :ref:`migrating-to-isaaclab-3-0` ``Renaming of XformPrimView to FrameView`` above).
+       For ``Articulation`` / ``RigidPrim`` use ``isaacsim.core.experimental.prims``.
+   * - ``isaacsim.core.simulation_manager.SimulationManager``
+     - :class:`isaaclab_physx.physics.PhysxManager` (PhysX backend) or
+       ``isaaclab_newton.physics.NewtonManager`` (Newton backend); see local-alias
+       pattern below.
+   * - ``isaacsim.core.cloner``
+     - :mod:`isaaclab.cloner` (Isaac Lab in-tree cloner)
+   * - ``isaacsim.replicator.mobility_gen``
+     - ``isaacsim.replicator.experimental.mobility_gen``
+   * - ``isaacsim.sensors.<name>``
+     - ``isaacsim.sensors.experimental.<name>``
+   * - ``isaacsim.robot.wheeled_robots``
+     - ``isaacsim.robot.experimental.wheeled_robots`` (and
+       ``isaacsim.robot.wheeled_robots.nodes`` for OmniGraph nodes)
+
+To keep call-site code symmetric across backends when migrating off
+``isaacsim.core.simulation_manager.SimulationManager``, use the local-alias pattern:
+
+.. code-block:: python
+
+   from isaaclab_physx.physics import PhysxManager as SimulationManager
+   # or, for the Newton backend
+   from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+
+Kit experience (``.kit``) updates
+---------------------------------
+
+If you maintain a custom Kit experience derived from one of the Isaac Lab apps under
+``apps/``:
+
+* **Stop registering deprecated extension search paths.** The ``extsDeprecated`` search
+  path entry has been removed from all stock Isaac Lab Kit experiences (headless,
+  rendering, XR variants). Mirror that change in your own experience.
+* **Switch explicit Isaac Sim extension dependencies** to the non-deprecated equivalents
+  listed above (``isaacsim.core.experimental.*``, ``isaacsim.sensors.experimental.*``,
+  ``isaacsim.robot.experimental.wheeled_robots``).
+* **Remove unused Isaac Sim extensions that pull in** ``isaacsim.core.api`` — Isaac Lab
+  no longer depends on those, and keeping them resurrects the deprecated stack.
+
+
+``SimulationManager`` is no longer re-exported
+----------------------------------------------
+
+Earlier internal previews of this migration briefly exposed
+``isaaclab_physx.physics.SimulationManager`` as a public alias of
+:class:`~isaaclab_physx.physics.PhysxManager`. **That alias has been removed**; use
+:class:`~isaaclab_physx.physics.PhysxManager` directly (with ``as SimulationManager`` at
+the import site if you want backend-agnostic call-site code, as shown above).
+
+
+Retired standalone reproducers
+------------------------------
+
+A handful of legacy reproducers under ``source/isaaclab/test/deps/isaacsim`` that
+depended on the deprecated Isaac Sim core extensions have been retired:
+``check_camera.py``, ``check_floating_base_made_fixed.py``,
+``check_legged_robot_clone.py``, ``check_rep_texture_randomizer.py``, and
+``check_ref_count.py``. Use :mod:`isaaclab.sim` together with the new
+``isaacsim.core.experimental.*`` APIs for the same debugging workflows.
+
+
+PhysX Tensors API Module Path
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Recent Isaac Sim releases removed the internal ``impl`` submodule of
+``omni.physics.tensors`` and now expose the PhysX Tensor API types
+(``ArticulationView``, ``RigidBodyView``, ``SimulationView``, etc.) directly
+under ``omni.physics.tensors.api``. Importing from the old path raises
+``ModuleNotFoundError: No module named 'omni.physics.tensors.impl'`` at import
+time.
+
+Isaac Lab has been updated to import from the new path. Downstream code
+(custom assets, sensors, or scripts) that imported from the old path must be
+updated:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x / older Isaac Sim)
+   import omni.physics.tensors.impl.api as physx
+
+   # After (Isaac Lab 3.x / current Isaac Sim)
+   import omni.physics.tensors.api as physx
+
+The class identities are unchanged — only the module path moved. Type hints
+referencing the old path (``omni.physics.tensors.impl.api.ArticulationView``)
+should be similarly updated to ``omni.physics.tensors.api.ArticulationView``.
 
 
 Need Help?

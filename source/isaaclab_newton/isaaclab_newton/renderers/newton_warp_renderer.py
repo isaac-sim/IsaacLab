@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import functools
 import logging
 import weakref
 from dataclasses import dataclass
@@ -29,36 +28,6 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
 
 logger = logging.getLogger(__name__)
-
-try:
-    import nvtx
-
-    _nvtx_domain = nvtx.Domain("NewtonWarpRenderer")
-
-    def _nvtx_range(message: str, color: str | None = None):
-        """Decorator that wraps a function in a Domain.push_range/pop_range pair."""
-        attrs = _nvtx_domain.get_event_attributes(message=message, color=color)
-
-        def decorator(fn):
-            @functools.wraps(fn)
-            def wrapper(*args, **kwargs):
-                _nvtx_domain.push_range(attrs)
-                try:
-                    return fn(*args, **kwargs)
-                finally:
-                    _nvtx_domain.pop_range()
-
-            return wrapper
-
-        return decorator
-
-except ImportError:
-
-    def _nvtx_range(message: str, color: str | None = None):
-        def decorator(fn):
-            return fn
-
-        return decorator
 
 
 class RenderData:
@@ -148,13 +117,13 @@ class RenderData:
             )
 
     def _from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
-        torch_array = wp.from_torch(tensor)
+        proxy_array = wp.from_torch(tensor)
         if tensor.is_contiguous():
             return wp.array(
-                ptr=torch_array.ptr,
+                ptr=proxy_array.ptr,
                 dtype=dtype,
                 shape=(self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
-                device=torch_array.device,
+                device=proxy_array.device,
                 copy=False,
             )
 
@@ -162,7 +131,7 @@ class RenderData:
         return wp.zeros(
             (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
             dtype=dtype,
-            device=torch_array.device,
+            device=proxy_array.device,
         )
 
     @wp.kernel
@@ -230,7 +199,6 @@ class NewtonWarpRenderer(BaseRenderer):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.set_outputs(output_data)
 
-    @_nvtx_range("update_transforms", color="blue")
     def update_transforms(self):
         """Sync Newton scene state before rendering.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
@@ -243,7 +211,6 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         render_data.update(positions, orientations, intrinsics)
 
-    @_nvtx_range("render", color="green")
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
         self.newton_sensor.update(
@@ -259,7 +226,6 @@ class NewtonWarpRenderer(BaseRenderer):
             clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
         )
 
-    @_nvtx_range("read_output", color="orange")
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
         """Copy rendered outputs to the camera data buffers.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""

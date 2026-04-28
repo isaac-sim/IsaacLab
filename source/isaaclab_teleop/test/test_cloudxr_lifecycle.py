@@ -38,8 +38,15 @@ _MODULES_TO_STUB = [
     "isaacteleop.oxr",
     "isaacteleop.retargeting_engine",
     "isaacteleop.retargeting_engine.interface",
+    "isaacteleop.retargeting_engine.interface.execution_events",
+    "isaacteleop.retargeting_engine.interface.retargeter_core_types",
+    "isaacteleop.retargeting_engine.interface.tensor_group_type",
+    "isaacteleop.retargeting_engine.deviceio_source_nodes",
+    "isaacteleop.retargeting_engine.deviceio_source_nodes.deviceio_tensor_types",
     "isaacteleop.retargeting_engine_ui",
     "isaacteleop.teleop_session_manager",
+    "isaacteleop.teleop_session_manager.teleop_state_manager_retargeter",
+    "isaacteleop.teleop_session_manager.teleop_state_manager_types",
     "isaacsim",
     "isaacsim.kit",
     "isaacsim.kit.xr",
@@ -85,6 +92,7 @@ def _make_cfg() -> IsaacTeleopCfg:
     """Build a minimal IsaacTeleopCfg with a dummy pipeline_builder."""
     return IsaacTeleopCfg(
         pipeline_builder=lambda: MagicMock(),
+        control_channel_uuid=None,
     )
 
 
