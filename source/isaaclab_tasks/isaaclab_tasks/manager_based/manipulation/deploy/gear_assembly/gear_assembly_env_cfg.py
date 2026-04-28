@@ -26,10 +26,7 @@ from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.terminations as gear_assembly_terminations
-from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import (
-    ResetSampledConstantNoiseModelCfg,
-    ResetSampledQuaternionNoiseModelCfg,
-)
+from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
 
 # Get the directory where this configuration file is located
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -194,17 +191,10 @@ class ObservationsCfg:
             func=mdp.gear_shaft_pos_w,
             params={},  # Will be populated in __post_init__
             noise=ResetSampledConstantNoiseModelCfg(
-                noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")
+                noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")
             ),
         )
-        gear_shaft_quat = ObsTerm(
-            func=mdp.gear_shaft_quat_w,
-            noise=ResetSampledQuaternionNoiseModelCfg(
-                roll_range=(-0.01745, 0.01745),
-                pitch_range=(-0.01745, 0.01745),
-                yaw_range=(-0.01745, 0.01745),
-            ),
-        )
+        gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -273,34 +263,7 @@ class RewardsCfg:
         },
     )
 
-    end_effector_base_keypoint_tracking = RewTerm(
-        func=mdp.keypoint_ee_gear_error,
-        weight=-0.5,
-        params={
-            "robot_asset_cfg": SceneEntityCfg("robot"),
-            "keypoint_scale": 0.15,
-            "ee_gear_threshold": 0.00,
-            "weight_ramp_start": 0.0,  # Set to 0.0 to enable ramp-up
-            "weight_ramp_steps": 128_000,
-        },
-    )
-
-    end_effector_base_keypoint_tracking_exp = RewTerm(
-        func=mdp.keypoint_ee_gear_error_exp,
-        weight=0.5,
-        params={
-            "robot_asset_cfg": SceneEntityCfg("robot"),
-            "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001)],
-            "kp_use_sum_of_exps": False,
-            "keypoint_scale": 0.15,
-            "ee_gear_threshold": 0.00,
-            "weight_ramp_start": 0.0,  # Set to 0.0 to enable ramp-up
-            "weight_ramp_steps": 128_000,
-        },
-    )
-
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06)
-    # action = RewTerm(func=mdp.action_l2, weight=-5.0e-06)
 
 
 @configclass

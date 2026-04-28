@@ -3,7 +3,7 @@
 Training a Gear Insertion Policy and ROS Deployment
 ====================================================
 
-This tutorial walks you through how to train a gear insertion assembly reinforcement learning (RL) policy that transfers from simulation to a real robot. The workflow consists of two main stages:
+This tutorial walks you through how to train a gear insertion reinforcement learning (RL) policy that transfers from simulation to a real robot. The workflow consists of two main stages:
 
 1. **Simulation Training in Isaac Lab**: Train the policy in a high-fidelity physics simulation with domain randomization
 2. **Real Robot Deployment with Isaac ROS**: Deploy the trained policy on real hardware using Isaac ROS and a custom ROS inference node
@@ -71,42 +71,49 @@ Observation Specification
 The Gear Assembly environment uses both proprioceptive and exteroceptive (vision) observations:
 
 .. list-table:: Gear Assembly Environment Observations
-   :widths: 20 15 15 25 25
+   :widths: 20 10 10 20 20 20
    :header-rows: 1
 
    * - Observation
      - UR10e Dim
      - Rizon 4s Dim
      - Real-World Source
-     - Noise in Training
+     - UR10e Noise
+     - Rizon 4s Noise
    * - ``joint_pos``
      - 6
      - 7
      - Robot controller
-     - None (proprioceptive)
+     - None
+     - None
    * - ``joint_vel``
      - 6
      - 7
      - Robot controller
-     - None (proprioceptive)
+     - None
+     - None
    * - ``gear_shaft_pos``
      - 3
      - 3
      - FoundationPose + RealSense depth
-     - ±0.005 m (5mm)
+     - ±5mm
+     - ±10mm
    * - ``gear_shaft_quat``
      - 4
      - 4
      - FoundationPose + RealSense depth
-     - ±0.01 per component (~5°)
+     - None
+     - ±2°
 
 **Total observation dimension:** 19 (UR10e) or 21 (Rizon 4s)
 
-**Implementation:**
+.. note::
+
+    The Rizon 4s uses higher observation noise than the UR10e. The position noise is doubled (±10mm vs ±5mm) and quaternion noise (±2° per axis via quaternion multiplication) is added to the gear shaft orientation. These noise levels are set in the Rizon4s-specific config (``joint_pos_env_cfg.py``) rather than the shared base class, so they do not affect UR10e environments. The higher noise trains a more robust policy for the Rizon 4s perception pipeline.
+
+**Implementation (base class, shared by all robots):**
 
 .. code-block:: python
-
-    from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -115,35 +122,40 @@ The Gear Assembly environment uses both proprioceptive and exteroceptive (vision
         # Robot joint states - NO noise for proprioceptive observations
         joint_pos = ObsTerm(
             func=mdp.joint_pos,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["shoulder_pan_joint", ...])},
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
         )
-
         joint_vel = ObsTerm(
             func=mdp.joint_vel,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["shoulder_pan_joint", ...])},
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])},
         )
 
-        # Gear shaft pose from FoundationPose perception
-        # ADD noise for exteroceptive (vision-based) observations
-        # Calibrated to match FoundationPose + RealSense D435 error
-        # Typical error: 3-8mm position, 3-7° orientation
+        # Vision-based observations with noise calibrated to FoundationPose + RealSense D435 error
         gear_shaft_pos = ObsTerm(
             func=mdp.gear_shaft_pos_w,
-            params={"asset_cfg": SceneEntityCfg("factory_gear_base")},
-            noise=Unoise(n_min=-0.005, n_max=0.005),  # ±5mm
+            params={},
+            noise=ResetSampledConstantNoiseModelCfg(
+                noise_cfg=UniformNoiseCfg(n_min=-0.005, n_max=0.005, operation="add")  # ±5mm
+            ),
         )
-
-        # Quaternion noise: small uniform noise on each component
-        # Results in ~5° orientation error
-        gear_shaft_quat = ObsTerm(
-            func=mdp.gear_shaft_quat_w,
-            params={"asset_cfg": SceneEntityCfg("factory_gear_base")},
-            noise=Unoise(n_min=-0.01, n_max=0.01),
-        )
+        gear_shaft_quat = ObsTerm(func=mdp.gear_shaft_quat_w)
 
         def __post_init__(self):
             self.enable_corruption = True  # Enable for perception observations only
             self.concatenate_terms = True
+
+**Rizon 4s overrides** (in ``joint_pos_env_cfg.py``):
+
+.. code-block:: python
+
+    # Higher noise for Rizon 4s perception pipeline
+    self.observations.policy.gear_shaft_pos.noise = ResetSampledConstantNoiseModelCfg(
+        noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")  # ±10mm
+    )
+    self.observations.policy.gear_shaft_quat.noise = ResetSampledQuaternionNoiseModelCfg(
+        roll_range=(-0.03491, 0.03491),   # ±2 degrees
+        pitch_range=(-0.03491, 0.03491),
+        yaw_range=(-0.03491, 0.03491),
+    )
 
 **Why No Noise for Proprioceptive Observations?**
 
@@ -173,41 +185,69 @@ Accurate physics simulation is critical for contact-rich tasks. Key parameters i
 
 The Gear Assembly task requires accurate contact modeling for insertion. Here's how friction is configured:
 
-.. code-block:: python
+.. tab-set::
 
-    # From joint_pos_env_cfg.py in Isaac-Deploy-GearAssembly-UR10e-2F140-v0
+    .. tab-item:: UR10e
 
-    @configclass
-    class EventCfg:
-        """Configuration for events including physics randomization."""
+        .. code-block:: python
 
-        # Randomize friction for gear objects
-        small_gear_physics_material = EventTerm(
-            func=mdp.randomize_rigid_body_material,
-            mode="startup",
-            params={
-                "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
-                "static_friction_range": (0.75, 0.75),   # Calibrated to real gear material
-                "dynamic_friction_range": (0.75, 0.75),
-                "restitution_range": (0.0, 0.0),         # No bounce
-                "num_buckets": 16,
-            },
-        )
+            # From config/ur_10e/joint_pos_env_cfg.py
 
-        # Similar configuration for gripper fingers
-        robot_physics_material = EventTerm(
-            func=mdp.randomize_rigid_body_material,
-            mode="startup",
-            params={
-                "asset_cfg": SceneEntityCfg("robot", body_names=".*finger"),
-                "static_friction_range": (0.75, 0.75),   # Calibrated to real gripper
-                "dynamic_friction_range": (0.75, 0.75),
-                "restitution_range": (0.0, 0.0),
-                "num_buckets": 16,
-            },
-        )
+            small_gear_physics_material = EventTerm(
+                func=mdp.randomize_rigid_body_material,
+                mode="startup",
+                params={
+                    "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
+                    "static_friction_range": (0.75, 0.75),
+                    "dynamic_friction_range": (0.75, 0.75),
+                    "restitution_range": (0.0, 0.0),
+                    "num_buckets": 16,
+                },
+            )
 
-These friction values (0.75) were determined through iterative visual comparison:
+            robot_physics_material = EventTerm(
+                func=mdp.randomize_rigid_body_material,
+                mode="startup",
+                params={
+                    "asset_cfg": SceneEntityCfg("robot", body_names=".*finger"),
+                    "static_friction_range": (0.75, 0.75),
+                    "dynamic_friction_range": (0.75, 0.75),
+                    "restitution_range": (0.0, 0.0),
+                    "num_buckets": 16,
+                },
+            )
+
+    .. tab-item:: Flexiv Rizon 4s
+
+        .. code-block:: python
+
+            # From config/rizon_4s/joint_pos_env_cfg.py
+
+            small_gear_physics_material = EventTerm(
+                func=mdp.randomize_rigid_body_material,
+                mode="startup",
+                params={
+                    "asset_cfg": SceneEntityCfg("factory_gear_small", body_names=".*"),
+                    "static_friction_range": (0.75, 0.75),
+                    "dynamic_friction_range": (0.75, 0.75),
+                    "restitution_range": (0.0, 0.0),
+                    "num_buckets": 16,
+                },
+            )
+
+            robot_physics_material = EventTerm(
+                func=mdp.randomize_rigid_body_material,
+                mode="startup",
+                params={
+                    "asset_cfg": SceneEntityCfg("robot", body_names=".*finger.*"),
+                    "static_friction_range": (3.0, 3.0),
+                    "dynamic_friction_range": (3.0, 3.0),
+                    "restitution_range": (0.0, 0.0),
+                    "num_buckets": 16,
+                },
+            )
+
+These friction values were determined through iterative visual comparison:
 
 1. Record videos of the gear being grasped and manipulated on real hardware
 2. Start training in simulation and observe the live simulation viewer
@@ -217,12 +257,25 @@ These friction values (0.75) were determined through iterative visual comparison
 6. Repeat adjustments until behavior matches (no need to wait for full policy training)
 7. Once physics looks good, train in headless mode with video recording:
 
-   .. code-block:: bash
+   .. tab-set::
 
-       python scripts/reinforcement_learning/rsl_rl/train.py \
-           --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-           --headless \
-           --video --video_length 800 --video_interval 5000
+       .. tab-item:: UR10e
+
+           .. code-block:: bash
+
+               python scripts/reinforcement_learning/rsl_rl/train.py \
+                   --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
+                   --headless \
+                   --video --video_length 800 --video_interval 5000
+
+       .. tab-item:: Flexiv Rizon 4s
+
+           .. code-block:: bash
+
+               python scripts/reinforcement_learning/rsl_rl/train.py \
+                   --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
+                   --headless \
+                   --video --video_length 800 --video_interval 5000
 
 8. Review the recorded videos and compare with real hardware videos to verify physics behavior
 
@@ -274,7 +327,7 @@ Accurate actuator modeling ensures the simulated robot moves like the real one. 
 
 **Controller Choice: Impedance Control**
 
-For the UR10e deployment, we use an impedance controller interface. Using a simpler controller like impedance control reduces the chances of variation between simulation and reality compared to more complex controllers (e.g., operational space control, hybrid force-position control). Simpler controllers:
+For the UR10e and Flexiv Rizon 4s deployments, we use an impedance controller interface. Using a simpler controller like impedance control reduces the chances of variation between simulation and reality compared to more complex controllers (e.g., operational space control, hybrid force-position control). Simpler controllers:
 
 - Have fewer parameters that can mismatch between sim and real
 - Are easier to model accurately in simulation
@@ -303,45 +356,45 @@ For the UR10e deployment, we use an impedance controller interface. Using a simp
 
     .. tab-item:: Flexiv Rizon 4s + Grav Gripper
 
-        The Rizon 4s uses ``IdealPDActuatorCfg`` with per-joint-group tuning, plus actuators for the Grav parallel gripper:
+        The Rizon 4s uses ``ImplicitActuatorCfg`` with per-joint-group tuning, plus actuators for the Grav parallel gripper:
 
         .. code-block:: python
 
             actuators = {
-                "shoulder": IdealPDActuatorCfg(
+                "shoulder": ImplicitActuatorCfg(
                     joint_names_expr=["joint[1-2]"],
                     effort_limit=123.0, velocity_limit=2.094,
                     stiffness=6000.0, damping=108.4,
                 ),
-                "elbow": IdealPDActuatorCfg(
+                "elbow": ImplicitActuatorCfg(
                     joint_names_expr=["joint[3-4]"],
                     effort_limit=64.0, velocity_limit=2.443,
                     stiffness=4200.0, damping=90.7,
                 ),
-                "wrist": IdealPDActuatorCfg(
+                "wrist": ImplicitActuatorCfg(
                     joint_names_expr=["joint[5-7]"],
                     effort_limit=39.0, velocity_limit=4.887,
                     stiffness=1500.0, damping=54.2,
                 ),
-                "gripper_drive": IdealPDActuatorCfg(
+                "gripper_drive": ImplicitActuatorCfg(
                     joint_names_expr=["finger_joint"],
                     effort_limit=2.0, velocity_limit=1.0,
                     stiffness=2e3, damping=1e1,
                 ),
-                "gripper_passive": IdealPDActuatorCfg(
+                "gripper_passive": ImplicitActuatorCfg(
                     joint_names_expr=[".*_knuckle_joint"],
                     effort_limit=1.0, velocity_limit=1.0,
                     stiffness=0.0, damping=0.0,
                 ),
             }
 
-**Domain Randomization of Actuator Parameters**
+**Domain Randomization of Actuator Parameters (UR10e only)**
 
-To account for variations in real robot behavior, randomize actuator gains during training:
+To account for variations in real robot behavior, the UR10e configuration randomizes actuator gains during training:
 
 .. code-block:: python
 
-    # From EventCfg in the Gear Assembly environment
+    # From EventCfg in config/ur_10e/joint_pos_env_cfg.py
     robot_joint_stiffness_and_damping = EventTerm(
         func=mdp.randomize_actuator_gains,
         mode="reset",
@@ -355,7 +408,7 @@ To account for variations in real robot behavior, randomize actuator gains durin
     )
 
 
-**Joint Friction Randomization**
+**Joint Friction Randomization (UR10e only)**
 
 Real robots have friction in their joints that varies with position, velocity, and temperature. For the UR10e with impedance controller interface, we observed significant stiction (static friction) causing the controller to not reach target joint positions.
 
@@ -365,6 +418,7 @@ To quantify this behavior, we plotted the step response of the impedance control
 
 .. code-block:: python
 
+    # From EventCfg in config/ur_10e/joint_pos_env_cfg.py
     joint_friction = EventTerm(
         func=mdp.randomize_joint_parameters,
         mode="reset",
@@ -380,7 +434,7 @@ To quantify this behavior, we plotted the step response of the impedance control
 
 .. note::
 
-    **Flexiv Rizon 4s**: Domain randomization for actuator gains and joint friction is currently disabled for the Rizon 4s gear assembly configuration while the base simulation is being stabilized. Once the base simulation is verified, these can be re-enabled in the ``EventCfg`` class in ``config/rizon_4s/joint_pos_env_cfg.py``.
+    **Flexiv Rizon 4s**: Domain randomization for actuator gains and joint friction is not included in the Rizon 4s ``EventCfg`` (``config/rizon_4s/joint_pos_env_cfg.py``). The Rizon 4s real-world controller is significantly more stable and precise than the UR10e's, with negligible stiction and steady-state error. As a result, the simulation policy transfers well to the real robot without needing these additional randomizations.
 
 **Compensating for Stiction with Action Scaling:**
 
@@ -439,11 +493,11 @@ Domain randomization should cover the range of conditions in which you want the 
 
 **Pose Randomization**
 
-For manipulation tasks, randomize object poses to ensure the policy works across the workspace:
+For manipulation tasks, randomize object poses to ensure the policy works across the workspace. Both robots use the same gear and base pose randomization:
 
 .. code-block:: python
 
-    # From Gear Assembly environment
+    # Shared by both UR10e and Rizon 4s EventCfg
     randomize_gears_and_base_pose = EventTerm(
         func=gear_assembly_events.randomize_gears_and_base_pose,
         mode="reset",
@@ -461,11 +515,7 @@ For manipulation tasks, randomize object poses to ensure the policy works across
                 "y": [-0.02, 0.02],
                 "z": [0.0575, 0.0775],                     # 5.75-7.75cm above base
             },
-            "rot_randomization_range": {
-                "roll": [-math.pi/36, math.pi/36],         # ±5 degrees
-                "pitch": [-math.pi/36, math.pi/36],
-                "yaw": [-math.pi/36, math.pi/36],
-            },
+            "velocity_range": {},
         },
     )
 
@@ -473,22 +523,118 @@ For manipulation tasks, randomize object poses to ensure the policy works across
 
 Randomizing the robot's initial configuration helps the policy handle different starting conditions:
 
+.. tab-set::
+
+    .. tab-item:: UR10e
+
+        .. code-block:: python
+
+            set_robot_to_grasp_pose = EventTerm(
+                func=gear_assembly_events.set_robot_to_grasp_pose,
+                mode="reset",
+                params={
+                    "robot_asset_cfg": SceneEntityCfg("robot"),
+                    "pos_randomization_range": {
+                        "x": [-0.0, 0.0],
+                        "y": [-0.005, 0.005],              # ±5mm variation
+                        "z": [-0.003, 0.003],              # ±3mm variation
+                    },
+                },
+            )
+
+    .. tab-item:: Flexiv Rizon 4s
+
+        .. code-block:: python
+
+            set_robot_to_grasp_pose = EventTerm(
+                func=gear_assembly_events.set_robot_to_grasp_pose,
+                mode="reset",
+                params={
+                    "robot_asset_cfg": SceneEntityCfg("robot"),
+                    "pos_randomization_range": {
+                        "x": [-0.0, 0.0],
+                        "y": [-0.0, 0.0],
+                        "z": [-0.0, 0.0],
+                    },
+                },
+            )
+
+        The Rizon 4s currently uses zero grasp pose randomization. Position randomization can be re-enabled once the base grasp behavior is verified on real hardware.
+
+Reward Shaping
+~~~~~~~~~~~~~~
+
+The gear assembly environment uses keypoint-based rewards that measure the distance between keypoints on the gear and corresponding keypoints on the gear shaft. Both robots share a base set of reward terms defined in ``gear_assembly_env_cfg.py``:
+
+- **Keypoint tracking** (``keypoint_entity_error``): Penalizes the L2 distance between gear and shaft keypoints, encouraging the gear to approach the shaft.
+- **Exponential keypoint tracking** (``keypoint_entity_error_exp``): Provides a dense exponential reward that grows sharply as keypoints align, helping the policy refine fine-grained insertion.
+- **Action rate** (``action_rate_l2``): Penalizes large changes in actions between timesteps, promoting smooth motions.
+
+**Rizon 4s additional reward terms:**
+
+The Rizon 4s configuration adds two reward terms that measure the distance between the robot's end effector and the grasp-corrected pose computed from the active gear. For each gear, the code applies ``grasp_rot_offset`` and per-gear-size ``gear_offsets_grasp`` to compute where the EE should be if properly grasping that gear, then measures keypoint distance between the actual EE pose and that target. This acts as a grasp quality metric. These terms are defined only in the Rizon4s config (``joint_pos_env_cfg.py``) so they do not affect UR10e training:
+
 .. code-block:: python
 
-    set_robot_to_grasp_pose = EventTerm(
-        func=gear_assembly_events.set_robot_to_grasp_pose,
-        mode="reset",
+    # Penalizes distance between EE and grasp-corrected pose
+    self.rewards.end_effector_grasp_keypoint_tracking = RewTerm(
+        func=mdp.keypoint_ee_grasp_error,
+        weight=-0.5,
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            "rot_offset": [0.0, math.sqrt(2)/2, math.sqrt(2)/2, 0.0],  # Base gripper orientation
-            "pos_randomization_range": {
-                "x": [-0.0, 0.0],
-                "y": [-0.005, 0.005],                      # ±5mm variation
-                "z": [-0.003, 0.003],                      # ±3mm variation
-            },
-            "gripper_type": "2f_140",
+            "keypoint_scale": 0.15,
+            "ee_grasp_threshold": 0.00,
+            "weight_ramp_start": 0.0,
+            "weight_ramp_steps": 250_000,
+            "end_effector_body_name": self.end_effector_body_name,
+            "grasp_rot_offset": self.grasp_rot_offset,
+            "gear_offsets_grasp": self.gear_offsets_grasp,
         },
     )
+
+    # Exponential version for dense reward near alignment
+    self.rewards.end_effector_grasp_keypoint_tracking_exp = RewTerm(
+        func=mdp.keypoint_ee_grasp_error_exp,
+        weight=0.5,
+        params={
+            "robot_asset_cfg": SceneEntityCfg("robot"),
+            "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001)],
+            "kp_use_sum_of_exps": False,
+            "keypoint_scale": 0.15,
+            "ee_grasp_threshold": 0.00,
+            "weight_ramp_start": 0.0,
+            "weight_ramp_steps": 250_000,
+            "end_effector_body_name": self.end_effector_body_name,
+            "grasp_rot_offset": self.grasp_rot_offset,
+            "gear_offsets_grasp": self.gear_offsets_grasp,
+        },
+    )
+
+These terms encourage the Rizon 4s policy to keep the gripper properly aligned with the gear during insertion. The distance is ~0 when the EE is correctly grasping the gear, and increases when the gripper drifts away. The ``weight_ramp_steps`` parameter linearly ramps the reward weight from zero over the first 250k environment steps, allowing the policy to first learn coarse approach behavior before the grasp quality reward becomes active.
+
+.. list-table:: Reward Terms Comparison
+   :widths: 40 15 15
+   :header-rows: 1
+
+   * - Reward Term
+     - UR10e
+     - Rizon 4s
+   * - ``keypoint_entity_error`` (gear-shaft distance)
+     - Yes
+     - Yes
+   * - ``keypoint_entity_error_exp`` (exponential gear-shaft)
+     - Yes
+     - Yes
+   * - ``action_rate_l2`` (smooth actions)
+     - Yes
+     - Yes
+   * - ``keypoint_ee_grasp_error`` (EE vs grasp-corrected gear)
+     - No
+     - Yes
+   * - ``keypoint_ee_grasp_error_exp`` (exponential EE vs gear)
+     - No
+     - Yes
+
 
 Part 3: Training the Policy in Isaac Lab
 -----------------------------------------

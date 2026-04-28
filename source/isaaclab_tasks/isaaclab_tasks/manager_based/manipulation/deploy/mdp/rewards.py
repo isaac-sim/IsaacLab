@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+import carb
+
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_mul
 
@@ -397,18 +399,18 @@ class keypoint_entity_error_exp(ManagerTermBase):
         return keypoint_reward_exp
 
 
-class keypoint_ee_gear_error(ManagerTermBase):
+class keypoint_ee_grasp_error(ManagerTermBase):
     """Compute keypoint distance between the robot end effector and the gear's grasp-corrected pose.
 
     Transforms the gear's actual world pose into the expected EE position/orientation
     using grasp offsets, so that the distance is ~0 when properly holding the gear
     and increases when the gripper drifts away.
 
-    The reward is gated on the EE-gear keypoint distance: it only activates when
-    the mean keypoint error is below ``ee_gear_threshold``, so the penalty only
-    applies when the gripper is reasonably close to the gear.
+    The penalty is gated by ``ee_grasp_threshold``: It only activates when the mean
+    keypoint error exceeds the threshold, i.e., when the EE has drifted away from the
+    expected grasp pose. With threshold=0.0, the penalty is effectively always active.
 
-    Supports linear weight ramp-up: the returned reward is scaled by a factor that
+    Supports linear weight ramp-up: The returned reward is scaled by a factor that
     linearly increases from ``weight_ramp_start`` to 1.0 over ``weight_ramp_steps``
     env steps, allowing the reward to grow in importance as training progresses.
     """
@@ -437,7 +439,7 @@ class keypoint_ee_gear_error(ManagerTermBase):
 
         self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
         self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
-        self.ee_gear_threshold: float = cfg.params.get("ee_gear_threshold", 0.05)
+        self.ee_grasp_threshold: float = cfg.params.get("ee_grasp_threshold", 0.0)
 
         self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
@@ -468,7 +470,7 @@ class keypoint_ee_gear_error(ManagerTermBase):
         add_cube_center_kp: bool = True,
         weight_ramp_start: float = 0.0,
         weight_ramp_steps: int = 1,
-        ee_gear_threshold: float = 0.05,
+        ee_grasp_threshold: float = 0.0,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -514,48 +516,45 @@ class keypoint_ee_gear_error(ManagerTermBase):
 
         mean_kp_error = keypoint_dist_sep.mean(-1)
 
-        # Gate on EE-gear distance: only penalize when gripper is close to gear
-        is_close = (mean_kp_error > self.ee_gear_threshold).float()
+        is_active = (mean_kp_error > self.ee_grasp_threshold).float()
 
         weight_scale = self._get_weight_scale(env)
-        scaled_reward = mean_kp_error * weight_scale * is_close
+        scaled_reward = mean_kp_error * weight_scale * is_active
 
         mean_error_scalar = mean_kp_error.mean().item()
-        pct_close = is_close.mean().item()
+        pct_active = is_active.mean().item()
 
         if not hasattr(env, "extras"):
             env.extras = {}
         if "log" not in env.extras:
             env.extras["log"] = {}
-        env.extras["log"]["ee_gear_kp_error/mean_keypoint_dist"] = mean_error_scalar
-        env.extras["log"]["ee_gear_kp_error/pct_envs_close"] = pct_close
-        env.extras["log"]["ee_gear_kp_error/weight_scale"] = weight_scale
+        env.extras["log"]["ee_grasp_kp_error/mean_keypoint_dist"] = mean_error_scalar
+        env.extras["log"]["ee_grasp_kp_error/pct_envs_active"] = pct_active
+        env.extras["log"]["ee_grasp_kp_error/weight_scale"] = weight_scale
 
         self._step_count += 1
-        import carb
-
         carb.log_info(
-            f"[ee_gear_kp_error] step={self._step_count}"
+            f"[ee_grasp_kp_error] step={self._step_count}"
             f" | mean_kp_error={mean_error_scalar:.5f}"
-            f" | pct_close={pct_close:.3f}"
+            f" | pct_active={pct_active:.3f}"
             f" | weight_scale={weight_scale:.4f}"
         )
 
         return scaled_reward
 
 
-class keypoint_ee_gear_error_exp(ManagerTermBase):
+class keypoint_ee_grasp_error_exp(ManagerTermBase):
     """Compute exponential keypoint reward between the robot end effector and the gear's grasp-corrected pose.
 
     Transforms the gear's actual world pose into the expected EE position/orientation
     using grasp offsets, so that the reward is high (~1) when properly holding the gear
     and drops sharply when the gripper drifts away.
 
-    The reward is gated on the EE-gear keypoint distance: it only activates when
-    the mean keypoint error is below ``ee_gear_threshold``, so the reward only
-    applies when the gripper is reasonably close to the gear.
+    The reward is gated by ``ee_grasp_threshold``: It only activates when the mean
+    keypoint error exceeds the threshold, i.e. when the EE has drifted away from the
+    expected grasp pose. With threshold=0.0 the reward is effectively always active.
 
-    Supports linear weight ramp-up: the returned reward is scaled by a factor that
+    Supports linear weight ramp-up: The returned reward is scaled by a factor that
     linearly increases from ``weight_ramp_start`` to 1.0 over ``weight_ramp_steps``
     env steps, allowing the reward to grow in importance as training progresses.
     """
@@ -584,7 +583,7 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
 
         self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
         self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
-        self.ee_gear_threshold: float = cfg.params.get("ee_gear_threshold", 0.05)
+        self.ee_grasp_threshold: float = cfg.params.get("ee_grasp_threshold", 0.0)
 
         self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
@@ -617,7 +616,7 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
         add_cube_center_kp: bool = True,
         weight_ramp_start: float = 0.0,
         weight_ramp_steps: int = 1,
-        ee_gear_threshold: float = 0.05,
+        ee_grasp_threshold: float = 0.0,
     ) -> torch.Tensor:
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
@@ -663,8 +662,7 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
 
         mean_kp_error = keypoint_dist_sep.mean(-1)
 
-        # Gate on EE-gear distance: only reward when gripper is close to gear
-        is_close = (mean_kp_error > self.ee_gear_threshold).float()
+        is_active = (mean_kp_error > self.ee_grasp_threshold).float()
 
         keypoint_reward_exp = torch.zeros_like(keypoint_dist_sep[:, 0])
         if kp_use_sum_of_exps:
@@ -680,28 +678,26 @@ class keypoint_ee_gear_error_exp(ManagerTermBase):
                 keypoint_reward_exp += 1.0 / (torch.exp(a * kp_dist_mean) + b + torch.exp(-a * kp_dist_mean))
 
         weight_scale = self._get_weight_scale(env)
-        scaled_reward = keypoint_reward_exp * weight_scale * is_close
+        scaled_reward = keypoint_reward_exp * weight_scale * is_active
 
         mean_error_scalar = mean_kp_error.mean().item()
         mean_reward_scalar = keypoint_reward_exp.mean().item()
-        pct_close = is_close.mean().item()
+        pct_active = is_active.mean().item()
 
         if not hasattr(env, "extras"):
             env.extras = {}
         if "log" not in env.extras:
             env.extras["log"] = {}
-        env.extras["log"]["ee_gear_kp_error_exp/mean_keypoint_dist"] = mean_error_scalar
-        env.extras["log"]["ee_gear_kp_error_exp/mean_exp_reward"] = mean_reward_scalar
-        env.extras["log"]["ee_gear_kp_error_exp/pct_envs_close"] = pct_close
-        env.extras["log"]["ee_gear_kp_error_exp/weight_scale"] = weight_scale
+        env.extras["log"]["ee_grasp_kp_error_exp/mean_keypoint_dist"] = mean_error_scalar
+        env.extras["log"]["ee_grasp_kp_error_exp/mean_exp_reward"] = mean_reward_scalar
+        env.extras["log"]["ee_grasp_kp_error_exp/pct_envs_active"] = pct_active
+        env.extras["log"]["ee_grasp_kp_error_exp/weight_scale"] = weight_scale
 
         self._step_count += 1
-        import carb
-
         carb.log_info(
-            f"[ee_gear_kp_error_exp] step={self._step_count}"
+            f"[ee_grasp_kp_error_exp] step={self._step_count}"
             f" | mean_kp_error={mean_error_scalar:.5f}"
-            f" | pct_close={pct_close:.3f}"
+            f" | pct_active={pct_active:.3f}"
             f" | weight_scale={weight_scale:.4f}"
             f" | mean_exp_reward={mean_reward_scalar:.5f}"
         )

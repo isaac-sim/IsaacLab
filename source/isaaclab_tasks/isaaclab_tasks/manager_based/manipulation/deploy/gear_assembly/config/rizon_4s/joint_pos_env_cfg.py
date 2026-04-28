@@ -11,12 +11,18 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.events as gear_assembly_events
 from isaaclab_tasks.manager_based.manipulation.deploy.gear_assembly.gear_assembly_env_cfg import GearAssemblyEnvCfg
+from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import (
+    ResetSampledConstantNoiseModelCfg,
+    ResetSampledQuaternionNoiseModelCfg,
+)
 
 ##
 # Pre-defined configs
@@ -77,33 +83,6 @@ def set_finger_joint_pos_grav(
 @configclass
 class EventCfg:
     """Configuration for events."""
-
-    # NOTE: Domain randomization for actuator gains and joint friction disabled for stability.
-    # Re-enable once the base simulation is stable and working.
-    # robot_joint_stiffness_and_damping = EventTerm(
-    #     func=mdp.randomize_actuator_gains,
-    #     mode="reset",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg(
-    #             "robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]
-    #         ),
-    #         "stiffness_distribution_params": (0.75, 1.5),
-    #         "damping_distribution_params": (0.3, 3.0),
-    #         "operation": "scale",
-    #         "distribution": "log_uniform",
-    #     },
-    # )
-
-    # joint_friction = EventTerm(
-    #     func=mdp.randomize_joint_parameters,
-    #     mode="reset",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]", "joint[3-4]", "joint[5-7]"]),
-    #         "friction_distribution_params": (0.3, 0.7),
-    #         "operation": "add",
-    #         "distribution": "uniform",
-    #     },
-    # )
 
     small_gear_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -169,7 +148,6 @@ class EventCfg:
         func=gear_assembly_events.randomize_gear_type,
         mode="reset",
         params={"gear_types": ["gear_small", "gear_medium", "gear_large"]},
-        # params={"gear_types": ["gear_small", "gear_medium"]},
     )
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
@@ -189,10 +167,7 @@ class EventCfg:
             "gear_pos_range": {
                 "x": [-0.02, 0.02],
                 "y": [-0.02, 0.02],
-                "z": [0.0575, 0.0775],  # 0.045 + 0.0225
-                # "x": [-0.0, 0.0],
-                # "y": [-0.0, 0.0],
-                # "z": [0.0675, 0.0675],  # 0.045 + 0.0225
+                "z": [0.0575, 0.0775],
             },
             "velocity_range": {},
         },
@@ -203,8 +178,7 @@ class EventCfg:
         mode="reset",
         params={
             "robot_asset_cfg": SceneEntityCfg("robot"),
-            # "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.005, 0.005], "z": [-0.003, 0.003]},
-            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.00, 0.00], "z": [-0.00, 0.00]},
+            "pos_randomization_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
         },
     )
 
@@ -220,6 +194,16 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        # Flexiv-specific observation noise overrides
+        self.observations.policy.gear_shaft_pos.noise = ResetSampledConstantNoiseModelCfg(
+            noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")
+        )
+        self.observations.policy.gear_shaft_quat.noise = ResetSampledQuaternionNoiseModelCfg(
+            roll_range=(-0.03491, 0.03491),
+            pitch_range=(-0.03491, 0.03491),
+            yaw_range=(-0.03491, 0.03491),
+        )
 
         # Robot-specific parameters for Flexiv Rizon 4s with Grav gripper
         self.end_effector_body_name = "link7"  # End effector body name for IK
@@ -352,26 +336,18 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
 
         # Override gear initial states for Rizon (closer to robot, centered)
         self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
-            # pos=(-0.6, 0.0, -0.1),
-            # pos=(0.63, -0.083, -0.1),
             pos=(0.481, -0.073, 0.071),
             rot=(0.0, 0.0, 0.70711, -0.70711),
         )
         self.scene.factory_gear_small.init_state = RigidObjectCfg.InitialStateCfg(
-            # pos=(-0.6, 0.0, -0.1),
-            # pos=(0.63, -0.083, -0.1),
             pos=(0.481, -0.073, 0.071),
             rot=(0.0, 0.0, 0.70711, -0.70711),
         )
         self.scene.factory_gear_medium.init_state = RigidObjectCfg.InitialStateCfg(
-            # pos=(-0.6, 0.0, -0.1),
-            # pos=(0.63, -0.083, -0.1),
             pos=(0.481, -0.073, 0.071),
             rot=(0.0, 0.0, 0.70711, -0.70711),
         )
         self.scene.factory_gear_large.init_state = RigidObjectCfg.InitialStateCfg(
-            # pos=(-0.6, 0.0, -0.1),
-            # pos=(0.63, -0.083, -0.1),
             pos=(0.481, -0.073, 0.071),
             rot=(0.0, 0.0, 0.70711, -0.70711),
         )
@@ -406,16 +382,37 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
         self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
 
-        # Populate reward term parameters for EE-gear keypoint tracking
-        self.rewards.end_effector_base_keypoint_tracking.params["end_effector_body_name"] = self.end_effector_body_name
-        self.rewards.end_effector_base_keypoint_tracking.params["grasp_rot_offset"] = self.grasp_rot_offset
-        self.rewards.end_effector_base_keypoint_tracking.params["gear_offsets_grasp"] = self.gear_offsets_grasp
-
-        self.rewards.end_effector_base_keypoint_tracking_exp.params["end_effector_body_name"] = (
-            self.end_effector_body_name
+        # Flexiv-specific reward terms for EE-grasp keypoint tracking
+        self.rewards.end_effector_grasp_keypoint_tracking = RewTerm(
+            func=mdp.keypoint_ee_grasp_error,
+            weight=-0.5,
+            params={
+                "robot_asset_cfg": SceneEntityCfg("robot"),
+                "keypoint_scale": 0.15,
+                "ee_grasp_threshold": 0.00,
+                "weight_ramp_start": 0.0,
+                "weight_ramp_steps": 250_000,
+                "end_effector_body_name": self.end_effector_body_name,
+                "grasp_rot_offset": self.grasp_rot_offset,
+                "gear_offsets_grasp": self.gear_offsets_grasp,
+            },
         )
-        self.rewards.end_effector_base_keypoint_tracking_exp.params["grasp_rot_offset"] = self.grasp_rot_offset
-        self.rewards.end_effector_base_keypoint_tracking_exp.params["gear_offsets_grasp"] = self.gear_offsets_grasp
+        self.rewards.end_effector_grasp_keypoint_tracking_exp = RewTerm(
+            func=mdp.keypoint_ee_grasp_error_exp,
+            weight=0.5,
+            params={
+                "robot_asset_cfg": SceneEntityCfg("robot"),
+                "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001)],
+                "kp_use_sum_of_exps": False,
+                "keypoint_scale": 0.15,
+                "ee_grasp_threshold": 0.00,
+                "weight_ramp_start": 0.0,
+                "weight_ramp_steps": 250_000,
+                "end_effector_body_name": self.end_effector_body_name,
+                "grasp_rot_offset": self.grasp_rot_offset,
+                "gear_offsets_grasp": self.gear_offsets_grasp,
+            },
+        )
 
         # Populate termination term parameters
         self.terminations.gear_dropped.params["gear_offsets_grasp"] = self.gear_offsets_grasp
