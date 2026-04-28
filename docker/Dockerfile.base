@@ -103,10 +103,12 @@ RUN touch /bin/nvidia-smi && \
 # On arm64, pre-install nlopt 2.6.2 (transitively pinned by isaacteleop[retargeters]).
 # There is no aarch64 wheel for this version, and pip's isolated build env hides the
 # system numpy from nlopt's cmake-based build, so we install it manually with
-# --no-build-isolation. The subsequent isaaclab.sh --install will see nlopt as
-# already satisfied and skip the from-source rebuild that would otherwise fail.
+# --no-build-isolation. setuptools+wheel+numpy must be importable in the host Python
+# for that mode (PEP 517 backend lookup). The subsequent isaaclab.sh --install then
+# sees nlopt as already satisfied and skips the from-source rebuild that would fail.
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+        ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install setuptools wheel numpy && \
         ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation nlopt==2.6.2; \
     fi
 
