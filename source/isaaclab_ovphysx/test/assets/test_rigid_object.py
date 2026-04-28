@@ -121,5 +121,7 @@ def test_projected_gravity_b_identity_at_world_aligned_orientation():
     bindings.bindings[TT.RIGID_BODY_ROOT_POSE]._data[0] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     g = data.projected_gravity_b
     g_np = wp.to_torch(g.warp).cpu().numpy()
-    # World gravity is (0, 0, -9.81); identity rotation → body-frame gravity equals world.
-    assert g_np[0, 2] == pytest.approx(-9.81, rel=1e-4)
+    # World-frame gravity direction is (0, 0, -1) per BaseRigidObjectData
+    # convention (unit direction, not signed-magnitude). Identity rotation
+    # leaves it unchanged in the body frame.
+    assert g_np[0, 2] == pytest.approx(-1.0, rel=1e-4)
