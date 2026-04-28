@@ -171,3 +171,30 @@ def _world_vel_to_body_ang(
     q = wp.transform_get_rotation(root_pose[i])
     ang = wp.spatial_bottom(vel_w[i])
     out[i] = wp.quat_rotate_inv(q, ang)
+
+
+@wp.kernel
+def derive_body_acceleration_from_body_com_velocities(
+    body_com_vel: wp.array(dtype=wp.spatial_vectorf),
+    dt: wp.float32,
+    prev_body_com_vel: wp.array(dtype=wp.spatial_vectorf),
+    body_acc: wp.array(dtype=wp.spatial_vectorf),
+):
+    """Derive body acceleration from body COM velocities using finite differencing.
+
+    Mirrors :func:`isaaclab_newton.assets.kernels.derive_body_acceleration_from_body_com_velocities`
+    for a 1-D (root-level) array layout used by single rigid-body assets.
+
+    Args:
+        body_com_vel: Current body COM spatial velocities [m/s, rad/s].
+            Shape is (num_instances,), dtype ``wp.spatial_vectorf``.
+        dt: Simulation time step [s].
+        prev_body_com_vel: Previous-step body COM spatial velocities [m/s, rad/s].
+            Updated in-place after the acceleration is written.
+            Shape is (num_instances,), dtype ``wp.spatial_vectorf``.
+        body_acc: Output body spatial accelerations [m/s², rad/s²].
+            Shape is (num_instances,), dtype ``wp.spatial_vectorf``.
+    """
+    i = wp.tid()
+    body_acc[i] = (body_com_vel[i] - prev_body_com_vel[i]) / dt
+    prev_body_com_vel[i] = body_com_vel[i]

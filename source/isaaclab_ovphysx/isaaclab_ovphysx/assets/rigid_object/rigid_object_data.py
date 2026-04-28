@@ -22,6 +22,7 @@ from isaaclab_ovphysx.assets.kernels import (
     _projected_gravity,
     _world_vel_to_body_ang,
     _world_vel_to_body_lin,
+    derive_body_acceleration_from_body_com_velocities,
 )
 
 
@@ -46,6 +47,7 @@ class RigidObjectData(BaseRigidObjectData):
         self._num_bodies: int = 1
         self._is_primed: bool = False
         self._sim_time: float = 0.0
+        self._last_dt: float = 0.0
         self._timestamps: dict[str, float] = {}
         self._default_root_pose: wp.array | None = None
         self._default_root_velocity: wp.array | None = None
@@ -58,6 +60,8 @@ class RigidObjectData(BaseRigidObjectData):
         self._body_com_pose_b_buf: TimestampedBuffer | None = None
         # Body acceleration buffer (allocated lazily; None until _ensure_derived_buffers).
         self._body_acc_w_buf: TimestampedBuffer | None = None
+        # Previous-step COM velocity for finite-difference acceleration (lazy alloc).
+        self._previous_body_com_vel: wp.array | None = None
         # Derived-property buffers (allocated lazily on first access).
         self._projected_gravity_b_buf: TimestampedBuffer | None = None
         self._heading_w_buf: TimestampedBuffer | None = None
@@ -157,9 +161,18 @@ class RigidObjectData(BaseRigidObjectData):
 
     # --- update / cache invalidation ----------------------------------
     def update(self, dt: float) -> None:
-        """Advance the cached sim time. Per-property freshness checks happen
-        lazily on access; nothing to do up front here."""
+        """Advance the cached sim time and eagerly compute finite-difference
+        acceleration so FD captures every sim step transition.
+
+        Args:
+            dt: Simulation time step [s].
+        """
+        self._last_dt = dt
         self._sim_time += dt
+        # Eagerly trigger the FD acceleration so we don't miss a velocity
+        # transition when body_com_acc_w is only accessed on some steps.
+        # Mirrors Newton's update() pattern (rigid_object_data.py line 126).
+        self.body_com_acc_w
 
     def _invalidate_caches(self, env_ids=None) -> None:
         """Coarse cache invalidation: reset every per-buffer timestamp so the
@@ -593,43 +606,60 @@ class RigidObjectData(BaseRigidObjectData):
         raise NotImplementedError
 
     @property
-    def body_link_acc_w(self) -> ProxyArray:
-        """Body link acceleration ``[lin_acc, ang_acc]`` in simulation world frame
-        [m/s^2, rad/s^2].
+    def body_com_acc_w(self) -> ProxyArray:
+        """Body center-of-mass acceleration ``[lin_acc, ang_acc]`` in simulation world frame
+        [m/s², rad/s²].
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
         In torch this resolves to (num_instances, num_bodies, 6).
 
-        Requires the ovphysx wheel to expose ``RIGID_BODY_ACCELERATION``.
-
-        Raises:
-            NotImplementedError: If the ``RIGID_BODY_ACCELERATION`` binding is absent,
-                e.g. when running with a wheel that does not yet provide this tensor type.
+        Acceleration is finite-differenced from :attr:`body_com_vel_w`, mirroring the
+        Newton backend pattern. When ``RIGID_BODY_ACCELERATION`` is exposed by the wheel
+        in a future update it can be read directly; until then, FD provides the same
+        information at the cost of one step of latency.
         """
         self._ensure_derived_buffers()
-        if TT.RIGID_BODY_ACCELERATION not in self._bindings or self._bindings[TT.RIGID_BODY_ACCELERATION] is None:
-            raise NotImplementedError(
-                "body acceleration requires ovphysx wheel with RIGID_BODY_ACCELERATION; "
-                "see docs/superpowers/specs/2026-04-27-ovphysx-rigid-body-tensortypes-gap.md"
-            )
-        self._read_spatial_vector_binding(TT.RIGID_BODY_ACCELERATION, self._body_acc_w_buf)
+        if self._body_acc_w_buf.timestamp >= self._sim_time:
+            if self._body_acc_w_ta is None:
+                view = self._reshape_to_body_view(self._body_acc_w_buf.data, wp.spatial_vectorf)
+                self._body_acc_w_ta = ProxyArray(view)
+            return self._body_acc_w_ta
+
+        # Lazy-allocate previous-velocity history buffer on first call.
+        if self._previous_body_com_vel is None:
+            self._previous_body_com_vel = wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self._device)
+
+        # Guard against dt=0 (first step before any update() call).
+        dt = self._last_dt if self._last_dt > 0.0 else 1.0
+
+        # Read current COM velocity into the root buffer (ensures it is fresh).
+        self._ensure_root_buffers()
+        self._read_spatial_vector_binding(TT.RIGID_BODY_VELOCITY, self._root_com_vel_w_buf)
+
+        wp.launch(
+            derive_body_acceleration_from_body_com_velocities,
+            dim=self._num_instances,
+            inputs=[self._root_com_vel_w_buf.data, dt, self._previous_body_com_vel],
+            outputs=[self._body_acc_w_buf.data],
+            device=self._device,
+        )
+        self._body_acc_w_buf.timestamp = self._sim_time
+
         if self._body_acc_w_ta is None:
             view = self._reshape_to_body_view(self._body_acc_w_buf.data, wp.spatial_vectorf)
             self._body_acc_w_ta = ProxyArray(view)
         return self._body_acc_w_ta
 
     @property
-    def body_com_acc_w(self) -> ProxyArray:
-        """Body center-of-mass acceleration ``[lin_acc, ang_acc]`` in simulation world frame
-        [m/s^2, rad/s^2].
+    def body_link_acc_w(self) -> ProxyArray:
+        """Body link acceleration ``[lin_acc, ang_acc]`` in simulation world frame
+        [m/s², rad/s²].
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
         In torch this resolves to (num_instances, num_bodies, 6).
 
-        For a single rigid body ``num_bodies=1``, identical to :attr:`body_link_acc_w`.
-
-        Raises:
-            NotImplementedError: If the ``RIGID_BODY_ACCELERATION`` binding is absent.
+        For a single rigid body the link frame equals the COM frame, so this
+        delegates to :attr:`body_com_acc_w`.
         """
-        return self.body_link_acc_w
+        return self.body_com_acc_w
 
     @property
     def body_com_pose_b(self) -> ProxyArray:

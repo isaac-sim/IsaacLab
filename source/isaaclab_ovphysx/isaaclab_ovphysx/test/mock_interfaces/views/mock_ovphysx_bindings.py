@@ -209,14 +209,22 @@ class MockOvPhysxBindingSet:
             self.bindings: dict[int, MockTensorBinding] = {
                 TT.RIGID_BODY_POSE: MockTensorBinding(TT.RIGID_BODY_POSE, (N, 7), **common),
                 TT.RIGID_BODY_VELOCITY: MockTensorBinding(TT.RIGID_BODY_VELOCITY, (N, 6), **common),
-                TT.RIGID_BODY_ACCELERATION: MockTensorBinding(TT.RIGID_BODY_ACCELERATION, (N, 6), **common),
                 TT.RIGID_BODY_WRENCH: MockTensorBinding(TT.RIGID_BODY_WRENCH, (N, 9), write_only=True, **common),
                 TT.RIGID_BODY_MASS: MockTensorBinding(TT.RIGID_BODY_MASS, (N,), **common),
-                TT.RIGID_BODY_INV_MASS: MockTensorBinding(TT.RIGID_BODY_INV_MASS, (N,), **common),
                 TT.RIGID_BODY_COM_POSE: MockTensorBinding(TT.RIGID_BODY_COM_POSE, (N, 7), **common),
                 TT.RIGID_BODY_INERTIA: MockTensorBinding(TT.RIGID_BODY_INERTIA, (N, 9), **common),
-                TT.RIGID_BODY_INV_INERTIA: MockTensorBinding(TT.RIGID_BODY_INV_INERTIA, (N, 9), **common),
             }
+            # Optional bindings: only present when the wheel exposes the alias.
+            if hasattr(TT, "RIGID_BODY_ACCELERATION"):
+                self.bindings[TT.RIGID_BODY_ACCELERATION] = MockTensorBinding(
+                    TT.RIGID_BODY_ACCELERATION, (N, 6), **common
+                )
+            if hasattr(TT, "RIGID_BODY_INV_MASS"):
+                self.bindings[TT.RIGID_BODY_INV_MASS] = MockTensorBinding(TT.RIGID_BODY_INV_MASS, (N,), **common)
+            if hasattr(TT, "RIGID_BODY_INV_INERTIA"):
+                self.bindings[TT.RIGID_BODY_INV_INERTIA] = MockTensorBinding(
+                    TT.RIGID_BODY_INV_INERTIA, (N, 9), **common
+                )
             return
 
         N = num_instances

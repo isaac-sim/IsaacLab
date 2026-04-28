@@ -106,14 +106,22 @@ def test_body_link_pose_w_is_root_with_singleton_body_dim():
     assert body_np[2, 0, 0] == 1.0
 
 
-def test_body_acc_w_raises_when_wheel_missing_acceleration_binding():
-    data, bindings = _make_data(num_instances=2)
+def test_body_com_acc_w_finite_differences_velocity():
+    """body_com_acc_w returns finite-differenced acceleration from body_com_vel_w."""
+    data, bindings = _make_data(num_instances=1)
     data.is_primed = True
-    # Simulate wheel without RIGID_BODY_ACCELERATION by removing the binding.
-    bindings.bindings.pop(TT.RIGID_BODY_ACCELERATION, None)
-    data._bindings = bindings.bindings
-    with pytest.raises(NotImplementedError, match="RIGID_BODY_ACCELERATION"):
-        _ = data.body_link_acc_w
+    # Step 1: initial velocity = 0, FD result should be 0.
+    bindings.bindings[TT.RIGID_BODY_VELOCITY]._data[0] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    data.update(0.1)
+    _ = data.body_com_acc_w  # prev=0, current=0 → acc=0
+
+    # Step 2: velocity jumps to (1.0, 0, 0, 0, 0, 0); FD should give (10.0, 0, 0, 0, 0, 0).
+    bindings.bindings[TT.RIGID_BODY_VELOCITY]._data[0] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    data.update(0.1)
+    acc = data.body_com_acc_w
+    acc_np = wp.to_torch(acc.warp).cpu().numpy()
+    assert acc_np.shape == (1, 1, 6)
+    assert acc_np[0, 0, 0] == pytest.approx(10.0, rel=1e-3)
 
 
 def test_projected_gravity_b_identity_at_world_aligned_orientation():
