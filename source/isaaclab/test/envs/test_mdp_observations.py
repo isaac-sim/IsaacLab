@@ -56,6 +56,7 @@ def test_body_link_pose_w_returns_selected_env_origin_relative_poses():
     )
     body_link_vel_w = torch.zeros(2, 3, 6)
     env = _make_env(body_link_pose_w, body_link_vel_w)
+    original_body_link_pose_w = body_link_pose_w.clone()
 
     pose = observations.body_link_pose_w(env, SceneEntityCfg("robot", body_ids=[0, 2]))
 
@@ -67,6 +68,7 @@ def test_body_link_pose_w_returns_selected_env_origin_relative_poses():
     )
     assert pose.shape == (2, 14)
     assert torch.allclose(pose, expected)
+    assert torch.allclose(body_link_pose_w, original_body_link_pose_w)
 
 
 def test_body_link_vel_w_returns_selected_velocities():

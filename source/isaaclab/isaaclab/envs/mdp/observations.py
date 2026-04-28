@@ -176,7 +176,7 @@ def body_link_pose_w(
 
     Returns:
         The poses of body links in articulation [num_envs, 7 * num_bodies]. Pose order is
-        [x, y, z, qw, qx, qy, qz], where position components are [m] and quaternion components
+        [x, y, z, qx, qy, qz, qw], where position components are [m] and quaternion components
         are unitless. Output is stacked horizontally per body.
     """
     # extract the used quantities (to enable type-hinting)
