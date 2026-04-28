@@ -13,7 +13,8 @@ import warp as wp
 def copy_from_newton_kernel(
     # in
     env_mask: wp.array(dtype=wp.bool),
-    newton_forces: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_counterparts)
+    newton_total_force: wp.array2d(dtype=wp.vec3f),  # (n_envs, n_sensors)
+    newton_force_matrix: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_filter_objects) or None
     # outputs
     net_force_total: wp.array2d(dtype=wp.vec3f),  # (n_envs, n_sensors)
     force_matrix: wp.array3d(dtype=wp.vec3f),  # (n_envs, n_sensors, n_filter_objects) or None
@@ -31,12 +32,12 @@ def copy_from_newton_kernel(
 
     # Copy total force (column 0) - only thread with f_idx == 0 does this
     if f_idx == 0:
-        net_force_total[env, sensor] = newton_forces[env, sensor, 0]
+        net_force_total[env, sensor] = newton_total_force[env, sensor]
 
-    # Copy per-filter-object forces (columns 1+)
+    # Copy per-filter-object forces.
     # Guard with `if force_matrix:` to handle None case (no filter objects)
     if force_matrix:
-        force_matrix[env, sensor, f_idx] = newton_forces[env, sensor, f_idx + 1]
+        force_matrix[env, sensor, f_idx] = newton_force_matrix[env, sensor, f_idx]
 
 
 @wp.kernel

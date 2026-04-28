@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.25 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensor` to use
+  current Newton ``SensorContact`` API names, removing deprecation warnings
+  from Newton contact sensor test runs.
+
+
 0.5.24 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
