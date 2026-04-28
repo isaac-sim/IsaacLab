@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+4.6.22 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``./isaaclab.sh -i`` failing to build the ``nlopt`` wheel on ARM Linux
+  (e.g. DGX Spark) when the host image is missing SWIG. The bare-metal install
+  path now mirrors ``docker/Dockerfile.base``: on ARM Linux it installs
+  ``swig`` via apt and pre-installs ``nlopt==2.6.2`` with
+  ``--no-build-isolation`` so later submodule installs skip the source-build
+  fallback.
+
+
 4.6.21 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
