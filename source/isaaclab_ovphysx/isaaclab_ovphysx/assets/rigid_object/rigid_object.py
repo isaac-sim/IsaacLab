@@ -123,13 +123,48 @@ class RigidObject(BaseRigidObject):
         raise NotImplementedError("reset() is implemented in Task 13.")
 
     def write_data_to_sim(self) -> None:
-        """Write external wrench to the simulation.
+        """Apply composed external wrenches to the rigid actor.
 
-        .. note::
-            We write external wrench to the simulation here since this function is called before the simulation step.
-            This ensures that the external wrench is applied at every simulation step.
+        Combines the instantaneous and permanent wrench composers, rotates the
+        body-frame force/torque into world frame via the :func:`_body_wrench_to_world`
+        kernel, and writes the packed ``(fx, fy, fz, tx, ty, tz, px, py, pz)``
+        payload through the ``RIGID_BODY_WRENCH`` binding. The instantaneous
+        composer is reset after the write; permanent forces persist for the next
+        step.
         """
-        raise NotImplementedError("write_data_to_sim() is implemented in Task 12.")
+        inst = self._instantaneous_wrench_composer
+        perm = self._permanent_wrench_composer
+        if not inst.active and not perm.active:
+            return
+        if inst.active:
+            if perm.active:
+                inst.add_raw_buffers_from(perm)
+            force_b = inst.out_force_b.warp
+            torque_b = inst.out_torque_b.warp
+        else:
+            force_b = perm.out_force_b.warp
+            torque_b = perm.out_torque_b.warp
+
+        poses = self._data.body_link_pose_w.warp  # (N, 1) wp.transformf
+        wp.launch(
+            _body_wrench_to_world,
+            dim=(self._num_instances, 1),
+            inputs=[force_b, torque_b, poses],
+            outputs=[self._wrench_buf],
+            device=self._device,
+        )
+        # Reshape (N, 1, 9) → (N, 9) zero-copy for the binding write.
+        flat_view = wp.array(
+            ptr=self._wrench_buf.ptr,
+            shape=(self._num_instances, 9),
+            dtype=wp.float32,
+            device=self._device,
+            copy=False,
+        )
+        binding = self._get_binding(TT.RIGID_BODY_WRENCH)
+        if binding is not None:
+            binding.write(flat_view)
+        inst.reset()
 
     def update(self, dt: float) -> None:
         """Update internal data buffers after a simulation step.

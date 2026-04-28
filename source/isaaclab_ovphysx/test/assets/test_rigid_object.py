@@ -378,3 +378,34 @@ def test_set_coms_index_writes_through_cpu_binding():
     obj.set_coms_index(coms=com, body_ids=body_ids, env_ids=env_ids)
 
     assert bindings.bindings[TT.RIGID_BODY_COM_POSE]._data[1, 0] == pytest.approx(0.1)
+
+
+# ---------------------------------------------------------------------------
+# Task 12 — write_data_to_sim wrench application
+# ---------------------------------------------------------------------------
+
+
+def test_write_data_to_sim_applies_composed_wrench():
+    import torch
+
+    obj, bindings = _make_rigid_object_shell(num_instances=2)
+    obj._create_buffers()
+    obj._data.is_primed = True
+    # Identity orientation so body-frame == world-frame (kernel is a passthrough).
+    bindings.bindings[TT.RIGID_BODY_POSE]._data[:] = [[0, 0, 0, 0, 0, 0, 1]] * 2
+    # Push a body-frame force on env 0 via the instantaneous composer.
+    force = torch.tensor([[1.0, 0.0, 0.0]], device=obj._device)
+    torque = torch.zeros((1, 3), device=obj._device)
+    obj.instantaneous_wrench_composer.add_forces_and_torques_index(
+        force,
+        torque,
+        env_ids=torch.tensor([0], dtype=torch.int32, device=obj._device),
+        body_ids=torch.tensor([0], dtype=torch.int32, device=obj._device),
+    )
+
+    obj.write_data_to_sim()
+
+    written = bindings.bindings[TT.RIGID_BODY_WRENCH]._data
+    assert written.shape == (2, 9)
+    assert written[0, 0] == pytest.approx(1.0)
+    assert written[1, 0] == 0.0
