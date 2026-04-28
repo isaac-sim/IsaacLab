@@ -7,7 +7,7 @@ Quickstart Guide
 This guide is written for those who just can't wait to get their hands dirty and will touch on the most common concepts you will encounter as you build your own
 projects with Isaac Lab! This includes installation, running RL, finding environments, creating new projects, and more!
 
-The power of Isaac Lab comes from from a few key features that we will very briefly touch on in this guide.
+The power of Isaac Lab comes from a few key features that we will very briefly touch on in this guide.
 
 1) **Vectorization**: Reinforcement Learning requires attempting a task many times. Isaac Lab speeds this process along by vectorizing the
    environment, a process by which training can be run in parallel across many copies of the same environment, thus reducing the amount of time
