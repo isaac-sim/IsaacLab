@@ -458,3 +458,15 @@ def test_update_delegates_to_data():
     before = obj._data._sim_time
     obj.update(0.5)
     assert obj._data._sim_time == pytest.approx(before + 0.5)
+
+
+# ---------------------------------------------------------------------------
+# Task 14 — Public export smoke test
+# ---------------------------------------------------------------------------
+
+
+def test_public_exports_are_importable():
+    from isaaclab_ovphysx.assets import RigidObject, RigidObjectData
+
+    assert RigidObject.__name__ == "RigidObject"
+    assert RigidObjectData.__name__ == "RigidObjectData"
