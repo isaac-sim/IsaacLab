@@ -145,7 +145,7 @@ class Camera(SensorBase):
         if get_isaac_sim_version() == version.parse("4.5"):
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
                 logger.warning(
-                    "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"
+                    "Isaac Sim 4.5 introduced a bug in Camera when outputting instance and semantic"
                     " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
                     " will be disabled in the current workflow and may lead to longer load times and increased memory"
                     " usage."
