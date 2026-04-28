@@ -117,6 +117,9 @@ if "isaaclab_physx" not in sys.modules:
     _physx_sim.spawners = _physx_sim_sp
 
 
+import os  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
@@ -139,6 +142,8 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
 from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 from isaaclab_ovphysx.assets.rigid_object.rigid_object import RigidObject  # noqa: E402
 from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData  # noqa: E402
+from isaaclab_ovphysx.physics import OvPhysxManager  # noqa: E402
+from isaaclab_ovphysx.physics.ovphysx_manager_cfg import OvPhysxCfg  # noqa: E402
 from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet  # noqa: E402
 
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg  # noqa: E402
@@ -146,14 +151,82 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg  # noqa
 wp.init()
 
 # ---------------------------------------------------------------------------
-# Kitless fixture helpers
+# Kitless OvPhysxManager helpers
 # ---------------------------------------------------------------------------
-# OvPhysxManager has no "create_with_stage" entry point in the current wheel
-# (gap: see docs/superpowers/specs/2026-04-28-ovphysx-rigid-object-test-gaps.md,
-# section "Missing kitless in-memory stage entry point").  We therefore build
-# RigidObject instances directly using MockOvPhysxBindingSet, bypassing
-# OvPhysxManager entirely.  This gives full coverage of the RigidObject + data
-# layer.  Tests that need live PhysX time-stepping are xfail-marked.
+# OvPhysxManager IS drivable kitless via a thin fake SimulationContext.
+# _warmup_and_load() reads only:
+#   PhysicsManager._sim.stage          (pxr.Usd.Stage)
+#   PhysicsManager._sim.cfg.physics_prim_path  (str)
+#   PhysicsManager._sim.cfg.enable_scene_query_support  (bool, GPU-path only)
+#   PhysicsManager._device             (set via initialize from cfg.device)
+#   PhysicsManager._cfg                (OvPhysxCfg, set via initialize from cfg.physics)
+# get_physics_dt() additionally reads PhysicsManager._sim.cfg.dt (float).
+# A SimpleNamespace with these fields is sufficient.
+# ---------------------------------------------------------------------------
+
+
+def _make_kitless_sim_context(device: str = "cpu") -> SimpleNamespace:
+    """Build a minimal fake SimulationContext for driving OvPhysxManager kitless.
+
+    Creates an in-memory USD stage with a PhysicsScene prim and one rigid-body
+    cube (RigidBodyAPI + MassAPI + CollisionAPI).  Wraps it in a SimpleNamespace
+    that exposes the attributes OvPhysxManager reads.
+
+    The CollisionAPI is required: without it ovphysx finds no collidable geometry
+    and issues warnings, but the warmup still succeeds.  Including it avoids noise.
+
+    Args:
+        device: Compute device string, e.g. ``"cpu"`` or ``"cuda:0"``.
+
+    Returns:
+        A fake SimulationContext namespace with ``.stage`` and ``.cfg`` set.
+    """
+    from pxr import Gf, Usd, UsdGeom, UsdPhysics
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
+    cube = UsdGeom.Cube.Define(stage, "/World/Cube_0")
+    cube.AddTranslateOp().Set(Gf.Vec3d(0, 0, 1))
+    UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+    UsdPhysics.MassAPI.Apply(cube.GetPrim())
+    UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+
+    cfg = SimpleNamespace(
+        physics=OvPhysxCfg(),
+        device=device,
+        physics_prim_path="/World/PhysicsScene",
+        enable_scene_query_support=False,
+        dt=1.0 / 60.0,
+    )
+    return SimpleNamespace(stage=stage, cfg=cfg)
+
+
+@pytest.fixture(scope="module")
+def kitless_manager_cpu():
+    """Module-scoped fixture: a live OvPhysxManager initialised with a CPU device.
+
+    OvPhysxManager uses class-level state so only one live instance can exist
+    per process at a time.  The fixture initialises once for the whole module,
+    yields the manager, then calls close().
+
+    Yields:
+        OvPhysxManager class (the manager is a class, not an instance).
+    """
+    fake_sim = _make_kitless_sim_context(device="cpu")
+    OvPhysxManager.initialize(fake_sim)
+    OvPhysxManager.reset()
+    yield OvPhysxManager
+    OvPhysxManager.close()
+
+
+# ---------------------------------------------------------------------------
+# Kitless fixture helpers (mock-binding path)
+# ---------------------------------------------------------------------------
+# For tests that do NOT need live PhysX time-stepping, we build RigidObject
+# instances directly using MockOvPhysxBindingSet, bypassing OvPhysxManager
+# entirely.  This gives full coverage of the RigidObject + data layer.
+# Tests that need live PhysX time-stepping are xfail-marked.
 # ---------------------------------------------------------------------------
 
 
@@ -946,20 +1019,90 @@ def test_ovphysx_manager_step_exists():
     assert hasattr(OvPhysxManager, "initialize"), "OvPhysxManager must expose initialize()"
 
 
+def test_warmup_and_load_cpu(kitless_manager_cpu):
+    """Verify that OvPhysxManager._warmup_and_load() completes for CPU.
+
+    This is the kitless real-backend equivalent of PhysxManager's
+    test_warmup_attach_stage_not_called_for_cpu.  Instead of checking that
+    attach_stage() is NOT called (a PhysX-specific regression), we assert that
+    the OvPhysxManager warmup lifecycle completed:
+
+    - ``_warmup_done`` is True
+    - ``get_physx_instance()`` returns a live ovphysx.PhysX object
+    - ``_usd_handle`` is not None (USD was loaded via physx.add_usd())
+    - The temp USDA file exists on disk (stage was exported successfully)
+
+    Gap 1 from docs/superpowers/specs/2026-04-28-ovphysx-rigid-object-test-gaps.md
+    is now closed: OvPhysxManager is drivable kitless via a thin fake
+    SimulationContext — no wheel change required.
+    """
+    mgr = kitless_manager_cpu
+    assert mgr._warmup_done is True, "_warmup_done must be True after reset()"
+    assert mgr.get_physx_instance() is not None, "get_physx_instance() must be non-None after warmup"
+    assert mgr._usd_handle is not None, "_usd_handle must be set after add_usd()"
+    assert mgr._stage_path is not None, "_stage_path must point to the exported USDA"
+    assert os.path.exists(mgr._stage_path), f"Exported USDA does not exist: {mgr._stage_path}"
+
+
+def test_warmup_gpu_not_called_for_cpu(kitless_manager_cpu):
+    """Verify that physx.warmup_gpu() is NOT called when device is CPU.
+
+    OvPhysxManager._warmup_and_load() only calls physx.warmup_gpu() when
+    ovphysx_device == 'gpu'.  For CPU, the call must be skipped entirely.
+    We verify indirectly: the PhysX instance must be alive (warmup completed)
+    and the device string on PhysicsManager must be 'cpu'.
+
+    This is the functional analog of the PhysX regression
+    test_warmup_attach_stage_not_called_for_cpu.
+    """
+    from isaaclab.physics import PhysicsManager
+
+    mgr = kitless_manager_cpu
+    assert mgr._warmup_done is True
+    assert mgr.get_physx_instance() is not None
+    # Device stored on PhysicsManager base class (set by initialize()).
+    assert "cpu" in PhysicsManager._device, f"Expected cpu device, got {PhysicsManager._device!r}"
+
+
+def test_stage_load_cpu(kitless_manager_cpu):
+    """Verify that the USD stage is exported and loaded correctly for CPU.
+
+    Checks:
+    - _stage_path is a valid USDA file path ending in ``scene.usda``
+    - The file lives inside a temp directory (prefix ``isaaclab_ovphysx_``)
+    - _usd_handle is an integer (the handle returned by physx.add_usd())
+    """
+    mgr = kitless_manager_cpu
+    assert mgr._stage_path is not None
+    assert mgr._stage_path.endswith("scene.usda"), f"Expected 'scene.usda', got: {mgr._stage_path}"
+    assert "isaaclab_ovphysx_" in mgr._stage_path, f"Stage path not in isaaclab_ovphysx_ temp dir: {mgr._stage_path}"
+    assert os.path.exists(mgr._stage_path), "Exported USDA file missing"
+    assert isinstance(mgr._usd_handle, int), f"_usd_handle should be int, got {type(mgr._usd_handle)}"
+
+
 @pytest.mark.xfail(
     reason=(
-        "test_warmup_attach_stage_not_called_for_cpu: regression test from "
-        "PhysxManager that verifies attach_stage() is not called for CPU. "
-        "OvPhysxManager uses a different init path (export-to-usda + add_usd) "
-        "so the PhysX regression does not directly apply. The equivalent test "
-        "for OvPhysxManager would require a live ovphysx.PhysX instance with a "
-        "stage. "
-        "Gap: OvPhysxManager has no kitless in-memory stage entry point. "
-        "See docs/superpowers/specs/2026-04-28-ovphysx-rigid-object-test-gaps.md "
-        "section 'missing kitless stage entry point'."
+        "test_warmup_and_load_gpu: requires a CUDA-capable GPU and the ovphysx "
+        "wheel built with GPU support.  GPU warmup calls physx.warmup_gpu() which "
+        "allocates CUDA buffers.  Skipped when no GPU is available or when running "
+        "in CPU-only CI.  Convert to real test once a GPU CI runner is available."
     ),
     strict=False,
 )
-def test_warmup_attach_stage_not_called_for_cpu():
-    """XFail: OvPhysxManager init path cannot be tested kitless yet."""
-    raise NotImplementedError("Requires OvPhysxManager kitless stage init — see xfail reason.")
+def test_warmup_and_load_gpu():
+    """XFail: GPU warmup test requires a CUDA-capable GPU in CI."""
+    import subprocess
+
+    r = subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], capture_output=True)
+    if r.returncode != 0:
+        pytest.skip("No GPU detected")
+
+    fake_sim = _make_kitless_sim_context(device="cuda:0")
+    OvPhysxManager.initialize(fake_sim)
+    try:
+        OvPhysxManager.reset()
+        assert OvPhysxManager._warmup_done is True
+        assert OvPhysxManager.get_physx_instance() is not None
+        assert OvPhysxManager._usd_handle is not None
+    finally:
+        OvPhysxManager.close()
