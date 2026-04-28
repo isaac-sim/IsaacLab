@@ -524,22 +524,23 @@ class RigidObject(BaseRigidObject):
         self._data.is_primed = True
 
     def _create_buffers(self) -> None:
-        """Create internal buffers.
+        """Allocate index arrays, Warp views, wrench staging buffer, and wrench composers."""
+        N = self._num_instances
+        device = self._device
 
-        .. note::
-            This is a placeholder stub. Task 9 replaces the body with the full
-            buffer allocation (wrench composers, ALL_INDICES, scratch arrays, etc.).
-        """
-        pass
+        self._ALL_INDICES = torch.arange(N, dtype=torch.int32, device=device)
+        self._ALL_BODY_INDICES = torch.arange(1, dtype=torch.int32, device=device)
+        self._ALL_INDICES_WP = wp.from_torch(self._ALL_INDICES, dtype=wp.int32)
+        self._ALL_BODY_INDICES_WP = wp.from_torch(self._ALL_BODY_INDICES, dtype=wp.int32)
+
+        self._wrench_buf = wp.zeros((N, 1, 9), dtype=wp.float32, device=device)
+
+        self._instantaneous_wrench_composer = WrenchComposer(self)
+        self._permanent_wrench_composer = WrenchComposer(self)
 
     def _process_cfg(self) -> None:
-        """Post-process configuration parameters.
-
-        .. note::
-            This is a placeholder stub. Task 9 replaces the body with the full
-            initial-state application logic.
-        """
-        pass
+        """Delegate initial-state application to the data container."""
+        self._data._process_cfg(self.cfg)
 
     def _get_binding(self, tensor_type: int):
         """Return a cached TensorBinding, creating it on first access.

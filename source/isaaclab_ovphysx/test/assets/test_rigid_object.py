@@ -187,3 +187,13 @@ def test_rigid_object_count_properties():
     assert obj.num_bodies == 1
     assert obj.body_names == ["base_link"]
     assert obj.data is not None
+
+
+def test_create_buffers_allocates_wrench_buf_and_indices():
+    obj, _ = _make_rigid_object_shell(num_instances=5)
+    obj._create_buffers()
+    assert obj._wrench_buf.shape == (5, 1, 9)
+    assert obj._ALL_INDICES.shape == (5,)
+    assert obj._ALL_BODY_INDICES.shape == (1,)
+    assert obj._instantaneous_wrench_composer is not None
+    assert obj._permanent_wrench_composer is not None
