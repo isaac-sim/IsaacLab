@@ -130,6 +130,7 @@ jobs:
             # Sanitize the part after release/ for use as a Docker tag suffix.
             RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
             TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX")
+            TAGS+=("$IMAGE:latest-release-$RELEASE_SUFFIX-${{ github.run_number }}-${SHA:0:8}")
             ;;
           *)
             # Other tracked branches only get the immutable sha tag.
