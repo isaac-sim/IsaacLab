@@ -29,7 +29,7 @@ class RigidObjectData(BaseRigidObjectData):
     """OVPhysX implementation of :class:`~isaaclab.assets.BaseRigidObjectData`.
 
     Reads simulation state on demand through ``ovphysx`` ``TensorBinding``
-    objects keyed by :data:`isaaclab_ovphysx.tensor_types.RIGID_BODY_ROOT_POSE`
+    objects keyed by :data:`isaaclab_ovphysx.tensor_types.RIGID_BODY_POSE`
     and friends. Buffers are timestamped so each binding is read at most once
     per sim step.
 
@@ -279,17 +279,18 @@ class RigidObjectData(BaseRigidObjectData):
     def _ensure_body_prop_buffers(self) -> None:
         """Allocate body-property TimestampedBuffers on first use.
 
-        ``body_mass`` needs a ``(N, 1)`` float32 buffer that matches the
-        ``RIGID_BODY_MASS`` binding shape exactly. ``body_inertia`` needs a
-        ``(N, 9)`` flat float32 buffer so that ``binding.read()`` can fill it
-        directly; the ``(N, 1, 9)`` view is constructed zero-copy in the
-        property accessor.
+        ``body_mass`` needs a ``(N,)`` float32 buffer matching the wheel's
+        ``RIGID_BODY_MASS`` shape.  The ``body_mass`` property exposes ``(N, 1)``
+        by zero-copy reshape to satisfy :class:`~isaaclab.assets.BaseRigidObjectData`.
+        ``body_inertia`` needs a ``(N, 9)`` flat float32 buffer so that
+        ``binding.read()`` can fill it directly; the ``(N, 1, 9)`` view is
+        constructed zero-copy in the property accessor.
         """
         if self._body_mass_buf is not None:
             return
         N = self._num_instances
         dev = self._device
-        self._body_mass_buf = TimestampedBuffer((N, 1), dev, wp.float32)
+        self._body_mass_buf = TimestampedBuffer(N, dev, wp.float32)
         # Store flat (N, 9) so binding.read() sees the correct shape.
         self._body_inertia_buf = TimestampedBuffer((N, 9), dev, wp.float32)
 
@@ -444,7 +445,7 @@ class RigidObjectData(BaseRigidObjectData):
         the world. The orientation is provided in (x, y, z, w) format.
         """
         self._ensure_root_buffers()
-        self._read_transform_binding(TT.RIGID_BODY_ROOT_POSE, self._root_link_pose_w_buf)
+        self._read_transform_binding(TT.RIGID_BODY_POSE, self._root_link_pose_w_buf)
         if self._root_link_pose_w_ta is None:
             self._root_link_pose_w_ta = ProxyArray(self._root_link_pose_w_buf.data)
         return self._root_link_pose_w_ta
@@ -459,7 +460,7 @@ class RigidObjectData(BaseRigidObjectData):
         body's actor frame relative to the world.
         """
         self._ensure_root_buffers()
-        self._read_spatial_vector_binding(TT.RIGID_BODY_ROOT_VELOCITY, self._root_link_vel_w_buf)
+        self._read_spatial_vector_binding(TT.RIGID_BODY_VELOCITY, self._root_link_vel_w_buf)
         if self._root_link_vel_w_ta is None:
             self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w_buf.data)
         return self._root_link_vel_w_ta
@@ -498,10 +499,10 @@ class RigidObjectData(BaseRigidObjectData):
         In torch this resolves to (num_instances, 6).
 
         For a single rigid body the COM velocity equals the root link velocity
-        read from the RIGID_BODY_ROOT_VELOCITY binding.
+        read from the RIGID_BODY_VELOCITY binding.
         """
         self._ensure_root_buffers()
-        self._read_spatial_vector_binding(TT.RIGID_BODY_ROOT_VELOCITY, self._root_com_vel_w_buf)
+        self._read_spatial_vector_binding(TT.RIGID_BODY_VELOCITY, self._root_com_vel_w_buf)
         if self._root_com_vel_w_ta is None:
             self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w_buf.data)
         return self._root_com_vel_w_ta
@@ -648,13 +649,27 @@ class RigidObjectData(BaseRigidObjectData):
     @property
     def body_mass(self) -> ProxyArray:
         """Mass of all bodies [kg].
-        Shape is (num_instances, num_bodies), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_bodies).
+        Shape is (num_instances, 1), dtype = wp.float32.
+        In torch this resolves to (num_instances, 1).
+
+        The wheel exposes ``RIGID_BODY_MASS`` as shape ``(N,)``; this property
+        presents a zero-copy ``(N, 1)`` reshape to satisfy the
+        :class:`~isaaclab.assets.BaseRigidObjectData` contract
+        (``Shape is (num_instances, 1)``).
         """
         self._ensure_body_prop_buffers()
         self._read_flat_binding(TT.RIGID_BODY_MASS, self._body_mass_buf)
         if self._body_mass_ta is None:
-            self._body_mass_ta = ProxyArray(self._body_mass_buf.data)
+            raw = self._body_mass_buf.data  # shape (N,), dtype wp.float32
+            N = raw.shape[0]
+            view = wp.array(
+                ptr=raw.ptr,
+                shape=(N, 1),
+                dtype=wp.float32,
+                device=self._device,
+                copy=False,
+            )
+            self._body_mass_ta = ProxyArray(view)
         return self._body_mass_ta
 
     @property

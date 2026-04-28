@@ -117,7 +117,7 @@ def test_process_tendons_scopes_to_articulation_root(tmp_path):
 
 
 def test_mock_binding_set_rigid_object_shapes():
-    pytest.importorskip("isaaclab_ovphysx.tensor_types").RIGID_BODY_ROOT_POSE  # gates on wheel
+    pytest.importorskip("isaaclab_ovphysx.tensor_types").RIGID_BODY_POSE  # gates on wheel
     from isaaclab_ovphysx import tensor_types as TT
     from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
 
@@ -127,10 +127,10 @@ def test_mock_binding_set_rigid_object_shapes():
         num_bodies=1,
         asset_kind="rigid_object",
     )
-    assert bindings.bindings[TT.RIGID_BODY_ROOT_POSE].shape == (4, 7)
-    assert bindings.bindings[TT.RIGID_BODY_ROOT_VELOCITY].shape == (4, 6)
+    assert bindings.bindings[TT.RIGID_BODY_POSE].shape == (4, 7)
+    assert bindings.bindings[TT.RIGID_BODY_VELOCITY].shape == (4, 6)
     assert bindings.bindings[TT.RIGID_BODY_WRENCH].shape == (4, 9)
-    assert bindings.bindings[TT.RIGID_BODY_MASS].shape == (4, 1)
+    assert bindings.bindings[TT.RIGID_BODY_MASS].shape == (4,)
     assert bindings.bindings[TT.RIGID_BODY_INERTIA].shape == (4, 9)
     # Articulation-only bindings must be absent
     assert TT.DOF_POSITION not in bindings.bindings

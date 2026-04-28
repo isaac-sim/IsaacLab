@@ -139,9 +139,7 @@ class RigidObject(BaseRigidObject):
     # Operations - Finders
     # ------------------------------------------------------------------
 
-    def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
         Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
@@ -467,7 +465,10 @@ class RigidObject(BaseRigidObject):
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_pose_to_sim_index` and :meth:`write_root_link_velocity_to_sim_index`."""
+        """Deprecated.
+
+        Use :meth:`write_root_pose_to_sim_index` and :meth:`write_root_link_velocity_to_sim_index` instead.
+        """
         raise NotImplementedError("write_root_link_state_to_sim() is implemented in Task 10.")
 
     # ------------------------------------------------------------------
@@ -490,18 +491,19 @@ class RigidObject(BaseRigidObject):
         self._binding_pattern = self.cfg.prim_path
 
         # Step 4: Eagerly create the GPU bindings so failures surface at init.
-        for tt in (TT.RIGID_BODY_ROOT_POSE, TT.RIGID_BODY_ROOT_VELOCITY, TT.RIGID_BODY_WRENCH):
+        for tt in (TT.RIGID_BODY_POSE, TT.RIGID_BODY_VELOCITY, TT.RIGID_BODY_WRENCH):
             if self._get_binding(tt) is None:
                 raise RuntimeError(
                     f"OVPhysX could not create rigid-body binding {tt!r}. "
                     f"Check that prim_path={self._binding_pattern!r} matches "
-                    f"a UsdPhysics.RigidBodyAPI prim that is NOT under an "
-                    f"articulation root, and that the ovphysx wheel exposes "
-                    f"this RIGID_BODY_* TensorType."
+                    f"at least one UsdPhysics.RigidBodyAPI prim and that the "
+                    f"ovphysx wheel exposes the RIGID_BODY_* TensorType. "
+                    f"Note: pattern resolution may currently include articulation "
+                    f"links; an explicit selection policy is on the wheel-side roadmap."
                 )
 
         # Step 5: Read counts and body names from the root-pose binding.
-        root_pose = self._bindings[TT.RIGID_BODY_ROOT_POSE]
+        root_pose = self._bindings[TT.RIGID_BODY_POSE]
         self._num_instances = root_pose.count
         self._num_bodies = 1
         self._body_names = list(root_pose.body_names) if hasattr(root_pose, "body_names") else ["base_link"]
@@ -550,7 +552,7 @@ class RigidObject(BaseRigidObject):
 
         Args:
             tensor_type: The TensorType constant identifying which simulation
-                buffer to bind (e.g. :attr:`~isaaclab_ovphysx.tensor_types.RIGID_BODY_ROOT_POSE`).
+                buffer to bind (e.g. :attr:`~isaaclab_ovphysx.tensor_types.RIGID_BODY_POSE`).
 
         Returns:
             A TensorBinding object, or ``None`` if the binding could not be created.
@@ -559,9 +561,7 @@ class RigidObject(BaseRigidObject):
         if binding is not None:
             return binding
         try:
-            binding = self._ovphysx.create_tensor_binding(
-                pattern=self._binding_pattern, tensor_type=tensor_type
-            )
+            binding = self._ovphysx.create_tensor_binding(pattern=self._binding_pattern, tensor_type=tensor_type)
             self._bindings[tensor_type] = binding
             return binding
         except Exception:

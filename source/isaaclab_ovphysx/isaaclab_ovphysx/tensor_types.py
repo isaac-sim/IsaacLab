@@ -197,11 +197,11 @@ Shape is ``[N, L, 9]``, dtype ``float32``.
 # Shapes assume N = number of rigid actor instances matched by the binding
 # pattern. Components and units are stated per alias below.
 
-RIGID_BODY_ROOT_POSE = _TT.RIGID_BODY_ROOT_POSE
+RIGID_BODY_POSE = _TT.RIGID_BODY_POSE
 """Rigid actor root transform — read/write, GPU. Shape ``(N, 7)``,
 components ``(px, py, pz, qx, qy, qz, qw)`` [m, dimensionless]."""
 
-RIGID_BODY_ROOT_VELOCITY = _TT.RIGID_BODY_ROOT_VELOCITY
+RIGID_BODY_VELOCITY = _TT.RIGID_BODY_VELOCITY
 """Rigid actor root spatial velocity — read/write, GPU. Shape ``(N, 6)``,
 components ``(vx, vy, vz, wx, wy, wz)`` [m/s, rad/s]."""
 
@@ -215,10 +215,10 @@ Shape ``(N, 9)``, components ``(fx, fy, fz, tx, ty, tz, px, py, pz)``
 [N, N·m, m]. Cleared after each sim step (instantaneous semantics)."""
 
 RIGID_BODY_MASS = _TT.RIGID_BODY_MASS
-"""Rigid actor mass — read/write, CPU. Shape ``(N, 1)`` [kg]."""
+"""Rigid actor mass — read/write, CPU. Shape ``(N,)`` [kg]."""
 
 RIGID_BODY_INV_MASS = _TT.RIGID_BODY_INV_MASS
-"""Rigid actor inverse mass — read-only, CPU. Shape ``(N, 1)`` [1/kg].
+"""Rigid actor inverse mass — read-only, CPU. Shape ``(N,)`` [1/kg].
 Zero indicates an immovable actor."""
 
 RIGID_BODY_COM_POSE = _TT.RIGID_BODY_COM_POSE

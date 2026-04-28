@@ -207,12 +207,12 @@ class MockOvPhysxBindingSet:
                 spatial_tendon_count=0,
             )
             self.bindings: dict[int, MockTensorBinding] = {
-                TT.RIGID_BODY_ROOT_POSE: MockTensorBinding(TT.RIGID_BODY_ROOT_POSE, (N, 7), **common),
-                TT.RIGID_BODY_ROOT_VELOCITY: MockTensorBinding(TT.RIGID_BODY_ROOT_VELOCITY, (N, 6), **common),
+                TT.RIGID_BODY_POSE: MockTensorBinding(TT.RIGID_BODY_POSE, (N, 7), **common),
+                TT.RIGID_BODY_VELOCITY: MockTensorBinding(TT.RIGID_BODY_VELOCITY, (N, 6), **common),
                 TT.RIGID_BODY_ACCELERATION: MockTensorBinding(TT.RIGID_BODY_ACCELERATION, (N, 6), **common),
                 TT.RIGID_BODY_WRENCH: MockTensorBinding(TT.RIGID_BODY_WRENCH, (N, 9), write_only=True, **common),
-                TT.RIGID_BODY_MASS: MockTensorBinding(TT.RIGID_BODY_MASS, (N, 1), **common),
-                TT.RIGID_BODY_INV_MASS: MockTensorBinding(TT.RIGID_BODY_INV_MASS, (N, 1), **common),
+                TT.RIGID_BODY_MASS: MockTensorBinding(TT.RIGID_BODY_MASS, (N,), **common),
+                TT.RIGID_BODY_INV_MASS: MockTensorBinding(TT.RIGID_BODY_INV_MASS, (N,), **common),
                 TT.RIGID_BODY_COM_POSE: MockTensorBinding(TT.RIGID_BODY_COM_POSE, (N, 7), **common),
                 TT.RIGID_BODY_INERTIA: MockTensorBinding(TT.RIGID_BODY_INERTIA, (N, 9), **common),
                 TT.RIGID_BODY_INV_INERTIA: MockTensorBinding(TT.RIGID_BODY_INV_INERTIA, (N, 9), **common),
@@ -310,7 +310,7 @@ class MockOvPhysxBindingSet:
             lim._data[..., 1] = 3.14
         pose_keys = [
             k
-            for k in (TT.ROOT_POSE, TT.LINK_POSE, TT.BODY_COM_POSE, TT.RIGID_BODY_ROOT_POSE, TT.RIGID_BODY_COM_POSE)
+            for k in (TT.ROOT_POSE, TT.LINK_POSE, TT.BODY_COM_POSE, TT.RIGID_BODY_POSE, TT.RIGID_BODY_COM_POSE)
             if k in self.bindings
         ]
         for tt in pose_keys:
