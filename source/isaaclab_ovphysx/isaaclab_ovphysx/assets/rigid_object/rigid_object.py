@@ -11,7 +11,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any
 
-import numpy as np  # noqa: F401  -- reserved for future buffer init helpers
+import numpy as np
 import torch
 import warp as wp
 
@@ -20,7 +20,11 @@ from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
-from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world, _scatter_rows_partial  # noqa: F401
+from isaaclab_ovphysx.assets.kernels import (  # noqa: F401
+    _body_wrench_to_world,
+    _compose_root_link_pose_from_com,
+    _scatter_rows_partial,
+)
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .rigid_object_data import RigidObjectData
@@ -155,7 +159,7 @@ class RigidObject(BaseRigidObject):
         raise NotImplementedError("find_bodies() is implemented in Task 13.")
 
     # ------------------------------------------------------------------
-    # Operations - Write to simulation (Task 10)
+    # Operations - Write to simulation
     # ------------------------------------------------------------------
 
     def write_root_pose_to_sim_index(
@@ -166,12 +170,14 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
+        The root pose is in the actor (link) frame.
+
         Args:
-            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7) or
-                (len(env_ids),) with dtype wp.transformf.
+            root_pose: Root poses in simulation frame [m, -]. Shape is (len(env_ids), 7) or
+                (len(env_ids),) with dtype ``wp.transformf``.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError("write_root_pose_to_sim_index() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_POSE, root_pose, env_ids)
 
     def write_root_pose_to_sim_mask(
         self,
@@ -181,12 +187,14 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root pose over selected environment mask into the simulation.
 
+        The root pose is in the actor (link) frame.
+
         Args:
-            root_pose: Root poses in simulation frame. Shape is (num_instances, 7) or
-                (num_instances,) with dtype wp.transformf.
+            root_pose: Root poses in simulation frame [m, -]. Shape is (num_instances, 7) or
+                (num_instances,) with dtype ``wp.transformf``.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError("write_root_pose_to_sim_mask() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_POSE, root_pose, mask=env_mask)
 
     def write_root_link_pose_to_sim_index(
         self,
@@ -196,12 +204,15 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
+        The root link pose is the canonical actor-frame pose written directly to
+        the ``RIGID_BODY_POSE`` binding.
+
         Args:
-            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or
-                (len(env_ids),) with dtype wp.transformf.
+            root_pose: Root link poses in simulation frame [m, -]. Shape is (len(env_ids), 7) or
+                (len(env_ids),) with dtype ``wp.transformf``.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError("write_root_link_pose_to_sim_index() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_POSE, root_pose, env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -211,12 +222,15 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
+        The root link pose is the canonical actor-frame pose written directly to
+        the ``RIGID_BODY_POSE`` binding.
+
         Args:
-            root_pose: Root link poses in simulation frame. Shape is (num_instances, 7) or
-                (num_instances,) with dtype wp.transformf.
+            root_pose: Root link poses in simulation frame [m, -]. Shape is (num_instances, 7) or
+                (num_instances,) with dtype ``wp.transformf``.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError("write_root_link_pose_to_sim_mask() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_POSE, root_pose, mask=env_mask)
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -226,12 +240,17 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
+        The user supplies the world-frame COM pose. This method converts it to
+        the actor (link) frame using the body-frame COM offset from the
+        ``RIGID_BODY_COM_POSE`` binding before writing to the simulation.
+
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or
-                (len(env_ids),) with dtype wp.transformf.
+            root_pose: Root center of mass poses in simulation frame [m, -]. Shape is (len(env_ids), 7) or
+                (len(env_ids),) with dtype ``wp.transformf``.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError("write_root_com_pose_to_sim_index() is implemented in Task 10.")
+        link_pose = self._com_pose_to_link_pose(root_pose)
+        self._write_root_state(TT.RIGID_BODY_POSE, link_pose, env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -241,12 +260,17 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
+        The user supplies the world-frame COM pose. This method converts it to
+        the actor (link) frame using the body-frame COM offset from the
+        ``RIGID_BODY_COM_POSE`` binding before writing to the simulation.
+
         Args:
-            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7) or
-                (num_instances,) with dtype wp.transformf.
+            root_pose: Root center of mass poses in simulation frame [m, -]. Shape is (num_instances, 7) or
+                (num_instances,) with dtype ``wp.transformf``.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError("write_root_com_pose_to_sim_mask() is implemented in Task 10.")
+        link_pose = self._com_pose_to_link_pose(root_pose)
+        self._write_root_state(TT.RIGID_BODY_POSE, link_pose, mask=env_mask)
 
     def write_root_velocity_to_sim_index(
         self,
@@ -254,14 +278,17 @@ class RigidObject(BaseRigidObject):
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set the root center of mass velocity over selected environment indices into the simulation.
+        """Set the root velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z)
+        in the simulation world frame.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
-                or (len(env_ids),) with dtype wp.spatial_vectorf.
+            root_velocity: Root velocities in simulation world frame [m/s, rad/s]. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype ``wp.spatial_vectorf``.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError("write_root_velocity_to_sim_index() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, env_ids)
 
     def write_root_velocity_to_sim_mask(
         self,
@@ -269,14 +296,17 @@ class RigidObject(BaseRigidObject):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root center of mass velocity over selected environment mask into the simulation.
+        """Set the root velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z)
+        in the simulation world frame.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
-                or (num_instances,) with dtype wp.spatial_vectorf.
+            root_velocity: Root velocities in simulation world frame [m/s, rad/s]. Shape is (num_instances, 6)
+                or (num_instances,) with dtype ``wp.spatial_vectorf``.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError("write_root_velocity_to_sim_mask() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, mask=env_mask)
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -286,12 +316,16 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
+        For a single rigid body the COM velocity and the link velocity share the same
+        ``RIGID_BODY_VELOCITY`` binding. The data is written directly with no frame
+        conversion.
+
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
-                or (len(env_ids),) with dtype wp.spatial_vectorf.
+            root_velocity: Root center of mass velocities in simulation world frame [m/s, rad/s].
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype ``wp.spatial_vectorf``.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError("write_root_com_velocity_to_sim_index() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -301,12 +335,16 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
+        For a single rigid body the COM velocity and the link velocity share the same
+        ``RIGID_BODY_VELOCITY`` binding. The data is written directly with no frame
+        conversion.
+
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
-                or (num_instances,) with dtype wp.spatial_vectorf.
+            root_velocity: Root center of mass velocities in simulation world frame [m/s, rad/s].
+                Shape is (num_instances, 6) or (num_instances,) with dtype ``wp.spatial_vectorf``.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError("write_root_com_velocity_to_sim_mask() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, mask=env_mask)
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -316,12 +354,15 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z)
+        in the simulation world frame, evaluated at the actor (link) frame.
+
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
-                or (len(env_ids),) with dtype wp.spatial_vectorf.
+            root_velocity: Root frame velocities in simulation world frame [m/s, rad/s].
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype ``wp.spatial_vectorf``.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError("write_root_link_velocity_to_sim_index() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -331,12 +372,15 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link velocity over selected environment mask into the simulation.
 
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z)
+        in the simulation world frame, evaluated at the actor (link) frame.
+
         Args:
-            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
-                or (num_instances,) with dtype wp.spatial_vectorf.
+            root_velocity: Root frame velocities in simulation world frame [m/s, rad/s].
+                Shape is (num_instances, 6) or (num_instances,) with dtype ``wp.spatial_vectorf``.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError("write_root_link_velocity_to_sim_mask() is implemented in Task 10.")
+        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, mask=env_mask)
 
     # ------------------------------------------------------------------
     # Operations - Setters (Task 11)
@@ -441,7 +485,7 @@ class RigidObject(BaseRigidObject):
         raise NotImplementedError("set_inertias_mask() is implemented in Task 11.")
 
     # ------------------------------------------------------------------
-    # Deprecated writers (Task 10 will implement via the new index/mask API)
+    # Deprecated writers
     # ------------------------------------------------------------------
 
     def write_root_state_to_sim(
@@ -449,30 +493,326 @@ class RigidObject(BaseRigidObject):
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_pose_to_sim_index` and :meth:`write_root_velocity_to_sim_index`."""
-        raise NotImplementedError("write_root_state_to_sim() is implemented in Task 10.")
+        """Deprecated. Use :meth:`write_root_pose_to_sim_index` and
+        :meth:`write_root_velocity_to_sim_index` instead."""
+        import warnings
+
+        warnings.warn(
+            "write_root_state_to_sim() is deprecated. Use write_root_pose_to_sim_index() and"
+            " write_root_velocity_to_sim_index() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._write_root_state(TT.RIGID_BODY_POSE, root_state[..., :7], env_ids)
+        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
 
     def write_root_com_state_to_sim(
         self,
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and :meth:`write_root_velocity_to_sim_index`."""
-        raise NotImplementedError("write_root_com_state_to_sim() is implemented in Task 10.")
+        """Deprecated. Use :meth:`write_root_com_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index` instead."""
+        import warnings
+
+        warnings.warn(
+            "write_root_com_state_to_sim() is deprecated. Use write_root_com_pose_to_sim_index() and"
+            " write_root_com_velocity_to_sim_index() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        link_pose = self._com_pose_to_link_pose(root_state[..., :7])
+        self._write_root_state(TT.RIGID_BODY_POSE, link_pose, env_ids)
+        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
 
     def write_root_link_state_to_sim(
         self,
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated.
+        """Deprecated. Use :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_link_velocity_to_sim_index` instead."""
+        import warnings
 
-        Use :meth:`write_root_pose_to_sim_index` and :meth:`write_root_link_velocity_to_sim_index` instead.
-        """
-        raise NotImplementedError("write_root_link_state_to_sim() is implemented in Task 10.")
+        warnings.warn(
+            "write_root_link_state_to_sim() is deprecated. Use write_root_link_pose_to_sim_index() and"
+            " write_root_link_velocity_to_sim_index() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._write_root_state(TT.RIGID_BODY_POSE, root_state[..., :7], env_ids)
+        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Internal helpers -- Write
+    # ------------------------------------------------------------------
+
+    def _n_envs_index(self, env_ids) -> int:
+        """Return the number of environments from an env_ids argument."""
+        if env_ids is None:
+            return self._num_instances
+        if isinstance(env_ids, (list, tuple)):
+            return len(env_ids)
+        return env_ids.shape[0] if hasattr(env_ids, "shape") else len(env_ids)
+
+    def _to_flat_f32(self, data, target_shape: tuple[int, ...] | None = None) -> wp.array | np.ndarray:
+        """Ensure data is a contiguous float32 tensor suitable for binding I/O.
+
+        State tensor bindings (positions, velocities, poses) live on the
+        simulation device (GPU in GPU mode).  We always return data on
+        ``self._device`` so the binding device check passes.
+
+        For structured warp dtypes (``transformf``, ``spatial_vectorf``, etc.) a
+        zero-copy flat float32 view is created instead of roundtripping through
+        CPU numpy.
+
+        Args:
+            data: Input data as a warp array, torch tensor, numpy array, or scalar.
+            target_shape: Optional expected shape for validation (unused; reserved for future use).
+
+        Returns:
+            A float32 warp array on ``self._device``.
+        """
+        dev = self._device
+        if isinstance(data, wp.array):
+            if str(data.device) != dev:
+                data = wp.clone(data, device=dev)
+            if data.dtype == wp.float32:
+                return data
+            # Structured dtype: zero-copy flat float32 view.
+            # transformf -> [N, 7], spatial_vectorf -> [N, 6], etc.
+            floats_per_elem = data.strides[0] // 4
+            return wp.array(
+                ptr=data.ptr,
+                shape=(data.shape[0], floats_per_elem),
+                dtype=wp.float32,
+                device=dev,
+                copy=False,
+            )
+        elif isinstance(data, torch.Tensor):
+            if data.is_cuda and dev.startswith("cuda"):
+                return wp.from_torch(data.detach().contiguous().float())
+            np_data = data.detach().cpu().numpy().astype(np.float32)
+            return wp.from_numpy(np_data, dtype=wp.float32, device=dev)
+        elif isinstance(data, np.ndarray):
+            return wp.from_numpy(data.astype(np.float32), dtype=wp.float32, device=dev)
+        elif isinstance(data, (int, float)):
+            return wp.from_numpy(np.array(data, dtype=np.float32), dtype=wp.float32, device=dev)
+        return wp.from_numpy(np.asarray(data, dtype=np.float32), dtype=wp.float32, device=dev)
+
+    def _as_gpu_f32_2d(self, data, cols: int) -> wp.array:
+        """View/convert data as 2-D ``[rows, cols]`` float32 on ``self._device``.
+
+        For warp arrays with structured dtypes (``transformf``, ``spatial_vectorf``),
+        creates a zero-copy flat float32 view.  For torch/numpy, converts to warp
+        on the simulation device.
+
+        Args:
+            data: Input data.
+            cols: Number of float32 columns per row.
+
+        Returns:
+            A 2-D float32 warp array on ``self._device``.
+        """
+        dev = self._device
+        if isinstance(data, wp.array):
+            if str(data.device) != dev:
+                data = wp.clone(data, device=dev)
+            if data.dtype == wp.float32 and data.ndim == 2:
+                return data
+            n = data.shape[0]
+            return wp.array(
+                ptr=data.ptr,
+                shape=(n, cols),
+                dtype=wp.float32,
+                device=dev,
+                copy=False,
+            )
+        if isinstance(data, torch.Tensor) and data.is_cuda and dev.startswith("cuda"):
+            return wp.from_torch(data.detach().contiguous().float().reshape(-1, cols))
+        np_data = self._to_cpu_numpy(data).reshape(-1, cols)
+        return wp.from_numpy(np_data, dtype=wp.float32, device=dev)
+
+    def _get_write_scratch(self, tensor_type: int, binding) -> wp.array:
+        """Return a cached GPU scratch buffer for read-modify-write operations.
+
+        Args:
+            tensor_type: Tensor type key used to cache the scratch buffer.
+            binding: The binding whose shape the scratch buffer should match.
+
+        Returns:
+            A float32 warp array of shape ``binding.shape`` on ``self._device``.
+        """
+        if not hasattr(self, "_write_scratch"):
+            self._write_scratch: dict = {}
+        buf = self._write_scratch.get(tensor_type)
+        if buf is None:
+            buf = wp.zeros(binding.shape, dtype=wp.float32, device=self._device)
+            self._write_scratch[tensor_type] = buf
+        return buf
+
+    def _write_root_state(self, tensor_type: int, data, env_ids=None, mask=None, _ids_gpu=None) -> None:
+        """GPU-native write for root pose [N,7] or velocity [N,6].
+
+        Three paths, fastest first:
+
+        - Full write (no env_ids, no mask): zero-copy DLPack.
+        - Indexed write with full-size data: zero-copy view + indices.
+          The binding API only copies the indexed rows from the full buffer,
+          so no read-modify-write is needed when data is already ``[N,...]``.
+        - Indexed write with partial data ``[K,...]``: scatter kernel into a
+          GPU scratch buffer, then write with indices.
+        - Masked write: data is always full ``[N,...]``, pass directly with mask.
+
+        Args:
+            tensor_type: The TensorType constant (e.g. ``RIGID_BODY_POSE``).
+            data: State data to write.
+            env_ids: Optional environment indices.
+            mask: Optional boolean environment mask.
+            _ids_gpu: Pre-converted GPU warp int32 array of env indices. When
+                provided, skips the per-call GPU->CPU->GPU conversion of env_ids.
+        """
+        binding = self._get_binding(tensor_type)
+        if binding is None:
+            return
+        N, C = binding.shape
+
+        if env_ids is None and _ids_gpu is None and mask is None:
+            binding.write(self._to_flat_f32(data))
+            self._invalidate_root_caches(tensor_type)
+            return
+
+        src = self._as_gpu_f32_2d(data, C)
+
+        if env_ids is not None or _ids_gpu is not None:
+            if _ids_gpu is None:
+                _ids_gpu = self._env_ids_to_gpu_warp(env_ids)
+            K = _ids_gpu.shape[0]
+            if src.shape[0] == N:
+                binding.write(src, indices=_ids_gpu)
+            else:
+                scratch = self._get_write_scratch(tensor_type, binding)
+                binding.read(scratch)
+                wp.launch(
+                    _scatter_rows_partial,
+                    dim=(K, C),
+                    inputs=[scratch, src, _ids_gpu],
+                    device=self._device,
+                )
+                binding.write(scratch, indices=_ids_gpu)
+        else:
+            mask_u8 = wp.from_numpy(
+                self._to_cpu_numpy(mask).astype(np.uint8),
+                device=self._device,
+            )
+            binding.write(src, mask=mask_u8)
+        self._invalidate_root_caches(tensor_type)
+
+    def _invalidate_root_caches(self, tensor_type: int) -> None:
+        """Force re-read from GPU on next property access after a binding write.
+
+        Args:
+            tensor_type: The TensorType that was written, used to select
+                which data buffers to invalidate.
+        """
+        if tensor_type == TT.RIGID_BODY_POSE:
+            if self._data._root_link_pose_w_buf is not None:
+                self._data._root_link_pose_w_buf.timestamp = -1.0
+            if self._data._root_com_pose_w_buf is not None:
+                self._data._root_com_pose_w_buf.timestamp = -1.0
+        elif tensor_type == TT.RIGID_BODY_VELOCITY:
+            if self._data._root_link_vel_w_buf is not None:
+                self._data._root_link_vel_w_buf.timestamp = -1.0
+            if self._data._root_com_vel_w_buf is not None:
+                self._data._root_com_vel_w_buf.timestamp = -1.0
+
+    def _com_pose_to_link_pose(self, com_pose_w) -> wp.array:
+        """Convert a world-frame COM pose to a world-frame link (actor) pose.
+
+        Reads the body-frame COM offset from the ``RIGID_BODY_COM_POSE`` binding
+        and launches :func:`_compose_root_link_pose_from_com` to compute:
+        ``link_pose = com_pose_w * inverse(com_pose_b)``.
+
+        Args:
+            com_pose_w: World-frame COM poses. Shape is (N,) or (N, 7).
+
+        Returns:
+            A warp array of shape (N,) with dtype ``wp.transformf`` containing
+            the equivalent world-frame link (actor) poses.
+        """
+        # Ensure the COM-offset buffer is populated.
+        self._data._ensure_root_buffers()
+        self._data._read_transform_binding(TT.RIGID_BODY_COM_POSE, self._data._body_com_pose_b_buf)
+        # Convert the user-supplied com_pose_w to a warp transformf array on device.
+        N = self._num_instances
+        dev = self._device
+        com_flat = self._to_flat_f32(com_pose_w)
+        com_wp = wp.array(
+            ptr=com_flat.ptr,
+            shape=(N,),
+            dtype=wp.transformf,
+            device=dev,
+            copy=False,
+        )
+        link_pose_wp = wp.zeros(N, dtype=wp.transformf, device=dev)
+        wp.launch(
+            _compose_root_link_pose_from_com,
+            dim=N,
+            inputs=[com_wp, self._data._body_com_pose_b_buf.data],
+            outputs=[link_pose_wp],
+            device=dev,
+        )
+        return link_pose_wp
+
+    @staticmethod
+    def _to_cpu_numpy(data) -> np.ndarray:
+        """Convert data (warp, torch, numpy, scalar) to a CPU numpy array."""
+        if isinstance(data, wp.array):
+            return data.numpy().astype(np.float32)
+        if isinstance(data, torch.Tensor):
+            return data.detach().cpu().numpy().astype(np.float32)
+        return np.asarray(data, dtype=np.float32)
+
+    @staticmethod
+    def _to_cpu_indices(data, dtype=np.int32) -> np.ndarray:
+        """Convert index array (warp, torch, list, numpy) to CPU numpy int array."""
+        if isinstance(data, torch.Tensor):
+            return data.detach().cpu().numpy().astype(dtype)
+        if isinstance(data, wp.array):
+            return data.numpy().astype(dtype)
+        return np.asarray(data, dtype=dtype)
+
+    def _env_ids_to_gpu_warp(self, env_ids) -> wp.array:
+        """Convert env_ids to a GPU int32 warp array, with single-entry caching.
+
+        The cache avoids repeated GPU->CPU->GPU round-trips when the same
+        ``env_ids`` object is passed to multiple binding writes in a single step.
+        A new object identity (``id()``) or shape change invalidates the cache.
+
+        Args:
+            env_ids: Environment indices as a torch tensor, warp array, list, or numpy array.
+
+        Returns:
+            A GPU int32 warp array containing the indices.
+        """
+        if hasattr(env_ids, "data_ptr"):
+            key = (env_ids.data_ptr(), env_ids.shape[0])
+        elif isinstance(env_ids, wp.array):
+            key = (env_ids.ptr, env_ids.shape[0])
+        else:
+            key = None
+
+        if key is not None and hasattr(self, "_ids_cache_key") and self._ids_cache_key == key:
+            return self._ids_cache_val
+
+        result = wp.array(self._to_cpu_indices(env_ids, np.int32), device=self._device)
+        if key is not None:
+            self._ids_cache_key = key
+            self._ids_cache_val = result
+        return result
+
+    # ------------------------------------------------------------------
+    # Internal helpers -- Lifecycle
     # ------------------------------------------------------------------
 
     def _initialize_impl(self) -> None:

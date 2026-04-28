@@ -76,6 +76,29 @@ def _compose_root_com_pose(
 
 
 @wp.kernel
+def _compose_root_link_pose_from_com(
+    com_pose_w: wp.array(dtype=wp.transformf),
+    com_pose_b: wp.array(dtype=wp.transformf, ndim=2),
+    link_pose_w: wp.array(dtype=wp.transformf),
+):
+    """Recover root link pose from world-frame COM pose and body-frame COM offset.
+
+    The forward direction is:
+        ``com_pose_w = link_pose_w * com_pose_b``
+    so the inverse is:
+        ``link_pose_w = com_pose_w * inverse(com_pose_b)``
+
+    Args:
+        com_pose_w: World-frame CoM poses (user-provided input). Shape is (num_envs,).
+        com_pose_b: Body-frame CoM offsets read from the RIGID_BODY_COM_POSE binding.
+            Shape is (num_envs, num_bodies).
+        link_pose_w: Output root link poses in world frame. Shape is (num_envs,).
+    """
+    i = wp.tid()
+    link_pose_w[i] = wp.transform_multiply(com_pose_w[i], wp.transform_inverse(com_pose_b[i, 0]))
+
+
+@wp.kernel
 def _projected_gravity(
     gravity_vec_w: wp.array(dtype=wp.vec3f),
     root_pose: wp.array(dtype=wp.transformf),

@@ -21,6 +21,7 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
         allow_module_level=True,
     )
 
+import numpy as np  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData  # noqa: E402
@@ -197,3 +198,127 @@ def test_create_buffers_allocates_wrench_buf_and_indices():
     assert obj._ALL_BODY_INDICES.shape == (1,)
     assert obj._instantaneous_wrench_composer is not None
     assert obj._permanent_wrench_composer is not None
+
+
+# ---------------------------------------------------------------------------
+# Task 10 — Root state writers
+# ---------------------------------------------------------------------------
+
+
+def _make_writer_shell(num_instances: int = 4, device: str = "cpu"):
+    """Like _make_rigid_object_shell but also calls _create_buffers."""
+    obj, bindings = _make_rigid_object_shell(num_instances=num_instances, device=device)
+    obj._create_buffers()
+    return obj, bindings
+
+
+def test_write_root_pose_to_sim_index_writes_through_binding():
+    """Index variant: pose written via _write_root_state ends up in the mock binding."""
+    obj, bindings = _make_writer_shell(num_instances=4, device="cpu")
+    pose_binding = bindings.bindings[TT.RIGID_BODY_POSE]
+    # Write a known pose for env 0 only.
+    pose_data = wp.zeros(4, dtype=wp.transformf, device="cpu")
+    pose_np = pose_data.numpy()
+    pose_np[0] = (1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)
+    wp.copy(pose_data, wp.from_numpy(pose_np, dtype=wp.transformf, device="cpu"))
+
+    obj.write_root_pose_to_sim_index(root_pose=pose_data, env_ids=[0])
+
+    stored = pose_binding._data
+    assert stored[0, 0] == pytest.approx(1.0)
+    assert stored[0, 1] == pytest.approx(2.0)
+    assert stored[0, 2] == pytest.approx(3.0)
+    assert stored[0, 6] == pytest.approx(1.0)
+
+
+def test_write_root_velocity_to_sim_index_writes_through_binding():
+    """Index variant: velocity written via _write_root_state ends up in the mock binding."""
+    obj, bindings = _make_writer_shell(num_instances=4, device="cpu")
+    vel_binding = bindings.bindings[TT.RIGID_BODY_VELOCITY]
+
+    vel_data = wp.zeros(4, dtype=wp.spatial_vectorf, device="cpu")
+    vel_np = vel_data.numpy()
+    vel_np[1] = (4.0, 5.0, 6.0, 0.1, 0.2, 0.3)
+    wp.copy(vel_data, wp.from_numpy(vel_np, dtype=wp.spatial_vectorf, device="cpu"))
+
+    obj.write_root_velocity_to_sim_index(root_velocity=vel_data, env_ids=[1])
+
+    stored = vel_binding._data
+    assert stored[1, 0] == pytest.approx(4.0)
+    assert stored[1, 2] == pytest.approx(6.0)
+    assert stored[1, 5] == pytest.approx(0.3)
+
+
+def test_write_root_pose_to_sim_mask_writes_through_binding():
+    """Mask variant: only masked environments receive the write."""
+    obj, bindings = _make_writer_shell(num_instances=4, device="cpu")
+    pose_binding = bindings.bindings[TT.RIGID_BODY_POSE]
+    # Zero out the binding storage so we can detect writes.
+    pose_binding._data[:] = 0.0
+
+    pose_data = wp.zeros(4, dtype=wp.transformf, device="cpu")
+    pose_np = pose_data.numpy()
+    pose_np[:] = (7.0, 8.0, 9.0, 0.0, 0.0, 0.0, 1.0)
+    wp.copy(pose_data, wp.from_numpy(pose_np, dtype=wp.transformf, device="cpu"))
+
+    # Only apply to env 2.
+    mask_np = np.array([False, False, True, False], dtype=np.uint8)
+    mask = wp.from_numpy(mask_np, dtype=wp.uint8, device="cpu")
+
+    obj.write_root_pose_to_sim_mask(root_pose=pose_data, env_mask=mask)
+
+    stored = pose_binding._data
+    # Env 2 should have the new values.
+    assert stored[2, 0] == pytest.approx(7.0)
+    assert stored[2, 1] == pytest.approx(8.0)
+    # Env 0 should still be zeros.
+    assert stored[0, 0] == pytest.approx(0.0)
+
+
+def test_write_root_com_pose_to_sim_index_invokes_frame_conversion():
+    """COM index variant: binding receives data after frame-conversion kernel."""
+    obj, bindings = _make_writer_shell(num_instances=4, device="cpu")
+    pose_binding = bindings.bindings[TT.RIGID_BODY_POSE]
+    # Set zero COM offset (identity transform) so com_pose == link_pose.
+    com_binding = bindings.bindings[TT.RIGID_BODY_COM_POSE]
+    # Identity transform: pos=(0,0,0), quat=(0,0,0,1)
+    com_binding._data[:] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+    com_pose = wp.zeros(4, dtype=wp.transformf, device="cpu")
+    com_np = com_pose.numpy()
+    com_np[0] = (5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+    wp.copy(com_pose, wp.from_numpy(com_np, dtype=wp.transformf, device="cpu"))
+
+    obj.write_root_com_pose_to_sim_index(root_pose=com_pose, env_ids=[0])
+
+    stored = pose_binding._data
+    # With identity COM offset, link_pose should equal com_pose.
+    assert stored[0, 0] == pytest.approx(5.0, rel=1e-5)
+    assert stored[0, 6] == pytest.approx(1.0, rel=1e-5)
+
+
+def test_write_root_state_to_sim_deprecated_writes_pose_and_velocity():
+    """Deprecated compound writer splits [N,13] into pose and velocity."""
+    import warnings
+
+    obj, bindings = _make_writer_shell(num_instances=4, device="cpu")
+    pose_binding = bindings.bindings[TT.RIGID_BODY_POSE]
+    vel_binding = bindings.bindings[TT.RIGID_BODY_VELOCITY]
+    pose_binding._data[:] = 0.0
+    vel_binding._data[:] = 0.0
+
+    import torch as _torch
+
+    state = _torch.zeros(4, 13)
+    state[2, 0] = 11.0  # x position
+    state[2, 6] = 1.0  # w quaternion
+    state[2, 7] = 3.0  # vx
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        obj.write_root_state_to_sim(state)
+        assert len(caught) == 1
+        assert issubclass(caught[0].category, DeprecationWarning)
+
+    assert pose_binding._data[2, 0] == pytest.approx(11.0)
+    assert vel_binding._data[2, 0] == pytest.approx(3.0)
