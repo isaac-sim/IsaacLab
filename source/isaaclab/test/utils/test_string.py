@@ -19,6 +19,7 @@ import random
 import pytest
 
 import isaaclab.utils.string as string_utils
+from isaaclab.utils.string import _resolve_matching_names_impl
 
 
 def test_resolvable_string_metadata_is_non_eager():
@@ -251,3 +252,22 @@ def test_resolve_matching_names_values_with_basic_strings_and_preserved_order():
     query_names = {"a|c": 1, "b": 0, "f": 2}
     with pytest.raises(ValueError):
         _ = string_utils.resolve_matching_names_values(query_names, target_names, preserve_order=True)
+
+
+def test_clear_resolve_matching_names_cache():
+    """Clearing the cache discards previously cached entries."""
+    target_names = ["a", "b", "c"]
+    # Populate the cache
+    string_utils.resolve_matching_names("a", target_names)
+    info_before = _resolve_matching_names_impl.cache_info()
+    assert info_before.currsize > 0
+
+    # Clear the cache
+    string_utils.clear_resolve_matching_names_cache()
+    info_after = _resolve_matching_names_impl.cache_info()
+    assert info_after.currsize == 0
+
+    # Results are still correct after clearing
+    idx, names = string_utils.resolve_matching_names("a", target_names)
+    assert idx == [0]
+    assert names == ["a"]

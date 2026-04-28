@@ -120,7 +120,7 @@ def test_articulation_view_path(sim_ground):
     sim.reset()
     sensor.update(_DT)
 
-    pos_w = wp.to_torch(sensor.data.pos_w)[0].cpu().numpy()
+    pos_w = sensor.data.pos_w.torch[0].cpu().numpy()
     np.testing.assert_allclose(
         pos_w,
         expected_pos,
@@ -128,7 +128,7 @@ def test_articulation_view_path(sim_ground):
         err_msg="ArticulationView: sensor pos_w must match initial prim position",
     )
 
-    hits = wp.to_torch(sensor.data.ray_hits_w)[0, 0].cpu().numpy()
+    hits = sensor.data.ray_hits_w.torch[0, 0].cpu().numpy()
     assert abs(hits[2]) < 0.5, f"ArticulationView: downward ray should hit near z=0, got z={hits[2]}"
 
 
@@ -164,7 +164,7 @@ def test_rigid_body_view_path(sim_ground):
     sim.reset()
     sensor.update(_DT)
 
-    pos_w = wp.to_torch(sensor.data.pos_w)[0].cpu().numpy()
+    pos_w = sensor.data.pos_w.torch[0].cpu().numpy()
     np.testing.assert_allclose(
         pos_w,
         expected_pos,
@@ -172,7 +172,7 @@ def test_rigid_body_view_path(sim_ground):
         err_msg="RigidBodyView: sensor pos_w must match initial prim position",
     )
 
-    hits = wp.to_torch(sensor.data.ray_hits_w)[0, 0].cpu().numpy()
+    hits = sensor.data.ray_hits_w.torch[0, 0].cpu().numpy()
     assert abs(hits[2]) < 0.5, f"RigidBodyView: downward ray should hit near z=0, got z={hits[2]}"
 
 
@@ -334,13 +334,13 @@ def test_multi_mesh_env_mask_preserves_masked_buffers(sim_ground):
 
     # First update: populate buffers with real values
     sensor.update(_DT)
-    hits_before = wp.to_torch(sensor.data.ray_hits_w).clone()
+    hits_before = sensor.data.ray_hits_w.torch.clone()
 
     # Second update with env masked out: buffers must not change
     mask_all_false = wp.array([False], dtype=wp.bool, device=sensor.device)
     sensor._update_buffers_impl(mask_all_false)
 
-    hits_after = wp.to_torch(sensor.data.ray_hits_w)
+    hits_after = sensor.data.ray_hits_w.torch
     torch.testing.assert_close(
         hits_after,
         hits_before,

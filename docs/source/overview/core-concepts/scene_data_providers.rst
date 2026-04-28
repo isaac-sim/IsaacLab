@@ -27,9 +27,9 @@ The system has three layers:
 
 1. **BaseSceneDataProvider** — abstract interface defining the contract:
 
-   - ``update(env_ids)`` — refresh cached scene data
+   - ``update()`` — refresh cached scene data (full Newton model/state sync when applicable)
    - ``get_newton_model()`` — return Newton model handle (if available)
-   - ``get_newton_state(env_ids)`` — return Newton state handle (if available)
+   - ``get_newton_state()`` — return Newton state handle (if available)
    - ``get_usd_stage()`` — return USD stage handle (if available)
    - ``get_transforms()`` — return body transforms
    - ``get_velocities()`` — return body velocities

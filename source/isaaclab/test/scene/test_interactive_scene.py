@@ -16,7 +16,6 @@ from types import SimpleNamespace
 
 import pytest
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -84,8 +83,8 @@ def test_relative_flag(device, setup_scene):
     # test is relative == False
     prev_state = scene.get_state(is_relative=False)
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
-        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        position=torch.rand_like(scene["robot"].data.joint_pos.torch),
+        velocity=torch.rand_like(scene["robot"].data.joint_pos.torch),
     )
     next_state = scene.get_state(is_relative=False)
     assert_state_different(prev_state, next_state)
@@ -95,8 +94,8 @@ def test_relative_flag(device, setup_scene):
     # test is relative == True
     prev_state = scene.get_state(is_relative=True)
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
-        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        position=torch.rand_like(scene["robot"].data.joint_pos.torch),
+        velocity=torch.rand_like(scene["robot"].data.joint_pos.torch),
     )
     next_state = scene.get_state(is_relative=True)
     assert_state_different(prev_state, next_state)
@@ -114,16 +113,16 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     # test env_ids = None
     prev_state = scene.get_state()
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
-        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        position=torch.rand_like(scene["robot"].data.joint_pos.torch),
+        velocity=torch.rand_like(scene["robot"].data.joint_pos.torch),
     )
     scene.reset_to(prev_state, env_ids=None)
     assert_state_equal(prev_state, scene.get_state())
 
     # test env_ids = torch tensor
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
-        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        position=torch.rand_like(scene["robot"].data.joint_pos.torch),
+        velocity=torch.rand_like(scene["robot"].data.joint_pos.torch),
     )
     scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32))
     assert_state_equal(prev_state, scene.get_state())

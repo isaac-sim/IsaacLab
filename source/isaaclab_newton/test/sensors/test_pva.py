@@ -93,14 +93,14 @@ def test_data_shapes(sim):
     scene.update(sim.get_physics_dt())
 
     pva: Pva = scene["pva"]
-    assert wp.to_torch(pva.data.pos_w).shape == (2, 3)
-    assert wp.to_torch(pva.data.quat_w).shape == (2, 4)
-    assert wp.to_torch(pva.data.pose_w).shape == (2, 7)
-    assert wp.to_torch(pva.data.lin_vel_b).shape == (2, 3)
-    assert wp.to_torch(pva.data.ang_vel_b).shape == (2, 3)
-    assert wp.to_torch(pva.data.lin_acc_b).shape == (2, 3)
-    assert wp.to_torch(pva.data.ang_acc_b).shape == (2, 3)
-    assert wp.to_torch(pva.data.projected_gravity_b).shape == (2, 3)
+    assert pva.data.pos_w.torch.shape == (2, 3)
+    assert pva.data.quat_w.torch.shape == (2, 4)
+    assert pva.data.pose_w.torch.shape == (2, 7)
+    assert pva.data.lin_vel_b.torch.shape == (2, 3)
+    assert pva.data.ang_vel_b.torch.shape == (2, 3)
+    assert pva.data.lin_acc_b.torch.shape == (2, 3)
+    assert pva.data.ang_acc_b.torch.shape == (2, 3)
+    assert pva.data.projected_gravity_b.torch.shape == (2, 3)
 
 
 def test_gravity_at_rest(sim):
@@ -115,7 +115,7 @@ def test_gravity_at_rest(sim):
         scene.update(sim.get_physics_dt())
 
     pva: Pva = scene["pva"]
-    proj_grav = wp.to_torch(pva.data.projected_gravity_b)
+    proj_grav = pva.data.projected_gravity_b.torch
 
     expected = torch.tensor([[0.0, 0.0, -1.0]], dtype=proj_grav.dtype, device=proj_grav.device).repeat(2, 1)
     torch.testing.assert_close(proj_grav, expected, atol=0.05, rtol=0.0)
@@ -132,8 +132,8 @@ def test_velocity_at_rest(sim):
         scene.update(sim.get_physics_dt())
 
     pva: Pva = scene["pva"]
-    lin_vel = wp.to_torch(pva.data.lin_vel_b)
-    ang_vel = wp.to_torch(pva.data.ang_vel_b)
+    lin_vel = pva.data.lin_vel_b.torch
+    ang_vel = pva.data.ang_vel_b.torch
 
     torch.testing.assert_close(lin_vel, torch.zeros_like(lin_vel), atol=0.05, rtol=0.0)
     torch.testing.assert_close(ang_vel, torch.zeros_like(ang_vel), atol=0.05, rtol=0.0)
@@ -149,7 +149,7 @@ def test_position_nonzero(sim):
     scene.update(sim.get_physics_dt())
 
     pva: Pva = scene["pva"]
-    pos = wp.to_torch(pva.data.pos_w)
+    pos = pva.data.pos_w.torch
 
     assert torch.all(pos[:, 2] > 0.0), f"Expected positive z position, got {pos[:, 2]}"
 
@@ -166,7 +166,7 @@ def test_reset(sim):
 
     pva: Pva = scene["pva"]
 
-    pos = wp.to_torch(pva.data.pos_w)
+    pos = pva.data.pos_w.torch
     assert torch.any(pos != 0), "Expected non-zero data before reset"
 
     pva.reset()
@@ -223,7 +223,7 @@ def test_freefall_velocity_increases(sim):
         scene.update(sim.get_physics_dt())
 
     pva: Pva = scene["pva"]
-    lin_vel = wp.to_torch(pva.data.lin_vel_b)
+    lin_vel = pva.data.lin_vel_b.torch
 
     speed = torch.norm(lin_vel, dim=-1)
     assert torch.all(speed > 0.1), f"Expected non-zero velocity in freefall, got {speed}"
@@ -245,8 +245,8 @@ def test_freefall_acceleration(sim):
         scene.update(sim.get_physics_dt())
 
     pva: Pva = scene["pva"]
-    lin_acc = wp.to_torch(pva.data.lin_acc_b)
-    ang_acc = wp.to_torch(pva.data.ang_acc_b)
+    lin_acc = pva.data.lin_acc_b.torch
+    ang_acc = pva.data.ang_acc_b.torch
 
     # Coordinate acceleration in freefall should be ~(0, 0, -9.81) in body frame.
     expected_acc = torch.tensor([[0.0, 0.0, -9.81]], dtype=lin_acc.dtype, device=lin_acc.device).repeat(2, 1)
@@ -315,8 +315,8 @@ def test_offset_and_rotated_body(sim):
     scene.update(sim.get_physics_dt())
 
     pva: Pva = scene["pva"]
-    pos = wp.to_torch(pva.data.pos_w)
-    proj_grav = wp.to_torch(pva.data.projected_gravity_b)
+    pos = pva.data.pos_w.torch
+    proj_grav = pva.data.projected_gravity_b.torch
 
     # pos_w is in absolute world frame; subtract env origins to get env-relative position.
     # Expected env-relative: body at (0,0,5) + R_x(90) * (0,0,0.5) = (0, -0.5, 5)

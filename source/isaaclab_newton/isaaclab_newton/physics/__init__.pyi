@@ -11,6 +11,7 @@ __all__ = [
     "NewtonCfg",
     "NewtonCollisionPipelineCfg",
     "NewtonManager",
+    "NewtonShapeCfg",
     "NewtonSolverCfg",
     "XPBDSolverCfg",
 ]
@@ -22,6 +23,7 @@ from .newton_manager_cfg import (
     KaminoSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
+    NewtonShapeCfg,
     NewtonSolverCfg,
     XPBDSolverCfg,
 )

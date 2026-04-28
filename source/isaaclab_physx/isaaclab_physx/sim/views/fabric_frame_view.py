@@ -18,6 +18,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ class FabricFrameView(BaseFrameView):
     Warp kernels operating on ``omni:fabric:worldMatrix``.  All other operations
     delegate to the internal USD view.
 
-    All getters return ``wp.array``.  Setters accept ``wp.array``.
+    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
     """
 
     def __init__(
@@ -102,6 +103,7 @@ class FabricFrameView(BaseFrameView):
 
     @property
     def device(self) -> str:
+        """Device where arrays are allocated (cpu or cuda)."""
         return self._device
 
     @property
@@ -168,7 +170,7 @@ class FabricFrameView(BaseFrameView):
         if self._sync_usd_on_fabric_write:
             self._usd_view.set_world_poses(positions, orientations, indices)
 
-    def get_world_poses(self, indices=None):
+    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
             return self._usd_view.get_world_poses(indices)
 
@@ -204,7 +206,8 @@ class FabricFrameView(BaseFrameView):
 
         if use_cached:
             wp.synchronize()
-        return positions_wp, orientations_wp
+            return self._fabric_positions_ta, self._fabric_orientations_ta
+        return ProxyArray(positions_wp), ProxyArray(orientations_wp)
 
     # ------------------------------------------------------------------
     # Local poses — USD fallback (Fabric only accelerates world poses)
@@ -213,7 +216,7 @@ class FabricFrameView(BaseFrameView):
     def set_local_poses(self, translations=None, orientations=None, indices=None):
         self._usd_view.set_local_poses(translations, orientations, indices)
 
-    def get_local_poses(self, indices=None):
+    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         return self._usd_view.get_local_poses(indices)
 
     # ------------------------------------------------------------------
@@ -367,6 +370,8 @@ class FabricFrameView(BaseFrameView):
 
         self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_orientations_buf = wp.zeros((self.count, 4), dtype=wp.float32, device=self._device)
+        self._fabric_positions_ta = ProxyArray(self._fabric_positions_buf)
+        self._fabric_orientations_ta = ProxyArray(self._fabric_orientations_buf)
         self._fabric_scales_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
         self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
@@ -381,7 +386,9 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        positions_usd, orientations_usd = self._usd_view.get_world_poses()
+        positions_usd_ta, orientations_usd_ta = self._usd_view.get_world_poses()
+        positions_usd = positions_usd_ta.warp
+        orientations_usd = orientations_usd_ta.warp
         scales_usd = self._usd_view.get_scales()
 
         prev_sync = self._sync_usd_on_fabric_write

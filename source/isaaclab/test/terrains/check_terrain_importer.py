@@ -64,10 +64,9 @@ simulation_app = app_launcher.app
 
 import torch
 
-from isaacsim.core.cloner import GridCloner
-
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
+from isaaclab import cloner as lab_cloner
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.terrain_importer import TerrainImporter
@@ -86,8 +85,10 @@ def main():
     num_balls = 2048
 
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=2.0, stage=sim.stage)
-    cloner.define_base_env("/World/envs")
+    # Create environment clones using Lab's cloner utilities
+    env_fmt = "/World/envs/env_{}"
+    env_ids = torch.arange(num_balls, dtype=torch.long, device=sim.device)
+    env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0, device=sim.device)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim_utils.define_prim("/World/envs/env_0")
 
@@ -145,12 +146,11 @@ def main():
         mesh_sphere_cfg.func(ball_prim_path, mesh_sphere_cfg, translation=(0.0, 0.0, 0.5))
 
     # Clone the scene
-    cloner.define_base_env("/World/envs")
-    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_balls)
-    cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
+    envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_balls)]
+    lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
     physics_scene_path = sim.cfg.physics.physics_prim_path
-    cloner.filter_collisions(
-        physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
+    lab_cloner.filter_collisions(
+        sim.stage, physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
     )
 
     # Set ball positions over terrain origins using FrameView (before simulation starts)

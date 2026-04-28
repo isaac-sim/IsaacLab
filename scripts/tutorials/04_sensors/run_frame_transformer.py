@@ -35,7 +35,6 @@ simulation_app = app_launcher.app
 import math
 
 import torch
-import warp as wp
 
 import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
 
@@ -124,7 +123,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # Simulate physics
     while simulation_app.is_running():
         # perform this loop at policy control freq (50 Hz)
-        robot.set_joint_position_target_index(target=wp.to_torch(robot.data.default_joint_pos).clone())
+        robot.set_joint_position_target_index(target=robot.data.default_joint_pos.torch.clone())
         robot.write_data_to_sim()
         # perform step
         sim.step()
@@ -147,10 +146,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
                 print(f"Displaying Frame ID {frame_index}: {frame_names[frame_index]}")
 
             # visualize frame
-            source_pos = wp.to_torch(frame_transformer.data.source_pos_w)
-            source_quat = wp.to_torch(frame_transformer.data.source_quat_w)
-            target_pos = wp.to_torch(frame_transformer.data.target_pos_w)[:, frame_index]
-            target_quat = wp.to_torch(frame_transformer.data.target_quat_w)[:, frame_index]
+            source_pos = frame_transformer.data.source_pos_w.torch
+            source_quat = frame_transformer.data.source_quat_w.torch
+            target_pos = frame_transformer.data.target_pos_w.torch[:, frame_index]
+            target_quat = frame_transformer.data.target_quat_w.torch[:, frame_index]
             # draw the frames
             transform_visualizer.visualize(
                 torch.cat([source_pos, target_pos], dim=0), torch.cat([source_quat, target_quat], dim=0)
