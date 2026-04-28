@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+4.6.22 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.envs.mdp.body_link_pose_w` and
+  :func:`~isaaclab.envs.mdp.body_link_vel_w` observation terms for reading
+  explicit body link pose and velocity fields.
+
+Changed
+^^^^^^^
+
+* Changed the Pink IK task-space action base link frame lookup to read direct
+  body link pose data instead of slicing packed body link state. No user
+  migration is required.
+
+
 4.6.21 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 

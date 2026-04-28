@@ -162,6 +162,63 @@ def body_pose_w(
 
 
 @generic_io_descriptor(observation_type="BodyState", on_inspect=[record_shape, record_dtype, record_body_names])
+def body_link_pose_w(
+    env: ManagerBasedEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """The flattened body link poses of the asset w.r.t. the env.scene.origin.
+
+    Note: Only the bodies configured in :attr:`asset_cfg.body_ids` will have their poses returned.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with this observation.
+
+    Returns:
+        The poses of body links in articulation [num_envs, 7 * num_bodies]. Pose order is
+        [x, y, z, qw, qx, qy, qz], where position components are [m] and quaternion components
+        are unitless. Output is stacked horizontally per body.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    # access the body link poses in world frame
+    pose = asset.data.body_link_pose_w.torch[:, asset_cfg.body_ids, :7]
+    if pose.ndim == 2:
+        pose = pose.unsqueeze(1)
+    pose = pose.clone()
+    pose[..., :3] -= env.scene.env_origins.unsqueeze(1)
+    return pose.reshape(env.num_envs, -1)
+
+
+@generic_io_descriptor(observation_type="BodyState", on_inspect=[record_shape, record_dtype, record_body_names])
+def body_link_vel_w(
+    env: ManagerBasedEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """The flattened body link velocities of the asset in the world frame.
+
+    Note: Only the bodies configured in :attr:`asset_cfg.body_ids` will have their velocities returned.
+
+    Args:
+        env: The environment.
+        asset_cfg: The SceneEntity associated with this observation.
+
+    Returns:
+        The velocities of body links in articulation [num_envs, 6 * num_bodies]. Velocity order is
+        [linear(3), angular(3)] with units [m/s, rad/s]. Output is stacked horizontally per body.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+
+    # access the body link velocities in world frame
+    velocity = asset.data.body_link_vel_w.torch[:, asset_cfg.body_ids, :6]
+    if velocity.ndim == 2:
+        velocity = velocity.unsqueeze(1)
+    return velocity.reshape(env.num_envs, -1)
+
+
+@generic_io_descriptor(observation_type="BodyState", on_inspect=[record_shape, record_dtype, record_body_names])
 def body_projected_gravity_b(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
