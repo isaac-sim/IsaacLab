@@ -615,6 +615,7 @@ def apply_overrides(
         sec, path, name = resolved[full_path]
         if cfgs[sec] is not None and _path_reachable(sec, path):
             node = _materialize_lazy_preset(presets[sec][path][name], name)
+            node = resolve_presets(node, set(global_presets))
             node_dict = (
                 node.to_dict() if hasattr(node, "to_dict") else dict(node) if isinstance(node, Mapping) else node
             )

@@ -668,6 +668,33 @@ def test_lazy_preset_path_selection_materializes_module(monkeypatch):
     assert hydra_cfg["env"]["backend"]["substeps"] == 8
 
 
+def test_lazy_preset_path_selection_resolves_nested_presets(monkeypatch):
+    """Path-selected lazy presets resolve PresetCfg fields inside the imported config."""
+
+    @configclass
+    class OptionalBackendCfg:
+        backend: str = "optional"
+        policy: PolicyModeCfg = PolicyModeCfg()
+
+    module = types.ModuleType("test_hydra_optional_backend")
+    module.OptionalBackendCfg = OptionalBackendCfg
+    monkeypatch.setitem(sys.modules, "test_hydra_optional_backend", module)
+
+    env_cfg = EnvWithLazyBackendCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {
+        "env": resolve_presets(EnvWithLazyBackendCfg()).to_dict(),
+        "agent": agent_cfg.to_dict(),
+    }
+
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["fast"], [("env", "backend", "optional_backend")], [], presets)
+
+    assert isinstance(env_cfg.backend, OptionalBackendCfg)
+    assert isinstance(env_cfg.backend.policy, FastPolicyCfg)
+    assert hydra_cfg["env"]["backend"]["policy"]["actor_hidden_dims"] == [32, 16]
+
+
 def test_root_presetcfg_global_depth_resolves_nested():
     """Global preset=depth on root PresetCfg also resolves nested sensor and renderer."""
     env_cfg, _ = _apply(RootPresetEnvCfg(), global_presets=["depth"])

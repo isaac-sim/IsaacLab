@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.31 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed path-selected lazy presets to resolve nested
+  :class:`~isaaclab_tasks.utils.hydra.PresetCfg` fields after loading.
+
+
 1.5.30 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
