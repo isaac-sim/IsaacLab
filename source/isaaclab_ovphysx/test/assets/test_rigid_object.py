@@ -145,3 +145,45 @@ def test_body_inertia_reads_from_cpu_binding():
     inertia_np = wp.to_torch(inertia.warp).cpu().numpy()
     assert inertia_np.shape == (2, 1, 9)
     assert inertia_np[0, 0, 4] == pytest.approx(2.0)
+
+
+def _make_rigid_object_shell(num_instances: int = 4, device: str = "cuda:0"):
+    """Mirrors _make_articulation_shell from test_articulation.py."""
+    from unittest.mock import MagicMock
+
+    from isaaclab_ovphysx.assets.rigid_object.rigid_object import RigidObject
+
+    from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+
+    obj = object.__new__(RigidObject)
+    obj.cfg = RigidObjectCfg(prim_path="/World/object")
+    bindings = MockOvPhysxBindingSet(
+        num_instances=num_instances,
+        num_joints=0,
+        num_bodies=1,
+        asset_kind="rigid_object",
+    )
+    bindings.set_random_data()
+    object.__setattr__(obj, "_device", device)
+    object.__setattr__(obj, "_ovphysx", MagicMock())
+    object.__setattr__(obj, "_bindings", bindings.bindings)
+    object.__setattr__(obj, "_num_instances", num_instances)
+    object.__setattr__(obj, "_num_bodies", 1)
+    object.__setattr__(obj, "_body_names", ["base_link"])
+    object.__setattr__(obj, "_initialize_handle", None)
+    object.__setattr__(obj, "_invalidate_initialize_handle", None)
+    object.__setattr__(obj, "_prim_deletion_handle", None)
+    object.__setattr__(obj, "_debug_vis_handle", None)
+    data = RigidObjectData(bindings.bindings, device)
+    data._num_instances = num_instances
+    data._num_bodies = 1
+    object.__setattr__(obj, "_data", data)
+    return obj, bindings
+
+
+def test_rigid_object_count_properties():
+    obj, _ = _make_rigid_object_shell(num_instances=8)
+    assert obj.num_instances == 8
+    assert obj.num_bodies == 1
+    assert obj.body_names == ["base_link"]
+    assert obj.data is not None
