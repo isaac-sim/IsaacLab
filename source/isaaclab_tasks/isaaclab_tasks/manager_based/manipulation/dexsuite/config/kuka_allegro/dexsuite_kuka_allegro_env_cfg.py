@@ -21,6 +21,7 @@ from ... import mdp
 from .camera_cfg import (
     BaseTiledCameraCfg,
     DuoCameraObservationsCfg,
+    ResNetSingleCameraObservationsCfg,
     SingleCameraObservationsCfg,
     StateObservationCfg,
     WristTiledCameraCfg,
@@ -129,6 +130,7 @@ class KukaAllegroObservationCfg(PresetCfg):
     state = StateObservationCfg()
     single_camera = SingleCameraObservationsCfg()
     duo_camera = DuoCameraObservationsCfg()
+    resnet_single_camera = ResNetSingleCameraObservationsCfg()
     default = state
 
 

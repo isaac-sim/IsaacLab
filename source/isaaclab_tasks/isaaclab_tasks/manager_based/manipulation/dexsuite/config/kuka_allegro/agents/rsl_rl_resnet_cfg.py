@@ -16,9 +16,9 @@ from isaaclab_rl.rsl_rl import (
 class DexsuiteKukaAllegroPPOResNetRunnerCfg(RslRlOnPolicyRunnerCfg):
     """RSL-RL PPO runner config for Kuka Allegro with ResNet18 features.
 
-    This configuration uses frozen, pretrained ResNet18 features (512-dim) extracted
-    at the observation level. The ResNet is framework-agnostic and runs outside the
-    policy network, making it compatible with any RL framework.
+    RSL-RL PPO runner configuration for DexSuite Kuka Allegro with frozen ResNet18
+    feature extraction. The ResNet backbone runs at the observation level (producing
+    512-dim features), so the policy MLP only processes compact feature vectors.
 
     The ResNet18 model uses ImageNet pretrained weights and is automatically downloaded
     and cached by torchvision on first use.

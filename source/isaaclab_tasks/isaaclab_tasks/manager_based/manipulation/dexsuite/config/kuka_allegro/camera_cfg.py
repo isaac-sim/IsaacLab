@@ -6,6 +6,7 @@
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
+from isaaclab.envs.mdp import observations as mdp_obs
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
@@ -186,3 +187,34 @@ class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
         )
 
     wrist_image: WristImageObsCfg = WristImageObsCfg()
+
+
+@configclass
+class ResNetSingleCameraObservationsCfg(StateObservationCfg):
+    """Observation specifications using frozen ResNet18 features (512-dim) from the base camera."""
+
+    @configclass
+    class ResNetFeaturesObsCfg(ObsGroup):
+        """ResNet18 feature extraction observation group.
+
+        Uses a frozen, pretrained ResNet18 (ImageNet weights) to extract 512-dimensional
+        feature vectors from the base camera RGB images. The model runs at the observation
+        level and is framework-agnostic.
+        """
+
+        resnet_features = ObsTerm(
+            func=mdp_obs.image_features,
+            params={
+                "sensor_cfg": SceneEntityCfg("base_camera"),
+                "data_type": "rgb",
+                "model_name": "resnet18",
+            },
+        )
+
+    resnet_features: ResNetFeaturesObsCfg = ResNetFeaturesObsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+        for group in self.__dataclass_fields__.values():
+            obs_group = getattr(self, group.name)
+            obs_group.history_length = None

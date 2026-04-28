@@ -473,6 +473,7 @@ class image_features(ManagerTermBase):
         self.model_zoo_cfg: dict = cfg.params.get("model_zoo_cfg")  # type: ignore
         self.model_name: str = cfg.params.get("model_name", "resnet18")  # type: ignore
         self.model_device: str = cfg.params.get("model_device", env.device)  # type: ignore
+        self.freeze: bool = cfg.params.get("freeze", True)  # type: ignore
 
         # List of Theia models - These are configured through `_prepare_theia_transformer_model` function
         default_theia_models = [
@@ -500,7 +501,7 @@ class image_features(ManagerTermBase):
             if self.model_name in default_theia_models:
                 model_config = self._prepare_theia_transformer_model(self.model_name, self.model_device)
             elif self.model_name in default_resnet_models:
-                model_config = self._prepare_resnet_model(self.model_name, self.model_device)
+                model_config = self._prepare_resnet_model(self.model_name, self.model_device, self.freeze)
             else:
                 raise ValueError(
                     f"Model name '{self.model_name}' not found in the default model zoo configuration."
@@ -530,6 +531,7 @@ class image_features(ManagerTermBase):
         model_zoo_cfg: dict | None = None,
         model_name: str = "resnet18",
         model_device: str | None = None,
+        freeze: bool = True,
         inference_kwargs: dict | None = None,
     ) -> torch.Tensor:
         # obtain the images from the sensor
@@ -595,92 +597,24 @@ class image_features(ManagerTermBase):
         # return the model, preprocess and inference functions
         return {"model": _load_model, "inference": _inference}
 
-    def _prepare_resnet_model(self, model_name: str, model_device: str) -> dict:
-        """Prepare the ResNet model for inference.
+    def _prepare_resnet_model(self, model_name: str, model_device: str, freeze: bool = True) -> dict:
+        """Prepare the ResNet model for feature extraction.
 
-        The final fully-connected classification layer is removed to extract features
-        (512-dim for ResNet18/34, 2048-dim for ResNet50/101) instead of classification
-        logits (1000-dim). This is the standard approach for using pretrained models as
-        feature extractors in RL tasks.
-
-        Note:
-            If you need classification logits instead of features, you can provide a
-            custom ``model_zoo_cfg`` that preserves the FC layer.
+        Delegates to :func:`isaaclab.envs.mdp.resnet_utils.prepare_resnet_model`.
+        The FC classification layer is removed; when ``freeze=True`` (default) the
+        model is set to eval mode and inference runs inside :func:`torch.no_grad`.
 
         Args:
-            model_name: The name of the ResNet model to prepare.
-            model_device: The device to store and infer the model on.
+            model_name: ResNet variant (``"resnet18"``, ``"resnet34"``, ``"resnet50"``, ``"resnet101"``).
+            model_device: Device to place the model on.
+            freeze: Whether to freeze the model for inference. Defaults to ``True``.
 
         Returns:
-            A dictionary containing the model and inference functions.
+            Dict with ``"model"`` and ``"inference"`` callables.
         """
-        from torchvision import models
+        from isaaclab.envs.mdp import resnet_utils
 
-        def _load_model() -> torch.nn.Module:
-            """Load the ResNet model with ImageNet pretrained weights.
-
-            The final fully-connected classification layer is removed to extract features
-            instead of classification logits. This is the recommended approach for RL tasks
-            as intermediate features are more useful than ImageNet classification outputs.
-
-            Feature dimensions:
-            - ResNet18: 512-dim
-            - ResNet34: 512-dim
-            - ResNet50: 2048-dim
-            - ResNet101: 2048-dim
-
-            Returns:
-                The ResNet model with the FC layer replaced by Identity, in eval mode.
-            """
-            # Map model name to corresponding weights enum class
-            resnet_weights_map = {
-                "resnet18": models.ResNet18_Weights.IMAGENET1K_V1,
-                "resnet34": models.ResNet34_Weights.IMAGENET1K_V1,
-                "resnet50": models.ResNet50_Weights.IMAGENET1K_V1,
-                "resnet101": models.ResNet101_Weights.IMAGENET1K_V1,
-            }
-
-            if model_name not in resnet_weights_map:
-                raise ValueError(
-                    f"Unsupported ResNet model: {model_name}. Supported models: {list(resnet_weights_map.keys())}"
-                )
-
-            # Load pretrained model (torchvision automatically downloads and caches weights)
-            model = getattr(models, model_name)(weights=resnet_weights_map[model_name])
-            # Remove the final fully-connected layer to extract features instead of classification logits
-            # This is the standard practice for using pretrained models as feature extractors
-            model.fc = torch.nn.Identity()
-            # Set to eval mode for inference (frozen weights, no gradients)
-            model.eval()
-            return model.to(model_device)
-
-        def _inference(model, images: torch.Tensor) -> torch.Tensor:
-            """Run inference on the ResNet model to extract features.
-
-            Args:
-                model: The ResNet model (with FC layer removed, in eval mode).
-                images: Input image tensor. Shape is (num_envs, height, width, channel) in [0, 255] range.
-
-            Returns:
-                Extracted features tensor. Shape is (num_envs, feature_dim), where feature_dim
-                depends on the ResNet variant (512 for ResNet18/34, 2048 for ResNet50/101).
-            """
-            # Move images to model device and convert to float
-            image_proc = images.to(model_device)
-            # Convert from NHWC to NCHW format and scale from [0, 255] to [0, 1]
-            image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
-            # Apply ImageNet normalization (required for pretrained weights)
-            mean = torch.tensor([0.485, 0.456, 0.406], device=model_device, dtype=torch.float32).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=model_device, dtype=torch.float32).view(1, 3, 1, 1)
-            image_proc = (image_proc - mean) / std
-
-            # Extract features (no gradients, model is in eval mode)
-            with torch.no_grad():
-                features = model(image_proc)
-            return features
-
-        # return the model, preprocess and inference functions
-        return {"model": _load_model, "inference": _inference}
+        return resnet_utils.prepare_resnet_model(model_name, model_device, freeze=freeze)
 
 
 """

@@ -25,18 +25,11 @@ Changed
   vectors (512-dim for ResNet18/34, 2048-dim for ResNet50/101) instead of
   classification logits (1000-dim), switched to the non-deprecated
   :class:`torchvision.models.ResNet18_Weights` (and siblings) weights enum,
-  and wrapped inference in :func:`torch.no_grad` to avoid building an
-  autograd graph through the frozen backbone.
-
-Breaking Changes
-^^^^^^^^^^^^^^^^
-
-* ``image_features`` with ResNet models now outputs feature vectors (512-dim
-  for ResNet18/34, 2048-dim for ResNet50/101) instead of classification
-  logits (1000-dim). Policies trained with the previous behavior are
-  incompatible and must be retrained. The
-  :class:`~isaaclab.envs.mdp.observations.CartpoleResNet18CameraEnvCfg`
-  observation space changes accordingly.
+  wrapped inference in :func:`torch.no_grad` to avoid building an autograd
+  graph through the frozen backbone, and added an optional ``freeze`` parameter
+  (default ``True``) to allow gradient flow through the backbone when needed.
+  **Breaking:** Policies trained on Cartpole Camera ResNet environments with the
+  previous 1000-dim logits output are incompatible and must be retrained.
 
 
 4.6.22 (2026-04-27)
