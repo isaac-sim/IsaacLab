@@ -125,3 +125,23 @@ def test_projected_gravity_b_identity_at_world_aligned_orientation():
     # convention (unit direction, not signed-magnitude). Identity rotation
     # leaves it unchanged in the body frame.
     assert g_np[0, 2] == pytest.approx(-1.0, rel=1e-4)
+
+
+def test_body_mass_reads_from_cpu_binding():
+    data, bindings = _make_data(num_instances=3)
+    data.is_primed = True
+    bindings.bindings[TT.RIGID_BODY_MASS]._data[:] = [[2.5], [3.0], [4.0]]
+    m = data.body_mass
+    m_np = wp.to_torch(m.warp).cpu().numpy()
+    assert m_np.shape == (3, 1)
+    assert m_np[1, 0] == pytest.approx(3.0)
+
+
+def test_body_inertia_reads_from_cpu_binding():
+    data, bindings = _make_data(num_instances=2)
+    data.is_primed = True
+    bindings.bindings[TT.RIGID_BODY_INERTIA]._data[0] = [1, 0, 0, 0, 2, 0, 0, 0, 3]
+    inertia = data.body_inertia
+    inertia_np = wp.to_torch(inertia.warp).cpu().numpy()
+    assert inertia_np.shape == (2, 1, 9)
+    assert inertia_np[0, 0, 4] == pytest.approx(2.0)

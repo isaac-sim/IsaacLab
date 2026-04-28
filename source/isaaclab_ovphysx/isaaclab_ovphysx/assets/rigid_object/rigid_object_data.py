@@ -100,6 +100,15 @@ class RigidObjectData(BaseRigidObjectData):
         self._body_link_ang_acc_w_ta: ProxyArray | None = None
         self._body_com_lin_acc_w_ta: ProxyArray | None = None
         self._body_com_ang_acc_w_ta: ProxyArray | None = None
+        # Body property buffers (semi-static; lazy-allocated in _ensure_body_prop_buffers).
+        self._body_mass_buf: TimestampedBuffer | None = None
+        self._body_inertia_buf: TimestampedBuffer | None = None
+        # Body property ProxyArrays.
+        self._body_mass_ta: ProxyArray | None = None
+        self._body_inertia_ta: ProxyArray | None = None
+        self._body_com_pose_b_ta: ProxyArray | None = None
+        self._body_com_pos_b_ta: ProxyArray | None = None
+        self._body_com_quat_b_ta: ProxyArray | None = None
         # Derived-property ProxyArrays.
         self._projected_gravity_b_ta: ProxyArray | None = None
         self._heading_w_ta: ProxyArray | None = None
@@ -175,6 +184,8 @@ class RigidObjectData(BaseRigidObjectData):
             self._root_link_ang_vel_b_buf,
             self._root_com_lin_vel_b_buf,
             self._root_com_ang_vel_b_buf,
+            self._body_mass_buf,
+            self._body_inertia_buf,
         ):
             if buf is not None:
                 buf.timestamp = -1.0
@@ -264,6 +275,36 @@ class RigidObjectData(BaseRigidObjectData):
         forward_tiled = np.tile(np.array([1.0, 0.0, 0.0], dtype=np.float32), (N, 1))
         self.GRAVITY_VEC_W = ProxyArray(wp.from_numpy(gravity_dir_tiled, dtype=wp.vec3f, device=dev))
         self.FORWARD_VEC_B = ProxyArray(wp.from_numpy(forward_tiled, dtype=wp.vec3f, device=dev))
+
+    def _ensure_body_prop_buffers(self) -> None:
+        """Allocate body-property TimestampedBuffers on first use.
+
+        ``body_mass`` needs a ``(N, 1)`` float32 buffer that matches the
+        ``RIGID_BODY_MASS`` binding shape exactly. ``body_inertia`` needs a
+        ``(N, 9)`` flat float32 buffer so that ``binding.read()`` can fill it
+        directly; the ``(N, 1, 9)`` view is constructed zero-copy in the
+        property accessor.
+        """
+        if self._body_mass_buf is not None:
+            return
+        N = self._num_instances
+        dev = self._device
+        self._body_mass_buf = TimestampedBuffer((N, 1), dev, wp.float32)
+        # Store flat (N, 9) so binding.read() sees the correct shape.
+        self._body_inertia_buf = TimestampedBuffer((N, 9), dev, wp.float32)
+
+    def _read_flat_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
+        """Read a flat (float32) CPU binding into a TimestampedBuffer, skipping if fresh."""
+        if buf.timestamp >= self._sim_time:
+            return
+        binding = self._get_binding(tensor_type)
+        if binding is None:
+            return
+        # CPU-only bindings: read via numpy then copy to the target device.
+        np_buf = np.zeros(binding.shape, dtype=np.float32)
+        binding.read(np_buf)
+        wp.copy(buf.data, wp.from_numpy(np_buf, dtype=wp.float32, device=self._device))
+        buf.timestamp = self._sim_time
 
     # --- internal helpers: singleton-dim reshape -----------------------
     def _reshape_to_body_view(self, arr: wp.array, dtype) -> wp.array:
@@ -591,15 +632,54 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_pose_b(self) -> ProxyArray:
-        raise NotImplementedError
+        """Center-of-mass pose ``[pos, quat]`` of all bodies in their respective body frames [m, -].
+        Shape is (num_instances, num_bodies), dtype = wp.transformf.
+        In torch this resolves to (num_instances, num_bodies, 7).
+
+        For a single rigid body ``num_bodies=1``, the body frame equals the root
+        link frame.  The orientation is provided in (x, y, z, w) format.
+        """
+        self._ensure_root_buffers()
+        self._read_transform_binding(TT.RIGID_BODY_COM_POSE, self._body_com_pose_b_buf)
+        if self._body_com_pose_b_ta is None:
+            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b_buf.data)
+        return self._body_com_pose_b_ta
 
     @property
     def body_mass(self) -> ProxyArray:
-        raise NotImplementedError
+        """Mass of all bodies [kg].
+        Shape is (num_instances, num_bodies), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_bodies).
+        """
+        self._ensure_body_prop_buffers()
+        self._read_flat_binding(TT.RIGID_BODY_MASS, self._body_mass_buf)
+        if self._body_mass_ta is None:
+            self._body_mass_ta = ProxyArray(self._body_mass_buf.data)
+        return self._body_mass_ta
 
     @property
     def body_inertia(self) -> ProxyArray:
-        raise NotImplementedError
+        """Flattened inertia tensor of all bodies [kg*m^2].
+        Shape is (num_instances, num_bodies, 9), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_bodies, 9).
+
+        Stored as a flattened 3x3 inertia matrix per body.
+        """
+        self._ensure_body_prop_buffers()
+        self._read_flat_binding(TT.RIGID_BODY_INERTIA, self._body_inertia_buf)
+        if self._body_inertia_ta is None:
+            # Zero-copy reshape from (N, 9) to (N, 1, 9).
+            raw = self._body_inertia_buf.data
+            N = raw.shape[0]
+            view = wp.array(
+                ptr=raw.ptr,
+                shape=(N, 1, 9),
+                dtype=wp.float32,
+                device=self._device,
+                copy=False,
+            )
+            self._body_inertia_ta = ProxyArray(view)
+        return self._body_inertia_ta
 
     @property
     def projected_gravity_b(self) -> ProxyArray:
@@ -930,8 +1010,22 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_pos_b(self) -> ProxyArray:
-        raise NotImplementedError
+        """Center-of-mass position of all bodies in their respective body frames [m].
+        Shape is (num_instances, num_bodies), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, num_bodies, 3).
+        """
+        parent = self.body_com_pose_b
+        if self._body_com_pos_b_ta is None:
+            self._body_com_pos_b_ta = ProxyArray(self._get_pos_from_transform(parent.warp))
+        return self._body_com_pos_b_ta
 
     @property
     def body_com_quat_b(self) -> ProxyArray:
-        raise NotImplementedError
+        """Center-of-mass orientation (x, y, z, w) of all bodies in their respective body frames [-].
+        Shape is (num_instances, num_bodies), dtype = wp.quatf.
+        In torch this resolves to (num_instances, num_bodies, 4).
+        """
+        parent = self.body_com_pose_b
+        if self._body_com_quat_b_ta is None:
+            self._body_com_quat_b_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
+        return self._body_com_quat_b_ta
