@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.30 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed lazy preset loading so direct task physics presets can avoid importing
+  optional backend packages unless their preset is selected.
+
+
 1.5.29 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 

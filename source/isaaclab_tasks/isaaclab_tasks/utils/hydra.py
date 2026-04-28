@@ -25,6 +25,7 @@ Example usage::
 """
 
 import functools
+import importlib
 import sys
 from collections.abc import Callable, Mapping
 
@@ -56,6 +57,77 @@ class PresetCfg:
     """
 
     pass
+
+
+class _LazyPreset:
+    """Lazy preset alternative backed by an import path."""
+
+    __slots__ = ("error_hint", "import_path", "kwargs")
+
+    def __init__(self, import_path: str, error_hint: str | None = None, kwargs: dict[str, object] | None = None):
+        self.import_path = import_path
+        self.error_hint = error_hint
+        self.kwargs = kwargs or {}
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, _LazyPreset)
+            and self.import_path == other.import_path
+            and self.error_hint == other.error_hint
+            and self.kwargs == other.kwargs
+        )
+
+    def load(self, preset_name: str) -> object:
+        module_name, _, attr_name = self.import_path.partition(":")
+        try:
+            module = importlib.import_module(module_name)
+            cfg_cls = getattr(module, attr_name)
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError(self._format_error(preset_name, exc)) from exc
+        except (AttributeError, ImportError) as exc:
+            raise ImportError(self._format_error(preset_name, exc)) from exc
+        return cfg_cls(**self.kwargs)
+
+    def _format_error(self, preset_name: str, exc: Exception) -> str:
+        message = f"Preset '{preset_name}' requires config '{self.import_path}', but it could not be imported."
+        if self.error_hint:
+            message += f" {self.error_hint}"
+        message += f" Original error: {exc}"
+        return message
+
+
+def lazy_preset(
+    import_path: str,
+    *,
+    error_hint: str | None = None,
+    **kwargs: object,
+) -> _LazyPreset:
+    """Create a preset alternative that imports its config only when selected.
+
+    The target class is imported and instantiated only when the preset is selected.
+    This lets task configs advertise presets without importing their backend
+    packages during normal config loading.
+
+    Args:
+        import_path: Import path in ``"module:ClassName"`` form.
+        error_hint: Optional guidance appended to import errors.
+        **kwargs: Keyword arguments forwarded to the imported config class.
+
+    Returns:
+        A lazy preset alternative that can be used as a :class:`PresetCfg` field.
+
+    Raises:
+        ValueError: If :attr:`import_path` is not in ``"module:ClassName"`` form.
+    """
+    module_name, sep, attr_name = import_path.partition(":")
+    if not sep or not module_name or not attr_name:
+        raise ValueError(f"Lazy preset import path must use 'module:ClassName' form, got: {import_path!r}.")
+    return _LazyPreset(import_path, error_hint, kwargs)
+
+
+def _materialize_lazy_preset(value, preset_name: str) -> object:
+    """Instantiate a lazy preset if needed."""
+    return value.load(preset_name) if isinstance(value, _LazyPreset) else value
 
 
 def preset(**options) -> PresetCfg:
@@ -179,9 +251,9 @@ def _pick_alternative(preset_obj: PresetCfg, selected: set[str], path: str = "")
     fields = _preset_fields(preset_obj)
     for name in selected:
         if name in fields:
-            return fields[name]
+            return _materialize_lazy_preset(fields[name], name)
     if "default" in fields:
-        return fields["default"]
+        return _materialize_lazy_preset(fields["default"], "default")
     raise ValueError(
         f"PresetCfg {type(preset_obj).__name__} at '{path}' has no 'default' field "
         f"and none of the selected presets {selected} match its fields {set(fields.keys())}."
@@ -522,7 +594,7 @@ def apply_overrides(
     for full_path in sorted(resolved, key=lambda fp: fp.count(".")):
         sec, path, name = resolved[full_path]
         if cfgs[sec] is not None and _path_reachable(sec, path):
-            node = presets[sec][path][name]
+            node = _materialize_lazy_preset(presets[sec][path][name], name)
             node_dict = (
                 node.to_dict() if hasattr(node, "to_dict") else dict(node) if isinstance(node, Mapping) else node
             )

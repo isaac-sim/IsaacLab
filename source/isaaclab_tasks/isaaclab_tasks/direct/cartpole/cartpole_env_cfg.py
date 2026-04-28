@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import ArticulationCfg
@@ -15,7 +14,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, lazy_preset
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -36,7 +35,10 @@ class CartpolePhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    ovphysx = lazy_preset(
+        "isaaclab_ovphysx.physics:OvPhysxCfg",
+        error_hint="Install the OV-PhysX backend before selecting the 'ovphysx' preset.",
+    )
 
 
 @configclass

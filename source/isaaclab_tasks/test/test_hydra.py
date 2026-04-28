@@ -9,6 +9,9 @@ These tests verify the REPLACE-only preset system without depending on
 external environment configurations.
 """
 
+import sys
+import types
+
 import pytest
 
 from isaaclab.utils import configclass
@@ -17,6 +20,7 @@ from isaaclab_tasks.utils.hydra import (
     PresetCfg,
     apply_overrides,
     collect_presets,
+    lazy_preset,
     parse_overrides,
     preset,
     resolve_presets,
@@ -570,6 +574,21 @@ class EnvWithOptionalFeatureCfg:
     optional_feature: OptionalFeaturePresetCfg = OptionalFeaturePresetCfg()
 
 
+@configclass
+class LazyBackendPresetCfg(PresetCfg):
+    default: PhysxCfg = PhysxCfg()
+    optional_backend = lazy_preset(
+        "test_hydra_optional_backend:OptionalBackendCfg",
+        error_hint="Install the optional backend package.",
+    )
+
+
+@configclass
+class EnvWithLazyBackendCfg:
+    decimation: int = 4
+    backend: LazyBackendPresetCfg = LazyBackendPresetCfg()
+
+
 def test_presetcfg_none_default_auto_applies():
     """PresetCfg with default=None auto-applies None without crashing."""
     env_cfg, _ = _apply(EnvWithOptionalFeatureCfg())
@@ -586,6 +605,51 @@ def test_presetcfg_none_default_cli_selects_enabled():
     apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], sel, [], presets)
     assert isinstance(env_cfg.optional_feature, OptionalFeatureCfg)
     assert env_cfg.optional_feature.buffer_size == 200
+
+
+def test_lazy_preset_default_does_not_import_missing_module():
+    """Lazy preset alternatives are discoverable but not imported when default resolves."""
+    presets = collect_presets(EnvWithLazyBackendCfg())
+    assert "optional_backend" in presets["backend"]
+    assert "test_hydra_optional_backend" not in sys.modules
+
+    env_cfg = resolve_presets(EnvWithLazyBackendCfg())
+
+    assert isinstance(env_cfg.backend, PhysxCfg)
+    assert "test_hydra_optional_backend" not in sys.modules
+
+
+def test_lazy_preset_selection_requires_installed_module():
+    """Selecting an unavailable lazy preset raises an actionable import error."""
+    with pytest.raises(ModuleNotFoundError, match="Install the optional backend package."):
+        resolve_presets(EnvWithLazyBackendCfg(), {"optional_backend"})
+
+
+def test_lazy_preset_path_selection_materializes_module(monkeypatch):
+    """Path selection imports and instantiates an available lazy preset."""
+
+    @configclass
+    class OptionalBackendCfg:
+        backend: str = "optional"
+        substeps: int = 8
+
+    module = types.ModuleType("test_hydra_optional_backend")
+    module.OptionalBackendCfg = OptionalBackendCfg
+    monkeypatch.setitem(sys.modules, "test_hydra_optional_backend", module)
+
+    env_cfg = EnvWithLazyBackendCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {
+        "env": resolve_presets(EnvWithLazyBackendCfg()).to_dict(),
+        "agent": agent_cfg.to_dict(),
+    }
+
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "optional_backend")], [], presets)
+
+    assert isinstance(env_cfg.backend, OptionalBackendCfg)
+    assert env_cfg.backend.backend == "optional"
+    assert hydra_cfg["env"]["backend"]["substeps"] == 8
 
 
 def test_root_presetcfg_global_depth_resolves_nested():
