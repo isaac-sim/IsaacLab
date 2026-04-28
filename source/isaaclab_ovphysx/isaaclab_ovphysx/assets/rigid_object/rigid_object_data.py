@@ -109,14 +109,24 @@ class RigidObjectData(BaseRigidObjectData):
         self._sim_time += dt
 
     def _invalidate_caches(self, env_ids=None) -> None:
-        """Coarse cache invalidation: clear every property timestamp so the
-        next access re-reads from the binding. Called by
-        :meth:`isaaclab_ovphysx.assets.RigidObject.reset` and by every
-        body-property setter on :class:`RigidObject`. The ``env_ids``
-        argument is accepted for parity with the articulation API but the
-        caches stored on this single-body asset are full-tensor, so a
-        fine-grained invalidation is not necessary here."""
+        """Coarse cache invalidation: reset every per-buffer timestamp so the
+        next property access unconditionally re-reads from the binding. Called
+        by :meth:`RigidObject.reset` and by every body-property setter on
+        :class:`RigidObject`. The ``env_ids`` argument is accepted for parity
+        with the articulation API but the caches stored on this single-body
+        asset are full-tensor, so a fine-grained invalidation is not necessary
+        here.
+        """
         self._timestamps.clear()
+        for buf in (
+            self._root_link_pose_w_buf,
+            self._root_link_vel_w_buf,
+            self._root_com_pose_w_buf,
+            self._root_com_vel_w_buf,
+            self._body_com_pose_b_buf,
+        ):
+            if buf is not None:
+                buf.timestamp = -1.0
 
     # --- defaults -----------------------------------------------------
     def _process_cfg(self, cfg: RigidObjectCfg) -> None:

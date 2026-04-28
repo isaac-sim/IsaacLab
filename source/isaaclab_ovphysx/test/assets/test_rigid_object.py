@@ -78,3 +78,18 @@ def test_root_lin_vel_w_reads_from_binding():
     out_np = wp.to_torch(out.warp).cpu().numpy()
     assert out_np[0, 0] == pytest.approx(1.5)
     assert out_np[0, 2] == pytest.approx(3.5)
+
+
+def test_invalidate_caches_forces_rebuild_within_same_sim_step():
+    data, bindings = _make_data(num_instances=2)
+    data.is_primed = True
+    bindings.bindings[TT.RIGID_BODY_ROOT_POSE]._data[0] = [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
+    first = wp.to_torch(data.root_link_pose_w.warp).cpu().numpy().copy()
+    assert first[0, 0] == pytest.approx(1.0)
+    # Mutate the binding storage in-place AND call _invalidate_caches —
+    # without bumping _sim_time. The next read must reflect the new
+    # binding contents (i.e. invalidation must reset per-buffer timestamps).
+    bindings.bindings[TT.RIGID_BODY_ROOT_POSE]._data[0, 0] = 99.0
+    data._invalidate_caches()
+    second = wp.to_torch(data.root_link_pose_w.warp).cpu().numpy()
+    assert second[0, 0] == pytest.approx(99.0)
