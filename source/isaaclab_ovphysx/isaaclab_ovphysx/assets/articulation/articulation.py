@@ -22,10 +22,11 @@ from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
+from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world, _scatter_rows_partial
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .articulation_data import ArticulationData
-from .kernels import _body_wrench_to_world, _scatter_rows_partial, update_soft_joint_pos_limits
+from .kernels import update_soft_joint_pos_limits
 
 if TYPE_CHECKING:
     from isaaclab.actuators import ActuatorBase
