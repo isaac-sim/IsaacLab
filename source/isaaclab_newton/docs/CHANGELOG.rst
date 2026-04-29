@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.5.27 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Registered :class:`~isaaclab.physics.GpuTransformBuffer`,
+  :class:`~isaaclab_newton.physics.NewtonState`, and conditionally
+  :class:`~isaaclab.physics.UsdFabric` capabilities on
+  :class:`~isaaclab_newton.scene_data_providers.NewtonSceneDataProvider`.
+  Newton's :class:`UsdFabric` capability runs the manager's
+  ``sync_transforms_to_usd`` bridge on demand. Factored the previously
+  inline sync into :meth:`_sync_transforms_to_usd_if_needed` so it can be
+  invoked from the capability handle.
+
+
 0.5.26 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

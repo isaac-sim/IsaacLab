@@ -17,6 +17,7 @@ import warp as wp
 from pxr import UsdGeom
 
 from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
+from isaaclab.physics.capabilities import GpuTransformBuffer, UsdFabric
 from isaaclab.physics.scene_data_buffers import TransformBufferPool
 from isaaclab.physics.scene_data_types import (
     MatrixLayout,
@@ -26,9 +27,74 @@ from isaaclab.physics.scene_data_types import (
     TransformFormat,
 )
 
+from isaaclab_newton.physics.capabilities import NewtonState
+
 logger = logging.getLogger(__name__)
 
 _ENV_ID_RE = re.compile(r"/World/envs/env_(\d+)")
+
+
+class _NewtonGpuTransformBufferCap:
+    """Adapter exposing :class:`GpuTransformBuffer` for the Newton provider."""
+
+    def __init__(self, provider: NewtonSceneDataProvider) -> None:
+        self._provider = provider
+
+    def get_body_transforms(
+        self,
+        target_format: TransformFormat,
+        *,
+        env_ids: list[int] | None = None,
+        quat_convention: QuaternionConvention = QuaternionConvention.XYZW,
+        matrix_layout: MatrixLayout = MatrixLayout.ROW_MAJOR,
+        double_precision: bool = False,
+        stream: wp.Stream | None = None,
+        allow_passthrough: bool = True,
+        index_map: wp.array | None = None,
+    ) -> TransformData | None:
+        return self._provider.get_body_transforms(
+            target_format,
+            env_ids=env_ids,
+            quat_convention=quat_convention,
+            matrix_layout=matrix_layout,
+            double_precision=double_precision,
+            stream=stream,
+            allow_passthrough=allow_passthrough,
+            index_map=index_map,
+        )
+
+    def get_source_format(self) -> TransformFormat | None:
+        return self._provider.get_source_format()
+
+
+class _NewtonUsdFabricCap:
+    """Adapter exposing :class:`UsdFabric` for the Newton provider.
+
+    Newton does not write USD natively; ``ensure_current`` runs the
+    sync-to-USD bridge owned by :class:`NewtonManager`.
+    """
+
+    def __init__(self, provider: NewtonSceneDataProvider) -> None:
+        self._provider = provider
+
+    def ensure_current(self, stream: wp.Stream | None = None) -> None:
+        # Sync handled inside NewtonSceneDataProvider.update() when
+        # _needs_usd_sync is True; this is the explicit consumer-facing
+        # entry point.
+        self._provider._sync_transforms_to_usd_if_needed()
+
+
+class _NewtonStateCap:
+    """Adapter exposing :class:`NewtonState` for the Newton provider."""
+
+    def __init__(self, provider: NewtonSceneDataProvider) -> None:
+        self._provider = provider
+
+    def get_state(self) -> Any:
+        return self._provider.get_newton_state()
+
+    def get_model(self) -> Any:
+        return self._provider.get_newton_model()
 
 
 class NewtonSceneDataProvider(BaseSceneDataProvider):
@@ -61,6 +127,12 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         # Typed transform API state
         self._transform_buffer_pool = TransformBufferPool()
         self._generation: int = 0
+
+        # Capability registration (ADR-0002).
+        self._register_capability(GpuTransformBuffer, _NewtonGpuTransformBufferCap(self))
+        self._register_capability(NewtonState, _NewtonStateCap(self))
+        if self._needs_usd_sync:
+            self._register_capability(UsdFabric, _NewtonUsdFabricCap(self))
 
     def _warn_once(self, key: str, message: str, *args) -> None:
         """Emit a warning once per unique key.
@@ -121,6 +193,13 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         are Newton (or Rerun), the sync is skipped to avoid unnecessary slowdown.
         """
         self._generation += 1
+        self._sync_transforms_to_usd_if_needed()
+
+    def _sync_transforms_to_usd_if_needed(self) -> None:
+        """Run the USD-Fabric sync when a USD-reading consumer is registered.
+
+        Idempotent and safe to call multiple times per frame.
+        """
         if not self._needs_usd_sync:
             return
         try:

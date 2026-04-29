@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.5.29 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Registered :class:`~isaaclab.physics.GpuTransformBuffer`,
+  :class:`~isaaclab.physics.UsdFabric`, and
+  :class:`~isaaclab_newton.physics.NewtonState` capabilities on
+  :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`.
+  PhysX writes USD Fabric natively, so :meth:`UsdFabric.ensure_current`
+  is a no-op fast path. The :class:`NewtonState` capability is registered
+  only when at least one consumer requires Newton state, mirroring the
+  existing ``_needs_newton_sync`` behaviour. See
+  :doc:`/source/refs/adr/0002-capability-based-provider-extensibility`.
+
+
 0.5.28 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 

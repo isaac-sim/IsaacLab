@@ -14,10 +14,12 @@ from collections import deque
 from typing import Any
 
 import warp as wp
+from isaaclab_newton.physics.capabilities import NewtonState
 
 from pxr import UsdGeom, UsdPhysics
 
 from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
+from isaaclab.physics.capabilities import GpuTransformBuffer, UsdFabric
 from isaaclab.physics.scene_data_buffers import TransformBufferPool
 from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 from isaaclab.physics.scene_data_types import (
@@ -30,6 +32,67 @@ from isaaclab.physics.scene_data_types import (
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 
 logger = logging.getLogger(__name__)
+
+
+class _PhysxGpuTransformBufferCap:
+    """Adapter exposing :class:`GpuTransformBuffer` for the PhysX provider."""
+
+    def __init__(self, provider: PhysxSceneDataProvider) -> None:
+        self._provider = provider
+
+    def get_body_transforms(
+        self,
+        target_format: TransformFormat,
+        *,
+        env_ids: list[int] | None = None,
+        quat_convention: QuaternionConvention = QuaternionConvention.XYZW,
+        matrix_layout: MatrixLayout = MatrixLayout.ROW_MAJOR,
+        double_precision: bool = False,
+        stream: wp.Stream | None = None,
+        allow_passthrough: bool = True,
+        index_map: wp.array | None = None,
+    ) -> TransformData | None:
+        return self._provider.get_body_transforms(
+            target_format,
+            env_ids=env_ids,
+            quat_convention=quat_convention,
+            matrix_layout=matrix_layout,
+            double_precision=double_precision,
+            stream=stream,
+            allow_passthrough=allow_passthrough,
+            index_map=index_map,
+        )
+
+    def get_source_format(self) -> TransformFormat | None:
+        return self._provider.get_source_format()
+
+
+class _PhysxUsdFabricCap:
+    """Adapter exposing :class:`UsdFabric` for the PhysX provider.
+
+    PhysX writes USD Fabric directly via the Tensor API, so freshness is
+    guaranteed by the physics step itself; this is a no-op fast path.
+    """
+
+    def ensure_current(self, stream: wp.Stream | None = None) -> None:
+        pass
+
+
+class _PhysxNewtonStateCap:
+    """Adapter exposing :class:`NewtonState` for the PhysX provider.
+
+    Reads the synthetic Newton state populated by the PhysX→Newton sync
+    bridge during :meth:`PhysxSceneDataProvider.update`.
+    """
+
+    def __init__(self, provider: PhysxSceneDataProvider) -> None:
+        self._provider = provider
+
+    def get_state(self) -> Any:
+        return self._provider.get_newton_state()
+
+    def get_model(self) -> Any:
+        return self._provider.get_newton_model()
 
 
 @wp.kernel(enable_backward=False)
@@ -145,6 +208,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         if self._needs_newton_sync:
             self._load_newton_model_from_prebuilt_artifact()
             self._setup_rigid_body_view()
+
+        # Capability registration (ADR-0002).
+        self._register_capability(GpuTransformBuffer, _PhysxGpuTransformBufferCap(self))
+        self._register_capability(UsdFabric, _PhysxUsdFabricCap())
+        if self._needs_newton_sync:
+            self._register_capability(NewtonState, _PhysxNewtonStateCap(self))
 
     # ---- Newton model + PhysX view setup --------------------------------------------------
 
