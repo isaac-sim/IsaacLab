@@ -10,7 +10,7 @@ from collections.abc import Callable
 import torch
 import warp as wp
 from newton import ModelBuilder, solvers
-from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
+from newton._src.usd.schemas import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
 
@@ -52,20 +52,40 @@ def _build_newton_builder_from_mapping(
         quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
         quaternions[:, 3] = 1.0
 
-    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-
+    # Main builder: loads only ground plane, lights, and scene-level prims.
+    # /World/envs (and all source asset paths) are excluded via ignore_paths.
+    #
+    # SchemaResolverMjc is intentionally EXCLUDED here. Two reasons:
+    #   1. SchemaResolverMjc.validate_custom_attributes() raises if
+    #      SolverMuJoCo.register_custom_attributes() has not been called first.
+    #   2. Calling register_custom_attributes on the main builder registers MJC
+    #      custom frequencies, which triggers Newton's stage-wide traversal
+    #      (independent of ignore_paths). That traversal finds MjcTendon prims
+    #      under /World/envs/... and tries to resolve their joint paths against
+    #      the main builder's empty joint_label (no joints were loaded), causing
+    #      "unknown joint path" warnings and silently dropping every tendon.
+    # The main builder only loads scene-level prims (ground, lights) that have
+    # no MjcTendon prims, so SchemaResolverMjc is not needed here.
+    _main_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = NewtonManager.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(
         stage,
         ignore_paths=["/World/envs"] + sources,
-        schema_resolvers=schema_resolvers,
+        schema_resolvers=_main_resolvers,
     )
+
+    # Proto resolvers include SchemaResolverMjc so MjcTendon prims are parsed.
+    _proto_resolvers = [SchemaResolverMjc(), SchemaResolverNewton(), SchemaResolverPhysx()]
 
     # The prototype is built from env_0 in absolute world coordinates.
     # add_builder xforms are deltas from env_0 so positions don't get double-counted.
     env0_pos = positions[0]
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
+        # register_custom_attributes must be called before add_usd so that
+        # SchemaResolverMjc.validate_custom_attributes() passes and Newton's
+        # custom-frequency traversal can resolve MjcTendon joint paths against
+        # this proto's fully populated joint_label.
         p = NewtonManager.create_builder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
         p.add_usd(
@@ -73,7 +93,7 @@ def _build_newton_builder_from_mapping(
             root_path=src_path,
             load_visual_shapes=True,
             skip_mesh_approximation=True,
-            schema_resolvers=schema_resolvers,
+            schema_resolvers=_proto_resolvers,
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
@@ -111,6 +131,12 @@ def _build_newton_builder_from_mapping(
                     local_site_map[label][col].append(offset + proto_shape_idx)
         # end the world context
         builder.end_world()
+
+    # Note: add_builder appends tendon custom-attribute entries from the proto
+    # for each world, giving N×T total entries after N environments. This is
+    # intentional: Newton's SolverMuJoCo reads tendon_world[i] for every entry
+    # and skips any tendon whose world is not the template world (world 0).
+    # No deduplication is needed.
 
     site_index_map = {
         **global_site_map,
