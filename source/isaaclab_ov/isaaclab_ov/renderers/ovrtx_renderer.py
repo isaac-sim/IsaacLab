@@ -41,10 +41,6 @@ import ovrtx
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 from packaging.version import Version
 
-# In previous versions of ovrtx, there was a bug where we would have to set read_gpu_transforms to False.
-# In later versions, we can read transforms from GPU.
-_OVRTX_READ_GPU_TRANSFORMS = Version(ovrtx.__version__) > Version("0.2.0")
-
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
@@ -53,8 +49,10 @@ from .ovrtx_renderer_kernels import (
     DEVICE,
     create_camera_transforms_kernel,
     extract_all_depth_tiles_kernel,
+    extract_all_depth_tiles_kernel_legacy,
     extract_all_rgba_tiles_kernel,
     generate_random_colors_from_ids_kernel,
+    generate_random_colors_from_ids_kernel_legacy,
     sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
@@ -66,6 +64,11 @@ from .ovrtx_usd import (
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
+
+
+# Shared integration floor for this module; reuse for ovrtx features that share one support floor.
+_OVRTX_VERSION = Version(ovrtx.__version__)
+_IS_OVRTX_0_3_0_OR_NEWER = (_OVRTX_VERSION >= Version("0.3.0"))
 
 # RTX minimal modes:
 #
@@ -205,7 +208,7 @@ class OVRTXRenderer(BaseRenderer):
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
             log_level=self.cfg.log_level,
-            read_gpu_transforms=_OVRTX_READ_GPU_TRANSFORMS,
+            read_gpu_transforms=_IS_OVRTX_0_3_0_OR_NEWER,
         )
         self._renderer = Renderer(OVRTX_CONFIG)
         assert self._renderer, "Renderer should be valid after creation"
@@ -486,7 +489,11 @@ class OVRTXRenderer(BaseRenderer):
         output_colors = self._output_semantic_color_buffer
 
         wp.launch(
-            kernel=generate_random_colors_from_ids_kernel,
+            kernel=(
+                generate_random_colors_from_ids_kernel
+                if _IS_OVRTX_0_3_0_OR_NEWER
+                else generate_random_colors_from_ids_kernel_legacy
+            ),
             dim=input_ids.shape,
             inputs=[input_ids, output_colors],
             device=DEVICE,
@@ -522,22 +529,16 @@ class OVRTXRenderer(BaseRenderer):
             device=DEVICE,
         )
 
-    def _tiled_drop_singleton_channel_if_hw1(self, tiled_data: wp.array) -> wp.array:
-        """If DLPack buffer is ``(H, W, 1)``, return rank-2 plane ``0`` via Warp slice (no Torch)."""
-        shape = tiled_data.shape
-        if len(shape) == 3 and int(shape[2]) == 1:
-            return tiled_data[:, :, 0]
-        return tiled_data
-
     def _extract_depth_tiles(
         self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
     ) -> None:
         """Extract per-env depth tiles into output_buffers (single kernel launch)."""
-        tiled_depth_data = self._tiled_drop_singleton_channel_if_hw1(tiled_depth_data)
+        kernel = extract_all_depth_tiles_kernel if _IS_OVRTX_0_3_0_OR_NEWER else extract_all_depth_tiles_kernel_legacy
+
         for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
             if depth_type in output_buffers:
                 wp.launch(
-                    kernel=extract_all_depth_tiles_kernel,
+                    kernel=kernel,
                     dim=(render_data.num_envs, render_data.height, render_data.width),
                     inputs=[
                         tiled_depth_data,
@@ -589,7 +590,6 @@ class OVRTXRenderer(BaseRenderer):
         if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
             with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
-                tiled_semantic_data = self._tiled_drop_singleton_channel_if_hw1(tiled_semantic_data)
 
                 if tiled_semantic_data.dtype == wp.uint32:
                     semantic_colors = self._generate_random_colors_from_ids(tiled_semantic_data)
