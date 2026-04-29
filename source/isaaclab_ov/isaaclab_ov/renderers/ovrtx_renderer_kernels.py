@@ -310,12 +310,11 @@ def generate_random_colors_from_ids_kernel(
     """Generate random colors given IDs (e.g. semantic IDs).
 
     Args:
-        input_ids: 3D uint32 array of shape (H, W, 1) for semantic IDs per pixel.
-        output_colors: 3D uint32 array of shape (H, W, 1) for colors per pixel;
-            each word is ``r | (g<<8) | (b<<16) | (a<<24)``.
+        input_ids: 3D uint32 array for semantic IDs per pixel.
+        output_colors: 3D uint32 array for colors per pixel; each word is ``r | (g<<8) | (b<<16) | (a<<24)``.
     """
-    i, j = wp.tid()
-    output_colors[i, j, 0] = random_color_from_id(input_ids[i, j, 0])
+    i, j, k = wp.tid()
+    output_colors[i, j, k] = random_color_from_id(input_ids[i, j, k])
 
 
 @wp.kernel
