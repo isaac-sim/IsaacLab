@@ -11,15 +11,7 @@ import weakref
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar
 
-import warp as wp
-
 from .capabilities._validator import validate_consumer_capabilities
-from .scene_data_types import (
-    MatrixLayout,
-    QuaternionConvention,
-    TransformData,
-    TransformFormat,
-)
 
 T = TypeVar("T")
 
@@ -118,7 +110,7 @@ class BaseSceneDataProvider(ABC):
             self.validate_consumer_capabilities()
 
     # ------------------------------------------------------------------
-    # Existing abstract methods (backward compatible)
+    # Provider lifecycle
     # ------------------------------------------------------------------
 
     @abstractmethod
@@ -127,18 +119,14 @@ class BaseSceneDataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_newton_model(self) -> Any | None:
-        """Return Newton model handle when available."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_newton_state(self) -> Any | None:
-        """Return Newton state handle when available (full state)."""
-        raise NotImplementedError
-
-    @abstractmethod
     def get_usd_stage(self) -> Any | None:
-        """Return USD stage handle when available."""
+        """Return USD stage handle when available.
+
+        Kept on the base class because USD stage access is orthogonal to
+        capability registration — consumers that need only the stage (not
+        per-frame USD freshness) use this directly. For per-frame freshness
+        guarantees, request the :class:`UsdFabric` capability instead.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -147,58 +135,6 @@ class BaseSceneDataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_transforms(self) -> dict[str, Any] | None:
-        """Return body transforms, if supported."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_velocities(self) -> dict[str, Any] | None:
-        """Return body velocities, if supported."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_contacts(self) -> dict[str, Any] | None:
-        """Return contacts, if supported."""
-        raise NotImplementedError
-
-    @abstractmethod
     def get_camera_transforms(self) -> dict[str, Any] | None:
         """Return per-camera, per-env transforms, if supported."""
         raise NotImplementedError
-
-    # ------------------------------------------------------------------
-    # Typed transform API (legacy — see ADR-0002)
-    # ------------------------------------------------------------------
-
-    def get_body_transforms(
-        self,
-        target_format: TransformFormat,
-        *,
-        env_ids: list[int] | None = None,
-        quat_convention: QuaternionConvention = QuaternionConvention.XYZW,
-        matrix_layout: MatrixLayout = MatrixLayout.ROW_MAJOR,
-        double_precision: bool = False,
-        stream: wp.Stream | None = None,
-        allow_passthrough: bool = True,
-        index_map: wp.array | None = None,
-    ) -> TransformData | None:
-        """Return body transforms in the requested format.
-
-        .. note::
-
-           This method is retained as a convenience forwarder during the
-           migration to the capability framework. New consumer code should
-           prefer ``get_capability(GpuTransformBuffer).get_body_transforms``
-           instead. See ADR-0002.
-        """
-        return None
-
-    def get_source_format(self) -> TransformFormat | None:
-        """Return the simulator's native transform format.
-
-        .. note::
-
-           Retained as a convenience forwarder. Prefer
-           ``get_capability(GpuTransformBuffer).get_source_format``.
-        """
-        return None

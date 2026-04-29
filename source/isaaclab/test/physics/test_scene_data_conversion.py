@@ -246,18 +246,13 @@ class TestMatrixLayoutTranspose:
 
 
 class TestBaseProviderDefaults:
-    def test_get_body_transforms_default_returns_none(self):
+    def test_empty_provider_lists_no_capabilities(self):
+        """A bare BaseSceneDataProvider subclass exposes no capabilities by default."""
         from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
 
         class Stub(BaseSceneDataProvider):
-            def update(self, env_ids=None):
+            def update(self):
                 pass
-
-            def get_newton_model(self):
-                return None
-
-            def get_newton_state(self, env_ids=None):
-                return None
 
             def get_usd_stage(self):
                 return None
@@ -265,18 +260,8 @@ class TestBaseProviderDefaults:
             def get_metadata(self):
                 return {}
 
-            def get_transforms(self):
-                return None
-
-            def get_velocities(self):
-                return None
-
-            def get_contacts(self):
-                return None
-
             def get_camera_transforms(self):
                 return None
 
         provider = Stub()
-        assert provider.get_body_transforms(TransformFormat.TRANSFORM) is None
-        assert provider.get_source_format() is None
+        assert provider.list_capabilities() == frozenset()

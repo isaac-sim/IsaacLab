@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+4.6.24 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed :meth:`get_body_transforms` and :meth:`get_source_format` from
+  :class:`~isaaclab.physics.BaseSceneDataProvider`. Both were unreleased
+  on this branch and the typed transform API now lives on the
+  :class:`~isaaclab.physics.GpuTransformBuffer` capability protocol.
+  Migration: ``provider.get_capability(GpuTransformBuffer).get_body_transforms(...)``.
+* Removed :meth:`get_newton_model`, :meth:`get_newton_state`,
+  :meth:`get_transforms`, :meth:`get_velocities`, and :meth:`get_contacts`
+  from :class:`~isaaclab.physics.BaseSceneDataProvider`. Newton-specific
+  state access lives on the :class:`~isaaclab_newton.physics.NewtonState`
+  capability protocol; the per-frame transform/velocity/contact data
+  was never wired up across providers and consumers and is removed
+  pending future capability designs.
+
+
 4.6.23 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

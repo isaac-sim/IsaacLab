@@ -37,6 +37,7 @@ import warp as wp
 # By setting OVRTX_SKIP_USD_CHECK, we prevent the C library from loading the pxr Python package.
 os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
+from isaaclab_newton.physics.capabilities import NewtonState
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 
 from isaaclab.physics import GpuTransformBuffer
@@ -112,7 +113,7 @@ class OVRTXRenderer(BaseRenderer):
 
     cfg: OVRTXRendererCfg
 
-    required_capabilities = (GpuTransformBuffer,)
+    required_capabilities = (GpuTransformBuffer, NewtonState)
 
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
@@ -278,7 +279,11 @@ class OVRTXRenderer(BaseRenderer):
             from isaaclab.sim import SimulationContext
 
             provider = SimulationContext.instance().initialize_scene_data_provider()
-            newton_model = provider.get_newton_model()
+            newton_state_cap = provider.get_capability(NewtonState)
+            if newton_state_cap is None:
+                logger.info("NewtonState capability not registered, skipping object bindings")
+                return
+            newton_model = newton_state_cap.get_model()
             if newton_model is None:
                 logger.info("Newton model not available, skipping object bindings")
                 return

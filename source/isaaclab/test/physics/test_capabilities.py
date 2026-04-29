@@ -55,36 +55,18 @@ class _FakeCustomHandle:
 
 
 class _FakeProvider(BaseSceneDataProvider):
-    """Minimal concrete provider for framework tests.
-
-    The base class declares many abstract methods inherited from earlier
-    designs; we stub them out with no-ops because none are exercised here.
-    """
+    """Minimal concrete provider for framework tests."""
 
     def __init__(self):
         super().__init__()
 
     def update(self) -> None: ...
-    def get_newton_model(self):
-        return None
-
-    def get_newton_state(self):
-        return None
 
     def get_usd_stage(self):
         return None
 
     def get_metadata(self):
         return {}
-
-    def get_transforms(self):
-        return None
-
-    def get_velocities(self):
-        return None
-
-    def get_contacts(self):
-        return None
 
     def get_camera_transforms(self):
         return None
