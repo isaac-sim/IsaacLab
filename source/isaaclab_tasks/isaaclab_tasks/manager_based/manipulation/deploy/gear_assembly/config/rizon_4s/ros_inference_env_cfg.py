@@ -192,10 +192,6 @@ class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
 
         # ── Observation overrides (replace terms with constant functions) ─
         if self.OBS_SHAFT_POS is not None:
-            self.observations.policy.gear_shaft_pos = ObsTerm(
-                func=constant_obs, params={"value": self.OBS_SHAFT_POS}
-            )
+            self.observations.policy.gear_shaft_pos = ObsTerm(func=constant_obs, params={"value": self.OBS_SHAFT_POS})
         if self.OBS_SHAFT_QUAT is not None:
-            self.observations.policy.gear_shaft_quat = ObsTerm(
-                func=constant_obs, params={"value": self.OBS_SHAFT_QUAT}
-            )
+            self.observations.policy.gear_shaft_quat = ObsTerm(func=constant_obs, params={"value": self.OBS_SHAFT_QUAT})
