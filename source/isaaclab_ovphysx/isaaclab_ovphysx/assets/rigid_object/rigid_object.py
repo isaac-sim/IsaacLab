@@ -87,11 +87,15 @@ class RigidObject(BaseRigidObject):
 
     @property
     def root_view(self) -> dict[int, Any]:
-        """Bindings dict in lieu of a single opaque PhysX view.
+        """Bindings dict keyed by tensor-type constant.
 
-        OVPhysX exposes per-tensor-type bindings rather than a monolithic view
-        object.  Callers that need raw binding access should prefer
-        :meth:`_get_binding` instead of iterating this dict directly.
+        OVPhysX exposes per-tensor-type bindings rather than a single opaque
+        view object as used by the PhysX and Newton backends.  Callers that
+        need low-level binding access should call :meth:`_get_binding` rather
+        than iterating this dict directly.  For high-level state access
+        (instance counts, prim paths, transforms), use the
+        :attr:`num_instances`, :attr:`body_names`, and
+        :attr:`~RigidObjectData.root_link_pose_w` accessors instead.
         """
         return self._bindings
 
@@ -1002,8 +1006,8 @@ class RigidObject(BaseRigidObject):
 
         # Step 6: Create the data container.
         self._data = RigidObjectData(self._bindings, self._device)
-        self._data._num_instances = self._num_instances
-        self._data._num_bodies = 1
+        self._data.num_instances = self._num_instances
+        self._data.num_bodies = 1
         self._data.body_names = self._body_names
 
         # Steps 7-8: Placeholder methods (Task 9 fills them in).

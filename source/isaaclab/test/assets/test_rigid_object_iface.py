@@ -259,8 +259,8 @@ def create_ovphysx_rigid_object(
 
     # Create RigidObjectData
     data = OvPhysxRigidObjectData(mock_bindings.bindings, device)
-    data._num_instances = num_instances
-    data._num_bodies = 1
+    data.num_instances = num_instances
+    data.num_bodies = 1
     data._process_cfg(obj.cfg)
     data._is_primed = True
     object.__setattr__(obj, "_data", data)

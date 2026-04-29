@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+0.2.7 (2026-04-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Tightened the :attr:`~isaaclab_ovphysx.assets.RigidObject.root_view`
+  docstring to explicitly document the OVPhysX dict-of-bindings architecture.
+  Callers needing low-level binding access should use
+  :meth:`~isaaclab_ovphysx.assets.RigidObject._get_binding`; for high-level
+  state access use the :attr:`~isaaclab_ovphysx.assets.RigidObject.num_instances`,
+  :attr:`~isaaclab_ovphysx.assets.RigidObject.body_names`, and
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.root_link_pose_w` accessors
+  directly.
+* Demoted :attr:`~isaaclab_ovphysx.assets.RigidObjectData.device`,
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.num_instances`, and
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.num_bodies` from
+  ``@property`` accessors backed by ``_device``, ``_num_instances``, and
+  ``_num_bodies`` to plain instance attributes, matching the PhysX and Newton
+  backends. Downstream code that read ``RigidObjectData._device`` should now
+  use ``RigidObjectData.device``; same for ``num_instances`` and ``num_bodies``.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`~isaaclab_ovphysx.assets.RigidObjectData.body_link_acc_w`.
+  This OVPhysX-only convenience alias for
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.body_com_acc_w` was not
+  present on the base contract or the PhysX/Newton backends. Use
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.body_com_acc_w` directly —
+  for a single rigid body the link and COM accelerations are equivalent.
+
 0.2.6 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~
 
