@@ -66,16 +66,16 @@ def _build_newton_builder_from_mapping(
     #      "unknown joint path" warnings and silently dropping every tendon.
     # The main builder only loads scene-level prims (ground, lights) that have
     # no MjcTendon prims, so SchemaResolverMjc is not needed here.
-    _main_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+    main_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = NewtonManager.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(
         stage,
         ignore_paths=["/World/envs"] + sources,
-        schema_resolvers=_main_resolvers,
+        schema_resolvers=main_resolvers,
     )
 
     # Proto resolvers include SchemaResolverMjc so MjcTendon prims are parsed.
-    _proto_resolvers = [SchemaResolverMjc(), SchemaResolverNewton(), SchemaResolverPhysx()]
+    proto_resolvers = [SchemaResolverMjc(), SchemaResolverNewton(), SchemaResolverPhysx()]
 
     # The prototype is built from env_0 in absolute world coordinates.
     # add_builder xforms are deltas from env_0 so positions don't get double-counted.
@@ -93,7 +93,7 @@ def _build_newton_builder_from_mapping(
             root_path=src_path,
             load_visual_shapes=True,
             skip_mesh_approximation=True,
-            schema_resolvers=_proto_resolvers,
+            schema_resolvers=proto_resolvers,
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)

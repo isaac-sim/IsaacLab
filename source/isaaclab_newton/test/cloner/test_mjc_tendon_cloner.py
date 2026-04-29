@@ -260,6 +260,47 @@ class TestAddBuilderTendonPropagation(unittest.TestCase):
         """A plain builder (no register_custom_attributes) has no tendon entries."""
         self.assertEqual(_tendon_world_values(_plain_builder()), [])
 
+    def test_regression_extra_world0_entries_break_newton_filter(self):
+        """Regression for newton-physics/newton#2618.
+
+        When SchemaResolverMjc was included in the main builder's schema_resolvers
+        (old behavior), Newton's stage-wide MJC traversal ran against the main
+        builder's empty joint_label before any add_builder call.  The traversal
+        found MjcTendon prims and added T entries with world=0 (template world),
+        because add_usd on the main builder runs before any begin_world() call.
+        After add_builder for env-0 also appended T world-0 entries, the template
+        world held 2T entries instead of T — causing Newton's SolverMuJoCo to
+        initialize with twice the correct number of tendons for world 0.
+
+        The fix excludes SchemaResolverMjc from the main builder's resolvers so
+        the traversal never runs there.  The main builder contributes zero tendon
+        entries from its own add_usd; only add_builder calls populate it.
+        """
+        n = 4
+
+        # --- Broken state (old behavior) ---
+        # Simulate: main builder's add_usd injected T bad world-0 entries (from
+        # the stage-wide traversal), then add_builder added T more for each world.
+        broken = _mjc_builder()
+        _inject_tendon_entries(broken, 0, self.NAMES, self.STIFFNESSES, self.JOINT_ENTRIES_PER_TENDON)
+        for world in range(n):
+            _inject_tendon_entries(broken, world, self.NAMES, self.STIFFNESSES, self.JOINT_ENTRIES_PER_TENDON)
+        broken_worlds = _tendon_world_values(broken)
+        # Total: T (bad) + N×T (good) = (N+1)×T
+        self.assertEqual(len(broken_worlds), (n + 1) * self.T)
+        # Newton's filter selects world-0 entries: T bad + T good = 2T (wrong)
+        broken_w0 = [w for w in broken_worlds if w == 0]
+        self.assertEqual(len(broken_w0), 2 * self.T)
+
+        # --- Fixed state (new behavior) ---
+        # No entries from main builder's add_usd; only N×T from add_builder.
+        fixed = self._build_main_with_n_worlds(n)
+        fixed_worlds = _tendon_world_values(fixed)
+        self.assertEqual(len(fixed_worlds), n * self.T)
+        # Newton's filter selects exactly T world-0 entries (correct)
+        fixed_w0 = [w for w in fixed_worlds if w == 0]
+        self.assertEqual(len(fixed_w0), self.T)
+
 
 class TestSchemaResolverMjcImport(unittest.TestCase):
     """SchemaResolverMjc must be importable and validate correctly."""
