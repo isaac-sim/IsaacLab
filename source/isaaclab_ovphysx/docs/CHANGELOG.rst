@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.2.11 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Polished ``test/assets/test_rigid_object.py`` following PR #5426 review
+  comments: dropped wheel-gate ``pytest.importorskip`` and ``hasattr`` soft-skips
+  (the ovphysx wheel reliably exposes these symbols; an ``ImportError`` at import
+  time is the correct failure mode if missing); stripped the
+  ``"Real-backend port of PhysX's test_X"`` preamble from all 16 test
+  docstrings; dropped the ``sim_ctx_cpu`` fixture and inlined
+  ``build_simulation_context(device=device, ...)`` per test, mirroring the
+  PhysX/Newton pattern; added ``@pytest.mark.parametrize("device", ["cuda:0",
+  "cpu"])`` to all 29 parameterisable tests, providing GPU coverage; tightened
+  docstrings on ``test_initialization_with_articulation_root`` and
+  ``test_initialization_with_no_rigid_body`` to make explicit these are
+  rigid-object error-handling tests (not articulation tests), with actionable
+  xfail reasons. The ``live_manager_cpu`` fixture and its three warmup/lifecycle
+  tests remain CPU-only because they explicitly verify CPU-mode manager
+  behaviour.
+
 0.2.10 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~~
 
