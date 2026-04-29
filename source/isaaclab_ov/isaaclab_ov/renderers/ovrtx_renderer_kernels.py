@@ -76,21 +76,37 @@ def extract_tile_from_tiled_buffer_kernel(
 @wp.kernel
 def extract_all_rgba_tiles_kernel(
     tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.uint8, ndim=4),  # type: ignore  (num_envs, H, W, 4)
+    output_buffer: wp.array(dtype=wp.uint8, ndim=4),  # type: ignore
     num_cols: int,
     tile_width: int,
     tile_height: int,
+    num_channels: int,
 ):
-    """Extract ALL RGBA tiles from a tiled buffer in a single kernel launch."""
+    """Extract ALL RGBA or RGB tiles from a tiled buffer in a single kernel launch.
+
+    Args:
+        tiled_buffer: 3D uint8 array of shape (H, W, 4) for RGBA or (H, W, 3) for RGB.
+        output_buffer: 4D uint8 array of shape (num_envs, H, W, 4) for RGBA or (num_envs, H, W, 3) for RGB.
+        num_cols: number of columns in the tiled buffer.
+        tile_width: width of each tile.
+        tile_height: height of each tile.
+        num_channels: number of channels in the output buffer. Use 3 for RGB or 4 for RGBA.
+            If a value other than 3 or 4 is given, it will be treated as 3 (RGB).
+    """
     env_idx, y, x = wp.tid()
     tile_x = env_idx % num_cols
     tile_y = env_idx // num_cols
     src_x = tile_x * tile_width + x
     src_y = tile_y * tile_height + y
+
+    # RGB
     output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
     output_buffer[env_idx, y, x, 1] = tiled_buffer[src_y, src_x, 1]
     output_buffer[env_idx, y, x, 2] = tiled_buffer[src_y, src_x, 2]
-    output_buffer[env_idx, y, x, 3] = tiled_buffer[src_y, src_x, 3]
+
+    # Alpha (if it is RGBA)
+    if num_channels == 4:
+        output_buffer[env_idx, y, x, 3] = tiled_buffer[src_y, src_x, 3]
 
 
 @wp.kernel

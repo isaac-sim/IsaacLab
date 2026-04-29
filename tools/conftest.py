@@ -240,6 +240,45 @@ def _get_diagnostics(pre_kill_diag=""):
     return diag
 
 
+def _is_kitless_rendering_test_file(file_name: str) -> bool:
+    """Return True if the test file is a kitless test module."""
+    return file_name.startswith("test_rendering_") and file_name.endswith("_kitless.py")
+
+
+def _install_ovrtx_optional_dep(workspace_root: str) -> str | None:
+    """Install ``ov[ovrtx]`` once for kitless rendering tests.
+
+    Args:
+        workspace_root: Absolute path to the repository root.
+
+    Returns:
+        ``None`` on success, otherwise an actionable error message.
+    """
+    install_cmd = [f"{workspace_root}/isaaclab.sh", "-i", "ov[ovrtx]"]
+    try:
+        result = subprocess.run(
+            install_cmd,
+            cwd=workspace_root,
+            capture_output=True,
+            text=True,
+            timeout=1800,
+            check=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return f"Failed to run optional dependency install command for ov[ovrtx]: {exc}"
+
+    if result.returncode != 0:
+        return (
+            "Failed to install optional dependency ov[ovrtx] required for kitless OVRTX tests.\n"
+            f"Command: {' '.join(install_cmd)}\n"
+            f"Exit code: {result.returncode}\n"
+            f"STDOUT:\n{result.stdout}\n"
+            f"STDERR:\n{result.stderr}"
+        )
+
+    return None
+
+
 def _capture_system_diagnostics():
     """Capture system diagnostics (GPU, memory, processes) for crash investigation.
 
@@ -307,6 +346,15 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     test_status = {}
     xml_reports = []
     cold_cache_applied = False
+
+    if any(_is_kitless_rendering_test_file(os.path.basename(test_file)) for test_file in test_files):
+        print("🔵 Kitless tests detected. Installing optional dependency: ov[ovrtx]")
+        ovrtx_install_error = _install_ovrtx_optional_dep(workspace_root)
+        if ovrtx_install_error is None:
+            print("🟢 Optional dependency install complete: ov[ovrtx]")
+        else:
+            print("⚠️ Optional dependency install failed for ov[ovrtx].")
+            print(ovrtx_install_error)
 
     for test_file in test_files:
         print(f"\n\n🚀 Running {test_file} independently...\n")

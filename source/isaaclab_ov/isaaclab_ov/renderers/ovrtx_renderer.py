@@ -67,6 +67,43 @@ if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
 
+# RTX minimal modes:
+#
+# - simple_shading_constant_diffuse: Constant diffuse term only (flat appearance).
+# - simple_shading_diffuse_mdl: Diffuse-only MDL material evaluation.
+# - simple_shading_full_mdl: Full MDL material evaluation (includes specular/lighting effects).
+#
+# The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
+#
+_RTX_MINIMAL_MODES = {
+    "simple_shading_constant_diffuse": 1,
+    "simple_shading_diffuse_mdl": 2,
+    "simple_shading_full_mdl": 3,
+}
+
+
+def _resolve_simple_shading_data_type(data_types: list[str]) -> str | None:
+    """Resolve the simple shading data types.
+
+    Args:
+        data_types: List of data types.
+
+    Returns:
+        The resolved simple shading data type.
+    """
+    filtered_data_types = [data_type for data_type in data_types if data_type in _RTX_MINIMAL_MODES]
+    if not filtered_data_types:
+        return None
+
+    if len(filtered_data_types) > 1:
+        logger.warning(
+            "Multiple simple shading data types requested (%s). Using the first in the list (%s).",
+            filtered_data_types,
+            filtered_data_types[0],
+        )
+
+    return filtered_data_types[0]
+
 
 class OVRTXRenderData:
     """OVRTX-specific RenderData. Holds warp output buffers and a weakref to the sensor.
@@ -176,6 +213,11 @@ class OVRTXRenderer(BaseRenderer):
 
         if usd_scene_path is not None:
             logger.info("Injecting camera definitions...")
+
+            rtx_minimal_mode = None
+            if simple_shading_data_type := _resolve_simple_shading_data_type(data_types):
+                rtx_minimal_mode = _RTX_MINIMAL_MODES[simple_shading_data_type]
+
             combined_usd_path, render_product_path = inject_cameras_into_usd(
                 usd_scene_path,
                 self.cfg,
@@ -183,6 +225,7 @@ class OVRTXRenderer(BaseRenderer):
                 height=height,
                 num_envs=num_envs,
                 data_types=data_types,
+                minimal_mode=rtx_minimal_mode,
                 camera_rel_path=self._camera_rel_path,
             )
             self._render_product_paths.append(render_product_path)
@@ -460,23 +503,37 @@ class OVRTXRenderer(BaseRenderer):
         suffix: str = "",
     ) -> None:
         """Extract per-env RGBA tiles from tiled buffer into output_buffers (single kernel launch)."""
+        output_buffer = output_buffers[buffer_key]
+        num_channels = output_buffer.shape[-1]
+        if num_channels not in (3, 4):
+            raise ValueError(f"Expected RGB (3 channels) or RGBA (4 channels), got {num_channels}")
+
         wp.launch(
             kernel=extract_all_rgba_tiles_kernel,
             dim=(render_data.num_envs, render_data.height, render_data.width),
             inputs=[
                 tiled_data,
-                output_buffers[buffer_key],
+                output_buffer,
                 render_data.num_cols,
                 render_data.width,
                 render_data.height,
+                num_channels,
             ],
             device=DEVICE,
         )
+
+    def _tiled_drop_singleton_channel_if_hw1(self, tiled_data: wp.array) -> wp.array:
+        """If DLPack buffer is ``(H, W, 1)``, return rank-2 plane ``0`` via Warp slice (no Torch)."""
+        shape = tiled_data.shape
+        if len(shape) == 3 and int(shape[2]) == 1:
+            return tiled_data[:, :, 0]
+        return tiled_data
 
     def _extract_depth_tiles(
         self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
     ) -> None:
         """Extract per-env depth tiles into output_buffers (single kernel launch)."""
+        tiled_depth_data = self._tiled_drop_singleton_channel_if_hw1(tiled_depth_data)
         for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
             if depth_type in output_buffers:
                 wp.launch(
@@ -494,17 +551,23 @@ class OVRTXRenderer(BaseRenderer):
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
-        rgb_render_var = (
-            "SimpleShadingSD"
-            if "SimpleShadingSD" in frame.render_vars
-            else "LdrColor"
-            if "LdrColor" in frame.render_vars
-            else None
-        )
-        if rgb_render_var and "rgba" in output_buffers:
-            with frame.render_vars[rgb_render_var].map(device=Device.CUDA) as mapping:
-                tiled_data = wp.from_dlpack(mapping.tensor)
-                self._extract_rgba_tiles(render_data, tiled_data, output_buffers, "rgba", suffix="rgb")
+        if "LdrColor" in frame.render_vars:
+            buffer_key = None
+
+            if "rgba" in output_buffers:
+                buffer_key = "rgba"
+            else:
+                # The output buffers must contain only one simple shading data type at most after resolution of the data
+                # types during creation of the output buffers (OVRTXRenderData._create_warp_buffers).
+                for dt in _RTX_MINIMAL_MODES:
+                    if dt in output_buffers:
+                        buffer_key = dt
+                        break
+
+            if buffer_key is not None:
+                with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
+                    tiled_data = wp.from_dlpack(mapping.tensor)
+                    self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
@@ -526,6 +589,7 @@ class OVRTXRenderer(BaseRenderer):
         if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
             with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
+                tiled_semantic_data = self._tiled_drop_singleton_channel_if_hw1(tiled_semantic_data)
 
                 if tiled_semantic_data.dtype == wp.uint32:
                     semantic_colors = self._generate_random_colors_from_ids(tiled_semantic_data)
