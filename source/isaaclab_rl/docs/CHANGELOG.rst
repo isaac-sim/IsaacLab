@@ -1,6 +1,14 @@
 Changelog
 ---------
 
+0.5.1 (2026-04-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated skrl wrapper to support the new version of skrl 2.0.
+
 0.5.0 (2026-3-04)
 ~~~~~~~~~~~~~~~~~~
 
