@@ -7,13 +7,16 @@
 
 Root cause (newton-physics/newton#2618):
 
-  Part 1 — main builder isolation:
-    ``SchemaResolverMjc.validate_custom_attributes()`` raises unless
-    ``SolverMuJoCo.register_custom_attributes()`` was called first.  Calling
-    it on the main builder triggers a stage-wide traversal that finds
-    ``MjcTendon`` prims and silently drops all tendons (joint resolution fails
-    against the main builder's empty ``joint_label``).  Fix: exclude
-    ``SchemaResolverMjc`` from the main builder's ``schema_resolvers``.
+  Part 1 — main builder must not register MJC custom attributes:
+    Calling ``SolverMuJoCo.register_custom_attributes()`` on the main
+    builder turns on Newton's stage-wide MJC custom-frequency traversal
+    (it ignores ``ignore_paths``). The traversal finds ``MjcTendon`` prims
+    under ``/World/envs/...`` and silently drops all tendons because the
+    main builder's ``joint_label`` is empty (no joints loaded). Fix: only
+    register MJC custom attributes on proto builders, not on the main
+    builder. (Note: ``SchemaResolverMjc`` is *not* required to parse
+    tendons — that is driven by the registered ``mujoco:*`` custom
+    frequencies, independent of the schema-resolver chain.)
 
   Part 2 — proto builder path scoping:
     Newton's custom-frequency traversal calls ``stage.Traverse()``
@@ -166,22 +169,6 @@ def _make_minimal_tendon_stage(root_path: str, stiffness: float = 1.5):
 # ─── tests ───────────────────────────────────────────────────────────────────
 
 
-class TestSchemaResolverMjcContract(unittest.TestCase):
-    """SchemaResolverMjc.validate_custom_attributes enforces registration order (Part 1)."""
-
-    def test_validate_raises_on_unregistered_builder(self):
-        """Confirms why SchemaResolverMjc must be excluded from the main builder."""
-        from newton._src.usd.schemas import SchemaResolverMjc  # noqa: PLC0415
-
-        with self.assertRaises(RuntimeError):
-            SchemaResolverMjc().validate_custom_attributes(_plain_builder())
-
-    def test_validate_passes_after_register_custom_attributes(self):
-        from newton._src.usd.schemas import SchemaResolverMjc  # noqa: PLC0415
-
-        SchemaResolverMjc().validate_custom_attributes(_mjc_builder())
-
-
 class TestScopeCustomFrequencies(unittest.TestCase):
     """``_scope_custom_frequencies`` restricts traversal to a source subtree (Part 2)."""
 
@@ -237,21 +224,20 @@ class TestUsdTendonParsing(unittest.TestCase):
     ROOT = "/robot"
 
     def _build_proto(self, stiffness: float = 1.5) -> newton.ModelBuilder:
-        from newton._src.usd.schemas import (  # noqa: PLC0415
-            SchemaResolverMjc,
-            SchemaResolverNewton,
-            SchemaResolverPhysx,
-        )
+        from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx  # noqa: PLC0415
 
         stage, _ = _make_minimal_tendon_stage(self.ROOT, stiffness=stiffness)
         b = _mjc_builder()
         _scope_custom_frequencies(b, self.ROOT)
+        # Resolver chain matches production (proto path): no SchemaResolverMjc.
+        # MjcTendon prims are parsed via the registered ``mujoco:*`` custom
+        # frequencies, not the schema-resolver chain.
         b.add_usd(
             stage,
             root_path=self.ROOT,
             load_visual_shapes=False,
             skip_mesh_approximation=True,
-            schema_resolvers=[SchemaResolverMjc(), SchemaResolverNewton(), SchemaResolverPhysx()],
+            schema_resolvers=[SchemaResolverNewton(), SchemaResolverPhysx()],
         )
         return b
 
@@ -268,7 +254,6 @@ class TestUsdTendonParsing(unittest.TestCase):
 
         stage, _ = _make_minimal_tendon_stage(self.ROOT)
         b = _plain_builder()
-        # SchemaResolverMjc intentionally excluded — mirrors the main builder path
         b.add_usd(
             stage,
             root_path=self.ROOT,

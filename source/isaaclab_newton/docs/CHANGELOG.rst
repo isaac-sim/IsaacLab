@@ -9,12 +9,13 @@ Added
 
 * Added MuJoCo tendon parsing to Newton physics replication.
   :func:`~isaaclab_newton.cloner.newton_replicate._build_newton_builder_from_mapping`
-  now includes :class:`SchemaResolverMjc` in each proto-builder's resolver list and
-  calls ``SolverMuJoCo.register_custom_attributes`` on each proto builder so that
-  ``MjcTendon`` prims (e.g. Shadow Hand fixed tendons) are resolved during ``add_usd``
+  now calls ``SolverMuJoCo.register_custom_attributes`` on each proto builder so that
+  ``MjcTendon`` prims (e.g. Shadow Hand fixed tendons) are parsed during ``add_usd``
   and propagated into the main builder via ``add_builder``. Per-world parameter
   randomization (stiffness, damping, range) is supported; heterogeneous tendon topology
-  across worlds is not (Newton limitation).
+  across worlds is not (Newton limitation). The schema-resolver chain is unchanged
+  (``SchemaResolverNewton`` + ``SchemaResolverPhysx``); tendons are driven by the
+  registered ``mujoco:*`` custom frequencies, independent of resolver order.
 
 Fixed
 ^^^^^
@@ -22,16 +23,17 @@ Fixed
 * Fixed MuJoCo tendon handling in Newton physics replication. Two interlocking issues
   prevented tendons from being included in the replicated model:
 
-  1. ``SchemaResolverMjc`` on the main builder triggered a stage-wide custom-frequency
-     traversal (independent of ``ignore_paths``) that tried to resolve ``MjcTendon``
-     joint paths against the main builder's empty ``joint_label``, silently dropping
-     all tendons. Fixed by restricting ``SchemaResolverMjc`` to proto builders only.
+  1. Calling ``SolverMuJoCo.register_custom_attributes`` on the main builder triggered
+     a stage-wide custom-frequency traversal (independent of ``ignore_paths``) that
+     tried to resolve ``MjcTendon`` joint paths against the main builder's empty
+     ``joint_label``, silently dropping all tendons. Fixed by registering MJC custom
+     attributes only on proto builders.
 
   2. In heterogeneous clone plans (multiple MJCF sources on the same stage), Newton's
      custom-frequency traversal ignores ``root_path``, causing proto builder A to also
      match ``MjcTendon`` prims from source B. Fixed by patching ``usd_prim_filter`` on
-     each proto builder's MJC tendon frequencies to restrict traversal to its own source
-     path (``_scope_custom_frequencies``).
+     each proto builder's registered custom frequencies to restrict traversal to its
+     own source path (``_scope_custom_frequencies``).
 
 
 0.5.25 (2026-04-28)
