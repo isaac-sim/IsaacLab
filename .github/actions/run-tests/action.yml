@@ -82,6 +82,8 @@ runs:
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
 
           # Kill the container immediately if the runner is cancelled.
+          # The GitHub Actions runner can deliver HUP, INT, or TERM on cancellation
+          # (see actions/runner#1309). Trap all three so the cleanup always fires.
           # shellcheck disable=SC2064
           trap "echo '::warning::Cancellation signal - killing container ${container_name}'; \
                 docker kill '${container_name}' 2>/dev/null || true; \
@@ -89,7 +91,7 @@ runs:
                 rm -f '${docker_wait_file}'; \
                 if [ -n \"\$logs_pid\" ]; then kill \"\$logs_pid\" 2>/dev/null || true; fi; \
                 if [ -n \"\$wait_pid\" ]; then kill \"\$wait_pid\" 2>/dev/null || true; fi; \
-                exit 130" INT TERM
+                exit 130" HUP INT TERM
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
