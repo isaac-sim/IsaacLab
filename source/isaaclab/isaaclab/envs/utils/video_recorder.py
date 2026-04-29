@@ -157,10 +157,7 @@ class VideoRecorder:
                 _sync_camera_from_visualizer(scene, self._matched_visualizer, cfg)
             if self._backend == "newton_gl":
                 try:
-                    import pyglet
-
-                    if not pyglet.options.get("headless", False):
-                        pyglet.options["headless"] = True
+                    import pyglet as _pyglet  # noqa: F401 - verify pyglet is available
                 except ImportError as e:
                     raise ImportError(
                         "The Newton GL video backend requires 'pyglet'. Install IsaacLab with './isaaclab.sh -i'."
