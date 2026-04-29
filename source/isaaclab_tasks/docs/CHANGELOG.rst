@@ -10,6 +10,11 @@ Added
 * Added Kamino solver physics presets to direct and manager-based environment
   configs: cartpole and ant.
 
+Changed
+^^^^^^^
+
+* Updated skrl agent configuration files to support skrl 2.0.
+
 
 1.5.29 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
