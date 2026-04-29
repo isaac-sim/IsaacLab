@@ -155,7 +155,7 @@ class OVRTXRenderer(BaseRenderer):
 
 
         Args:
-            sensor: The TiledCamera sensor. width, height, num_envs, data_types are
+            sensor: The Camera sensor. width, height, num_envs, data_types are
                 obtained from sensor when needed. Weak ref stored to avoid circular ref.
         """
         self._sensor_ref = weakref.ref(sensor)

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
-from isaaclab.sensors import SensorBaseCfg, TiledCameraCfg
+from isaaclab.sensors import CameraCfg, SensorBaseCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
@@ -171,7 +171,7 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
     tangential_stiffness: float = 0.1
     """Tangential stiffness for shear forces."""
 
-    camera_cfg: TiledCameraCfg | None = None
+    camera_cfg: CameraCfg | None = None
     """Camera configuration for tactile RGB/depth sensing.
 
     If None, camera-based sensing will be disabled even if :attr:`enable_camera_tactile` is True.

@@ -15,7 +15,7 @@ from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_m
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.sensors import TiledCamera
+    from isaaclab.sensors import Camera
 
 
 def object_pos_b(
@@ -204,7 +204,7 @@ class vision_camera(ManagerTermBase):
     def __init__(self, cfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
-        self.sensor: TiledCamera = env.scene.sensors[sensor_cfg.name]
+        self.sensor: Camera = env.scene.sensors[sensor_cfg.name]
         self.sensor_type = self.sensor.cfg.data_types[0]
         self.norm_fn = (
             self._depth_norm
