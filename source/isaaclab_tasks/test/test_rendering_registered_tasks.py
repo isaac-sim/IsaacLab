@@ -26,6 +26,8 @@ from rendering_test_utils import (  # noqa: E402
     validate_camera_outputs,
 )
 
+pytestmark = pytest.mark.isaacsim_ci
+
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()

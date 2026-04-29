@@ -17,8 +17,9 @@ from rendering_test_utils import (
     rendering_test_dexsuite_kuka,
 )
 
-_COMPARISON_SCORES: list[dict] = []
+pytestmark = pytest.mark.isaacsim_ci
 
+_COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
 _generate_html_report_fixture = make_generate_html_report_fixture(_COMPARISON_SCORES, Path(__file__).stem + ".html")

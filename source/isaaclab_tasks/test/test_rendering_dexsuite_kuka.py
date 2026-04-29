@@ -22,6 +22,8 @@ from rendering_test_utils import (  # noqa: E402
     rendering_test_dexsuite_kuka,
 )
 
+pytestmark = pytest.mark.isaacsim_ci
+
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
