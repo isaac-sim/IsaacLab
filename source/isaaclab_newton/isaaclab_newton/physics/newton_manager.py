@@ -31,7 +31,7 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
-from newton.solvers import SolverBase, SolverFeatherstone, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
+from newton.solvers import SolverBase, SolverFeatherstone, SolverKamino, SolverMuJoCo, SolverNotifyFlags, SolverXPBD
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
@@ -70,6 +70,34 @@ def _set_fabric_transforms(
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
     fabric_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
+
+
+@wp.kernel(enable_backward=False)
+def _or_reset_masks_from_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    articulation_ids: wp.array2d(dtype=int),
+    world_mask: wp.array(dtype=wp.int32),
+    fk_mask: wp.array(dtype=wp.bool),
+):
+    """OR env_mask into world_mask and set corresponding articulation bits in fk_mask."""
+    world, arti = wp.tid()
+    if env_mask[world]:
+        world_mask[world] = wp.int32(1)
+        fk_mask[articulation_ids[world, arti]] = True
+
+
+@wp.kernel(enable_backward=False)
+def _scatter_reset_masks_from_ids(
+    env_ids: wp.array(dtype=int),
+    articulation_ids: wp.array2d(dtype=int),
+    world_mask: wp.array(dtype=wp.int32),
+    fk_mask: wp.array(dtype=wp.bool),
+):
+    """Scatter-set world_mask and fk_mask from sparse env_ids."""
+    i, arti = wp.tid()
+    world = env_ids[i]
+    world_mask[world] = wp.int32(1)
+    fk_mask[articulation_ids[world, arti]] = True
 
 
 class NewtonManager(PhysicsManager):
@@ -111,7 +139,9 @@ class NewtonManager(PhysicsManager):
     _pending_extended_state_attributes: set[str] = set()
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
-    _fk_dirty: bool = False
+    # Per-world reset masks (allocated in start_simulation, consumed in step)
+    _world_reset_mask: wp.array | None = None  # (num_envs,) wp.int32 — for SolverKamino.reset(world_mask=...)
+    _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
 
     # CUDA graphing
     _graph = None
@@ -188,14 +218,38 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def forward(cls) -> None:
-        """Update articulation kinematics without stepping physics."""
+        """Update articulation kinematics without stepping physics.
+
+        Runs Newton's generic forward kinematics (``eval_fk``) over **all**
+        articulations to compute body poses from joint coordinates. This is
+        the full (unmasked) FK path used during initial setup. For incremental
+        per-environment updates after resets, see :meth:`invalidate_fk` which
+        accumulates masks consumed by :meth:`step`.
+        """
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
-        cls._fk_dirty = False
 
     @classmethod
     def pre_render(cls) -> None:
         """Flush deferred Fabric writes before cameras/visualizers read the scene."""
         cls.sync_transforms_to_usd()
+
+    @classmethod
+    def _forward_kamino(cls, world_mask: wp.array | None = None) -> None:
+        """Kamino-specific forward kinematics via ``solver.reset()``.
+
+        Kamino's ``joint_q`` / ``joint_u`` include coordinates for **all** joints
+        (including free joints), so we pass Newton's full state arrays directly.
+
+        Args:
+            world_mask: Per-world mask indicating which worlds to reset.
+                Shape ``(num_worlds,)``, dtype ``wp.int32``. If None, resets all worlds.
+        """
+        cls._solver.reset(
+            state_out=cls._state_0,
+            joint_q=cls._state_0.joint_q,
+            joint_u=cls._state_0.joint_qd,
+            world_mask=world_mask,
+        )
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
@@ -311,6 +365,14 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
+        # Kamino: run solver.reset() with the accumulated world mask to reinitialise
+        # internal state (warm-start containers, constraint multipliers) for reset worlds.
+        # Note: runs every step. solver.reset() with an all-False world_mask is a no-op
+        # (kernels check mask per-world and skip). The cost of a no-op launch is negligible
+        # compared to the complexity of maintaining a separate boolean guard.
+        if isinstance(cls._solver, SolverKamino):
+            cls._forward_kamino(world_mask=cls._world_reset_mask)
+
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
@@ -327,6 +389,12 @@ class NewtonManager(PhysicsManager):
             cls._graph_capture_pending = False
             cls._graph = cls._capture_relaxed_graph(device)
             if cls._graph is not None:
+                # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
+                # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
+                # first step() inside graph capture. Replay once to pin those
+                # memory-pool addresses before any eager solver.reset() call.
+                if isinstance(cls._solver, SolverKamino):
+                    wp.capture_launch(cls._graph)
                 logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
             else:
                 logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
@@ -334,9 +402,13 @@ class NewtonManager(PhysicsManager):
         # Ensure body_q is up-to-date before collision detection.
         # After env resets, joint_q is written but body_q (used by
         # broadphase/narrowphase) is stale until FK runs.
-        if cls._fk_dirty and cls._needs_collision_pipeline:
-            eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
-        cls._fk_dirty = False
+        # Only runs FK for dirtied articulations via the accumulated mask.
+        if cls._needs_collision_pipeline:
+            eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, cls._fk_reset_mask)
+
+        # Zero both masks after consumption
+        cls._world_reset_mask.zero_()
+        cls._fk_reset_mask.zero_()
 
         # Step simulation (graphed or not; _graph is None when capture is disabled or failed)
         if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device:  # type: ignore[union-attr]
@@ -347,8 +419,8 @@ class NewtonManager(PhysicsManager):
             with wp.ScopedDevice(device):
                 cls._simulate()
 
-        # Debug convergence info
-        if cfg is not None and cfg.debug_mode:  # type: ignore[union-attr]
+        # Debug convergence info (MuJoCo-specific; Kamino uses its own metrics API)
+        if cfg is not None and cfg.debug_mode and isinstance(cls._solver, SolverMuJoCo):  # type: ignore[union-attr]
             convergence_data = cls.get_solver_convergence_steps()
             logger.info(f"Solver convergence data: {convergence_data}")
             if convergence_data["max"] == cls._solver.mjw_model.opt.iterations:
@@ -401,7 +473,9 @@ class NewtonManager(PhysicsManager):
         cls._newton_frame_transform_sensors = []
         cls._newton_imu_sensors = []
         cls._report_contacts = False
-        cls._fk_dirty = False
+        # Per-world reset masks
+        cls._world_reset_mask = None
+        cls._fk_reset_mask = None
         cls._graph = None
         cls._graph_capture_pending = False
         cls._newton_stage_path = None
@@ -612,14 +686,50 @@ class NewtonManager(PhysicsManager):
         cls._model_changes.add(change)
 
     @classmethod
-    def invalidate_fk(cls) -> None:
-        """Mark forward kinematics as needing recomputation.
+    def invalidate_fk(
+        cls,
+        env_mask: wp.array | None = None,
+        env_ids: wp.array | None = None,
+        articulation_ids: wp.array | None = None,
+    ) -> None:
+        """Mark environments as needing FK recomputation and solver reset.
 
-        Called by articulation write methods that modify ``joint_q`` or root
-        transforms.  The flag is checked in :meth:`step` before collision
-        detection to ensure ``body_q`` is up-to-date.
+        Called by asset write methods that modify joint coordinates or root
+        transforms. The masks are consumed in :meth:`step` before physics
+        stepping.
+
+        Args:
+            env_mask: Boolean mask of dirtied environments. Shape ``(num_envs,)``.
+                Used by ``_mask`` write methods.
+            env_ids: Integer indices of dirtied environments.
+                Used by ``_index`` write methods.
+            articulation_ids: Mapping from ``(world, arti)`` to model articulation
+                index. Shape ``(world_count, count_per_world)``. Obtained from
+                ``ArticulationView.articulation_ids``.
         """
-        cls._fk_dirty = True
+        if cls._world_reset_mask is None or cls._fk_reset_mask is None:
+            return
+
+        if articulation_ids is not None and env_mask is not None:
+            wp.launch(
+                _or_reset_masks_from_mask,
+                dim=articulation_ids.shape,
+                inputs=[env_mask, articulation_ids],
+                outputs=[cls._world_reset_mask, cls._fk_reset_mask],
+                device=PhysicsManager._device,
+            )
+        elif articulation_ids is not None and env_ids is not None:
+            wp.launch(
+                _scatter_reset_masks_from_ids,
+                dim=(env_ids.shape[0], articulation_ids.shape[1]),
+                inputs=[env_ids, articulation_ids],
+                outputs=[cls._world_reset_mask, cls._fk_reset_mask],
+                device=PhysicsManager._device,
+            )
+        else:
+            # Fallback: no topology info — mark everything dirty
+            cls._world_reset_mask.fill_(1)
+            cls._fk_reset_mask.fill_(True)
 
     @classmethod
     def start_simulation(cls) -> None:
@@ -663,6 +773,10 @@ class NewtonManager(PhysicsManager):
         cls._state_1 = cls._model.state()
         cls._control = cls._model.control()
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
+
+        # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset)
+        cls._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.int32, device=device)
+        cls._fk_reset_mask = wp.zeros(cls._model.articulation_count, dtype=wp.bool, device=device)
 
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -846,6 +960,9 @@ class NewtonManager(PhysicsManager):
             elif cls._solver_type == "featherstone":
                 cls._use_single_state = False
                 cls._solver = SolverFeatherstone(cls._model, **cfg_dict)
+            elif cls._solver_type == "kamino":
+                cls._use_single_state = False
+                cls._solver = SolverKamino(cls._model, solver_cfg.to_solver_config())
             else:
                 raise ValueError(f"Invalid solver type: {cls._solver_type}")
 
@@ -855,6 +972,8 @@ class NewtonManager(PhysicsManager):
             # Determine if we need external collision detection
             # - SolverMuJoCo with use_mujoco_contacts=True: uses internal MuJoCo collision detection
             # - SolverMuJoCo with use_mujoco_contacts=False: needs Newton's unified collision pipeline
+            # - SolverKamino with use_collision_detector=True: uses internal Kamino collision detection
+            # - SolverKamino with use_collision_detector=False: needs Newton's unified collision pipeline
             # - Other solvers (XPBD, Featherstone): always need Newton's unified collision pipeline
             if isinstance(cls._solver, SolverMuJoCo):
                 cls._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
@@ -863,6 +982,8 @@ class NewtonManager(PhysicsManager):
                         "NewtonManager: collision_cfg cannot be set when use_mujoco_contacts=True."
                         " Either set use_mujoco_contacts=False or remove collision_cfg."
                     )
+            elif isinstance(cls._solver, SolverKamino):
+                cls._needs_collision_pipeline = not solver_cfg.use_collision_detector
             else:
                 cls._needs_collision_pipeline = True
 
@@ -895,6 +1016,13 @@ class NewtonManager(PhysicsManager):
                         cls._simulate()
                     cls._graph = capture.graph
                     logger.info("Newton CUDA graph captured (standard Warp mode)")
+
+                    # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
+                    # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
+                    # first step() inside graph capture. Replay once to pin those
+                    # memory-pool addresses before any eager solver.reset() call.
+                    if isinstance(cls._solver, SolverKamino):
+                        wp.capture_launch(cls._graph)
                 else:
                     # RTX is active during initialization — cudaImportExternalMemory and other
                     # non-capturable RTX ops run on background CUDA streams right now.
@@ -941,7 +1069,7 @@ class NewtonManager(PhysicsManager):
         - Call ``wp.capture_end(stream=fresh_stream)`` to finalise the Warp-level capture.
         - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
 
-        Warmup run pre-allocates all MuJoCo-Warp scratch buffers so no ``cudaMalloc`` occurs during
+        Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
         capture.  ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is
         excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
@@ -951,7 +1079,7 @@ class NewtonManager(PhysicsManager):
             logger.warning("libcudart not available; cannot use relaxed graph capture")
             return None
 
-        # Warmup: pre-allocate all MuJoCo-Warp scratch buffers so the capture window has
+        # Warmup: pre-allocate all solver scratch buffers so the capture window has
         # no new cudaMalloc calls (which are forbidden inside graph capture).
         with wp.ScopedDevice(device):
             cls._simulate_physics_only()
