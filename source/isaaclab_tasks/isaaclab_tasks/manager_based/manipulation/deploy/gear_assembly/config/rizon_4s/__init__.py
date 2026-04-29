@@ -23,12 +23,14 @@ gym.register(
     },
 )
 
+# Flexiv Rizon 4s - Play / Debug (deterministic, no randomization)
 gym.register(
     id="Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:Rizon4sGearAssemblyEnvCfg_PLAY",
+        "env_cfg_entry_point": f"{__name__}.ros_inference_env_cfg:Rizon4sGearAssemblyEnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Rizon4sGearAssemblyRNNPPORunnerCfg",
     },
 )
 
@@ -43,13 +45,3 @@ gym.register(
     },
 )
 
-# Flexiv Rizon 4s - Debug Inference (no randomization, deterministic)
-gym.register(
-    id="Isaac-Deploy-GearAssembly-Rizon4s-Grav-Debug-Inference-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.debug_inference_env_cfg:Rizon4sGearAssemblyDebugInferenceEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Rizon4sGearAssemblyRNNPPORunnerCfg",
-    },
-)

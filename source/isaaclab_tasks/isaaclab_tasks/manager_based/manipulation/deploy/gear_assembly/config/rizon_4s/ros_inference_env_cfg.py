@@ -5,10 +5,22 @@
 
 import math
 
+import torch
+
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.utils import configclass
 
 from .joint_pos_env_cfg import Rizon4sGearAssemblyEnvCfg
+
+
+def _make_constant_obs(value: tuple):
+    """Create an observation function that returns a fixed tensor every step."""
+
+    def _fn(env, **kwargs):
+        return torch.tensor([value], device=env.device, dtype=torch.float32).expand(env.num_envs, -1)
+
+    return _fn
 
 
 @configclass
@@ -103,3 +115,87 @@ class Rizon4sGearAssemblyROSInferenceEnvCfg(Rizon4sGearAssemblyEnvCfg):
             gear_shaft_pos_noise,
             gear_shaft_pos_noise,
         ]
+
+
+@configclass
+class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
+    """Deterministic play/debug configuration for Flexiv Rizon 4s gear assembly.
+
+    Inherits the full ROS-inference configuration and then disables all
+    randomization so the simulation is identical on every reset.  Useful for
+    comparing simulated and real-world policy behavior at a known pose.
+
+    To debug a specific real-world scenario, edit the constants below to match
+    the physical setup, then run::
+
+        python scripts/reinforcement_learning/rsl_rl/play.py \\
+            --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0 \\
+            --num_envs 1 --checkpoint <path_to_model.pt>
+
+    Observation overrides (``OBS_SHAFT_POS``, ``OBS_SHAFT_QUAT``) let you
+    inject fixed values into the policy's observation tensor regardless of
+    simulation state.  Set to ``None`` to use the simulated values.
+    """
+
+    # ╔══════════════════════════════════════════════════════════════════════╗
+    # ║  SCENE SETUP — edit to match your real-world setup                  ║
+    # ╚══════════════════════════════════════════════════════════════════════╝
+
+    GEAR_TYPE: str = "gear_large"
+    GEAR_BASE_POS: tuple = (0.481, -0.073, -0.005)
+    GEAR_BASE_ROT: tuple = (0.0, 0.0, 0.70711, -0.70711)
+    GEAR_Z_OFFSET: float = 0.0675
+
+    # ╔══════════════════════════════════════════════════════════════════════╗
+    # ║  OBSERVATION OVERRIDES — set to None to use simulated values        ║
+    # ║                                                                      ║
+    # ║  Obs layout: [joint_pos(7) | joint_vel(7) | shaft_pos(3) |          ║
+    # ║               shaft_quat(4)]                                         ║
+    # ╚══════════════════════════════════════════════════════════════════════╝
+
+    OBS_SHAFT_POS: tuple | None = None  # e.g. (0.481, -0.073, -0.005)
+    OBS_SHAFT_QUAT: tuple | None = None  # e.g. (0.0, 0.0, 0.70711, -0.70711)
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.scene.num_envs = 1
+        self.scene.env_spacing = 2.5
+
+        # ── Fix gear type (no random selection) ───────────────────────────
+        self.events.randomize_gear_type.params["gear_types"] = [self.GEAR_TYPE]
+
+        # ── Override gear base pose ───────────────────────────────────────
+        self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
+            pos=self.GEAR_BASE_POS,
+            rot=self.GEAR_BASE_ROT,
+        )
+        for attr in ("factory_gear_small", "factory_gear_medium", "factory_gear_large"):
+            getattr(self.scene, attr).init_state = RigidObjectCfg.InitialStateCfg(
+                pos=self.GEAR_BASE_POS,
+                rot=self.GEAR_BASE_ROT,
+            )
+
+        # ── Zero out all pose randomization ───────────────────────────────
+        self.events.randomize_gears_and_base_pose.params["pose_range"] = {
+            "x": [0.0, 0.0],
+            "y": [0.0, 0.0],
+            "z": [0.0, 0.0],
+            "roll": [0.0, 0.0],
+            "pitch": [0.0, 0.0],
+            "yaw": [0.0, 0.0],
+        }
+        self.events.randomize_gears_and_base_pose.params["gear_pos_range"] = {
+            "x": [0.0, 0.0],
+            "y": [0.0, 0.0],
+            "z": [self.GEAR_Z_OFFSET, self.GEAR_Z_OFFSET],
+        }
+
+        # ── Disable observation noise ─────────────────────────────────────
+        self.observations.policy.enable_corruption = False
+
+        # ── Observation overrides (replace terms with constant functions) ─
+        if self.OBS_SHAFT_POS is not None:
+            self.observations.policy.gear_shaft_pos = ObsTerm(func=_make_constant_obs(self.OBS_SHAFT_POS))
+        if self.OBS_SHAFT_QUAT is not None:
+            self.observations.policy.gear_shaft_quat = ObsTerm(func=_make_constant_obs(self.OBS_SHAFT_QUAT))

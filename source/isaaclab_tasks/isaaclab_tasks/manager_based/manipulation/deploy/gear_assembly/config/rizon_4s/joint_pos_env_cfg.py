@@ -423,17 +423,3 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
 
         self.terminations.gear_orientation_exceeded.params["end_effector_body_name"] = self.end_effector_body_name
         self.terminations.gear_orientation_exceeded.params["grasp_rot_offset"] = self.grasp_rot_offset
-
-
-@configclass
-class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyEnvCfg):
-    """Play configuration for Flexiv Rizon 4s gear assembly."""
-
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False
