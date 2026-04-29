@@ -123,7 +123,6 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [config]
-    if: false  # TEMP: disabled while iterating on cancellation
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -148,7 +147,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -170,7 +169,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -192,7 +191,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -234,7 +233,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -255,7 +254,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -276,7 +275,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -295,7 +294,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -314,7 +313,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -333,7 +332,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -352,7 +351,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -371,7 +370,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -390,7 +389,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -409,7 +408,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -428,7 +427,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -448,7 +447,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -470,7 +469,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -492,7 +491,7 @@ jobs:
     timeout-minutes: 300
     continue-on-error: true
     needs: [build, config]
-    if: false  # TEMP: disabled while iterating on cancellation
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -516,7 +515,7 @@ jobs:
 #   continue-on-error: true
 #   needs: [build, config]
 #   if: >-
-#     always() && needs.build.result == 'success' &&
+#     needs.build.result == 'success' &&
 #     vars.RUN_QUARANTINED_TESTS == 'true'
 #   steps:
 #   - uses: actions/checkout@v6
