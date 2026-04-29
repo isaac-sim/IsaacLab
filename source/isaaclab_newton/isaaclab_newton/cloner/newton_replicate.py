@@ -43,8 +43,9 @@ def _scope_custom_frequencies(builder: ModelBuilder, root_path: str) -> None:
         if freq.usd_prim_filter is None:
             continue
         orig = freq.usd_prim_filter
-        freq.usd_prim_filter = lambda prim, ctx, _orig=orig, _path=root_path: (
-            str(prim.GetPath()).startswith(_path) and _orig(prim, ctx)
+        _prefix = root_path.rstrip("/") + "/"
+        freq.usd_prim_filter = lambda prim, ctx, _orig=orig, _prefix=_prefix: (
+            str(prim.GetPath()).startswith(_prefix) and _orig(prim, ctx)
         )
 
 
