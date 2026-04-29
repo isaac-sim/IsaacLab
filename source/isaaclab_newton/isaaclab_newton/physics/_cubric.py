@@ -31,27 +31,34 @@ logger = logging.getLogger(__name__)
 #  Carb Framework struct layout (CARB_ABI function-pointer offsets, x86_64)
 # ---------------------------------------------------------------------------
 # Counting only CARB_ABI fields from the top of ``struct Framework``:
-#   0: loadPluginsEx
-#   8: unloadAllPlugins
-#  16: acquireInterfaceWithClient
-#  24: tryAcquireInterfaceWithClient  ← we use this one
+#   24 = tryAcquireInterfaceWithClient
+#   96 = getInterfacePluginDesc
 _FW_OFF_TRY_ACQUIRE = 24
+_FW_OFF_GET_INTERFACE_PLUGIN_DESC = 96
 
 # ---------------------------------------------------------------------------
 #  IAdapter struct layout  (from omni/cubric/IAdapter.h)
 # ---------------------------------------------------------------------------
+# v0.2 layout:
 #   0: getAttribute
 #   8: create(AdapterId*)
 #  16: refcount
 #  24: retain
 #  32: release(AdapterId)
 #  40: bindToStage(AdapterId, const FabricId&)
-#  48: unbind
-#  56: compute(AdapterId, options, dirtyMode, outFlags*)
+#  48: bindToStageWithListener
+#  56: unbind
+#  64: compute(AdapterId, options, dirtyMode, outFlags*)
 _IA_OFF_CREATE = 8
 _IA_OFF_RELEASE = 32
 _IA_OFF_BIND = 40
-_IA_OFF_COMPUTE = 56
+_IA_OFF_COMPUTE = 64
+
+# Pinned IAdapter version. ``_verify_iadapter_version`` enforces an exact
+# match — carb's 0.x version negotiation is permissive (minor mismatches
+# yield only a stderr warning), so a silent miscall is otherwise possible.
+_IA_EXPECTED_MAJOR = 0
+_IA_EXPECTED_MINOR = 2
 
 # AdapterId sentinel
 _INVALID_ADAPTER_ID = ctypes.c_uint64(~0).value
@@ -88,6 +95,13 @@ class _InterfaceDesc(ctypes.Structure):
         ("name", ctypes.c_char_p),
         ("version", _Version),
     ]
+
+
+# carb::PluginDesc offsets. PluginImplDesc occupies the first 40 bytes
+# (3 char* + 4-byte hotReload + 4-byte pad + char*).
+_PD_OFF_INTERFACES = 40
+_PD_OFF_INTERFACE_COUNT = 48
+_INTERFACE_DESC_STRIDE = 16  # char* + Version
 
 
 def _read_u64(addr: int) -> int:
@@ -158,7 +172,7 @@ class CubricBindings:
 
         desc = _InterfaceDesc(
             name=b"omni::cubric::IAdapter",
-            version=_Version(0, 1),
+            version=_Version(_IA_EXPECTED_MAJOR, _IA_EXPECTED_MINOR),
         )
 
         # Try several acquisition strategies — the required client name
@@ -178,9 +192,14 @@ class CubricBindings:
                 ia_ptr = acquire_fn(b"isaaclab.cubric", desc, None)
         if not ia_ptr:
             logger.warning(
-                "Could not acquire omni::cubric::IAdapter — "
-                "cubric plugin may not be registered or interface version mismatch"
+                "Could not acquire omni::cubric::IAdapter v%d.%d — plugin may not be "
+                "registered or its version is older. Falling back to update_world_xforms().",
+                _IA_EXPECTED_MAJOR,
+                _IA_EXPECTED_MINOR,
             )
+            return False
+
+        if not self._verify_iadapter_version(fw_ptr, ia_ptr):
             return False
         self._ia_ptr = ia_ptr
 
@@ -221,6 +240,55 @@ class CubricBindings:
 
         logger.info("cubric IAdapter bindings ready")
         return True
+
+    @staticmethod
+    def _verify_iadapter_version(fw_ptr: int, ia_ptr: int) -> bool:
+        """Confirm the acquired IAdapter advertises the expected version."""
+        get_desc_addr = _read_u64(fw_ptr + _FW_OFF_GET_INTERFACE_PLUGIN_DESC)
+        if get_desc_addr == 0:
+            logger.warning("getInterfacePluginDesc is null in Framework")
+            return False
+
+        get_desc_fn = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p)(get_desc_addr)
+        plugin_desc_ptr = get_desc_fn(ia_ptr)
+        if not plugin_desc_ptr:
+            logger.warning("getInterfacePluginDesc returned null for IAdapter")
+            return False
+
+        interfaces_ptr = _read_u64(plugin_desc_ptr + _PD_OFF_INTERFACES)
+        interface_count = _read_u64(plugin_desc_ptr + _PD_OFF_INTERFACE_COUNT)
+        if interfaces_ptr == 0 or interface_count == 0:
+            logger.warning("PluginDesc reports zero interfaces for cubric plugin")
+            return False
+
+        for i in range(interface_count):
+            entry_addr = interfaces_ptr + i * _INTERFACE_DESC_STRIDE
+            name_addr = _read_u64(entry_addr)
+            if name_addr == 0:
+                continue
+            if ctypes.string_at(name_addr) != b"omni::cubric::IAdapter":
+                continue
+            major = ctypes.c_uint32.from_address(entry_addr + 8).value
+            minor = ctypes.c_uint32.from_address(entry_addr + 12).value
+            if (major, minor) != (_IA_EXPECTED_MAJOR, _IA_EXPECTED_MINOR):
+                logger.warning(
+                    "cubric IAdapter version mismatch: plugin reports v%d.%d, "
+                    "shim is pinned to v%d.%d. The vtable layout may have "
+                    "changed; see omni/cubric/IAdapter.h. Falling back to "
+                    "update_world_xforms().",
+                    major,
+                    minor,
+                    _IA_EXPECTED_MAJOR,
+                    _IA_EXPECTED_MINOR,
+                )
+                return False
+            return True
+
+        logger.warning(
+            "cubric plugin does not advertise omni::cubric::IAdapter — unexpected. "
+            "Falling back to update_world_xforms()."
+        )
+        return False
 
     @property
     def available(self) -> bool:
