@@ -40,6 +40,16 @@ class RigidObjectData(BaseRigidObjectData):
     are layered on by subsequent tasks.
     """
 
+    __backend_name__: str = "ovphysx"
+    """The name of the backend for the rigid object data."""
+
+    """
+    Names.
+    """
+
+    body_names: list[str] = None
+    """Body names in the order parsed by the simulation view."""
+
     def __init__(self, bindings: dict, device: str):
         self._bindings = bindings
         self._device = device
@@ -79,8 +89,8 @@ class RigidObjectData(BaseRigidObjectData):
         # Sliced view ProxyArrays.
         self._root_link_pos_w_ta: ProxyArray | None = None
         self._root_link_quat_w_ta: ProxyArray | None = None
-        self._root_lin_vel_w_ta: ProxyArray | None = None
-        self._root_ang_vel_w_ta: ProxyArray | None = None
+        self._root_link_lin_vel_w_ta: ProxyArray | None = None
+        self._root_link_ang_vel_w_ta: ProxyArray | None = None
         self._root_com_pos_w_ta: ProxyArray | None = None
         self._root_com_quat_w_ta: ProxyArray | None = None
         self._root_com_lin_vel_w_ta: ProxyArray | None = None
@@ -160,7 +170,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._is_primed:
             raise ValueError("The rigid object data is already primed.")
-        self._is_primed = True
+        self._is_primed = value
 
     # --- update / cache invalidation ----------------------------------
     def update(self, dt: float) -> None:
@@ -897,9 +907,9 @@ class RigidObjectData(BaseRigidObjectData):
         In torch this resolves to (num_instances, 3).
         """
         parent = self.root_link_vel_w
-        if self._root_lin_vel_w_ta is None:
-            self._root_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
-        return self._root_lin_vel_w_ta
+        if self._root_link_lin_vel_w_ta is None:
+            self._root_link_lin_vel_w_ta = ProxyArray(self._get_lin_vel_from_spatial_vector(parent.warp))
+        return self._root_link_lin_vel_w_ta
 
     @property
     def root_link_ang_vel_w(self) -> ProxyArray:
@@ -908,9 +918,9 @@ class RigidObjectData(BaseRigidObjectData):
         In torch this resolves to (num_instances, 3).
         """
         parent = self.root_link_vel_w
-        if self._root_ang_vel_w_ta is None:
-            self._root_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
-        return self._root_ang_vel_w_ta
+        if self._root_link_ang_vel_w_ta is None:
+            self._root_link_ang_vel_w_ta = ProxyArray(self._get_ang_vel_from_spatial_vector(parent.warp))
+        return self._root_link_ang_vel_w_ta
 
     @property
     def root_com_pos_w(self) -> ProxyArray:

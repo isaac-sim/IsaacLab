@@ -240,8 +240,6 @@ class RigidObject(BaseRigidObject):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        if name_keys is None:
-            return list(range(self._num_bodies)), list(self._body_names)
         return resolve_matching_names(name_keys, self._body_names, preserve_order)
 
     # ------------------------------------------------------------------
@@ -535,12 +533,19 @@ class RigidObject(BaseRigidObject):
 
         Args:
             coms: Center-of-mass poses in the body frame [m, -].
-                Shape is ``(len(env_ids), 7)``.
+                Shape is ``(len(env_ids), len(body_ids), 7)``. For a rigid
+                object ``len(body_ids) == 1``.
             body_ids: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
             env_ids: Indices of environments to write to. ``None`` writes to
                 all environments.
         """
+        # The RIGID_BODY_COM_POSE binding is (N, 7); squeeze the singleton body dim.
+        if isinstance(coms, wp.array) and coms.ndim == 3:
+            K = coms.shape[0]
+            coms = wp.array(ptr=coms.ptr, shape=(K, 7), dtype=wp.float32, device=coms.device, copy=False)
+        elif isinstance(coms, torch.Tensor) and coms.ndim == 3:
+            coms = coms.reshape(coms.shape[0], 7)
         self._write_root_state(TT.RIGID_BODY_COM_POSE, coms, env_ids=env_ids)
         self._data._invalidate_caches(env_ids)
 
@@ -555,12 +560,19 @@ class RigidObject(BaseRigidObject):
 
         Args:
             coms: Center-of-mass poses in the body frame [m, -].
-                Shape is ``(num_instances, 7)``.
+                Shape is ``(num_instances, num_bodies, 7)``. For a rigid
+                object ``num_bodies == 1``.
             body_mask: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
             env_mask: Boolean environment mask. ``None`` writes to all
                 environments. Shape is ``(num_instances,)``.
         """
+        # The RIGID_BODY_COM_POSE binding is (N, 7); squeeze the singleton body dim.
+        if isinstance(coms, wp.array) and coms.ndim == 3:
+            N = coms.shape[0]
+            coms = wp.array(ptr=coms.ptr, shape=(N, 7), dtype=wp.float32, device=coms.device, copy=False)
+        elif isinstance(coms, torch.Tensor) and coms.ndim == 3:
+            coms = coms.reshape(coms.shape[0], 7)
         self._write_root_state(TT.RIGID_BODY_COM_POSE, coms, mask=env_mask)
         self._data._invalidate_caches()
 
@@ -575,7 +587,8 @@ class RigidObject(BaseRigidObject):
 
         Args:
             inertias: Inertia tensors [kg·m²], row-major flattened.
-                Shape is ``(len(env_ids), 9)``.
+                Shape is ``(len(env_ids), len(body_ids), 9)``. For a rigid
+                object ``len(body_ids) == 1``.
             body_ids: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
             env_ids: Indices of environments to write to. ``None`` writes to
@@ -595,7 +608,8 @@ class RigidObject(BaseRigidObject):
 
         Args:
             inertias: Inertia tensors [kg·m²], row-major flattened.
-                Shape is ``(num_instances, 9)``.
+                Shape is ``(num_instances, num_bodies, 9)``. For a rigid
+                object ``num_bodies == 1``.
             body_mask: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
             env_mask: Boolean environment mask. ``None`` writes to all
@@ -1025,6 +1039,7 @@ class RigidObject(BaseRigidObject):
         self._data = RigidObjectData(self._bindings, self._device)
         self._data._num_instances = self._num_instances
         self._data._num_bodies = 1
+        self._data.body_names = self._body_names
 
         # Steps 7-8: Placeholder methods (Task 9 fills them in).
         self._create_buffers()
