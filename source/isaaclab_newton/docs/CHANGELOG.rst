@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.28 (2026-04-29)
+0.5.29 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -17,7 +17,7 @@ Changed
   provider.
 
 
-0.5.27 (2026-04-29)
+0.5.28 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -33,7 +33,7 @@ Added
   invoked from the capability handle.
 
 
-0.5.26 (2026-04-29)
+0.5.27 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -46,7 +46,7 @@ Added
   :doc:`/source/refs/adr/0002-capability-based-provider-extensibility`.
 
 
-0.5.25 (2026-04-27)
+0.5.26 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
@@ -56,6 +56,32 @@ Added
   :class:`~isaaclab_newton.scene_data_providers.NewtonSceneDataProvider`,
   implementing the typed transform API with zero-copy
   :class:`~isaaclab.physics.TransformArrayData` wrapping Newton ``state.body_q``.
+
+
+0.5.25 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.KaminoSolverCfg` to support Newton's Kamino
+  solver backend, a Proximal-ADMM based solver for constrained rigid multi-body dynamics.
+
+Fixed
+^^^^^
+
+* Replaced boolean ``_fk_dirty`` and ``_kamino_needs_fk`` flags with per-world
+  reset masks (``_world_reset_mask`` and ``_fk_reset_mask``). Asset write methods
+  now call :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk` with
+  ``env_mask``/``env_ids`` and ``articulation_ids``, so ``eval_fk`` and
+  ``SolverKamino.reset()`` only operate on dirtied environments. Rigid object
+  and rigid object collection write methods now also trigger FK invalidation.
+* Fixed CUDA error 700 (illegal memory access) when calling ``SolverKamino.reset()``
+  after CUDA graph capture. ``StateKamino.from_newton()`` lazily allocates
+  ``body_f_total``, ``joint_q_prev``, and ``joint_lambdas`` via ``wp.clone``/``wp.zeros``
+  during the first ``step()`` inside graph capture. These memory-pool addresses become
+  stale without a warm-up ``wp.capture_launch`` replay to pin them before any eager
+  ``solver.reset()`` call.
 
 
 0.5.24 (2026-04-27)
