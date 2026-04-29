@@ -441,6 +441,158 @@ class TestDecimation(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Partial environment reset: verify per-env reset equivalence
+# ---------------------------------------------------------------------------
+
+RESET_WARMUP_STEPS = 3
+RESET_TOTAL_STEPS = 10
+
+
+def _run_simulation_with_reset(
+    actuators: dict,
+    use_newton_actuators: bool,
+    *,
+    dt: float = DT,
+    newton_cfg: NewtonCfg = NEWTON_CFG,
+) -> dict:
+    """Run ANYmal-C with a mid-simulation reset of env 0 only.
+
+    Steps ``RESET_WARMUP_STEPS``, then resets env 0 to its initial joint state
+    (zeroing velocity), then steps ``RESET_TOTAL_STEPS - RESET_WARMUP_STEPS``
+    more. Returns per-step joint positions and velocities.
+
+    This exercises the actuator state reset path (delay buffers, neural
+    hidden states, etc.) for a subset of environments.
+
+    Args:
+        actuators: Actuator config dict overriding ANYmal's defaults.
+        use_newton_actuators: Use Newton-native actuators when ``True``.
+        dt: Physics timestep [s].
+        newton_cfg: Newton physics configuration.
+
+    Returns:
+        Dict with ``joint_pos`` and ``joint_vel``, each a list of
+        ``(NUM_ENVS, num_joints)`` tensors.
+    """
+    sim_cfg = SimulationCfg(
+        dt=dt,
+        physics=newton_cfg,
+        use_newton_actuators=use_newton_actuators,
+    )
+
+    with build_simulation_context(
+        device="cuda:0",
+        gravity_enabled=True,
+        add_ground_plane=True,
+        sim_cfg=sim_cfg,
+    ) as sim:
+        sim._app_control_on_stop_handle = None
+
+        for i in range(NUM_ENVS):
+            sim_utils.create_prim(
+                f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0)
+            )
+
+        art_cfg = ANYMAL_C_CFG.replace(
+            actuators=actuators,
+            prim_path="/World/Env_.*/Robot",
+        )
+        articulation = Articulation(art_cfg)
+        sim.reset()
+        assert articulation.is_initialized
+
+        init_pos = wp.to_torch(articulation.data.joint_pos).clone()
+        target_pos = init_pos + TARGET_OFFSET
+        target_vel = torch.zeros_like(init_pos)
+
+        articulation.set_joint_position_target_index(target=target_pos)
+        articulation.set_joint_velocity_target_index(target=target_vel)
+
+        recorded_pos, recorded_vel = [], []
+
+        for step_i in range(RESET_TOTAL_STEPS):
+            if step_i == RESET_WARMUP_STEPS:
+                env_ids = torch.tensor([0], device="cuda:0")
+                articulation.write_joint_position_to_sim_index(
+                    position=init_pos[0:1], env_ids=env_ids,
+                )
+                articulation.write_joint_velocity_to_sim_index(
+                    velocity=torch.zeros_like(init_pos[0:1]), env_ids=env_ids,
+                )
+                articulation.reset(env_ids=[0])
+
+            articulation.write_data_to_sim()
+            sim.step()
+            articulation.update(dt)
+
+            recorded_pos.append(wp.to_torch(articulation.data.joint_pos).clone())
+            recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
+
+    return {"joint_pos": recorded_pos, "joint_vel": recorded_vel}
+
+
+class TestPartialResetEquivalence(unittest.TestCase):
+    """Per-environment reset with DelayedPD actuators: Lab vs Newton.
+
+    Resets env 0 mid-simulation while env 1 continues uninterrupted.
+    Uses DelayedPD actuators because they carry internal state (delay
+    buffers) that must be properly reset per environment.
+
+    Verifies:
+    - Lab and Newton paths produce matching trajectories after partial reset.
+    - The two environments diverge after the reset (proving it took effect).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.lab_result = _run_simulation_with_reset(
+            DELAYED_PD_ACTUATORS, use_newton_actuators=False,
+        )
+        cls.newton_result = _run_simulation_with_reset(
+            DELAYED_PD_ACTUATORS, use_newton_actuators=True,
+        )
+
+    def test_joint_positions_match(self):
+        for step_i, (lab, newton) in enumerate(
+            zip(self.lab_result["joint_pos"], self.newton_result["joint_pos"])
+        ):
+            torch.testing.assert_close(
+                lab,
+                newton,
+                atol=2e-3,
+                rtol=1e-3,
+                msg=f"Positions diverged at step {step_i}",
+            )
+
+    def test_joint_velocities_match(self):
+        for step_i, (lab, newton) in enumerate(
+            zip(self.lab_result["joint_vel"], self.newton_result["joint_vel"])
+        ):
+            torch.testing.assert_close(
+                lab,
+                newton,
+                atol=0.1,
+                rtol=1e-2,
+                msg=f"Velocities diverged at step {step_i}",
+            )
+
+    def test_envs_diverge_after_reset(self):
+        """After resetting env 0, the two envs must have different states."""
+        post_reset_pos = self.lab_result["joint_pos"][RESET_WARMUP_STEPS + 1]
+        diff = (post_reset_pos[0] - post_reset_pos[1]).abs().max().item()
+        self.assertGreater(
+            diff, 0.001,
+            "Env 0 and env 1 are identical after partial reset — reset had no effect",
+        )
+
+    def test_trajectories_not_trivial(self):
+        first = self.lab_result["joint_pos"][0]
+        last = self.lab_result["joint_pos"][-1]
+        diff = (last - first).abs().max().item()
+        self.assertGreater(diff, 0.01, "Joints did not move — test is trivial")
+
+
+# ---------------------------------------------------------------------------
 # RemotizedPD actuator: PD + delay + position-based clamping lookup table
 # ---------------------------------------------------------------------------
 
