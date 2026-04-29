@@ -31,7 +31,7 @@ Fixed
      custom-frequency traversal ignores ``root_path``, causing proto builder A to also
      match ``MjcTendon`` prims from source B. Fixed by patching ``usd_prim_filter`` on
      each proto builder's MJC tendon frequencies to restrict traversal to its own source
-     path (``_scope_mjc_tendon_filters``).
+     path (``_scope_custom_frequencies``).
 
 
 0.5.25 (2026-04-28)

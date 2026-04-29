@@ -35,8 +35,8 @@ The fix has three parts:
     with multiple MJCF sources that each have tendons, proto A's traversal
     would also match source B's ``MjcTendon`` prims.  Joint resolution fails
     (not in proto A's ``joint_label``), producing zombie tendon headers with
-    zero joint sub-entries.  ``_scope_mjc_tendon_filters`` patches the
-    ``usd_prim_filter`` on both ``mujoco:tendon`` frequencies to require a
+    zero joint sub-entries.  ``_scope_custom_frequencies`` patches the
+    ``usd_prim_filter`` on all registered custom frequencies to require a
     ``root_path`` prefix match, restricting each proto to its own source.
 
   Part 3 — N×T multi-world semantics:
@@ -51,7 +51,7 @@ The fix has three parts:
     or correct.
 
 Tests here use ``newton.ModelBuilder`` directly, so no Isaac Sim, USD stage,
-or MJCF XML parsing is required.  Tests for ``_scope_mjc_tendon_filters`` use
+or MJCF XML parsing is required.  Tests for ``_scope_custom_frequencies`` use
 a lightweight ``_FakePrim`` mock instead of a real USD prim.
 """
 
@@ -60,7 +60,7 @@ import unittest
 import newton
 from newton.solvers import SolverMuJoCo
 
-from isaaclab_newton.cloner.newton_replicate import _scope_mjc_tendon_filters
+from isaaclab_newton.cloner.newton_replicate import _scope_custom_frequencies
 
 # Custom-frequency keys used by SolverMuJoCo for fixed tendons.
 _TENDON_FREQ = "mujoco:tendon"
@@ -217,13 +217,13 @@ class TestProtoBuilderHasMjcFrequencies(unittest.TestCase):
         self.assertIn("mujoco:tendon_world", b.custom_attributes)
 
 
-class TestScopeMjcTendonFilters(unittest.TestCase):
-    """``_scope_mjc_tendon_filters`` restricts MJC traversal to a source subtree (Part 2).
+class TestScopeCustomFrequencies(unittest.TestCase):
+    """``_scope_custom_frequencies`` restricts all custom-frequency traversal to a source subtree (Part 2).
 
     Newton's ``stage.Traverse()`` in the custom-frequency loop ignores
     ``root_path``.  The scope filter patches each proto's ``usd_prim_filter``
-    to also require a path-prefix match, preventing tendon entries from one
-    source contaminating another proto's builder in heterogeneous plans.
+    to also require a path-prefix match, preventing entries from one source
+    contaminating another proto's builder in heterogeneous plans.
     """
 
     ROOT_A = "/World/envs/env_0/source_a"
@@ -231,7 +231,7 @@ class TestScopeMjcTendonFilters(unittest.TestCase):
 
     def _scoped_builder(self, root_path: str) -> newton.ModelBuilder:
         b = _mjc_builder()
-        _scope_mjc_tendon_filters(b, root_path)
+        _scope_custom_frequencies(b, root_path)
         return b
 
     def test_filter_accepts_prim_under_root_path(self):
@@ -257,7 +257,7 @@ class TestScopeMjcTendonFilters(unittest.TestCase):
         b = _mjc_builder()
         orig_tendon = b.custom_frequencies[_TENDON_FREQ].usd_prim_filter
         orig_joint = b.custom_frequencies[_TENDON_JOINT_FREQ].usd_prim_filter
-        _scope_mjc_tendon_filters(b, self.ROOT_A)
+        _scope_custom_frequencies(b, self.ROOT_A)
         self.assertIsNot(b.custom_frequencies[_TENDON_FREQ].usd_prim_filter, orig_tendon)
         self.assertIsNot(b.custom_frequencies[_TENDON_JOINT_FREQ].usd_prim_filter, orig_joint)
 
@@ -278,9 +278,9 @@ class TestScopeMjcTendonFilters(unittest.TestCase):
         self.assertTrue(freq_b.usd_prim_filter(prim_b, {}))
 
     def test_noop_on_plain_builder(self):
-        """Plain builder has no MJC frequencies; _scope_mjc_tendon_filters must not raise."""
+        """Plain builder has no MJC frequencies; _scope_custom_frequencies must not raise."""
         b = _plain_builder()
-        _scope_mjc_tendon_filters(b, self.ROOT_A)
+        _scope_custom_frequencies(b, self.ROOT_A)
 
     def test_heterogeneous_plan_no_cross_contamination(self):
         """Each proto only accumulates tendon entries from its own source subtree.

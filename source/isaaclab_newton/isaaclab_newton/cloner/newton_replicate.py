@@ -19,26 +19,28 @@ from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 from isaaclab_newton.physics import NewtonManager
 
 
-def _scope_mjc_tendon_filters(builder: ModelBuilder, root_path: str) -> None:
-    """Restrict MJC tendon custom-frequency filters to prims under *root_path*.
+def _scope_custom_frequencies(builder: ModelBuilder, root_path: str) -> None:
+    """Restrict all custom-frequency prim filters to prims under *root_path*.
 
     Newton's custom-frequency traversal uses ``stage.Traverse()`` unconditionally,
-    ignoring the ``root_path`` passed to ``add_usd``.  Without this patch, a proto
-    builder for source A would also match ``MjcTendon`` prims from source B,
-    producing zombie tendon entries (tendon headers with zero joint sub-entries)
-    when joint-path resolution fails.  Patching the ``usd_prim_filter`` on the
-    ``mujoco:tendon`` and ``mujoco:tendon_joint`` frequencies to require a path
-    prefix match eliminates cross-source contamination.
+    ignoring the ``root_path`` passed to ``add_usd``.  Any registered frequency
+    with a ``usd_prim_filter`` has the same cross-source contamination risk in
+    heterogeneous clone plans: proto builder A's traversal also visits prims from
+    source B, causing resolution failures against the wrong builder's joint/body
+    tables.  Patching every such filter to additionally require a path prefix
+    match eliminates cross-source contamination for all custom frequencies.
+
+    Frequencies with ``usd_prim_filter = None`` are skipped; Newton excludes them
+    from the traversal loop entirely so they carry no contamination risk.
 
     Args:
-        builder: A proto ``ModelBuilder`` that has already had
-            ``SolverMuJoCo.register_custom_attributes`` called on it.
-        root_path: USD path prefix; only ``MjcTendon`` prims whose path starts
-            with this string will be accepted by the patched filter.
+        builder: A proto ``ModelBuilder`` that has already had custom attributes
+            registered (e.g. via ``SolverMuJoCo.register_custom_attributes``).
+        root_path: USD path prefix; only prims whose path starts with this string
+            will pass the patched filter.
     """
-    for freq_key in ("mujoco:tendon", "mujoco:tendon_joint"):
-        freq = builder.custom_frequencies.get(freq_key)
-        if freq is None or freq.usd_prim_filter is None:
+    for freq in builder.custom_frequencies.values():
+        if freq.usd_prim_filter is None:
             continue
         orig = freq.usd_prim_filter
         freq.usd_prim_filter = lambda prim, ctx, _orig=orig, _path=root_path: (
@@ -120,7 +122,7 @@ def _build_newton_builder_from_mapping(
         # each have tendons, proto A's traversal would also find source B's MjcTendon
         # prims. Patch the filters to restrict them to src_path so only this proto's
         # own tendons are resolved.
-        _scope_mjc_tendon_filters(p, src_path)
+        _scope_custom_frequencies(p, src_path)
         p.add_usd(
             stage,
             root_path=src_path,
