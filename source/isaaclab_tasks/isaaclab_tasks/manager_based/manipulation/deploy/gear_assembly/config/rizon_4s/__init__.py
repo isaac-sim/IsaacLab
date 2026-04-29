@@ -43,13 +43,13 @@ gym.register(
     },
 )
 
-# Flexiv Rizon 4s - Hardcoded Inference (no randomization, deterministic)
+# Flexiv Rizon 4s - Debug Inference (no randomization, deterministic)
 gym.register(
-    id="Isaac-Deploy-GearAssembly-Rizon4s-Grav-Hardcoded-Inference-v0",
+    id="Isaac-Deploy-GearAssembly-Rizon4s-Grav-Debug-Inference-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.hardcoded_inference_env_cfg:Rizon4sGearAssemblyHardcodedInferenceEnvCfg",
+        "env_cfg_entry_point": f"{__name__}.debug_inference_env_cfg:Rizon4sGearAssemblyDebugInferenceEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Rizon4sGearAssemblyRNNPPORunnerCfg",
     },
 )

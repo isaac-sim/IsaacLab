@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Hardcoded deterministic inference configuration for Flexiv Rizon 4s with Grav gripper.
+"""Debug deterministic inference configuration for Flexiv Rizon 4s with Grav gripper.
 
 Edit the constants below to match your real-world setup. All randomization is
 disabled and observation noise is turned off so the simulation is fully
@@ -14,7 +14,7 @@ properly grasps the gear. With all randomization zeroed out the IK solution
 is identical on every reset.
 
 To additionally override the robot's joint positions *after* IK, set
-``OVERRIDE_ROBOT_JOINT_POS`` in ``play_hardcoded.py``.
+``OVERRIDE_ROBOT_JOINT_POS`` in ``play_debug.py``.
 """
 
 from isaaclab.assets import RigidObjectCfg
@@ -23,7 +23,7 @@ from isaaclab.utils import configclass
 from .ros_inference_env_cfg import Rizon4sGearAssemblyROSInferenceEnvCfg
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║  HARDCODED VALUES — Edit these to match your desired setup                 ║
+# ║  DEBUG VALUES — Edit these to match your desired setup                     ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 # Which gear the robot is grasping: "gear_small", "gear_medium", or "gear_large"
@@ -45,8 +45,8 @@ GEAR_Z_OFFSET = 0.0675
 
 
 @configclass
-class Rizon4sGearAssemblyHardcodedInferenceEnvCfg(Rizon4sGearAssemblyROSInferenceEnvCfg):
-    """Deterministic inference config — hardcoded poses, no randomization, no obs noise.
+class Rizon4sGearAssemblyDebugInferenceEnvCfg(Rizon4sGearAssemblyROSInferenceEnvCfg):
+    """Deterministic inference config — fixed poses, no randomization, no obs noise.
 
     Inherits the full ROS-inference configuration and then:
       1. Fixes the gear type (no random selection).
@@ -80,7 +80,7 @@ class Rizon4sGearAssemblyHardcodedInferenceEnvCfg(Rizon4sGearAssemblyROSInferenc
             "z": [GEAR_Z_OFFSET, GEAR_Z_OFFSET],
         }
 
-        # ── 3. Hardcoded gear base and gear positions ─────────────────
+        # ── 3. Fixed gear base and gear positions ─────────────────────
         self.scene.factory_gear_base.init_state = RigidObjectCfg.InitialStateCfg(
             pos=GEAR_BASE_POS,
             rot=GEAR_BASE_ROT,

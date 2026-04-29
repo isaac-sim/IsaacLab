@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to run hardcoded / deterministic inference with an RSL-RL agent.
+"""Script to run debug / deterministic inference with an RSL-RL agent.
 
-This is a variant of ``play.py`` designed for the hardcoded-inference
-environment where all randomization is disabled.  The IK grasp-pose solver
+This is a variant of ``play.py`` designed for the debug-inference
+environment where all randomization is disabled. The IK grasp-pose solver
 is still active so the robot properly grasps the gear; with every random
 input zeroed out the result is identical on every reset.
 
@@ -26,11 +26,11 @@ Features on top of the standard play loop:
 The gear type, gear base pose, and gear height are configured in the
 companion env-config file::
 
-    .../gear_assembly/config/rizon_4s/hardcoded_inference_env_cfg.py
+    .../gear_assembly/config/rizon_4s/debug_inference_env_cfg.py
 
 Usage::
 
-    python scripts/reinforcement_learning/rsl_rl/play_hardcoded.py \\
+    python scripts/reinforcement_learning/rsl_rl/play_debug.py \\
         --num_envs 1 \\
         --checkpoint logs/rsl_rl/gear_assembly/2026-03-13_16-28-11/model_500.pt \\
         --visualizer kit
@@ -85,7 +85,7 @@ _SHAFT_QUAT_SLICE = slice(17, 21)
 
 
 # -- argparse ----------------------------------------------------------------
-parser = argparse.ArgumentParser(description="Run hardcoded deterministic inference with RSL-RL.")
+parser = argparse.ArgumentParser(description="Run debug deterministic inference with RSL-RL.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
@@ -93,7 +93,7 @@ parser.add_argument("--num_envs", type=int, default=1, help="Number of environme
 parser.add_argument(
     "--task",
     type=str,
-    default="Isaac-Deploy-GearAssembly-Rizon4s-Grav-Hardcoded-Inference-v0",
+    default="Isaac-Deploy-GearAssembly-Rizon4s-Grav-Debug-Inference-v0",
     help="Name of the task.",
 )
 parser.add_argument(
@@ -213,7 +213,7 @@ def _print_obs(obs, label: str = "Observation"):
 
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
-    """Run hardcoded inference with RSL-RL agent."""
+    """Run debug inference with RSL-RL agent."""
     with launch_simulation(env_cfg, args_cli):
         # -- configure -------------------------------------------------------
         agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
