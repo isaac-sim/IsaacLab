@@ -279,6 +279,20 @@ def _install_ovrtx_optional_dep(workspace_root: str) -> str | None:
     return None
 
 
+def _ovrtx_libcarb_path() -> str | None:
+    """Return the path to ``libcarb.so`` from the installed ``ovrtx`` wheel, or ``None``.
+
+    Preloading this library is a workaround for OVRTX kitless workflow so the dynamic linker resolves Carb/RTX symbols
+    correctly in subprocess tests. This workaround will be removed once the Carb issue is resolved.
+    """
+    from pathlib import Path
+
+    import ovrtx
+
+    libcarb = Path(ovrtx.__file__).resolve().parent / "bin/plugins/libcarb.so"
+    return str(libcarb) if libcarb.is_file() else None
+
+
 def _capture_system_diagnostics():
     """Capture system diagnostics (GPU, memory, processes) for crash investigation.
 
@@ -346,12 +360,19 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     test_status = {}
     xml_reports = []
     cold_cache_applied = False
+    ovrtx_libcarb_path: str | None = None
 
     if any(_is_kitless_rendering_test_file(os.path.basename(test_file)) for test_file in test_files):
         print("🔵 Kitless tests detected. Installing optional dependency: ov[ovrtx]")
         ovrtx_install_error = _install_ovrtx_optional_dep(workspace_root)
         if ovrtx_install_error is None:
             print("🟢 Optional dependency install complete: ov[ovrtx]")
+
+            ovrtx_libcarb_path = _ovrtx_libcarb_path()
+            if ovrtx_libcarb_path:
+                print(f"🔵 OVRTX: will set LD_PRELOAD to {ovrtx_libcarb_path}.")
+            else:
+                print("⚠️ OVRTX: could not resolve libcarb.so for LD_PRELOAD.")
         else:
             print("⚠️ Optional dependency install failed for ov[ovrtx].")
             print(ovrtx_install_error)
@@ -361,6 +382,10 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
+
+        # set LD_PRELOAD to the path of the libcarb.so file if it is a kitless rendering test
+        if ovrtx_libcarb_path and _is_kitless_rendering_test_file(file_name):
+            env["LD_PRELOAD"] = ovrtx_libcarb_path
 
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 

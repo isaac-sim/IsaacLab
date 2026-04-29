@@ -68,7 +68,7 @@ if TYPE_CHECKING:
 
 # Shared integration floor for this module; reuse for ovrtx features that share one support floor.
 _OVRTX_VERSION = Version(ovrtx.__version__)
-_IS_OVRTX_0_3_0_OR_NEWER = (_OVRTX_VERSION >= Version("0.3.0"))
+_IS_OVRTX_0_3_0_OR_NEWER = Version("0.3.0") <= _OVRTX_VERSION
 
 # RTX minimal modes:
 #
