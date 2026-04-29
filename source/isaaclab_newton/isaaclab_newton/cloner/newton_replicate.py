@@ -19,6 +19,33 @@ from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 from isaaclab_newton.physics import NewtonManager
 
 
+def _scope_mjc_tendon_filters(builder: ModelBuilder, root_path: str) -> None:
+    """Restrict MJC tendon custom-frequency filters to prims under *root_path*.
+
+    Newton's custom-frequency traversal uses ``stage.Traverse()`` unconditionally,
+    ignoring the ``root_path`` passed to ``add_usd``.  Without this patch, a proto
+    builder for source A would also match ``MjcTendon`` prims from source B,
+    producing zombie tendon entries (tendon headers with zero joint sub-entries)
+    when joint-path resolution fails.  Patching the ``usd_prim_filter`` on the
+    ``mujoco:tendon`` and ``mujoco:tendon_joint`` frequencies to require a path
+    prefix match eliminates cross-source contamination.
+
+    Args:
+        builder: A proto ``ModelBuilder`` that has already had
+            ``SolverMuJoCo.register_custom_attributes`` called on it.
+        root_path: USD path prefix; only ``MjcTendon`` prims whose path starts
+            with this string will be accepted by the patched filter.
+    """
+    for freq_key in ("mujoco:tendon", "mujoco:tendon_joint"):
+        freq = builder.custom_frequencies.get(freq_key)
+        if freq is None or freq.usd_prim_filter is None:
+            continue
+        orig = freq.usd_prim_filter
+        freq.usd_prim_filter = lambda prim, ctx, _orig=orig, _path=root_path: (
+            str(prim.GetPath()).startswith(_path) and _orig(prim, ctx)
+        )
+
+
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: list[str],
@@ -75,15 +102,6 @@ def _build_newton_builder_from_mapping(
     )
 
     # Proto resolvers include SchemaResolverMjc so MjcTendon prims are parsed.
-    #
-    # Known limitation (heterogeneous plans only): Newton's custom-frequency
-    # traversal uses stage.Traverse() unconditionally, ignoring root_path.
-    # In a plan with multiple MJCF sources that each have tendons, proto A's
-    # builder will encounter source B's MjcTendon prims.  Joint path resolution
-    # fails for those (not in proto A's joint_label), so they are added as
-    # zombie tendon entries with zero joint sub-entries — no-ops in MuJoCo.
-    # This is a Newton-side limitation; fixing it requires scoping
-    # stage.Traverse() to root_path in Newton's import_usd.py.
     proto_resolvers = [SchemaResolverMjc(), SchemaResolverNewton(), SchemaResolverPhysx()]
 
     # The prototype is built from env_0 in absolute world coordinates.
@@ -97,6 +115,12 @@ def _build_newton_builder_from_mapping(
         # this proto's fully populated joint_label.
         p = NewtonManager.create_builder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
+        # Newton's custom-frequency traversal uses stage.Traverse() unconditionally,
+        # ignoring root_path. In heterogeneous plans with multiple MJCF sources that
+        # each have tendons, proto A's traversal would also find source B's MjcTendon
+        # prims. Patch the filters to restrict them to src_path so only this proto's
+        # own tendons are resolved.
+        _scope_mjc_tendon_filters(p, src_path)
         p.add_usd(
             stage,
             root_path=src_path,
