@@ -1,6 +1,45 @@
 Changelog
 ---------
 
+0.2.13 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Aligned ``test/assets/test_rigid_object.py`` 1-to-1 with
+  :mod:`isaaclab_physx.test.assets.test_rigid_object`: same set of 20 test
+  functions, identical names, parametrizations, and assertions.  PhysX-style
+  ``cube_object.root_view.set_X(...)`` / ``get_X(...)`` calls are adapted to
+  OVPhysX by going through the public setters
+  (:meth:`~isaaclab_ovphysx.assets.RigidObject.set_masses_index`,
+  :meth:`~isaaclab_ovphysx.assets.RigidObject.set_coms_index`) and the
+  data-class properties (``cube_object.data.body_mass``, ``body_com_pose_b``).
+  The five material-property tests
+  (``test_rigid_body_set_material_properties``,
+  ``test_set_material_properties_via_view``, ``test_rigid_body_no_friction``,
+  ``test_rigid_body_with_static_friction``, ``test_rigid_body_with_restitution``)
+  remain xfailed pending the wheel-side ``RIGID_BODY_MATERIAL`` TensorType
+  (see ``docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md``).
+  Dropped the OVPhysX-only extras that were artifacts of the earlier
+  mock-based suite (``test_initialization_body_names``,
+  ``test_initialization_data_not_none``,
+  ``test_initialization_wrench_composers``,
+  ``test_external_force_buffer_composition``,
+  ``test_set_rigid_object_state_physics``, ``test_rigid_body_set_inertia``,
+  ``test_gravity_vec_w_direction``, ``test_gravity_vec_w_body_acc``,
+  ``test_body_root_state_properties_shapes``,
+  ``test_body_root_state_properties_physics``,
+  ``test_root_link_vel_w_buffer_differs_from_root_com_vel_w``,
+  ``test_root_link_vel_w_lever_arm_physics``,
+  ``test_ovphysx_manager_step_exists``, ``test_warmup_and_load_cpu``,
+  ``test_stage_load_cpu``, ``test_warmup_and_load_gpu``).  Renamed
+  ``test_warmup_gpu_not_called_for_cpu`` to ``test_warmup_attach_stage_not_called_for_cpu``
+  to match the PhysX analogue and use a
+  :class:`~unittest.mock.MagicMock` spy on
+  :attr:`~isaaclab_ovphysx.physics.OvPhysxManager._physx` to assert the
+  CPU-mode ``warmup_gpu()`` guard is in place.
+
 0.2.12 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~~
 
