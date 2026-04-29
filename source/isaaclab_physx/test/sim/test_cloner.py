@@ -550,3 +550,179 @@ def test_disabled_fabric_change_notifies_toggles_ifabricusd_flag(sim):
             assert not bindings.is_enabled(fabric_id)
         assert not bindings.is_enabled(fabric_id), "inner exit must not re-enable while outer is active"
     assert bindings.is_enabled(fabric_id), "outer exit should restore the flag"
+
+
+def test_disabled_fabric_change_notifies_speedup_regression():
+    """Regression: listener suspension delivers ~1.5x speedup on cartpole 4096 scene init.
+
+    Mirrors the production path the PR optimizes: ``InteractiveScene`` init triggers
+    ``cloner.usd_replicate`` inside ``disabled_fabric_change_notifies(restore=False)``,
+    followed by ``SimulationContext.reset`` doing the deferred Fabric resync. Compares
+    the PR default (binding active, suspension enabled) against pre-PR behavior
+    (binding monkey-patched to no-op so the context manager falls through), and asserts
+    the suspended path is meaningfully faster.
+
+    Threshold of 1.3x is set below the ~1.5x consistently observed during bisection
+    (cartpole 4096, scene_init+sim_reset) to leave headroom for CI variance, but well
+    above the 1.0x a silent binding regression would produce.
+
+    Cartpole at 4096 envs is the smallest config that produces a robust signal: at 2048
+    envs the speedup drops into the 1.2-1.3x range and at 1024 envs run-to-run noise
+    can dominate. See PR #5432 for the production benchmark table.
+    """
+    import time
+
+    import isaaclab.cloner._fabric_notices as fabric_notices_mod
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.utils import configclass
+
+    from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+
+    if fabric_notices_mod.get_bindings() is None:
+        pytest.skip("omni::fabric::IFabricUsd unavailable — Fabric notice path inert here")
+
+    @configclass
+    class _CartpoleSceneCfg(InteractiveSceneCfg):
+        robot = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+
+    def _make_cfg() -> _CartpoleSceneCfg:
+        return _CartpoleSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True)
+
+    def _measure(simulate_pre_pr: bool) -> tuple[float, float]:
+        original = fabric_notices_mod.get_bindings
+        if simulate_pre_pr:
+            fabric_notices_mod.get_bindings = lambda: None
+        try:
+            with build_simulation_context(device="cpu", dt=0.01, add_lighting=False) as sim:
+                t0 = time.perf_counter()
+                InteractiveScene(_make_cfg())
+                scene_dt = time.perf_counter() - t0
+                t0 = time.perf_counter()
+                sim.reset()
+                reset_dt = time.perf_counter() - t0
+                return scene_dt, reset_dt
+        finally:
+            fabric_notices_mod.get_bindings = original
+
+    # Warmup so neither timed run pays first-call USD/Kit/PhysX cache cost.
+    _measure(simulate_pre_pr=False)
+
+    # Run order: suspended FIRST, active SECOND. Any residual cache-warming benefit
+    # accrues to the active (slower-expected) path; if active still loses despite
+    # running with warmer caches, the speedup is real and not warmup noise.
+    suspended_scene, suspended_reset = _measure(simulate_pre_pr=False)
+    active_scene, active_reset = _measure(simulate_pre_pr=True)
+
+    suspended_total = suspended_scene + suspended_reset
+    active_total = active_scene + active_reset
+    speedup = active_total / suspended_total
+
+    # Always print the ratio so CI logs show how close we run to the threshold —
+    # makes it easy to spot drift before the test flips to FAILED.
+    print(
+        f"\n[fabric-notice perf] active total={active_total:.3f}s "
+        f"(scene={active_scene:.3f}s reset={active_reset:.3f}s); "
+        f"suspended total={suspended_total:.3f}s "
+        f"(scene={suspended_scene:.3f}s reset={suspended_reset:.3f}s); "
+        f"speedup={speedup:.2f}x"
+    )
+
+    min_speedup = 1.3
+    assert speedup >= min_speedup, (
+        f"Fabric-notice suspension perf regression: expected >= {min_speedup}x speedup on cartpole 4096"
+        f" scene_init+sim_reset, got {speedup:.2f}x"
+        f" (active total={active_total:.3f}s [scene={active_scene:.3f}s reset={active_reset:.3f}s];"
+        f" suspended total={suspended_total:.3f}s [scene={suspended_scene:.3f}s reset={suspended_reset:.3f}s])"
+    )
+
+
+def test_disabled_fabric_change_notifies_speedup_regression_minimal():
+    """Like the cartpole regression test, but builds the scene cfg from primitives.
+
+    Avoids depending on ``CARTPOLE_CFG`` (which downloads a USD asset) so the test runs
+    in any environment that can boot Kit. Used to identify the minimal asset shape that
+    still produces the speedup the PR optimizes — sharing whatever we learn about that
+    minimum with anyone reading this test.
+    """
+    import time
+
+    import isaaclab.cloner._fabric_notices as fabric_notices_mod
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import RigidObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.utils import configclass
+
+    if fabric_notices_mod.get_bindings() is None:
+        pytest.skip("omni::fabric::IFabricUsd unavailable — Fabric notice path inert here")
+
+    # Bisected minimum that reproduces the speedup. Each piece below is necessary;
+    # removing any one drops the speedup below the 1.3x threshold:
+    #
+    # - ``rigid_props``: gives the listener Fabric-tracked schema work to do per spec.
+    #   Plain Xforms produce ~1.0x. ``mass_props``/``collision_props`` add nothing.
+    # - 8 bodies x 4096 envs: total per-Sdf.CopySpec firings need to reach ~32K for the
+    #   listener cost to dominate scene init. Body count and env count are
+    #   interchangeable (1 body x 8192 envs gives a similar 1.34x), but the product
+    #   matters; below ~16K firings the signal sinks into noise.
+    # - ``replicate_physics=True``: without it the speedup drops to ~1.19x. The
+    #   InteractiveScene PhysX-replication path is what amplifies per-spec listener work.
+    #
+    # ``clone_in_fabric``, articulation, mass/collision props — none affect the speedup.
+    def _body(i: int, x: float, y: float) -> RigidObjectCfg:
+        return RigidObjectCfg(
+            prim_path=f"/World/envs/env_.*/Body_{i}",
+            spawn=sim_utils.SphereCfg(radius=0.1, rigid_props=sim_utils.RigidBodyPropertiesCfg()),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(x, y, 0.5)),
+        )
+
+    @configclass
+    class _MinimalSceneCfg(InteractiveSceneCfg):
+        body_0 = _body(0, 0.0, 0.0)
+        body_1 = _body(1, 0.3, 0.0)
+        body_2 = _body(2, 0.0, 0.3)
+        body_3 = _body(3, 0.3, 0.3)
+        body_4 = _body(4, 0.6, 0.0)
+        body_5 = _body(5, 0.0, 0.6)
+        body_6 = _body(6, 0.6, 0.3)
+        body_7 = _body(7, 0.3, 0.6)
+
+    def _make_cfg() -> _MinimalSceneCfg:
+        return _MinimalSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+
+    def _measure(simulate_pre_pr: bool) -> tuple[float, float]:
+        original = fabric_notices_mod.get_bindings
+        if simulate_pre_pr:
+            fabric_notices_mod.get_bindings = lambda: None
+        try:
+            with build_simulation_context(device="cpu", dt=0.01, add_lighting=False) as sim:
+                t0 = time.perf_counter()
+                InteractiveScene(_make_cfg())
+                scene_dt = time.perf_counter() - t0
+                t0 = time.perf_counter()
+                sim.reset()
+                reset_dt = time.perf_counter() - t0
+                return scene_dt, reset_dt
+        finally:
+            fabric_notices_mod.get_bindings = original
+
+    _measure(simulate_pre_pr=False)  # warmup
+    suspended_scene, suspended_reset = _measure(simulate_pre_pr=False)
+    active_scene, active_reset = _measure(simulate_pre_pr=True)
+
+    suspended_total = suspended_scene + suspended_reset
+    active_total = active_scene + active_reset
+    speedup = active_total / suspended_total
+
+    print(
+        f"\n[fabric-notice perf MINIMAL] active total={active_total:.3f}s "
+        f"(scene={active_scene:.3f}s reset={active_reset:.3f}s); "
+        f"suspended total={suspended_total:.3f}s "
+        f"(scene={suspended_scene:.3f}s reset={suspended_reset:.3f}s); "
+        f"speedup={speedup:.2f}x"
+    )
+
+    min_speedup = 1.3
+    assert speedup >= min_speedup, (
+        f"Minimal-config Fabric-notice regression: expected >= {min_speedup}x, got {speedup:.2f}x"
+        f" (active total={active_total:.3f}s; suspended total={suspended_total:.3f}s)"
+    )

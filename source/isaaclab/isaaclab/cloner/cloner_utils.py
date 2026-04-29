@@ -39,6 +39,26 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
     short-circuits via a soft flag (``IFabricUsd.cpp:739``). Toggling that flag is what
     skips the per-``Sdf.CopySpec`` Fabric sync that dominates cloning time on large scenes.
 
+    When this provides a measurable speedup
+    ----------------------------------------
+    Bisection on the regression test (see ``test_cloner.py``) shows the listener cost is
+    only on the critical path when **all** of these hold:
+
+    1. The clone happens through the ``InteractiveScene`` path with ``replicate_physics=True``.
+       Calling :func:`usd_replicate` directly on a stage produces no measurable gap; with
+       ``replicate_physics=False`` the gap drops to ~1.19x. The PhysX replication path is
+       what amplifies per-spec listener work.
+    2. The cloned prims carry PhysX rigid-body schemas (e.g. ``UsdPhysics.RigidBodyAPI``,
+       authored via ``rigid_props`` on a spawn cfg). Plain Xforms or geometry without
+       physics schemas produce ~1.0x — the listener has no Fabric-tracked state to sync.
+       ``mass_props`` and ``collision_props`` add nothing beyond ``rigid_props``.
+    3. Total per-``Sdf.CopySpec`` firings reach ~32K — i.e. ``num_bodies × num_envs`` is
+       large enough to dominate scene-init cost. Below this the speedup sinks into noise.
+
+    Conditions outside this envelope (no PhysX schemas, single-env scenes, raw
+    ``usd_replicate`` calls, ``replicate_physics=False``) won't see a perf win — the
+    suspension is correct but its effect is lost in the rest of the work.
+
     Re-entrant: if the flag is already off on entry, ``__exit__`` leaves it off. Falls
     through to a no-op if the Carbonite interface can't be acquired (e.g. outside a live
     Kit application) — the caller never breaks, it just doesn't get the perf win.
