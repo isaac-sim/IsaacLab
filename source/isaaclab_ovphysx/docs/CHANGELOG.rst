@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.2.6 (2026-04-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Implemented seven deprecated state-concat properties on
+  :class:`~isaaclab_ovphysx.assets.RigidObjectData` that were previously
+  ``NotImplementedError`` stubs:
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.default_root_state`,
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.root_state_w`,
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.root_link_state_w`,
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.root_com_state_w`,
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.body_state_w`,
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.body_link_state_w`, and
+  :attr:`~isaaclab_ovphysx.assets.RigidObjectData.body_com_state_w`.
+  Each emits a ``DeprecationWarning`` recommending the split
+  pose/velocity properties (e.g. ``root_link_pose_w`` + ``root_com_vel_w``)
+  and lazily populates a ``vec13f`` buffer via the
+  ``concat_root_pose_and_vel_to_state`` kernel, matching PhysX and Newton.
+* Added ``vec13f`` dtype and ``concat_root_pose_and_vel_to_state`` kernel to
+  :mod:`isaaclab_ovphysx.assets.kernels`, vendored from the shared PhysX
+  kernel module.  Cache invalidation in
+  :meth:`~isaaclab_ovphysx.assets.RigidObjectData._invalidate_caches` now
+  covers the three new ``TimestampedBuffer`` objects.
+
 0.2.5 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~
 

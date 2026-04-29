@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import warp as wp
 
@@ -22,8 +24,10 @@ from isaaclab_ovphysx.assets.kernels import (
     _projected_gravity,
     _world_vel_to_body_ang,
     _world_vel_to_body_lin,
+    concat_root_pose_and_vel_to_state,
     derive_body_acceleration_from_body_com_velocities,
     get_root_link_vel_from_root_com_vel,
+    vec13f,
 )
 
 
@@ -137,6 +141,18 @@ class RigidObjectData(BaseRigidObjectData):
         # Default-state ProxyArray wrappers (created once from _default_root_pose/velocity).
         self._default_root_pose_ta: ProxyArray | None = None
         self._default_root_vel_ta: ProxyArray | None = None
+        # Deprecated state-concat buffers (lazily allocated on first property access).
+        self._default_root_state_buf: wp.array | None = None
+        self._default_root_state_ta: ProxyArray | None = None
+        self._root_state_w_buf: TimestampedBuffer | None = None
+        self._root_state_w_ta: ProxyArray | None = None
+        self._root_link_state_w_buf: TimestampedBuffer | None = None
+        self._root_link_state_w_ta: ProxyArray | None = None
+        self._root_com_state_w_buf: TimestampedBuffer | None = None
+        self._root_com_state_w_ta: ProxyArray | None = None
+        self._body_state_w_ta: ProxyArray | None = None
+        self._body_link_state_w_ta: ProxyArray | None = None
+        self._body_com_state_w_ta: ProxyArray | None = None
 
     # --- counts -------------------------------------------------------
     @property
@@ -213,6 +229,10 @@ class RigidObjectData(BaseRigidObjectData):
             self._root_com_ang_vel_b_buf,
             self._body_mass_buf,
             self._body_inertia_buf,
+            # Deprecated state-concat buffers.
+            self._root_state_w_buf,
+            self._root_link_state_w_buf,
+            self._root_com_state_w_buf,
         ):
             if buf is not None:
                 buf.timestamp = -1.0
@@ -476,7 +496,38 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def default_root_state(self) -> ProxyArray:
-        raise NotImplementedError
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
+
+        .. deprecated::
+            Use :attr:`default_root_pose` and :attr:`default_root_vel` instead.
+
+        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
+        The position and quaternion are of the rigid body's actor frame; the linear and angular
+        velocities are of the center of mass frame.
+        """
+        warnings.warn(
+            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
+            "Please use the default_root_pose and default_root_vel properties instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_root_state_buf is None:
+            self._default_root_state_buf = wp.zeros(self._num_instances, dtype=vec13f, device=self._device)
+        wp.launch(
+            concat_root_pose_and_vel_to_state,
+            dim=self._num_instances,
+            inputs=[
+                self._default_root_pose,
+                self._default_root_velocity,
+            ],
+            outputs=[
+                self._default_root_state_buf,
+            ],
+            device=self._device,
+        )
+        if self._default_root_state_ta is None:
+            self._default_root_state_ta = ProxyArray(self._default_root_state_buf)
+        return self._default_root_state_ta
 
     @property
     def root_link_pose_w(self) -> ProxyArray:
@@ -579,15 +630,111 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_state_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`root_link_pose_w` and :attr:`root_com_vel_w` instead.
+
+        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
+        The position and quaternion are of the actor frame; velocities are of the COM frame.
+        """
+        warnings.warn(
+            "The `root_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_link_pose_w` and "
+            "`root_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._root_state_w_buf is None:
+            self._root_state_w_buf = TimestampedBuffer(self._num_instances, self._device, vec13f)
+        if self._root_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_com_vel_w,
+                ],
+                outputs=[
+                    self._root_state_w_buf.data,
+                ],
+                device=self._device,
+            )
+            self._root_state_w_buf.timestamp = self._sim_time
+        if self._root_state_w_ta is None:
+            self._root_state_w_ta = ProxyArray(self._root_state_w_buf.data)
+        return self._root_state_w_ta
 
     @property
     def root_link_state_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root link state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`root_link_pose_w` and :attr:`root_link_vel_w` instead.
+
+        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
+        Both the position/orientation and velocities are of the actor frame.
+        """
+        warnings.warn(
+            "The `root_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_link_pose_w` and "
+            "`root_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._root_link_state_w_buf is None:
+            self._root_link_state_w_buf = TimestampedBuffer(self._num_instances, self._device, vec13f)
+        if self._root_link_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_link_vel_w,
+                ],
+                outputs=[
+                    self._root_link_state_w_buf.data,
+                ],
+                device=self._device,
+            )
+            self._root_link_state_w_buf.timestamp = self._sim_time
+        if self._root_link_state_w_ta is None:
+            self._root_link_state_w_ta = ProxyArray(self._root_link_state_w_buf.data)
+        return self._root_link_state_w_ta
 
     @property
     def root_com_state_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Root COM state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`root_com_pose_w` and :attr:`root_com_vel_w` instead.
+
+        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
+        Both the position/orientation and velocities are of the center of mass frame.
+        """
+        warnings.warn(
+            "The `root_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_com_pose_w` and "
+            "`root_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._root_com_state_w_buf is None:
+            self._root_com_state_w_buf = TimestampedBuffer(self._num_instances, self._device, vec13f)
+        if self._root_com_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_com_pose_w,
+                    self.root_com_vel_w,
+                ],
+                outputs=[
+                    self._root_com_state_w_buf.data,
+                ],
+                device=self._device,
+            )
+            self._root_com_state_w_buf.timestamp = self._sim_time
+        if self._root_com_state_w_ta is None:
+            self._root_com_state_w_ta = ProxyArray(self._root_com_state_w_buf.data)
+        return self._root_com_state_w_ta
 
     @property
     def body_link_pose_w(self) -> ProxyArray:
@@ -652,15 +799,114 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_state_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Body state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`body_link_pose_w` and :attr:`body_com_vel_w` instead.
+
+        Shape is (num_instances, 1), dtype = vec13f.
+        In torch this resolves to (num_instances, 1, 13).
+        """
+        warnings.warn(
+            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Access the internal buffer directly to avoid cascading deprecation warnings from root_state_w.
+        if self._root_state_w_buf is None:
+            self._root_state_w_buf = TimestampedBuffer(self._num_instances, self._device, vec13f)
+        if self._root_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_com_vel_w,
+                ],
+                outputs=[
+                    self._root_state_w_buf.data,
+                ],
+                device=self._device,
+            )
+            self._root_state_w_buf.timestamp = self._sim_time
+        if self._body_state_w_ta is None:
+            self._body_state_w_ta = ProxyArray(self._root_state_w_buf.data.reshape((self._num_instances, 1)))
+        return self._body_state_w_ta
 
     @property
     def body_link_state_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Body link state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`body_link_pose_w` and :attr:`body_link_vel_w` instead.
+
+        Shape is (num_instances, 1), dtype = vec13f.
+        In torch this resolves to (num_instances, 1, 13).
+        """
+        warnings.warn(
+            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Access the internal buffer directly to avoid cascading deprecation warnings from root_link_state_w.
+        if self._root_link_state_w_buf is None:
+            self._root_link_state_w_buf = TimestampedBuffer(self._num_instances, self._device, vec13f)
+        if self._root_link_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_link_vel_w,
+                ],
+                outputs=[
+                    self._root_link_state_w_buf.data,
+                ],
+                device=self._device,
+            )
+            self._root_link_state_w_buf.timestamp = self._sim_time
+        if self._body_link_state_w_ta is None:
+            self._body_link_state_w_ta = ProxyArray(self._root_link_state_w_buf.data.reshape((self._num_instances, 1)))
+        return self._body_link_state_w_ta
 
     @property
     def body_com_state_w(self) -> ProxyArray:
-        raise NotImplementedError
+        """Body COM state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`body_com_pose_w` and :attr:`body_com_vel_w` instead.
+
+        Shape is (num_instances, 1), dtype = vec13f.
+        In torch this resolves to (num_instances, 1, 13).
+        """
+        warnings.warn(
+            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Access the internal buffer directly to avoid cascading deprecation warnings from root_com_state_w.
+        if self._root_com_state_w_buf is None:
+            self._root_com_state_w_buf = TimestampedBuffer(self._num_instances, self._device, vec13f)
+        if self._root_com_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self._num_instances,
+                inputs=[
+                    self.root_com_pose_w,
+                    self.root_com_vel_w,
+                ],
+                outputs=[
+                    self._root_com_state_w_buf.data,
+                ],
+                device=self._device,
+            )
+            self._root_com_state_w_buf.timestamp = self._sim_time
+        if self._body_com_state_w_ta is None:
+            self._body_com_state_w_ta = ProxyArray(self._root_com_state_w_buf.data.reshape((self._num_instances, 1)))
+        return self._body_com_state_w_ta
 
     @property
     def body_com_acc_w(self) -> ProxyArray:

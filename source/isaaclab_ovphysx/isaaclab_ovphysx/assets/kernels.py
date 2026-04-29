@@ -7,6 +7,58 @@
 
 import warp as wp
 
+# 13-element state vector: pos(3) + quat(4) + lin_vel(3) + ang_vel(3).
+# Layout matches the PhysX/Newton shared convention used by the deprecated
+# state-concat properties (default_root_state, root_state_w, etc.).
+vec13f = wp.types.vector(length=13, dtype=wp.float32)
+
+
+@wp.func
+def _concat_pose_and_vel_to_state_func(
+    pose: wp.transformf,
+    vel: wp.spatial_vectorf,
+) -> vec13f:
+    """Concatenate a pose and velocity into a 13-element state vector.
+
+    The state vector layout is ``[pos(3), quat(4), ang_vel(3), lin_vel(3)]``,
+    matching the PhysX and Newton backend convention.
+    """
+    return vec13f(
+        pose[0],
+        pose[1],
+        pose[2],
+        pose[3],
+        pose[4],
+        pose[5],
+        pose[6],
+        vel[0],
+        vel[1],
+        vel[2],
+        vel[3],
+        vel[4],
+        vel[5],
+    )
+
+
+@wp.kernel
+def concat_root_pose_and_vel_to_state(
+    pose: wp.array(dtype=wp.transformf),
+    vel: wp.array(dtype=wp.spatial_vectorf),
+    state: wp.array(dtype=vec13f),
+):
+    """Concatenate root pose and velocity into a 13-element state vector.
+
+    Combines a 7-element pose (pos + quat) and a 6-element velocity
+    (angular + linear) into a single ``vec13f`` state vector per instance.
+
+    Args:
+        pose: Root poses in world frame. Shape is (num_envs,).
+        vel: Root spatial velocities. Shape is (num_envs,).
+        state: Output concatenated state vectors. Shape is (num_envs,).
+    """
+    i = wp.tid()
+    state[i] = _concat_pose_and_vel_to_state_func(pose[i], vel[i])
+
 
 @wp.kernel
 def _body_wrench_to_world(
