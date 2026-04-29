@@ -24,11 +24,46 @@ dictionary (``cube_object._bindings`` / :meth:`~isaaclab_ovphysx.assets.RigidObj
 and the public setters (:meth:`set_masses_index`, :meth:`set_coms_index`,
 :meth:`set_inertias_index`).  Reads use the data-class properties
 (``cube_object.data.body_mass``, ``body_inertia``, ``body_com_pose_b``).
+
+Single-PhysX-instance lifecycle
+-------------------------------
+
+PhysX's ``test_rigid_object.py`` builds a fresh :func:`build_simulation_context`
+per test, but on the OVPhysX side that pattern segfaults: ``ovphysx<=0.3.7``'s
+:class:`ovphysx.PhysX` destructor races on dual-Carbonite static state when
+garbage-collected mid-process (see
+:meth:`~isaaclab_ovphysx.physics.OvPhysxManager._release_physx`).  The intended
+pattern is "never explicitly release; let ``os._exit()`` at process exit handle
+teardown", which means at most one :class:`ovphysx.PhysX` may exist in a single
+pytest session.
+
+A second wheel-side constraint compounds this: ``ovphysx<=0.3.7`` locks the
+process-global device mode (CPU vs GPU) on the first
+``ovphysx.PhysX(device=...)`` call.  A second instance with a different device
+raises :exc:`ovphysx.types.PhysXDeviceError`.  As a result, only one device's
+tests can run per pytest invocation -- the ``_ovphysx_skip_other_device``
+autouse fixture pins the session to whichever device is requested first and
+skips any subsequent test parametrized to a different device.  To run both CPU
+and GPU coverage, invoke pytest twice (once per ``-k`` filter, or two separate
+processes).
+
+The ``_ovphysx_session_patches`` autouse fixture installs class-level monkey
+patches on :class:`~isaaclab_ovphysx.physics.OvPhysxManager` that:
+
+* Keep the cached ``_physx`` instance alive across :meth:`SimulationContext.clear_instance`
+  calls (instead of dropping it, which would trigger GC and the destructor race).
+* Reuse the cached ``_physx`` on the next test's :meth:`sim.reset`, calling
+  ``physx.reset()`` to clear the stage and ``physx.add_usd()`` to load the
+  freshly-exported USD -- bypassing :meth:`OvPhysxManager._warmup_and_load`'s
+  fresh-instance creation path.
 """
 
 from __future__ import annotations
 
+import logging
+import os
 import sys
+import tempfile
 from typing import Literal
 from unittest.mock import MagicMock
 
@@ -41,6 +76,7 @@ from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import (
@@ -54,6 +90,152 @@ from isaaclab.utils.math import (
 )
 
 wp.init()
+
+_logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Session-level OvPhysxManager patches
+# ---------------------------------------------------------------------------
+#
+# Cached ovphysx.PhysX instances keyed by device string.  Populated lazily by
+# the patched _warmup_and_load on first use per device.  Never cleared
+# mid-process: ovphysx<=0.3.7's destructor races on dual-Carbonite static state
+# when an instance is garbage-collected, so we keep references alive until
+# os._exit() (registered via OvPhysxManager._warmup_and_load's atexit handler)
+# tears the process down.
+_PHYSX_BY_DEVICE: dict[str, object] = {}
+
+
+def _patched_release_physx() -> None:
+    """Replacement for :meth:`OvPhysxManager._release_physx` used during tests.
+
+    The original drops ``cls._physx`` to None which lets the C++ destructor run
+    on GC and crashes due to the dual-Carbonite race.  Instead, we leave the
+    instance live (cached in :data:`_PHYSX_BY_DEVICE`) and just reset the
+    runtime stage so the next test can load a fresh USD.
+    """
+    if OvPhysxManager._physx is not None:
+        try:
+            op = OvPhysxManager._physx.reset()
+            OvPhysxManager._physx.wait_op(op)
+        except Exception as exc:  # pragma: no cover - defensive
+            _logger.warning("ovphysx.reset() raised during test teardown: %s", exc)
+    # Detach from OvPhysxManager class state but DO NOT release the underlying
+    # ovphysx.PhysX -- _PHYSX_BY_DEVICE still holds a strong reference.
+    OvPhysxManager._physx = None
+
+
+def _patched_warmup_and_load() -> None:
+    """Replacement for :meth:`OvPhysxManager._warmup_and_load` used during tests.
+
+    On the first use per device, delegate to the original implementation (which
+    creates the :class:`ovphysx.PhysX`, registers the ``atexit`` handler, and
+    loads the USD), then cache the freshly-built instance.  On subsequent
+    uses, reuse the cached instance: re-export the USD stage, re-add it to the
+    already-running PhysX, and replay any pending clones -- skipping the
+    constructor call that would otherwise trigger the dual-Carbonite race.
+    """
+    device_str = PhysicsManager._device
+    cache_key = device_str
+    physx = _PHYSX_BY_DEVICE.get(cache_key)
+    if physx is None:
+        _orig_warmup_and_load(OvPhysxManager)
+        _PHYSX_BY_DEVICE[cache_key] = OvPhysxManager._physx
+        return
+
+    sim = PhysicsManager._sim
+    if sim is None:
+        raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
+
+    if "cuda" in device_str:
+        ovphysx_device = "gpu"
+    else:
+        ovphysx_device = "cpu"
+
+    scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
+    if scene_prim.IsValid():
+        OvPhysxManager._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
+
+    OvPhysxManager._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
+    stage_file = os.path.join(OvPhysxManager._tmp_dir.name, "scene.usda")
+    sim.stage.Export(stage_file)
+    OvPhysxManager._stage_path = stage_file
+
+    # Reuse the cached instance.  The previous test's _patched_release_physx
+    # already called physx.reset() and detached the class-level reference;
+    # re-attach and load the new USD.
+    OvPhysxManager._physx = physx
+
+    usd_handle, op_idx = physx.add_usd(stage_file)
+    physx.wait_op(op_idx)
+    OvPhysxManager._usd_handle = usd_handle
+
+    if OvPhysxManager._pending_clones:
+        for source, targets, parent_positions in OvPhysxManager._pending_clones:
+            transforms = [(x, y, z, 0.0, 0.0, 0.0, 1.0) for x, y, z in parent_positions] if parent_positions else None
+            op_idx = physx.clone(source, targets, transforms)
+            physx.wait_op(op_idx)
+        OvPhysxManager._pending_clones = []
+
+    OvPhysxManager.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
+    OvPhysxManager._warmup_done = True
+
+
+# Reference to the unmodified class methods so the patched versions can fall
+# back to them on the first warmup of each device.
+_orig_release_physx = OvPhysxManager._release_physx.__func__
+_orig_warmup_and_load = OvPhysxManager._warmup_and_load.__func__
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ovphysx_session_patches():
+    """Install module-level monkey patches on :class:`OvPhysxManager`.
+
+    Active for the entire pytest session (autouse).  Restored at session
+    teardown -- though by that point the process is exiting via the manager's
+    ``atexit`` ``os._exit(0)`` so any post-yield work here is best-effort.
+    """
+    OvPhysxManager._release_physx = classmethod(lambda cls: _patched_release_physx())
+    OvPhysxManager._warmup_and_load = classmethod(lambda cls: _patched_warmup_and_load())
+    try:
+        yield
+    finally:
+        OvPhysxManager._release_physx = classmethod(_orig_release_physx)
+        OvPhysxManager._warmup_and_load = classmethod(_orig_warmup_and_load)
+
+
+# Session-locked device.  Set on the first parametrized test that runs and
+# never reassigned -- ovphysx's process-global device lock means subsequent
+# tests on the other device must skip.
+_LOCKED_DEVICE: list[str | None] = [None]
+
+
+@pytest.fixture(autouse=True)
+def _ovphysx_skip_other_device(request):
+    """Skip tests whose ``device`` parameter mismatches the session-locked device.
+
+    ``ovphysx<=0.3.7`` locks the process-global device mode on the first
+    ``ovphysx.PhysX(device=...)`` call, so any test parametrized to a different
+    device after the first ``sim.reset()`` would hit
+    :exc:`ovphysx.types.PhysXDeviceError`.  We detect the locked device on the
+    first encounter and skip subsequent tests on the other device with a clear
+    message so the run finishes cleanly rather than producing spurious failures.
+    """
+    callspec = getattr(request.node, "callspec", None)
+    device = callspec.params.get("device") if callspec is not None else None
+    if device is None:
+        # Test does not parametrize on device (e.g. test_warmup_attach_stage_not_called_for_cpu).
+        return
+    locked = _LOCKED_DEVICE[0]
+    if locked is None:
+        _LOCKED_DEVICE[0] = device
+        return
+    if device != locked:
+        pytest.skip(
+            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
+            "tests in the same session.  Run pytest twice (once per device) for full coverage."
+        )
 
 
 def _ovphysx_sim_context(device: str, **kwargs):
@@ -1063,7 +1245,19 @@ def test_warmup_attach_stage_not_called_for_cpu():
     wrapping the live PhysX object so that ``warmup_gpu`` becomes a spy while
     other calls continue to forward, then assert ``warmup_gpu.call_count == 0``
     after a CPU-mode :meth:`sim.reset`.
+
+    The test always runs CPU regardless of session parametrization, so it is
+    skipped when the session-locked device is anything other than CPU.  The
+    skip is enforced inline (rather than in the autouse fixture) so the rest
+    of the suite can still pin to GPU when invoked together.
     """
+    if _LOCKED_DEVICE[0] not in (None, "cpu"):
+        pytest.skip(
+            f"ovphysx process-global device lock is held by '{_LOCKED_DEVICE[0]}'; cannot run "
+            "CPU-only regression test in the same session."
+        )
+    _LOCKED_DEVICE[0] = "cpu"
+
     with _ovphysx_sim_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
         # Allocate a single rigid body so the manager has something to load.
         generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")

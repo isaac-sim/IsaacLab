@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+0.2.14 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Refactored ``test/assets/test_rigid_object.py`` to share a single
+  :class:`ovphysx.PhysX` instance across the pytest session.  The previous
+  PhysX-style "fresh :func:`~isaaclab.sim.build_simulation_context` per test"
+  pattern segfaulted after 4-5 tests because ``ovphysx<=0.3.7``'s destructor
+  races on dual-Carbonite static state when garbage-collected mid-process.
+  Two session-scoped autouse fixtures encapsulate the workaround:
+
+  * ``_ovphysx_session_patches`` monkey-patches
+    :meth:`~isaaclab_ovphysx.physics.OvPhysxManager._release_physx` and
+    :meth:`~isaaclab_ovphysx.physics.OvPhysxManager._warmup_and_load` to keep
+    the cached :class:`ovphysx.PhysX` alive across
+    :meth:`~isaaclab.sim.SimulationContext.clear_instance` calls and reuse it
+    via ``physx.reset()`` + ``physx.add_usd()`` for subsequent tests.
+  * ``_ovphysx_skip_other_device`` pins the session to whichever device is
+    requested first and skips later tests on the other device, since
+    ``ovphysx<=0.3.7`` locks the process-global device mode on the first
+    :class:`ovphysx.PhysX` construction.  Run pytest twice (once per device)
+    for full CPU + GPU coverage.
+
 0.2.13 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~~
 
