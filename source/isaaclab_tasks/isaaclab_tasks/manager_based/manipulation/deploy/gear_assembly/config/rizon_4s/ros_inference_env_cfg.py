@@ -14,13 +14,9 @@ from isaaclab.utils import configclass
 from .joint_pos_env_cfg import Rizon4sGearAssemblyEnvCfg
 
 
-def _make_constant_obs(value: tuple):
-    """Create an observation function that returns a fixed tensor every step."""
-
-    def _fn(env, **kwargs):
-        return torch.tensor([value], device=env.device, dtype=torch.float32).expand(env.num_envs, -1)
-
-    return _fn
+def constant_obs(env, value: tuple) -> torch.Tensor:
+    """Observation function that returns a fixed tensor every step."""
+    return torch.tensor([value], device=env.device, dtype=torch.float32).expand(env.num_envs, -1)
 
 
 @configclass
@@ -143,7 +139,7 @@ class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
 
     GEAR_TYPE: str = "gear_large"
     GEAR_BASE_POS: tuple = (0.481, -0.073, -0.005)
-    GEAR_BASE_ROT: tuple = (0.0, 0.0, 0.70711, -0.70711)
+    GEAR_BASE_ROT: tuple = (0.0, 0.0, -0.70711, 0.70711)
     GEAR_Z_OFFSET: float = 0.0675
 
     # ╔══════════════════════════════════════════════════════════════════════╗
@@ -153,8 +149,8 @@ class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
     # ║               shaft_quat(4)]                                         ║
     # ╚══════════════════════════════════════════════════════════════════════╝
 
-    OBS_SHAFT_POS: tuple | None = None  # e.g. (0.481, -0.073, -0.005)
-    OBS_SHAFT_QUAT: tuple | None = None  # e.g. (0.0, 0.0, 0.70711, -0.70711)
+    OBS_SHAFT_POS: tuple | None = None  # e.g. (0.481, -0.028, -0.005)
+    OBS_SHAFT_QUAT: tuple | None = None  # e.g. (0.0, 0.0, -0.70711, 0.70711)
 
     def __post_init__(self):
         super().__post_init__()
@@ -196,6 +192,10 @@ class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
 
         # ── Observation overrides (replace terms with constant functions) ─
         if self.OBS_SHAFT_POS is not None:
-            self.observations.policy.gear_shaft_pos = ObsTerm(func=_make_constant_obs(self.OBS_SHAFT_POS))
+            self.observations.policy.gear_shaft_pos = ObsTerm(
+                func=constant_obs, params={"value": self.OBS_SHAFT_POS}
+            )
         if self.OBS_SHAFT_QUAT is not None:
-            self.observations.policy.gear_shaft_quat = ObsTerm(func=_make_constant_obs(self.OBS_SHAFT_QUAT))
+            self.observations.policy.gear_shaft_quat = ObsTerm(
+                func=constant_obs, params={"value": self.OBS_SHAFT_QUAT}
+            )
