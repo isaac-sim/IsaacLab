@@ -503,3 +503,190 @@ class randomize_gears_and_base_pose(ManagerTermBase):
             velocities = velocities_by_asset[asset_name]
             asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
             asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
+
+
+class set_robot_to_object_grasp_pose(ManagerTermBase):
+    """Set robot to a grasp pose over a single named target object using IK.
+
+    Generic single-object counterpart of :class:`set_robot_to_grasp_pose` (which
+    is keyed on the gear-type manager). This term targets a single named
+    :class:`~isaaclab.assets.RigidObject` with a fixed grasp offset, suitable
+    for cable insertion and other single-object manipulation tasks.
+
+    Args:
+        target_object_name: Name of the rigid object in the scene to grasp.
+        end_effector_body_name: Name of the end-effector body on the robot.
+        num_arm_joints: Number of arm joints (the remaining joints are
+            assumed to be gripper/finger joints).
+        grasp_offset: Position offset ``[x, y, z]`` [m] applied in the
+            (rotated) object frame to define the IK target. Defaults to zero.
+        grasp_rot_offset: Quaternion offset ``(x, y, z, w)`` applied to the
+            object orientation to define the IK target.
+        gripper_joint_setter_func: Callable used to set finger joint positions
+            for the configured grasp/close widths.
+        robot_asset_cfg: Robot asset configuration. Defaults to
+            ``SceneEntityCfg("robot")``.
+        pos_threshold: IK position-error tolerance [m].
+        rot_threshold: IK rotation-error tolerance [rad].
+        max_iterations: Maximum IK iterations per env reset.
+        pos_randomization_range: Optional dict with keys ``"x"``, ``"y"``,
+            ``"z"`` mapping to ``(low, high)`` tuples [m] for per-reset
+            randomization of the grasp offset.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+
+        self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
+        self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
+
+        for required in (
+            "end_effector_body_name",
+            "num_arm_joints",
+            "grasp_rot_offset",
+            "gripper_joint_setter_func",
+            "target_object_name",
+        ):
+            if required not in cfg.params:
+                raise ValueError(f"'{required}' is required in set_robot_to_object_grasp_pose configuration.")
+
+        self.end_effector_body_name: str = cfg.params["end_effector_body_name"]
+        self.num_arm_joints: int = cfg.params["num_arm_joints"]
+        self.gripper_joint_setter_func = cfg.params["gripper_joint_setter_func"]
+        self.target_object_name: str = cfg.params["target_object_name"]
+
+        grasp_offset = cfg.params.get("grasp_offset", [0.0, 0.0, 0.0])
+        self.grasp_offset_tensor = torch.tensor(grasp_offset, device=env.device, dtype=torch.float32)
+
+        grasp_rot_offset = cfg.params["grasp_rot_offset"]
+        self.grasp_rot_offset_tensor = (
+            torch.tensor(grasp_rot_offset, device=env.device, dtype=torch.float32).unsqueeze(0).repeat(env.num_envs, 1)
+        )
+
+        self.grasp_offsets_buffer = torch.zeros(env.num_envs, 3, device=env.device, dtype=torch.float32)
+
+        self.hand_grasp_width = env.cfg.hand_grasp_width
+        self.hand_close_width = env.cfg.hand_close_width
+
+        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
+        if len(eef_indices) == 0:
+            raise ValueError(f"End effector body '{self.end_effector_body_name}' not found in robot")
+        self.eef_idx = eef_indices[0]
+        self.jacobi_body_idx = self.eef_idx - 1
+
+        all_joints, _ = self.robot_asset.find_joints([".*"])
+        self.all_joints = all_joints
+        self.finger_joints = all_joints[self.num_arm_joints :]
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        robot_asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        pos_threshold: float = 1e-6,
+        rot_threshold: float = 1e-6,
+        max_iterations: int = 50,
+        pos_randomization_range: dict | None = None,
+        target_object_name: str | None = None,
+        grasp_offset: list | None = None,
+        end_effector_body_name: str | None = None,
+        num_arm_joints: int | None = None,
+        grasp_rot_offset: list | None = None,
+        gripper_joint_setter_func: callable | None = None,
+    ):
+        num_reset_envs = len(env_ids)
+        grasp_offsets = self.grasp_offsets_buffer[:num_reset_envs]
+        grasp_rot_offset_tensor = self.grasp_rot_offset_tensor[env_ids]
+
+        for _ in range(max_iterations):
+            joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
+            joint_vel = wp.to_torch(self.robot_asset.data.joint_vel)[env_ids].clone()
+
+            target_object: RigidObject = env.scene[self.target_object_name]
+            grasp_object_pos_world = wp.to_torch(target_object.data.root_link_pos_w)[env_ids]
+            grasp_object_quat = wp.to_torch(target_object.data.root_link_quat_w)[env_ids]
+
+            grasp_object_quat = math_utils.quat_mul(grasp_object_quat, grasp_rot_offset_tensor)
+
+            grasp_offsets[:] = self.grasp_offset_tensor
+
+            if pos_randomization_range is not None:
+                pos_keys = ["x", "y", "z"]
+                range_list_pos = [pos_randomization_range.get(key, (0.0, 0.0)) for key in pos_keys]
+                ranges_pos = torch.tensor(range_list_pos, device=env.device)
+                rand_pos_offsets = math_utils.sample_uniform(
+                    ranges_pos[:, 0], ranges_pos[:, 1], (len(env_ids), 3), device=env.device
+                )
+                grasp_offsets = grasp_offsets + rand_pos_offsets
+
+            grasp_object_pos_world = grasp_object_pos_world + math_utils.quat_apply(grasp_object_quat, grasp_offsets)
+
+            eef_pos = wp.to_torch(self.robot_asset.data.body_pos_w)[env_ids, self.eef_idx]
+            eef_quat = wp.to_torch(self.robot_asset.data.body_quat_w)[env_ids, self.eef_idx]
+
+            pos_error, axis_angle_error = fc.get_pose_error(
+                fingertip_midpoint_pos=eef_pos,
+                fingertip_midpoint_quat=eef_quat,
+                ctrl_target_fingertip_midpoint_pos=grasp_object_pos_world,
+                ctrl_target_fingertip_midpoint_quat=grasp_object_quat,
+                jacobian_type="geometric",
+                rot_error_type="axis_angle",
+            )
+            delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
+
+            pos_error_norm = torch.linalg.norm(pos_error, dim=-1)
+            rot_error_norm = torch.linalg.norm(axis_angle_error, dim=-1)
+
+            if torch.all(pos_error_norm < pos_threshold) and torch.all(rot_error_norm < rot_threshold):
+                break
+
+            jacobians = wp.to_torch(self.robot_asset.root_view.get_jacobians()).clone()
+            jacobian = jacobians[env_ids, self.jacobi_body_idx, :, :]
+
+            delta_dof_pos = fc._get_delta_dof_pos(
+                delta_pose=delta_hand_pose,
+                ik_method="dls",
+                jacobian=jacobian,
+                device=env.device,
+            )
+
+            joint_pos = joint_pos + delta_dof_pos
+
+            joint_pos_limits = wp.to_torch(self.robot_asset.data.joint_pos_limits)[env_ids, : self.num_arm_joints, :]
+            joint_min = joint_pos_limits[:, :, 0]
+            joint_max = joint_pos_limits[:, :, 1]
+            joint_range = joint_max - joint_min
+
+            arm_joint_pos = joint_pos[:, : self.num_arm_joints]
+            arm_joint_pos = torch.where(
+                joint_range > 0,
+                joint_min + torch.remainder(arm_joint_pos - joint_min, joint_range),
+                arm_joint_pos,
+            )
+            joint_pos[:, : self.num_arm_joints] = arm_joint_pos
+
+            joint_vel = torch.zeros_like(joint_pos)
+
+            self.robot_asset.set_joint_position_target_index(target=joint_pos, env_ids=env_ids)
+            self.robot_asset.set_joint_velocity_target_index(target=joint_vel, env_ids=env_ids)
+            self.robot_asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+            self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+
+        joint_vel = torch.zeros_like(wp.to_torch(self.robot_asset.data.joint_vel)[env_ids])
+        joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
+
+        self.gripper_joint_setter_func(
+            joint_pos, list(range(num_reset_envs)), self.finger_joints, self.hand_grasp_width
+        )
+
+        self.robot_asset.set_joint_position_target_index(target=joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
+        self.robot_asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+
+        self.gripper_joint_setter_func(
+            joint_pos, list(range(num_reset_envs)), self.finger_joints, self.hand_close_width
+        )
+
+        self.robot_asset.set_joint_position_target_index(target=joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
+        self.robot_asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)

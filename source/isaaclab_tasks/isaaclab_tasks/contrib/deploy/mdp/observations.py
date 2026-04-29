@@ -338,3 +338,90 @@ class gear_quat_w(ManagerTermBase):
         gear_positive_quat[w_negative] = -gear_quat[w_negative]
 
         return gear_positive_quat
+
+
+class rigid_object_pos_w(ManagerTermBase):
+    """Rigid object position in the environment frame, with optional local-frame offset.
+
+    Generic observation term that returns the position of any
+    :class:`~isaaclab.assets.RigidObject` in the environment frame. An optional
+    3D offset can be applied in the object's local frame before subtracting the
+    environment origin.
+
+    Args:
+        asset_cfg: The asset configuration. Required.
+        offset: A 3D offset ``[x, y, z]`` [m] applied in the object's local frame.
+            Defaults to ``[0, 0, 0]``.
+
+    Returns:
+        Object position tensor in the environment frame, shape ``[num_envs, 3]`` [m].
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        if "asset_cfg" not in cfg.params:
+            raise ValueError("'asset_cfg' parameter is required in rigid_object_pos_w configuration.")
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject = env.scene[self.asset_cfg.name]
+
+        offset = cfg.params.get("offset", [0.0, 0.0, 0.0])
+        self.offset_tensor = torch.tensor(offset, device=env.device, dtype=torch.float32)
+
+        self.identity_quat = (
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32)
+            .repeat(env.num_envs, 1)
+            .contiguous()
+        )
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg | None = None,
+        offset: list | None = None,
+    ) -> torch.Tensor:
+        obj_pos = wp.to_torch(self.asset.data.root_pos_w)
+        obj_quat = wp.to_torch(self.asset.data.root_quat_w)
+
+        if torch.any(self.offset_tensor != 0):
+            offset_repeated = self.offset_tensor.unsqueeze(0).repeat(env.num_envs, 1)
+            obj_pos, _ = combine_frame_transforms(obj_pos, obj_quat, offset_repeated, self.identity_quat)
+
+        return obj_pos - env.scene.env_origins
+
+
+class rigid_object_quat_w(ManagerTermBase):
+    """Rigid object orientation in the world frame.
+
+    Generic observation term that returns the orientation of any
+    :class:`~isaaclab.assets.RigidObject`. The quaternion is canonicalized so
+    that the ``w`` component is positive, reducing observation variation seen
+    by the policy.
+
+    Args:
+        asset_cfg: The asset configuration. Required.
+
+    Returns:
+        Object orientation as a quaternion ``(x, y, z, w)``, shape ``[num_envs, 4]``.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        if "asset_cfg" not in cfg.params:
+            raise ValueError("'asset_cfg' parameter is required in rigid_object_quat_w configuration.")
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject = env.scene[self.asset_cfg.name]
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg: SceneEntityCfg | None = None,
+    ) -> torch.Tensor:
+        obj_quat = wp.to_torch(self.asset.data.root_quat_w)
+
+        w_negative = obj_quat[:, 3] < 0
+        positive_quat = obj_quat.clone()
+        positive_quat[w_negative] = -obj_quat[w_negative]
+
+        return positive_quat
