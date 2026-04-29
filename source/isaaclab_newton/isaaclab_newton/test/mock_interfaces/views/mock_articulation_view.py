@@ -49,6 +49,7 @@ class MockNewtonCollectionView:
         # Internal state (lazily initialised)
         self._root_transforms: wp.array | None = None
         self._root_velocities: wp.array | None = None
+        self._articulation_ids: wp.array | None = None
         self._attributes: dict[str, wp.array | None] = {
             "body_com": None,
             "body_mass": None,
@@ -66,6 +67,16 @@ class MockNewtonCollectionView:
     @property
     def body_names(self) -> list[str]:
         return self._body_names
+
+    @property
+    def articulation_ids(self) -> wp.array:
+        """Mapping from ``(world, arti)`` to model articulation index. Shape ``(N, B)`` dtype=int."""
+        if self._articulation_ids is None:
+            ids_np = np.arange(self._num_envs * self._num_bodies, dtype=np.int32).reshape(
+                self._num_envs, self._num_bodies
+            )
+            self._articulation_ids = wp.array(ids_np, dtype=int, device=self._device)
+        return self._articulation_ids
 
     # -- Lazy init helpers -------------------------------------------------
 
@@ -222,6 +233,7 @@ class MockNewtonArticulationView:
         self._link_velocities: wp.array | None = None
         self._dof_positions: wp.array | None = None
         self._dof_velocities: wp.array | None = None
+        self._articulation_ids: wp.array | None = None
 
         # Attributes dict (lazily initialized)
         self._attributes: dict[str, wp.array | None] = {
@@ -280,6 +292,14 @@ class MockNewtonArticulationView:
     def link_names(self) -> list[str]:
         """Alias for body_names (Newton calls bodies 'links')."""
         return self._body_names
+
+    @property
+    def articulation_ids(self) -> wp.array:
+        """Mapping from ``(world, arti)`` to model articulation index. Shape ``(N, 1)`` dtype=int."""
+        if self._articulation_ids is None:
+            ids_np = np.arange(self._count, dtype=np.int32).reshape(self._count, 1)
+            self._articulation_ids = wp.array(ids_np, dtype=int, device=self._device)
+        return self._articulation_ids
 
     # -- Lazy Initialization Helpers --
 
