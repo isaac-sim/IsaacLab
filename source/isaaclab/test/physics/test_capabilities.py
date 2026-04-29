@@ -169,13 +169,15 @@ def test_validate_passes_with_no_consumers():
 def test_validate_passes_when_required_satisfied():
     p = _FakeProvider()
     p._register_capability(GpuTransformBuffer, _FakeGpuHandle())
-    p.register_consumer(_ConsumerWantingGpu())
+    consumer = _ConsumerWantingGpu()
+    p.register_consumer(consumer)
     p.validate_consumer_capabilities()
 
 
 def test_validate_fails_with_missing_required():
     p = _FakeProvider()
-    p.register_consumer(_ConsumerWantingGpu())
+    consumer = _ConsumerWantingGpu()
+    p.register_consumer(consumer)
     with pytest.raises(CapabilityRequirementError) as excinfo:
         p.validate_consumer_capabilities()
     assert "GpuTransformBuffer" in str(excinfo.value)
@@ -185,7 +187,8 @@ def test_validate_fails_with_missing_required():
 def test_validate_message_lists_offered_capabilities():
     p = _FakeProvider()
     p._register_capability(UsdFabric, _FakeFabricHandle())
-    p.register_consumer(_ConsumerWantingGpu())
+    consumer = _ConsumerWantingGpu()
+    p.register_consumer(consumer)
     with pytest.raises(CapabilityRequirementError) as excinfo:
         p.validate_consumer_capabilities()
     assert "UsdFabric" in str(excinfo.value)
@@ -194,8 +197,10 @@ def test_validate_message_lists_offered_capabilities():
 def test_validate_consolidates_multiple_failures():
     """A single error reports failures for every offending consumer."""
     p = _FakeProvider()
-    p.register_consumer(_ConsumerWantingGpu())
-    p.register_consumer(_ConsumerWantingUsd())
+    gpu_consumer = _ConsumerWantingGpu()
+    usd_consumer = _ConsumerWantingUsd()
+    p.register_consumer(gpu_consumer)
+    p.register_consumer(usd_consumer)
     with pytest.raises(CapabilityRequirementError) as excinfo:
         p.validate_consumer_capabilities()
     msg = str(excinfo.value)
@@ -206,13 +211,15 @@ def test_validate_consolidates_multiple_failures():
 def test_required_one_of_passes_when_any_present():
     p = _FakeProvider()
     p._register_capability(GpuTransformBuffer, _FakeGpuHandle())
-    p.register_consumer(_ConsumerWantingEither())
+    consumer = _ConsumerWantingEither()
+    p.register_consumer(consumer)
     p.validate_consumer_capabilities()
 
 
 def test_required_one_of_fails_when_all_missing():
     p = _FakeProvider()
-    p.register_consumer(_ConsumerWantingEither())
+    consumer = _ConsumerWantingEither()
+    p.register_consumer(consumer)
     with pytest.raises(CapabilityRequirementError) as excinfo:
         p.validate_consumer_capabilities()
     assert "one-of" in str(excinfo.value)
@@ -222,7 +229,8 @@ def test_required_capabilities_are_all_required():
     p = _FakeProvider()
     p._register_capability(GpuTransformBuffer, _FakeGpuHandle())
     # UsdFabric missing
-    p.register_consumer(_ConsumerWantingBoth())
+    consumer = _ConsumerWantingBoth()
+    p.register_consumer(consumer)
     with pytest.raises(CapabilityRequirementError) as excinfo:
         p.validate_consumer_capabilities()
     assert "UsdFabric" in str(excinfo.value)
@@ -233,18 +241,21 @@ def test_register_consumer_invalidates_prior_validation():
     """A new registration after validate() must force re-validation."""
     p = _FakeProvider()
     p._register_capability(GpuTransformBuffer, _FakeGpuHandle())
-    p.register_consumer(_ConsumerWantingGpu())
+    gpu_consumer = _ConsumerWantingGpu()
+    p.register_consumer(gpu_consumer)
     p.validate_consumer_capabilities()
     assert p._capabilities_validated is True
 
-    p.register_consumer(_ConsumerWantingUsd())
+    usd_consumer = _ConsumerWantingUsd()
+    p.register_consumer(usd_consumer)
     assert p._capabilities_validated is False
 
 
 def test_validate_if_needed_is_idempotent():
     p = _FakeProvider()
     p._register_capability(GpuTransformBuffer, _FakeGpuHandle())
-    p.register_consumer(_ConsumerWantingGpu())
+    consumer = _ConsumerWantingGpu()
+    p.register_consumer(consumer)
     p._validate_consumers_if_needed()
     # Second call is a no-op even if we mutate the registry behind its back.
     p._capabilities.pop(GpuTransformBuffer)
@@ -269,5 +280,6 @@ def test_consumer_registry_uses_weak_references():
 def test_custom_capability_validates_like_built_ins():
     p = _FakeProvider()
     p._register_capability(_CustomCap, _FakeCustomHandle())
-    p.register_consumer(_ConsumerWantingCustom())
+    consumer = _ConsumerWantingCustom()
+    p.register_consumer(consumer)
     p.validate_consumer_capabilities()

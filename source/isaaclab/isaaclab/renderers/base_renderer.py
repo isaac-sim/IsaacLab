@@ -38,9 +38,14 @@ class BaseRenderer(ABC):
 
         Subclasses call this once they have acquired the active SDP, so the
         provider can validate :attr:`required_capabilities` and
-        :attr:`required_one_of` at first-frame.
+        :attr:`required_one_of` at first-frame. Test fixtures that mock the
+        provider with a duck-typed object may not implement
+        ``register_consumer``; this is treated as a no-op so renderer unit
+        tests do not need to fake the full provider surface.
         """
-        provider.register_consumer(self)
+        register = getattr(provider, "register_consumer", None)
+        if register is not None:
+            register(self)
 
     @abstractmethod
     def prepare_stage(self, stage: Any, num_envs: int) -> None:

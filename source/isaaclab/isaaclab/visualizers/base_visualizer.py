@@ -55,9 +55,14 @@ class BaseVisualizer(ABC):
 
         Subclasses call this from :meth:`initialize` once they have the
         active SDP, so the provider can validate :attr:`required_capabilities`
-        and :attr:`required_one_of` at first-frame.
+        and :attr:`required_one_of` at first-frame. Test fixtures that mock
+        the provider with a duck-typed object may not implement
+        ``register_consumer``; this is treated as a no-op so visualizer
+        unit tests do not need to fake the full provider surface.
         """
-        provider.register_consumer(self)
+        register = getattr(provider, "register_consumer", None)
+        if register is not None:
+            register(self)
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:

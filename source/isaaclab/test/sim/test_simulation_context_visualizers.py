@@ -168,10 +168,25 @@ def test_update_visualizers_handles_training_pause_loop():
     assert viz.step_calls == [0.0, 0.2]
 
 
+class _DummyNewtonStateCap:
+    """Forward NewtonState protocol calls to a dummy provider."""
+
+    def __init__(self, provider):
+        self._provider = provider
+
+    def get_state(self):
+        return self._provider.get_newton_state()
+
+    def get_model(self):
+        return self._provider.get_newton_model()
+
+
 class _DummyViserSceneDataProvider:
     def __init__(self):
         self._metadata = {"num_envs": 4}
         self.state_calls: list[list[int] | None] = []
+        self._cap = _DummyNewtonStateCap(self)
+        self._consumers: list = []
 
     def get_metadata(self) -> dict:
         return self._metadata
@@ -182,6 +197,16 @@ class _DummyViserSceneDataProvider:
     def get_newton_state(self):
         self.state_calls.append(None)
         return {"state_call": len(self.state_calls)}
+
+    def register_consumer(self, consumer) -> None:
+        self._consumers.append(consumer)
+
+    def get_capability(self, cap_type):
+        from isaaclab_newton.physics.capabilities import NewtonState
+
+        if cap_type is NewtonState:
+            return self._cap
+        return None
 
 
 class _DummyViserViewer:
@@ -345,6 +370,10 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
             captured["closed"] = True
 
     class _DummyRerunSceneDataProvider:
+        def __init__(self):
+            self._cap = _DummyNewtonStateCap(self)
+            self._consumers: list = []
+
         def get_metadata(self) -> dict:
             return {"num_envs": 4}
 
@@ -353,6 +382,16 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
 
         def get_newton_state(self):
             return {"ok": True}
+
+        def register_consumer(self, consumer) -> None:
+            self._consumers.append(consumer)
+
+        def get_capability(self, cap_type):
+            from isaaclab_newton.physics.capabilities import NewtonState
+
+            if cap_type is NewtonState:
+                return self._cap
+            return None
 
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(
@@ -433,6 +472,8 @@ def _make_context_with_settings(
             "render_interval": 1,
         },
     )()
+    from isaaclab.physics.scene_data_requirements import SceneDataRequirement
+
     ctx = object.__new__(SimulationContext)
     ctx.cfg = cfg
     ctx._has_gui = has_gui
@@ -442,7 +483,7 @@ def _make_context_with_settings(
     ctx._render_generation = 0
     ctx._visualizers = []
     ctx._scene_data_provider = _FakeProvider()
-    ctx._scene_data_requirements = None
+    ctx._scene_data_requirements = SceneDataRequirement()
     ctx._visualizer_prebuilt_artifact = None
     ctx._visualizer_step_counter = 0
     ctx._viz_dt = 0.01
@@ -526,8 +567,9 @@ def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPat
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
     import isaaclab.sim.simulation_context as sc_mod
+    from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 
-    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
+    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: SceneDataRequirement())
 
     with pytest.raises(RuntimeError, match="failed to create or initialize"):
         ctx.initialize_visualizers()
@@ -545,8 +587,9 @@ def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
     import isaaclab.sim.simulation_context as sc_mod
+    from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 
-    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
+    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: SceneDataRequirement())
 
     with pytest.raises(RuntimeError, match="failed to create or initialize"):
         ctx.initialize_visualizers()
@@ -593,8 +636,9 @@ def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyP
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
     import isaaclab.sim.simulation_context as sc_mod
+    from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 
-    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: type("R", (), {})())
+    monkeypatch.setattr(sc_mod, "resolve_scene_data_requirements", lambda **kwargs: SceneDataRequirement())
 
     with caplog.at_level("ERROR"):
         ctx.initialize_visualizers()
