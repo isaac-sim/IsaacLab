@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+4.6.25 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.sim.SimulationContext.initialize_visualizers`
+  overwriting scene-data requirements with visualizer-only requirements,
+  discarding sensor-renderer requirements (e.g. ``requires_usd_stage``)
+  set earlier by :class:`~isaaclab.scene.InteractiveScene`. The two are
+  now merged via :func:`aggregate_requirements`, so the Scene Data
+  Provider sees the full picture at construction time. This was a
+  pre-existing bug; it surfaced once the capability framework
+  (ADR-0002) added explicit cap requirements on consumers like
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`.
+
+
 4.6.24 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

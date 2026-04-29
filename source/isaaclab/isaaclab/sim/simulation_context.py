@@ -26,6 +26,7 @@ from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataPro
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
     VisualizerPrebuiltArtifacts,
+    aggregate_requirements,
     resolve_scene_data_requirements,
 )
 from isaaclab.sim.utils import create_new_stage
@@ -560,12 +561,16 @@ class SimulationContext:
 
         cli_explicit = self._is_cli_visualizer_explicit()
 
-        # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
+        # Resolve visualizer-driven requirements and merge them with whatever
+        # scene-driven requirements (e.g. sensor-renderer types from
+        # ``InteractiveScene``) have already been registered. Without the merge,
+        # later capability checks on the SDP would miss requirements like
+        # ``requires_usd_stage`` that were set earlier in scene construction.
         visualizer_types = [
             cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) is not None
         ]
-        requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
-        self._scene_data_requirements = requirements
+        viz_requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
+        self._scene_data_requirements = aggregate_requirements([self._scene_data_requirements, viz_requirements])
         self.initialize_scene_data_provider()
         self._visualizers = []
 
