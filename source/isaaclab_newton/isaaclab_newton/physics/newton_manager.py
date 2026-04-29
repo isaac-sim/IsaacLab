@@ -42,6 +42,8 @@ from isaaclab.utils.timer import Timer
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
+    from isaaclab_newton.actuators import NewtonActuatorAdapter
+
     from .newton_collision_cfg import NewtonCollisionPipelineCfg
 
 logger = logging.getLogger(__name__)
@@ -109,6 +111,10 @@ class NewtonManager(PhysicsManager):
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
     _fk_dirty: bool = False
+
+    # Newton actuator adapter (owns actuators and double-buffered states)
+    _adapter: NewtonActuatorAdapter | None = None
+    _decimation: int = 1
 
     # CUDA graphing
     _graph = None
@@ -303,7 +309,30 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def step(cls) -> None:
-        """Step the physics simulation."""
+        """Step the physics simulation.
+
+        The stepping logic follows one of two paths depending on whether
+        **all** actuators are CUDA-graph-safe:
+
+        **All-graphable path** (:meth:`_simulate_full`):
+
+        Actuators and solver substeps are captured together in a single
+        CUDA graph containing the full
+        ``decimation x (actuators + solver substeps)`` loop.
+
+        **Eager-actuator path** (fallback, some actuators not graph-safe):
+
+        Actuators are stepped eagerly on the CPU timeline (outside the
+        graph), then a graph containing only the solver substeps is
+        launched via :meth:`_simulate_physics_only`.
+
+        In both paths the sequence within one physics step is::
+
+            zero actuated DOFs in control.joint_f
+            -> actuator.step (computes effort, writes to control.joint_f)
+            -> solver.step x num_substeps (integrates, reads control.joint_f)
+            -> sensors.update
+        """
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():
             return
@@ -315,9 +344,7 @@ class NewtonManager(PhysicsManager):
                     cls._solver.notify_model_changed(change)
                 cls._model_changes = set()
 
-        # Lazy CUDA graph capture: deferred from initialize_solver() when RTX was active.
-        # By the time step() is first called, RTX has fully initialized (all cudaImportExternalMemory
-        # calls are done) and is idle between render frames — giving us a clean capture window.
+        # Lazy CUDA graph capture
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
         if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device:  # type: ignore[union-attr]
@@ -328,21 +355,36 @@ class NewtonManager(PhysicsManager):
             else:
                 logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
 
-        # Ensure body_q is up-to-date before collision detection.
-        # After env resets, joint_q is written but body_q (used by
-        # broadphase/narrowphase) is stale until FK runs.
+        # FK update for collision pipeline
         if cls._fk_dirty and cls._needs_collision_pipeline:
             eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
         cls._fk_dirty = False
 
-        # Step simulation (graphed or not; _graph is None when capture is disabled or failed)
-        if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device:  # type: ignore[union-attr]
-            wp.capture_launch(cls._graph)
-            if cls._usdrt_stage is not None:
-                cls._mark_transforms_dirty()
+        physics_dt = cls._solver_dt * cls._num_substeps
+        use_graph = cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device  # type: ignore[union-attr]
+
+        if cls._is_all_graphable():
+            # --- All actuators are graph-safe: actuators + solver in one graph ---
+            if use_graph:
+                wp.capture_launch(cls._graph)
+            else:
+                with wp.ScopedDevice(device):
+                    cls._simulate_full()
+            PhysicsManager._sim_time += physics_dt * cls._decimation
         else:
-            with wp.ScopedDevice(device):
-                cls._simulate()
+            # --- Some actuators not graph-safe: step them eagerly, graph solver only ---
+            if cls._adapter is not None:
+                cls._adapter.step(cls._state_0, cls._control, physics_dt)
+
+            if use_graph:
+                wp.capture_launch(cls._graph)
+            else:
+                with wp.ScopedDevice(device):
+                    cls._simulate_physics_only()
+            PhysicsManager._sim_time += physics_dt
+
+        if cls._usdrt_stage is not None:
+            cls._mark_transforms_dirty()
 
         # Debug convergence info
         if cfg is not None and cfg.debug_mode:  # type: ignore[union-attr]
@@ -350,7 +392,6 @@ class NewtonManager(PhysicsManager):
             logger.info(f"Solver convergence data: {convergence_data}")
             if convergence_data["max"] == cls._solver.mjw_model.opt.iterations:
                 logger.warning(f"Solver didn't converge! max_iter={convergence_data['max']}")
-        PhysicsManager._sim_time += cls._solver_dt * cls._num_substeps
 
     @classmethod
     def close(cls) -> None:
@@ -399,6 +440,8 @@ class NewtonManager(PhysicsManager):
         cls._newton_imu_sensors = []
         cls._report_contacts = False
         cls._fk_dirty = False
+        cls._adapter = None
+        cls._decimation = 1
         cls._graph = None
         cls._graph_capture_pending = False
         cls._newton_stage_path = None
@@ -651,6 +694,10 @@ class NewtonManager(PhysicsManager):
         cls._control = cls._model.control()
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
 
+        # Actuator registration is deferred to register_adapter(),
+        # called by _process_actuators_cfg after the adapter is constructed.
+        cls._adapter = None
+
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
 
@@ -870,28 +917,46 @@ class NewtonManager(PhysicsManager):
                 logger.warning("cubric bindings init failed; falling back to update_world_xforms()")
                 cls._cubric = None
 
-        device = PhysicsManager._device
-
-        use_cuda_graph = cfg.use_cuda_graph and "cuda" in device  # type: ignore[union-attr]
-
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-            if use_cuda_graph:
-                if cls._usdrt_stage is None:
-                    # No RTX active — use standard Warp capture (cudaStreamCaptureModeGlobal).
-                    with wp.ScopedCapture() as capture:
-                        cls._simulate()
-                    cls._graph = capture.graph
-                    logger.info("Newton CUDA graph captured (standard Warp mode)")
-                else:
-                    # RTX is active during initialization — cudaImportExternalMemory and other
-                    # non-capturable RTX ops run on background CUDA streams right now.
-                    # Defer capture to the first step() call, after RTX is fully initialized
-                    # and idle between render frames (clean capture window).
-                    cls._graph = None
-                    cls._graph_capture_pending = True
-                    logger.info("Newton CUDA graph capture deferred until first step() (RTX active)")
+            cls._capture_or_defer_graph()
+
+    @classmethod
+    def _capture_or_defer_graph(cls) -> None:
+        """Capture (or schedule deferred capture of) the CUDA graph.
+
+        Called by :meth:`start_simulation` and :meth:`set_decimation`
+        whenever the graph needs to be (re-)captured.
+
+        * **No USDRT / headless**: captures immediately via
+          ``wp.ScopedCapture``.
+        * **RTX active**: defers capture to the first :meth:`step` call
+          via :meth:`_capture_relaxed_graph`, because RTX background
+          streams are not yet idle during initialisation.
+        * **CUDA graphs disabled**: clears the graph reference.
+        """
+        cfg = PhysicsManager._cfg
+        device = PhysicsManager._device
+        if cfg is None or device is None:
+            return
+
+        use_cuda_graph = cfg.use_cuda_graph and "cuda" in device
+        if use_cuda_graph:
+            if cls._usdrt_stage is None:
+                simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
+                with wp.ScopedCapture() as capture:
+                    simulate()
+                cls._graph = capture.graph
+                logger.info("Newton CUDA graph captured (standard Warp mode)")
             else:
+                # RTX is active during initialization — cudaImportExternalMemory and other
+                # non-capturable RTX ops run on background CUDA streams right now.
+                # Defer capture to the first step() call, after RTX is fully initialized
+                # and idle between render frames (clean capture window).
                 cls._graph = None
+                cls._graph_capture_pending = True
+                logger.info("Newton CUDA graph capture deferred until first step() (RTX active)")
+        else:
+            cls._graph = None
 
     @classmethod
     def _capture_relaxed_graph(cls, device: str):
@@ -922,7 +987,7 @@ class NewtonManager(PhysicsManager):
           this registers the capture in Warp's ``device.captures`` *without* calling
           ``cudaStreamBeginCapture`` (already done) and *without* changing device-wide memory
           pool attributes (avoids error 900 in RTX's ``cudaMallocAsync``).
-        - Run ``_simulate_physics_only()`` inside ``ScopedStream(fresh_stream)``:
+        - Run the simulate function inside ``ScopedStream(fresh_stream)``:
           kernels dispatch to ``fresh_stream`` and are captured; ``wp.capture_while`` finds the
           active capture and inserts a conditional graph node instead of synchronising.
         - Call ``wp.capture_end(stream=fresh_stream)`` to finalise the Warp-level capture.
@@ -940,8 +1005,9 @@ class NewtonManager(PhysicsManager):
 
         # Warmup: pre-allocate all MuJoCo-Warp scratch buffers so the capture window has
         # no new cudaMalloc calls (which are forbidden inside graph capture).
+        simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
         with wp.ScopedDevice(device):
-            cls._simulate_physics_only()
+            simulate()
         wp.synchronize_stream(wp.get_stream(device))
 
         # Create a non-blocking stream (cudaStreamNonBlocking = 0x01).
@@ -974,7 +1040,7 @@ class NewtonManager(PhysicsManager):
         err_during_capture = None
         with wp.ScopedStream(fresh_stream, sync_enter=False):
             try:
-                cls._simulate_physics_only()
+                simulate()
             except Exception as exc:
                 err_during_capture = exc
 
@@ -1014,15 +1080,74 @@ class NewtonManager(PhysicsManager):
         graph.graph_exec = None
         return graph
 
+    # ------------------------------------------------------------------
+    # Building blocks — used by _simulate_full / _simulate_physics_only
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _run_solver_substeps(cls, contacts) -> None:
+        """Run ``num_substeps`` solver iterations, handling double-buffered state swap."""
+        if cls._use_single_state:
+            for _ in range(cls._num_substeps):
+                cls._solver.step(cls._state_0, cls._state_0, cls._control, contacts, cls._solver_dt)
+                cls._state_0.clear_forces()
+        else:
+            cfg = PhysicsManager._cfg
+            need_copy_on_last = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
+            for i in range(cls._num_substeps):
+                cls._solver.step(cls._state_0, cls._state_1, cls._control, contacts, cls._solver_dt)
+                if need_copy_on_last and i == cls._num_substeps - 1:
+                    cls._state_0.assign(cls._state_1)
+                else:
+                    cls._state_0, cls._state_1 = cls._state_1, cls._state_0
+                cls._state_0.clear_forces()
+
+    @classmethod
+    def _update_sensors(cls, contacts) -> None:
+        """Push latest state to all registered Newton sensors."""
+        if cls._newton_frame_transform_sensors:
+            for sensor in cls._newton_frame_transform_sensors:
+                sensor.update(cls._state_0)
+        if cls._newton_imu_sensors:
+            for sensor in cls._newton_imu_sensors:
+                sensor.update(cls._state_0)
+        if cls._report_contacts:
+            eval_contacts = contacts if contacts is not None else cls._contacts
+            cls._solver.update_contacts(eval_contacts, cls._state_0)
+            for sensor in cls._newton_contact_sensors.values():
+                sensor.update(cls._state_0, eval_contacts)
+
+    # ------------------------------------------------------------------
+    # Composite stepping routines
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _simulate_full(cls) -> None:
+        """Run ``decimation x (actuators + solver substeps)``, then sensors.
+
+        Works for any decimation count (including 1).  All actuators must be
+        graph-safe so the entire loop can be captured as a single CUDA graph.
+        """
+        physics_dt = cls._solver_dt * cls._num_substeps
+        contacts = cls._contacts if cls._needs_collision_pipeline else None
+
+        for _ in range(cls._decimation):
+            if cls._needs_collision_pipeline:
+                cls._collision_pipeline.collide(cls._state_0, cls._contacts)
+
+            if cls._adapter is not None:
+                cls._adapter.step(cls._state_0, cls._control, physics_dt)
+
+            cls._run_solver_substeps(contacts)
+
+        cls._update_sensors(contacts)
+
     @classmethod
     def _simulate_physics_only(cls) -> None:
-        """Run one physics step without Fabric/USD sync — safe for CUDA graph capture.
+        """Collision + solver substeps + sensors (no actuators, no USD sync).
 
-        Used by :meth:`_capture_relaxed_graph` to capture only the pure physics kernels.
-        ``sync_transforms_to_usd`` is excluded because it calls ``wp.synchronize_device``
-        (forbidden inside graph capture) and ``wp.fabricarray`` (device-wide allocation).
-        The caller (``step()``) is responsible for calling ``sync_transforms_to_usd()``
-        eagerly after ``wp.capture_launch``.
+        Used when actuators are stepped eagerly outside the graph, or when
+        there are no actuators at all.
         """
         if cls._needs_collision_pipeline:
             cls._collision_pipeline.collide(cls._state_0, cls._contacts)
@@ -1030,52 +1155,8 @@ class NewtonManager(PhysicsManager):
         else:
             contacts = None
 
-        def step_fn(state_0, state_1):
-            cls._solver.step(state_0, state_1, cls._control, contacts, cls._solver_dt)
-
-        if cls._use_single_state:
-            for i in range(cls._num_substeps):
-                step_fn(cls._state_0, cls._state_0)
-                cls._state_0.clear_forces()
-        else:
-            cfg = PhysicsManager._cfg
-            need_copy_on_last_substep = (cfg is not None and cfg.use_cuda_graph) and cls._num_substeps % 2 == 1  # type: ignore[union-attr]
-            for i in range(cls._num_substeps):
-                step_fn(cls._state_0, cls._state_1)
-                if need_copy_on_last_substep and i == cls._num_substeps - 1:
-                    cls._state_0.assign(cls._state_1)
-                else:
-                    cls._state_0, cls._state_1 = cls._state_1, cls._state_0
-                cls._state_0.clear_forces()
-
-        # Update frame transform sensors
-        if cls._newton_frame_transform_sensors:
-            for sensor in cls._newton_frame_transform_sensors:
-                sensor.update(cls._state_0)
-
-        # Update IMU sensors
-        if cls._newton_imu_sensors:
-            for sensor in cls._newton_imu_sensors:
-                sensor.update(cls._state_0)
-
-        # Populate contacts for contact sensors
-        if cls._report_contacts:
-            eval_contacts = contacts if contacts is not None else cls._contacts
-            cls._solver.update_contacts(eval_contacts, cls._state_0)
-            for sensor in cls._newton_contact_sensors.values():
-                sensor.update(cls._state_0, eval_contacts)
-
-    @classmethod
-    def _simulate(cls) -> None:
-        """Run one simulation step with substeps and USD sync.
-
-        Delegates physics work to :meth:`_simulate_physics_only` and then
-        marks transforms dirty for the next render-cadence sync.
-        """
-        cls._simulate_physics_only()
-
-        if cls._usdrt_stage is not None:
-            cls._mark_transforms_dirty()
+        cls._run_solver_substeps(contacts)
+        cls._update_sensors(contacts)
 
     @classmethod
     def get_solver_convergence_steps(cls) -> dict[str, float | int]:
@@ -1118,6 +1199,51 @@ class NewtonManager(PhysicsManager):
     def get_solver_dt(cls) -> float:
         """Get the solver substep timestep."""
         return cls._solver_dt
+
+    @classmethod
+    def _is_all_graphable(cls) -> bool:
+        """``True`` when an adapter is registered and all its actuators are CUDA-graph-safe."""
+        return cls._adapter is not None and cls._adapter.is_all_graphable
+
+    @classmethod
+    def register_adapter(cls, adapter: NewtonActuatorAdapter) -> None:
+        """Register the actuator adapter that owns states and stepping.
+
+        Called by the articulation's ``_process_actuators_cfg`` after
+        the :class:`NewtonActuatorAdapter` is constructed and finalised.
+
+        Args:
+            adapter: The actuator adapter instance.
+        """
+        cls._adapter = adapter
+
+    @classmethod
+    def set_decimation(cls, decimation: int) -> None:
+        """Set the decimation count and re-capture the CUDA graph.
+
+        When all actuators are graphable the entire decimation loop
+        (actuators + solver substeps, repeated *decimation* times)
+        is captured as a single CUDA graph.
+
+        If a CUDA graph was previously captured, it is automatically
+        re-captured with the new decimation count using the same
+        strategy as :meth:`start_simulation`: standard
+        ``wp.ScopedCapture`` when no USDRT stage is active, or
+        deferred relaxed capture when RTX is running.
+        """
+        cls._decimation = max(1, decimation)
+        if cls._is_all_graphable():
+            cls._capture_or_defer_graph()
+
+    @classmethod
+    def handles_decimation(cls) -> bool:
+        """``True`` when :meth:`step` executes the full decimation loop internally.
+
+        This is the case when all Newton actuators are CUDA-graph-safe.
+        The full decimation loop (including the trivial ``decimation=1`` case)
+        is folded into a single :meth:`step` call.
+        """
+        return cls._is_all_graphable()
 
     @classmethod
     def add_contact_sensor(

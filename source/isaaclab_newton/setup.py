@@ -41,7 +41,7 @@ EXTRAS_REQUIRE = {
         "mujoco==3.6.0",
         "mujoco-warp==3.6.0",
         "PyOpenGL-accelerate==3.1.10",
-        "newton @ git+https://github.com/newton-physics/newton.git@a27277ed49d6f307b8a1e4c394be7e1d14965a62",
+        "newton @ git+https://github.com/newton-physics/newton.git@b859659c7f3df8b688a5989a8f1719b8dc15aa86",
     ],
 }
 
@@ -62,6 +62,7 @@ setup(
     extras_require=EXTRAS_REQUIRE,
     packages=[
         "isaaclab_newton",
+        "isaaclab_newton.actuators",
         "isaaclab_newton.assets",
         "isaaclab_newton.assets.articulation",
         "isaaclab_newton.assets.rigid_object",

@@ -25,6 +25,8 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
+
+from isaaclab_newton.actuators.newton_actuator_utils import NewtonActuatorAdapter
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
@@ -39,10 +41,18 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
+    from newton.actuators import Actuator
+
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+@wp.kernel(enable_backward=False)
+def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
+    i = wp.tid()
+    mask[indices[i]] = True
 
 
 class Articulation(BaseArticulation):
@@ -275,14 +285,23 @@ class Articulation(BaseArticulation):
             )
         self._instantaneous_wrench_composer.reset()
 
-        # apply actuator models
-        self._apply_actuator_model()
-        # write actions into simulation via Newton bindings
-        self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
-        # position and velocity targets only for implicit actuators
-        if self._has_implicit_actuators:
-            self.data._sim_bind_joint_position_target.assign(self._joint_pos_target_sim)
-            self.data._sim_bind_joint_velocity_target.assign(self._joint_vel_target_sim)
+        if self._has_newton_actuators:
+            # Raw targets go directly to Newton's control object. Newton PD
+            # consumes them for Newton-managed joints; the solver's built-in
+            # PD uses them for any implicit joints (whose stiffness/damping
+            # are non-zero in sim).
+            # Feedforward effort goes to control.joint_act (not joint_f,
+            # which is the actuator output buffer that Newton overwrites).
+            self.data._sim_bind_joint_position_target.assign(self._data._joint_pos_target)
+            self.data._sim_bind_joint_velocity_target.assign(self._data._joint_vel_target)
+            self.data._sim_bind_joint_act.assign(self._data._joint_effort_target)
+        else:
+            # Standard Lab actuator path
+            self._apply_actuator_model()
+            self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
+            if self._has_implicit_actuators:
+                self.data._sim_bind_joint_position_target.assign(self._joint_pos_target_sim)
+                self.data._sim_bind_joint_velocity_target.assign(self._joint_vel_target_sim)
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -1985,6 +2004,108 @@ class Articulation(BaseArticulation):
         SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     """
+    Operations - Newton Actuator Parameter Writers.
+    """
+
+    def write_actuator_stiffness_to_sim(
+        self,
+        adapter: NewtonActuatorAdapter,
+        *,
+        stiffness: torch.Tensor | wp.array | float,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write actuator stiffness (kp) into the Newton controller arrays.
+
+        Analogous to :meth:`write_joint_stiffness_to_sim_index` but targets the
+        Newton actuator controller ``kp`` instead of the solver-level
+        ``joint_target_ke``.
+
+        Args:
+            adapter: The :class:`NewtonActuatorAdapter` whose gains to update.
+            stiffness: Stiffness values [N/m or N*m/rad, depending on joint
+                type]. Shape is ``(len(env_ids), num_joints)``.
+            env_ids: Environment indices. If ``None``, all environments.
+        """
+        env_ids = self._resolve_env_ids(env_ids)
+        stiffness_wp = wp.from_torch(adapter.stiffness, dtype=wp.float32)
+        if isinstance(stiffness, float):
+            wp.launch(
+                articulation_kernels.float_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], self._ALL_JOINT_INDICES.shape[0]),
+                inputs=[stiffness, env_ids, self._ALL_JOINT_INDICES],
+                outputs=[stiffness_wp],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], self._ALL_JOINT_INDICES.shape[0]),
+                inputs=[stiffness, env_ids, self._ALL_JOINT_INDICES],
+                outputs=[stiffness_wp],
+                device=self.device,
+            )
+        env_mask = self._env_ids_to_mask(env_ids)
+        for newton_act in adapter.actuators:
+            if hasattr(newton_act.controller, "kp"):
+                self._root_view.set_actuator_parameter(
+                    actuator=newton_act, component=newton_act.controller, name="kp",
+                    values=stiffness_wp, mask=env_mask,
+                )
+
+    def write_actuator_damping_to_sim(
+        self,
+        adapter: NewtonActuatorAdapter,
+        *,
+        damping: torch.Tensor | wp.array | float,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write actuator damping (kd) into the Newton controller arrays.
+
+        Analogous to :meth:`write_joint_damping_to_sim_index` but targets the
+        Newton actuator controller ``kd`` instead of the solver-level
+        ``joint_target_kd``.
+
+        Args:
+            adapter: The :class:`NewtonActuatorAdapter` whose gains to update.
+            damping: Damping values [N*s/m or N*m*s/rad, depending on joint
+                type]. Shape is ``(len(env_ids), num_joints)``.
+            env_ids: Environment indices. If ``None``, all environments.
+        """
+        env_ids = self._resolve_env_ids(env_ids)
+        damping_wp = wp.from_torch(adapter.damping, dtype=wp.float32)
+        if isinstance(damping, float):
+            wp.launch(
+                articulation_kernels.float_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], self._ALL_JOINT_INDICES.shape[0]),
+                inputs=[damping, env_ids, self._ALL_JOINT_INDICES],
+                outputs=[damping_wp],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], self._ALL_JOINT_INDICES.shape[0]),
+                inputs=[damping, env_ids, self._ALL_JOINT_INDICES],
+                outputs=[damping_wp],
+                device=self.device,
+            )
+        env_mask = self._env_ids_to_mask(env_ids)
+        for newton_act in adapter.actuators:
+            if hasattr(newton_act.controller, "kd"):
+                self._root_view.set_actuator_parameter(
+                    actuator=newton_act, component=newton_act.controller, name="kd",
+                    values=damping_wp, mask=env_mask,
+                )
+
+    def _env_ids_to_mask(self, env_ids: wp.array) -> wp.array:
+        """Convert warp env_ids to a boolean Warp mask."""
+        if env_ids is self._ALL_INDICES:
+            return self._ALL_ENV_MASK
+        mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
+        wp.launch(_build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
+        return mask
+
+    """
     Operations - Setters.
     """
 
@@ -3313,123 +3434,50 @@ class Articulation(BaseArticulation):
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
+        self._has_newton_actuators = False
 
-        # iterate over all actuator configurations
-        for actuator_name, actuator_cfg in self.cfg.actuators.items():
-            # type annotation for type checkers
-            actuator_cfg: ActuatorBaseCfg
-            # create actuator group
-            joint_ids, joint_names = self.find_joints(actuator_cfg.joint_names_expr)
-            # check if any joints are found
-            if len(joint_names) == 0:
-                raise ValueError(
-                    f"No joints found for actuator group: {actuator_name} with joint name expression:"
-                    f" {actuator_cfg.joint_names_expr}."
+        _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
+
+        if _use_newton_actuators:
+            from newton import Model as NewtonModel  # noqa: PLC0415
+
+            model = SimulationManager.get_model()
+
+            dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
+            if dof_layout.slice is not None:
+                dof_offset = dof_layout.slice.start
+            elif dof_layout.indices is not None:
+                dof_offset = int(dof_layout.indices.numpy()[0])
+            else:
+                dof_offset = 0
+
+            adapter = NewtonActuatorAdapter(
+                model.actuators, self.num_instances, self.num_joints, dof_offset, self.device,
+            )
+            adapter.finalize()
+            self.actuators["newton"] = adapter
+            SimulationManager.register_adapter(adapter)
+            self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
+            self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
+            self._has_newton_actuators = True
+
+            # Also create any implicit actuators defined in the configs
+            for actuator_name, actuator_cfg in self.cfg.actuators.items():
+                cls_type = actuator_cfg.class_type
+                is_implicit = (
+                    "ImplicitActuator" in cls_type
+                    if isinstance(cls_type, str)
+                    else issubclass(cls_type, ImplicitActuator)
                 )
-            # resolve joint indices
-            # we pass a slice if all joints are selected to avoid indexing overhead
-            if len(joint_names) == self.num_joints:
-                joint_ids = slice(None)
-            else:
-                joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
-            # create actuator collection
-            # note: for efficiency avoid indexing when over all indices
-            actuator: ActuatorBase = actuator_cfg.class_type(
-                cfg=actuator_cfg,
-                joint_names=joint_names,
-                joint_ids=joint_ids,
-                num_envs=self.num_instances,
-                device=self.device,
-                stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
-                damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
-                armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
-                friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
-                effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
-                velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
-            )
-            # store actuator group
-            self.actuators[actuator_name] = actuator
-            # set the passed gains and limits into the simulation
-            if isinstance(actuator, ImplicitActuator):
-                self._has_implicit_actuators = True
-                # the gains and limits are set into the simulation since actuator model is implicit
-                self.write_joint_stiffness_to_sim_index(stiffness=actuator.stiffness, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
-            else:
-                # the gains and limits are processed by the actuator model
-                # we set gains to zero, and torque limit to a high value in simulation to avoid any interference
-                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
-                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
+                if not is_implicit:
+                    continue
+                self._create_lab_actuator(actuator_name, actuator_cfg)
 
-            # Set common properties into the simulation
-            self.write_joint_effort_limit_to_sim_index(
-                limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices
-            )
-            self.write_joint_velocity_limit_to_sim_index(
-                limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices
-            )
-            self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
-            self.write_joint_friction_coefficient_to_sim_index(
-                joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices
-            )
+            return
 
-            # Store the configured values from the actuator model
-            # note: this is the value configured in the actuator model (for implicit and explicit actuators)
-            joint_ids = actuator.joint_indices
-            if joint_ids == slice(None):
-                joint_ids = self._ALL_JOINT_INDICES
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.stiffness,
-                    self._ALL_INDICES,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data._sim_bind_joint_stiffness_sim,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.damping,
-                    self._ALL_INDICES,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data._sim_bind_joint_damping_sim,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.armature,
-                    self._ALL_INDICES,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data._sim_bind_joint_armature,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(self.num_instances, joint_ids.shape[0]),
-                inputs=[
-                    actuator.friction,
-                    self._ALL_INDICES,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data._sim_bind_joint_friction_coeff,
-                ],
-                device=self.device,
-            )
+        # --- Standard Isaac Lab actuator path ---
+        for actuator_name, actuator_cfg in self.cfg.actuators.items():
+            self._create_lab_actuator(actuator_name, actuator_cfg)
 
         # perform some sanity checks to ensure actuators are prepared correctly
         total_act_joints = sum(actuator.num_joints for actuator in self.actuators.values())
@@ -3442,6 +3490,8 @@ class Articulation(BaseArticulation):
         if self.cfg.actuator_value_resolution_debug_print:
             t = PrettyTable(["Group", "Property", "Name", "ID", "USD Value", "ActutatorCfg Value", "Applied"])
             for actuator_group, actuator in self.actuators.items():
+                if isinstance(actuator, NewtonActuatorAdapter):
+                    continue
                 group_count = 0
                 for property, resolution_details in actuator.joint_property_resolution_table.items():
                     for prop_idx, resolution_detail in enumerate(resolution_details):
@@ -3451,6 +3501,86 @@ class Articulation(BaseArticulation):
                         t.add_row([actuator_group_str, property_str, *fmt])
                         group_count += 1
             logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
+
+    def _create_lab_actuator(self, actuator_name: str, actuator_cfg: ActuatorBaseCfg) -> None:
+        """Instantiate a single Lab actuator from its config and write properties to sim."""
+        joint_ids, joint_names = self.find_joints(actuator_cfg.joint_names_expr)
+        if len(joint_names) == 0:
+            raise ValueError(
+                f"No joints found for actuator group: {actuator_name} with joint name expression:"
+                f" {actuator_cfg.joint_names_expr}."
+            )
+        if len(joint_names) == self.num_joints:
+            joint_ids = slice(None)
+        else:
+            joint_ids = torch.tensor(joint_ids, device=self.device, dtype=torch.int32)
+
+        actuator: ActuatorBase = actuator_cfg.class_type(
+            cfg=actuator_cfg,
+            joint_names=joint_names,
+            joint_ids=joint_ids,
+            num_envs=self.num_instances,
+            device=self.device,
+            stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
+            damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
+            armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
+            friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
+            effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
+            velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
+        )
+        self.actuators[actuator_name] = actuator
+
+        if isinstance(actuator, ImplicitActuator):
+            self._has_implicit_actuators = True
+            self.write_joint_stiffness_to_sim_index(stiffness=actuator.stiffness, joint_ids=actuator.joint_indices)
+            self.write_joint_damping_to_sim_index(damping=actuator.damping, joint_ids=actuator.joint_indices)
+        else:
+            self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
+            self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
+
+        self.write_joint_effort_limit_to_sim_index(
+            limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_velocity_limit_to_sim_index(
+            limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
+        self.write_joint_friction_coefficient_to_sim_index(
+            joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices,
+        )
+
+        # Store the configured values from the actuator model
+        j_ids = actuator.joint_indices
+        if j_ids == slice(None):
+            j_ids = self._ALL_JOINT_INDICES
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(self.num_instances, j_ids.shape[0]),
+            inputs=[actuator.stiffness, self._ALL_INDICES, j_ids],
+            outputs=[self.data._sim_bind_joint_stiffness_sim],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(self.num_instances, j_ids.shape[0]),
+            inputs=[actuator.damping, self._ALL_INDICES, j_ids],
+            outputs=[self.data._sim_bind_joint_damping_sim],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(self.num_instances, j_ids.shape[0]),
+            inputs=[actuator.armature, self._ALL_INDICES, j_ids],
+            outputs=[self.data._sim_bind_joint_armature],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(self.num_instances, j_ids.shape[0]),
+            inputs=[actuator.friction, self._ALL_INDICES, j_ids],
+            outputs=[self.data._sim_bind_joint_friction_coeff],
+            device=self.device,
+        )
 
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
