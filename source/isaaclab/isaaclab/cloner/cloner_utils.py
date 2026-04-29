@@ -61,7 +61,11 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
     # usdrt only works with a live Kit app — defer import so module load stays cheap.
     import usdrt
 
-    stage_id = UsdUtils.StageCache.Get().Insert(stage).ToLongInt()
+    # Avoid leaking a strong reference into the global ``StageCache`` for stages we did not
+    # author into the cache: ``Insert`` keeps the stage alive for the rest of the process.
+    cache = UsdUtils.StageCache.Get()
+    cached_id = cache.GetId(stage)
+    stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
     # ``FabricId`` wraps a uint64; the C ABI needs the raw integer.
     fabric_id = usdrt.Usd.Stage.Attach(stage_id).GetFabricId().id
     was_enabled = bindings.is_enabled(fabric_id)
@@ -87,6 +91,15 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         num_clones: Number of environments to clone to (typically equals ``cfg.num_clones``).
         template_clone_cfg: Configuration describing template location, destination pattern,
             and replication/mapping behavior.
+
+    Note:
+        This function suspends the Fabric USD notice listener for the duration of the call
+        and **leaves it disabled on return**. It is intended to be invoked from a scene-init
+        path that is followed by :meth:`isaaclab.sim.SimulationContext.reset`, whose Fabric
+        resync naturally recovers the listener state. Callers that bypass that reset
+        contract (ad-hoc tooling, unit tests on a bare stage) should re-enable Fabric
+        notices themselves or wrap the call in
+        :func:`disabled_fabric_change_notifies` with ``restore=True``.
     """
     cfg: TemplateCloneCfg = template_clone_cfg
     # Suspend Fabric's USD notice listener for the duration of bulk authoring. ``restore=False``

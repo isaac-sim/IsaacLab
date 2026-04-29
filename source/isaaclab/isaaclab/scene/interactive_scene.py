@@ -183,6 +183,9 @@ class InteractiveScene:
         # copy empty prim of env_0 to env_1, env_2, ..., env_{num_envs-1} with correct location.
         # Suspend Fabric's USD notice listener: scene-init is followed by ``SimulationContext.reset``,
         # which does the Fabric resync naturally — re-enabling here would just trigger a redundant batch.
+        # Note: ``restore=False`` means the listener stays disabled past this ``with`` block — through
+        # ``_add_entities_from_cfg`` and ``clone_environments`` below — until ``SimulationContext.reset``
+        # re-enables it. The nested suspension inside ``clone_environments`` becomes a no-op as a result.
         with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
             cloner.usd_replicate(
                 self.stage,
