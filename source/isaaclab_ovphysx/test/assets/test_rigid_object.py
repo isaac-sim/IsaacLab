@@ -47,6 +47,15 @@ skips any subsequent test parametrized to a different device.  To run both CPU
 and GPU coverage, invoke pytest twice (once per ``-k`` filter, or two separate
 processes).
 
+CI note
+-------
+Because the device-mode lock is process-global, full coverage requires **two
+separate ``./scripts/run_ovphysx.sh -m pytest`` invocations** in CI -- one with
+``-k 'cpu'`` and one with ``-k 'cuda:0'``.  Tracked as gap G5 in
+``docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md``; until
+the wheel exposes a way to reset Carbonite device state, this is the supported
+pattern.
+
 The ``_ovphysx_session_patches`` autouse fixture installs class-level monkey
 patches on :class:`~isaaclab_ovphysx.physics.OvPhysxManager` that:
 
@@ -952,17 +961,18 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
             offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
 
         # Read current COMs, mutate the translation, write back via the OVPhysX
-        # ``set_coms_index`` setter.  PhysX uses ``root_view.set_coms`` /
-        # ``root_view.get_coms`` for the same operation.
-        com = cube_object.data.body_com_pose_b.torch.reshape(num_cubes, 7).clone()
-        com[..., :3] = offset.to(com.device)
+        # ``set_coms_index`` setter (PhysX uses ``root_view.set_coms`` for the same
+        # operation; OVPhysX wraps the wheel ``RIGID_BODY_COM_POSE`` write in
+        # :meth:`set_coms_index`, which follows the PhysX ``wp.transformf`` contract).
+        com = cube_object.data.body_com_pose_b.torch.clone()  # shape (N, 1, 7)
+        com[..., :3] = offset.to(com.device).unsqueeze(1)
         cube_object.set_coms_index(
-            coms=wp.from_torch(com.contiguous(), dtype=wp.float32),
+            coms=wp.from_torch(com.contiguous(), dtype=wp.transformf),
             env_ids=wp.from_torch(env_idx, dtype=wp.int32),
         )
 
         # check ceter of mass has been set
-        torch.testing.assert_close(cube_object.data.body_com_pose_b.torch.reshape(num_cubes, 7), com)
+        torch.testing.assert_close(cube_object.data.body_com_pose_b.torch, com)
 
         # random z spin velocity
         spin_twist = torch.zeros(6, device=device)
@@ -1067,15 +1077,15 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         else:
             offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
 
-        com = cube_object.data.body_com_pose_b.torch.reshape(num_cubes, 7).clone()
-        com[..., :3] = offset.to(com.device)
+        com = cube_object.data.body_com_pose_b.torch.clone()  # shape (N, 1, 7)
+        com[..., :3] = offset.to(com.device).unsqueeze(1)
         cube_object.set_coms_index(
-            coms=wp.from_torch(com.contiguous(), dtype=wp.float32),
+            coms=wp.from_torch(com.contiguous(), dtype=wp.transformf),
             env_ids=wp.from_torch(env_idx, dtype=wp.int32),
         )
 
         # check center of mass has been set
-        torch.testing.assert_close(cube_object.data.body_com_pose_b.torch.reshape(num_cubes, 7), com)
+        torch.testing.assert_close(cube_object.data.body_com_pose_b.torch, com)
 
         rand_state = torch.zeros(num_cubes, 13, device=device)
         rand_state[..., :7] = cube_object.data.default_root_pose.torch
@@ -1139,15 +1149,15 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         else:
             offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
 
-        com = cube_object.data.body_com_pose_b.torch.reshape(num_cubes, 7).clone()
-        com[..., :3] = offset.to(com.device)
+        com = cube_object.data.body_com_pose_b.torch.clone()  # shape (N, 1, 7)
+        com[..., :3] = offset.to(com.device).unsqueeze(1)
         cube_object.set_coms_index(
-            coms=wp.from_torch(com.contiguous(), dtype=wp.float32),
+            coms=wp.from_torch(com.contiguous(), dtype=wp.transformf),
             env_ids=wp.from_torch(env_idx, dtype=wp.int32),
         )
 
         # check ceter of mass has been set
-        torch.testing.assert_close(cube_object.data.body_com_pose_b.torch.reshape(num_cubes, 7), com)
+        torch.testing.assert_close(cube_object.data.body_com_pose_b.torch, com)
 
         rand_state = torch.rand(num_cubes, 13, device=device)
         rand_state[..., :3] += env_pos
