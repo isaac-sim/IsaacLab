@@ -21,6 +21,19 @@ get_docker_storage_usage_percent() {
     df -P "${DOCKER_STORAGE_PATH}" 2>/dev/null | awk 'NR == 2 { gsub("%", "", $5); print $5 }'
 }
 
+resolve_docker_storage_path() {
+    local docker_root_dir
+    docker_root_dir="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)"
+    if [ -n "${docker_root_dir}" ]; then
+        DOCKER_STORAGE_PATH="${docker_root_dir}"
+        echo "[${CLEANUP_CONTEXT}] Using Docker root from docker info: ${DOCKER_STORAGE_PATH}"
+        return 0
+    fi
+
+    echo "[${CLEANUP_CONTEXT}] Could not determine Docker storage path from ${DOCKER_STORAGE_PATH} or docker info." >&2
+    return 1
+}
+
 print_docker_storage_usage() {
     echo "[${CLEANUP_CONTEXT}] Docker storage usage:"
     df -h "${DOCKER_STORAGE_PATH}" || true
@@ -54,7 +67,7 @@ run_conservative_cleanup() {
 run_aggressive_cleanup() {
     echo "[${CLEANUP_CONTEXT}] Running aggressive Docker cleanup."
     echo "[${CLEANUP_CONTEXT}] Removing stopped Docker containers."
-    docker container prune -f || true
+    docker container prune -f --filter "until=${DOCKER_AGGRESSIVE_PRUNE_UNTIL}" || true
 
     echo "[${CLEANUP_CONTEXT}] Removing unused Docker builder cache older than ${DOCKER_AGGRESSIVE_PRUNE_UNTIL}."
     docker builder prune -a -f --filter "until=${DOCKER_AGGRESSIVE_PRUNE_UNTIL}" || true
@@ -65,16 +78,26 @@ run_aggressive_cleanup() {
 
 main() {
     echo "[${CLEANUP_CONTEXT}] Checking Docker storage before cleanup."
-    print_docker_storage_usage
 
     local usage_percent
     usage_percent="$(get_docker_storage_usage_percent)"
+    if [ -z "${usage_percent}" ]; then
+        resolve_docker_storage_path || true
+        usage_percent="$(get_docker_storage_usage_percent)"
+    fi
+
+    print_docker_storage_usage
+
     if [ -z "${usage_percent}" ]; then
         echo "[${CLEANUP_CONTEXT}] Could not determine Docker storage usage; running conservative cleanup."
         pin_isaacsim_image_if_present
         trap remove_isaacsim_image_pin EXIT
         run_conservative_cleanup
         print_docker_storage_usage
+        if [ "${FAIL_IF_STILL_HIGH}" = "true" ]; then
+            echo "::error::Could not determine Docker storage usage after cleanup. The self-hosted runner needs a measurable Docker storage path before tests can run." >&2
+            return 1
+        fi
         return 0
     fi
 
