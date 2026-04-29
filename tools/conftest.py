@@ -245,8 +245,20 @@ def _is_kitless_rendering_test_file(file_name: str) -> bool:
     return file_name.startswith("test_rendering_") and file_name.endswith("_kitless.py")
 
 
+def _ovrtx_importable() -> bool:
+    """Return True if ``ovrtx`` is already available (skip redundant ``isaaclab.sh -i``)."""
+    try:
+        import ovrtx  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def _install_ovrtx_optional_dep(workspace_root: str) -> str | None:
     """Install ``ov[ovrtx]`` once for kitless rendering tests.
+
+    If ``ovrtx`` is already importable in this interpreter (e.g. CI job retry with
+    a warm venv), the install step is skipped.
 
     Args:
         workspace_root: Absolute path to the repository root.
@@ -254,6 +266,10 @@ def _install_ovrtx_optional_dep(workspace_root: str) -> str | None:
     Returns:
         ``None`` on success, otherwise an actionable error message.
     """
+    if _ovrtx_importable():
+        print("🟢 ovrtx is already importable; skipping optional dependency install.")
+        return None
+
     install_cmd = [f"{workspace_root}/isaaclab.sh", "-i", "ov[ovrtx]"]
     try:
         result = subprocess.run(
@@ -276,6 +292,7 @@ def _install_ovrtx_optional_dep(workspace_root: str) -> str | None:
             f"STDERR:\n{result.stderr}"
         )
 
+    print("🟢 Optional dependency install complete: ov[ovrtx]")
     return None
 
 
@@ -363,11 +380,9 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     ovrtx_libcarb_path: str | None = None
 
     if any(_is_kitless_rendering_test_file(os.path.basename(test_file)) for test_file in test_files):
-        print("🔵 Kitless tests detected. Installing optional dependency: ov[ovrtx]")
+        print("🔵 Kitless tests detected. Ensuring optional dependency: ov[ovrtx]")
         ovrtx_install_error = _install_ovrtx_optional_dep(workspace_root)
         if ovrtx_install_error is None:
-            print("🟢 Optional dependency install complete: ov[ovrtx]")
-
             ovrtx_libcarb_path = _ovrtx_libcarb_path()
             if ovrtx_libcarb_path:
                 print(f"🔵 OVRTX: will set LD_PRELOAD to {ovrtx_libcarb_path}.")

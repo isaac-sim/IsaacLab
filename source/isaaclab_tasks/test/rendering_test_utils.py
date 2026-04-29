@@ -34,7 +34,7 @@ _MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 7.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
     "shadow_hand": 7.0,
-    "dexsuite_kuka": 10.0,  # texture anti-aliasing on the ground
+    "dexsuite_kuka": 10.0,  # texture aliasing artifacts on the ground (ticket has been filed for OVRTX)
 }
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = _MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME
 
@@ -47,9 +47,7 @@ _SSIM_THRESHOLD = 0.985
 # Per-env SSIM overrides. Envs not listed fall back to ``_SSIM_THRESHOLD``. Loosened individually
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
-    # Dexsuite renders the observation point cloud markers whose sample positions depend on the
-    # global numpy/torch RNG, so a handful of pixels flip between runs. That translates to SSIM
-    # drops just under 0.952 on the worst variant without any structural regression.
+    # Texture aliasing artifacts on the ground (ticket has been filed for OVRTX)
     "dexsuite_kuka": 0.95,
 }
 
