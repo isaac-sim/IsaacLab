@@ -51,14 +51,13 @@ class RigidObjectData(BaseRigidObjectData):
     _warned_body_com_pose_b: bool = False
     """Class-level flag so the :attr:`body_com_pose_b` UserWarning fires only once per process."""
 
-    """
-    Names.
-    """
-
-    body_names: list[str] = None
-    """Body names in the order parsed by the simulation view."""
-
     def __init__(self, bindings: dict, device: str):
+        """Initializes the rigid object data.
+
+        Args:
+            bindings: The OVPhysX tensor bindings dict keyed by tensor-type constant.
+            device: The device used for processing.
+        """
         self._bindings = bindings
         self.device = device
         self.num_instances: int = 0
@@ -67,97 +66,9 @@ class RigidObjectData(BaseRigidObjectData):
         self._sim_time: float = 0.0
         self._last_dt: float = 0.0
         self._timestamps: dict[str, float] = {}
-        self._default_root_pose: wp.array | None = None
-        self._default_root_velocity: wp.array | None = None
-        # Cached TimestampedBuffers for root state (allocated lazily on first access).
-        self._root_link_pose_w_buf: TimestampedBuffer | None = None
-        self._root_link_vel_w_buf: TimestampedBuffer | None = None
-        self._root_com_pose_w_buf: TimestampedBuffer | None = None
-        self._root_com_vel_w_buf: TimestampedBuffer | None = None
-        # Body-COM-in-body-frame buffer (shape (N,1), dtype=wp.transformf).
-        self._body_com_pose_b_buf: TimestampedBuffer | None = None
-        # Body acceleration buffer (allocated lazily; None until _ensure_derived_buffers).
-        self._body_acc_w_buf: TimestampedBuffer | None = None
-        # Previous-step COM velocity for finite-difference acceleration (lazy alloc).
-        self._previous_body_com_vel: wp.array | None = None
-        # Derived-property buffers (allocated lazily on first access).
-        self._projected_gravity_b_buf: TimestampedBuffer | None = None
-        self._heading_w_buf: TimestampedBuffer | None = None
-        self._root_link_lin_vel_b_buf: TimestampedBuffer | None = None
-        self._root_link_ang_vel_b_buf: TimestampedBuffer | None = None
-        self._root_com_lin_vel_b_buf: TimestampedBuffer | None = None
-        self._root_com_ang_vel_b_buf: TimestampedBuffer | None = None
-        # Float32 view cache so binding.read() always sees the same object.
-        self._read_view_cache: dict = {}
-        # ProxyArray wrappers (created once from the underlying buffer.data).
-        self._root_link_pose_w_ta: ProxyArray | None = None
-        self._root_link_vel_w_ta: ProxyArray | None = None
-        self._root_com_pose_w_ta: ProxyArray | None = None
-        self._root_com_vel_w_ta: ProxyArray | None = None
-        # Sliced view ProxyArrays.
-        self._root_link_pos_w_ta: ProxyArray | None = None
-        self._root_link_quat_w_ta: ProxyArray | None = None
-        self._root_link_lin_vel_w_ta: ProxyArray | None = None
-        self._root_link_ang_vel_w_ta: ProxyArray | None = None
-        self._root_com_pos_w_ta: ProxyArray | None = None
-        self._root_com_quat_w_ta: ProxyArray | None = None
-        self._root_com_lin_vel_w_ta: ProxyArray | None = None
-        self._root_com_ang_vel_w_ta: ProxyArray | None = None
-        # Body-state singleton-dim ProxyArrays ((N,1,k) views of root buffers).
-        self._body_link_pose_w_ta: ProxyArray | None = None
-        self._body_link_vel_w_ta: ProxyArray | None = None
-        self._body_com_pose_w_ta: ProxyArray | None = None
-        self._body_com_vel_w_ta: ProxyArray | None = None
-        self._body_link_pos_w_ta: ProxyArray | None = None
-        self._body_link_quat_w_ta: ProxyArray | None = None
-        self._body_link_lin_vel_w_ta: ProxyArray | None = None
-        self._body_link_ang_vel_w_ta: ProxyArray | None = None
-        self._body_com_pos_w_ta: ProxyArray | None = None
-        self._body_com_quat_w_ta: ProxyArray | None = None
-        self._body_com_lin_vel_w_ta: ProxyArray | None = None
-        self._body_com_ang_vel_w_ta: ProxyArray | None = None
-        # Body acceleration ProxyArrays.
-        self._body_acc_w_ta: ProxyArray | None = None
-        self._body_link_lin_acc_w_ta: ProxyArray | None = None
-        self._body_link_ang_acc_w_ta: ProxyArray | None = None
-        self._body_com_lin_acc_w_ta: ProxyArray | None = None
-        self._body_com_ang_acc_w_ta: ProxyArray | None = None
-        # Body property buffers (semi-static; lazy-allocated in _ensure_body_prop_buffers).
-        self._body_mass_buf: TimestampedBuffer | None = None
-        self._body_inertia_buf: TimestampedBuffer | None = None
-        # Body property ProxyArrays.
-        self._body_mass_ta: ProxyArray | None = None
-        self._body_inertia_ta: ProxyArray | None = None
-        self._body_com_pose_b_ta: ProxyArray | None = None
-        self._body_com_pos_b_ta: ProxyArray | None = None
-        self._body_com_quat_b_ta: ProxyArray | None = None
-        # Derived-property ProxyArrays.
-        self._projected_gravity_b_ta: ProxyArray | None = None
-        self._heading_w_ta: ProxyArray | None = None
-        self._root_link_lin_vel_b_ta: ProxyArray | None = None
-        self._root_link_ang_vel_b_ta: ProxyArray | None = None
-        self._root_com_lin_vel_b_ta: ProxyArray | None = None
-        self._root_com_ang_vel_b_ta: ProxyArray | None = None
-        # Gravity and forward constants (allocated lazily in _ensure_derived_buffers).
-        self.GRAVITY_VEC_W: ProxyArray | None = None
-        self.FORWARD_VEC_B: ProxyArray | None = None
-        # Default-state ProxyArray wrappers (created once from _default_root_pose/velocity).
-        self._default_root_pose_ta: ProxyArray | None = None
-        self._default_root_vel_ta: ProxyArray | None = None
-        # Deprecated state-concat buffers (lazily allocated on first property access).
-        self._default_root_state_buf: wp.array | None = None
-        self._default_root_state_ta: ProxyArray | None = None
-        self._root_state_w_buf: TimestampedBuffer | None = None
-        self._root_state_w_ta: ProxyArray | None = None
-        self._root_link_state_w_buf: TimestampedBuffer | None = None
-        self._root_link_state_w_ta: ProxyArray | None = None
-        self._root_com_state_w_buf: TimestampedBuffer | None = None
-        self._root_com_state_w_ta: ProxyArray | None = None
-        self._body_state_w_ta: ProxyArray | None = None
-        self._body_link_state_w_ta: ProxyArray | None = None
-        self._body_com_state_w_ta: ProxyArray | None = None
+        # Initialize per-instance buffer/cache attribute slots (lazy-allocated on first use).
+        self._create_buffers()
 
-    # --- counts -------------------------------------------------------
     @property
     def is_primed(self) -> bool:
         """Whether the rigid object data is fully instantiated and ready to use."""
@@ -180,7 +91,6 @@ class RigidObjectData(BaseRigidObjectData):
             raise ValueError("The rigid object data is already primed.")
         self._is_primed = value
 
-    # --- update / cache invalidation ----------------------------------
     def update(self, dt: float) -> None:
         """Advance the cached sim time and eagerly compute finite-difference
         acceleration so FD captures every sim step transition.
@@ -228,7 +138,17 @@ class RigidObjectData(BaseRigidObjectData):
             if buf is not None:
                 buf.timestamp = -1.0
 
-    # --- defaults -----------------------------------------------------
+    """
+    Names.
+    """
+
+    body_names: list[str] = None
+    """Body names in the order parsed by the simulation view."""
+
+    """
+    Defaults.
+    """
+
     def _process_cfg(self, cfg: RigidObjectCfg) -> None:
         """Populate :attr:`_default_root_pose` and
         :attr:`_default_root_velocity` from ``cfg.init_state``. Called by
@@ -257,210 +177,6 @@ class RigidObjectData(BaseRigidObjectData):
             wp.from_numpy(np_vel, dtype=wp.spatial_vectorf, device=device),
         )
 
-    # --- internal helpers: buffer allocation ----------------------------
-    def _ensure_root_buffers(self) -> None:
-        """Allocate root-state TimestampedBuffers on first use.
-
-        Called lazily from root-state properties so that the buffers are
-        only created after ``num_instances`` and ``device`` are set by
-        the owning :class:`RigidObject`.
-        """
-        if self._root_link_pose_w_buf is not None:
-            return
-        N = self.num_instances
-        dev = self.device
-        self._root_link_pose_w_buf = TimestampedBuffer(N, dev, wp.transformf)
-        self._root_link_vel_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
-        self._root_com_pose_w_buf = TimestampedBuffer(N, dev, wp.transformf)
-        self._root_com_vel_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
-        # (N, 1) 2-D buffer for body_com_pose_b, required by _compose_root_com_pose.
-        self._body_com_pose_b_buf = TimestampedBuffer((N, 1), dev, wp.transformf)
-
-    def _ensure_derived_buffers(self) -> None:
-        """Allocate derived-property and body-acceleration TimestampedBuffers on first use.
-
-        Also initialises :attr:`GRAVITY_VEC_W` and :attr:`FORWARD_VEC_B` on first call,
-        mirroring the per-instance tiled constants used by
-        :class:`~isaaclab_ovphysx.assets.articulation.ArticulationData`.
-        """
-        if self._projected_gravity_b_buf is not None:
-            return
-        N = self.num_instances
-        dev = self.device
-        # Body acceleration (spatial vector per instance, same shape as ROOT_VELOCITY).
-        self._body_acc_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
-        # Derived scalar / vector outputs.
-        self._projected_gravity_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
-        self._heading_w_buf = TimestampedBuffer(N, dev, wp.float32)
-        self._root_link_lin_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
-        self._root_link_ang_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
-        self._root_com_lin_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
-        self._root_com_ang_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
-        # Gravity and forward constants (tiled per-instance, matching articulation pattern).
-        # Guard against no sim context in mock/test environments.
-        from isaaclab.physics import PhysicsManager
-
-        gravity = (0.0, 0.0, -9.81)
-        if PhysicsManager._sim is not None and hasattr(PhysicsManager._sim, "cfg"):
-            gravity = PhysicsManager._sim.cfg.gravity
-        gravity_np = np.array(gravity, dtype=np.float32)
-        gravity_mag = np.linalg.norm(gravity_np)
-        if gravity_mag == 0.0:
-            gravity_dir = np.array([0.0, 0.0, -1.0], dtype=np.float32)
-        else:
-            gravity_dir = gravity_np / gravity_mag
-        gravity_dir_tiled = np.tile(gravity_dir, (N, 1))
-        forward_tiled = np.tile(np.array([1.0, 0.0, 0.0], dtype=np.float32), (N, 1))
-        self.GRAVITY_VEC_W = ProxyArray(wp.from_numpy(gravity_dir_tiled, dtype=wp.vec3f, device=dev))
-        self.FORWARD_VEC_B = ProxyArray(wp.from_numpy(forward_tiled, dtype=wp.vec3f, device=dev))
-
-    def _ensure_body_prop_buffers(self) -> None:
-        """Allocate body-property TimestampedBuffers on first use.
-
-        ``body_mass`` needs a ``(N,)`` float32 buffer matching the wheel's
-        ``RIGID_BODY_MASS`` shape.  The ``body_mass`` property exposes ``(N, 1)``
-        by zero-copy reshape to satisfy :class:`~isaaclab.assets.BaseRigidObjectData`.
-        ``body_inertia`` needs a ``(N, 9)`` flat float32 buffer so that
-        ``binding.read()`` can fill it directly; the ``(N, 1, 9)`` view is
-        constructed zero-copy in the property accessor.
-        """
-        if self._body_mass_buf is not None:
-            return
-        N = self.num_instances
-        dev = self.device
-        self._body_mass_buf = TimestampedBuffer(N, dev, wp.float32)
-        # Store flat (N, 9) so binding.read() sees the correct shape.
-        self._body_inertia_buf = TimestampedBuffer((N, 9), dev, wp.float32)
-
-    def _read_flat_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
-        """Read a flat (float32) CPU binding into a TimestampedBuffer, skipping if fresh."""
-        if buf.timestamp >= self._sim_time:
-            return
-        binding = self._get_binding(tensor_type)
-        if binding is None:
-            return
-        # CPU-only bindings: read via numpy then copy to the target device.
-        np_buf = np.zeros(binding.shape, dtype=np.float32)
-        binding.read(np_buf)
-        wp.copy(buf.data, wp.from_numpy(np_buf, dtype=wp.float32, device=self.device))
-        buf.timestamp = self._sim_time
-
-    # --- internal helpers: singleton-dim reshape -----------------------
-    def _reshape_to_body_view(self, arr: wp.array, dtype) -> wp.array:
-        """Return a zero-copy (N, 1) view of a 1-D (N,) warp array.
-
-        For ``num_bodies=1`` this turns every root buffer into a body-tensor
-        with the singleton body dimension that the base API expects, so that
-        downstream torch callers see shape ``(N, 1, k)`` without any copy.
-
-        Args:
-            arr: 1-D warp array of shape ``(N,)``.
-            dtype: The warp scalar/struct dtype (e.g. ``wp.transformf``).
-
-        Returns:
-            A zero-copy warp array of shape ``(N, 1)`` with ``dtype``.
-        """
-        N = arr.shape[0]
-        elem_bytes = wp.types.type_size_in_bytes(dtype)
-        stride_n = elem_bytes  # tightly packed 1-D source
-        return wp.array(
-            ptr=arr.ptr,
-            shape=(N, 1),
-            dtype=dtype,
-            strides=(stride_n, stride_n),
-            device=self.device,
-            copy=False,
-        )
-
-    # --- internal helpers: read from bindings --------------------------
-    def _get_binding(self, tensor_type: int):
-        """Return the binding for the given tensor type, or None."""
-        return self._bindings.get(tensor_type)
-
-    def _get_read_view(self, tensor_type: int, wp_array: wp.array, floats_per_elem: int = 0) -> wp.array | None:
-        """Return a stable float32 view of *wp_array* sized to the binding shape.
-
-        Cached so that binding.read() always sees the same object.
-        """
-        cache_key = (tensor_type, wp_array.ptr)
-        cached = self._read_view_cache.get(cache_key)
-        if cached is not None:
-            return cached
-        binding = self._get_binding(tensor_type)
-        if binding is None:
-            self._read_view_cache[cache_key] = None
-            return None
-        if floats_per_elem > 0:
-            view = wp.array(
-                ptr=wp_array.ptr,
-                shape=binding.shape,
-                dtype=wp.float32,
-                device=str(wp_array.device),
-                copy=False,
-            )
-        else:
-            view = wp_array
-        self._read_view_cache[cache_key] = view
-        return view
-
-    def _read_transform_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
-        """Read a pose binding (float32 view of transformf buffer), skipping if fresh."""
-        if buf.timestamp >= self._sim_time:
-            return
-        view = self._get_read_view(tensor_type, buf.data, 7)
-        if view is None:
-            return
-        self._get_binding(tensor_type).read(view)
-        buf.timestamp = self._sim_time
-
-    def _read_spatial_vector_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
-        """Read a velocity binding (float32 view of spatial_vectorf buffer), skipping if fresh."""
-        if buf.timestamp >= self._sim_time:
-            return
-        view = self._get_read_view(tensor_type, buf.data, 6)
-        if view is None:
-            return
-        self._get_binding(tensor_type).read(view)
-        buf.timestamp = self._sim_time
-
-    # --- internal helpers: slice extraction ----------------------------
-    def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
-        return wp.array(
-            ptr=transform.ptr,
-            shape=transform.shape,
-            dtype=wp.vec3f,
-            strides=transform.strides,
-            device=self.device,
-        )
-
-    def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
-        return wp.array(
-            ptr=transform.ptr + 3 * 4,
-            shape=transform.shape,
-            dtype=wp.quatf,
-            strides=transform.strides,
-            device=self.device,
-        )
-
-    def _get_lin_vel_from_spatial_vector(self, sv: wp.array) -> wp.array:
-        return wp.array(
-            ptr=sv.ptr,
-            shape=sv.shape,
-            dtype=wp.vec3f,
-            strides=sv.strides,
-            device=self.device,
-        )
-
-    def _get_ang_vel_from_spatial_vector(self, sv: wp.array) -> wp.array:
-        return wp.array(
-            ptr=sv.ptr + 3 * 4,
-            shape=sv.shape,
-            dtype=wp.vec3f,
-            strides=sv.strides,
-            device=self.device,
-        )
-
-    # --- default-state properties ------------------------------------
     @property
     def default_root_pose(self) -> ProxyArray:
         """Default root pose ``[pos, quat]`` in simulation world frame [m, -].
@@ -485,40 +201,9 @@ class RigidObjectData(BaseRigidObjectData):
             self._default_root_vel_ta = ProxyArray(self._default_root_velocity)
         return self._default_root_vel_ta
 
-    @property
-    def default_root_state(self) -> ProxyArray:
-        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
-
-        .. deprecated::
-            Use :attr:`default_root_pose` and :attr:`default_root_vel` instead.
-
-        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
-        The position and quaternion are of the rigid body's actor frame; the linear and angular
-        velocities are of the center of mass frame.
-        """
-        warnings.warn(
-            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
-            "Please use the default_root_pose and default_root_vel properties instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._default_root_state_buf is None:
-            self._default_root_state_buf = wp.zeros(self.num_instances, dtype=vec13f, device=self.device)
-        wp.launch(
-            concat_root_pose_and_vel_to_state,
-            dim=self.num_instances,
-            inputs=[
-                self._default_root_pose,
-                self._default_root_velocity,
-            ],
-            outputs=[
-                self._default_root_state_buf,
-            ],
-            device=self.device,
-        )
-        if self._default_root_state_ta is None:
-            self._default_root_state_ta = ProxyArray(self._default_root_state_buf)
-        return self._default_root_state_ta
+    """
+    Root state properties.
+    """
 
     @property
     def root_link_pose_w(self) -> ProxyArray:
@@ -619,113 +304,59 @@ class RigidObjectData(BaseRigidObjectData):
             self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w_buf.data)
         return self._root_com_vel_w_ta
 
-    @property
-    def root_state_w(self) -> ProxyArray:
-        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-
-        .. deprecated::
-            Use :attr:`root_link_pose_w` and :attr:`root_com_vel_w` instead.
-
-        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
-        The position and quaternion are of the actor frame; velocities are of the COM frame.
-        """
-        warnings.warn(
-            "The `root_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_link_pose_w` and "
-            "`root_com_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._root_state_w_buf is None:
-            self._root_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
-        if self._root_state_w_buf.timestamp < self._sim_time:
-            wp.launch(
-                concat_root_pose_and_vel_to_state,
-                dim=self.num_instances,
-                inputs=[
-                    self.root_link_pose_w,
-                    self.root_com_vel_w,
-                ],
-                outputs=[
-                    self._root_state_w_buf.data,
-                ],
-                device=self.device,
-            )
-            self._root_state_w_buf.timestamp = self._sim_time
-        if self._root_state_w_ta is None:
-            self._root_state_w_ta = ProxyArray(self._root_state_w_buf.data)
-        return self._root_state_w_ta
+    """
+    Body state properties.
+    """
 
     @property
-    def root_link_state_w(self) -> ProxyArray:
-        """Root link state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+    def body_mass(self) -> ProxyArray:
+        """Mass of all bodies [kg].
+        Shape is (num_instances, 1), dtype = wp.float32.
+        In torch this resolves to (num_instances, 1).
 
-        .. deprecated::
-            Use :attr:`root_link_pose_w` and :attr:`root_link_vel_w` instead.
-
-        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
-        Both the position/orientation and velocities are of the actor frame.
+        The wheel exposes ``RIGID_BODY_MASS`` as shape ``(N,)``; this property
+        presents a zero-copy ``(N, 1)`` reshape to satisfy the
+        :class:`~isaaclab.assets.BaseRigidObjectData` contract
+        (``Shape is (num_instances, 1)``).
         """
-        warnings.warn(
-            "The `root_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_link_pose_w` and "
-            "`root_link_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._root_link_state_w_buf is None:
-            self._root_link_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
-        if self._root_link_state_w_buf.timestamp < self._sim_time:
-            wp.launch(
-                concat_root_pose_and_vel_to_state,
-                dim=self.num_instances,
-                inputs=[
-                    self.root_link_pose_w,
-                    self.root_link_vel_w,
-                ],
-                outputs=[
-                    self._root_link_state_w_buf.data,
-                ],
+        self._ensure_body_prop_buffers()
+        self._read_flat_binding(TT.RIGID_BODY_MASS, self._body_mass_buf)
+        if self._body_mass_ta is None:
+            raw = self._body_mass_buf.data  # shape (N,), dtype wp.float32
+            N = raw.shape[0]
+            view = wp.array(
+                ptr=raw.ptr,
+                shape=(N, 1),
+                dtype=wp.float32,
                 device=self.device,
+                copy=False,
             )
-            self._root_link_state_w_buf.timestamp = self._sim_time
-        if self._root_link_state_w_ta is None:
-            self._root_link_state_w_ta = ProxyArray(self._root_link_state_w_buf.data)
-        return self._root_link_state_w_ta
+            self._body_mass_ta = ProxyArray(view)
+        return self._body_mass_ta
 
     @property
-    def root_com_state_w(self) -> ProxyArray:
-        """Root COM state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+    def body_inertia(self) -> ProxyArray:
+        """Flattened inertia tensor of all bodies [kg*m^2].
+        Shape is (num_instances, num_bodies, 9), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_bodies, 9).
 
-        .. deprecated::
-            Use :attr:`root_com_pose_w` and :attr:`root_com_vel_w` instead.
-
-        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
-        Both the position/orientation and velocities are of the center of mass frame.
+        Stored as a flattened 3x3 inertia matrix per body.
         """
-        warnings.warn(
-            "The `root_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_com_pose_w` and "
-            "`root_com_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        if self._root_com_state_w_buf is None:
-            self._root_com_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
-        if self._root_com_state_w_buf.timestamp < self._sim_time:
-            wp.launch(
-                concat_root_pose_and_vel_to_state,
-                dim=self.num_instances,
-                inputs=[
-                    self.root_com_pose_w,
-                    self.root_com_vel_w,
-                ],
-                outputs=[
-                    self._root_com_state_w_buf.data,
-                ],
+        self._ensure_body_prop_buffers()
+        self._read_flat_binding(TT.RIGID_BODY_INERTIA, self._body_inertia_buf)
+        if self._body_inertia_ta is None:
+            # Zero-copy reshape from (N, 9) to (N, 1, 9).
+            raw = self._body_inertia_buf.data
+            N = raw.shape[0]
+            view = wp.array(
+                ptr=raw.ptr,
+                shape=(N, 1, 9),
+                dtype=wp.float32,
                 device=self.device,
+                copy=False,
             )
-            self._root_com_state_w_buf.timestamp = self._sim_time
-        if self._root_com_state_w_ta is None:
-            self._root_com_state_w_ta = ProxyArray(self._root_com_state_w_buf.data)
-        return self._root_com_state_w_ta
+            self._body_inertia_ta = ProxyArray(view)
+        return self._body_inertia_ta
 
     @property
     def body_link_pose_w(self) -> ProxyArray:
@@ -787,117 +418,6 @@ class RigidObjectData(BaseRigidObjectData):
             view = self._reshape_to_body_view(self._root_com_vel_w_buf.data, wp.spatial_vectorf)
             self._body_com_vel_w_ta = ProxyArray(view)
         return self._body_com_vel_w_ta
-
-    @property
-    def body_state_w(self) -> ProxyArray:
-        """Body state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-
-        .. deprecated::
-            Use :attr:`body_link_pose_w` and :attr:`body_com_vel_w` instead.
-
-        Shape is (num_instances, 1), dtype = vec13f.
-        In torch this resolves to (num_instances, 1, 13).
-        """
-        warnings.warn(
-            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
-            "`body_com_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        # Access the internal buffer directly to avoid cascading deprecation warnings from root_state_w.
-        if self._root_state_w_buf is None:
-            self._root_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
-        if self._root_state_w_buf.timestamp < self._sim_time:
-            wp.launch(
-                concat_root_pose_and_vel_to_state,
-                dim=self.num_instances,
-                inputs=[
-                    self.root_link_pose_w,
-                    self.root_com_vel_w,
-                ],
-                outputs=[
-                    self._root_state_w_buf.data,
-                ],
-                device=self.device,
-            )
-            self._root_state_w_buf.timestamp = self._sim_time
-        if self._body_state_w_ta is None:
-            self._body_state_w_ta = ProxyArray(self._root_state_w_buf.data.reshape((self.num_instances, 1)))
-        return self._body_state_w_ta
-
-    @property
-    def body_link_state_w(self) -> ProxyArray:
-        """Body link state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-
-        .. deprecated::
-            Use :attr:`body_link_pose_w` and :attr:`body_link_vel_w` instead.
-
-        Shape is (num_instances, 1), dtype = vec13f.
-        In torch this resolves to (num_instances, 1, 13).
-        """
-        warnings.warn(
-            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
-            "`body_link_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        # Access the internal buffer directly to avoid cascading deprecation warnings from root_link_state_w.
-        if self._root_link_state_w_buf is None:
-            self._root_link_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
-        if self._root_link_state_w_buf.timestamp < self._sim_time:
-            wp.launch(
-                concat_root_pose_and_vel_to_state,
-                dim=self.num_instances,
-                inputs=[
-                    self.root_link_pose_w,
-                    self.root_link_vel_w,
-                ],
-                outputs=[
-                    self._root_link_state_w_buf.data,
-                ],
-                device=self.device,
-            )
-            self._root_link_state_w_buf.timestamp = self._sim_time
-        if self._body_link_state_w_ta is None:
-            self._body_link_state_w_ta = ProxyArray(self._root_link_state_w_buf.data.reshape((self.num_instances, 1)))
-        return self._body_link_state_w_ta
-
-    @property
-    def body_com_state_w(self) -> ProxyArray:
-        """Body COM state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
-
-        .. deprecated::
-            Use :attr:`body_com_pose_w` and :attr:`body_com_vel_w` instead.
-
-        Shape is (num_instances, 1), dtype = vec13f.
-        In torch this resolves to (num_instances, 1, 13).
-        """
-        warnings.warn(
-            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "
-            "`body_com_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        # Access the internal buffer directly to avoid cascading deprecation warnings from root_com_state_w.
-        if self._root_com_state_w_buf is None:
-            self._root_com_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
-        if self._root_com_state_w_buf.timestamp < self._sim_time:
-            wp.launch(
-                concat_root_pose_and_vel_to_state,
-                dim=self.num_instances,
-                inputs=[
-                    self.root_com_pose_w,
-                    self.root_com_vel_w,
-                ],
-                outputs=[
-                    self._root_com_state_w_buf.data,
-                ],
-                device=self.device,
-            )
-            self._root_com_state_w_buf.timestamp = self._sim_time
-        if self._body_com_state_w_ta is None:
-            self._body_com_state_w_ta = ProxyArray(self._root_com_state_w_buf.data.reshape((self.num_instances, 1)))
-        return self._body_com_state_w_ta
 
     @property
     def body_com_acc_w(self) -> ProxyArray:
@@ -971,55 +491,9 @@ class RigidObjectData(BaseRigidObjectData):
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b_buf.data)
         return self._body_com_pose_b_ta
 
-    @property
-    def body_mass(self) -> ProxyArray:
-        """Mass of all bodies [kg].
-        Shape is (num_instances, 1), dtype = wp.float32.
-        In torch this resolves to (num_instances, 1).
-
-        The wheel exposes ``RIGID_BODY_MASS`` as shape ``(N,)``; this property
-        presents a zero-copy ``(N, 1)`` reshape to satisfy the
-        :class:`~isaaclab.assets.BaseRigidObjectData` contract
-        (``Shape is (num_instances, 1)``).
-        """
-        self._ensure_body_prop_buffers()
-        self._read_flat_binding(TT.RIGID_BODY_MASS, self._body_mass_buf)
-        if self._body_mass_ta is None:
-            raw = self._body_mass_buf.data  # shape (N,), dtype wp.float32
-            N = raw.shape[0]
-            view = wp.array(
-                ptr=raw.ptr,
-                shape=(N, 1),
-                dtype=wp.float32,
-                device=self.device,
-                copy=False,
-            )
-            self._body_mass_ta = ProxyArray(view)
-        return self._body_mass_ta
-
-    @property
-    def body_inertia(self) -> ProxyArray:
-        """Flattened inertia tensor of all bodies [kg*m^2].
-        Shape is (num_instances, num_bodies, 9), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_bodies, 9).
-
-        Stored as a flattened 3x3 inertia matrix per body.
-        """
-        self._ensure_body_prop_buffers()
-        self._read_flat_binding(TT.RIGID_BODY_INERTIA, self._body_inertia_buf)
-        if self._body_inertia_ta is None:
-            # Zero-copy reshape from (N, 9) to (N, 1, 9).
-            raw = self._body_inertia_buf.data
-            N = raw.shape[0]
-            view = wp.array(
-                ptr=raw.ptr,
-                shape=(N, 1, 9),
-                dtype=wp.float32,
-                device=self.device,
-                copy=False,
-            )
-            self._body_inertia_ta = ProxyArray(view)
-        return self._body_inertia_ta
+    """
+    Derived Properties.
+    """
 
     @property
     def projected_gravity_b(self) -> ProxyArray:
@@ -1143,6 +617,10 @@ class RigidObjectData(BaseRigidObjectData):
         if self._root_com_ang_vel_b_ta is None:
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b_buf.data)
         return self._root_com_ang_vel_b_ta
+
+    """
+    Sliced properties.
+    """
 
     @property
     def root_link_pos_w(self) -> ProxyArray:
@@ -1369,3 +847,568 @@ class RigidObjectData(BaseRigidObjectData):
         if self._body_com_quat_b_ta is None:
             self._body_com_quat_b_ta = ProxyArray(self._get_quat_from_transform(parent.warp))
         return self._body_com_quat_b_ta
+
+    def _create_buffers(self) -> None:
+        """Initialize per-instance buffer and ProxyArray cache attribute slots.
+
+        Mirrors :meth:`isaaclab_physx.assets.RigidObjectData._create_buffers`,
+        but the lazy-allocated TimestampedBuffers and on-demand constants are
+        deferred to :meth:`_ensure_root_buffers`, :meth:`_ensure_derived_buffers`,
+        and :meth:`_ensure_body_prop_buffers`. This is necessary because the
+        owning :class:`RigidObject` constructs :class:`RigidObjectData` before
+        ``num_instances`` is known.
+        """
+        self._default_root_pose: wp.array | None = None
+        self._default_root_velocity: wp.array | None = None
+        # Cached TimestampedBuffers for root state (allocated lazily on first access).
+        self._root_link_pose_w_buf: TimestampedBuffer | None = None
+        self._root_link_vel_w_buf: TimestampedBuffer | None = None
+        self._root_com_pose_w_buf: TimestampedBuffer | None = None
+        self._root_com_vel_w_buf: TimestampedBuffer | None = None
+        # Body-COM-in-body-frame buffer (shape (N,1), dtype=wp.transformf).
+        self._body_com_pose_b_buf: TimestampedBuffer | None = None
+        # Body acceleration buffer (allocated lazily; None until _ensure_derived_buffers).
+        self._body_acc_w_buf: TimestampedBuffer | None = None
+        # Previous-step COM velocity for finite-difference acceleration (lazy alloc).
+        self._previous_body_com_vel: wp.array | None = None
+        # Derived-property buffers (allocated lazily on first access).
+        self._projected_gravity_b_buf: TimestampedBuffer | None = None
+        self._heading_w_buf: TimestampedBuffer | None = None
+        self._root_link_lin_vel_b_buf: TimestampedBuffer | None = None
+        self._root_link_ang_vel_b_buf: TimestampedBuffer | None = None
+        self._root_com_lin_vel_b_buf: TimestampedBuffer | None = None
+        self._root_com_ang_vel_b_buf: TimestampedBuffer | None = None
+        # Float32 view cache so binding.read() always sees the same object.
+        self._read_view_cache: dict = {}
+        # ProxyArray wrappers (created once from the underlying buffer.data).
+        self._root_link_pose_w_ta: ProxyArray | None = None
+        self._root_link_vel_w_ta: ProxyArray | None = None
+        self._root_com_pose_w_ta: ProxyArray | None = None
+        self._root_com_vel_w_ta: ProxyArray | None = None
+        # Sliced view ProxyArrays.
+        self._root_link_pos_w_ta: ProxyArray | None = None
+        self._root_link_quat_w_ta: ProxyArray | None = None
+        self._root_link_lin_vel_w_ta: ProxyArray | None = None
+        self._root_link_ang_vel_w_ta: ProxyArray | None = None
+        self._root_com_pos_w_ta: ProxyArray | None = None
+        self._root_com_quat_w_ta: ProxyArray | None = None
+        self._root_com_lin_vel_w_ta: ProxyArray | None = None
+        self._root_com_ang_vel_w_ta: ProxyArray | None = None
+        # Body-state singleton-dim ProxyArrays ((N,1,k) views of root buffers).
+        self._body_link_pose_w_ta: ProxyArray | None = None
+        self._body_link_vel_w_ta: ProxyArray | None = None
+        self._body_com_pose_w_ta: ProxyArray | None = None
+        self._body_com_vel_w_ta: ProxyArray | None = None
+        self._body_link_pos_w_ta: ProxyArray | None = None
+        self._body_link_quat_w_ta: ProxyArray | None = None
+        self._body_link_lin_vel_w_ta: ProxyArray | None = None
+        self._body_link_ang_vel_w_ta: ProxyArray | None = None
+        self._body_com_pos_w_ta: ProxyArray | None = None
+        self._body_com_quat_w_ta: ProxyArray | None = None
+        self._body_com_lin_vel_w_ta: ProxyArray | None = None
+        self._body_com_ang_vel_w_ta: ProxyArray | None = None
+        # Body acceleration ProxyArrays.
+        self._body_acc_w_ta: ProxyArray | None = None
+        self._body_link_lin_acc_w_ta: ProxyArray | None = None
+        self._body_link_ang_acc_w_ta: ProxyArray | None = None
+        self._body_com_lin_acc_w_ta: ProxyArray | None = None
+        self._body_com_ang_acc_w_ta: ProxyArray | None = None
+        # Body property buffers (semi-static; lazy-allocated in _ensure_body_prop_buffers).
+        self._body_mass_buf: TimestampedBuffer | None = None
+        self._body_inertia_buf: TimestampedBuffer | None = None
+        # Body property ProxyArrays.
+        self._body_mass_ta: ProxyArray | None = None
+        self._body_inertia_ta: ProxyArray | None = None
+        self._body_com_pose_b_ta: ProxyArray | None = None
+        self._body_com_pos_b_ta: ProxyArray | None = None
+        self._body_com_quat_b_ta: ProxyArray | None = None
+        # Derived-property ProxyArrays.
+        self._projected_gravity_b_ta: ProxyArray | None = None
+        self._heading_w_ta: ProxyArray | None = None
+        self._root_link_lin_vel_b_ta: ProxyArray | None = None
+        self._root_link_ang_vel_b_ta: ProxyArray | None = None
+        self._root_com_lin_vel_b_ta: ProxyArray | None = None
+        self._root_com_ang_vel_b_ta: ProxyArray | None = None
+        # Gravity and forward constants (allocated lazily in _ensure_derived_buffers).
+        self.GRAVITY_VEC_W: ProxyArray | None = None
+        self.FORWARD_VEC_B: ProxyArray | None = None
+        # Default-state ProxyArray wrappers (created once from _default_root_pose/velocity).
+        self._default_root_pose_ta: ProxyArray | None = None
+        self._default_root_vel_ta: ProxyArray | None = None
+        # Deprecated state-concat buffers (lazily allocated on first property access).
+        self._default_root_state_buf: wp.array | None = None
+        self._default_root_state_ta: ProxyArray | None = None
+        self._root_state_w_buf: TimestampedBuffer | None = None
+        self._root_state_w_ta: ProxyArray | None = None
+        self._root_link_state_w_buf: TimestampedBuffer | None = None
+        self._root_link_state_w_ta: ProxyArray | None = None
+        self._root_com_state_w_buf: TimestampedBuffer | None = None
+        self._root_com_state_w_ta: ProxyArray | None = None
+        self._body_state_w_ta: ProxyArray | None = None
+        self._body_link_state_w_ta: ProxyArray | None = None
+        self._body_com_state_w_ta: ProxyArray | None = None
+
+    """
+    Internal helpers.
+    """
+
+    def _ensure_root_buffers(self) -> None:
+        """Allocate root-state TimestampedBuffers on first use.
+
+        Called lazily from root-state properties so that the buffers are
+        only created after ``num_instances`` and ``device`` are set by
+        the owning :class:`RigidObject`.
+        """
+        if self._root_link_pose_w_buf is not None:
+            return
+        N = self.num_instances
+        dev = self.device
+        self._root_link_pose_w_buf = TimestampedBuffer(N, dev, wp.transformf)
+        self._root_link_vel_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
+        self._root_com_pose_w_buf = TimestampedBuffer(N, dev, wp.transformf)
+        self._root_com_vel_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
+        # (N, 1) 2-D buffer for body_com_pose_b, required by _compose_root_com_pose.
+        self._body_com_pose_b_buf = TimestampedBuffer((N, 1), dev, wp.transformf)
+
+    def _ensure_derived_buffers(self) -> None:
+        """Allocate derived-property and body-acceleration TimestampedBuffers on first use.
+
+        Also initialises :attr:`GRAVITY_VEC_W` and :attr:`FORWARD_VEC_B` on first call,
+        mirroring the per-instance tiled constants used by
+        :class:`~isaaclab_ovphysx.assets.articulation.ArticulationData`.
+        """
+        if self._projected_gravity_b_buf is not None:
+            return
+        N = self.num_instances
+        dev = self.device
+        # Body acceleration (spatial vector per instance, same shape as ROOT_VELOCITY).
+        self._body_acc_w_buf = TimestampedBuffer(N, dev, wp.spatial_vectorf)
+        # Derived scalar / vector outputs.
+        self._projected_gravity_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        self._heading_w_buf = TimestampedBuffer(N, dev, wp.float32)
+        self._root_link_lin_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        self._root_link_ang_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        self._root_com_lin_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        self._root_com_ang_vel_b_buf = TimestampedBuffer(N, dev, wp.vec3f)
+        # Gravity and forward constants (tiled per-instance, matching articulation pattern).
+        # Guard against no sim context in mock/test environments.
+        from isaaclab.physics import PhysicsManager
+
+        gravity = (0.0, 0.0, -9.81)
+        if PhysicsManager._sim is not None and hasattr(PhysicsManager._sim, "cfg"):
+            gravity = PhysicsManager._sim.cfg.gravity
+        gravity_np = np.array(gravity, dtype=np.float32)
+        gravity_mag = np.linalg.norm(gravity_np)
+        if gravity_mag == 0.0:
+            gravity_dir = np.array([0.0, 0.0, -1.0], dtype=np.float32)
+        else:
+            gravity_dir = gravity_np / gravity_mag
+        gravity_dir_tiled = np.tile(gravity_dir, (N, 1))
+        forward_tiled = np.tile(np.array([1.0, 0.0, 0.0], dtype=np.float32), (N, 1))
+        self.GRAVITY_VEC_W = ProxyArray(wp.from_numpy(gravity_dir_tiled, dtype=wp.vec3f, device=dev))
+        self.FORWARD_VEC_B = ProxyArray(wp.from_numpy(forward_tiled, dtype=wp.vec3f, device=dev))
+
+    def _ensure_body_prop_buffers(self) -> None:
+        """Allocate body-property TimestampedBuffers on first use.
+
+        ``body_mass`` needs a ``(N,)`` float32 buffer matching the wheel's
+        ``RIGID_BODY_MASS`` shape.  The ``body_mass`` property exposes ``(N, 1)``
+        by zero-copy reshape to satisfy :class:`~isaaclab.assets.BaseRigidObjectData`.
+        ``body_inertia`` needs a ``(N, 9)`` flat float32 buffer so that
+        ``binding.read()`` can fill it directly; the ``(N, 1, 9)`` view is
+        constructed zero-copy in the property accessor.
+        """
+        if self._body_mass_buf is not None:
+            return
+        N = self.num_instances
+        dev = self.device
+        self._body_mass_buf = TimestampedBuffer(N, dev, wp.float32)
+        # Store flat (N, 9) so binding.read() sees the correct shape.
+        self._body_inertia_buf = TimestampedBuffer((N, 9), dev, wp.float32)
+
+    def _read_flat_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
+        """Read a flat (float32) CPU binding into a TimestampedBuffer, skipping if fresh."""
+        if buf.timestamp >= self._sim_time:
+            return
+        binding = self._get_binding(tensor_type)
+        if binding is None:
+            return
+        # CPU-only bindings: read via numpy then copy to the target device.
+        np_buf = np.zeros(binding.shape, dtype=np.float32)
+        binding.read(np_buf)
+        wp.copy(buf.data, wp.from_numpy(np_buf, dtype=wp.float32, device=self.device))
+        buf.timestamp = self._sim_time
+
+    def _reshape_to_body_view(self, arr: wp.array, dtype) -> wp.array:
+        """Return a zero-copy (N, 1) view of a 1-D (N,) warp array.
+
+        For ``num_bodies=1`` this turns every root buffer into a body-tensor
+        with the singleton body dimension that the base API expects, so that
+        downstream torch callers see shape ``(N, 1, k)`` without any copy.
+
+        Args:
+            arr: 1-D warp array of shape ``(N,)``.
+            dtype: The warp scalar/struct dtype (e.g. ``wp.transformf``).
+
+        Returns:
+            A zero-copy warp array of shape ``(N, 1)`` with ``dtype``.
+        """
+        N = arr.shape[0]
+        elem_bytes = wp.types.type_size_in_bytes(dtype)
+        stride_n = elem_bytes  # tightly packed 1-D source
+        return wp.array(
+            ptr=arr.ptr,
+            shape=(N, 1),
+            dtype=dtype,
+            strides=(stride_n, stride_n),
+            device=self.device,
+            copy=False,
+        )
+
+    def _get_binding(self, tensor_type: int):
+        """Return the binding for the given tensor type, or None."""
+        return self._bindings.get(tensor_type)
+
+    def _get_read_view(self, tensor_type: int, wp_array: wp.array, floats_per_elem: int = 0) -> wp.array | None:
+        """Return a stable float32 view of *wp_array* sized to the binding shape.
+
+        Cached so that binding.read() always sees the same object.
+        """
+        cache_key = (tensor_type, wp_array.ptr)
+        cached = self._read_view_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        binding = self._get_binding(tensor_type)
+        if binding is None:
+            self._read_view_cache[cache_key] = None
+            return None
+        if floats_per_elem > 0:
+            view = wp.array(
+                ptr=wp_array.ptr,
+                shape=binding.shape,
+                dtype=wp.float32,
+                device=str(wp_array.device),
+                copy=False,
+            )
+        else:
+            view = wp_array
+        self._read_view_cache[cache_key] = view
+        return view
+
+    def _read_transform_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
+        """Read a pose binding (float32 view of transformf buffer), skipping if fresh."""
+        if buf.timestamp >= self._sim_time:
+            return
+        view = self._get_read_view(tensor_type, buf.data, 7)
+        if view is None:
+            return
+        self._get_binding(tensor_type).read(view)
+        buf.timestamp = self._sim_time
+
+    def _read_spatial_vector_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
+        """Read a velocity binding (float32 view of spatial_vectorf buffer), skipping if fresh."""
+        if buf.timestamp >= self._sim_time:
+            return
+        view = self._get_read_view(tensor_type, buf.data, 6)
+        if view is None:
+            return
+        self._get_binding(tensor_type).read(view)
+        buf.timestamp = self._sim_time
+
+    def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
+        """Generates a position array from a transform array."""
+        return wp.array(
+            ptr=transform.ptr,
+            shape=transform.shape,
+            dtype=wp.vec3f,
+            strides=transform.strides,
+            device=self.device,
+        )
+
+    def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
+        """Generates a quaternion array from a transform array."""
+        return wp.array(
+            ptr=transform.ptr + 3 * 4,
+            shape=transform.shape,
+            dtype=wp.quatf,
+            strides=transform.strides,
+            device=self.device,
+        )
+
+    def _get_lin_vel_from_spatial_vector(self, sv: wp.array) -> wp.array:
+        """Generates a linear velocity array from a spatial vector array."""
+        return wp.array(
+            ptr=sv.ptr,
+            shape=sv.shape,
+            dtype=wp.vec3f,
+            strides=sv.strides,
+            device=self.device,
+        )
+
+    def _get_ang_vel_from_spatial_vector(self, sv: wp.array) -> wp.array:
+        """Generates an angular velocity array from a spatial vector array."""
+        return wp.array(
+            ptr=sv.ptr + 3 * 4,
+            shape=sv.shape,
+            dtype=wp.vec3f,
+            strides=sv.strides,
+            device=self.device,
+        )
+
+    """
+    Deprecated properties.
+    """
+
+    @property
+    def default_root_state(self) -> ProxyArray:
+        """Default root state ``[pos, quat, lin_vel, ang_vel]`` in local environment frame.
+
+        .. deprecated::
+            Use :attr:`default_root_pose` and :attr:`default_root_vel` instead.
+
+        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
+        The position and quaternion are of the rigid body's actor frame; the linear and angular
+        velocities are of the center of mass frame.
+        """
+        warnings.warn(
+            "Reading the root state directly is deprecated since IsaacLab 3.0 and will be removed in a future version. "
+            "Please use the default_root_pose and default_root_vel properties instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._default_root_state_buf is None:
+            self._default_root_state_buf = wp.zeros(self.num_instances, dtype=vec13f, device=self.device)
+        wp.launch(
+            concat_root_pose_and_vel_to_state,
+            dim=self.num_instances,
+            inputs=[
+                self._default_root_pose,
+                self._default_root_velocity,
+            ],
+            outputs=[
+                self._default_root_state_buf,
+            ],
+            device=self.device,
+        )
+        if self._default_root_state_ta is None:
+            self._default_root_state_ta = ProxyArray(self._default_root_state_buf)
+        return self._default_root_state_ta
+
+    @property
+    def root_state_w(self) -> ProxyArray:
+        """Root state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`root_link_pose_w` and :attr:`root_com_vel_w` instead.
+
+        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
+        The position and quaternion are of the actor frame; velocities are of the COM frame.
+        """
+        warnings.warn(
+            "The `root_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_link_pose_w` and "
+            "`root_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._root_state_w_buf is None:
+            self._root_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
+        if self._root_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self.num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_com_vel_w,
+                ],
+                outputs=[
+                    self._root_state_w_buf.data,
+                ],
+                device=self.device,
+            )
+            self._root_state_w_buf.timestamp = self._sim_time
+        if self._root_state_w_ta is None:
+            self._root_state_w_ta = ProxyArray(self._root_state_w_buf.data)
+        return self._root_state_w_ta
+
+    @property
+    def root_link_state_w(self) -> ProxyArray:
+        """Root link state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`root_link_pose_w` and :attr:`root_link_vel_w` instead.
+
+        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
+        Both the position/orientation and velocities are of the actor frame.
+        """
+        warnings.warn(
+            "The `root_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_link_pose_w` and "
+            "`root_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._root_link_state_w_buf is None:
+            self._root_link_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
+        if self._root_link_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self.num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_link_vel_w,
+                ],
+                outputs=[
+                    self._root_link_state_w_buf.data,
+                ],
+                device=self.device,
+            )
+            self._root_link_state_w_buf.timestamp = self._sim_time
+        if self._root_link_state_w_ta is None:
+            self._root_link_state_w_ta = ProxyArray(self._root_link_state_w_buf.data)
+        return self._root_link_state_w_ta
+
+    @property
+    def root_com_state_w(self) -> ProxyArray:
+        """Root COM state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`root_com_pose_w` and :attr:`root_com_vel_w` instead.
+
+        Shape is (num_instances,), dtype = vec13f. In torch this resolves to (num_instances, 13).
+        Both the position/orientation and velocities are of the center of mass frame.
+        """
+        warnings.warn(
+            "The `root_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `root_com_pose_w` and "
+            "`root_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if self._root_com_state_w_buf is None:
+            self._root_com_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
+        if self._root_com_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self.num_instances,
+                inputs=[
+                    self.root_com_pose_w,
+                    self.root_com_vel_w,
+                ],
+                outputs=[
+                    self._root_com_state_w_buf.data,
+                ],
+                device=self.device,
+            )
+            self._root_com_state_w_buf.timestamp = self._sim_time
+        if self._root_com_state_w_ta is None:
+            self._root_com_state_w_ta = ProxyArray(self._root_com_state_w_buf.data)
+        return self._root_com_state_w_ta
+
+    @property
+    def body_state_w(self) -> ProxyArray:
+        """Body state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`body_link_pose_w` and :attr:`body_com_vel_w` instead.
+
+        Shape is (num_instances, 1), dtype = vec13f.
+        In torch this resolves to (num_instances, 1, 13).
+        """
+        warnings.warn(
+            "The `body_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Access the internal buffer directly to avoid cascading deprecation warnings from root_state_w.
+        if self._root_state_w_buf is None:
+            self._root_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
+        if self._root_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self.num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_com_vel_w,
+                ],
+                outputs=[
+                    self._root_state_w_buf.data,
+                ],
+                device=self.device,
+            )
+            self._root_state_w_buf.timestamp = self._sim_time
+        if self._body_state_w_ta is None:
+            self._body_state_w_ta = ProxyArray(self._root_state_w_buf.data.reshape((self.num_instances, 1)))
+        return self._body_state_w_ta
+
+    @property
+    def body_link_state_w(self) -> ProxyArray:
+        """Body link state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`body_link_pose_w` and :attr:`body_link_vel_w` instead.
+
+        Shape is (num_instances, 1), dtype = vec13f.
+        In torch this resolves to (num_instances, 1, 13).
+        """
+        warnings.warn(
+            "The `body_link_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_link_pose_w` and "
+            "`body_link_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Access the internal buffer directly to avoid cascading deprecation warnings from root_link_state_w.
+        if self._root_link_state_w_buf is None:
+            self._root_link_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
+        if self._root_link_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self.num_instances,
+                inputs=[
+                    self.root_link_pose_w,
+                    self.root_link_vel_w,
+                ],
+                outputs=[
+                    self._root_link_state_w_buf.data,
+                ],
+                device=self.device,
+            )
+            self._root_link_state_w_buf.timestamp = self._sim_time
+        if self._body_link_state_w_ta is None:
+            self._body_link_state_w_ta = ProxyArray(self._root_link_state_w_buf.data.reshape((self.num_instances, 1)))
+        return self._body_link_state_w_ta
+
+    @property
+    def body_com_state_w(self) -> ProxyArray:
+        """Body COM state ``[pos, quat, lin_vel, ang_vel]`` in simulation world frame.
+
+        .. deprecated::
+            Use :attr:`body_com_pose_w` and :attr:`body_com_vel_w` instead.
+
+        Shape is (num_instances, 1), dtype = vec13f.
+        In torch this resolves to (num_instances, 1, 13).
+        """
+        warnings.warn(
+            "The `body_com_state_w` property will be deprecated in IsaacLab 4.0. Please use `body_com_pose_w` and "
+            "`body_com_vel_w` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Access the internal buffer directly to avoid cascading deprecation warnings from root_com_state_w.
+        if self._root_com_state_w_buf is None:
+            self._root_com_state_w_buf = TimestampedBuffer(self.num_instances, self.device, vec13f)
+        if self._root_com_state_w_buf.timestamp < self._sim_time:
+            wp.launch(
+                concat_root_pose_and_vel_to_state,
+                dim=self.num_instances,
+                inputs=[
+                    self.root_com_pose_w,
+                    self.root_com_vel_w,
+                ],
+                outputs=[
+                    self._root_com_state_w_buf.data,
+                ],
+                device=self.device,
+            )
+            self._root_com_state_w_buf.timestamp = self._sim_time
+        if self._body_com_state_w_ta is None:
+            self._body_com_state_w_ta = ProxyArray(self._root_com_state_w_buf.data.reshape((self.num_instances, 1)))
+        return self._body_com_state_w_ta

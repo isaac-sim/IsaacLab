@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.2.8 (2026-04-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reorganised :class:`~isaaclab_ovphysx.assets.RigidObjectData` to mirror
+  the section layout of the PhysX and Newton ``RigidObjectData`` modules
+  rather than the existing OVPhysX articulation coding style. Replaced
+  ``# --- section ---`` comment dividers with ``"""section"""`` triple-quote
+  blocks and reordered the file top-down to: defaults → root state →
+  body state → body properties → derived → sliced → internal helpers →
+  deprecated state-concat properties. Extracted the per-instance buffer
+  and ProxyArray cache attribute initialisation out of ``__init__`` into
+  a dedicated :meth:`_create_buffers` method, mirroring PhysX. Public API,
+  property bodies, kernel launches, and the lazy ``_ensure_*`` allocation
+  pattern are unchanged.
+
 0.2.7 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~
 
