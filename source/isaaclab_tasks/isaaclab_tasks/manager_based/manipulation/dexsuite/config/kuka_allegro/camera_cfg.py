@@ -9,7 +9,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -22,9 +22,9 @@ from ... import mdp
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 
 
-BASE_CAMERA_CFG = TiledCameraCfg(
+BASE_CAMERA_CFG = CameraCfg(
     prim_path="/World/envs/env_.*/Camera",
-    offset=TiledCameraCfg.OffsetCfg(
+    offset=CameraCfg.OffsetCfg(
         pos=(0.57, -0.8, 0.5),
         rot=(0.6124, 0.3536, 0.3536, 0.6124),
         convention="opengl",
@@ -36,9 +36,9 @@ BASE_CAMERA_CFG = TiledCameraCfg(
     renderer_cfg=MultiBackendRendererCfg(),
 )
 
-WRIST_CAMERA_CFG = TiledCameraCfg(
+WRIST_CAMERA_CFG = CameraCfg(
     prim_path="/World/envs/env_.*/Robot/ee_link/palm_link/Camera",
-    offset=TiledCameraCfg.OffsetCfg(
+    offset=CameraCfg.OffsetCfg(
         pos=(0.038, -0.38, -0.18),
         rot=(0.641, 0.641, -0.299, 0.299),
         convention="opengl",

@@ -14,7 +14,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sensors import TiledCamera, save_images_to_file
+from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class CartpoleCameraEnv(DirectRLEnv):
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera."""
         self._cartpole = Articulation(self.cfg.robot_cfg)
-        self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
+        self._tiled_camera = Camera(self.cfg.tiled_camera)
 
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
