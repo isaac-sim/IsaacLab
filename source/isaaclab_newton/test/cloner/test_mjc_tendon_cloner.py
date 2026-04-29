@@ -32,9 +32,8 @@ Root cause (newton-physics/newton#2618):
 import unittest
 
 import newton
-from newton.solvers import SolverMuJoCo
-
 from isaaclab_newton.cloner.newton_replicate import _scope_custom_frequencies
+from newton.solvers import SolverMuJoCo
 
 _TENDON_FREQ = "mujoco:tendon"
 _TENDON_JOINT_FREQ = "mujoco:tendon_joint"
@@ -238,7 +237,11 @@ class TestUsdTendonParsing(unittest.TestCase):
     ROOT = "/robot"
 
     def _build_proto(self, stiffness: float = 1.5) -> newton.ModelBuilder:
-        from newton._src.usd.schemas import SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx  # noqa: PLC0415
+        from newton._src.usd.schemas import (  # noqa: PLC0415
+            SchemaResolverMjc,
+            SchemaResolverNewton,
+            SchemaResolverPhysx,
+        )
 
         stage, _ = _make_minimal_tendon_stage(self.ROOT, stiffness=stiffness)
         b = _mjc_builder()

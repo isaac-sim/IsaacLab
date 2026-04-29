@@ -105,6 +105,8 @@ def _build_newton_builder_from_mapping(
     )
 
     # Proto resolvers include SchemaResolverMjc so MjcTendon prims are parsed.
+    # All three resolver classes are stateless (no instance fields); sharing one
+    # set across proto builders is safe.
     proto_resolvers = [SchemaResolverMjc(), SchemaResolverNewton(), SchemaResolverPhysx()]
 
     # The prototype is built from env_0 in absolute world coordinates.
