@@ -75,6 +75,15 @@ def _build_newton_builder_from_mapping(
     )
 
     # Proto resolvers include SchemaResolverMjc so MjcTendon prims are parsed.
+    #
+    # Known limitation (heterogeneous plans only): Newton's custom-frequency
+    # traversal uses stage.Traverse() unconditionally, ignoring root_path.
+    # In a plan with multiple MJCF sources that each have tendons, proto A's
+    # builder will encounter source B's MjcTendon prims.  Joint path resolution
+    # fails for those (not in proto A's joint_label), so they are added as
+    # zombie tendon entries with zero joint sub-entries — no-ops in MuJoCo.
+    # This is a Newton-side limitation; fixing it requires scoping
+    # stage.Traverse() to root_path in Newton's import_usd.py.
     proto_resolvers = [SchemaResolverMjc(), SchemaResolverNewton(), SchemaResolverPhysx()]
 
     # The prototype is built from env_0 in absolute world coordinates.
