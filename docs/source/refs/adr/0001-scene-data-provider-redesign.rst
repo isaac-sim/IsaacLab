@@ -229,7 +229,7 @@ the ``NewtonState`` capability, regardless of which provider is active.
 ``isaaclab.physics.scene_data_provider.SceneDataProvider`` is a thin
 factory that resolves a concrete provider subclass at construction time
 based on the active physics backend. It is part of the public API
-(:py:`from isaaclab.physics import SceneDataProvider`) and is unchanged
+(``from isaaclab.physics import SceneDataProvider``) and is unchanged
 by ADR-0002.
 
 References

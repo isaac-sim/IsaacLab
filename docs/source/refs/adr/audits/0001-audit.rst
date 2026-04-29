@@ -76,7 +76,7 @@ CUDA stream support
   is provided.
 
 Enhanced base class — ``get_body_transforms()`` and ``get_source_format()``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | Claim: ``BaseSceneDataProvider`` gains
   ``get_body_transforms(target_format, ...)`` and

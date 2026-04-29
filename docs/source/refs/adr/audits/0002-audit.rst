@@ -18,7 +18,7 @@ Capability protocols
 --------------------
 
 Built-in protocols ``GpuTransformBuffer``, ``UsdFabric``, ``NewtonState``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | Status: |OK|
 | Implementation:
@@ -65,7 +65,7 @@ Provider registry
 -----------------
 
 ``get_capability``, ``list_capabilities``, ``get_first_capability``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 | Status: |OK|
 | Implementation:
