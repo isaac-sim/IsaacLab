@@ -12,24 +12,22 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 import torch
 import warp as wp
-from packaging import version
 
-from pxr import Sdf, UsdGeom
+from pxr import UsdGeom
 
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, Renderer
 from isaaclab.sim.views import FrameView
-from isaaclab.utils import has_kit, to_camel_case
+from isaaclab.utils import to_camel_case
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.version import get_isaac_sim_version
 
 from ..sensor_base import SensorBase
-from .camera_data import CameraData
+from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -94,12 +92,6 @@ class Camera(SensorBase):
     }
     """The set of sensor types that are not supported by the camera class."""
 
-    SIMPLE_SHADING_TYPES: set[str] = {
-        "simple_shading_constant_diffuse",
-        "simple_shading_diffuse_mdl",
-        "simple_shading_full_mdl",
-    }
-
     def __init__(self, cfg: CameraCfg):
         """Initializes the camera sensor.
 
@@ -115,10 +107,13 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
 
-        # toggle rendering of rtx sensors as True
-        # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        settings = get_settings_manager()
-        settings.set_bool("/isaaclab/render/rtx_sensors", True)
+        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
+        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
+        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
+        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
+        # and several env classes read it before the renderer's __init__ runs.
+        if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
+            get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
         # Compute camera orientation (convention conversion) and spawn
         rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
@@ -132,27 +127,11 @@ class Camera(SensorBase):
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
-        # Create empty variables for storing output data
-        self._data = CameraData()
+        # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
+        self._data: CameraData | None = None
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
-
-        if not has_kit():
-            return
-        # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        # checks for Isaac Sim v4.5 as this issue exists there
-        if get_isaac_sim_version() == version.parse("4.5"):
-            if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
-                logger.warning(
-                    "Isaac Sim 4.5 introduced a bug in Camera when outputting instance and semantic"
-                    " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
-                    " will be disabled in the current workflow and may lead to longer load times and increased memory"
-                    " usage."
-                )
-                with Sdf.ChangeBlock():
-                    for prim in self.stage.Traverse():
-                        prim.SetInstanceable(False)
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
@@ -168,10 +147,6 @@ class Camera(SensorBase):
         return (
             f"Camera @ '{self.cfg.prim_path}': \n"
             f"\tdata types   : {list(self.data.output.keys())} \n"
-            f"\tsemantic filter : {self.cfg.semantic_filter}\n"
-            f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
-            f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
-            f"\tcolorize instance id segm.: {self.cfg.colorize_instance_id_segmentation}\n"
             f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
             f"\tnumber of sensors : {self._view.count}"
@@ -385,16 +360,10 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
-            RuntimeError: If cameras are not enabled (missing ``--enable_cameras`` flag).
+            RuntimeError: Propagated from the renderer constructor when the active backend's
+                runtime requirements are not satisfied (e.g. the RTX backend requires the
+                simulation app to be launched with ``--enable_cameras``).
         """
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", "default")
-        needs_kit_cameras = renderer_type in ("default", "isaac_rtx")
-        if needs_kit_cameras and not get_settings_manager().get("/isaaclab/cameras_enabled"):
-            raise RuntimeError(
-                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
-                " rendering."
-            )
-
         # Initialize parent class
         super()._initialize_impl()
 
@@ -477,81 +446,39 @@ class Camera(SensorBase):
 
     def _create_buffers(self):
         """Create buffers for storing data."""
-        # -- intrinsic matrix
+        specs = self._renderer.supported_output_types()
+        # Split requested names into known/unsupported; warn once for any the renderer can't produce.
+        known: list[str] = []
+        unsupported: list[str] = []
+        for name in self.cfg.data_types:
+            try:
+                if RenderBufferKind(name) in specs:
+                    known.append(name)
+                else:
+                    unsupported.append(name)
+            except ValueError:
+                unsupported.append(name)
+        if unsupported:
+            logger.warning(
+                "Renderer %s does not support the following requested data types and will not produce them: %s",
+                type(self._renderer).__name__,
+                unsupported,
+            )
+        self._data = CameraData.allocate(
+            data_types=known,
+            height=self.cfg.height,
+            width=self.cfg.width,
+            num_views=self._view.count,
+            device=self._device,
+            supported_specs=specs,
+        )
+        # Camera-frame state (pose / intrinsics) is owned by the camera, not
+        # the renderer: populate it on the freshly constructed ``CameraData``.
         self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
         self._update_intrinsic_matrices(self._ALL_INDICES)
-        # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         self._update_poses(self._ALL_INDICES)
-        self._data.image_shape = self.image_shape
-        # -- output data (eagerly pre-allocated so renderer.set_outputs() can hold tensor references)
-        data_dict = dict()
-        if "rgba" in self.cfg.data_types or "rgb" in self.cfg.data_types:
-            data_dict["rgba"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-            ).contiguous()
-        if "rgb" in self.cfg.data_types:
-            data_dict["rgb"] = data_dict["rgba"][..., :3]
-        if "albedo" in self.cfg.data_types:
-            data_dict["albedo"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-            ).contiguous()
-        for data_type in self.SIMPLE_SHADING_TYPES:
-            if data_type in self.cfg.data_types:
-                data_dict[data_type] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8
-                ).contiguous()
-        if "distance_to_image_plane" in self.cfg.data_types:
-            data_dict["distance_to_image_plane"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "depth" in self.cfg.data_types:
-            data_dict["depth"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "distance_to_camera" in self.cfg.data_types:
-            data_dict["distance_to_camera"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "normals" in self.cfg.data_types:
-            data_dict["normals"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "motion_vectors" in self.cfg.data_types:
-            data_dict["motion_vectors"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 2), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "semantic_segmentation" in self.cfg.data_types:
-            if self.cfg.colorize_semantic_segmentation:
-                data_dict["semantic_segmentation"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-                ).contiguous()
-            else:
-                data_dict["semantic_segmentation"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
-                ).contiguous()
-        if "instance_segmentation_fast" in self.cfg.data_types:
-            if self.cfg.colorize_instance_segmentation:
-                data_dict["instance_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-                ).contiguous()
-            else:
-                data_dict["instance_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
-                ).contiguous()
-        if "instance_id_segmentation_fast" in self.cfg.data_types:
-            if self.cfg.colorize_instance_id_segmentation:
-                data_dict["instance_id_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-                ).contiguous()
-            else:
-                data_dict["instance_id_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
-                ).contiguous()
-
-        self._data.output = data_dict
-        self._data.info = {name: None for name in self.cfg.data_types}
         self._renderer.set_outputs(self._render_data, self._data.output)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
