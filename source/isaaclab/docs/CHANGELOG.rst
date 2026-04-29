@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.54.4 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Kit GUI pause/resume leaving articulation meshes visually frozen on Isaac Sim 5.1+.
+  Starting with PhysX fabric 107.3.21, the FabricManager skips writing initial articulation
+  poses to fabric on subsequent resumes, so meshes appeared frozen even though physics
+  continued running. :meth:`~isaaclab.sim.SimulationContext.step` now detaches and
+  re-attaches the stage on the fabric interface after the timeline resumes, forcing the
+  FabricManager to reinitialize and write transforms back into fabric.
+
+
 0.54.3 (2026-02-04)
 ~~~~~~~~~~~~~~~~~~~
 
