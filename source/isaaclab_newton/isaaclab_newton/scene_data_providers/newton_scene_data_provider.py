@@ -192,6 +192,7 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
         (or other USD-based) visualizer is in use. When both sim and rendering backend
         are Newton (or Rerun), the sync is skipped to avoid unnecessary slowdown.
         """
+        self._validate_consumers_if_needed()
         self._generation += 1
         self._sync_transforms_to_usd_if_needed()
 

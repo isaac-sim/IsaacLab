@@ -9,3 +9,10 @@ design decisions in Isaac Lab.
 
    0001-scene-data-provider-redesign
    0002-capability-based-provider-extensibility
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Implementation audits
+
+   audits/0001-audit
+   audits/0002-audit

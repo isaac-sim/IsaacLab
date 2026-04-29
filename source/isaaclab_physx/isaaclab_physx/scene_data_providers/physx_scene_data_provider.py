@@ -665,6 +665,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
 
     def update(self) -> None:
         """Sync PhysX transforms into the full Newton state (one kernel launch)."""
+        self._validate_consumers_if_needed()
         self._generation += 1
         if not self._needs_newton_sync or self._newton_state is None:
             return
