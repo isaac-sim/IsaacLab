@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +55,14 @@ class FabricNoticeBindings:
         self._iface_ptr: int = 0
         self._set_fn = None
         self._get_fn = None
+        self._validated: bool = False
 
     def initialize(self) -> bool:
         """Acquire the ``IFabricUsd`` interface. Returns False if unavailable."""
         try:
             libcarb = ctypes.CDLL("libcarb.so")
         except OSError:
+            logger.info("libcarb.so unavailable — Fabric notice suspension disabled (Linux x86_64 only)")
             return False
 
         libcarb.acquireFramework.restype = ctypes.c_void_p
@@ -110,22 +113,40 @@ class FabricNoticeBindings:
             return False
         return bool(self._get_fn(ctypes.c_uint64(fabric_id)))
 
+    def validate_with(self, fabric_id: int) -> bool:
+        """One-time toggle round-trip — guards against ABI offset drift.
+
+        If Kit's ``IFabricUsd`` vtable layout changes, our hardcoded offsets call the
+        wrong functions and ``set_enable`` no longer flips the flag ``is_enabled`` reads
+        from. This catches that case the first time we have a real fabric_id to work
+        with, and lets the caller fall back to a no-op.
+        """
+        if self._validated:
+            return True
+        original = self.is_enabled(fabric_id)
+        self.set_enable(fabric_id, not original)
+        ok = self.is_enabled(fabric_id) != original
+        self.set_enable(fabric_id, original)
+        self._validated = ok
+        return ok
+
 
 _BINDINGS: FabricNoticeBindings | None = None
 _INIT_TRIED: bool = False
+_LOCK = threading.Lock()
 
 
 def get_bindings() -> FabricNoticeBindings | None:
     """Return the lazily-initialised bindings, or ``None`` if Kit/Carbonite is unavailable."""
     global _BINDINGS, _INIT_TRIED
-    if _BINDINGS is not None:
+    with _LOCK:
+        if _BINDINGS is not None:
+            return _BINDINGS
+        if _INIT_TRIED:
+            return None
+        _INIT_TRIED = True
+        b = FabricNoticeBindings()
+        if not b.initialize():
+            return None
+        _BINDINGS = b
         return _BINDINGS
-    if _INIT_TRIED:
-        return None
-    _INIT_TRIED = True
-    b = FabricNoticeBindings()
-    if not b.initialize():
-        logger.debug("omni::fabric::IFabricUsd not available — Fabric notice suspension disabled")
-        return None
-    _BINDINGS = b
-    return _BINDINGS

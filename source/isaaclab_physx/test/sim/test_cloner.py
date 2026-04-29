@@ -618,6 +618,9 @@ def test_disabled_fabric_change_notifies_speedup_regression():
         original = fabric_notices_mod.get_bindings
         if simulate_pre_pr:
             fabric_notices_mod.get_bindings = lambda: None
+            # Defensive: if the symbol moves or shape changes, the patch becomes a no-op
+            # and both runs measure the same path — this assert fails loudly instead.
+            assert fabric_notices_mod.get_bindings() is None, "monkey-patch did not take effect"
         try:
             with build_simulation_context(device="cpu", dt=0.01, add_lighting=False) as sim:
                 t0 = time.perf_counter()

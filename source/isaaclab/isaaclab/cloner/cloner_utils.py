@@ -88,6 +88,12 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
     stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
     # ``FabricId`` wraps a uint64; the C ABI needs the raw integer.
     fabric_id = usdrt.Usd.Stage.Attach(stage_id).GetFabricId().id
+    # First-call ABI sanity check — if the toggle doesn't actually round-trip the flag
+    # (e.g. Kit's vtable shifted), fall through to a no-op rather than corrupting state.
+    if not bindings.validate_with(fabric_id):
+        logger.warning("Fabric notice toggle failed round-trip check — suspension disabled")
+        yield
+        return
     was_enabled = bindings.is_enabled(fabric_id)
     if was_enabled:
         bindings.set_enable(fabric_id, False)
