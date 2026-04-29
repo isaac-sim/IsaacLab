@@ -175,7 +175,9 @@ def launch_simulation(
     # --visualizer newton instead, which is compatible with ovrtx presets.
     early_visualizer_types = _get_visualizer_types(launcher_args)
     if "kit" in early_visualizer_types:
-        has_ovrtx = _scan_config(env_cfg, [lambda node: isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"])[0]
+        has_ovrtx = _scan_config(
+            env_cfg, [lambda node: isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"]
+        )[0]
         if has_ovrtx:
             raise ValueError(
                 "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx_renderer'. "
