@@ -20,7 +20,14 @@ import warp as wp
 from isaaclab_physx.cloner import physx_replicate
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import TemplateCloneCfg, clone_from_template, sequential, usd_replicate
+from isaaclab.cloner import (
+    TemplateCloneCfg,
+    _fabric_notices,
+    clone_from_template,
+    disabled_fabric_change_notifies,
+    sequential,
+    usd_replicate,
+)
 from isaaclab.sim import build_simulation_context
 
 wp.init()
@@ -491,3 +498,55 @@ def test_physx_replicate_vs_no_replicate(device):
     for idx in range(baseline.shape[0]):
         diff = (with_rep[idx, 0] - baseline[idx, 0]).abs().max().item()
         assert diff < 1e-3, f"step {idx}: replicate vs no-replicate diverge, max_diff={diff}"
+
+
+def test_disabled_fabric_change_notifies_toggles_ifabricusd_flag(sim):
+    """Regression: ``disabled_fabric_change_notifies`` actually toggles the IFabricUsd flag.
+
+    The PR's perf win depends on ``setEnableChangeNotifies`` being driven correctly by the
+    ctypes binding in ``_fabric_notices.py``. That binding reads hardcoded vtable offsets
+    and could silently no-op if Kit's ABI shifts (offsets drift) or libcarb fails to load.
+
+    A perf-delta assertion can't be done reliably in synthetic isolation — the listener's
+    cost only shows up under full Kit+PhysX integration paths that this test environment
+    doesn't reproduce; production-scene benchmarks are the PR's load-bearing perf evidence.
+    What this test guards is the mechanic itself: ``is_enabled`` flips on entry, restores
+    on exit when ``restore=True``, stays off when ``restore=False``, and re-entrant nested
+    blocks behave correctly.
+    """
+    import usdrt
+    from pxr import UsdUtils
+
+    bindings = _fabric_notices.get_bindings()
+    if bindings is None:
+        pytest.skip("omni::fabric::IFabricUsd unavailable — Fabric notice path inert here")
+
+    stage = sim_utils.get_current_stage()
+    cache = UsdUtils.StageCache.Get()
+    cached_id = cache.GetId(stage)
+    stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
+    fabric_id = usdrt.Usd.Stage.Attach(stage_id).GetFabricId().id
+
+    # 1. Listener starts enabled.
+    assert bindings.is_enabled(fabric_id), "Fabric notice listener should be enabled at test start"
+
+    # 2. Default ``restore=True`` round-trips the flag.
+    with disabled_fabric_change_notifies(stage):
+        assert not bindings.is_enabled(fabric_id), "listener should be suspended inside the with block"
+    assert bindings.is_enabled(fabric_id), "listener should be restored on exit when restore=True"
+
+    # 3. ``restore=False`` leaves the flag off. Manually re-enable to get back to a
+    #    known state for subsequent assertions.
+    with disabled_fabric_change_notifies(stage, restore=False):
+        assert not bindings.is_enabled(fabric_id), "listener should be suspended inside the with block"
+    assert not bindings.is_enabled(fabric_id), "listener should remain suspended on exit when restore=False"
+    bindings.set_enable(fabric_id, True)
+    assert bindings.is_enabled(fabric_id)
+
+    # 4. Re-entrant nesting: inner exits don't re-enable while outer still wants it suspended.
+    with disabled_fabric_change_notifies(stage):
+        assert not bindings.is_enabled(fabric_id)
+        with disabled_fabric_change_notifies(stage):
+            assert not bindings.is_enabled(fabric_id)
+        assert not bindings.is_enabled(fabric_id), "inner exit must not re-enable while outer is active"
+    assert bindings.is_enabled(fabric_id), "outer exit should restore the flag"
