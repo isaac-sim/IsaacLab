@@ -574,14 +574,11 @@ class SimulationContext(_SimulationContext):
                 # skips writing initial articulation poses on subsequent resumes, which causes
                 # articulation meshes to freeze visually while physics continues running.
                 # Detaching and re-attaching the stage forces the FabricManager to fully
-                # re-initialize, including writing transforms to fabric.
+                # re-initialize, including writing transforms to fabric. This also pumps the
+                # app so physics/Hydra pick up the resumed state -- no separate app.update()
+                # is needed.
                 # See: https://github.com/isaac-sim/IsaacLab/issues/4279
                 self._re_sync_fabric()
-            # need to do one step to refresh the app
-            # reason: physics has to parse the scene again and inform other extensions like hydra-delegate.
-            #   without this the app becomes unresponsive.
-            # FIXME: This steps physics as well, which we is not good in general.
-            self.app.update()
 
         # step the simulation
         super().step(render=render)
