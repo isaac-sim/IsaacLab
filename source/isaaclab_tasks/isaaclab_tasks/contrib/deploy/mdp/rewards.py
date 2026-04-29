@@ -568,6 +568,139 @@ class keypoint_ee_grasp_error_exp(keypoint_ee_grasp_error):
         return scaled_reward
 
 
+class keypoint_two_body_error(ManagerTermBase):
+    """Compute keypoint distance between two explicit :class:`~isaaclab.assets.RigidObject` assets.
+
+    Unlike :class:`keypoint_entity_error` which relies on the gear-type manager
+    to select the active gear, this term takes two explicit asset configs and
+    always computes the keypoint distance between them. Suitable for cable
+    insertion and other two-body alignment tasks.
+
+    Args:
+        asset_cfg_1: First rigid object asset config.
+        asset_cfg_2: Second rigid object asset config.
+        keypoint_scale: Scaling factor [m] for the keypoint cube size used for
+            distance computation.
+        add_cube_center_kp: Whether to include the cube center keypoint.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        if "asset_cfg_1" not in cfg.params or "asset_cfg_2" not in cfg.params:
+            raise ValueError(
+                "'asset_cfg_1' and 'asset_cfg_2' parameters are required in keypoint_two_body_error configuration."
+            )
+
+        self.asset_cfg_1: SceneEntityCfg = cfg.params["asset_cfg_1"]
+        self.asset_1 = env.scene[self.asset_cfg_1.name]
+
+        self.asset_cfg_2: SceneEntityCfg = cfg.params["asset_cfg_2"]
+        self.asset_2 = env.scene[self.asset_cfg_2.name]
+
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg_1: SceneEntityCfg | None = None,
+        asset_cfg_2: SceneEntityCfg | None = None,
+        keypoint_scale: float = 1.0,
+        add_cube_center_kp: bool = True,
+    ) -> torch.Tensor:
+        curr_pos_1 = wp.to_torch(self.asset_1.data.body_pos_w)[:, 0]
+        curr_quat_1 = wp.to_torch(self.asset_1.data.body_quat_w)[:, 0]
+
+        curr_pos_2 = wp.to_torch(self.asset_2.data.body_pos_w)[:, 0]
+        curr_quat_2 = wp.to_torch(self.asset_2.data.body_quat_w)[:, 0]
+
+        keypoint_dist_sep = self.keypoint_computer.compute(
+            current_pos=curr_pos_1,
+            current_quat=curr_quat_1,
+            target_pos=curr_pos_2,
+            target_quat=curr_quat_2,
+            keypoint_scale=keypoint_scale,
+        )
+
+        return keypoint_dist_sep.mean(-1)
+
+
+class keypoint_two_body_error_exp(ManagerTermBase):
+    """Exponential keypoint reward between two explicit :class:`~isaaclab.assets.RigidObject` assets.
+
+    Exponential version of :class:`keypoint_two_body_error`. The reward peaks
+    near 1.0 when the two bodies are aligned and drops sharply as they diverge.
+
+    Args:
+        asset_cfg_1: First rigid object asset config.
+        asset_cfg_2: Second rigid object asset config.
+        kp_exp_coeffs: List of ``(a, b)`` coefficients for the
+            ``1 / (exp(a*d) + b + exp(-a*d))`` shaping terms that are summed
+            (or averaged) into the final reward.
+        kp_use_sum_of_exps: If ``True`` (default), apply the exponential
+            shaping per keypoint and average; otherwise apply once on the
+            mean keypoint distance.
+        keypoint_scale: Scaling factor [m] for the keypoint cube size.
+        add_cube_center_kp: Whether to include the cube center keypoint.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+
+        if "asset_cfg_1" not in cfg.params or "asset_cfg_2" not in cfg.params:
+            raise ValueError(
+                "'asset_cfg_1' and 'asset_cfg_2' parameters are required in keypoint_two_body_error_exp configuration."
+            )
+
+        self.asset_cfg_1: SceneEntityCfg = cfg.params["asset_cfg_1"]
+        self.asset_1 = env.scene[self.asset_cfg_1.name]
+
+        self.asset_cfg_2: SceneEntityCfg = cfg.params["asset_cfg_2"]
+        self.asset_2 = env.scene[self.asset_cfg_2.name]
+
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        asset_cfg_1: SceneEntityCfg | None = None,
+        asset_cfg_2: SceneEntityCfg | None = None,
+        kp_exp_coeffs: list[tuple[float, float]] = [(1.0, 0.1)],
+        kp_use_sum_of_exps: bool = True,
+        keypoint_scale: float = 1.0,
+        add_cube_center_kp: bool = True,
+    ) -> torch.Tensor:
+        curr_pos_1 = wp.to_torch(self.asset_1.data.body_pos_w)[:, 0]
+        curr_quat_1 = wp.to_torch(self.asset_1.data.body_quat_w)[:, 0]
+
+        curr_pos_2 = wp.to_torch(self.asset_2.data.body_pos_w)[:, 0]
+        curr_quat_2 = wp.to_torch(self.asset_2.data.body_quat_w)[:, 0]
+
+        keypoint_dist_sep = self.keypoint_computer.compute(
+            current_pos=curr_pos_1,
+            current_quat=curr_quat_1,
+            target_pos=curr_pos_2,
+            target_quat=curr_quat_2,
+            keypoint_scale=keypoint_scale,
+        )
+
+        keypoint_reward_exp = torch.zeros_like(keypoint_dist_sep[:, 0])
+
+        if kp_use_sum_of_exps:
+            for coeff in kp_exp_coeffs:
+                a, b = coeff
+                keypoint_reward_exp += (
+                    1.0 / (torch.exp(a * keypoint_dist_sep) + b + torch.exp(-a * keypoint_dist_sep))
+                ).mean(-1)
+        else:
+            keypoint_dist = keypoint_dist_sep.mean(-1)
+            for coeff in kp_exp_coeffs:
+                a, b = coeff
+                keypoint_reward_exp += 1.0 / (torch.exp(a * keypoint_dist) + b + torch.exp(-a * keypoint_dist))
+
+        return keypoint_reward_exp
+
+
 ##
 # Helper functions and classes
 ##
