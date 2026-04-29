@@ -193,20 +193,60 @@ class keypoint_entity_error(ManagerTermBase):
         self.asset_cfg_1: SceneEntityCfg = cfg.params.get("asset_cfg_1", SceneEntityCfg("factory_gear_base"))
         self.asset_1 = env.scene[self.asset_cfg_1.name]
 
-        # Pre-allocate gear type mapping and indices
+        self._init_gear_selection(env)
+
+        # Create keypoint distance computer
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+
+    def _init_gear_selection(self, env: ManagerBasedRLEnv) -> None:
+        """Pre-allocate gear type mapping, index tensors, and cache gear scene assets."""
         self.gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
         self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.env_indices = torch.arange(env.num_envs, device=env.device)
 
-        # Cache gear assets
         self.gear_assets = {
             "gear_small": env.scene["factory_gear_small"],
             "gear_medium": env.scene["factory_gear_medium"],
             "gear_large": env.scene["factory_gear_large"],
         }
 
-        # Create keypoint distance computer
-        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+    def _get_selected_gear_poses(self, env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor]:
+        """Retrieve world-frame position and quaternion of the active gear per environment.
+
+        Returns:
+            Tuple of (gear_pos, gear_quat) with shapes (num_envs, 3) and (num_envs, 4).
+        """
+        if not hasattr(env, "_gear_type_manager"):
+            raise RuntimeError(
+                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
+                "in your environment's event configuration before this reward term is used."
+            )
+
+        gear_type_manager: randomize_gear_type = env._gear_type_manager
+        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
+
+        all_gear_pos = torch.stack(
+            [
+                self.gear_assets["gear_small"].data.body_pos_w.torch[:, 0],
+                self.gear_assets["gear_medium"].data.body_pos_w.torch[:, 0],
+                self.gear_assets["gear_large"].data.body_pos_w.torch[:, 0],
+            ],
+            dim=1,
+        )
+
+        all_gear_quat = torch.stack(
+            [
+                self.gear_assets["gear_small"].data.body_quat_w.torch[:, 0],
+                self.gear_assets["gear_medium"].data.body_quat_w.torch[:, 0],
+                self.gear_assets["gear_large"].data.body_quat_w.torch[:, 0],
+            ],
+            dim=1,
+        )
+
+        gear_pos = all_gear_pos[self.env_indices, self.gear_type_indices]
+        gear_quat = all_gear_quat[self.env_indices, self.gear_type_indices]
+
+        return gear_pos, gear_quat
 
     def __call__(
         self,
@@ -230,39 +270,8 @@ class keypoint_entity_error(ManagerTermBase):
         curr_pos_1 = self.asset_1.data.body_pos_w.torch[:, 0]
         curr_quat_1 = self.asset_1.data.body_quat_w.torch[:, 0]
 
-        # Check if gear type manager exists
-        if not hasattr(env, "_gear_type_manager"):
-            raise RuntimeError(
-                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
-                "in your environment's event configuration before this reward term is used."
-            )
-
-        gear_type_manager: randomize_gear_type = env._gear_type_manager
-        # Get gear type indices directly as tensor
-        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
-
-        # Stack all gear positions and quaternions
-        all_gear_pos = torch.stack(
-            [
-                self.gear_assets["gear_small"].data.body_pos_w.torch[:, 0],
-                self.gear_assets["gear_medium"].data.body_pos_w.torch[:, 0],
-                self.gear_assets["gear_large"].data.body_pos_w.torch[:, 0],
-            ],
-            dim=1,
-        )
-
-        all_gear_quat = torch.stack(
-            [
-                self.gear_assets["gear_small"].data.body_quat_w.torch[:, 0],
-                self.gear_assets["gear_medium"].data.body_quat_w.torch[:, 0],
-                self.gear_assets["gear_large"].data.body_quat_w.torch[:, 0],
-            ],
-            dim=1,
-        )
-
-        # Select positions and quaternions using advanced indexing
-        curr_pos_2 = all_gear_pos[self.env_indices, self.gear_type_indices]
-        curr_quat_2 = all_gear_quat[self.env_indices, self.gear_type_indices]
+        # Get selected gear pose
+        curr_pos_2, curr_quat_2 = self._get_selected_gear_poses(env)
 
         # Compute keypoint distance
         keypoint_dist_sep = self.keypoint_computer.compute(
@@ -276,39 +285,12 @@ class keypoint_entity_error(ManagerTermBase):
         return keypoint_dist_sep.mean(-1)
 
 
-class keypoint_entity_error_exp(ManagerTermBase):
+class keypoint_entity_error_exp(keypoint_entity_error):
     """Compute exponential keypoint reward between a RigidObject and the dynamically selected gear.
 
-    This class-based term pre-caches gear type mapping and asset references.
+    Inherits gear selection and initialization from :class:`keypoint_entity_error`
+    and applies an exponential reward transformation to the keypoint distances.
     """
-
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        """Initialize the keypoint entity error exponential term.
-
-        Args:
-            cfg: Reward term configuration
-            env: Environment instance
-        """
-        super().__init__(cfg, env)
-
-        # Cache asset configuration
-        self.asset_cfg_1: SceneEntityCfg = cfg.params.get("asset_cfg_1", SceneEntityCfg("factory_gear_base"))
-        self.asset_1 = env.scene[self.asset_cfg_1.name]
-
-        # Pre-allocate gear type mapping and indices
-        self.gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
-        self.env_indices = torch.arange(env.num_envs, device=env.device)
-
-        # Cache gear assets
-        self.gear_assets = {
-            "gear_small": env.scene["factory_gear_small"],
-            "gear_medium": env.scene["factory_gear_medium"],
-            "gear_large": env.scene["factory_gear_large"],
-        }
-
-        # Create keypoint distance computer
-        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
 
     def __call__(
         self,
@@ -336,39 +318,8 @@ class keypoint_entity_error_exp(ManagerTermBase):
         curr_pos_1 = self.asset_1.data.body_pos_w.torch[:, 0]
         curr_quat_1 = self.asset_1.data.body_quat_w.torch[:, 0]
 
-        # Check if gear type manager exists
-        if not hasattr(env, "_gear_type_manager"):
-            raise RuntimeError(
-                "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
-                "in your environment's event configuration before this reward term is used."
-            )
-
-        gear_type_manager: randomize_gear_type = env._gear_type_manager
-        # Get gear type indices directly as tensor
-        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
-
-        # Stack all gear positions and quaternions
-        all_gear_pos = torch.stack(
-            [
-                self.gear_assets["gear_small"].data.body_pos_w.torch[:, 0],
-                self.gear_assets["gear_medium"].data.body_pos_w.torch[:, 0],
-                self.gear_assets["gear_large"].data.body_pos_w.torch[:, 0],
-            ],
-            dim=1,
-        )
-
-        all_gear_quat = torch.stack(
-            [
-                self.gear_assets["gear_small"].data.body_quat_w.torch[:, 0],
-                self.gear_assets["gear_medium"].data.body_quat_w.torch[:, 0],
-                self.gear_assets["gear_large"].data.body_quat_w.torch[:, 0],
-            ],
-            dim=1,
-        )
-
-        # Select positions and quaternions using advanced indexing
-        curr_pos_2 = all_gear_pos[self.env_indices, self.gear_type_indices]
-        curr_quat_2 = all_gear_quat[self.env_indices, self.gear_type_indices]
+        # Get selected gear pose
+        curr_pos_2, curr_quat_2 = self._get_selected_gear_poses(env)
 
         # Compute keypoint distance
         keypoint_dist_sep = self.keypoint_computer.compute(
@@ -397,7 +348,7 @@ class keypoint_entity_error_exp(ManagerTermBase):
         return keypoint_reward_exp
 
 
-class keypoint_ee_grasp_error(ManagerTermBase):
+class keypoint_ee_grasp_error(keypoint_entity_error):
     """Compute keypoint distance between the robot end effector and the gear's grasp-corrected pose.
 
     Transforms the gear's actual world pose into the expected EE position/orientation
@@ -414,7 +365,10 @@ class keypoint_ee_grasp_error(ManagerTermBase):
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
+        ManagerTermBase.__init__(self, cfg, env)
+
+        self._init_gear_selection(env)
+        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
 
         self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
         self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
@@ -439,23 +393,32 @@ class keypoint_ee_grasp_error(ManagerTermBase):
         self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
         self.ee_grasp_threshold: float = cfg.params.get("ee_grasp_threshold", 0.0)
 
-        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
-        self.env_indices = torch.arange(env.num_envs, device=env.device)
-        self.gear_assets = {
-            "gear_small": env.scene["factory_gear_small"],
-            "gear_medium": env.scene["factory_gear_medium"],
-            "gear_large": env.scene["factory_gear_large"],
-        }
-
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         self.eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
-
-        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
         self._step_count = 0
 
     def _get_weight_scale(self, env: ManagerBasedRLEnv) -> float:
         progress = min(env.common_step_counter / max(self.weight_ramp_steps, 1), 1.0)
         return self.weight_ramp_start + (1.0 - self.weight_ramp_start) * progress
+
+    def _get_grasp_corrected_target(
+        self, env: ManagerBasedRLEnv
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Compute EE pose and grasp-corrected target pose.
+
+        Returns:
+            Tuple of (eef_pos, eef_quat, gear_grasp_pos, gear_quat_grasp).
+        """
+        eef_pos = self.robot_asset.data.body_link_pos_w.torch[:, self.eef_idx]
+        eef_quat = self.robot_asset.data.body_link_quat_w.torch[:, self.eef_idx]
+
+        gear_pos, gear_quat = self._get_selected_gear_poses(env)
+
+        gear_quat_grasp = quat_mul(gear_quat, self.grasp_rot_offset_tensor)
+        grasp_offsets = self.gear_grasp_offsets_stacked[self.gear_type_indices]
+        gear_grasp_pos = gear_pos + quat_apply(gear_quat_grasp, grasp_offsets)
+
+        return eef_pos, eef_quat, gear_grasp_pos, gear_quat_grasp
 
     def __call__(
         self,
@@ -473,36 +436,7 @@ class keypoint_ee_grasp_error(ManagerTermBase):
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
 
-        gear_type_manager: randomize_gear_type = env._gear_type_manager
-        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
-
-        eef_pos = self.robot_asset.data.body_link_pos_w.torch[:, self.eef_idx]
-        eef_quat = self.robot_asset.data.body_link_quat_w.torch[:, self.eef_idx]
-
-        all_gear_pos = torch.stack(
-            [
-                self.gear_assets["gear_small"].data.root_link_pos_w.torch,
-                self.gear_assets["gear_medium"].data.root_link_pos_w.torch,
-                self.gear_assets["gear_large"].data.root_link_pos_w.torch,
-            ],
-            dim=1,
-        )
-        all_gear_quat = torch.stack(
-            [
-                self.gear_assets["gear_small"].data.root_link_quat_w.torch,
-                self.gear_assets["gear_medium"].data.root_link_quat_w.torch,
-                self.gear_assets["gear_large"].data.root_link_quat_w.torch,
-            ],
-            dim=1,
-        )
-
-        gear_pos = all_gear_pos[self.env_indices, self.gear_type_indices]
-        gear_quat = all_gear_quat[self.env_indices, self.gear_type_indices]
-
-        # -- EE-gear grasp quality reward --
-        gear_quat_grasp = quat_mul(gear_quat, self.grasp_rot_offset_tensor)
-        grasp_offsets = self.gear_grasp_offsets_stacked[self.gear_type_indices]
-        gear_grasp_pos = gear_pos + quat_apply(gear_quat_grasp, grasp_offsets)
+        eef_pos, eef_quat, gear_grasp_pos, gear_quat_grasp = self._get_grasp_corrected_target(env)
 
         keypoint_dist_sep = self.keypoint_computer.compute(
             current_pos=eef_pos,
@@ -543,7 +477,7 @@ class keypoint_ee_grasp_error(ManagerTermBase):
         return scaled_reward
 
 
-class keypoint_ee_grasp_error_exp(ManagerTermBase):
+class keypoint_ee_grasp_error_exp(keypoint_ee_grasp_error):
     """Compute exponential keypoint reward between the robot end effector and the gear's grasp-corrected pose.
 
     Transforms the gear's actual world pose into the expected EE position/orientation
@@ -558,50 +492,6 @@ class keypoint_ee_grasp_error_exp(ManagerTermBase):
     linearly increases from ``weight_ramp_start`` to 1.0 over ``weight_ramp_steps``
     env steps, allowing the reward to grow in importance as training progresses.
     """
-
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-
-        self.robot_asset_cfg: SceneEntityCfg = cfg.params.get("robot_asset_cfg", SceneEntityCfg("robot"))
-        self.robot_asset: Articulation = env.scene[self.robot_asset_cfg.name]
-
-        self.end_effector_body_name: str = cfg.params["end_effector_body_name"]
-        grasp_rot_offset = cfg.params["grasp_rot_offset"]
-        self.grasp_rot_offset_tensor = (
-            torch.tensor(grasp_rot_offset, device=env.device, dtype=torch.float32).unsqueeze(0).repeat(env.num_envs, 1)
-        )
-
-        gear_offsets_grasp = cfg.params["gear_offsets_grasp"]
-        self.gear_grasp_offsets_stacked = torch.stack(
-            [
-                torch.tensor(gear_offsets_grasp["gear_small"], device=env.device, dtype=torch.float32),
-                torch.tensor(gear_offsets_grasp["gear_medium"], device=env.device, dtype=torch.float32),
-                torch.tensor(gear_offsets_grasp["gear_large"], device=env.device, dtype=torch.float32),
-            ],
-            dim=0,
-        )
-
-        self.weight_ramp_start: float = cfg.params.get("weight_ramp_start", 0.0)
-        self.weight_ramp_steps: int = cfg.params.get("weight_ramp_steps", 1)
-        self.ee_grasp_threshold: float = cfg.params.get("ee_grasp_threshold", 0.0)
-
-        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
-        self.env_indices = torch.arange(env.num_envs, device=env.device)
-        self.gear_assets = {
-            "gear_small": env.scene["factory_gear_small"],
-            "gear_medium": env.scene["factory_gear_medium"],
-            "gear_large": env.scene["factory_gear_large"],
-        }
-
-        eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
-        self.eef_idx = eef_indices[0] if len(eef_indices) > 0 else None
-
-        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
-        self._step_count = 0
-
-    def _get_weight_scale(self, env: ManagerBasedRLEnv) -> float:
-        progress = min(env.common_step_counter / max(self.weight_ramp_steps, 1), 1.0)
-        return self.weight_ramp_start + (1.0 - self.weight_ramp_start) * progress
 
     def __call__(
         self,
@@ -621,36 +511,7 @@ class keypoint_ee_grasp_error_exp(ManagerTermBase):
         if self.eef_idx is None:
             return torch.zeros(env.num_envs, device=env.device)
 
-        gear_type_manager: randomize_gear_type = env._gear_type_manager
-        self.gear_type_indices = gear_type_manager.get_all_gear_type_indices()
-
-        eef_pos = self.robot_asset.data.body_link_pos_w.torch[:, self.eef_idx]
-        eef_quat = self.robot_asset.data.body_link_quat_w.torch[:, self.eef_idx]
-
-        all_gear_pos = torch.stack(
-            [
-                self.gear_assets["gear_small"].data.root_link_pos_w.torch,
-                self.gear_assets["gear_medium"].data.root_link_pos_w.torch,
-                self.gear_assets["gear_large"].data.root_link_pos_w.torch,
-            ],
-            dim=1,
-        )
-        all_gear_quat = torch.stack(
-            [
-                self.gear_assets["gear_small"].data.root_link_quat_w.torch,
-                self.gear_assets["gear_medium"].data.root_link_quat_w.torch,
-                self.gear_assets["gear_large"].data.root_link_quat_w.torch,
-            ],
-            dim=1,
-        )
-
-        gear_pos = all_gear_pos[self.env_indices, self.gear_type_indices]
-        gear_quat = all_gear_quat[self.env_indices, self.gear_type_indices]
-
-        # -- EE-gear grasp quality reward --
-        gear_quat_grasp = quat_mul(gear_quat, self.grasp_rot_offset_tensor)
-        grasp_offsets = self.gear_grasp_offsets_stacked[self.gear_type_indices]
-        gear_grasp_pos = gear_pos + quat_apply(gear_quat_grasp, grasp_offsets)
+        eef_pos, eef_quat, gear_grasp_pos, gear_quat_grasp = self._get_grasp_corrected_target(env)
 
         keypoint_dist_sep = self.keypoint_computer.compute(
             current_pos=eef_pos,
