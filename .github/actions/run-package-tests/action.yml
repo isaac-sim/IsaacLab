@@ -83,6 +83,15 @@ runs:
           echo "🟠 Could not obtain IMDS token, probably not running on EC2"
         fi
 
+    - name: Prepare Docker disk space
+      shell: bash
+      run: |
+        bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
+          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
+          "pre-test-cleanup" \
+          "true"
+
     - name: Record pull start time
       id: pull-start
       shell: bash
@@ -153,28 +162,8 @@ runs:
       if: always()
       shell: bash
       run: |
-        # Don't let cleanup errors fail a passing test job
-        set +e
-
-        echo "🔵 Cleaning up old Docker images..."
-
-        echo "⚪ Disk usage before cleanup:"
-        df -h /var/lib/docker
-
-        ISAACSIM_IMAGE="${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}"
-
-        # Pin the base IsaacSim image so prune -a doesn't remove it
-        ISAACSIM_IMAGE_PIN_CONTAINER="isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
-        echo "🔵 Pinning IsaacSim base image: ${ISAACSIM_IMAGE} to temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}"
-        docker create --name "${ISAACSIM_IMAGE_PIN_CONTAINER}" "${ISAACSIM_IMAGE}" true 2>/dev/null || true
-
-        echo "🔵 Removing Docker images older than 3 days..."
-        docker image prune -a -f --filter "until=72h"
-
-        echo "🔵 Removing temporary container ${ISAACSIM_IMAGE_PIN_CONTAINER}..."
-        docker rm "${ISAACSIM_IMAGE_PIN_CONTAINER}" 2>/dev/null || true
-
-        echo "🟢 Docker image cleanup complete."
-
-        echo "⚪ Disk usage after cleanup:"
-        df -h /var/lib/docker
+        bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
+          "${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}" \
+          "isaacsim-pin-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}-post" \
+          "post-job-cleanup" \
+          "false"
