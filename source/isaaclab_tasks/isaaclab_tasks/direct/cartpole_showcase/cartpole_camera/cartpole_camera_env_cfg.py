@@ -8,16 +8,16 @@ from __future__ import annotations
 from gymnasium import spaces
 
 import isaaclab.sim as sim_utils
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env_cfg import CartpoleRGBCameraEnvCfg as CartpoleCameraEnvCfg
 
 
-def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) -> TiledCameraCfg:
-    return TiledCameraCfg(
+def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) -> CameraCfg:
+    return CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         data_types=[data_type],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -53,7 +53,7 @@ class BoxBoxEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
     observation_space = spaces.Box(
@@ -85,7 +85,7 @@ class BoxDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
     observation_space = spaces.Box(
@@ -124,7 +124,7 @@ class BoxMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
     observation_space = spaces.Box(
@@ -160,7 +160,7 @@ class DictBoxEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
     observation_space = spaces.Dict(
@@ -198,7 +198,7 @@ class DictDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
     observation_space = spaces.Dict(
@@ -243,7 +243,7 @@ class DictMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
     observation_space = spaces.Dict(
@@ -284,7 +284,7 @@ class TupleBoxEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
     observation_space = spaces.Tuple(
@@ -320,7 +320,7 @@ class TupleDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
     observation_space = spaces.Tuple(
@@ -363,7 +363,7 @@ class TupleMultiDiscreteEnvCfg(CartpoleCameraEnvCfg):
     """
 
     # camera
-    tiled_camera: TiledCameraCfg = get_tiled_camera_cfg("rgb")
+    tiled_camera: CameraCfg = get_tiled_camera_cfg("rgb")
 
     # spaces
     observation_space = spaces.Tuple(

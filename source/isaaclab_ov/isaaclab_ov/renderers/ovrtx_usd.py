@@ -81,7 +81,7 @@ def Scope "Render"
 
 
 def _tiled_resolution(num_envs: int, width: int, height: int) -> tuple[int, int]:
-    """Compute tiled width and height from env count and per-env resolution (same as TiledCamera)."""
+    """Compute tiled width and height from env count and per-env resolution (same as Camera)."""
     num_cols = math.ceil(math.sqrt(num_envs))
     num_rows = math.ceil(num_envs / num_cols)
     return num_cols * width, num_rows * height

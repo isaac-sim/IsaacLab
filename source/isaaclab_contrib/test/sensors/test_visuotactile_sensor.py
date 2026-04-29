@@ -25,7 +25,7 @@ import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
-from isaaclab.sensors.camera import TiledCameraCfg
+from isaaclab.sensors.camera import CameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
@@ -69,7 +69,7 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
         return VisuoTactileSensorCfg(
             prim_path="/World/Robot/elastomer/tactile_cam",
             enable_force_field=False,
-            camera_cfg=TiledCameraCfg(
+            camera_cfg=CameraCfg(
                 height=320,
                 width=240,
                 prim_path="/World/Robot/elastomer_tip/cam",
@@ -89,7 +89,7 @@ def get_sensor_cfg_by_type(sensor_type: str) -> VisuoTactileSensorCfg:
             debug_vis=False,
             enable_camera_tactile=True,
             enable_force_field=True,
-            camera_cfg=TiledCameraCfg(
+            camera_cfg=CameraCfg(
                 height=320,
                 width=240,
                 prim_path="/World/Robot/elastomer_tip/cam",

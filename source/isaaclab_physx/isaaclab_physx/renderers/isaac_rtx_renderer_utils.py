@@ -96,7 +96,7 @@ def ensure_isaac_rtx_render_update() -> None:
     This keeps the Kit-specific ``app.update()`` logic inside the renderers
     package rather than in the backend-agnostic ``SimulationContext``.
 
-    Safe to call from multiple ``Camera`` / ``TiledCamera`` instances per step —
+    Safe to call from multiple ``Camera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
     because the module-level ``_last_render_update_key`` already matches the
     current ``(id(sim), step_count, render_generation)`` tuple.
