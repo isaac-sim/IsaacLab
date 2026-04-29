@@ -676,9 +676,12 @@ def rendering_test_shadow_hand(
             comparison_scores=comparison_scores,
         )
     finally:
-        # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV native code
-        # could probably complain about leaks and trigger segmentation fault.
-        env = None
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
 
 
 def rendering_test_cartpole(
@@ -709,9 +712,12 @@ def rendering_test_cartpole(
             comparison_scores=comparison_scores,
         )
     finally:
-        # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV native code
-        # could probably complain about leaks and trigger segmentation fault.
-        env = None
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
 
 
 def rendering_test_dexsuite_kuka(
@@ -756,6 +762,9 @@ def rendering_test_dexsuite_kuka(
             comparison_scores=comparison_scores,
         )
     finally:
-        # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV native code
-        # could probably complain about leaks and trigger segmentation fault.
-        env = None
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None

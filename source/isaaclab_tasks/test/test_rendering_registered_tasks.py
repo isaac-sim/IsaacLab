@@ -82,6 +82,7 @@ _RENDER_CORRECTNESS_TASK_IDS = [
 def test_rendering_registered_tasks(task_id: str, env_name: str):
     """Test registered tasks rendering correctness."""
     env = None
+
     try:
         from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -110,6 +111,9 @@ def test_rendering_registered_tasks(task_id: str, env_name: str):
             comparison_scores=_COMPARISON_SCORES,
         )
     finally:
-        # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV native code
-        # could probably complain about leaks and trigger segmentation fault.
-        env = None
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
