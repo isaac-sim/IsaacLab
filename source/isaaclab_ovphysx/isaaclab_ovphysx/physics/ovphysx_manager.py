@@ -54,6 +54,11 @@ class OvPhysxManager(PhysicsManager):
     _atexit_registered: ClassVar[bool] = False
 
     @classmethod
+    def get_dt(cls) -> float:
+        """Get the physics timestep. Alias for get_physics_dt()."""
+        return cls.get_physics_dt()
+
+    @classmethod
     def register_clone(
         cls, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
     ) -> None:
