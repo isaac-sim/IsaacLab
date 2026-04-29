@@ -21,32 +21,46 @@ Root cause of the bug (newton-physics/newton#2618):
      ``ignore_paths``), producing "unknown joint path" warnings and silently
      discarding every tendon.
 
-The fix:
-  ``SchemaResolverMjc`` is **excluded** from the main builder's
-  ``schema_resolvers``.  The main builder only loads scene-level prims
-  (ground plane, lights) that have no ``MjcTendon`` prims, so this resolver
-  is not needed there.  Proto builders include it and call
-  ``register_custom_attributes`` before ``add_usd``, so Newton correctly
-  resolves ``MjcTendon`` joint paths against each proto's fully populated
-  ``joint_label``.  ``add_builder(proto)`` then copies those resolved entries
-  (with joint-index offsets and the correct ``tendon_world`` value) into the
-  main builder for every environment world.
+The fix has three parts:
 
-Newton's design for multi-world tendons:
-  ``add_builder`` appends T tendon entries per environment, yielding N×T
-  total entries after N environments.  ``SolverMuJoCo.__init__`` iterates
-  over all N×T entries and keeps only those whose ``tendon_world`` equals
-  the template world (world 0), discarding the rest.  No deduplication by
-  IsaacLab is required or correct.
+  Part 1 — main builder isolation:
+    ``SchemaResolverMjc`` is **excluded** from the main builder's
+    ``schema_resolvers``.  The main builder only loads scene-level prims
+    (ground plane, lights) that have no ``MjcTendon`` prims, so this resolver
+    is not needed there.
+
+  Part 2 — proto builder path scoping:
+    Newton's custom-frequency traversal calls ``stage.Traverse()``
+    unconditionally, ignoring ``root_path``.  In heterogeneous clone plans
+    with multiple MJCF sources that each have tendons, proto A's traversal
+    would also match source B's ``MjcTendon`` prims.  Joint resolution fails
+    (not in proto A's ``joint_label``), producing zombie tendon headers with
+    zero joint sub-entries.  ``_scope_mjc_tendon_filters`` patches the
+    ``usd_prim_filter`` on both ``mujoco:tendon`` frequencies to require a
+    ``root_path`` prefix match, restricting each proto to its own source.
+
+  Part 3 — N×T multi-world semantics:
+    Proto builders include ``SchemaResolverMjc`` and call
+    ``register_custom_attributes`` before ``add_usd``, so Newton correctly
+    resolves ``MjcTendon`` joint paths against each proto's fully populated
+    ``joint_label``.  ``add_builder(proto)`` then copies those resolved entries
+    (with joint-index offsets and the correct ``tendon_world`` value) into the
+    main builder for every environment world, yielding N×T total entries after
+    N environments.  ``SolverMuJoCo`` filters on ``tendon_world == 0`` to
+    extract the T canonical tendons; no deduplication by IsaacLab is required
+    or correct.
 
 Tests here use ``newton.ModelBuilder`` directly, so no Isaac Sim, USD stage,
-or MJCF XML parsing is required.
+or MJCF XML parsing is required.  Tests for ``_scope_mjc_tendon_filters`` use
+a lightweight ``_FakePrim`` mock instead of a real USD prim.
 """
 
 import unittest
 
 import newton
 from newton.solvers import SolverMuJoCo
+
+from isaaclab_newton.cloner.newton_replicate import _scope_mjc_tendon_filters
 
 # Custom-frequency keys used by SolverMuJoCo for fixed tendons.
 _TENDON_FREQ = "mujoco:tendon"
@@ -66,6 +80,20 @@ def _mjc_builder() -> newton.ModelBuilder:
     b = newton.ModelBuilder()
     SolverMuJoCo.register_custom_attributes(b)
     return b
+
+
+class _FakePrim:
+    """Minimal USD prim stub for testing usd_prim_filter lambdas without a stage."""
+
+    def __init__(self, path: str, type_name: str = "MjcTendon"):
+        self._path = path
+        self._type_name = type_name
+
+    def GetPath(self) -> str:
+        return self._path
+
+    def GetTypeName(self) -> str:
+        return self._type_name
 
 
 def _inject_tendon_entries(
@@ -147,12 +175,12 @@ def _tendon_stiffnesses(b: newton.ModelBuilder) -> list[float]:
 
 
 class TestMainBuilderHasNoMjcFrequencies(unittest.TestCase):
-    """Main builder must not have MJC custom frequencies registered.
+    """Main builder must not have MJC custom frequencies registered (Part 1).
 
-    This is the core invariant of the fix: the main builder is constructed
-    without ``SolverMuJoCo.register_custom_attributes``, so Newton's stage-wide
-    custom-frequency traversal never attempts to resolve MjcTendon prims
-    against the main builder's empty joint_label.
+    The main builder is constructed without ``SolverMuJoCo.register_custom_attributes``
+    and without ``SchemaResolverMjc`` in its resolvers, so Newton's stage-wide
+    custom-frequency traversal never runs against the main builder's empty
+    ``joint_label``.
     """
 
     def test_plain_builder_has_no_tendon_frequency(self):
@@ -170,7 +198,7 @@ class TestMainBuilderHasNoMjcFrequencies(unittest.TestCase):
 
 
 class TestProtoBuilderHasMjcFrequencies(unittest.TestCase):
-    """Proto builders must have MJC custom frequencies registered.
+    """Proto builders must have MJC custom frequencies registered (Part 3).
 
     The proto is where joint_label is fully populated, so the MJC custom-freq
     traversal can correctly resolve MjcTendon joint paths.
@@ -189,8 +217,94 @@ class TestProtoBuilderHasMjcFrequencies(unittest.TestCase):
         self.assertIn("mujoco:tendon_world", b.custom_attributes)
 
 
+class TestScopeMjcTendonFilters(unittest.TestCase):
+    """``_scope_mjc_tendon_filters`` restricts MJC traversal to a source subtree (Part 2).
+
+    Newton's ``stage.Traverse()`` in the custom-frequency loop ignores
+    ``root_path``.  The scope filter patches each proto's ``usd_prim_filter``
+    to also require a path-prefix match, preventing tendon entries from one
+    source contaminating another proto's builder in heterogeneous plans.
+    """
+
+    ROOT_A = "/World/envs/env_0/source_a"
+    ROOT_B = "/World/envs/env_0/source_b"
+
+    def _scoped_builder(self, root_path: str) -> newton.ModelBuilder:
+        b = _mjc_builder()
+        _scope_mjc_tendon_filters(b, root_path)
+        return b
+
+    def test_filter_accepts_prim_under_root_path(self):
+        b = self._scoped_builder(self.ROOT_A)
+        prim = _FakePrim(f"{self.ROOT_A}/tendon_coupling")
+        freq = b.custom_frequencies[_TENDON_FREQ]
+        self.assertTrue(freq.usd_prim_filter(prim, {}))
+
+    def test_filter_rejects_prim_outside_root_path(self):
+        b = self._scoped_builder(self.ROOT_A)
+        prim = _FakePrim(f"{self.ROOT_B}/tendon_coupling")
+        freq = b.custom_frequencies[_TENDON_FREQ]
+        self.assertFalse(freq.usd_prim_filter(prim, {}))
+
+    def test_filter_rejects_wrong_prim_type_under_root(self):
+        """Path match alone is not sufficient; prim type must also be MjcTendon."""
+        b = self._scoped_builder(self.ROOT_A)
+        prim = _FakePrim(f"{self.ROOT_A}/rigid_body", type_name="PhysicsRigidBodyAPI")
+        freq = b.custom_frequencies[_TENDON_FREQ]
+        self.assertFalse(freq.usd_prim_filter(prim, {}))
+
+    def test_both_tendon_frequencies_are_patched(self):
+        b = _mjc_builder()
+        orig_tendon = b.custom_frequencies[_TENDON_FREQ].usd_prim_filter
+        orig_joint = b.custom_frequencies[_TENDON_JOINT_FREQ].usd_prim_filter
+        _scope_mjc_tendon_filters(b, self.ROOT_A)
+        self.assertIsNot(b.custom_frequencies[_TENDON_FREQ].usd_prim_filter, orig_tendon)
+        self.assertIsNot(b.custom_frequencies[_TENDON_JOINT_FREQ].usd_prim_filter, orig_joint)
+
+    def test_each_proto_captures_its_own_path(self):
+        """Two protos built for different sources each filter to their own subtree."""
+        b_a = self._scoped_builder(self.ROOT_A)
+        b_b = self._scoped_builder(self.ROOT_B)
+
+        prim_a = _FakePrim(f"{self.ROOT_A}/tendon")
+        prim_b = _FakePrim(f"{self.ROOT_B}/tendon")
+
+        freq_a = b_a.custom_frequencies[_TENDON_FREQ]
+        freq_b = b_b.custom_frequencies[_TENDON_FREQ]
+
+        self.assertTrue(freq_a.usd_prim_filter(prim_a, {}))
+        self.assertFalse(freq_a.usd_prim_filter(prim_b, {}))
+        self.assertFalse(freq_b.usd_prim_filter(prim_a, {}))
+        self.assertTrue(freq_b.usd_prim_filter(prim_b, {}))
+
+    def test_noop_on_plain_builder(self):
+        """Plain builder has no MJC frequencies; _scope_mjc_tendon_filters must not raise."""
+        b = _plain_builder()
+        _scope_mjc_tendon_filters(b, self.ROOT_A)
+
+    def test_heterogeneous_plan_no_cross_contamination(self):
+        """Each proto only accumulates tendon entries from its own source subtree.
+
+        Simulates the heterogeneous scenario: two proto builders, each scoped to
+        a different source path.  After both receive tendon entries representing
+        their own prims (as the scoped traversal would inject), neither contains
+        entries from the other source.
+        """
+        b_a = self._scoped_builder(self.ROOT_A)
+        _inject_tendon_entries(b_a, 0, ["coupling_ff", "coupling_mf"], [2.0, 1.0], 2)
+
+        b_b = self._scoped_builder(self.ROOT_B)
+        _inject_tendon_entries(b_b, 0, ["tendon_b1"], [0.5], 1)
+
+        self.assertEqual(sorted(_tendon_labels(b_a)), ["coupling_ff", "coupling_mf"])
+        self.assertEqual(_tendon_labels(b_b), ["tendon_b1"])
+        # No cross-contamination
+        self.assertNotIn("tendon_b1", _tendon_labels(b_a))
+        self.assertNotIn("coupling_ff", _tendon_labels(b_b))
+
+
 class TestAddBuilderTendonPropagation(unittest.TestCase):
-    """Verify that add_builder propagates tendon entries with correct world indices.
+    """Verify that add_builder propagates tendon entries with correct world indices (Part 3).
 
     Newton's design: after N add_builder calls (one per world), the main
     builder holds N×T tendon entries.  Each batch of T entries has
@@ -207,27 +321,36 @@ class TestAddBuilderTendonPropagation(unittest.TestCase):
     T = len(NAMES)
     T_JOINT = T * JOINT_ENTRIES_PER_TENDON
 
-    def _build_main_with_n_worlds(self, n_envs: int) -> newton.ModelBuilder:
-        main = _mjc_builder()
+    def _build_accumulator_with_n_worlds(self, n_envs: int) -> newton.ModelBuilder:
+        """Return a registered builder with N×T tendon entries injected.
+
+        Uses ``_mjc_builder()`` (with ``register_custom_attributes``) as the
+        accumulation target because ``_inject_tendon_entries`` requires the MJC
+        attribute slots to exist.  The production main builder is plain
+        (unregistered), but both plain and registered builders accept
+        ``add_builder`` correctly; the registered builder is used here purely
+        for slot availability.
+        """
+        acc = _mjc_builder()
         for world in range(n_envs):
-            _inject_tendon_entries(main, world, self.NAMES, self.STIFFNESSES, self.JOINT_ENTRIES_PER_TENDON)
-        return main
+            _inject_tendon_entries(acc, world, self.NAMES, self.STIFFNESSES, self.JOINT_ENTRIES_PER_TENDON)
+        return acc
 
     def test_single_world_has_t_entries(self):
-        main = self._build_main_with_n_worlds(1)
+        main = self._build_accumulator_with_n_worlds(1)
         self.assertEqual(len(_tendon_world_values(main)), self.T)
 
     def test_n_worlds_produce_n_times_t_entries(self):
         """N×T total entries is the expected state Newton reads."""
         for n in (2, 4, 8):
             with self.subTest(n=n):
-                main = self._build_main_with_n_worlds(n)
+                main = self._build_accumulator_with_n_worlds(n)
                 self.assertEqual(len(_tendon_world_values(main)), n * self.T)
 
     def test_tendon_world_values_span_all_worlds(self):
         """Every world index 0..N-1 is represented exactly T times."""
         n = 4
-        main = self._build_main_with_n_worlds(n)
+        main = self._build_accumulator_with_n_worlds(n)
         worlds = _tendon_world_values(main)
         for w in range(n):
             count = sum(1 for v in worlds if v == w)
@@ -236,7 +359,7 @@ class TestAddBuilderTendonPropagation(unittest.TestCase):
     def test_template_world_entries_have_correct_data(self):
         """World-0 tendon entries carry the original proto names and stiffnesses."""
         n = 5
-        main = self._build_main_with_n_worlds(n)
+        main = self._build_accumulator_with_n_worlds(n)
         worlds = _tendon_world_values(main)
         labels = _tendon_labels(main)
         stiffs = _tendon_stiffnesses(main)
@@ -251,9 +374,9 @@ class TestAddBuilderTendonPropagation(unittest.TestCase):
         """Simulating Newton's tendon_world filter yields exactly T entries from N×T."""
         n = 6
         template_world = 0
-        main = self._build_main_with_n_worlds(n)
+        main = self._build_accumulator_with_n_worlds(n)
         worlds = _tendon_world_values(main)
-        selected = [i for i, w in enumerate(worlds) if w == template_world or w < 0]
+        selected = [i for i, w in enumerate(worlds) if w == template_world]
         self.assertEqual(len(selected), self.T)
 
     def test_plain_builder_accumulates_no_tendon_entries(self):
@@ -294,7 +417,7 @@ class TestAddBuilderTendonPropagation(unittest.TestCase):
 
         # --- Fixed state (new behavior) ---
         # No entries from main builder's add_usd; only N×T from add_builder.
-        fixed = self._build_main_with_n_worlds(n)
+        fixed = self._build_accumulator_with_n_worlds(n)
         fixed_worlds = _tendon_world_values(fixed)
         self.assertEqual(len(fixed_worlds), n * self.T)
         # Newton's filter selects exactly T world-0 entries (correct)

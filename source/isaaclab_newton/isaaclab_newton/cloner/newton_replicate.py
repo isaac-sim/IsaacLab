@@ -167,8 +167,9 @@ def _build_newton_builder_from_mapping(
 
     # Note: add_builder appends tendon custom-attribute entries from the proto
     # for each world, giving N×T total entries after N environments. This is
-    # intentional: Newton's SolverMuJoCo reads tendon_world[i] for every entry
-    # and skips any tendon whose world is not the template world (world 0).
+    # intentional: Newton uses per-world slices for parameter randomization
+    # (stiffness, damping, range) and template_world=0 for joint connectivity.
+    # Heterogeneous tendon topology across worlds is not supported (Newton limitation).
     # No deduplication is needed.
 
     site_index_map = {
