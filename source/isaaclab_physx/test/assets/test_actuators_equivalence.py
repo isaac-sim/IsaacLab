@@ -30,7 +30,7 @@ from isaaclab_physx.assets import Articulation
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -63,6 +63,34 @@ DC_MOTOR_ACTUATORS = {
         velocity_limit=7.5,
         stiffness={".*": 40.0},
         damping={".*": 5.0},
+    ),
+}
+
+MIXED_ACTUATORS = {
+    "hips": IdealPDActuatorCfg(
+        joint_names_expr=[".*HAA"],
+        stiffness=40.0,
+        damping=5.0,
+        effort_limit=80.0,
+    ),
+    "knees": DCMotorCfg(
+        joint_names_expr=[".*HFE", ".*KFE"],
+        saturation_effort=120.0,
+        effort_limit=80.0,
+        velocity_limit=7.5,
+        stiffness={".*": 40.0},
+        damping={".*": 5.0},
+    ),
+}
+
+DELAYED_PD_ACTUATORS = {
+    "legs": DelayedPDActuatorCfg(
+        joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+        stiffness=40.0,
+        damping=5.0,
+        effort_limit=80.0,
+        min_delay=2,
+        max_delay=4,
     ),
 }
 
@@ -230,6 +258,24 @@ class TestDCMotorEquivalence(_EquivalenceTestBase):
 
     __test__ = True
     actuators = DC_MOTOR_ACTUATORS
+
+
+class TestMixedActuatorEquivalence(_EquivalenceTestBase):
+    """Mixed actuators (IdealPD on HAA, DCMotor on HFE/KFE): Lab vs Newton (PhysX)."""
+
+    __test__ = True
+    actuators = MIXED_ACTUATORS
+
+
+class TestDelayedPDEquivalence(_EquivalenceTestBase):
+    """DelayedPDActuator on all 12 joints: Lab vs Newton (PhysX).
+
+    Verifies that actuator command delays are correctly authored and
+    produce matching trajectories on the PhysX backend.
+    """
+
+    __test__ = True
+    actuators = DELAYED_PD_ACTUATORS
 
 
 class TestMixedWithImplicitEquivalence(_EquivalenceTestBase):

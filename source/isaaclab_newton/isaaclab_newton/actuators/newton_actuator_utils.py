@@ -197,6 +197,7 @@ class NewtonActuatorAdapter:
         num_envs: int,
         num_joints: int,
         device: str,
+        articulation_prim_path: str | None = None,
     ) -> NewtonActuatorAdapter:
         """Create an adapter by parsing ``NewtonActuator`` prims from USD.
 
@@ -228,12 +229,19 @@ class NewtonActuatorAdapter:
             num_envs: Number of environments.
             num_joints: Joints per environment in the articulation.
             device: Warp device string (e.g. ``"cuda:0"``).
+            articulation_prim_path: Root prim path of the first
+                environment's articulation (e.g. ``"/World/Env_0/Robot"``).
+                When provided, only ``NewtonActuator`` prims under this
+                subtree are considered — matching the scoped traversal
+                that Newton's ``ModelBuilder.add_usd`` performs.  When
+                ``None``, the entire stage is scanned (legacy behaviour).
 
         Returns:
             A fully constructed adapter ready for :meth:`finalize`.
         """
         actuators = cls._create_actuators_from_usd(
             stage, joint_names, num_envs, num_joints, device,
+            articulation_prim_path=articulation_prim_path,
         )
         return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
 
@@ -385,6 +393,7 @@ class NewtonActuatorAdapter:
         num_envs: int,
         num_total_joints: int,
         device: str,
+        articulation_prim_path: str | None = None,
     ) -> list[Actuator]:
         """Parse ``NewtonActuator`` prims and instantiate standalone actuators.
 
@@ -416,8 +425,13 @@ class NewtonActuatorAdapter:
 
         joint_name_to_idx: dict[str, int] = {name: i for i, name in enumerate(joint_names)}
 
+        if articulation_prim_path is not None:
+            root_prim = stage.GetPrimAtPath(articulation_prim_path)
+        else:
+            root_prim = stage.GetPseudoRoot()
+
         parsed_per_joint: dict[int, Any] = {}
-        for prim in Usd.PrimRange(stage.GetPseudoRoot()):
+        for prim in Usd.PrimRange(root_prim):
             parsed = parse_actuator_prim(prim)
             if parsed is None:
                 continue

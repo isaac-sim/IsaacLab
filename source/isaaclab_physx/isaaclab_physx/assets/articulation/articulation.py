@@ -3754,12 +3754,16 @@ class Articulation(BaseArticulation):
         if _HAS_NEWTON_ACTUATORS and _use_newton_actuators:
             from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
 
+            first_prim = find_first_matching_prim(self.cfg.prim_path)
+            art_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
+
             adapter = NewtonActuatorAdapter.from_usd(
                 stage=get_current_stage(),
                 joint_names=self.joint_names,
                 num_envs=self.num_instances,
                 num_joints=self.num_joints,
                 device=self.device,
+                articulation_prim_path=art_prim_path,
             )
 
             self._physx_actuator_wrapper = PhysxActuatorWrapper()

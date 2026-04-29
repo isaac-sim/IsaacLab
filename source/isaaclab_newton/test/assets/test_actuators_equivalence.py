@@ -35,7 +35,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -307,6 +307,55 @@ class TestMixedWithImplicitEquivalence(_EquivalenceTestBase):
 
     __test__ = True
     actuators = MIXED_WITH_IMPLICIT_ACTUATORS
+
+
+# ---------------------------------------------------------------------------
+# DelayedPD equivalence: PD with actuator command delay
+# ---------------------------------------------------------------------------
+
+DELAYED_PD_ACTUATORS = {
+    "legs": DelayedPDActuatorCfg(
+        joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+        stiffness=40.0,
+        damping=5.0,
+        effort_limit=80.0,
+        min_delay=2,
+        max_delay=4,
+    ),
+}
+
+
+class TestDelayedPDEquivalence(_EquivalenceTestBase):
+    """DelayedPDActuator on all 12 joints: Lab vs Newton.
+
+    Verifies that actuator command delays are correctly authored as
+    ``NewtonActuatorDelayAPI`` and produce matching trajectories.
+    """
+
+    __test__ = True
+    actuators = DELAYED_PD_ACTUATORS
+
+
+class TestDelayedPDAuthoring(unittest.TestCase):
+    """Verify DelayedPDActuatorCfg is authored with NewtonActuatorDelayAPI."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_authoring_introspection(DELAYED_PD_ACTUATORS)
+
+    def test_has_delay(self):
+        for a in self.result["actuator_info"]:
+            self.assertTrue(a["has_delay"], "Delay not found on delayed PD actuator")
+
+    def test_controller_is_pd(self):
+        for a in self.result["actuator_info"]:
+            self.assertEqual(a["controller_type"], "ControllerPD")
+
+    def test_trajectories_not_trivial(self):
+        first = self.result["joint_pos"][0]
+        last = self.result["joint_pos"][-1]
+        diff = (last - first).abs().max().item()
+        self.assertGreater(diff, 0.01, "Joints did not move — test is trivial")
 
 
 # ---------------------------------------------------------------------------
