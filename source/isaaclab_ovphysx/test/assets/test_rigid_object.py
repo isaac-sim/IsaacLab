@@ -444,31 +444,72 @@ def test_external_force_on_single_body(sim_ctx_cpu, num_cubes):
 def test_external_force_on_single_body_at_position(sim_ctx_cpu, num_cubes):
     """Test application of external force at a specific position.
 
-    Real-backend port of PhysX's test_external_force_on_single_body_at_position.
-    A force applied off-center should produce angular velocity.
+    Real-backend port of PhysX/Newton's test_external_force_on_single_body_at_position.
+    A 500 N upward force applied 1 m off-center in Y should produce rotation around
+    the X axis.  For every other cube (0::2) the force is applied; the remaining
+    cubes (1::2) fall freely under gravity.
+
+    We validate that this works in both the global frame (even outer iterations)
+    and the local frame (odd outer iterations), mirroring the PhysX/Newton pattern.
+
+    Matches the sibling :func:`test_external_force_on_single_body` structure:
+    5 outer iterations × 5 inner sim steps, with explicit pose/velocity writes
+    and :meth:`reset` after each state write.
     """
-    cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
+    cube_object, origins = generate_cubes_scene(num_cubes=num_cubes)
     sim_ctx_cpu.reset()
 
     body_ids, _ = cube_object.find_bodies(".*")
-    cube_object.reset()
 
-    forces = torch.zeros(num_cubes, len(body_ids), 3, device="cpu")
-    torques = torch.zeros(num_cubes, len(body_ids), 3, device="cpu")
-    forces[:, :, 0] = 10.0  # horizontal force to induce rotation
+    # 500 N upward force applied to every 2nd cube (0::2).
+    external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device="cpu")
+    external_wrench_positions_b = torch.zeros(cube_object.num_instances, len(body_ids), 3, device="cpu")
+    external_wrench_b[0::2, :, 2] = 500.0
+    external_wrench_positions_b[0::2, :, 1] = 1.0
 
-    for _ in range(20):
-        cube_object.instantaneous_wrench_composer.add_forces_and_torques_index(
-            forces=forces,
-            torques=torques,
+    for i in range(5):
+        # Reset root state explicitly before each outer iteration.
+        root_pose = cube_object.data.default_root_pose.torch.clone()
+        root_vel = cube_object.data.default_root_vel.torch.clone()
+
+        # Shift positions to grid origins so cubes don't overlap.
+        root_pose[:, :3] = origins.to("cpu")
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
+        cube_object.reset()
+
+        # Alternate between global frame (even iterations) and local frame (odd).
+        is_global = i % 2 == 0
+        if is_global:
+            body_com_pos_w = cube_object.data.body_com_pos_w.torch[:, body_ids, :3]
+            external_wrench_positions_b[..., 0] = 0.0
+            external_wrench_positions_b[..., 1] = 1.0
+            external_wrench_positions_b[..., 2] = 0.0
+            external_wrench_positions_b = external_wrench_positions_b + body_com_pos_w
+        else:
+            external_wrench_positions_b[..., 0] = 0.0
+            external_wrench_positions_b[..., 1] = 1.0
+            external_wrench_positions_b[..., 2] = 0.0
+
+        # Apply force with positional offset via the permanent wrench composer.
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
+            forces=external_wrench_b[..., :3],
+            torques=external_wrench_b[..., 3:],
+            positions=external_wrench_positions_b,
             body_ids=body_ids,
+            is_global=is_global,
         )
-        cube_object.write_data_to_sim()
-        sim_ctx_cpu.step()
-        cube_object.update(sim_ctx_cpu.get_physics_dt())
 
-    ang_vel = cube_object.data.root_link_ang_vel_b.torch
-    assert ang_vel.norm(dim=-1).max().item() > 0.0, "Expected non-zero angular velocity from off-axis force"
+        # 5 inner simulation steps.
+        for _ in range(5):
+            cube_object.write_data_to_sim()
+            sim_ctx_cpu.step()
+            cube_object.update(sim_ctx_cpu.get_physics_dt())
+
+        # Forced cubes (0::2) should rotate around the X axis (non-zero ang vel).
+        assert torch.all(torch.abs(cube_object.data.root_link_ang_vel_b.torch[0::2, 0]) > 0.1)
+        # Unforced cubes (1::2) must have fallen under gravity.
+        assert torch.all(cube_object.data.root_link_pos_w.torch[1::2, 2] < 1.0)
 
 
 # ===========================================================================
