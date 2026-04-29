@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+0.2.5 (2026-04-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_ovphysx.assets.RigidObjectData.root_link_vel_w` to derive
+  the link-frame velocity from the COM velocity via the lever-arm transform
+  ``get_root_link_vel_from_root_com_vel``, matching the PhysX and Newton backends.
+  ``RIGID_BODY_VELOCITY`` is assumed to return COM-frame velocity (standard PhysX
+  convention); :attr:`~isaaclab_ovphysx.assets.RigidObjectData.root_com_vel_w`
+  continues to read the binding directly.
+
+Added
+^^^^^
+
+* Added ``get_root_link_vel_from_root_com_vel`` kernel to
+  :mod:`isaaclab_ovphysx.assets.kernels`, vendored from the PhysX shared-kernel
+  module.  The kernel recovers root link spatial velocity from COM spatial velocity
+  using a lever-arm correction: ``link_lin = com_lin + omega x lever_arm``.
+
 0.2.4 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~
 

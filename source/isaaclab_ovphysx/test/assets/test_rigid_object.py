@@ -976,3 +976,104 @@ def test_warmup_and_load_gpu():
         assert OvPhysxManager._usd_handle is not None
     finally:
         SimulationContext.clear_instance()
+
+
+# ===========================================================================
+# Lever-arm kernel tests (root_link_vel_w vs root_com_vel_w)
+# ===========================================================================
+
+
+@pytest.mark.parametrize("num_cubes", [1, 2])
+def test_root_link_vel_w_buffer_differs_from_root_com_vel_w(sim_ctx_cpu, num_cubes):
+    """Verify root_link_vel_w and root_com_vel_w use distinct output buffers.
+
+    root_link_vel_w is computed via the lever-arm kernel and written into a
+    separate buffer from the COM velocity buffer.  This test confirms the two
+    ProxyArray objects point to different Warp array memory so that the lever-arm
+    transform can produce different values when the COM offset is non-zero.
+
+    This is a pure structural test that does not require a non-trivial COM offset
+    or angular velocity — it validates the kernel-dispatch plumbing.
+    """
+    cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
+    sim_ctx_cpu.reset()
+
+    # Step the sim so both buffers are populated.
+    for _ in range(3):
+        sim_ctx_cpu.step()
+        cube_object.update(sim_ctx_cpu.get_physics_dt())
+
+    link_vel = cube_object.data.root_link_vel_w
+    com_vel = cube_object.data.root_com_vel_w
+
+    # The two arrays must reside in different memory locations.
+    assert link_vel.warp.ptr != com_vel.warp.ptr, (
+        "root_link_vel_w and root_com_vel_w must use distinct buffers; "
+        "root_link_vel_w is derived via the lever-arm kernel, not a direct binding read."
+    )
+
+
+@pytest.mark.parametrize("num_cubes", [1, 2])
+def test_root_link_vel_w_lever_arm_physics(sim_ctx_cpu, num_cubes):
+    """Verify lever-arm physics: when angular velocity and COM offset are both non-zero,
+    root_link_lin_vel_w must differ from root_com_lin_vel_w.
+
+    A torque is applied about the Z-axis so the cube spins after a few steps.
+    The DexCube has a non-trivial COM offset from the USD stage (RIGID_BODY_COM_POSE
+    binding returns the body-frame offset).  When omega != 0 and com_offset != 0,
+    the lever-arm correction ``omega x (-rot(link_rot, com_offset))`` is non-zero,
+    so link_lin_vel_w must differ from com_lin_vel_w.
+
+    If the COM offset happens to be zero (identity COM pose), the two velocities
+    are equal by construction; in that case the test is skipped via xfail to avoid
+    a false negative on future assets that have an identity COM.
+    """
+    cube_object, _ = generate_cubes_scene(num_cubes=num_cubes)
+    sim_ctx_cpu.reset()
+
+    body_ids, _ = cube_object.find_bodies(".*")
+
+    # Apply a pure torque about the Z-axis to spin the cube.
+    external_wrench_b = torch.zeros(num_cubes, len(body_ids), 6, device="cpu")
+    external_wrench_b[:, :, 5] = 10.0  # torque_z = 10 N·m
+
+    for _ in range(5):
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
+            forces=external_wrench_b[..., :3],
+            torques=external_wrench_b[..., 3:],
+            body_ids=body_ids,
+        )
+        cube_object.write_data_to_sim()
+        sim_ctx_cpu.step()
+        cube_object.update(sim_ctx_cpu.get_physics_dt())
+
+    # Check whether the COM is offset from the link origin.
+    import numpy as np
+
+    com_pose_b_np = cube_object.data.body_com_pose_b.torch.detach().cpu().numpy()  # (N, 1, 7)
+    com_offset = com_pose_b_np[0, 0, :3]  # translation part of body-frame COM pose
+    com_offset_norm = float(np.linalg.norm(com_offset))
+
+    ang_vel = cube_object.data.root_link_ang_vel_w.torch
+    ang_vel_norm = float(ang_vel.norm(dim=-1).max())
+
+    if com_offset_norm < 1e-4:
+        pytest.xfail(
+            f"DexCube COM offset is ~zero ({com_offset_norm:.3e} m); "
+            "lever-arm correction is numerically negligible — physics check skipped."
+        )
+
+    if ang_vel_norm < 1e-3:
+        pytest.xfail(
+            f"Angular velocity is ~zero after torque ({ang_vel_norm:.3e} rad/s); "
+            "torque may not have been applied — physics check skipped."
+        )
+
+    link_lin = cube_object.data.root_link_lin_vel_w.torch  # (N, 3)
+    com_lin = cube_object.data.root_com_lin_vel_w.torch  # (N, 3)
+
+    assert not torch.allclose(link_lin, com_lin, atol=1e-5), (
+        "root_link_lin_vel_w should differ from root_com_lin_vel_w when "
+        f"COM offset={com_offset_norm:.3e} m and angular velocity={ang_vel_norm:.3e} rad/s. "
+        "The lever-arm correction appears to have produced zero effect."
+    )

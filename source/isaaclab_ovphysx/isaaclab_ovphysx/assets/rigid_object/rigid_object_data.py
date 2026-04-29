@@ -23,6 +23,7 @@ from isaaclab_ovphysx.assets.kernels import (
     _world_vel_to_body_ang,
     _world_vel_to_body_lin,
     derive_body_acceleration_from_body_com_velocities,
+    get_root_link_vel_from_root_com_vel,
 )
 
 
@@ -499,10 +500,37 @@ class RigidObjectData(BaseRigidObjectData):
         In torch this resolves to (num_instances, 6).
 
         This quantity contains the linear and angular velocities of the rigid
-        body's actor frame relative to the world.
+        body's actor frame relative to the world.  It is derived from the COM
+        velocity read from ``RIGID_BODY_VELOCITY`` via a lever-arm transform
+        (``get_root_link_vel_from_root_com_vel``), mirroring the PhysX and Newton
+        backends: ``link_lin = com_lin + omega x (-rot(link_rot, com_offset))``.
+        Angular velocity is invariant under translation.
+
+        .. note::
+            ``RIGID_BODY_VELOCITY`` is assumed to return COM-frame velocity
+            (standard PhysX convention).  If the convention is confirmed to be
+            link-frame instead, swap which property reads the binding directly and
+            which applies the lever-arm transform.  See Marco-side confirmation
+            tracked in docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md.
         """
         self._ensure_root_buffers()
-        self._read_spatial_vector_binding(TT.RIGID_BODY_VELOCITY, self._root_link_vel_w_buf)
+        if self._root_link_vel_w_buf.timestamp < self._sim_time:
+            # Ensure COM velocity, COM body-frame offset, and link pose are all fresh.
+            _ = self.root_com_vel_w  # reads RIGID_BODY_VELOCITY into _root_com_vel_w_buf
+            _ = self.body_com_pose_b  # reads RIGID_BODY_COM_POSE into _body_com_pose_b_buf
+            _ = self.root_link_pose_w  # reads RIGID_BODY_POSE into _root_link_pose_w_buf
+            wp.launch(
+                get_root_link_vel_from_root_com_vel,
+                dim=self._num_instances,
+                inputs=[
+                    self._root_com_vel_w_buf.data,
+                    self._root_link_pose_w_buf.data,
+                    self._body_com_pose_b_buf.data,
+                ],
+                outputs=[self._root_link_vel_w_buf.data],
+                device=self._device,
+            )
+            self._root_link_vel_w_buf.timestamp = self._sim_time
         if self._root_link_vel_w_ta is None:
             self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w_buf.data)
         return self._root_link_vel_w_ta

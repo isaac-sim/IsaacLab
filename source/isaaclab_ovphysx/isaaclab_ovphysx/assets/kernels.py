@@ -174,6 +174,37 @@ def _world_vel_to_body_ang(
 
 
 @wp.kernel
+def get_root_link_vel_from_root_com_vel(
+    com_vel: wp.array(dtype=wp.spatial_vectorf),
+    link_pose: wp.array(dtype=wp.transformf),
+    body_com_pose_b: wp.array(dtype=wp.transformf, ndim=2),
+    link_vel: wp.array(dtype=wp.spatial_vectorf),
+):
+    """Compute root link velocity from root center-of-mass velocity via lever-arm transform.
+
+    Transforms COM spatial velocity into link-frame velocity by projecting the angular
+    velocity contribution from the COM offset (lever-arm correction).  Angular velocity
+    is invariant under translation; linear velocity gains the cross-product term
+    ``omega x (-rot(link_rot, com_offset))``.
+
+    Args:
+        com_vel: Root COM spatial velocities (linear, angular) in world frame.
+            Shape is (num_instances,).
+        link_pose: Root link poses in world frame. Shape is (num_instances,).
+        body_com_pose_b: Body-frame CoM offsets. Shape is (num_instances, num_bodies).
+            Only the first body (index 0) is used for the root.
+        link_vel: Output root link spatial velocities (linear, angular) in world frame.
+            Shape is (num_instances,).
+    """
+    i = wp.tid()
+    ang = wp.spatial_bottom(com_vel[i])
+    lever = wp.quat_rotate(
+        wp.transform_get_rotation(link_pose[i]), -wp.transform_get_translation(body_com_pose_b[i, 0])
+    )
+    link_vel[i] = wp.spatial_vector(wp.spatial_top(com_vel[i]) + wp.cross(ang, lever), ang)
+
+
+@wp.kernel
 def derive_body_acceleration_from_body_com_velocities(
     body_com_vel: wp.array(dtype=wp.spatial_vectorf),
     dt: wp.float32,
