@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.2.9 (2026-04-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Stripped ``Task <N>`` planning markers from section headers and inline
+  comments in :class:`~isaaclab_ovphysx.assets.RigidObject`. These were
+  development artifacts and carried no runtime meaning.
+* Polished public-method docstrings on
+  :class:`~isaaclab_ovphysx.assets.RigidObject` to match the structural
+  style of the PhysX and Newton ``RigidObject`` references — Google-style
+  ``Args:`` blocks, the ``"This method expects partial/full data."`` note,
+  the ``"Sets the velocity of the root's center of mass rather than the
+  root's frame."`` caveat on velocity writers, and consistent shape/dtype
+  wording across the 12 root-state writers, the 6 mass/COM/inertia setters,
+  and the 3 deprecated state writers.
+* Renamed the private helper
+  :meth:`~isaaclab_ovphysx.assets.RigidObject._write_root_state` to
+  :meth:`~isaaclab_ovphysx.assets.RigidObject._write_body_state` to better
+  reflect that a rigid object has no articulation root — it has a single
+  body. The 14 in-file call sites are updated; the public writer names
+  (``write_root_pose_to_sim_*``, ``set_masses_*``, etc.) are unchanged
+  because they mirror the :class:`~isaaclab.assets.BaseRigidObject`
+  contract.
+
 0.2.8 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~
 

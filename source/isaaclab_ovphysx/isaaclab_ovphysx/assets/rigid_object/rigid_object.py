@@ -34,18 +34,27 @@ logger = logging.getLogger(__name__)
 
 
 class RigidObject(BaseRigidObject):
-    """RigidObject backed by the ovphysx TensorBindingsAPI.
+    """A rigid object asset class.
 
-    Reads and writes simulation state through ovphysx TensorBinding objects
-    created from the OvPhysxManager's PhysX instance.  Only free (non-articulated)
-    rigid bodies are supported; prims under an ArticulationRootAPI should use
+    Rigid objects are assets comprising of rigid bodies. They can be used to represent dynamic objects
+    such as boxes, spheres, etc. A rigid body is described by its pose, velocity and mass distribution.
+
+    For an asset to be considered a rigid object, the root prim of the asset must have the `USD RigidBodyAPI`_
+    applied to it. This API is used to define the simulation properties of the rigid body. On playing the
+    simulation, the physics engine will automatically register the rigid body and create a corresponding
+    rigid body handle. State is read and written through ovphysx ``TensorBinding`` objects acquired from
+    the :class:`~isaaclab_ovphysx.physics.OvPhysxManager`. Only free (non-articulated) rigid bodies are
+    supported; prims under an ``ArticulationRootAPI`` should use
     :class:`~isaaclab_ovphysx.assets.articulation.Articulation` instead.
+
+    .. _`USD RigidBodyAPI`: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
 
-    __backend_name__ = "ovphysx"
-
     cfg: RigidObjectCfg
-    """The configuration of the asset."""
+    """Configuration instance for the rigid object."""
+
+    __backend_name__: str = "ovphysx"
+    """The name of the backend for the rigid object."""
 
     def __init__(self, cfg: RigidObjectCfg):
         """Initialize the rigid object.
@@ -64,12 +73,10 @@ class RigidObject(BaseRigidObject):
 
     @property
     def data(self) -> RigidObjectData:
-        """Data container with simulation state for this rigid object."""
         return self._data
 
     @property
     def num_instances(self) -> int:
-        """Number of rigid-body instances (environments)."""
         return self._num_instances
 
     @property
@@ -87,26 +94,39 @@ class RigidObject(BaseRigidObject):
 
     @property
     def root_view(self) -> dict[int, Any]:
-        """Bindings dict keyed by tensor-type constant.
+        """Root view for the asset.
 
-        OVPhysX exposes per-tensor-type bindings rather than a single opaque
-        view object as used by the PhysX and Newton backends.  Callers that
-        need low-level binding access should call :meth:`_get_binding` rather
-        than iterating this dict directly.  For high-level state access
-        (instance counts, prim paths, transforms), use the
+        OVPhysX exposes per-tensor-type bindings rather than a single opaque view object
+        as used by the PhysX and Newton backends. Callers that need low-level binding
+        access should call :meth:`_get_binding` rather than iterating this dict directly.
+        For high-level state access (instance counts, prim paths, transforms), use the
         :attr:`num_instances`, :attr:`body_names`, and
         :attr:`~RigidObjectData.root_link_pose_w` accessors instead.
+
+        .. note::
+            Use this view with caution. It requires handling of tensors in a specific way.
         """
         return self._bindings
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer | None:
-        """Wrench composer for forces applied only during the current step."""
+        """Instantaneous wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are only valid for the current simulation step. At the end of the simulation step, the wrenches set
+        to this object are discarded. This is useful to apply forces that change all the time, things like drag forces
+        for instance.
+        """
         return self._instantaneous_wrench_composer
 
     @property
     def permanent_wrench_composer(self) -> WrenchComposer | None:
-        """Wrench composer for forces applied persistently every step."""
+        """Permanent wrench composer.
+
+        Returns a :class:`~isaaclab.utils.wrench_composer.WrenchComposer` instance. Wrenches added or set to this wrench
+        composer are persistent and are applied to the simulation at every step. This is useful to apply forces that
+        are constant over a period of time, things like the thrust of a motor for instance.
+        """
         return self._permanent_wrench_composer
 
     # ------------------------------------------------------------------
@@ -118,20 +138,9 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Reset the rigid object.
 
-        Resets the wrench composers so that any forces queued for the next
-        simulation step are cleared. Does NOT write default state to the
-        simulation — callers are expected to call
-        :meth:`write_root_pose_to_sim_index`, :meth:`write_root_velocity_to_sim_index`
-        (or the mask variants) explicitly when they want to restore initial state.
-
-        .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes
-            precedence over `env_ids`.
-
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all the instances are
-                updated. Shape is (num_instances,).
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve all indices
         if (env_ids is None) or (env_ids == slice(None)):
@@ -141,14 +150,11 @@ class RigidObject(BaseRigidObject):
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
-        """Apply composed external wrenches to the rigid actor.
+        """Write external wrench to the simulation.
 
-        Combines the instantaneous and permanent wrench composers, rotates the
-        body-frame force/torque into world frame via the :func:`_body_wrench_to_world`
-        kernel, and writes the packed ``(fx, fy, fz, tx, ty, tz, px, py, pz)``
-        payload through the ``RIGID_BODY_WRENCH`` binding. The instantaneous
-        composer is reset after the write; permanent forces persist for the next
-        step.
+        .. note::
+            We write external wrench to the simulation here since this function is called before the simulation step.
+            This ensures that the external wrench is applied at every simulation step.
         """
         inst = self._instantaneous_wrench_composer
         perm = self._permanent_wrench_composer
@@ -185,10 +191,10 @@ class RigidObject(BaseRigidObject):
         inst.reset()
 
     def update(self, dt: float) -> None:
-        """Update internal data buffers after a simulation step.
+        """Updates the simulation data.
 
         Args:
-            dt: The simulation time step [s] used for finite-difference quantities.
+            dt: The time step size in seconds.
         """
         self._data.update(dt)
 
@@ -199,7 +205,7 @@ class RigidObject(BaseRigidObject):
     def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
         """Find bodies in the rigid body based on the name keys.
 
-        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
+        Please check the :meth:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
@@ -223,14 +229,17 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
-        The root pose is in the actor (link) frame.
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
 
         Args:
-            root_pose: Root poses in simulation frame [m, -]. Shape is (len(env_ids), 7) or
-                (len(env_ids),) with dtype ``wp.transformf``.
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self._write_root_state(TT.RIGID_BODY_POSE, root_pose, env_ids)
+        self._write_body_state(TT.RIGID_BODY_POSE, root_pose, env_ids)
 
     def write_root_pose_to_sim_mask(
         self,
@@ -240,14 +249,15 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root pose over selected environment mask into the simulation.
 
-        The root pose is in the actor (link) frame.
+        .. note::
+            This method expects full data.
 
         Args:
-            root_pose: Root poses in simulation frame [m, -]. Shape is (num_instances, 7) or
-                (num_instances,) with dtype ``wp.transformf``.
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._write_root_state(TT.RIGID_BODY_POSE, root_pose, mask=env_mask)
+        self._write_body_state(TT.RIGID_BODY_POSE, root_pose, mask=env_mask)
 
     def write_root_link_pose_to_sim_index(
         self,
@@ -257,15 +267,17 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
-        The root link pose is the canonical actor-frame pose written directly to
-        the ``RIGID_BODY_POSE`` binding.
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
 
         Args:
-            root_pose: Root link poses in simulation frame [m, -]. Shape is (len(env_ids), 7) or
-                (len(env_ids),) with dtype ``wp.transformf``.
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self._write_root_state(TT.RIGID_BODY_POSE, root_pose, env_ids)
+        self._write_body_state(TT.RIGID_BODY_POSE, root_pose, env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -275,15 +287,17 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
-        The root link pose is the canonical actor-frame pose written directly to
-        the ``RIGID_BODY_POSE`` binding.
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects full data.
 
         Args:
-            root_pose: Root link poses in simulation frame [m, -]. Shape is (num_instances, 7) or
-                (num_instances,) with dtype ``wp.transformf``.
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._write_root_state(TT.RIGID_BODY_POSE, root_pose, mask=env_mask)
+        self._write_body_state(TT.RIGID_BODY_POSE, root_pose, mask=env_mask)
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -293,13 +307,15 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
-        The user supplies the world-frame COM pose. This method converts it to
-        the actor (link) frame using the body-frame COM offset from the
-        ``RIGID_BODY_COM_POSE`` binding before writing to the simulation.
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principal axes of inertia.
+
+        .. note::
+            This method expects partial data.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame [m, -]. Shape is (len(env_ids), 7) or
-                (len(env_ids),) with dtype ``wp.transformf``.
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
         """
         N = self._num_instances
@@ -310,7 +326,7 @@ class RigidObject(BaseRigidObject):
                     f" {root_pose.shape[0]} rows. Expected data.shape[0] == {N}."
                 )
         link_pose = self._com_pose_to_link_pose(root_pose)
-        self._write_root_state(TT.RIGID_BODY_POSE, link_pose, env_ids)
+        self._write_body_state(TT.RIGID_BODY_POSE, link_pose, env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -320,13 +336,15 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
-        The user supplies the world-frame COM pose. This method converts it to
-        the actor (link) frame using the body-frame COM offset from the
-        ``RIGID_BODY_COM_POSE`` binding before writing to the simulation.
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principal axes of inertia.
+
+        .. note::
+            This method expects full data.
 
         Args:
-            root_pose: Root center of mass poses in simulation frame [m, -]. Shape is (num_instances, 7) or
-                (num_instances,) with dtype ``wp.transformf``.
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         N = self._num_instances
@@ -337,7 +355,7 @@ class RigidObject(BaseRigidObject):
                     f" {root_pose.shape[0]} rows. Expected data.shape[0] == {N}."
                 )
         link_pose = self._com_pose_to_link_pose(root_pose)
-        self._write_root_state(TT.RIGID_BODY_POSE, link_pose, mask=env_mask)
+        self._write_body_state(TT.RIGID_BODY_POSE, link_pose, mask=env_mask)
 
     def write_root_velocity_to_sim_index(
         self,
@@ -345,17 +363,22 @@ class RigidObject(BaseRigidObject):
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set the root velocity over selected environment indices into the simulation.
+        """Set the root center of mass velocity over selected environment indices into the simulation.
 
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z)
-        in the simulation world frame.
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            This method expects partial data.
 
         Args:
-            root_velocity: Root velocities in simulation world frame [m/s, rad/s]. Shape is (len(env_ids), 6)
-                or (len(env_ids),) with dtype ``wp.spatial_vectorf``.
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, env_ids)
+        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_velocity, env_ids)
 
     def write_root_velocity_to_sim_mask(
         self,
@@ -363,17 +386,17 @@ class RigidObject(BaseRigidObject):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root velocity over selected environment mask into the simulation.
+        """Set the root center of mass velocity over selected environment mask into the simulation.
 
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z)
-        in the simulation world frame.
+        .. note::
+            This method expects full data.
 
         Args:
-            root_velocity: Root velocities in simulation world frame [m/s, rad/s]. Shape is (num_instances, 6)
-                or (num_instances,) with dtype ``wp.spatial_vectorf``.
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, mask=env_mask)
+        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_velocity, mask=env_mask)
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -383,16 +406,20 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
-        For a single rigid body the COM velocity and the link velocity share the same
-        ``RIGID_BODY_VELOCITY`` binding. The data is written directly with no frame
-        conversion.
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            This method expects partial data.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame [m/s, rad/s].
-                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype ``wp.spatial_vectorf``.
+            root_velocity: Root center of mass velocities in simulation world frame.
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, env_ids)
+        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_velocity, env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -402,16 +429,20 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
-        For a single rigid body the COM velocity and the link velocity share the same
-        ``RIGID_BODY_VELOCITY`` binding. The data is written directly with no frame
-        conversion.
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            This method expects full data.
 
         Args:
-            root_velocity: Root center of mass velocities in simulation world frame [m/s, rad/s].
-                Shape is (num_instances, 6) or (num_instances,) with dtype ``wp.spatial_vectorf``.
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, mask=env_mask)
+        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_velocity, mask=env_mask)
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -421,15 +452,20 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z)
-        in the simulation world frame, evaluated at the actor (link) frame.
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
+
+        .. note::
+            This method expects partial data.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame [m/s, rad/s].
-                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype ``wp.spatial_vectorf``.
+            root_velocity: Root frame velocities in simulation world frame.
+                Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, env_ids)
+        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_velocity, env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -439,18 +475,23 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Set the root link velocity over selected environment mask into the simulation.
 
-        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z)
-        in the simulation world frame, evaluated at the actor (link) frame.
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
+
+        .. note::
+            This method expects full data.
 
         Args:
-            root_velocity: Root frame velocities in simulation world frame [m/s, rad/s].
-                Shape is (num_instances, 6) or (num_instances,) with dtype ``wp.spatial_vectorf``.
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_velocity, mask=env_mask)
+        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_velocity, mask=env_mask)
 
     # ------------------------------------------------------------------
-    # Operations - Setters (Task 11)
+    # Operations - Setters
     # ------------------------------------------------------------------
 
     def set_masses_index(
@@ -460,16 +501,18 @@ class RigidObject(BaseRigidObject):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set rigid actor masses for a subset of environments.
+        """Set masses of all bodies using indices.
+
+        .. note::
+            This method expects partial data.
 
         Args:
-            masses: Mass values [kg]. Shape is ``(len(env_ids),)``.
+            masses: Masses of all bodies. Shape is (len(env_ids),).
             body_ids: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
-            env_ids: Indices of environments to write to. ``None`` writes to
-                all environments.
+            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
         """
-        self._write_root_state(TT.RIGID_BODY_MASS, masses, env_ids=env_ids)
+        self._write_body_state(TT.RIGID_BODY_MASS, masses, env_ids=env_ids)
         self._data._invalidate_caches(env_ids)
 
     def set_masses_mask(
@@ -479,16 +522,18 @@ class RigidObject(BaseRigidObject):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set rigid actor masses for environments selected by mask.
+        """Set masses of all bodies using masks.
+
+        .. note::
+            This method expects full data.
 
         Args:
-            masses: Mass values [kg]. Shape is ``(num_instances,)``.
+            masses: Masses of all bodies. Shape is (num_instances,).
             body_mask: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
-            env_mask: Boolean environment mask. ``None`` writes to all
-                environments. Shape is ``(num_instances,)``.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._write_root_state(TT.RIGID_BODY_MASS, masses, mask=env_mask)
+        self._write_body_state(TT.RIGID_BODY_MASS, masses, mask=env_mask)
         self._data._invalidate_caches()
 
     def set_coms_index(
@@ -498,16 +543,18 @@ class RigidObject(BaseRigidObject):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set rigid actor center-of-mass poses for a subset of environments.
+        """Set center of mass pose of all bodies using indices.
+
+        .. note::
+            This method expects partial data.
 
         Args:
-            coms: Center-of-mass poses in the body frame [m, -].
-                Shape is ``(len(env_ids), len(body_ids), 7)``. For a rigid
-                object ``len(body_ids) == 1``.
+            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7).
+                For a rigid object ``len(body_ids) == 1``.
             body_ids: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
-            env_ids: Indices of environments to write to. ``None`` writes to
-                all environments.
+            env_ids: The environment indices to set the center of mass pose for.
+                Defaults to None (all environments).
         """
         # The RIGID_BODY_COM_POSE binding is (N, 7); squeeze the singleton body dim.
         if isinstance(coms, wp.array) and coms.ndim == 3:
@@ -515,7 +562,7 @@ class RigidObject(BaseRigidObject):
             coms = wp.array(ptr=coms.ptr, shape=(K, 7), dtype=wp.float32, device=coms.device, copy=False)
         elif isinstance(coms, torch.Tensor) and coms.ndim == 3:
             coms = coms.reshape(coms.shape[0], 7)
-        self._write_root_state(TT.RIGID_BODY_COM_POSE, coms, env_ids=env_ids)
+        self._write_body_state(TT.RIGID_BODY_COM_POSE, coms, env_ids=env_ids)
         self._data._invalidate_caches(env_ids)
 
     def set_coms_mask(
@@ -525,16 +572,17 @@ class RigidObject(BaseRigidObject):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set rigid actor center-of-mass poses for environments selected by mask.
+        """Set center of mass pose of all bodies using masks.
+
+        .. note::
+            This method expects full data.
 
         Args:
-            coms: Center-of-mass poses in the body frame [m, -].
-                Shape is ``(num_instances, num_bodies, 7)``. For a rigid
-                object ``num_bodies == 1``.
+            coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7).
+                For a rigid object ``num_bodies == 1``.
             body_mask: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
-            env_mask: Boolean environment mask. ``None`` writes to all
-                environments. Shape is ``(num_instances,)``.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # The RIGID_BODY_COM_POSE binding is (N, 7); squeeze the singleton body dim.
         if isinstance(coms, wp.array) and coms.ndim == 3:
@@ -542,7 +590,7 @@ class RigidObject(BaseRigidObject):
             coms = wp.array(ptr=coms.ptr, shape=(N, 7), dtype=wp.float32, device=coms.device, copy=False)
         elif isinstance(coms, torch.Tensor) and coms.ndim == 3:
             coms = coms.reshape(coms.shape[0], 7)
-        self._write_root_state(TT.RIGID_BODY_COM_POSE, coms, mask=env_mask)
+        self._write_body_state(TT.RIGID_BODY_COM_POSE, coms, mask=env_mask)
         self._data._invalidate_caches()
 
     def set_inertias_index(
@@ -552,18 +600,20 @@ class RigidObject(BaseRigidObject):
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set rigid actor inertia tensors for a subset of environments.
+        """Set inertias of all bodies using indices.
+
+        .. note::
+            This method expects partial data.
 
         Args:
-            inertias: Inertia tensors [kg·m²], row-major flattened.
-                Shape is ``(len(env_ids), len(body_ids), 9)``. For a rigid
-                object ``len(body_ids) == 1``.
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9).
+                For a rigid object ``len(body_ids) == 1``.
             body_ids: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
-            env_ids: Indices of environments to write to. ``None`` writes to
-                all environments.
+            env_ids: The environment indices to set the inertias for.
+                Defaults to None (all environments).
         """
-        self._write_root_state(TT.RIGID_BODY_INERTIA, inertias, env_ids=env_ids)
+        self._write_body_state(TT.RIGID_BODY_INERTIA, inertias, env_ids=env_ids)
         self._data._invalidate_caches(env_ids)
 
     def set_inertias_mask(
@@ -573,18 +623,19 @@ class RigidObject(BaseRigidObject):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set rigid actor inertia tensors for environments selected by mask.
+        """Set inertias of all bodies using masks.
+
+        .. note::
+            This method expects full data.
 
         Args:
-            inertias: Inertia tensors [kg·m²], row-major flattened.
-                Shape is ``(num_instances, num_bodies, 9)``. For a rigid
-                object ``num_bodies == 1``.
+            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
+                For a rigid object ``num_bodies == 1``.
             body_mask: Accepted for contract parity with :class:`BaseRigidObject`;
                 ignored because a rigid object has a single body.
-            env_mask: Boolean environment mask. ``None`` writes to all
-                environments. Shape is ``(num_instances,)``.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._write_root_state(TT.RIGID_BODY_INERTIA, inertias, mask=env_mask)
+        self._write_body_state(TT.RIGID_BODY_INERTIA, inertias, mask=env_mask)
         self._data._invalidate_caches()
 
     # ------------------------------------------------------------------
@@ -596,55 +647,55 @@ class RigidObject(BaseRigidObject):
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :meth:`write_root_pose_to_sim_index` and
-        :meth:`write_root_velocity_to_sim_index` instead."""
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
         import warnings
 
         warnings.warn(
-            "write_root_state_to_sim() is deprecated. Use write_root_pose_to_sim_index() and"
-            " write_root_velocity_to_sim_index() instead.",
+            "The function 'write_root_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_link_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self._write_root_state(TT.RIGID_BODY_POSE, root_state[..., :7], env_ids)
-        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
+        self._write_body_state(TT.RIGID_BODY_POSE, root_state[..., :7], env_ids)
+        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
 
     def write_root_com_state_to_sim(
         self,
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :meth:`write_root_com_pose_to_sim_index` and
-        :meth:`write_root_com_velocity_to_sim_index` instead."""
+        """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and
+        :meth:`write_root_com_velocity_to_sim_index`."""
         import warnings
 
         warnings.warn(
-            "write_root_com_state_to_sim() is deprecated. Use write_root_com_pose_to_sim_index() and"
-            " write_root_com_velocity_to_sim_index() instead.",
+            "The function 'write_root_com_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_com_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
         link_pose = self._com_pose_to_link_pose(root_state[..., :7])
-        self._write_root_state(TT.RIGID_BODY_POSE, link_pose, env_ids)
-        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
+        self._write_body_state(TT.RIGID_BODY_POSE, link_pose, env_ids)
+        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
 
     def write_root_link_state_to_sim(
         self,
         root_state: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated. Use :meth:`write_root_link_pose_to_sim_index` and
-        :meth:`write_root_link_velocity_to_sim_index` instead."""
+        """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
+        :meth:`write_root_link_velocity_to_sim_index`."""
         import warnings
 
         warnings.warn(
-            "write_root_link_state_to_sim() is deprecated. Use write_root_link_pose_to_sim_index() and"
-            " write_root_link_velocity_to_sim_index() instead.",
+            "The function 'write_root_link_state_to_sim' will be deprecated in a future release. Please"
+            " use 'write_root_link_pose_to_sim_index' and 'write_root_link_velocity_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self._write_root_state(TT.RIGID_BODY_POSE, root_state[..., :7], env_ids)
-        self._write_root_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
+        self._write_body_state(TT.RIGID_BODY_POSE, root_state[..., :7], env_ids)
+        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
 
     # ------------------------------------------------------------------
     # Internal helpers -- Write
@@ -754,18 +805,20 @@ class RigidObject(BaseRigidObject):
             self._write_scratch[tensor_type] = buf
         return buf
 
-    def _write_root_state(self, tensor_type: int, data, env_ids=None, mask=None, _ids_gpu=None) -> None:
-        """GPU-native write for root pose [N,7] or velocity [N,6].
+    def _write_body_state(self, tensor_type: int, data, env_ids=None, mask=None, _ids_gpu=None) -> None:
+        """GPU-native write for the single-body state of a rigid object.
 
-        Three paths, fastest first:
+        Routes pose ``[N, 7]``, velocity ``[N, 6]``, scalar mass ``[N]``,
+        COM-pose ``[N, 7]``, or inertia ``[N, 9]`` data to the matching
+        OVPhysX binding via one of four paths, fastest first:
 
         - Full write (no env_ids, no mask): zero-copy DLPack.
         - Indexed write with full-size data: zero-copy view + indices.
           The binding API only copies the indexed rows from the full buffer,
-          so no read-modify-write is needed when data is already ``[N,...]``.
-        - Indexed write with partial data ``[K,...]``: scatter kernel into a
+          so no read-modify-write is needed when data is already ``[N, ...]``.
+        - Indexed write with partial data ``[K, ...]``: scatter kernel into a
           GPU scratch buffer, then write with indices.
-        - Masked write: data is always full ``[N,...]``, pass directly with mask.
+        - Masked write: data is always full ``[N, ...]``, pass directly with mask.
 
         1-D bindings (e.g. ``RIGID_BODY_MASS`` of shape ``(N,)``) are handled
         by treating them as ``(N, 1)`` internally.
@@ -1010,7 +1063,7 @@ class RigidObject(BaseRigidObject):
         self._data.num_bodies = 1
         self._data.body_names = self._body_names
 
-        # Steps 7-8: Placeholder methods (Task 9 fills them in).
+        # Allocate buffers and apply the initial state from the configuration.
         self._create_buffers()
         self._process_cfg()
 
