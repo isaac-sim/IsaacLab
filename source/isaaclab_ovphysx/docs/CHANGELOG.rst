@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.2.10 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added Google-style docstrings to every kernel and helper function in
+  :mod:`isaaclab_ovphysx.assets.kernels`. Each ``@wp.kernel`` and ``@wp.func``
+  now has a summary line, an ``Args:`` block with shape, dtype, and SI unit
+  annotations, and (where non-obvious) a ``Formula:`` or inline formula block
+  explaining the mathematical convention. No behavior changes.
+
 0.2.9 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~
 
