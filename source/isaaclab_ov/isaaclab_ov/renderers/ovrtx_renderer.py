@@ -123,6 +123,12 @@ class OVRTXRenderer(BaseRenderer):
     required_capabilities = (GpuTransformBuffer, NewtonState)
 
     def __init__(self, cfg: OVRTXRendererCfg):
+        from isaaclab.physics.scene_data_requirements import (
+            aggregate_requirements,
+            requirement_for_renderer_type,
+        )
+        from isaaclab.sim import SimulationContext
+
         self.cfg = cfg
         self._usd_handles = []
         self._render_product_paths = []
@@ -135,6 +141,18 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
         self._gpu_transform_buffer: GpuTransformBuffer | None = None
+
+        # Mirror the NewtonWarpRenderer pattern: push this renderer's scene-data
+        # requirements (Newton model + USD stage) onto the active SDP at
+        # construction time, since :meth:`InteractiveScene._sensor_renderer_types`
+        # runs before sensors are populated and would otherwise miss them.
+        sim = SimulationContext.instance()
+        if sim is not None:
+            current_req = sim.get_scene_data_requirements()
+            renderer_req = requirement_for_renderer_type("ovrtx")
+            merged = aggregate_requirements([current_req, renderer_req])
+            if merged != current_req:
+                sim.update_scene_data_requirements(merged)
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Export the USD stage for OVRTX before create_render_data.

@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.5.31 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` not pushing
+  its scene-data requirements onto the active SDP at construction time.
+  :class:`~isaaclab.scene.InteractiveScene` aggregates renderer
+  requirements before ``_setup_scene`` populates env sensors, so the
+  renderer's ``requires_usd_stage=True`` requirement was never visible
+  to the SDP. This left the Newton SDP without :class:`UsdFabric`
+  registered when running Newton physics + IsaacRTX rendering, which
+  broke wire-up validation in the visualizer integration tests.
+  Mirrors the pattern used by
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`.
+
+
 0.5.30 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

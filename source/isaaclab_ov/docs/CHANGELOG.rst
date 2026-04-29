@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.1.5 (2026-04-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` not pushing its
+  scene-data requirements (Newton model + USD stage) onto the active
+  SDP at construction time. Mirrors the pattern used by
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`.
+
+
 0.1.4 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~
 

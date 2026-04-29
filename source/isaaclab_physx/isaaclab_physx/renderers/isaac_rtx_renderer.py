@@ -85,9 +85,28 @@ class IsaacRtxRenderer(BaseRenderer):
     required_capabilities = (UsdFabric,)
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
+        from isaaclab.physics.scene_data_requirements import (
+            aggregate_requirements,
+            requirement_for_renderer_type,
+        )
+        from isaaclab.sim import SimulationContext
+
         self.cfg = cfg
         ensure_rtx_hydra_engine_attached()
         self._usd_fabric_cap: UsdFabric | None = None
+
+        # Sensors are typically added by ``DirectRLEnv._setup_scene`` after
+        # ``InteractiveScene.__init__`` already ran ``update_scene_data_requirements``,
+        # so the active SDP would never see this renderer's USD-Fabric requirement.
+        # Push it onto the requirements aggregator at construction time, mirroring
+        # the pattern used by :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`.
+        sim = SimulationContext.instance()
+        if sim is not None:
+            current_req = sim.get_scene_data_requirements()
+            renderer_req = requirement_for_renderer_type("isaac_rtx")
+            merged = aggregate_requirements([current_req, renderer_req])
+            if merged != current_req:
+                sim.update_scene_data_requirements(merged)
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Isaac RTX - uses USD scene directly without export.
