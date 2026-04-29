@@ -123,7 +123,7 @@ try:
     # _context is a singleton design in isaacsim and for that reason
     #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
     #  that singleton to this _context
-    from isaacsim.core.utils import stage as sim_stage
+    from isaacsim.core.experimental.utils import stage as sim_stage
 
     sim_stage._context = _context  # type: ignore
 except ImportError:
@@ -136,7 +136,7 @@ def create_new_stage() -> Usd.Stage:
     Creates a new stage using pure USD (``Usd.Stage.CreateInMemory()``).
 
     If Kit is running and Kit extensions need to discover this stage (e.g.
-    PhysX, ``isaacsim.core.prims.Articulation``), call
+    PhysX, ``isaacsim.core.experimental.prims.Articulation``), call
     :func:`attach_stage_to_usd_context` after scene setup.
 
     Returns:

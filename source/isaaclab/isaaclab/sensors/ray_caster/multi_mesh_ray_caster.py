@@ -350,8 +350,8 @@ class MultiMeshRayCaster(RayCaster):
                 continue
 
             # update position of the target meshes
-            pos_wp, quat_wp = view.get_world_poses(None)
-            pos_w, ori_w = wp.to_torch(pos_wp), wp.to_torch(quat_wp)
+            pos_w, ori_w = view.get_world_poses(None)
+            pos_w, ori_w = pos_w.torch, ori_w.torch
             pos_w = pos_w.squeeze(0) if len(pos_w.shape) == 3 else pos_w
             ori_w = ori_w.squeeze(0) if len(ori_w.shape) == 3 else ori_w
 

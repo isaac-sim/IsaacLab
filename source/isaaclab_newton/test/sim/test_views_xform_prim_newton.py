@@ -165,7 +165,7 @@ def test_world_attached_returns_initial_pose(device):
     sim.reset()
     view = FrameView("/World/StaticMarker", device=device)
 
-    pos = wp.to_torch(view.get_world_poses()[0])
+    pos = view.get_world_poses()[0].torch
     expected = torch.tensor([list(WORLD_MARKER_POS)], device=device)
     torch.testing.assert_close(pos, expected, atol=1e-5, rtol=0)
     ctx.__exit__(None, None, None)
@@ -193,6 +193,6 @@ def test_world_attached_set_world_roundtrip(device):
     view.set_world_poses(new_pos, new_quat)
 
     ret_pos, ret_quat = view.get_world_poses()
-    torch.testing.assert_close(wp.to_torch(ret_pos), wp.to_torch(new_pos), atol=1e-5, rtol=0)
-    torch.testing.assert_close(wp.to_torch(ret_quat), wp.to_torch(new_quat), atol=1e-5, rtol=0)
+    torch.testing.assert_close(ret_pos.torch, wp.to_torch(new_pos), atol=1e-5, rtol=0)
+    torch.testing.assert_close(ret_quat.torch, wp.to_torch(new_quat), atol=1e-5, rtol=0)
     ctx.__exit__(None, None, None)

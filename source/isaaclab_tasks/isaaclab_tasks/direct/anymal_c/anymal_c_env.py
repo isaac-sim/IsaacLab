@@ -76,9 +76,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()
-        self._processed_actions = self.cfg.action_scale * self._actions + wp.to_torch(
-            self._robot.data.default_joint_pos
-        )
+        self._processed_actions = self.cfg.action_scale * self._actions + self._robot.data.default_joint_pos.torch
 
     def _apply_action(self):
         self._robot.set_joint_position_target_index(target=self._processed_actions)
@@ -88,20 +86,20 @@ class AnymalCEnv(DirectRLEnv):
         height_data = None
         if isinstance(self.cfg, AnymalCRoughEnvCfg):
             height_data = (
-                wp.to_torch(self._height_scanner.data.pos_w)[:, 2].unsqueeze(1)
-                - wp.to_torch(self._height_scanner.data.ray_hits_w)[..., 2]
+                self._height_scanner.data.pos_w.torch[:, 2].unsqueeze(1)
+                - self._height_scanner.data.ray_hits_w.torch[..., 2]
                 - 0.5
             ).clip(-1.0, 1.0)
         obs = torch.cat(
             [
                 tensor
                 for tensor in (
-                    wp.to_torch(self._robot.data.root_lin_vel_b),
-                    wp.to_torch(self._robot.data.root_ang_vel_b),
-                    wp.to_torch(self._robot.data.projected_gravity_b),
+                    self._robot.data.root_lin_vel_b.torch,
+                    self._robot.data.root_ang_vel_b.torch,
+                    self._robot.data.projected_gravity_b.torch,
                     self._commands,
-                    wp.to_torch(self._robot.data.joint_pos) - wp.to_torch(self._robot.data.default_joint_pos),
-                    wp.to_torch(self._robot.data.joint_vel),
+                    self._robot.data.joint_pos.torch - self._robot.data.default_joint_pos.torch,
+                    self._robot.data.joint_vel.torch,
                     height_data,
                     self._actions,
                 )
@@ -115,37 +113,37 @@ class AnymalCEnv(DirectRLEnv):
     def _get_rewards(self) -> torch.Tensor:
         # linear velocity tracking
         lin_vel_error = torch.sum(
-            torch.square(self._commands[:, :2] - wp.to_torch(self._robot.data.root_lin_vel_b)[:, :2]), dim=1
+            torch.square(self._commands[:, :2] - self._robot.data.root_lin_vel_b.torch[:, :2]), dim=1
         )
         lin_vel_error_mapped = torch.exp(-lin_vel_error / 0.25)
         # yaw rate tracking
-        yaw_rate_error = torch.square(self._commands[:, 2] - wp.to_torch(self._robot.data.root_ang_vel_b)[:, 2])
+        yaw_rate_error = torch.square(self._commands[:, 2] - self._robot.data.root_ang_vel_b.torch[:, 2])
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
         # z velocity tracking
-        z_vel_error = torch.square(wp.to_torch(self._robot.data.root_lin_vel_b)[:, 2])
+        z_vel_error = torch.square(self._robot.data.root_lin_vel_b.torch[:, 2])
         # angular velocity x/y
-        ang_vel_error = torch.sum(torch.square(wp.to_torch(self._robot.data.root_ang_vel_b)[:, :2]), dim=1)
+        ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b.torch[:, :2]), dim=1)
         # joint torques
-        joint_torques = torch.sum(torch.square(wp.to_torch(self._robot.data.applied_torque)), dim=1)
+        joint_torques = torch.sum(torch.square(self._robot.data.applied_torque.torch), dim=1)
         # joint acceleration
-        joint_accel = torch.sum(torch.square(wp.to_torch(self._robot.data.joint_acc)), dim=1)
+        joint_accel = torch.sum(torch.square(self._robot.data.joint_acc.torch), dim=1)
         # action rate
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
         # feet air time
-        first_contact = wp.to_torch(self._contact_sensor.compute_first_contact(self.step_dt))[:, self._feet_ids]
-        last_air_time = wp.to_torch(self._contact_sensor.data.last_air_time)[:, self._feet_ids]
+        first_contact = self._contact_sensor.compute_first_contact(self.step_dt).torch[:, self._feet_ids]
+        last_air_time = self._contact_sensor.data.last_air_time.torch[:, self._feet_ids]
         air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
             torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1
         )
         # undesired contacts
-        net_contact_forces = wp.to_torch(self._contact_sensor.data.net_forces_w_history)
+        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
         is_contact = (
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0]
             > 1.0
         )
         contacts = torch.sum(is_contact, dim=1)
         # flat orientation
-        flat_orientation = torch.sum(torch.square(wp.to_torch(self._robot.data.projected_gravity_b)[:, :2]), dim=1)
+        flat_orientation = torch.sum(torch.square(self._robot.data.projected_gravity_b.torch[:, :2]), dim=1)
 
         rewards = {
             "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale * self.step_dt,
@@ -167,7 +165,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        net_contact_forces = wp.to_torch(self._contact_sensor.data.net_forces_w_history)
+        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
         died = torch.any(
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1
         )
@@ -186,10 +184,10 @@ class AnymalCEnv(DirectRLEnv):
         # Sample new commands
         self._commands[env_ids] = torch.zeros_like(self._commands[env_ids]).uniform_(-1.0, 1.0)
         # Reset robot state
-        joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
-        joint_vel = wp.to_torch(self._robot.data.default_joint_vel)[env_ids]
-        default_root_pose = wp.to_torch(self._robot.data.default_root_pose)[env_ids]
-        default_root_vel = wp.to_torch(self._robot.data.default_root_vel)[env_ids]
+        joint_pos = self._robot.data.default_joint_pos.torch[env_ids]
+        joint_vel = self._robot.data.default_joint_vel.torch[env_ids]
+        default_root_pose = self._robot.data.default_root_pose.torch[env_ids]
+        default_root_vel = self._robot.data.default_root_vel.torch[env_ids]
         default_root_pose[:, :3] += self._terrain.env_origins[env_ids]
         self._robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)

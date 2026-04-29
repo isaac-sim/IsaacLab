@@ -264,9 +264,9 @@ class RayCaster(SensorBase):
             ``(tx, ty, tz, qx, qy, qz, qw)`` per element, matching the quaternion
             convention returned by :class:`~isaaclab.sim.views.FrameView`.
         """
-        pos_wp, quat_wp = self._view.get_world_poses()
-        pos_torch = wp.to_torch(pos_wp).reshape(-1, 3)
-        quat_torch = wp.to_torch(quat_wp).reshape(-1, 4)
+        pos_w, quat_w = self._view.get_world_poses()
+        pos_torch = pos_w.torch.reshape(-1, 3)
+        quat_torch = quat_w.torch.reshape(-1, 4)
         poses = torch.cat([pos_torch, quat_torch], dim=-1).contiguous()
         return wp.from_torch(poses).view(wp.transformf)
 

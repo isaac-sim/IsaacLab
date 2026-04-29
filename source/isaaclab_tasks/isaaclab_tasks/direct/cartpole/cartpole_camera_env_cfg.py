@@ -9,7 +9,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
@@ -34,9 +34,9 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
     pole_dof_name = "cart_to_pole"
 
     # camera: default=RTX, newton_renderer=Warp. Override: env.tiled_camera.renderer_cfg=newton_renderer
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+    tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -73,9 +73,9 @@ class CartpoleRGBCameraEnvCfg(DirectRLEnvCfg):
 @configclass
 class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+    tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         data_types=["depth"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -91,9 +91,9 @@ class CartpoleDepthCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 @configclass
 class CartpoleAlbedoCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+    tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         data_types=["albedo"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -109,9 +109,9 @@ class CartpoleAlbedoCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 @configclass
 class CartpoleSimpleShadingConstantCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+    tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         data_types=["simple_shading_constant_diffuse"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -127,9 +127,9 @@ class CartpoleSimpleShadingConstantCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 @configclass
 class CartpoleSimpleShadingDiffuseCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+    tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         data_types=["simple_shading_diffuse_mdl"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -145,9 +145,9 @@ class CartpoleSimpleShadingDiffuseCameraEnvCfg(CartpoleRGBCameraEnvCfg):
 @configclass
 class CartpoleSimpleShadingFullCameraEnvCfg(CartpoleRGBCameraEnvCfg):
     # camera
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+    tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(1.0, 0.0, 0.0, 0.0), convention="world"),
         data_types=["simple_shading_full_mdl"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)

@@ -218,7 +218,7 @@ class PinkInverseKinematicsAction(ActionTerm):
         """
         # Get base link frame pose in world origin using cached index
         articulation_data = self._env.scene[self.cfg.controller.articulation_name].data
-        base_link_frame_in_world_origin = wp.to_torch(articulation_data.body_link_state_w)[:, self._base_link_idx, :7]
+        base_link_frame_in_world_origin = articulation_data.body_link_state_w.torch[:, self._base_link_idx, :7]
 
         # Transform to environment origin frame (reuse buffer to avoid allocation)
         torch.sub(
@@ -352,7 +352,7 @@ class PinkInverseKinematicsAction(ActionTerm):
 
         for env_index, ik_controller in enumerate(self._ik_controllers):
             # Get current joint positions for this environment
-            current_joint_pos = wp.to_torch(self._asset.data.joint_pos).cpu().numpy()[env_index]
+            current_joint_pos = self._asset.data.joint_pos.torch.cpu().numpy()[env_index]
 
             # Compute IK solution
             joint_pos_des = ik_controller.compute(current_joint_pos, self._sim_dt)

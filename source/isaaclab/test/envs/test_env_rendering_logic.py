@@ -31,6 +31,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import configclass
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 @configclass
 class EmptyManagerCfg:
