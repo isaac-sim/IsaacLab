@@ -19,6 +19,36 @@ from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 from isaaclab_newton.physics import NewtonManager
 
 
+def _scope_custom_frequencies(builder: ModelBuilder, root_path: str) -> None:
+    """Restrict all custom-frequency prim filters to prims under *root_path*.
+
+    Newton's custom-frequency traversal uses ``stage.Traverse()`` unconditionally,
+    ignoring the ``root_path`` passed to ``add_usd``.  Any registered frequency
+    with a ``usd_prim_filter`` has the same cross-source contamination risk in
+    heterogeneous clone plans: proto builder A's traversal also visits prims from
+    source B, causing resolution failures against the wrong builder's joint/body
+    tables.  Patching every such filter to additionally require a path prefix
+    match eliminates cross-source contamination for all custom frequencies.
+
+    Frequencies with ``usd_prim_filter = None`` are skipped; Newton excludes them
+    from the traversal loop entirely so they carry no contamination risk.
+
+    Args:
+        builder: A proto ``ModelBuilder`` that has already had custom attributes
+            registered (e.g. via ``SolverMuJoCo.register_custom_attributes``).
+        root_path: USD path prefix; only prims whose path starts with this string
+            will pass the patched filter.
+    """
+    for freq in builder.custom_frequencies.values():
+        if freq.usd_prim_filter is None:
+            continue
+        orig = freq.usd_prim_filter
+        _prefix = root_path.rstrip("/") + "/"
+        freq.usd_prim_filter = lambda prim, ctx, _orig=orig, _prefix=_prefix: (
+            str(prim.GetPath()).startswith(_prefix) and _orig(prim, ctx)
+        )
+
+
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: list[str],
@@ -52,28 +82,60 @@ def _build_newton_builder_from_mapping(
         quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
         quaternions[:, 3] = 1.0
 
-    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-
+    # Main builder: loads only ground plane, lights, and scene-level prims.
+    # /World/envs (and all source asset paths) are excluded via ignore_paths.
+    #
+    # ``SolverMuJoCo.register_custom_attributes`` is intentionally NOT called on
+    # the main builder. Doing so would register the ``mujoco:*`` custom
+    # frequencies, whose traversal uses ``stage.Traverse()`` and ignores
+    # ``ignore_paths``. The traversal would find ``MjcTendon`` prims under
+    # ``/World/envs/...`` and try to resolve their joint paths against the main
+    # builder's empty ``joint_label`` (no joints loaded), emitting "unknown
+    # joint path" warnings and silently dropping every tendon.
+    main_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     builder = NewtonManager.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(
         stage,
         ignore_paths=["/World/envs"] + sources,
-        schema_resolvers=schema_resolvers,
+        schema_resolvers=main_resolvers,
     )
+
+    # Proto resolvers match the main builder. SchemaResolverMjc is intentionally
+    # EXCLUDED: MjcTendon prims are parsed by the ``mujoco:*`` custom frequencies
+    # (registered via ``SolverMuJoCo.register_custom_attributes`` below), not by
+    # the schema-resolver chain. Adding ``SchemaResolverMjc`` would change which
+    # schema wins for non-tendon properties (shape margins/gaps, joint limit
+    # ke/kd, armature, material stiffness/damping) on MJCF-derived USDs that
+    # also carry ``physx:``/``newton:`` authoring — those should keep their
+    # current Newton/PhysX precedence.
+    # Both resolver classes are stateless (no instance fields); sharing one set
+    # across proto builders is safe.
+    proto_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
     # The prototype is built from env_0 in absolute world coordinates.
     # add_builder xforms are deltas from env_0 so positions don't get double-counted.
     env0_pos = positions[0]
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
+        # ``register_custom_attributes`` registers the ``mujoco:*`` custom
+        # frequencies on this builder, which is what drives MjcTendon parsing
+        # (the resolver chain does not). It must run before ``add_usd`` so the
+        # custom-frequency traversal can resolve MjcTendon joint paths against
+        # this proto's fully populated joint_label.
         p = NewtonManager.create_builder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
+        # Newton's custom-frequency traversal uses stage.Traverse() unconditionally,
+        # ignoring root_path. In heterogeneous plans with multiple MJCF sources that
+        # each have tendons, proto A's traversal would also find source B's MjcTendon
+        # prims. Patch the filters to restrict them to src_path so only this proto's
+        # own tendons are resolved.
+        _scope_custom_frequencies(p, src_path)
         p.add_usd(
             stage,
             root_path=src_path,
             load_visual_shapes=True,
             skip_mesh_approximation=True,
-            schema_resolvers=schema_resolvers,
+            schema_resolvers=proto_resolvers,
         )
         if simplify_meshes:
             p.approximate_meshes("convex_hull", keep_visual_shapes=True)
@@ -111,6 +173,13 @@ def _build_newton_builder_from_mapping(
                     local_site_map[label][col].append(offset + proto_shape_idx)
         # end the world context
         builder.end_world()
+
+    # Note: add_builder appends tendon custom-attribute entries from the proto
+    # for each world, giving N×T total entries after N environments. This is
+    # intentional: Newton uses per-world slices for parameter randomization
+    # (stiffness, damping, range) and template_world=0 for joint connectivity.
+    # Heterogeneous tendon topology across worlds is not supported (Newton limitation).
+    # No deduplication is needed.
 
     site_index_map = {
         **global_site_map,
