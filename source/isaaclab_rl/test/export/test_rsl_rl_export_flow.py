@@ -23,7 +23,6 @@ _EXPORT_SCRIPT = os.path.join("scripts", "reinforcement_learning", "leapp", "rsl
 
 
 # Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded).
-# See FRANK_TESTING/no-pretrain.txt for the excluded set.
 TASKS = [
     # Classic
     "Isaac-Ant-v0",

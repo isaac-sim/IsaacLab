@@ -24,7 +24,7 @@ import pytest
 
 _THIS_FILE = Path(__file__).resolve()
 _REPO_ROOT = str(_THIS_FILE.parents[4])
-_EXPORT_SCRIPT = os.path.join(_REPO_ROOT, "scripts", "reinforcement_learning", "rsl_rl", "export.py")
+_EXPORT_SCRIPT = os.path.join(_REPO_ROOT, "scripts", "reinforcement_learning", "leapp", "rsl_rl", "export.py")
 _THIS_SCRIPT = str(_THIS_FILE)
 _TASK_NAME = "Isaac-Velocity-Flat-Anymal-C-Direct-v0"
 _PACKAGE_NAME = "_isaaclab_test_tutorial_anymal_c"

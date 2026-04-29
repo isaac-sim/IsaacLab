@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import warp as wp
-
 from isaaclab.utils.leapp import (
     POSE7_ELEMENT_NAMES,
     QUAT_WXYZ_ELEMENT_NAMES,
