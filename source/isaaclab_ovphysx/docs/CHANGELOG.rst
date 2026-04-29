@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.2.12 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Unified the CPU and GPU paths in
+  :meth:`~isaaclab_ovphysx.physics.OvPhysxManager._configure_physx_scene_prim`.
+  ``PhysxSceneAPI`` schema and ``enableSceneQuerySupport`` are now applied
+  on both CPU and GPU; the GPU-only attributes (``enableGPUDynamics``,
+  ``broadphaseType="GPU"``, the ``gpu*`` capacity attrs from
+  :class:`~isaaclab_ovphysx.physics.OvPhysxCfg`) remain gated on
+  ``device == "gpu"``. Previously the CPU path silently skipped the
+  schema apply, so user-set ``SimulationCfg.enable_scene_query_support``
+  did not propagate.
+
 0.2.11 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~~
 

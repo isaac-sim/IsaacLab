@@ -174,8 +174,8 @@ class OvPhysxManager(PhysicsManager):
             ovphysx_device = "cpu"
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-        if scene_prim.IsValid() and ovphysx_device == "gpu":
-            cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg)
+        if scene_prim.IsValid():
+            cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
         # Export the current USD stage to a temporary file so ovphysx can load it.
         cls._tmp_dir = tempfile.TemporaryDirectory(prefix="isaaclab_ovphysx_")
@@ -290,15 +290,24 @@ class OvPhysxManager(PhysicsManager):
         cls._warmup_done = True
 
     @staticmethod
-    def _configure_physx_scene_prim(scene_prim, cfg) -> None:
-        """Apply PhysxSceneAPI schema and GPU dynamics attributes to a scene prim.
+    def _configure_physx_scene_prim(scene_prim, cfg, device: str) -> None:
+        """Apply PhysxSceneAPI schema and device-specific scene attributes to the
+        scene prim.
 
         The PhysxSchema USD plugin may not be loaded in standalone ovphysx mode,
         so we write the apiSchemas list entry and scene attributes directly via
         raw Sdf metadata manipulation instead of using the high-level USD API.
 
-        Without these attributes PhysX defaults to CPU broadphase even when
-        ovphysx is created with device="gpu".
+        The schema and scene-query-support attribute are applied regardless of
+        device. The GPU-specific dynamics/broadphase/capacity attributes are
+        applied only when ``device == "gpu"`` — without them PhysX defaults to
+        CPU broadphase even when ovphysx is created with ``device="gpu"``.
+
+        Args:
+            scene_prim: The /World/PhysicsScene prim to configure.
+            cfg: The :class:`OvPhysxCfg` carrying GPU buffer-capacity values.
+                Only consulted when ``device == "gpu"``.
+            device: Resolved physics device — one of ``"cpu"`` or ``"gpu"``.
         """
         from pxr import Sdf
 
@@ -309,22 +318,24 @@ class OvPhysxManager(PhysicsManager):
             items.append("PhysxSceneAPI")
         schemas.prependedItems = items
         scene_prim.SetMetadata("apiSchemas", schemas)
-        scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
-        scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
-
-        if cfg is not None:
-            for attr, val in [
-                ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
-                ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
-                ("gpuFoundLostPairsCapacity", cfg.gpu_found_lost_pairs_capacity),
-                ("gpuFoundLostAggregatePairsCapacity", cfg.gpu_found_lost_aggregate_pairs_capacity),
-                ("gpuTotalAggregatePairsCapacity", cfg.gpu_total_aggregate_pairs_capacity),
-                ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
-            ]:
-                scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
 
         # Propagate scene query support from SimulationCfg so omni.physx creates
         # the scene with the correct query mode.  OvPhysxCfg does not carry this field.
         sim_cfg = PhysicsManager._sim.cfg if PhysicsManager._sim is not None else None
         enable_sq = getattr(sim_cfg, "enable_scene_query_support", False)
         scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(enable_sq)
+
+        if device == "gpu":
+            scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
+            scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
+
+            if cfg is not None:
+                for attr, val in [
+                    ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
+                    ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
+                    ("gpuFoundLostPairsCapacity", cfg.gpu_found_lost_pairs_capacity),
+                    ("gpuFoundLostAggregatePairsCapacity", cfg.gpu_found_lost_aggregate_pairs_capacity),
+                    ("gpuTotalAggregatePairsCapacity", cfg.gpu_total_aggregate_pairs_capacity),
+                    ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
+                ]:
+                    scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
