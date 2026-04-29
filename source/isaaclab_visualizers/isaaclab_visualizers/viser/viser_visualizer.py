@@ -15,6 +15,7 @@ import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from isaaclab_newton.physics.capabilities import NewtonState
 from newton.viewer import ViewerViser
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -113,6 +114,8 @@ class NewtonViewerViser(ViewerViser):
 class ViserVisualizer(BaseVisualizer):
     """Viser web-based visualizer backed by Newton's ViewerViser."""
 
+    required_capabilities = (NewtonState,)
+
     def __init__(self, cfg: ViserVisualizerCfg):
         """Initialize Viser visualizer state.
 
@@ -126,6 +129,7 @@ class ViserVisualizer(BaseVisualizer):
         self._state = None
         self._sim_time = 0.0
         self._scene_data_provider = None
+        self._newton_state_cap: NewtonState | None = None
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -143,10 +147,17 @@ class ViserVisualizer(BaseVisualizer):
             raise RuntimeError("Viser visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
+        self.register_with_scene_data_provider(scene_data_provider)
+        self._newton_state_cap = scene_data_provider.get_capability(NewtonState)
+        if self._newton_state_cap is None:
+            raise RuntimeError(
+                "ViserVisualizer requires the NewtonState capability, but the active "
+                "Scene Data Provider does not register it."
+            )
         metadata = scene_data_provider.get_metadata()
         self._env_ids = self._compute_visualized_env_ids()
-        self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state()
+        self._model = self._newton_state_cap.get_model()
+        self._state = self._newton_state_cap.get_state()
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
@@ -182,7 +193,7 @@ class ViserVisualizer(BaseVisualizer):
             self._update_camera_from_usd_path()
         self._apply_pending_camera_pose()
 
-        self._state = self._scene_data_provider.get_newton_state()
+        self._state = self._newton_state_cap.get_state()
         self._sim_time += dt
         self._viewer.begin_frame(self._sim_time)
         self._viewer.log_state(self._state)

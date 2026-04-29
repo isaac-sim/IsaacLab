@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from isaaclab_newton.physics.capabilities import NewtonState
 from newton.viewer import ViewerGL
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -251,6 +252,8 @@ class NewtonViewerGL(ViewerGL):
 class NewtonVisualizer(BaseVisualizer):
     """Newton OpenGL visualizer for Isaac Lab."""
 
+    required_capabilities = (NewtonState,)
+
     def __init__(self, cfg: NewtonVisualizerCfg):
         """Initialize Newton visualizer state.
 
@@ -266,6 +269,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._state = None
         self._update_frequency = cfg.update_frequency
         self._scene_data_provider = None
+        self._newton_state_cap: NewtonState | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
 
@@ -282,11 +286,18 @@ class NewtonVisualizer(BaseVisualizer):
             raise RuntimeError("Newton visualizer requires a scene_data_provider.")
 
         self._scene_data_provider = scene_data_provider
+        self.register_with_scene_data_provider(scene_data_provider)
+        self._newton_state_cap = scene_data_provider.get_capability(NewtonState)
+        if self._newton_state_cap is None:
+            raise RuntimeError(
+                "NewtonVisualizer requires the NewtonState capability, but the active "
+                "Scene Data Provider does not register it."
+            )
         metadata = scene_data_provider.get_metadata()
         num_envs = int(metadata.get("num_envs", 0))
         self._env_ids = self._compute_visualized_env_ids()
-        self._model = scene_data_provider.get_newton_model()
-        self._state = scene_data_provider.get_newton_state()
+        self._model = self._newton_state_cap.get_model()
+        self._state = self._newton_state_cap.get_state()
 
         # Use pyglet's EGL headless backend when requested. Must run before the first
         # ``pyglet.window`` import so ``Window`` resolves to :class:`~pyglet.window.headless.HeadlessWindow`.
@@ -366,14 +377,14 @@ class NewtonVisualizer(BaseVisualizer):
         self._step_counter += 1
 
         if self._viewer is None:
-            if self._scene_data_provider is not None:
-                self._state = self._scene_data_provider.get_newton_state()
+            if self._newton_state_cap is not None:
+                self._state = self._newton_state_cap.get_state()
             return
 
         if self.cfg.cam_source == "prim_path":
             self._update_camera_from_usd_path()
 
-        self._state = self._scene_data_provider.get_newton_state()
+        self._state = self._newton_state_cap.get_state()
 
         contacts = None
         if self._viewer.show_contacts:

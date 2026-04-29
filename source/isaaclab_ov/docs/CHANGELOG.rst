@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.1.4 (2026-04-29)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to acquire the
+  :class:`~isaaclab.physics.GpuTransformBuffer` capability through
+  :meth:`~isaaclab.physics.BaseSceneDataProvider.get_capability` instead
+  of calling the now-deprecated :meth:`get_body_transforms` directly on
+  the provider. Declares ``required_capabilities = (GpuTransformBuffer,)``
+  for wire-up validation and removes the legacy Newton-state fallback
+  path along with the ``sync_newton_transforms_kernel`` import — both are
+  redundant once the capability is the mandatory baseline.
+
+
 0.1.3 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~
 

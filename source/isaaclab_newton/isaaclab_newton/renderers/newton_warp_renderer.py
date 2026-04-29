@@ -20,6 +20,8 @@ from isaaclab.renderers import BaseRenderer
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
+from isaaclab_newton.physics.capabilities import NewtonState
+
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
@@ -149,6 +151,8 @@ class NewtonWarpRenderer(BaseRenderer):
 
     RenderData = RenderData
 
+    required_capabilities = (NewtonState,)
+
     def __init__(self, cfg: NewtonWarpRendererCfg):
         from isaaclab.physics.scene_data_requirements import (
             aggregate_requirements,
@@ -162,7 +166,16 @@ class NewtonWarpRenderer(BaseRenderer):
         if merged != current_req:
             sim.update_scene_data_requirements(merged)
 
-        newton_model = self.get_scene_data_provider().get_newton_model()
+        provider = self.get_scene_data_provider()
+        self.register_with_scene_data_provider(provider)
+        self._newton_state_cap: NewtonState = provider.get_capability(NewtonState)
+        if self._newton_state_cap is None:
+            raise RuntimeError(
+                "NewtonWarpRenderer requires the NewtonState capability, but the active "
+                "Scene Data Provider does not register it."
+            )
+
+        newton_model = self._newton_state_cap.get_model()
         if newton_model is None:
             raise RuntimeError(
                 "NewtonWarpRenderer requires a Newton model but the scene data provider returned None. "
@@ -214,7 +227,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
         self.newton_sensor.update(
-            self.get_scene_data_provider().get_newton_state(),
+            self._newton_state_cap.get_state(),
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,

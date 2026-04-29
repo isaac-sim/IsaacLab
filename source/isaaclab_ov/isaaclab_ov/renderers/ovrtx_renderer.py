@@ -39,6 +39,7 @@ os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 
+from isaaclab.physics import GpuTransformBuffer
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
@@ -49,7 +50,6 @@ from .ovrtx_renderer_kernels import (
     extract_all_depth_tiles_kernel,
     extract_all_rgba_tiles_kernel,
     generate_random_colors_from_ids_kernel,
-    sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
     create_cloning_attributes,
@@ -112,6 +112,8 @@ class OVRTXRenderer(BaseRenderer):
 
     cfg: OVRTXRendererCfg
 
+    required_capabilities = (GpuTransformBuffer,)
+
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
         self._usd_handles = []
@@ -124,6 +126,7 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_path: str | None = None
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
+        self._gpu_transform_buffer: GpuTransformBuffer | None = None
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Export the USD stage for OVRTX before create_render_data.
@@ -338,12 +341,12 @@ class OVRTXRenderer(BaseRenderer):
         pass
 
     def update_transforms(self) -> None:
-        """Sync physics objects to OVRTX via the typed Scene Data Provider API.
+        """Sync physics objects to OVRTX via the GpuTransformBuffer capability.
 
-        Uses :meth:`~isaaclab.physics.BaseSceneDataProvider.get_body_transforms`
-        to get transforms as column-major ``mat44d`` matrices, matching OVRTX's
-        native format. Falls back to the legacy Newton state path when the
-        typed API is unavailable.
+        Requests transforms as column-major ``mat44d`` matrices, matching
+        OVRTX's native format. The :class:`GpuTransformBuffer` capability is
+        the mandatory baseline (ADR-0002), so the cap is guaranteed to be
+        available once wire-up validation has run.
         """
         if self._object_binding is None or self._object_newton_indices is None:
             return
@@ -352,9 +355,14 @@ class OVRTXRenderer(BaseRenderer):
             from isaaclab.physics.scene_data_types import MatrixLayout, TransformFormat
             from isaaclab.sim import SimulationContext
 
-            provider = SimulationContext.instance().initialize_scene_data_provider()
+            if self._gpu_transform_buffer is None:
+                provider = SimulationContext.instance().initialize_scene_data_provider()
+                self.register_with_scene_data_provider(provider)
+                self._gpu_transform_buffer = provider.get_capability(GpuTransformBuffer)
+                if self._gpu_transform_buffer is None:
+                    return
 
-            transforms = provider.get_body_transforms(
+            transforms = self._gpu_transform_buffer.get_body_transforms(
                 TransformFormat.MAT44,
                 matrix_layout=MatrixLayout.COLUMN_MAJOR,
                 double_precision=True,
@@ -362,28 +370,12 @@ class OVRTXRenderer(BaseRenderer):
                 index_map=self._object_newton_indices,
             )
 
-            if transforms is not None:
-                with self._object_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
-                    ovrtx_buf = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
-                    wp.copy(ovrtx_buf, transforms.matrices)
-                return
-
-            # Legacy fallback: use Newton state directly
-            newton_state = provider.get_newton_state()
-            if newton_state is None:
-                return
-            body_q = getattr(newton_state, "body_q", None)
-            if body_q is None:
+            if transforms is None:
                 return
 
             with self._object_binding.map(device=Device.CUDA, device_id=0) as attr_mapping:
-                ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
-                wp.launch(
-                    kernel=sync_newton_transforms_kernel,
-                    dim=len(self._object_newton_indices),
-                    inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
-                    device=DEVICE,
-                )
+                ovrtx_buf = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
+                wp.copy(ovrtx_buf, transforms.matrices)
         except Exception as e:
             logger.warning("Failed to update object transforms: %s", e)
 

@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.5.30 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to declare
+  ``required_capabilities = (UsdFabric,)`` and call
+  :meth:`UsdFabric.ensure_current` from :meth:`update_transforms`. The
+  call is a no-op fast path on PhysX (which writes USD Fabric natively
+  via the Tensor API) and runs the sync-to-USD bridge on Newton. The
+  contract is now explicit instead of implicit.
+
+
 0.5.29 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

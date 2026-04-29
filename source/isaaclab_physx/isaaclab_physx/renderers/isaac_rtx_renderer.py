@@ -19,6 +19,7 @@ import torch
 import warp as wp
 
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.physics import UsdFabric
 from isaaclab.renderers import BaseRenderer
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
@@ -81,9 +82,12 @@ class IsaacRtxRenderer(BaseRenderer):
     Requires Isaac Sim.
     """
 
+    required_capabilities = (UsdFabric,)
+
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
         ensure_rtx_hydra_engine_attached()
+        self._usd_fabric_cap: UsdFabric | None = None
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Isaac RTX - uses USD scene directly without export.
@@ -227,9 +231,24 @@ class IsaacRtxRenderer(BaseRenderer):
         render_data.output_data = output_data
 
     def update_transforms(self) -> None:
-        """No-op for Isaac RTX - uses USD scene directly.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        pass
+        """Ensure USD Fabric reflects the current physics generation.
+
+        Isaac RTX reads transforms from USD via Hydra/Replicator. The
+        :class:`UsdFabric` capability formalises that contract: the renderer
+        does not produce or copy transforms itself, but it requires the
+        Scene Data Provider to guarantee Fabric is current. On a PhysX
+        provider this is a no-op fast path; on a Newton provider it would
+        run the sync-to-USD bridge.
+        """
+        if self._usd_fabric_cap is None:
+            from isaaclab.sim import SimulationContext
+
+            provider = SimulationContext.instance().initialize_scene_data_provider()
+            self.register_with_scene_data_provider(provider)
+            self._usd_fabric_cap = provider.get_capability(UsdFabric)
+            if self._usd_fabric_cap is None:
+                return
+        self._usd_fabric_cap.ensure_current()
 
     def update_camera(
         self,

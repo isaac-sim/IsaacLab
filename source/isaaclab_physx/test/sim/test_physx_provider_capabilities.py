@@ -15,11 +15,11 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import warp as wp
+from isaaclab_newton.physics.capabilities import NewtonState
 
 from isaaclab.physics import GpuTransformBuffer, UsdFabric
 from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.sim import build_simulation_context
-from isaaclab_newton.physics.capabilities import NewtonState
 
 wp.init()
 

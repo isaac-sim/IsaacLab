@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+0.5.28 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to acquire
+  the :class:`~isaaclab_newton.physics.NewtonState` capability via
+  :meth:`~isaaclab.physics.BaseSceneDataProvider.get_capability`. Declares
+  ``required_capabilities = (NewtonState,)``.
+* Changed :class:`~isaaclab_newton.video_recording.NewtonGlPerspectiveVideo`
+  to use the ``NewtonState`` capability instead of the legacy
+  :meth:`get_newton_model` and :meth:`get_newton_state` methods on the
+  provider.
+
+
 0.5.27 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

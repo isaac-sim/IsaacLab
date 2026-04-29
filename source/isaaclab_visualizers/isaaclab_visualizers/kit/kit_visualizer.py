@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from pxr import Gf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.physics import UsdFabric
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
@@ -30,6 +31,8 @@ _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
 
 class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
+
+    required_capabilities = (UsdFabric,)
 
     def __init__(self, cfg: KitVisualizerCfg):
         """Initialize Kit visualizer state.
@@ -52,6 +55,7 @@ class KitVisualizer(BaseVisualizer):
         self._runtime_headless = bool(cfg.headless)
         # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
         self._controlled_camera_path: str | None = None
+        self._usd_fabric_cap: UsdFabric | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -68,6 +72,13 @@ class KitVisualizer(BaseVisualizer):
         if scene_data_provider is None:
             raise RuntimeError("[KitVisualizer] Requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
+        self.register_with_scene_data_provider(scene_data_provider)
+        self._usd_fabric_cap = scene_data_provider.get_capability(UsdFabric)
+        if self._usd_fabric_cap is None:
+            raise RuntimeError(
+                "[KitVisualizer] Requires the UsdFabric capability, but the active "
+                "Scene Data Provider does not register it."
+            )
         usd_stage = scene_data_provider.get_usd_stage()
         if usd_stage is None:
             raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")
@@ -115,6 +126,10 @@ class KitVisualizer(BaseVisualizer):
             return
         self._sim_time += dt
         self._step_counter += 1
+        # Make USD Fabric current before Kit reads from it. No-op when the
+        # provider writes Fabric natively (PhysX); runs sync-to-USD on Newton.
+        if self._usd_fabric_cap is not None:
+            self._usd_fabric_cap.ensure_current()
         try:
             import omni.kit.app
 
