@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.2.4 (2026-04-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_ovphysx.assets.RigidObject.reset` to match the
+  PhysX and Newton backends: the method now only resets the wrench composers
+  and no longer auto-writes the default pose and velocity to the simulation.
+  Callers that want to restore initial state must explicitly call
+  :meth:`~isaaclab_ovphysx.assets.RigidObject.write_root_pose_to_sim_index`
+  and
+  :meth:`~isaaclab_ovphysx.assets.RigidObject.write_root_velocity_to_sim_index`
+  (or the mask variants) after calling ``reset``.
+
 0.2.3 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~
 

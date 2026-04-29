@@ -114,62 +114,27 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Reset the rigid object.
 
+        Resets the wrench composers so that any forces queued for the next
+        simulation step are cleared. Does NOT write default state to the
+        simulation — callers are expected to call
+        :meth:`write_root_pose_to_sim_index`, :meth:`write_root_velocity_to_sim_index`
+        (or the mask variants) explicitly when they want to restore initial state.
+
         .. caution::
-            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes
+            precedence over `env_ids`.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            env_mask: Environment mask. If None, then all the instances are
+                updated. Shape is (num_instances,).
         """
-        if env_ids is None and env_mask is None:
-            env_ids = self._ALL_INDICES
-
-        if env_mask is not None:
-            # Mask path: pass full (N, 7) / (N, 6) views to the mask writers.
-            pose_typed = self._data._default_root_pose
-            pose_flat = wp.array(
-                ptr=pose_typed.ptr,
-                shape=(self._num_instances, 7),
-                dtype=wp.float32,
-                device=self._device,
-                copy=False,
-            )
-            vel_typed = self._data._default_root_velocity
-            vel_flat = wp.array(
-                ptr=vel_typed.ptr,
-                shape=(self._num_instances, 6),
-                dtype=wp.float32,
-                device=self._device,
-                copy=False,
-            )
-            self.write_root_pose_to_sim_mask(root_pose=pose_flat, env_mask=env_mask)
-            self.write_root_velocity_to_sim_mask(root_velocity=vel_flat, env_mask=env_mask)
-        else:
-            # Index path: pass full (N, 7) / (N, 6) views; _write_root_state
-            # uses binding.write(src, indices=_ids_gpu) to scatter only the
-            # requested rows (src.shape[0] == N branch in _write_root_state).
-            pose_typed = self._data._default_root_pose
-            pose_flat = wp.array(
-                ptr=pose_typed.ptr,
-                shape=(self._num_instances, 7),
-                dtype=wp.float32,
-                device=self._device,
-                copy=False,
-            )
-            vel_typed = self._data._default_root_velocity
-            vel_flat = wp.array(
-                ptr=vel_typed.ptr,
-                shape=(self._num_instances, 6),
-                dtype=wp.float32,
-                device=self._device,
-                copy=False,
-            )
-            self.write_root_pose_to_sim_index(root_pose=pose_flat, env_ids=env_ids)
-            self.write_root_velocity_to_sim_index(root_velocity=vel_flat, env_ids=env_ids)
-
+        # resolve all indices
+        if (env_ids is None) or (env_ids == slice(None)):
+            env_ids = slice(None)
+        # reset external wrench
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
-        self._data._invalidate_caches(env_ids)
 
     def write_data_to_sim(self) -> None:
         """Apply composed external wrenches to the rigid actor.
