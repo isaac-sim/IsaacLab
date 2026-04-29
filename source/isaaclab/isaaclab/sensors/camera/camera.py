@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 import torch
 import warp as wp
+from packaging.version import Version
 
-from pxr import UsdGeom
+from pxr import Sdf, UsdGeom
 
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
@@ -25,6 +26,7 @@ from isaaclab.utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -138,7 +140,7 @@ class Camera(SensorBase):
             return
         # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
         # checks for Isaac Sim v4.5 as this issue exists there
-        if get_isaac_sim_version() == version.parse("4.5"):
+        if get_isaac_sim_version() == Version("4.5"):
             if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
                 logger.warning(
                     "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"
