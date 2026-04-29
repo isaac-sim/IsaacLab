@@ -213,7 +213,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
