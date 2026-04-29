@@ -12,9 +12,11 @@ __all__ = [
     "NewtonManager",
     "NewtonShapeCfg",
     "NewtonSolverCfg",
+    "NewtonState",
     "XPBDSolverCfg",
 ]
 
+from .capabilities import NewtonState
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
 from .newton_manager import NewtonManager
 from .newton_manager_cfg import (

@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
+import weakref
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, TypeVar
 
 import warp as wp
 
+from .capabilities._validator import validate_consumer_capabilities
 from .scene_data_types import (
     MatrixLayout,
     QuaternionConvention,
@@ -19,17 +21,101 @@ from .scene_data_types import (
     TransformFormat,
 )
 
+T = TypeVar("T")
+
 
 class BaseSceneDataProvider(ABC):
     """Backend-agnostic scene data provider interface.
 
     The SDP acts as a central hub that bridges simulator data to renderers
-    and visualizers. It does not own simulation data—it provides
+    and visualizers. It does not own simulation data — it provides
     format-negotiated access to it.
 
-    Consumers should prefer the typed :meth:`get_body_transforms` API over
-    the legacy :meth:`get_transforms` method.
+    Provider services are exposed as **capabilities**: typed protocol
+    handles registered by the provider and queried by consumers. See
+    :doc:`/source/refs/adr/0002-capability-based-provider-extensibility`.
     """
+
+    def __init__(self) -> None:
+        self._capabilities: dict[type, Any] = {}
+        self._consumers: weakref.WeakSet = weakref.WeakSet()
+        self._capabilities_validated = False
+
+    # ------------------------------------------------------------------
+    # Capability registry
+    # ------------------------------------------------------------------
+
+    def get_capability(self, cap_type: type[T]) -> T | None:
+        """Return the registered handle for *cap_type*, or ``None``.
+
+        Args:
+            cap_type: Capability protocol class to look up.
+
+        Returns:
+            The handle registered for *cap_type*, or ``None`` when this
+            provider does not offer that capability.
+        """
+        return self._capabilities.get(cap_type)
+
+    def list_capabilities(self) -> frozenset[type]:
+        """Return the set of capability types this provider offers."""
+        return frozenset(self._capabilities)
+
+    def get_first_capability(self, *cap_types: type) -> tuple[type, Any] | None:
+        """Return the first registered capability among *cap_types*.
+
+        Walks the arguments in order and returns the first match.
+
+        Args:
+            *cap_types: Capability protocol classes in preference order.
+
+        Returns:
+            A ``(cap_type, handle)`` tuple for the first match, or ``None``
+            when none of the requested capabilities are registered.
+        """
+        for cap_type in cap_types:
+            handle = self._capabilities.get(cap_type)
+            if handle is not None:
+                return cap_type, handle
+        return None
+
+    def _register_capability(self, cap_type: type[T], handle: T) -> None:
+        """Register *handle* as the implementation of *cap_type*.
+
+        Subclasses call this from ``__init__`` for every capability they
+        offer. Re-registering a capability replaces the previous handle.
+        """
+        self._capabilities[cap_type] = handle
+
+    # ------------------------------------------------------------------
+    # Consumer registry and wire-up validation
+    # ------------------------------------------------------------------
+
+    def register_consumer(self, consumer: Any) -> None:
+        """Register a consumer (renderer or visualizer) with this provider.
+
+        Consumers self-register so the provider can validate their
+        capability requirements at wire-up. The consumer is held by weak
+        reference; the provider does not extend its lifetime.
+        """
+        self._consumers.add(consumer)
+        # Re-validate next update; new consumer may have unmet requirements.
+        self._capabilities_validated = False
+
+    def validate_consumer_capabilities(self) -> None:
+        """Check that every registered consumer's requirements are met.
+
+        Raises:
+            CapabilityRequirementError: One or more consumers have unmet
+                ``required_capabilities`` or ``required_one_of`` declarations.
+        """
+        validate_consumer_capabilities(self, list(self._consumers))
+        self._capabilities_validated = True
+
+    def _validate_consumers_if_needed(self) -> None:
+        """Idempotent validator hook for use from per-frame ``update()``."""
+        if not self._capabilities_validated:
+            self.validate_consumer_capabilities()
 
     # ------------------------------------------------------------------
     # Existing abstract methods (backward compatible)
@@ -81,7 +167,7 @@ class BaseSceneDataProvider(ABC):
         raise NotImplementedError
 
     # ------------------------------------------------------------------
-    # Typed transform API
+    # Typed transform API (legacy — see ADR-0002)
     # ------------------------------------------------------------------
 
     def get_body_transforms(
@@ -98,50 +184,21 @@ class BaseSceneDataProvider(ABC):
     ) -> TransformData | None:
         """Return body transforms in the requested format.
 
-        Consumers declare what format they need; the provider converts from
-        the simulator's native format using GPU-only Warp kernels. Conversion
-        results are cached per frame and reused if multiple consumers request
-        the same format.
+        .. note::
 
-        When the simulator's native format matches the requested format and
-        *allow_passthrough* is ``True``, the returned :class:`TransformData`
-        may reference the simulator's own GPU buffers (zero-copy passthrough).
-        The consumer must not mutate the returned data in this case.
-
-        Args:
-            target_format: Desired output transform representation.
-            env_ids: Optional environment subset. When provided, only
-                transforms for the specified environments are included.
-            quat_convention: Quaternion component ordering for
-                :attr:`TransformFormat.VEC3_QUAT` output.
-            matrix_layout: Matrix memory layout for
-                :attr:`TransformFormat.VEC3_MAT33` and
-                :attr:`TransformFormat.MAT44` output.
-            double_precision: Use 64-bit floats for
-                :attr:`TransformFormat.MAT44` output.
-            stream: CUDA stream for deferred kernel execution. When provided,
-                conversion kernels are enqueued on this stream instead of
-                the default stream.
-            allow_passthrough: If ``True`` and formats match, return the
-                source data directly without copying. The consumer must not
-                mutate the result.
-            index_map: Optional index remapping array for subset scatter
-                writes. When provided, ``output[i]`` is written from
-                ``source[index_map[i]]``.
-
-        Returns:
-            Typed transform data, or ``None`` if not supported by this
-            provider.
+           This method is retained as a convenience forwarder during the
+           migration to the capability framework. New consumer code should
+           prefer ``get_capability(GpuTransformBuffer).get_body_transforms``
+           instead. See ADR-0002.
         """
         return None
 
     def get_source_format(self) -> TransformFormat | None:
         """Return the simulator's native transform format.
 
-        Consumers can use this to request a passthrough-compatible format and
-        avoid conversions entirely.
+        .. note::
 
-        Returns:
-            The native transform format, or ``None`` if unknown.
+           Retained as a convenience forwarder. Prefer
+           ``get_capability(GpuTransformBuffer).get_source_format``.
         """
         return None

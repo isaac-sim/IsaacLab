@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.5.26 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonState` capability protocol
+  for direct read-only access to the active Newton ``Model`` and ``State``
+  objects. Used by Newton-flavoured renderers and visualizers via the SDP
+  capability registry. See
+  :doc:`/source/refs/adr/0002-capability-based-provider-extensibility`.
+
+
 0.5.25 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 

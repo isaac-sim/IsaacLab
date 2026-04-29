@@ -11,10 +11,10 @@ import logging
 import random
 import re
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
-    from isaaclab.physics import SceneDataProvider
+    from isaaclab.physics import BaseSceneDataProvider, SceneDataProvider
 
     from .visualizer_cfg import VisualizerCfg
 
@@ -28,6 +28,17 @@ class BaseVisualizer(ABC):
     Lifecycle: __init__() -> initialize() -> step() (repeated) -> close()
     """
 
+    required_capabilities: ClassVar[tuple[type, ...]] = ()
+    """Capabilities the active Scene Data Provider must register, in full.
+
+    See :doc:`/source/refs/adr/0002-capability-based-provider-extensibility`.
+    """
+
+    required_one_of: ClassVar[tuple[tuple[type, ...], ...]] = ()
+    """Capability groups; from each tuple at least one capability must be
+    registered.
+    """
+
     def __init__(self, cfg: VisualizerCfg):
         """Initialize visualizer with config.
 
@@ -38,6 +49,15 @@ class BaseVisualizer(ABC):
         self._scene_data_provider = None
         self._is_initialized = False
         self._is_closed = False
+
+    def register_with_scene_data_provider(self, provider: BaseSceneDataProvider) -> None:
+        """Register this visualizer with the SDP for wire-up validation.
+
+        Subclasses call this from :meth:`initialize` once they have the
+        active SDP, so the provider can validate :attr:`required_capabilities`
+        and :attr:`required_one_of` at first-frame.
+        """
+        provider.register_consumer(self)
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:

@@ -8,17 +8,39 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     import torch
 
+    from isaaclab.physics import BaseSceneDataProvider
     from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
 
 
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
+
+    required_capabilities: ClassVar[tuple[type, ...]] = ()
+    """Capabilities the active Scene Data Provider must register, in full.
+
+    See :doc:`/source/refs/adr/0002-capability-based-provider-extensibility`.
+    """
+
+    required_one_of: ClassVar[tuple[tuple[type, ...], ...]] = ()
+    """Capability groups; from each tuple at least one capability must be
+    registered. Use for ``"prefer NewtonState, fall back to GpuTransformBuffer"``
+    declarations.
+    """
+
+    def register_with_scene_data_provider(self, provider: BaseSceneDataProvider) -> None:
+        """Register this renderer with the SDP for wire-up validation.
+
+        Subclasses call this once they have acquired the active SDP, so the
+        provider can validate :attr:`required_capabilities` and
+        :attr:`required_one_of` at first-frame.
+        """
+        provider.register_consumer(self)
 
     @abstractmethod
     def prepare_stage(self, stage: Any, num_envs: int) -> None:

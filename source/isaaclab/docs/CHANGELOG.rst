@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+4.6.23 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab.physics.capabilities` capability protocols for
+  Scene Data Provider extensibility:
+  :class:`~isaaclab.physics.GpuTransformBuffer` and
+  :class:`~isaaclab.physics.UsdFabric`. Customers may define their own
+  protocols in their own packages following the same pattern.
+* Added :meth:`~isaaclab.physics.BaseSceneDataProvider.get_capability`,
+  :meth:`~isaaclab.physics.BaseSceneDataProvider.list_capabilities`, and
+  :meth:`~isaaclab.physics.BaseSceneDataProvider.get_first_capability`
+  for runtime capability discovery.
+* Added :meth:`~isaaclab.physics.BaseSceneDataProvider.register_consumer`
+  and :meth:`~isaaclab.physics.BaseSceneDataProvider.validate_consumer_capabilities`
+  with :class:`~isaaclab.physics.CapabilityRequirementError` for wire-up
+  validation of consumer requirements.
+* Added ``required_capabilities`` and ``required_one_of`` ClassVars to
+  :class:`~isaaclab.renderers.BaseRenderer` and
+  :class:`~isaaclab.visualizers.BaseVisualizer` for declarative consumer
+  capability requirements. See
+  :doc:`/source/refs/adr/0002-capability-based-provider-extensibility`.
+
+
 4.6.22 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -90,6 +90,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         """
         from isaaclab_physx.physics import PhysxManager as SimulationManager
 
+        super().__init__()
         self._simulation_context = simulation_context
         self._stage = stage
         self._physics_sim_view = SimulationManager.get_physics_sim_view()

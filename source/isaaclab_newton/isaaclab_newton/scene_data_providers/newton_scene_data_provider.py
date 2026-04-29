@@ -47,6 +47,7 @@ class NewtonSceneDataProvider(BaseSceneDataProvider):
             stage: USD stage handle.
             simulation_context: Active simulation context.
         """
+        super().__init__()
         self._simulation_context = simulation_context
         self._stage = stage
         self._metadata = {"physics_backend": "newton"}
