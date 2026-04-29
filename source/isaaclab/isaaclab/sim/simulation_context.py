@@ -911,11 +911,9 @@ class SimulationContext(_SimulationContext):
         the FabricManager to fully reinitialize -- including writing transforms into fabric so that
         Hydra picks them up via the IFabricHierarchy cached-transform pipeline.
         """
-        if self._fabric_iface is None:
+        if self._fabric_iface is None or self.stage is None:
             return
         stage = self.stage
-        if stage is None:
-            return
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         if stage_id <= 0:
             return
