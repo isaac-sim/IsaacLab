@@ -569,6 +569,14 @@ class SimulationContext(_SimulationContext):
                 # meantime if someone stops, break out of the loop
                 if self.is_stopped():
                     break
+            if not self.is_stopped():
+                # Workaround for PhysX fabric 107.3.21+ (Isaac Sim 5.1+): the fabric extension
+                # skips writing initial articulation poses on subsequent resumes, which causes
+                # articulation meshes to freeze visually while physics continues running.
+                # Detaching and re-attaching the stage forces the FabricManager to fully
+                # re-initialize, including writing transforms to fabric.
+                # See: https://github.com/isaac-sim/IsaacLab/issues/4279
+                self._re_sync_fabric()
             # need to do one step to refresh the app
             # reason: physics has to parse the scene again and inform other extensions like hydra-delegate.
             #   without this the app becomes unresponsive.
@@ -889,6 +897,38 @@ class SimulationContext(_SimulationContext):
             else:
                 # Needed for backward compatibility with older Isaac Sim versions
                 self._update_fabric = self._fabric_iface.update
+
+    def _re_sync_fabric(self):
+        """Force the PhysX fabric extension to re-synchronize after a pause/resume transition.
+
+        Starting with PhysX fabric 107.3.21 (shipped with Isaac Sim 5.1), the FabricManager skips
+        writing initial articulation poses to fabric on subsequent resumes -- only the first play
+        triggers ``FabricManager::resume:rigidBodyInitialization:writeToFabric``. This causes
+        articulation (robot) meshes to freeze visually after pause/resume, even though physics
+        continues to run (see :issue:`4279`).
+
+        The workaround detaches and re-attaches the USD stage on the fabric interface, which forces
+        the FabricManager to fully reinitialize -- including writing transforms into fabric so that
+        Hydra picks them up via the IFabricHierarchy cached-transform pipeline.
+        """
+        if self._fabric_iface is None:
+            return
+        stage = self.stage
+        if stage is None:
+            return
+        stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
+        if stage_id <= 0:
+            return
+        try:
+            self._fabric_iface.detach_stage()
+        except Exception:
+            logger.warning("Failed to detach fabric stage during re-sync. Articulation visuals may be stale.")
+            return
+        try:
+            self._fabric_iface.attach_stage(stage_id)
+            self._update_fabric(0.0, 0.0)
+        except Exception:
+            logger.warning("Failed to re-attach fabric stage after pause/resume. Articulation visuals may be stale.")
 
     def _update_anim_recording(self):
         """Tracks anim recording timestamps and triggers finish animation recording if the total time has elapsed."""
