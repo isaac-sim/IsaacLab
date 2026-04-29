@@ -380,24 +380,8 @@ class NewtonManager(PhysicsManager):
                     cls._solver.notify_model_changed(change)
                 cls._model_changes = set()
 
-        # Lazy CUDA graph capture: deferred from initialize_solver() when RTX was active.
-        # By the time step() is first called, RTX has fully initialized (all cudaImportExternalMemory
-        # calls are done) and is idle between render frames — giving us a clean capture window.
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
-        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device:  # type: ignore[union-attr]
-            cls._graph_capture_pending = False
-            cls._graph = cls._capture_relaxed_graph(device)
-            if cls._graph is not None:
-                # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
-                # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
-                # first step() inside graph capture. Replay once to pin those
-                # memory-pool addresses before any eager solver.reset() call.
-                if isinstance(cls._solver, SolverKamino):
-                    wp.capture_launch(cls._graph)
-                logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
-            else:
-                logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
 
         # Ensure body_q is up-to-date before collision detection.
         # After env resets, joint_q is written but body_q (used by
@@ -409,6 +393,24 @@ class NewtonManager(PhysicsManager):
         # Zero both masks after consumption
         cls._world_reset_mask.zero_()
         cls._fk_reset_mask.zero_()
+
+        # Lazy CUDA graph capture: deferred from initialize_solver() when RTX is
+        # active, or when an external collision pipeline needs reset/FK updates
+        # before capture.  By this point runtime model changes and reset FK have
+        # been flushed, so the captured graph matches the first real step.
+        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device:  # type: ignore[union-attr]
+            cls._graph_capture_pending = False
+            cls._graph = cls._capture_relaxed_graph(device)
+            if cls._graph is not None:
+                # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
+                # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
+                # first step() inside graph capture. Replay once to pin those
+                # memory-pool addresses before any eager solver.reset() call.
+                if isinstance(cls._solver, SolverKamino):
+                    wp.capture_launch(cls._graph)
+                logger.info("Newton CUDA graph captured (deferred relaxed mode)")
+            else:
+                logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
 
         # Step simulation (graphed or not; _graph is None when capture is disabled or failed)
         if cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device:  # type: ignore[union-attr]
@@ -990,6 +992,13 @@ class NewtonManager(PhysicsManager):
             # Initialize contacts and collision pipeline
             cls._initialize_contacts()
 
+            # Model writes that happen during asset/view initialization are already
+            # reflected in the model used to construct the solver.  Keeping those
+            # pre-solver notifications around makes the first runtime step replay
+            # stale JOINT_DOF/BODY updates after CUDA graph capture, which can send
+            # MuJoCo Warp through an invalid set_const_0 path.
+            cls._model_changes = set()
+
         # Prepare cubric ctypes bindings (acquires IAdapter from carb framework).
         # Adapter creation is deferred to the first sync_transforms_to_usd() call
         # at render time to avoid any startup-ordering issues with the cubric
@@ -1010,7 +1019,7 @@ class NewtonManager(PhysicsManager):
 
         with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
             if use_cuda_graph:
-                if cls._usdrt_stage is None:
+                if cls._usdrt_stage is None and not cls._needs_collision_pipeline:
                     # No RTX active — use standard Warp capture (cudaStreamCaptureModeGlobal).
                     with wp.ScopedCapture() as capture:
                         cls._simulate()
@@ -1024,13 +1033,13 @@ class NewtonManager(PhysicsManager):
                     if isinstance(cls._solver, SolverKamino):
                         wp.capture_launch(cls._graph)
                 else:
-                    # RTX is active during initialization — cudaImportExternalMemory and other
-                    # non-capturable RTX ops run on background CUDA streams right now.
-                    # Defer capture to the first step() call, after RTX is fully initialized
-                    # and idle between render frames (clean capture window).
+                    # Defer capture to the first step when either:
+                    # - RTX is active during initialization (background CUDA work is still running), or
+                    # - the external Newton collision pipeline is active and needs the env reset FK/model updates
+                    #   flushed before capture.
                     cls._graph = None
                     cls._graph_capture_pending = True
-                    logger.info("Newton CUDA graph capture deferred until first step() (RTX active)")
+                    logger.info("Newton CUDA graph capture deferred until first step()")
             else:
                 cls._graph = None
 
@@ -1397,3 +1406,4 @@ class NewtonManager(PhysicsManager):
         cls._newton_imu_sensors.append(sensor)
         logger.info(f"Added IMU sensor (index={idx}, sites={len(sites)})")
         return idx
+        
