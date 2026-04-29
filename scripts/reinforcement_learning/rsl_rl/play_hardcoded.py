@@ -77,7 +77,7 @@ with contextlib.suppress(ImportError):
 # ║  Obs layout: [joint_pos(7) | joint_vel(7) | shaft_pos(3) | shaft_quat(4)]  ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
-OVERRIDE_SHAFT_POS = None   # e.g. [0.481, -0.073, -0.005]
+OVERRIDE_SHAFT_POS = None  # e.g. [0.481, -0.073, -0.005]
 OVERRIDE_SHAFT_QUAT = None  # e.g. [0.0, 0.0, 0.70711, -0.70711]
 
 _SHAFT_POS_SLICE = slice(14, 17)
@@ -151,7 +151,7 @@ def _convert_old_checkpoint(loaded_dict: dict) -> dict:
         new_key = old_key
         for old_prefix, new_prefix in _OLD_TO_NEW_KEY_MAP.items():
             if old_key.startswith(old_prefix):
-                new_key = new_prefix + old_key[len(old_prefix):]
+                new_key = new_prefix + old_key[len(old_prefix) :]
                 break
 
         if is_actor:
