@@ -164,13 +164,13 @@ class IsaacRtxRenderer(BaseRenderer):
                     " The simple shading data types will be ignored."
                 )
 
-        # HACK: Isaac Sim 4.5 has a bug in Camera/TiledCamera that breaks segmentation
+        # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation
         # outputs for instanceable assets. Disable instancing as a workaround.
         if isaac_sim_version == version.parse("4.5") and (
             "semantic_segmentation" in sensor.cfg.data_types or "instance_segmentation_fast" in sensor.cfg.data_types
         ):
             logger.warning(
-                "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"
+                "Isaac Sim 4.5 introduced a bug in Camera when outputting instance and semantic"
                 " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
                 " will be disabled in the current workflow and may lead to longer load times and increased memory"
                 " usage."

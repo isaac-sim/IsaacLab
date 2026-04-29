@@ -60,6 +60,7 @@ Guidelines for modifications:
 * Bocheng Zou
 * Brayden Zhang
 * Brian Bingham
+* Brian Dilinila
 * Brian McCann
 * Caelan Garrett
 * Calvin Yu
