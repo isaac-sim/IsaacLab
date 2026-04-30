@@ -46,8 +46,6 @@ def test_setup_teardown():
 def _skip_if_unavailable(device: str):
     if device.startswith("cuda") and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
-    if device == "cpu":
-        pytest.skip("Warp fabricarray operations on CPU have known issues")
 
 
 # ------------------------------------------------------------------
