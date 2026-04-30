@@ -15,8 +15,8 @@ Quick Installation
    cd IsaacLab
 
    # Create environment and install
-   uv venv .venv --python 3.12
-   source .venv/bin/activate
+   uv venv --python 3.12 --seed env_isaaclab
+   source env_isaaclab/bin/activate
    ./isaaclab.sh -i
 
    # Run training (Newton backend, 16 envs)

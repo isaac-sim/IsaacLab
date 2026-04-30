@@ -3,14 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
-    EventsCfg,
-    LocomotionVelocityRoughEnvCfg,
-    StartupEventsCfg,
-)
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -19,55 +16,23 @@ from isaaclab_assets.robots.unitree import UNITREE_GO1_CFG  # isort: skip
 
 
 @configclass
-class Go1NewtonEventsCfg(EventsCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.push_robot = None
-        self.base_external_force_torque.params["asset_cfg"].body_names = "trunk"
-        self.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.reset_base.params = {
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "roll": (0.0, 0.0),
-                "pitch": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
-            },
-        }
-
-
-@configclass
-class Go1PhysxEventsCfg(Go1NewtonEventsCfg, StartupEventsCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_base_mass.params["mass_distribution_params"] = (-1.0, 3.0)
-        self.add_base_mass.params["asset_cfg"].body_names = "trunk"
-        self.base_com = None
-
-
-@configclass
-class Go1EventsCfg(PresetCfg):
-    default = Go1PhysxEventsCfg()
-    newton = Go1NewtonEventsCfg()
-    physx = default
-
-
-@configclass
 class UnitreeGo1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    events: Go1EventsCfg = Go1EventsCfg()
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
         self.scene.robot = UNITREE_GO1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.actuators["base_legs"].armature = preset(default=0.0, newton=0.02)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/trunk"
         # scale down the terrains because the robot is small
         self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)
         self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_range = (0.01, 0.06)
         self.scene.terrain.terrain_generator.sub_terrains["random_rough"].noise_step = 0.01
+
+        # Go1 uses "trunk" as base body
+        self.events.add_base_mass.params["asset_cfg"].body_names = "trunk"
+        self.events.base_external_force_torque.params["asset_cfg"].body_names = "trunk"
+        self.events.base_com.default.params["asset_cfg"].body_names = "trunk"
 
         # reduce action scale
         self.actions.joint_pos.scale = 0.25

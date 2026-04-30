@@ -4,30 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Test job gating summary
-#
-# +------------------------------------+-----------------------------------------------------+
-# | Job                                | Gate (any match triggers the job)                   |
-# +------------------------------------+-----------------------------------------------------+
-# | test-isaaclab-tasks (x3 shards)    | isaaclab-tasks | isaaclab-core | infra              |
-# | test-isaaclab-core (x3 shards)     | isaaclab-core | infra                               |
-# | test-isaaclab-rl                   | isaaclab-rl | isaaclab-core | infra                 |
-# | test-isaaclab-mimic                | isaaclab-mimic | isaaclab-core | infra              |
-# | test-isaaclab-contrib              | isaaclab-contrib | isaaclab-core | infra            |
-# | test-isaaclab-teleop               | isaaclab-teleop | isaaclab-core | infra             |
-# | test-isaaclab-visualizers          | isaaclab-visualizers | isaaclab-core | infra        |
-# | test-isaaclab-assets               | isaaclab-assets | isaaclab-core | infra             |
-# | test-isaaclab-newton               | isaaclab-newton | isaaclab-core | infra             |
-# | test-isaaclab-physx                | isaaclab-physx | isaaclab-core | infra              |
-# | test-isaaclab-ov                   | isaaclab-ov | isaaclab-core | infra                 |
-# | test-environments-training         | isaaclab-tasks | isaaclab-core | infra              |
-# | test-curobo (needs build-curobo)   | isaaclab-mimic | isaaclab-core | infra              |
-# | test-skillgen (needs build-curobo) | isaaclab-mimic | isaaclab-tasks | isaaclab-core     |
-# |                                    |   | infra                                           |
-# | test-quarantined                   | vars.RUN_QUARANTINED_TESTS == "true"                |
-# | build-curobo                       | isaaclab-mimic | isaaclab-tasks | isaaclab-core     |
-# |                                    |   | infra                                           |
-# +------------------------------------+-----------------------------------------------------+
+# Every test job runs on every PR.
 #
 # =============================================================================
 # CI DEBUGGING TIPS
@@ -97,158 +74,35 @@ permissions:
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  # On merge to main defaults will point to "nvcr.io/nvidia/isaac-sim:6.0.0"
-  ISAACSIM_BASE_IMAGE: 'nvcr.io/nvidian/isaac-sim' # ${{ vars.ISAACSIM_BASE_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}
-  ISAACSIM_BASE_VERSION: 'latest-develop' # ${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}
-  DOCKER_IMAGE_TAG: isaac-lab-dev:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
-  # To run quarantined tests, create a GitHub repo variable named
-  # RUN_QUARANTINED_TESTS and set it to 'true'. The test-quarantined
-  # job is skipped when the variable is absent or not 'true'.
+  CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
-  detect-changes:
-    name: Detect Changes
+  config:
+    name: Load Config
     runs-on: ubuntu-latest
     outputs:
-      isaaclab-core: ${{ steps.check.outputs.isaaclab-core }}
-      isaaclab-physx: ${{ steps.check.outputs.isaaclab-physx }}
-      isaaclab-newton: ${{ steps.check.outputs.isaaclab-newton }}
-      isaaclab-tasks: ${{ steps.check.outputs.isaaclab-tasks }}
-      isaaclab-rl: ${{ steps.check.outputs.isaaclab-rl }}
-      isaaclab-mimic: ${{ steps.check.outputs.isaaclab-mimic }}
-      isaaclab-contrib: ${{ steps.check.outputs.isaaclab-contrib }}
-      isaaclab-teleop: ${{ steps.check.outputs.isaaclab-teleop }}
-      isaaclab-visualizers: ${{ steps.check.outputs.isaaclab-visualizers }}
-      isaaclab-assets: ${{ steps.check.outputs.isaaclab-assets }}
-      isaaclab-ov: ${{ steps.check.outputs.isaaclab-ov }}
-      infra: ${{ steps.check.outputs.infra }}
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-
-    - name: Detect changed files and packages
-      id: check
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
       run: |
         set -euo pipefail
-
-        # For non-PR events, run all tests
-        if [ "${{ github.event_name }}" != "pull_request" ]; then
-          for pkg in isaaclab-core isaaclab-physx isaaclab-newton isaaclab-tasks \
-                     isaaclab-rl isaaclab-mimic isaaclab-contrib isaaclab-teleop \
-                     isaaclab-visualizers isaaclab-assets isaaclab-ov infra; do
-            echo "$pkg=true" >> "$GITHUB_OUTPUT"
-          done
-          exit 0
-        fi
-
-        # Fetch the PR base branch tip to diff against
-        git fetch --depth=1 origin "${{ github.event.pull_request.base.ref }}"
-        changed=$(git diff --name-only FETCH_HEAD HEAD)
-
-        if [ -z "$changed" ]; then
-          echo "::warning::No changed files detected between FETCH_HEAD and HEAD - running all tests as a safety measure"
-          for pkg in isaaclab-core isaaclab-physx isaaclab-newton isaaclab-tasks \
-                     isaaclab-rl isaaclab-mimic isaaclab-contrib isaaclab-teleop \
-                     isaaclab-visualizers isaaclab-assets isaaclab-ov infra; do
-            echo "$pkg=true" >> "$GITHUB_OUTPUT"
-          done
-          exit 0
-        fi
-
-        has() {
-          echo "$changed" | grep -qE "$1"
-          local rc=$?
-          if [ $rc -eq 0 ]; then echo true
-          elif [ $rc -eq 1 ]; then echo false
-          else
-            echo "::error::grep failed with exit $rc for pattern: $1"
-            exit 1
-          fi
-        }
-
-        # Detect per-package changes
-        core=$(has '^source/isaaclab/')
-        physx=$(has '^source/isaaclab_physx/')
-        newton=$(has '^source/isaaclab_newton/')
-        tasks=$(has '^source/isaaclab_tasks/')
-
-        # Changes in apps/ trigger: core, physx, newton, tasks
-        apps=$(has '^apps/')
-        if [ "$apps" = "true" ]; then
-          core=true
-          physx=true
-          newton=true
-          tasks=true
-        fi
-
-        echo "isaaclab-core=$core" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-physx=$physx" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-newton=$newton" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-tasks=$tasks" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-rl=$(has '^source/isaaclab_rl/')" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-mimic=$(has '^source/isaaclab_mimic/')" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-contrib=$(has '^source/isaaclab_contrib/')" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-teleop=$(has '^source/isaaclab_teleop/')" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-visualizers=$(has '^source/isaaclab_visualizers/')" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-assets=$(has '^source/isaaclab_assets/')" >> "$GITHUB_OUTPUT"
-        echo "isaaclab-ov=$(has '^source/isaaclab_ov/')" >> "$GITHUB_OUTPUT"
-        echo "infra=$(has '^(\.github/|docker/|tools/|scripts/)')" >> "$GITHUB_OUTPUT"
-
-        echo ""
-        echo "CHANGED FILES:"
-        echo "$changed" | while IFS= read -r f; do
-          case "$f" in
-            source/isaaclab/*)           echo "$f (isaaclab-core)" ;;
-            source/isaaclab_physx/*)     echo "$f (isaaclab-physx)" ;;
-            source/isaaclab_newton/*)    echo "$f (isaaclab-newton)" ;;
-            source/isaaclab_tasks/*)     echo "$f (isaaclab-tasks)" ;;
-            source/isaaclab_rl/*)        echo "$f (isaaclab-rl)" ;;
-            source/isaaclab_mimic/*)     echo "$f (isaaclab-mimic)" ;;
-            source/isaaclab_contrib/*)   echo "$f (isaaclab-contrib)" ;;
-            source/isaaclab_teleop/*)    echo "$f (isaaclab-teleop)" ;;
-            source/isaaclab_visualizers/*) echo "$f (isaaclab-visualizers)" ;;
-            source/isaaclab_assets/*)    echo "$f (isaaclab-assets)" ;;
-            source/isaaclab_ov/*)        echo "$f (isaaclab-ov)" ;;
-            .github/*|docker/*|tools/*|scripts/*) echo "$f (infra)" ;;
-            apps/*)                          echo "$f (apps - core/physx/newton/tasks)" ;;
-            *)                               echo "$f" ;;
-          esac
-        done
-        echo ""
-        echo "CHANGED PACKAGES:"
-        cat "$GITHUB_OUTPUT"
-
-        # Write job summary visible on the GH Actions UI
-        {
-          echo "| File | Package |"
-          echo "|------|---------|"
-          echo "$changed" | while IFS= read -r f; do
-            case "$f" in
-              source/isaaclab/*)             echo "| \`$f\` | isaaclab-core |" ;;
-              source/isaaclab_physx/*)       echo "| \`$f\` | isaaclab-physx |" ;;
-              source/isaaclab_newton/*)      echo "| \`$f\` | isaaclab-newton |" ;;
-              source/isaaclab_tasks/*)       echo "| \`$f\` | isaaclab-tasks |" ;;
-              source/isaaclab_rl/*)          echo "| \`$f\` | isaaclab-rl |" ;;
-              source/isaaclab_mimic/*)       echo "| \`$f\` | isaaclab-mimic |" ;;
-              source/isaaclab_contrib/*)     echo "| \`$f\` | isaaclab-contrib |" ;;
-              source/isaaclab_teleop/*)      echo "| \`$f\` | isaaclab-teleop |" ;;
-              source/isaaclab_visualizers/*) echo "| \`$f\` | isaaclab-visualizers |" ;;
-              source/isaaclab_assets/*)      echo "| \`$f\` | isaaclab-assets |" ;;
-              source/isaaclab_ov/*)          echo "| \`$f\` | isaaclab-ov |" ;;
-              .github/*|docker/*|tools/*|scripts/*) echo "| \`$f\` | infra |" ;;
-              apps/*)                        echo "| \`$f\` | apps - core/physx/newton/tasks |" ;;
-              *)                             echo "| \`$f\` | - |" ;;
-            esac
-          done
-        } >> "$GITHUB_STEP_SUMMARY"
+        f=.github/workflows/config.yaml
+        echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
 
   #region build jobs
   build:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
-    needs: [detect-changes]
+    needs: [config]
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -259,21 +113,16 @@ jobs:
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
   build-curobo:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
-    needs: [detect-changes]
-    if: >-
-      needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
-      needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
-      needs.detect-changes.outputs.isaaclab-core == 'true' ||
-      needs.detect-changes.outputs.infra == 'true'
+    needs: [config]
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -284,9 +133,9 @@ jobs:
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
   #endregion
@@ -297,13 +146,8 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -311,9 +155,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         shard-index: "0"
         shard-count: "3"
@@ -324,13 +168,8 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -338,9 +177,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         shard-index: "1"
         shard-count: "3"
@@ -351,13 +190,8 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -365,9 +199,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         shard-index: "2"
         shard-count: "3"
@@ -377,12 +211,8 @@ jobs:
     name: isaaclab (core) [1/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -390,9 +220,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
         shard-index: "0"
         shard-count: "3"
@@ -402,12 +232,8 @@ jobs:
     name: isaaclab (core) [2/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -415,9 +241,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
         shard-index: "1"
         shard-count: "3"
@@ -427,12 +253,8 @@ jobs:
     name: isaaclab (core) [3/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -440,9 +262,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
         shard-index: "2"
         shard-count: "3"
@@ -452,13 +274,8 @@ jobs:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-rl == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -466,9 +283,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
         container-name: isaac-lab-rl-test
 
@@ -476,13 +293,8 @@ jobs:
     name: isaaclab_mimic
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -490,9 +302,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_mimic"
         container-name: isaac-lab-mimic-test
 
@@ -500,13 +312,8 @@ jobs:
     name: isaaclab_contrib
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-contrib == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -514,9 +321,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
         container-name: isaac-lab-contrib-test
 
@@ -524,13 +331,8 @@ jobs:
     name: isaaclab_teleop
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-teleop == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -538,9 +340,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_teleop"
         container-name: isaac-lab-teleop-test
 
@@ -548,13 +350,8 @@ jobs:
     name: isaaclab_visualizers
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-visualizers == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -562,9 +359,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_visualizers"
         container-name: isaac-lab-visualizers-test
 
@@ -572,13 +369,8 @@ jobs:
     name: isaaclab_assets
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-assets == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -586,9 +378,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_assets"
         container-name: isaac-lab-assets-test
 
@@ -596,13 +388,8 @@ jobs:
     name: isaaclab_newton
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-newton == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -610,9 +397,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
         container-name: isaac-lab-newton-test
 
@@ -620,13 +407,8 @@ jobs:
     name: isaaclab_physx
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-physx == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -634,9 +416,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
         container-name: isaac-lab-physx-test
 
@@ -644,13 +426,8 @@ jobs:
     name: isaaclab_ov
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-ov == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -658,9 +435,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
         container-name: isaac-lab-ov-test
 
@@ -669,13 +446,8 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: [build-curobo, detect-changes]
-    if: >-
-      always() && needs.build-curobo.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build-curobo, config]
+    if: always() && needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -683,9 +455,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
@@ -696,14 +468,8 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: [build-curobo, detect-changes]
-    if: >-
-      always() && needs.build-curobo.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-mimic == 'true' ||
-        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build-curobo, config]
+    if: always() && needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -711,9 +477,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}-curobo
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
         include-files: "test_generate_dataset_skillgen.py,test_environments_skillgen.py,test_environments_automate.py"
@@ -724,13 +490,8 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 300
     continue-on-error: true
-    needs: [build, detect-changes]
-    if: >-
-      always() && needs.build.result == 'success' && (
-        needs.detect-changes.outputs.isaaclab-tasks == 'true' ||
-        needs.detect-changes.outputs.isaaclab-core == 'true' ||
-        needs.detect-changes.outputs.infra == 'true'
-      )
+    needs: [build, config]
+    if: always() && needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -738,9 +499,9 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-        isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-        isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         include-files: "test_environments_training.py"
         container-name: isaac-lab-environments-training-test
@@ -752,7 +513,7 @@ jobs:
 #   runs-on: [self-hosted, gpu]
 #   timeout-minutes: 180
 #   continue-on-error: true
-#   needs: [build, detect-changes]
+#   needs: [build, config]
 #   if: >-
 #     always() && needs.build.result == 'success' &&
 #     vars.RUN_QUARANTINED_TESTS == 'true'
@@ -763,9 +524,9 @@ jobs:
 #       lfs: true
 #   - uses: ./.github/actions/run-package-tests
 #     with:
-#       image-tag: ${{ env.DOCKER_IMAGE_TAG }}
-#       isaacsim-base-image: ${{ env.ISAACSIM_BASE_IMAGE }}
-#       isaacsim-version: ${{ env.ISAACSIM_BASE_VERSION }}
+#       image-tag: ${{ env.CI_IMAGE_TAG }}
+#       isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+#       isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
 #       quarantined-only: "true"
 #       container-name: isaac-lab-quarantined-test
 #endregion

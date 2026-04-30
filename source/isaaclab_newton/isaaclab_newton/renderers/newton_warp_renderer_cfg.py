@@ -33,3 +33,6 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     create_default_light: bool = True
     """Create a default directional light source in the scene."""
+
+    colorize_instance_segmentation: bool = True
+    """Expose ``instance_segmentation_fast`` as ``(N, H, W, 4) uint8`` if True, else ``(N, H, W, 1) int32``."""

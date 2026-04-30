@@ -14,6 +14,8 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 try:
     from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 except (ImportError, ModuleNotFoundError):
@@ -148,6 +150,55 @@ class MockArticulationData(BaseArticulationData):
         self._spatial_tendon_limit_stiffness: wp.array | None = None
         self._spatial_tendon_offset: wp.array | None = None
 
+        # ProxyArray caches
+        self._default_root_pose_ta: ProxyArray | None = None
+        self._default_root_vel_ta: ProxyArray | None = None
+        self._default_joint_pos_ta: ProxyArray | None = None
+        self._default_joint_vel_ta: ProxyArray | None = None
+        self._joint_pos_target_ta: ProxyArray | None = None
+        self._joint_vel_target_ta: ProxyArray | None = None
+        self._joint_effort_target_ta: ProxyArray | None = None
+        self._computed_torque_ta: ProxyArray | None = None
+        self._applied_torque_ta: ProxyArray | None = None
+        self._joint_stiffness_ta: ProxyArray | None = None
+        self._joint_damping_ta: ProxyArray | None = None
+        self._joint_armature_ta: ProxyArray | None = None
+        self._joint_friction_coeff_ta: ProxyArray | None = None
+        self._joint_dynamic_friction_coeff_ta: ProxyArray | None = None
+        self._joint_viscous_friction_coeff_ta: ProxyArray | None = None
+        self._joint_pos_limits_ta: ProxyArray | None = None
+        self._joint_vel_limits_ta: ProxyArray | None = None
+        self._joint_effort_limits_ta: ProxyArray | None = None
+        self._soft_joint_pos_limits_ta: ProxyArray | None = None
+        self._soft_joint_vel_limits_ta: ProxyArray | None = None
+        self._gear_ratio_ta: ProxyArray | None = None
+        self._joint_pos_ta: ProxyArray | None = None
+        self._joint_vel_ta: ProxyArray | None = None
+        self._joint_acc_ta: ProxyArray | None = None
+        self._root_link_pose_w_ta: ProxyArray | None = None
+        self._root_link_vel_w_ta: ProxyArray | None = None
+        self._root_com_pose_w_ta: ProxyArray | None = None
+        self._root_com_vel_w_ta: ProxyArray | None = None
+        self._body_link_pose_w_ta: ProxyArray | None = None
+        self._body_link_vel_w_ta: ProxyArray | None = None
+        self._body_com_pose_w_ta: ProxyArray | None = None
+        self._body_com_vel_w_ta: ProxyArray | None = None
+        self._body_com_acc_w_ta: ProxyArray | None = None
+        self._body_com_pose_b_ta: ProxyArray | None = None
+        self._body_mass_ta: ProxyArray | None = None
+        self._body_inertia_ta: ProxyArray | None = None
+        self._body_incoming_joint_wrench_b_ta: ProxyArray | None = None
+        self._fixed_tendon_stiffness_ta: ProxyArray | None = None
+        self._fixed_tendon_damping_ta: ProxyArray | None = None
+        self._fixed_tendon_limit_stiffness_ta: ProxyArray | None = None
+        self._fixed_tendon_rest_length_ta: ProxyArray | None = None
+        self._fixed_tendon_offset_ta: ProxyArray | None = None
+        self._fixed_tendon_pos_limits_ta: ProxyArray | None = None
+        self._spatial_tendon_stiffness_ta: ProxyArray | None = None
+        self._spatial_tendon_damping_ta: ProxyArray | None = None
+        self._spatial_tendon_limit_stiffness_ta: ProxyArray | None = None
+        self._spatial_tendon_offset_ta: ProxyArray | None = None
+
     # -- Helper for identity quaternion --
     def _identity_quat(self, *shape: int) -> wp.array:
         """Create identity quaternion array (w, x, y, z) = (1, 0, 0, 0)."""
@@ -158,515 +209,672 @@ class MockArticulationData(BaseArticulationData):
     # -- Default state properties --
 
     @property
-    def default_root_pose(self) -> wp.array:
+    def default_root_pose(self) -> ProxyArray:
         """Default root pose. dtype=wp.transformf, shape: (N,)."""
         if self._default_root_pose is None:
             pose_np = np.zeros((self._num_instances, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
             self._default_root_pose = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
-        return self._default_root_pose
+            self._default_root_pose_ta = None
+        if self._default_root_pose_ta is None:
+            self._default_root_pose_ta = ProxyArray(self._default_root_pose)
+        return self._default_root_pose_ta
 
     @property
-    def default_root_vel(self) -> wp.array:
+    def default_root_vel(self) -> ProxyArray:
         """Default root velocity. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._default_root_vel is None:
             self._default_root_vel = wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device).view(
                 wp.spatial_vectorf
             )
-        return self._default_root_vel
+            self._default_root_vel_ta = None
+        if self._default_root_vel_ta is None:
+            self._default_root_vel_ta = ProxyArray(self._default_root_vel)
+        return self._default_root_vel_ta
 
     @property
-    def default_root_state(self) -> wp.array:
+    def default_root_state(self) -> ProxyArray:
         """Default root state [pose(7), vel(6)]. Shape: (N, 13)."""
-        pose_t = wp.to_torch(self.default_root_pose)
-        vel_t = wp.to_torch(self.default_root_vel)
-        return wp.from_torch(torch.cat([pose_t, vel_t], dim=-1))
+        pose_t = self.default_root_pose.torch
+        vel_t = self.default_root_vel.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose_t, vel_t], dim=-1)))
 
     @property
-    def default_joint_pos(self) -> wp.array:
+    def default_joint_pos(self) -> ProxyArray:
         """Default joint positions. Shape: (N, num_joints)."""
         if self._default_joint_pos is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._default_joint_pos
+            self._default_joint_pos = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._default_joint_pos_ta = None
+        if self._default_joint_pos_ta is None:
+            self._default_joint_pos_ta = ProxyArray(self._default_joint_pos)
+        return self._default_joint_pos_ta
 
     @property
-    def default_joint_vel(self) -> wp.array:
+    def default_joint_vel(self) -> ProxyArray:
         """Default joint velocities. Shape: (N, num_joints)."""
         if self._default_joint_vel is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._default_joint_vel
+            self._default_joint_vel = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._default_joint_vel_ta = None
+        if self._default_joint_vel_ta is None:
+            self._default_joint_vel_ta = ProxyArray(self._default_joint_vel)
+        return self._default_joint_vel_ta
 
     # -- Joint command properties --
 
     @property
-    def joint_pos_target(self) -> wp.array:
+    def joint_pos_target(self) -> ProxyArray:
         """Joint position targets. Shape: (N, num_joints)."""
         if self._joint_pos_target is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_pos_target
+            self._joint_pos_target = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_pos_target_ta = None
+        if self._joint_pos_target_ta is None:
+            self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
+        return self._joint_pos_target_ta
 
     @property
-    def joint_vel_target(self) -> wp.array:
+    def joint_vel_target(self) -> ProxyArray:
         """Joint velocity targets. Shape: (N, num_joints)."""
         if self._joint_vel_target is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_vel_target
+            self._joint_vel_target = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_vel_target_ta = None
+        if self._joint_vel_target_ta is None:
+            self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
+        return self._joint_vel_target_ta
 
     @property
-    def joint_effort_target(self) -> wp.array:
+    def joint_effort_target(self) -> ProxyArray:
         """Joint effort targets. Shape: (N, num_joints)."""
         if self._joint_effort_target is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_effort_target
+            self._joint_effort_target = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_effort_target_ta = None
+        if self._joint_effort_target_ta is None:
+            self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
+        return self._joint_effort_target_ta
 
     @property
-    def computed_torque(self) -> wp.array:
+    def computed_torque(self) -> ProxyArray:
         """Computed torques before clipping. Shape: (N, num_joints)."""
         if self._computed_torque is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._computed_torque
+            self._computed_torque = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._computed_torque_ta = None
+        if self._computed_torque_ta is None:
+            self._computed_torque_ta = ProxyArray(self._computed_torque)
+        return self._computed_torque_ta
 
     @property
-    def applied_torque(self) -> wp.array:
+    def applied_torque(self) -> ProxyArray:
         """Applied torques after clipping. Shape: (N, num_joints)."""
         if self._applied_torque is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._applied_torque
+            self._applied_torque = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._applied_torque_ta = None
+        if self._applied_torque_ta is None:
+            self._applied_torque_ta = ProxyArray(self._applied_torque)
+        return self._applied_torque_ta
 
     # -- Joint properties --
 
     @property
-    def joint_stiffness(self) -> wp.array:
+    def joint_stiffness(self) -> ProxyArray:
         """Joint stiffness. Shape: (N, num_joints)."""
         if self._joint_stiffness is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_stiffness
+            self._joint_stiffness = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_stiffness_ta = None
+        if self._joint_stiffness_ta is None:
+            self._joint_stiffness_ta = ProxyArray(self._joint_stiffness)
+        return self._joint_stiffness_ta
 
     @property
-    def joint_damping(self) -> wp.array:
+    def joint_damping(self) -> ProxyArray:
         """Joint damping. Shape: (N, num_joints)."""
         if self._joint_damping is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_damping
+            self._joint_damping = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_damping_ta = None
+        if self._joint_damping_ta is None:
+            self._joint_damping_ta = ProxyArray(self._joint_damping)
+        return self._joint_damping_ta
 
     @property
-    def joint_armature(self) -> wp.array:
+    def joint_armature(self) -> ProxyArray:
         """Joint armature. Shape: (N, num_joints)."""
         if self._joint_armature is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_armature
+            self._joint_armature = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_armature_ta = None
+        if self._joint_armature_ta is None:
+            self._joint_armature_ta = ProxyArray(self._joint_armature)
+        return self._joint_armature_ta
 
     @property
-    def joint_friction_coeff(self) -> wp.array:
+    def joint_friction_coeff(self) -> ProxyArray:
         """Joint static friction coefficient. Shape: (N, num_joints)."""
         if self._joint_friction_coeff is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_friction_coeff
+            self._joint_friction_coeff = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_friction_coeff_ta = None
+        if self._joint_friction_coeff_ta is None:
+            self._joint_friction_coeff_ta = ProxyArray(self._joint_friction_coeff)
+        return self._joint_friction_coeff_ta
 
     @property
-    def joint_dynamic_friction_coeff(self) -> wp.array:
+    def joint_dynamic_friction_coeff(self) -> ProxyArray:
         """Joint dynamic friction coefficient. Shape: (N, num_joints)."""
         if self._joint_dynamic_friction_coeff is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_dynamic_friction_coeff
+            self._joint_dynamic_friction_coeff = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_dynamic_friction_coeff_ta = None
+        if self._joint_dynamic_friction_coeff_ta is None:
+            self._joint_dynamic_friction_coeff_ta = ProxyArray(self._joint_dynamic_friction_coeff)
+        return self._joint_dynamic_friction_coeff_ta
 
     @property
-    def joint_viscous_friction_coeff(self) -> wp.array:
+    def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Joint viscous friction coefficient. Shape: (N, num_joints)."""
         if self._joint_viscous_friction_coeff is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_viscous_friction_coeff
+            self._joint_viscous_friction_coeff = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_viscous_friction_coeff_ta = None
+        if self._joint_viscous_friction_coeff_ta is None:
+            self._joint_viscous_friction_coeff_ta = ProxyArray(self._joint_viscous_friction_coeff)
+        return self._joint_viscous_friction_coeff_ta
 
     @property
-    def joint_pos_limits(self) -> wp.array:
+    def joint_pos_limits(self) -> ProxyArray:
         """Joint position limits [lower, upper]. dtype=wp.vec2f, shape: (N, num_joints)."""
         if self._joint_pos_limits is None:
             np_limits = np.zeros((self._num_instances, self._num_joints, 2), dtype=np.float32)
             np_limits[..., 0] = -float("inf")
             np_limits[..., 1] = float("inf")
-            return wp.array(np_limits, dtype=wp.float32, device=self.device).view(wp.vec2f)
-        return self._joint_pos_limits
+            self._joint_pos_limits = wp.array(np_limits, dtype=wp.float32, device=self.device).view(wp.vec2f)
+            self._joint_pos_limits_ta = None
+        if self._joint_pos_limits_ta is None:
+            self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits)
+        return self._joint_pos_limits_ta
 
     @property
-    def joint_vel_limits(self) -> wp.array:
+    def joint_vel_limits(self) -> ProxyArray:
         """Joint velocity limits. Shape: (N, num_joints)."""
         if self._joint_vel_limits is None:
-            return wp.full(
+            self._joint_vel_limits = wp.full(
                 (self._num_instances, self._num_joints), dtype=wp.float32, value=float("inf"), device=self.device
             )
-        return self._joint_vel_limits
+            self._joint_vel_limits_ta = None
+        if self._joint_vel_limits_ta is None:
+            self._joint_vel_limits_ta = ProxyArray(self._joint_vel_limits)
+        return self._joint_vel_limits_ta
 
     @property
-    def joint_effort_limits(self) -> wp.array:
+    def joint_effort_limits(self) -> ProxyArray:
         """Joint effort limits. Shape: (N, num_joints)."""
         if self._joint_effort_limits is None:
-            return wp.full(
+            self._joint_effort_limits = wp.full(
                 (self._num_instances, self._num_joints), dtype=wp.float32, value=float("inf"), device=self.device
             )
-        return self._joint_effort_limits
+            self._joint_effort_limits_ta = None
+        if self._joint_effort_limits_ta is None:
+            self._joint_effort_limits_ta = ProxyArray(self._joint_effort_limits)
+        return self._joint_effort_limits_ta
 
     @property
-    def soft_joint_pos_limits(self) -> wp.array:
+    def soft_joint_pos_limits(self) -> ProxyArray:
         """Soft joint position limits. Shape: (N, num_joints, 2)."""
         if self._soft_joint_pos_limits is None:
-            return wp.clone(self.joint_pos_limits, self.device)
-        return self._soft_joint_pos_limits
+            self._soft_joint_pos_limits = wp.clone(self.joint_pos_limits.warp, self.device)
+            self._soft_joint_pos_limits_ta = None
+        if self._soft_joint_pos_limits_ta is None:
+            self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
+        return self._soft_joint_pos_limits_ta
 
     @property
-    def soft_joint_vel_limits(self) -> wp.array:
+    def soft_joint_vel_limits(self) -> ProxyArray:
         """Soft joint velocity limits. Shape: (N, num_joints)."""
         if self._soft_joint_vel_limits is None:
-            return wp.clone(self.joint_vel_limits, self.device)
-        return self._soft_joint_vel_limits
+            self._soft_joint_vel_limits = wp.clone(self.joint_vel_limits.warp, self.device)
+            self._soft_joint_vel_limits_ta = None
+        if self._soft_joint_vel_limits_ta is None:
+            self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
+        return self._soft_joint_vel_limits_ta
 
     @property
-    def gear_ratio(self) -> wp.array:
+    def gear_ratio(self) -> ProxyArray:
         """Gear ratio. Shape: (N, num_joints)."""
         if self._gear_ratio is None:
-            return wp.ones((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._gear_ratio
+            self._gear_ratio = wp.ones((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._gear_ratio_ta = None
+        if self._gear_ratio_ta is None:
+            self._gear_ratio_ta = ProxyArray(self._gear_ratio)
+        return self._gear_ratio_ta
 
     # -- Joint state properties --
 
     @property
-    def joint_pos(self) -> wp.array:
+    def joint_pos(self) -> ProxyArray:
         """Joint positions. Shape: (N, num_joints)."""
         if self._joint_pos is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_pos
+            self._joint_pos = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._joint_pos_ta = None
+        if self._joint_pos_ta is None:
+            self._joint_pos_ta = ProxyArray(self._joint_pos)
+        return self._joint_pos_ta
 
     @property
-    def joint_vel(self) -> wp.array:
+    def joint_vel(self) -> ProxyArray:
         """Joint velocities. Shape: (N, num_joints)."""
         if self._joint_vel is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_vel
+            self._joint_vel = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._joint_vel_ta = None
+        if self._joint_vel_ta is None:
+            self._joint_vel_ta = ProxyArray(self._joint_vel)
+        return self._joint_vel_ta
 
     @property
-    def joint_acc(self) -> wp.array:
+    def joint_acc(self) -> ProxyArray:
         """Joint accelerations. Shape: (N, num_joints)."""
         if self._joint_acc is None:
-            return wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        return self._joint_acc
+            self._joint_acc = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            self._joint_acc_ta = None
+        if self._joint_acc_ta is None:
+            self._joint_acc_ta = ProxyArray(self._joint_acc)
+        return self._joint_acc_ta
 
     # -- Root state properties (link frame) --
 
     @property
-    def root_link_pose_w(self) -> wp.array:
+    def root_link_pose_w(self) -> ProxyArray:
         """Root link pose in world frame. dtype=wp.transformf, shape: (N,)."""
         if self._root_link_pose_w is None:
             pose_np = np.zeros((self._num_instances, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
             self._root_link_pose_w = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
-        return self._root_link_pose_w
+            self._root_link_pose_w_ta = None
+        if self._root_link_pose_w_ta is None:
+            self._root_link_pose_w_ta = ProxyArray(self._root_link_pose_w)
+        return self._root_link_pose_w_ta
 
     @property
-    def root_link_vel_w(self) -> wp.array:
+    def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity in world frame. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._root_link_vel_w is None:
             self._root_link_vel_w = wp.zeros((self._num_instances, 6), dtype=wp.float32, device=self.device).view(
                 wp.spatial_vectorf
             )
-        return self._root_link_vel_w
+            self._root_link_vel_w_ta = None
+        if self._root_link_vel_w_ta is None:
+            self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w)
+        return self._root_link_vel_w_ta
 
     @property
-    def root_link_state_w(self) -> wp.array:
+    def root_link_state_w(self) -> ProxyArray:
         """Root link state in world frame. Shape: (N, 13)."""
-        pose_t = wp.to_torch(self.root_link_pose_w)
-        vel_t = wp.to_torch(self.root_link_vel_w)
-        return wp.from_torch(torch.cat([pose_t, vel_t], dim=-1))
+        pose_t = self.root_link_pose_w.torch
+        vel_t = self.root_link_vel_w.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose_t, vel_t], dim=-1).contiguous()))
 
     # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
-    def root_link_pos_w(self) -> wp.array:
+    def root_link_pos_w(self) -> ProxyArray:
         """Root link position in world frame. Shape: (N,), dtype=wp.vec3f."""
-        t = self.root_link_pose_w
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        t = self.root_link_pose_w.warp
+        return ProxyArray(wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device))
 
     @property
-    def root_link_quat_w(self) -> wp.array:
+    def root_link_quat_w(self) -> ProxyArray:
         """Root link orientation in world frame (x, y, z, w). Shape: (N,), dtype=wp.quatf."""
-        t = self.root_link_pose_w
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        t = self.root_link_pose_w.warp
+        return ProxyArray(
+            wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        )
 
     @property
-    def root_link_lin_vel_w(self) -> wp.array:
+    def root_link_lin_vel_w(self) -> ProxyArray:
         """Root link linear velocity in world frame. Shape: (N,), dtype=wp.vec3f."""
-        v = self.root_link_vel_w
-        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.root_link_vel_w.warp
+        return ProxyArray(wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device))
 
     @property
-    def root_link_ang_vel_w(self) -> wp.array:
+    def root_link_ang_vel_w(self) -> ProxyArray:
         """Root link angular velocity in world frame. Shape: (N,), dtype=wp.vec3f."""
-        v = self.root_link_vel_w
-        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.root_link_vel_w.warp
+        return ProxyArray(
+            wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        )
 
     # -- Root state properties (CoM frame) --
 
     @property
-    def root_com_pose_w(self) -> wp.array:
+    def root_com_pose_w(self) -> ProxyArray:
         """Root CoM pose in world frame. dtype=wp.transformf, shape: (N,)."""
         if self._root_com_pose_w is None:
-            self._root_com_pose_w = wp.clone(self.root_link_pose_w, self.device)
-        return self._root_com_pose_w
+            self._root_com_pose_w = wp.clone(self.root_link_pose_w.warp, self.device)
+            self._root_com_pose_w_ta = None
+        if self._root_com_pose_w_ta is None:
+            self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w)
+        return self._root_com_pose_w_ta
 
     @property
-    def root_com_vel_w(self) -> wp.array:
+    def root_com_vel_w(self) -> ProxyArray:
         """Root CoM velocity in world frame. dtype=wp.spatial_vectorf, shape: (N,)."""
         if self._root_com_vel_w is None:
-            self._root_com_vel_w = wp.clone(self.root_link_vel_w, self.device)
-        return self._root_com_vel_w
+            self._root_com_vel_w = wp.clone(self.root_link_vel_w.warp, self.device)
+            self._root_com_vel_w_ta = None
+        if self._root_com_vel_w_ta is None:
+            self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w)
+        return self._root_com_vel_w_ta
 
     @property
-    def root_com_state_w(self) -> wp.array:
+    def root_com_state_w(self) -> ProxyArray:
         """Root CoM state in world frame. Shape: (N, 13)."""
-        pose_t = wp.to_torch(self.root_com_pose_w)
-        vel_t = wp.to_torch(self.root_com_vel_w)
-        return wp.from_torch(torch.cat([pose_t, vel_t], dim=-1))
+        pose_t = self.root_com_pose_w.torch
+        vel_t = self.root_com_vel_w.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose_t, vel_t], dim=-1).contiguous()))
 
     @property
-    def root_state_w(self) -> wp.array:
+    def root_state_w(self) -> ProxyArray:
         """Root state (link pose + CoM velocity). Shape: (N, 13)."""
-        pose_t = wp.to_torch(self.root_link_pose_w)
-        vel_t = wp.to_torch(self.root_com_vel_w)
-        return wp.from_torch(torch.cat([pose_t, vel_t], dim=-1))
+        pose_t = self.root_link_pose_w.torch
+        vel_t = self.root_com_vel_w.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose_t, vel_t], dim=-1).contiguous()))
 
     # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
-    def root_com_pos_w(self) -> wp.array:
+    def root_com_pos_w(self) -> ProxyArray:
         """Root CoM position in world frame. Shape: (N,), dtype=wp.vec3f."""
-        t = self.root_com_pose_w
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        t = self.root_com_pose_w.warp
+        return ProxyArray(wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device))
 
     @property
-    def root_com_quat_w(self) -> wp.array:
+    def root_com_quat_w(self) -> ProxyArray:
         """Root CoM orientation in world frame. Shape: (N,), dtype=wp.quatf."""
-        t = self.root_com_pose_w
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        t = self.root_com_pose_w.warp
+        return ProxyArray(
+            wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        )
 
     @property
-    def root_com_lin_vel_w(self) -> wp.array:
+    def root_com_lin_vel_w(self) -> ProxyArray:
         """Root CoM linear velocity in world frame. Shape: (N,), dtype=wp.vec3f."""
-        v = self.root_com_vel_w
-        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.root_com_vel_w.warp
+        return ProxyArray(wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device))
 
     @property
-    def root_com_ang_vel_w(self) -> wp.array:
+    def root_com_ang_vel_w(self) -> ProxyArray:
         """Root CoM angular velocity in world frame. Shape: (N,), dtype=wp.vec3f."""
-        v = self.root_com_vel_w
-        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.root_com_vel_w.warp
+        return ProxyArray(
+            wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        )
 
     # -- Body state properties (link frame) --
 
     @property
-    def body_link_pose_w(self) -> wp.array:
+    def body_link_pose_w(self) -> ProxyArray:
         """Body link poses in world frame. dtype=wp.transformf, shape: (N, num_bodies)."""
         if self._body_link_pose_w is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
             self._body_link_pose_w = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
-        return self._body_link_pose_w
+            self._body_link_pose_w_ta = None
+        if self._body_link_pose_w_ta is None:
+            self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w)
+        return self._body_link_pose_w_ta
 
     @property
-    def body_link_vel_w(self) -> wp.array:
+    def body_link_vel_w(self) -> ProxyArray:
         """Body link velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_link_vel_w is None:
             self._body_link_vel_w = wp.zeros(
                 (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
             ).view(wp.spatial_vectorf)
-        return self._body_link_vel_w
+            self._body_link_vel_w_ta = None
+        if self._body_link_vel_w_ta is None:
+            self._body_link_vel_w_ta = ProxyArray(self._body_link_vel_w)
+        return self._body_link_vel_w_ta
 
     @property
-    def body_link_state_w(self) -> wp.array:
+    def body_link_state_w(self) -> ProxyArray:
         """Body link states in world frame. Shape: (N, num_bodies, 13)."""
-        pose_t = wp.to_torch(self.body_link_pose_w)
-        vel_t = wp.to_torch(self.body_link_vel_w)
-        return wp.from_torch(torch.cat([pose_t, vel_t], dim=-1))
+        pose_t = self.body_link_pose_w.torch
+        vel_t = self.body_link_vel_w.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose_t, vel_t], dim=-1).contiguous()))
 
     # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
-    def body_link_pos_w(self) -> wp.array:
+    def body_link_pos_w(self) -> ProxyArray:
         """Body link positions. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        t = self.body_link_pose_w
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        t = self.body_link_pose_w.warp
+        return ProxyArray(wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device))
 
     @property
-    def body_link_quat_w(self) -> wp.array:
+    def body_link_quat_w(self) -> ProxyArray:
         """Body link orientations. Shape: (N, num_bodies), dtype=wp.quatf."""
-        t = self.body_link_pose_w
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        t = self.body_link_pose_w.warp
+        return ProxyArray(
+            wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        )
 
     @property
-    def body_link_lin_vel_w(self) -> wp.array:
+    def body_link_lin_vel_w(self) -> ProxyArray:
         """Body link linear velocities in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_link_vel_w
-        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_link_vel_w.warp
+        return ProxyArray(wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device))
 
     @property
-    def body_link_ang_vel_w(self) -> wp.array:
+    def body_link_ang_vel_w(self) -> ProxyArray:
         """Body link angular velocities in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_link_vel_w
-        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_link_vel_w.warp
+        return ProxyArray(
+            wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        )
 
     # -- Body state properties (CoM frame) --
 
     @property
-    def body_com_pose_w(self) -> wp.array:
+    def body_com_pose_w(self) -> ProxyArray:
         """Body CoM poses in world frame. dtype=wp.transformf, shape: (N, num_bodies)."""
         if self._body_com_pose_w is None:
-            self._body_com_pose_w = wp.clone(self.body_link_pose_w, self.device)
-        return self._body_com_pose_w
+            self._body_com_pose_w = wp.clone(self.body_link_pose_w.warp, self.device)
+            self._body_com_pose_w_ta = None
+        if self._body_com_pose_w_ta is None:
+            self._body_com_pose_w_ta = ProxyArray(self._body_com_pose_w)
+        return self._body_com_pose_w_ta
 
     @property
-    def body_com_vel_w(self) -> wp.array:
+    def body_com_vel_w(self) -> ProxyArray:
         """Body CoM velocities in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_vel_w is None:
-            self._body_com_vel_w = wp.clone(self.body_link_vel_w, self.device)
-        return self._body_com_vel_w
+            self._body_com_vel_w = wp.clone(self.body_link_vel_w.warp, self.device)
+            self._body_com_vel_w_ta = None
+        if self._body_com_vel_w_ta is None:
+            self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w)
+        return self._body_com_vel_w_ta
 
     @property
-    def body_com_state_w(self) -> wp.array:
+    def body_com_state_w(self) -> ProxyArray:
         """Body CoM states in world frame. Shape: (N, num_bodies, 13)."""
-        pose_t = wp.to_torch(self.body_com_pose_w)
-        vel_t = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(torch.cat([pose_t, vel_t], dim=-1))
+        pose_t = self.body_com_pose_w.torch
+        vel_t = self.body_com_vel_w.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose_t, vel_t], dim=-1).contiguous()))
 
     @property
-    def body_state_w(self) -> wp.array:
+    def body_state_w(self) -> ProxyArray:
         """Body states (link pose + CoM velocity). Shape: (N, num_bodies, 13)."""
-        pose_t = wp.to_torch(self.body_link_pose_w)
-        vel_t = wp.to_torch(self.body_com_vel_w)
-        return wp.from_torch(torch.cat([pose_t, vel_t], dim=-1))
+        pose_t = self.body_link_pose_w.torch
+        vel_t = self.body_com_vel_w.torch
+        return ProxyArray(wp.from_torch(torch.cat([pose_t, vel_t], dim=-1).contiguous()))
 
     @property
-    def body_com_acc_w(self) -> wp.array:
+    def body_com_acc_w(self) -> ProxyArray:
         """Body CoM accelerations in world frame. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_com_acc_w is None:
             self._body_com_acc_w = wp.zeros(
                 (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
             ).view(wp.spatial_vectorf)
-        return self._body_com_acc_w
+            self._body_com_acc_w_ta = None
+        if self._body_com_acc_w_ta is None:
+            self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w)
+        return self._body_com_acc_w_ta
 
     @property
-    def body_com_pose_b(self) -> wp.array:
+    def body_com_pose_b(self) -> ProxyArray:
         """Body CoM poses in body frame. dtype=wp.transformf, shape: (N, num_bodies)."""
         if self._body_com_pose_b is None:
             pose_np = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
             pose_np[..., 6] = 1.0  # identity quat qw=1, transformf layout: (px,py,pz,qx,qy,qz,qw)
             self._body_com_pose_b = wp.array(pose_np, dtype=wp.float32, device=self.device).view(wp.transformf)
-        return self._body_com_pose_b
+            self._body_com_pose_b_ta = None
+        if self._body_com_pose_b_ta is None:
+            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b)
+        return self._body_com_pose_b_ta
 
     # Sliced properties (zero-copy pointer arithmetic on transformf)
     @property
-    def body_com_pos_w(self) -> wp.array:
+    def body_com_pos_w(self) -> ProxyArray:
         """Body CoM positions. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        t = self.body_com_pose_w
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        t = self.body_com_pose_w.warp
+        return ProxyArray(wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device))
 
     @property
-    def body_com_quat_w(self) -> wp.array:
+    def body_com_quat_w(self) -> ProxyArray:
         """Body CoM orientations. Shape: (N, num_bodies), dtype=wp.quatf."""
-        t = self.body_com_pose_w
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        t = self.body_com_pose_w.warp
+        return ProxyArray(
+            wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        )
 
     @property
-    def body_com_lin_vel_w(self) -> wp.array:
+    def body_com_lin_vel_w(self) -> ProxyArray:
         """Body CoM linear velocities in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_com_vel_w
-        return wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_com_vel_w.warp
+        return ProxyArray(wp.array(ptr=v.ptr, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device))
 
     @property
-    def body_com_ang_vel_w(self) -> wp.array:
+    def body_com_ang_vel_w(self) -> ProxyArray:
         """Body CoM angular velocities in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        v = self.body_com_vel_w
-        return wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        v = self.body_com_vel_w.warp
+        return ProxyArray(
+            wp.array(ptr=v.ptr + 3 * 4, shape=v.shape, dtype=wp.vec3f, strides=v.strides, device=self.device)
+        )
 
     @property
-    def body_com_lin_acc_w(self) -> wp.array:
+    def body_com_lin_acc_w(self) -> ProxyArray:
         """Body CoM linear accelerations in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        a = self.body_com_acc_w
-        return wp.array(ptr=a.ptr, shape=a.shape, dtype=wp.vec3f, strides=a.strides, device=self.device)
+        a = self.body_com_acc_w.warp
+        return ProxyArray(wp.array(ptr=a.ptr, shape=a.shape, dtype=wp.vec3f, strides=a.strides, device=self.device))
 
     @property
-    def body_com_ang_acc_w(self) -> wp.array:
+    def body_com_ang_acc_w(self) -> ProxyArray:
         """Body CoM angular accelerations in world frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        a = self.body_com_acc_w
-        return wp.array(ptr=a.ptr + 3 * 4, shape=a.shape, dtype=wp.vec3f, strides=a.strides, device=self.device)
+        a = self.body_com_acc_w.warp
+        return ProxyArray(
+            wp.array(ptr=a.ptr + 3 * 4, shape=a.shape, dtype=wp.vec3f, strides=a.strides, device=self.device)
+        )
 
     @property
-    def body_com_pos_b(self) -> wp.array:
+    def body_com_pos_b(self) -> ProxyArray:
         """Body CoM positions in body frame. Shape: (N, num_bodies), dtype=wp.vec3f."""
-        t = self.body_com_pose_b
-        return wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device)
+        t = self.body_com_pose_b.warp
+        return ProxyArray(wp.array(ptr=t.ptr, shape=t.shape, dtype=wp.vec3f, strides=t.strides, device=self.device))
 
     @property
-    def body_com_quat_b(self) -> wp.array:
+    def body_com_quat_b(self) -> ProxyArray:
         """Body CoM orientations in body frame. Shape: (N, num_bodies), dtype=wp.quatf."""
-        t = self.body_com_pose_b
-        return wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        t = self.body_com_pose_b.warp
+        return ProxyArray(
+            wp.array(ptr=t.ptr + 3 * 4, shape=t.shape, dtype=wp.quatf, strides=t.strides, device=self.device)
+        )
 
     # -- Body properties --
 
     @property
-    def body_mass(self) -> wp.array:
+    def body_mass(self) -> ProxyArray:
         """Body masses. Shape: (N, num_bodies)."""
         if self._body_mass is None:
-            return wp.ones((self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
-        return self._body_mass
+            self._body_mass = wp.ones((self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
+            self._body_mass_ta = None
+        if self._body_mass_ta is None:
+            self._body_mass_ta = ProxyArray(self._body_mass)
+        return self._body_mass_ta
 
     @property
-    def body_inertia(self) -> wp.array:
+    def body_inertia(self) -> ProxyArray:
         """Body inertias (flattened 3x3). Shape: (N, num_bodies, 9)."""
         if self._body_inertia is None:
             np_inertia = np.zeros((self._num_instances, self._num_bodies, 9), dtype=np.float32)
             np_inertia[..., 0] = 1.0  # Ixx
             np_inertia[..., 4] = 1.0  # Iyy
             np_inertia[..., 8] = 1.0  # Izz
-            return wp.array(np_inertia, dtype=wp.float32, device=self.device)
-        return self._body_inertia
+            self._body_inertia = wp.array(np_inertia, dtype=wp.float32, device=self.device)
+            self._body_inertia_ta = None
+        if self._body_inertia_ta is None:
+            self._body_inertia_ta = ProxyArray(self._body_inertia)
+        return self._body_inertia_ta
 
     @property
-    def body_incoming_joint_wrench_b(self) -> wp.array:
+    def body_incoming_joint_wrench_b(self) -> ProxyArray:
         """Body incoming joint wrenches. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
         if self._body_incoming_joint_wrench_b is None:
-            return wp.zeros((self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device).view(
-                wp.spatial_vectorf
-            )
-        return self._body_incoming_joint_wrench_b
+            self._body_incoming_joint_wrench_b = wp.zeros(
+                (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
+            ).view(wp.spatial_vectorf)
+            self._body_incoming_joint_wrench_b_ta = None
+        if self._body_incoming_joint_wrench_b_ta is None:
+            self._body_incoming_joint_wrench_b_ta = ProxyArray(self._body_incoming_joint_wrench_b)
+        return self._body_incoming_joint_wrench_b_ta
 
     # -- Derived properties --
 
     @property
-    def projected_gravity_b(self) -> wp.array:
+    def projected_gravity_b(self) -> ProxyArray:
         """Gravity projection on base. Shape: (N,), dtype=wp.vec3f."""
         np_gravity = np.zeros((self._num_instances, 3), dtype=np.float32)
         np_gravity[:, 2] = -1.0
-        return wp.array(np_gravity, dtype=wp.float32, device=self.device).view(wp.vec3f)
+        return ProxyArray(wp.array(np_gravity, dtype=wp.float32, device=self.device).view(wp.vec3f))
 
     @property
-    def heading_w(self) -> wp.array:
+    def heading_w(self) -> ProxyArray:
         """Yaw heading in world frame. Shape: (N,)."""
-        return wp.zeros((self._num_instances,), dtype=wp.float32, device=self.device)
+        return ProxyArray(wp.zeros((self._num_instances,), dtype=wp.float32, device=self.device))
 
     @property
-    def root_link_lin_vel_b(self) -> wp.array:
+    def root_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
-        return wp.clone(self.root_link_lin_vel_w, self.device)
+        return ProxyArray(wp.clone(self.root_link_lin_vel_w.warp, self.device))
 
     @property
-    def root_link_ang_vel_b(self) -> wp.array:
+    def root_link_ang_vel_b(self) -> ProxyArray:
         """Root link angular velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
-        return wp.clone(self.root_link_ang_vel_w, self.device)
+        return ProxyArray(wp.clone(self.root_link_ang_vel_w.warp, self.device))
 
     @property
-    def root_com_lin_vel_b(self) -> wp.array:
+    def root_com_lin_vel_b(self) -> ProxyArray:
         """Root CoM linear velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
-        return wp.clone(self.root_com_lin_vel_w, self.device)
+        return ProxyArray(wp.clone(self.root_com_lin_vel_w.warp, self.device))
 
     @property
-    def root_com_ang_vel_b(self) -> wp.array:
+    def root_com_ang_vel_b(self) -> ProxyArray:
         """Root CoM angular velocity in body frame. Shape: (N,), dtype=wp.vec3f."""
-        return wp.clone(self.root_com_ang_vel_w, self.device)
+        return ProxyArray(wp.clone(self.root_com_ang_vel_w.warp, self.device))
 
     # com_pos_b and com_quat_b are inherited from BaseArticulationData
     # (they delegate to body_com_pos_b and body_com_quat_b respectively)
@@ -674,99 +882,147 @@ class MockArticulationData(BaseArticulationData):
     # -- Fixed tendon properties --
 
     @property
-    def fixed_tendon_stiffness(self) -> wp.array:
+    def fixed_tendon_stiffness(self) -> ProxyArray:
         """Fixed tendon stiffness. Shape: (N, num_fixed_tendons)."""
         if self._num_fixed_tendons == 0:
-            return wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device))
         if self._fixed_tendon_stiffness is None:
-            return wp.zeros((self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device)
-        return self._fixed_tendon_stiffness
+            self._fixed_tendon_stiffness = wp.zeros(
+                (self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device
+            )
+            self._fixed_tendon_stiffness_ta = None
+        if self._fixed_tendon_stiffness_ta is None:
+            self._fixed_tendon_stiffness_ta = ProxyArray(self._fixed_tendon_stiffness)
+        return self._fixed_tendon_stiffness_ta
 
     @property
-    def fixed_tendon_damping(self) -> wp.array:
+    def fixed_tendon_damping(self) -> ProxyArray:
         """Fixed tendon damping. Shape: (N, num_fixed_tendons)."""
         if self._num_fixed_tendons == 0:
-            return wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device))
         if self._fixed_tendon_damping is None:
-            return wp.zeros((self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device)
-        return self._fixed_tendon_damping
+            self._fixed_tendon_damping = wp.zeros(
+                (self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device
+            )
+            self._fixed_tendon_damping_ta = None
+        if self._fixed_tendon_damping_ta is None:
+            self._fixed_tendon_damping_ta = ProxyArray(self._fixed_tendon_damping)
+        return self._fixed_tendon_damping_ta
 
     @property
-    def fixed_tendon_limit_stiffness(self) -> wp.array:
+    def fixed_tendon_limit_stiffness(self) -> ProxyArray:
         """Fixed tendon limit stiffness. Shape: (N, num_fixed_tendons)."""
         if self._num_fixed_tendons == 0:
-            return wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device))
         if self._fixed_tendon_limit_stiffness is None:
-            return wp.zeros((self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device)
-        return self._fixed_tendon_limit_stiffness
+            self._fixed_tendon_limit_stiffness = wp.zeros(
+                (self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device
+            )
+            self._fixed_tendon_limit_stiffness_ta = None
+        if self._fixed_tendon_limit_stiffness_ta is None:
+            self._fixed_tendon_limit_stiffness_ta = ProxyArray(self._fixed_tendon_limit_stiffness)
+        return self._fixed_tendon_limit_stiffness_ta
 
     @property
-    def fixed_tendon_rest_length(self) -> wp.array:
+    def fixed_tendon_rest_length(self) -> ProxyArray:
         """Fixed tendon rest length. Shape: (N, num_fixed_tendons)."""
         if self._num_fixed_tendons == 0:
-            return wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device))
         if self._fixed_tendon_rest_length is None:
-            return wp.zeros((self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device)
-        return self._fixed_tendon_rest_length
+            self._fixed_tendon_rest_length = wp.zeros(
+                (self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device
+            )
+            self._fixed_tendon_rest_length_ta = None
+        if self._fixed_tendon_rest_length_ta is None:
+            self._fixed_tendon_rest_length_ta = ProxyArray(self._fixed_tendon_rest_length)
+        return self._fixed_tendon_rest_length_ta
 
     @property
-    def fixed_tendon_offset(self) -> wp.array:
+    def fixed_tendon_offset(self) -> ProxyArray:
         """Fixed tendon offset. Shape: (N, num_fixed_tendons)."""
         if self._num_fixed_tendons == 0:
-            return wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device))
         if self._fixed_tendon_offset is None:
-            return wp.zeros((self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device)
-        return self._fixed_tendon_offset
+            self._fixed_tendon_offset = wp.zeros(
+                (self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device
+            )
+            self._fixed_tendon_offset_ta = None
+        if self._fixed_tendon_offset_ta is None:
+            self._fixed_tendon_offset_ta = ProxyArray(self._fixed_tendon_offset)
+        return self._fixed_tendon_offset_ta
 
     @property
-    def fixed_tendon_pos_limits(self) -> wp.array:
+    def fixed_tendon_pos_limits(self) -> ProxyArray:
         """Fixed tendon position limits. dtype=wp.vec2f, shape: (N, num_fixed_tendons)."""
         if self._num_fixed_tendons == 0:
-            return wp.zeros((self._num_instances, 0, 2), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0, 2), dtype=wp.float32, device=self.device))
         if self._fixed_tendon_pos_limits is None:
             np_limits = np.zeros((self._num_instances, self._num_fixed_tendons, 2), dtype=np.float32)
             np_limits[..., 0] = -float("inf")
             np_limits[..., 1] = float("inf")
-            return wp.array(np_limits, dtype=wp.float32, device=self.device).view(wp.vec2f)
-        return self._fixed_tendon_pos_limits
+            self._fixed_tendon_pos_limits = wp.array(np_limits, dtype=wp.float32, device=self.device).view(wp.vec2f)
+            self._fixed_tendon_pos_limits_ta = None
+        if self._fixed_tendon_pos_limits_ta is None:
+            self._fixed_tendon_pos_limits_ta = ProxyArray(self._fixed_tendon_pos_limits)
+        return self._fixed_tendon_pos_limits_ta
 
     # -- Spatial tendon properties --
 
     @property
-    def spatial_tendon_stiffness(self) -> wp.array:
+    def spatial_tendon_stiffness(self) -> ProxyArray:
         """Spatial tendon stiffness. Shape: (N, num_spatial_tendons)."""
         if self._num_spatial_tendons == 0:
-            return wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device))
         if self._spatial_tendon_stiffness is None:
-            return wp.zeros((self._num_instances, self._num_spatial_tendons), dtype=wp.float32, device=self.device)
-        return self._spatial_tendon_stiffness
+            self._spatial_tendon_stiffness = wp.zeros(
+                (self._num_instances, self._num_spatial_tendons), dtype=wp.float32, device=self.device
+            )
+            self._spatial_tendon_stiffness_ta = None
+        if self._spatial_tendon_stiffness_ta is None:
+            self._spatial_tendon_stiffness_ta = ProxyArray(self._spatial_tendon_stiffness)
+        return self._spatial_tendon_stiffness_ta
 
     @property
-    def spatial_tendon_damping(self) -> wp.array:
+    def spatial_tendon_damping(self) -> ProxyArray:
         """Spatial tendon damping. Shape: (N, num_spatial_tendons)."""
         if self._num_spatial_tendons == 0:
-            return wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device))
         if self._spatial_tendon_damping is None:
-            return wp.zeros((self._num_instances, self._num_spatial_tendons), dtype=wp.float32, device=self.device)
-        return self._spatial_tendon_damping
+            self._spatial_tendon_damping = wp.zeros(
+                (self._num_instances, self._num_spatial_tendons), dtype=wp.float32, device=self.device
+            )
+            self._spatial_tendon_damping_ta = None
+        if self._spatial_tendon_damping_ta is None:
+            self._spatial_tendon_damping_ta = ProxyArray(self._spatial_tendon_damping)
+        return self._spatial_tendon_damping_ta
 
     @property
-    def spatial_tendon_limit_stiffness(self) -> wp.array:
+    def spatial_tendon_limit_stiffness(self) -> ProxyArray:
         """Spatial tendon limit stiffness. Shape: (N, num_spatial_tendons)."""
         if self._num_spatial_tendons == 0:
-            return wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device))
         if self._spatial_tendon_limit_stiffness is None:
-            return wp.zeros((self._num_instances, self._num_spatial_tendons), dtype=wp.float32, device=self.device)
-        return self._spatial_tendon_limit_stiffness
+            self._spatial_tendon_limit_stiffness = wp.zeros(
+                (self._num_instances, self._num_spatial_tendons), dtype=wp.float32, device=self.device
+            )
+            self._spatial_tendon_limit_stiffness_ta = None
+        if self._spatial_tendon_limit_stiffness_ta is None:
+            self._spatial_tendon_limit_stiffness_ta = ProxyArray(self._spatial_tendon_limit_stiffness)
+        return self._spatial_tendon_limit_stiffness_ta
 
     @property
-    def spatial_tendon_offset(self) -> wp.array:
+    def spatial_tendon_offset(self) -> ProxyArray:
         """Spatial tendon offset. Shape: (N, num_spatial_tendons)."""
         if self._num_spatial_tendons == 0:
-            return wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            return ProxyArray(wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device))
         if self._spatial_tendon_offset is None:
-            return wp.zeros((self._num_instances, self._num_spatial_tendons), dtype=wp.float32, device=self.device)
-        return self._spatial_tendon_offset
+            self._spatial_tendon_offset = wp.zeros(
+                (self._num_instances, self._num_spatial_tendons), dtype=wp.float32, device=self.device
+            )
+            self._spatial_tendon_offset_ta = None
+        if self._spatial_tendon_offset_ta is None:
+            self._spatial_tendon_offset_ta = ProxyArray(self._spatial_tendon_offset)
+        return self._spatial_tendon_offset_ta
 
     # -- Update method --
 
@@ -786,138 +1042,183 @@ class MockArticulationData(BaseArticulationData):
 
     def set_default_root_pose(self, value: torch.Tensor) -> None:
         self._default_root_pose = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._default_root_pose_ta = None
 
     def set_default_root_vel(self, value: torch.Tensor) -> None:
         self._default_root_vel = wp.from_torch(value.to(self.device).contiguous())
+        self._default_root_vel_ta = None
 
     def set_default_joint_pos(self, value: torch.Tensor) -> None:
         self._default_joint_pos = wp.from_torch(value.to(self.device).contiguous())
+        self._default_joint_pos_ta = None
 
     def set_default_joint_vel(self, value: torch.Tensor) -> None:
         self._default_joint_vel = wp.from_torch(value.to(self.device).contiguous())
+        self._default_joint_vel_ta = None
 
     def set_joint_pos_target(self, value: torch.Tensor) -> None:
         self._joint_pos_target = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_pos_target_ta = None
 
     def set_joint_vel_target(self, value: torch.Tensor) -> None:
         self._joint_vel_target = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_vel_target_ta = None
 
     def set_joint_effort_target(self, value: torch.Tensor) -> None:
         self._joint_effort_target = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_effort_target_ta = None
 
     def set_computed_torque(self, value: torch.Tensor) -> None:
         self._computed_torque = wp.from_torch(value.to(self.device).contiguous())
+        self._computed_torque_ta = None
 
     def set_applied_torque(self, value: torch.Tensor) -> None:
         self._applied_torque = wp.from_torch(value.to(self.device).contiguous())
+        self._applied_torque_ta = None
 
     def set_joint_stiffness(self, value: torch.Tensor) -> None:
         self._joint_stiffness = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_stiffness_ta = None
 
     def set_joint_damping(self, value: torch.Tensor) -> None:
         self._joint_damping = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_damping_ta = None
 
     def set_joint_armature(self, value: torch.Tensor) -> None:
         self._joint_armature = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_armature_ta = None
 
     def set_joint_friction_coeff(self, value: torch.Tensor) -> None:
         self._joint_friction_coeff = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_friction_coeff_ta = None
 
     def set_joint_pos_limits(self, value: torch.Tensor) -> None:
         self._joint_pos_limits = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_pos_limits_ta = None
 
     def set_joint_vel_limits(self, value: torch.Tensor) -> None:
         self._joint_vel_limits = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_vel_limits_ta = None
 
     def set_joint_effort_limits(self, value: torch.Tensor) -> None:
         self._joint_effort_limits = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_effort_limits_ta = None
 
     def set_soft_joint_pos_limits(self, value: torch.Tensor) -> None:
         self._soft_joint_pos_limits = wp.from_torch(value.to(self.device).contiguous())
+        self._soft_joint_pos_limits_ta = None
 
     def set_soft_joint_vel_limits(self, value: torch.Tensor) -> None:
         self._soft_joint_vel_limits = wp.from_torch(value.to(self.device).contiguous())
+        self._soft_joint_vel_limits_ta = None
 
     def set_gear_ratio(self, value: torch.Tensor) -> None:
         self._gear_ratio = wp.from_torch(value.to(self.device).contiguous())
+        self._gear_ratio_ta = None
 
     def set_joint_pos(self, value: torch.Tensor) -> None:
         self._joint_pos = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_pos_ta = None
 
     def set_joint_vel(self, value: torch.Tensor) -> None:
         self._joint_vel = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_vel_ta = None
 
     def set_joint_acc(self, value: torch.Tensor) -> None:
         self._joint_acc = wp.from_torch(value.to(self.device).contiguous())
+        self._joint_acc_ta = None
 
     def set_root_link_pose_w(self, value: torch.Tensor) -> None:
         self._root_link_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._root_link_pose_w_ta = None
 
     def set_root_link_vel_w(self, value: torch.Tensor) -> None:
         self._root_link_vel_w = wp.from_torch(value.to(self.device).contiguous())
+        self._root_link_vel_w_ta = None
 
     def set_root_com_pose_w(self, value: torch.Tensor) -> None:
         self._root_com_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._root_com_pose_w_ta = None
 
     def set_root_com_vel_w(self, value: torch.Tensor) -> None:
         self._root_com_vel_w = wp.from_torch(value.to(self.device).contiguous())
+        self._root_com_vel_w_ta = None
 
     def set_body_link_pose_w(self, value: torch.Tensor) -> None:
         self._body_link_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._body_link_pose_w_ta = None
 
     def set_body_link_vel_w(self, value: torch.Tensor) -> None:
         self._body_link_vel_w = wp.from_torch(value.to(self.device).contiguous())
+        self._body_link_vel_w_ta = None
 
     def set_body_com_pose_w(self, value: torch.Tensor) -> None:
         self._body_com_pose_w = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._body_com_pose_w_ta = None
 
     def set_body_com_vel_w(self, value: torch.Tensor) -> None:
         self._body_com_vel_w = wp.from_torch(value.to(self.device).contiguous())
+        self._body_com_vel_w_ta = None
 
     def set_body_com_acc_w(self, value: torch.Tensor) -> None:
         self._body_com_acc_w = wp.from_torch(value.to(self.device).contiguous())
+        self._body_com_acc_w_ta = None
 
     def set_body_com_pose_b(self, value: torch.Tensor) -> None:
         self._body_com_pose_b = wp.from_torch(value.to(self.device).contiguous()).view(wp.transformf)
+        self._body_com_pose_b_ta = None
 
     def set_body_mass(self, value: torch.Tensor) -> None:
         self._body_mass = wp.from_torch(value.to(self.device).contiguous())
+        self._body_mass_ta = None
 
     def set_body_inertia(self, value: torch.Tensor) -> None:
         self._body_inertia = wp.from_torch(value.to(self.device).contiguous())
+        self._body_inertia_ta = None
 
     def set_body_incoming_joint_wrench_b(self, value: torch.Tensor) -> None:
         self._body_incoming_joint_wrench_b = wp.from_torch(value.to(self.device).contiguous())
+        self._body_incoming_joint_wrench_b_ta = None
 
     def set_fixed_tendon_stiffness(self, value: torch.Tensor) -> None:
         self._fixed_tendon_stiffness = wp.from_torch(value.to(self.device).contiguous())
+        self._fixed_tendon_stiffness_ta = None
 
     def set_fixed_tendon_damping(self, value: torch.Tensor) -> None:
         self._fixed_tendon_damping = wp.from_torch(value.to(self.device).contiguous())
+        self._fixed_tendon_damping_ta = None
 
     def set_fixed_tendon_limit_stiffness(self, value: torch.Tensor) -> None:
         self._fixed_tendon_limit_stiffness = wp.from_torch(value.to(self.device).contiguous())
+        self._fixed_tendon_limit_stiffness_ta = None
 
     def set_fixed_tendon_rest_length(self, value: torch.Tensor) -> None:
         self._fixed_tendon_rest_length = wp.from_torch(value.to(self.device).contiguous())
+        self._fixed_tendon_rest_length_ta = None
 
     def set_fixed_tendon_offset(self, value: torch.Tensor) -> None:
         self._fixed_tendon_offset = wp.from_torch(value.to(self.device).contiguous())
+        self._fixed_tendon_offset_ta = None
 
     def set_fixed_tendon_pos_limits(self, value: torch.Tensor) -> None:
         self._fixed_tendon_pos_limits = wp.from_torch(value.to(self.device).contiguous())
+        self._fixed_tendon_pos_limits_ta = None
 
     def set_spatial_tendon_stiffness(self, value: torch.Tensor) -> None:
         self._spatial_tendon_stiffness = wp.from_torch(value.to(self.device).contiguous())
+        self._spatial_tendon_stiffness_ta = None
 
     def set_spatial_tendon_damping(self, value: torch.Tensor) -> None:
         self._spatial_tendon_damping = wp.from_torch(value.to(self.device).contiguous())
+        self._spatial_tendon_damping_ta = None
 
     def set_spatial_tendon_limit_stiffness(self, value: torch.Tensor) -> None:
         self._spatial_tendon_limit_stiffness = wp.from_torch(value.to(self.device).contiguous())
+        self._spatial_tendon_limit_stiffness_ta = None
 
     def set_spatial_tendon_offset(self, value: torch.Tensor) -> None:
         self._spatial_tendon_offset = wp.from_torch(value.to(self.device).contiguous())
+        self._spatial_tendon_offset_ta = None
 
     def set_mock_data(self, **kwargs) -> None:
         """Bulk setter for mock data.
@@ -1415,6 +1716,7 @@ class MockArticulation:
         pos_target = wp.to_torch(self._data._joint_pos_target)
         pos_target[env_ids, joint_ids] = target.to(self._device)
         self._data._joint_pos_target = wp.from_torch(pos_target)
+        self._data._joint_pos_target_ta = None
 
     def set_joint_velocity_target(
         self,
@@ -1434,6 +1736,7 @@ class MockArticulation:
         vel_target = wp.to_torch(self._data._joint_vel_target)
         vel_target[env_ids, joint_ids] = target.to(self._device)
         self._data._joint_vel_target = wp.from_torch(vel_target)
+        self._data._joint_vel_target_ta = None
 
     def set_joint_effort_target(
         self,
@@ -1453,6 +1756,7 @@ class MockArticulation:
         effort_target = wp.to_torch(self._data._joint_effort_target)
         effort_target[env_ids, joint_ids] = target.to(self._device)
         self._data._joint_effort_target = wp.from_torch(effort_target)
+        self._data._joint_effort_target_ta = None
 
     # -- Tendon methods (fixed) --
 

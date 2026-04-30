@@ -9,61 +9,31 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
+
+import omni.usd
 
 import isaaclab.sim as sim_utils
 
 logger = logging.getLogger(__name__)
 
-# Module-level dedup stamp: tracks the last (sim instance, physics step) at
+# Module-level dedup stamp: tracks the last (sim instance, physics step, render generation) at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
 # new ``SimulationContext`` (e.g. in a new test) automatically invalidates
 # any stale stamp from a previous instance.
-_last_render_update_key: tuple[int, int] = (0, -1)
-
-# ---------------------------------------------------------------------------
-# RTX streaming status tracking
-# ---------------------------------------------------------------------------
-_RTX_STREAMING_STATUS_EVENT: str = "omni.streamingstatus:streaming_status"
-
-_streaming_is_busy: bool = False
-_streaming_subscription = None
-_streaming_subscribed: bool = False
+_last_render_update_key: tuple[int, int, int] = (0, -1, -1)
 
 _STREAMING_WAIT_TIMEOUT_S: float = 30.0
 
 
-def _on_streaming_status_event(event) -> None:
-    """Callback fired by the RTX renderer whenever streaming status changes."""
-    global _streaming_is_busy
-    try:
-        is_busy = event["isBusy"]
-        if is_busy is not None:
-            _streaming_is_busy = bool(is_busy)
-    except (KeyError, TypeError):
-        pass
+def _get_stage_streaming_busy() -> bool:
+    """Synchronously query whether RTX stage streaming is still in progress."""
+    import omni.usd
 
-
-def _ensure_streaming_subscription() -> None:
-    """Subscribe to RTX streaming status events (idempotent)."""
-    global _streaming_subscription, _streaming_subscribed
-    if _streaming_subscribed:
-        return
-
-    # Mark initialization as attempted even if dispatcher lookup fails.
-    # This flag enforces no-retry behavior after the first attempt.
-    _streaming_subscribed = True
-
-    from carb.eventdispatcher import get_eventdispatcher
-
-    dispatcher = get_eventdispatcher()
-    if dispatcher is None:
-        logger.warning("carb event dispatcher unavailable – RTX streaming wait will be inactive.")
-    else:
-        _streaming_subscription = dispatcher.observe_event(
-            observer_name="isaaclab_rtx_streaming_wait",
-            event_name=_RTX_STREAMING_STATUS_EVENT,
-            on_event=_on_streaming_status_event,
-        )
+    usd_context = omni.usd.get_context()
+    if usd_context is None:
+        return False
+    return usd_context.get_stage_streaming_status()
 
 
 def _wait_for_streaming_complete() -> None:
@@ -75,11 +45,11 @@ def _wait_for_streaming_complete() -> None:
     import omni.kit.app
 
     start = time.monotonic()
-    while _streaming_is_busy and (time.monotonic() - start) < _STREAMING_WAIT_TIMEOUT_S:
+    while _get_stage_streaming_busy() and (time.monotonic() - start) < _STREAMING_WAIT_TIMEOUT_S:
         omni.kit.app.get_app().update()
 
     elapsed = time.monotonic() - start
-    if _streaming_is_busy:
+    if _get_stage_streaming_busy():
         logger.warning(
             "RTX streaming did not complete within %.1f s – proceeding anyway.",
             _STREAMING_WAIT_TIMEOUT_S,
@@ -90,45 +60,71 @@ def _wait_for_streaming_complete() -> None:
     omni.kit.app.get_app().update()
 
 
+def ensure_rtx_hydra_engine_attached() -> None:
+    """Attach the RTX Hydra engine to the USD context if not already attached.
+
+    Headless app files such as ``isaaclab.python.headless.rendering.kit`` intentionally
+    omit ``omni.kit.viewport.window`` to avoid pulling in the ``omni.ui``-based viewport
+    stack. However, ``ViewportWindow`` is normally responsible for calling
+    :func:`omni.usd.create_hydra_engine` at startup; without it the RTX Hydra engine is
+    never bound to the :class:`omni.usd.UsdContext`, and the first Replicator tiled
+    render product runs against a cold pipeline. On some GPUs this manifests as
+    ``cudaErrorIllegalAddress`` inside ``omni.rtx`` (CUDA ``freeAsync``) and/or all
+    tiles rendering as black.
+
+    This helper replicates only the activation step ``ViewportWindow`` performs,
+    without creating a UI or a window. It is idempotent: when the engine is already
+    attached (e.g. GUI runs that do load ``omni.kit.viewport.window``, or a previous
+    call already attached it) the function is a no-op. Failures are logged as errors
+    and do not propagate, so non-RTX contexts (e.g. unit tests importing this module
+    without a running Kit app) continue to work.
+    """
+    try:
+        ctx = omni.usd.get_context()
+        if ctx is None:
+            return
+        if "rtx" in ctx.get_attached_hydra_engine_names():
+            return
+        omni.usd.create_hydra_engine("rtx", ctx)
+    except Exception as e:  # noqa: BLE001
+        logger.error("RTX Hydra engine attach failed: %s", e)
+
+
 def ensure_isaac_rtx_render_update() -> None:
-    """Ensure the Isaac RTX renderer has been pumped for the current physics step.
+    """Ensure the Isaac RTX renderer has been pumped for the current sim step.
 
     This keeps the Kit-specific ``app.update()`` logic inside the renderers
     package rather than in the backend-agnostic ``SimulationContext``.
 
-    Safe to call from multiple ``Camera`` / ``TiledCamera`` instances per step —
+    Safe to call from multiple ``Camera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
     because the module-level ``_last_render_update_key`` already matches the
-    current ``(id(sim), step_count)`` pair.
+    current ``(id(sim), step_count, render_generation)`` tuple.
 
-    The key is a ``(sim_instance_id, step_count)`` tuple so that creating a new
-    ``SimulationContext`` (e.g. in a subsequent test) automatically invalidates
-    any stale stamp left over from a previous instance.
+    The key is a ``(sim_instance_id, step_count, render_generation)`` tuple so that:
+    - creating a new ``SimulationContext`` invalidates stale stamps, and
+    - render/reset transitions that do not advance physics step count still force a fresh update.
 
-    If RTX texture/geometry streaming is in progress, additional
-    ``app.update()`` calls are pumped until the streaming subsystem reports
-    idle (or a timeout is reached).
+    After the initial ``app.update()`` the streaming subsystem is queried
+    synchronously via ``UsdContext.get_stage_streaming_status()``.  If textures
+    are still loading, additional ``app.update()`` calls are pumped until the
+    subsystem reports idle (or a timeout is reached).
 
     No-op conditions:
         * Already called this step (dedup across camera instances).
         * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
         * Rendering is not active.
     """
-    global _last_render_update_key, _streaming_is_busy, _streaming_subscribed, _streaming_subscription
+    global _last_render_update_key
 
     sim = sim_utils.SimulationContext.instance()
     if sim is None:
         return
 
-    key = (id(sim), sim._physics_step_count)
+    render_generation = getattr(sim, "render_generation", getattr(sim, "_render_generation", 0))
+    key = (id(sim), sim._physics_step_count, render_generation)
     if _last_render_update_key == key:
         return  # Already pumped this step (by another camera or a visualizer)
-
-    # Reset stale streaming state when a new SimulationContext is detected.
-    if key[0] != _last_render_update_key[0]:
-        _streaming_is_busy = False
-        _streaming_subscribed = False
-        _streaming_subscription = None
 
     # If a visualizer already pumps the Kit app loop, mark as done and skip.
     if any(viz.pumps_app_update() for viz in sim.visualizers):
@@ -137,8 +133,6 @@ def ensure_isaac_rtx_render_update() -> None:
 
     if not sim.is_rendering:
         return
-
-    _ensure_streaming_subscription()
 
     # Sync physics results → Fabric so RTX sees updated positions.
     # physics_manager.step() only runs simulate()/fetch_results() and does NOT
@@ -150,9 +144,34 @@ def ensure_isaac_rtx_render_update() -> None:
     sim.set_setting("/app/player/playSimulations", False)
     omni.kit.app.get_app().update()
 
-    if _streaming_is_busy:
+    if _get_stage_streaming_busy():
         _wait_for_streaming_complete()
 
     sim.set_setting("/app/player/playSimulations", True)
 
     _last_render_update_key = key
+
+
+def pump_kit_app_for_headless_video_render_if_needed(sim: Any) -> None:
+    """Pump Kit app-loop for headless rgb-array rendering when needed.
+
+    Isaac Sim / RTX specific; kept out of backend-agnostic :class:`~isaaclab.sim.SimulationContext`.
+    """
+    if not bool(sim.get_setting("/isaaclab/video/enabled")):
+        return
+
+    from isaaclab.utils.version import has_kit
+
+    if not has_kit():
+        return
+    if any(viz.pumps_app_update() for viz in sim.visualizers):
+        return
+    try:
+        ensure_isaac_rtx_render_update()
+    except (ImportError, AttributeError, ModuleNotFoundError) as exc:
+        logger.debug("[isaac_rtx] Skipping Kit app-loop pump in render() (non-Kit env): %s", exc)
+    except Exception as exc:
+        logger.warning(
+            "[isaac_rtx] Kit app-loop pump failed in render() — video frames may be stale or black: %s",
+            exc,
+        )

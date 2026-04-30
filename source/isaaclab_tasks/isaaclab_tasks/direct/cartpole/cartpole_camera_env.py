@@ -10,12 +10,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sensors import TiledCamera, save_images_to_file
+from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
@@ -58,8 +57,8 @@ class CartpoleCameraEnv(DirectRLEnv):
         self._pole_dof_idx, _ = self._cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
 
-        self.joint_pos = wp.to_torch(self._cartpole.data.joint_pos)
-        self.joint_vel = wp.to_torch(self._cartpole.data.joint_vel)
+        self.joint_pos = self._cartpole.data.joint_pos.torch
+        self.joint_vel = self._cartpole.data.joint_vel.torch
 
         if len(self.cfg.tiled_camera.data_types) != 1:
             raise ValueError(
@@ -74,7 +73,7 @@ class CartpoleCameraEnv(DirectRLEnv):
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera."""
         self._cartpole = Articulation(self.cfg.robot_cfg)
-        self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
+        self._tiled_camera = Camera(self.cfg.tiled_camera)
 
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
@@ -141,8 +140,8 @@ class CartpoleCameraEnv(DirectRLEnv):
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        self.joint_pos = wp.to_torch(self._cartpole.data.joint_pos)
-        self.joint_vel = wp.to_torch(self._cartpole.data.joint_vel)
+        self.joint_pos = self._cartpole.data.joint_pos.torch
+        self.joint_vel = self._cartpole.data.joint_vel.torch
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
@@ -154,18 +153,18 @@ class CartpoleCameraEnv(DirectRLEnv):
             env_ids = self._cartpole._ALL_INDICES
         super()._reset_idx(env_ids)
 
-        joint_pos = wp.to_torch(self._cartpole.data.default_joint_pos)[env_ids]
+        joint_pos = self._cartpole.data.default_joint_pos.torch[env_ids]
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
             self.cfg.initial_pole_angle_range[0] * math.pi,
             self.cfg.initial_pole_angle_range[1] * math.pi,
             joint_pos[:, self._pole_dof_idx].shape,
             joint_pos.device,
         )
-        joint_vel = wp.to_torch(self._cartpole.data.default_joint_vel)[env_ids]
+        joint_vel = self._cartpole.data.default_joint_vel.torch[env_ids]
 
-        default_root_pose = wp.to_torch(self._cartpole.data.default_root_pose)[env_ids]
+        default_root_pose = self._cartpole.data.default_root_pose.torch[env_ids]
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
-        default_root_vel = wp.to_torch(self._cartpole.data.default_root_vel)[env_ids]
+        default_root_vel = self._cartpole.data.default_root_vel.torch[env_ids]
 
         self.joint_pos[env_ids] = joint_pos
         self.joint_vel[env_ids] = joint_vel

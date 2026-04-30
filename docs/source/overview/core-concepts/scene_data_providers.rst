@@ -27,9 +27,9 @@ The system has three layers:
 
 1. **BaseSceneDataProvider** — abstract interface defining the contract:
 
-   - ``update(env_ids)`` — refresh cached scene data
+   - ``update()`` — refresh cached scene data (full Newton model/state sync when applicable)
    - ``get_newton_model()`` — return Newton model handle (if available)
-   - ``get_newton_state(env_ids)`` — return Newton state handle (if available)
+   - ``get_newton_state()`` — return Newton state handle (if available)
    - ``get_usd_stage()`` — return USD stage handle (if available)
    - ``get_transforms()`` — return body transforms
    - ``get_velocities()`` — return body velocities
@@ -55,7 +55,7 @@ Newton-based visualizers (Newton, Rerun, Viser) require a Newton model/state to 
 The sync pipeline:
 
 1. Reads transforms from PhysX ``RigidBodyView`` (fast tensor API)
-2. Falls back to ``XformPrimView`` for bodies not covered by the rigid body view
+2. Falls back to :class:`~isaaclab.sim.views.FrameView` for bodies not covered by the rigid body view
 3. Converts and writes merged poses into the Newton state via Warp kernels
 
 Newton Scene Data Provider

@@ -22,7 +22,7 @@ Tactile sensors require specific configuration parameters to define their behavi
 
 .. code-block:: python
 
-    from isaaclab.sensors import TiledCameraCfg
+    from isaaclab.sensors import CameraCfg
     from isaaclab_assets.sensors import GELSIGHT_R15_CFG
     import isaaclab.sim as sim_utils
 
@@ -45,7 +45,7 @@ Tactile sensors require specific configuration parameters to define their behavi
         friction_coefficient=2.0,
         tangential_stiffness=0.1,
         ## Camera configuration
-        camera_cfg=TiledCameraCfg(
+        camera_cfg=CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
             update_period=1 / 60,  # 60 Hz
             height=320,
@@ -66,7 +66,7 @@ The configuration supports customization of:
 * **Contact Object Configuration**: Define properties of interacting objects using prim path expressions to locate objects with SDF collision meshes
 * **Physics Parameters**: Control the sensor's force field computation:
     * ``normal_contact_stiffness``, ``friction_coefficient``, ``tangential_stiffness`` - Normal stiffness, friction coefficient, and tangential stiffness
-* **Camera Settings**: Configure resolution, update rates, and data types, currently only ``distance_to_image_plane`` (alias for ``depth``) is supported.
+* **Camera Settings**: Configure resolution, update rates, and data types using :class:`~sensors.CameraCfg`. Currently only ``distance_to_image_plane`` (alias for ``depth``) is supported.
     ``spawn`` is set to ``None`` by default, which means that the camera is already spawned in the USD file.
     If you want to spawn the camera yourself and set focal length, etc., you can set the spawn configuration to a valid spawn configuration.
 
@@ -77,7 +77,7 @@ Configuration Requirements
    The following requirements must be satisfied for proper sensor operation:
 
    **Camera Tactile Imaging**
-      If ``enable_camera_tactile=True``, a valid ``camera_cfg`` (TiledCameraCfg) must be provided with appropriate camera parameters.
+      If ``enable_camera_tactile=True``, a valid ``camera_cfg`` (CameraCfg) must be provided with appropriate camera parameters.
 
    **Force Field Computation**
       If ``enable_force_field=True``, the following parameters are required:

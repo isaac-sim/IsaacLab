@@ -13,16 +13,25 @@ the base articulation class advertises. All articulation interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Launch Isaac Sim Simulator first (when available)."""
 
-from isaaclab.app import AppLauncher
-
-HEADLESS = True
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
+import os
+import sys
 from unittest.mock import MagicMock
+
+# When running kitless (e.g., ovphysx backend via run_ovphysx.sh), AppLauncher
+# will try to boot Kit and hang. Skip it entirely when LD_PRELOAD is cleared
+# (the signature of run_ovphysx.sh) or when EXP_PATH is not set.
+_kitless = os.environ.get("LD_PRELOAD", "") == "" and "EXP_PATH" not in os.environ
+
+if not _kitless:
+    from isaaclab.app import AppLauncher
+
+    simulation_app = AppLauncher(headless=True).app
+else:
+    simulation_app = None
+    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
+        sys.modules.setdefault(_mod, MagicMock())
 
 import numpy as np
 import pytest
@@ -32,13 +41,14 @@ import warp as wp
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
 
-# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity
-# This is needed because the Data classes call SimulationManager.get_physics_sim_view().get_gravity()
-# but there's no actual physics scene when running unit tests
+# Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity.
+# This is needed because the PhysX Data classes call
+# SimulationManager.get_physics_sim_view().get_gravity() but there's no actual
+# physics scene when running unit tests.
 _mock_physics_sim_view = MagicMock()
 _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
 
-from isaacsim.core.simulation_manager import SimulationManager
+from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
@@ -63,6 +73,15 @@ try:
     from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
 
     BACKENDS.append("newton")
+except ImportError:
+    pass
+
+try:
+    from isaaclab_ovphysx.assets.articulation.articulation import Articulation as OvPhysxArticulation
+    from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
+    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
+
+    BACKENDS.append("ovphysx")
 except ImportError:
     pass
 
@@ -167,6 +186,87 @@ def create_physx_articulation(
     object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
 
     return articulation, mock_view
+
+
+def create_ovphysx_articulation(
+    num_instances: int = 2,
+    num_joints: int = 6,
+    num_bodies: int = 7,
+    num_fixed_tendons: int = 0,
+    num_spatial_tendons: int = 0,
+    device: str = "cuda:0",
+):
+    """Create a test OvPhysX Articulation instance with mocked tensor bindings."""
+    joint_names = [f"joint_{i}" for i in range(num_joints)]
+    body_names = [f"body_{i}" for i in range(num_bodies)]
+
+    articulation = object.__new__(OvPhysxArticulation)
+
+    articulation.cfg = ArticulationCfg(
+        prim_path="/World/Robot",
+        soft_joint_pos_limit_factor=1.0,
+        actuators={},
+    )
+
+    # Create mock binding set
+    mock_bindings = MockOvPhysxBindingSet(
+        num_instances=num_instances,
+        num_joints=num_joints,
+        num_bodies=num_bodies,
+        is_fixed_base=False,
+        joint_names=joint_names,
+        body_names=body_names,
+        num_fixed_tendons=num_fixed_tendons,
+        num_spatial_tendons=num_spatial_tendons,
+    )
+    mock_bindings.set_random_data()
+
+    fixed_tendon_names = [f"fixed_tendon_{i}" for i in range(num_fixed_tendons)]
+    spatial_tendon_names = [f"spatial_tendon_{i}" for i in range(num_spatial_tendons)]
+
+    object.__setattr__(articulation, "_device", device)
+    object.__setattr__(articulation, "_ovphysx", MagicMock())
+    object.__setattr__(articulation, "_bindings", mock_bindings.bindings)
+    object.__setattr__(articulation, "_num_instances", num_instances)
+    object.__setattr__(articulation, "_num_joints", num_joints)
+    object.__setattr__(articulation, "_num_bodies", num_bodies)
+    object.__setattr__(articulation, "_is_fixed_base", False)
+    object.__setattr__(articulation, "_joint_names", joint_names)
+    object.__setattr__(articulation, "_body_names", body_names)
+    object.__setattr__(articulation, "_fixed_tendon_names", fixed_tendon_names)
+    object.__setattr__(articulation, "_spatial_tendon_names", spatial_tendon_names)
+    object.__setattr__(articulation, "_num_fixed_tendons", num_fixed_tendons)
+    object.__setattr__(articulation, "_num_spatial_tendons", num_spatial_tendons)
+
+    # Create ArticulationData
+    data = OvPhysxArticulationData(mock_bindings.bindings, device)
+    data._num_instances = num_instances
+    data._num_joints = num_joints
+    data._num_bodies = num_bodies
+    data._num_fixed_tendons = num_fixed_tendons
+    data._num_spatial_tendons = num_spatial_tendons
+    data._is_fixed_base = False
+    data.body_names = body_names
+    data.joint_names = joint_names
+    data.fixed_tendon_names = fixed_tendon_names
+    data.spatial_tendon_names = spatial_tendon_names
+    data._create_buffers()
+    object.__setattr__(articulation, "_data", data)
+
+    # Wrench composers
+    mock_inst_wrench = MockWrenchComposer(articulation)
+    mock_perm_wrench = MockWrenchComposer(articulation)
+    object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
+    object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
+
+    # Prevent __del__ / _clear_callbacks from raising
+    object.__setattr__(articulation, "_initialize_handle", None)
+    object.__setattr__(articulation, "_invalidate_initialize_handle", None)
+    object.__setattr__(articulation, "_prim_deletion_handle", None)
+    object.__setattr__(articulation, "_debug_vis_handle", None)
+    object.__setattr__(articulation, "actuators", {})
+
+    return articulation, mock_bindings
 
 
 def create_newton_articulation(
@@ -326,6 +426,10 @@ def get_articulation(
         return create_physx_articulation(
             num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
         )
+    elif backend == "ovphysx":
+        return create_ovphysx_articulation(
+            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
+        )
     elif backend == "newton":
         return create_newton_articulation(num_instances, num_joints, num_bodies, device)
     elif backend.lower() == "mock":
@@ -361,9 +465,11 @@ def articulation_iface(request):
 # ---------------------------------------------------------------------------
 
 
-def _check_wp_array(arr, *, expected_shape: tuple, expected_dtype: type, name: str):
-    """Assert that `arr` is a wp.array with the expected shape and dtype."""
-    assert isinstance(arr, wp.array), f"{name}: expected wp.array, got {type(arr)}"
+def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name: str):
+    """Assert that `arr` is a ProxyArray with the expected shape and dtype."""
+    from isaaclab.utils.warp import ProxyArray
+
+    assert isinstance(arr, ProxyArray), f"{name}: expected ProxyArray, got {type(arr)}"
     assert arr.shape == expected_shape, f"{name}: expected shape {expected_shape}, got {arr.shape}"
     assert arr.dtype == expected_dtype, f"{name}: expected dtype {expected_dtype}, got {arr.dtype}"
 
@@ -499,6 +605,72 @@ class TestArticulationFinders:
 
 
 # ---------------------------------------------------------------------------
+# Tests: resolve_matching_names caching behavior
+# ---------------------------------------------------------------------------
+
+
+_non_mock_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "mock"], indirect=False)
+
+
+class TestResolveMatchingNamesCache:
+    """Test that resolve_matching_names caching returns correct, isolated results."""
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
+    @_default_devices
+    def test_unmatched_regex_raises(self, backend, num_instances, num_joints, num_bodies, device):
+        """ValueError from resolve_matching_names propagates correctly."""
+        art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        with pytest.raises(ValueError):
+            art.find_bodies("nonexistent_body_xyz")
+        with pytest.raises(ValueError):
+            art.find_joints("nonexistent_joint_xyz")
+
+    @_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
+    @_default_devices
+    def test_mutating_result_does_not_corrupt_cache(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
+    ):
+        """Mutating returned lists must not affect future cached results."""
+        art, _ = articulation_iface
+
+        for finder, expected_len in [("find_bodies", num_bodies), ("find_joints", num_joints)]:
+            idx1, names1 = getattr(art, finder)(".*")
+            assert len(idx1) == expected_len
+
+            idx1.clear()
+            names1.append("corrupted")
+
+            idx2, names2 = getattr(art, finder)(".*")
+            assert len(idx2) == expected_len
+            assert "corrupted" not in names2
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
+    @_default_devices
+    def test_find_with_multiple_patterns(self, backend, num_instances, num_joints, num_bodies, device):
+        """Passing a list of regex patterns works correctly."""
+        art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        idx, names = art.find_joints(["joint_0", "joint_1"])
+        assert "joint_0" in names
+        assert "joint_1" in names
+        assert len(names) == 2
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 6, 7)])
+    @_default_devices
+    def test_find_with_preserve_order(self, backend, num_instances, num_joints, num_bodies, device):
+        """preserve_order=True returns names in the order of the input patterns."""
+        art, _ = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        idx_fwd, names_fwd = art.find_joints(["joint_1", "joint_0"], preserve_order=True)
+        assert names_fwd == ["joint_1", "joint_0"]
+
+        idx_rev, names_rev = art.find_joints(["joint_0", "joint_1"], preserve_order=True)
+        assert names_rev == ["joint_0", "joint_1"]
+
+
+# ---------------------------------------------------------------------------
 # Tests: ArticulationData root state properties
 # ---------------------------------------------------------------------------
 
@@ -512,7 +684,7 @@ class TestArticulationDataRootState:
     def test_root_link_pose_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_link_pose_w,
             expected_shape=(num_instances,),
             expected_dtype=wp.transformf,
@@ -525,7 +697,7 @@ class TestArticulationDataRootState:
     def test_root_link_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_link_vel_w,
             expected_shape=(num_instances,),
             expected_dtype=wp.spatial_vectorf,
@@ -538,7 +710,7 @@ class TestArticulationDataRootState:
     def test_root_com_pose_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_com_pose_w,
             expected_shape=(num_instances,),
             expected_dtype=wp.transformf,
@@ -551,7 +723,7 @@ class TestArticulationDataRootState:
     def test_root_com_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_com_vel_w,
             expected_shape=(num_instances,),
             expected_dtype=wp.spatial_vectorf,
@@ -564,7 +736,7 @@ class TestArticulationDataRootState:
     def test_root_link_pos_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_link_pos_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_link_pos_w"
         )
 
@@ -574,7 +746,7 @@ class TestArticulationDataRootState:
     def test_root_link_quat_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_link_quat_w, expected_shape=(num_instances,), expected_dtype=wp.quatf, name="root_link_quat_w"
         )
 
@@ -584,7 +756,7 @@ class TestArticulationDataRootState:
     def test_root_link_lin_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_link_lin_vel_w,
             expected_shape=(num_instances,),
             expected_dtype=wp.vec3f,
@@ -597,7 +769,7 @@ class TestArticulationDataRootState:
     def test_root_link_ang_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_link_ang_vel_w,
             expected_shape=(num_instances,),
             expected_dtype=wp.vec3f,
@@ -610,7 +782,7 @@ class TestArticulationDataRootState:
     def test_root_com_pos_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_com_pos_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_com_pos_w"
         )
 
@@ -620,7 +792,7 @@ class TestArticulationDataRootState:
     def test_root_com_quat_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_com_quat_w, expected_shape=(num_instances,), expected_dtype=wp.quatf, name="root_com_quat_w"
         )
 
@@ -630,7 +802,7 @@ class TestArticulationDataRootState:
     def test_root_com_lin_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_com_lin_vel_w,
             expected_shape=(num_instances,),
             expected_dtype=wp.vec3f,
@@ -643,7 +815,7 @@ class TestArticulationDataRootState:
     def test_root_com_ang_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_com_ang_vel_w,
             expected_shape=(num_instances,),
             expected_dtype=wp.vec3f,
@@ -665,7 +837,7 @@ class TestArticulationDataDerivedProperties:
     def test_projected_gravity_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.projected_gravity_b,
             expected_shape=(num_instances,),
             expected_dtype=wp.vec3f,
@@ -678,7 +850,7 @@ class TestArticulationDataDerivedProperties:
     def test_heading_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.heading_w, expected_shape=(num_instances,), expected_dtype=wp.float32, name="heading_w"
         )
 
@@ -688,7 +860,7 @@ class TestArticulationDataDerivedProperties:
     def test_root_link_lin_vel_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_link_lin_vel_b,
             expected_shape=(num_instances,),
             expected_dtype=wp.vec3f,
@@ -701,7 +873,7 @@ class TestArticulationDataDerivedProperties:
     def test_root_link_ang_vel_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_link_ang_vel_b,
             expected_shape=(num_instances,),
             expected_dtype=wp.vec3f,
@@ -714,7 +886,7 @@ class TestArticulationDataDerivedProperties:
     def test_root_com_lin_vel_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_com_lin_vel_b,
             expected_shape=(num_instances,),
             expected_dtype=wp.vec3f,
@@ -727,7 +899,7 @@ class TestArticulationDataDerivedProperties:
     def test_root_com_ang_vel_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.root_com_ang_vel_b,
             expected_shape=(num_instances,),
             expected_dtype=wp.vec3f,
@@ -749,7 +921,7 @@ class TestArticulationDataBodyState:
     def test_body_link_pose_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_link_pose_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.transformf,
@@ -762,7 +934,7 @@ class TestArticulationDataBodyState:
     def test_body_link_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_link_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.spatial_vectorf,
@@ -775,7 +947,7 @@ class TestArticulationDataBodyState:
     def test_body_com_pose_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_com_pose_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.transformf,
@@ -788,7 +960,7 @@ class TestArticulationDataBodyState:
     def test_body_com_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_com_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.spatial_vectorf,
@@ -801,7 +973,7 @@ class TestArticulationDataBodyState:
     def test_body_com_acc_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_com_acc_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.spatial_vectorf,
@@ -816,7 +988,7 @@ class TestArticulationDataBodyState:
             pytest.xfail("Newton only stores CoM position, not orientation")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_com_pose_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.transformf,
@@ -829,7 +1001,7 @@ class TestArticulationDataBodyState:
     def test_body_mass(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_mass, expected_shape=(num_instances, num_bodies), expected_dtype=wp.float32, name="body_mass"
         )
 
@@ -839,7 +1011,7 @@ class TestArticulationDataBodyState:
     def test_body_inertia(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_inertia,
             expected_shape=(num_instances, num_bodies, 9),
             expected_dtype=wp.float32,
@@ -856,7 +1028,7 @@ class TestArticulationDataBodyState:
             pytest.xfail("Newton does not support joint wrench reporting")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_incoming_joint_wrench_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.spatial_vectorf,
@@ -869,7 +1041,7 @@ class TestArticulationDataBodyState:
     def test_body_link_pos_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_link_pos_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -882,7 +1054,7 @@ class TestArticulationDataBodyState:
     def test_body_link_quat_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_link_quat_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.quatf,
@@ -895,7 +1067,7 @@ class TestArticulationDataBodyState:
     def test_body_link_lin_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_link_lin_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -908,7 +1080,7 @@ class TestArticulationDataBodyState:
     def test_body_link_ang_vel_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_link_ang_vel_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -921,7 +1093,7 @@ class TestArticulationDataBodyState:
     def test_body_com_pos_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_com_pos_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -934,7 +1106,7 @@ class TestArticulationDataBodyState:
     def test_body_com_quat_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_com_quat_w,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.quatf,
@@ -947,7 +1119,7 @@ class TestArticulationDataBodyState:
     def test_body_com_pos_b(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_com_pos_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.vec3f,
@@ -962,7 +1134,7 @@ class TestArticulationDataBodyState:
             pytest.xfail("Newton only stores CoM position, not orientation")
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.body_com_quat_b,
             expected_shape=(num_instances, num_bodies),
             expected_dtype=wp.quatf,
@@ -984,7 +1156,7 @@ class TestArticulationDataJointState:
     def test_joint_pos(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_pos, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_pos"
         )
 
@@ -994,7 +1166,7 @@ class TestArticulationDataJointState:
     def test_joint_vel(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_vel, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_vel"
         )
 
@@ -1004,7 +1176,7 @@ class TestArticulationDataJointState:
     def test_joint_acc(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_acc, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_acc"
         )
 
@@ -1014,7 +1186,7 @@ class TestArticulationDataJointState:
     def test_joint_stiffness(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_stiffness,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1027,7 +1199,7 @@ class TestArticulationDataJointState:
     def test_joint_damping(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_damping,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1040,7 +1212,7 @@ class TestArticulationDataJointState:
     def test_joint_armature(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_armature,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1053,7 +1225,7 @@ class TestArticulationDataJointState:
     def test_joint_friction_coeff(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_friction_coeff,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1066,7 +1238,7 @@ class TestArticulationDataJointState:
     def test_joint_pos_limits(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_pos_limits,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.vec2f,
@@ -1079,7 +1251,7 @@ class TestArticulationDataJointState:
     def test_joint_vel_limits(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_vel_limits,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1092,7 +1264,7 @@ class TestArticulationDataJointState:
     def test_joint_effort_limits(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_effort_limits,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1105,7 +1277,7 @@ class TestArticulationDataJointState:
     def test_soft_joint_pos_limits(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.soft_joint_pos_limits,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.vec2f,
@@ -1127,7 +1299,7 @@ class TestArticulationDataDefaults:
     def test_default_root_pose(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.default_root_pose,
             expected_shape=(num_instances,),
             expected_dtype=wp.transformf,
@@ -1140,7 +1312,7 @@ class TestArticulationDataDefaults:
     def test_default_root_vel(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.default_root_vel,
             expected_shape=(num_instances,),
             expected_dtype=wp.spatial_vectorf,
@@ -1153,7 +1325,7 @@ class TestArticulationDataDefaults:
     def test_default_joint_pos(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.default_joint_pos,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1166,7 +1338,7 @@ class TestArticulationDataDefaults:
     def test_default_joint_vel(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.default_joint_vel,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1179,7 +1351,7 @@ class TestArticulationDataDefaults:
     def test_joint_pos_target(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_pos_target,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1192,7 +1364,7 @@ class TestArticulationDataDefaults:
     def test_joint_vel_target(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_vel_target,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -1205,7 +1377,7 @@ class TestArticulationDataDefaults:
     def test_joint_effort_target(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.joint_effort_target,
             expected_shape=(num_instances, num_joints),
             expected_dtype=wp.float32,
@@ -2016,7 +2188,7 @@ class TestArticulationDataTendonState:
     ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.fixed_tendon_stiffness,
             expected_shape=(num_instances, num_fixed_tendons),
             expected_dtype=wp.float32,
@@ -2039,7 +2211,7 @@ class TestArticulationDataTendonState:
     ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.fixed_tendon_damping,
             expected_shape=(num_instances, num_fixed_tendons),
             expected_dtype=wp.float32,
@@ -2062,7 +2234,7 @@ class TestArticulationDataTendonState:
     ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.fixed_tendon_limit_stiffness,
             expected_shape=(num_instances, num_fixed_tendons),
             expected_dtype=wp.float32,
@@ -2085,7 +2257,7 @@ class TestArticulationDataTendonState:
     ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.fixed_tendon_rest_length,
             expected_shape=(num_instances, num_fixed_tendons),
             expected_dtype=wp.float32,
@@ -2108,7 +2280,7 @@ class TestArticulationDataTendonState:
     ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.fixed_tendon_offset,
             expected_shape=(num_instances, num_fixed_tendons),
             expected_dtype=wp.float32,
@@ -2131,8 +2303,10 @@ class TestArticulationDataTendonState:
     ):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
+        from isaaclab.utils.warp import ProxyArray
+
         arr = art.data.fixed_tendon_pos_limits
-        assert isinstance(arr, wp.array), f"fixed_tendon_pos_limits: expected wp.array, got {type(arr)}"
+        assert isinstance(arr, ProxyArray), f"fixed_tendon_pos_limits: expected ProxyArray, got {type(arr)}"
         if num_fixed_tendons == 0:
             # When no tendons, shape is (N, 0, 2) float32
             assert arr.shape == (num_instances, 0, 2)
@@ -2162,7 +2336,7 @@ class TestArticulationDataTendonState:
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.spatial_tendon_stiffness,
             expected_shape=(num_instances, num_spatial_tendons),
             expected_dtype=wp.float32,
@@ -2187,7 +2361,7 @@ class TestArticulationDataTendonState:
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.spatial_tendon_damping,
             expected_shape=(num_instances, num_spatial_tendons),
             expected_dtype=wp.float32,
@@ -2212,7 +2386,7 @@ class TestArticulationDataTendonState:
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.spatial_tendon_limit_stiffness,
             expected_shape=(num_instances, num_spatial_tendons),
             expected_dtype=wp.float32,
@@ -2237,7 +2411,7 @@ class TestArticulationDataTendonState:
         if num_spatial_tendons == 0:
             pytest.skip("No spatial tendons configured")
         art.data.update(dt=0.01)
-        _check_wp_array(
+        _check_proxy_array(
             art.data.spatial_tendon_offset,
             expected_shape=(num_instances, num_spatial_tendons),
             expected_dtype=wp.float32,

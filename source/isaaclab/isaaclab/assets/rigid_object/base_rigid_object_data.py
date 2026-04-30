@@ -8,6 +8,8 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 
 class BaseRigidObjectData(ABC):
     """Data container for a rigid object.
@@ -61,7 +63,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def default_root_pose(self) -> wp.array:
+    def default_root_pose(self) -> ProxyArray:
         """Default root pose ``[pos, quat]`` in local environment frame.
 
         The position and quaternion are of the rigid body's actor frame.
@@ -71,7 +73,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def default_root_vel(self) -> wp.array:
+    def default_root_vel(self) -> ProxyArray:
         """Default root velocity ``[lin_vel, ang_vel]`` in local environment frame.
 
         The linear and angular velocities are of the rigid body's center of mass frame.
@@ -81,7 +83,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def default_root_state(self) -> wp.array:
+    def default_root_state(self) -> ProxyArray:
         """Deprecated, same as :attr:`default_root_pose` and :attr:`default_root_vel`."""
         raise NotImplementedError()
 
@@ -91,7 +93,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_pose_w(self) -> wp.array:
+    def root_link_pose_w(self) -> ProxyArray:
         """Root link pose ``[pos, quat]`` in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
@@ -103,7 +105,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_vel_w(self) -> wp.array:
+    def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
@@ -115,7 +117,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_pose_w(self) -> wp.array:
+    def root_com_pose_w(self) -> ProxyArray:
         """Root center of mass pose ``[pos, quat]`` in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
@@ -127,7 +129,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_vel_w(self) -> wp.array:
+    def root_com_vel_w(self) -> ProxyArray:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 6).
@@ -139,19 +141,19 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_state_w(self) -> wp.array:
+    def root_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def root_link_state_w(self) -> wp.array:
+    def root_link_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`root_link_pose_w` and :attr:`root_link_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def root_com_state_w(self) -> wp.array:
+    def root_com_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`root_com_pose_w` and :attr:`root_com_vel_w`."""
         raise NotImplementedError()
 
@@ -161,7 +163,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_pose_w(self) -> wp.array:
+    def body_link_pose_w(self) -> ProxyArray:
         """Body link pose ``[pos, quat]`` in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.transformf.
@@ -174,7 +176,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_vel_w(self) -> wp.array:
+    def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.spatial_vectorf.
@@ -187,7 +189,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pose_w(self) -> wp.array:
+    def body_com_pose_w(self) -> ProxyArray:
         """Body center of mass pose ``[pos, quat]`` in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.transformf.
@@ -200,7 +202,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_vel_w(self) -> wp.array:
+    def body_com_vel_w(self) -> ProxyArray:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.spatial_vectorf.
@@ -213,25 +215,25 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_state_w(self) -> wp.array:
+    def body_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_link_state_w(self) -> wp.array:
+    def body_link_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_link_pose_w` and :attr:`body_link_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_state_w(self) -> wp.array:
+    def body_com_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def body_com_acc_w(self) -> wp.array:
+    def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies ``[lin_acc, ang_acc]`` in the simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.spatial_vectorf.
@@ -243,7 +245,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pose_b(self) -> wp.array:
+    def body_com_pose_b(self) -> ProxyArray:
         """Center of mass pose ``[pos, quat]`` of all bodies in their respective body's link frames.
 
         Shape is (num_instances, 1), dtype = wp.transformf.
@@ -256,7 +258,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_mass(self) -> wp.array:
+    def body_mass(self) -> ProxyArray:
         """Mass of all bodies in the simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.float32.
@@ -266,7 +268,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_inertia(self) -> wp.array:
+    def body_inertia(self) -> ProxyArray:
         """Inertia of all bodies in the simulation world frame.
 
         Shape is (num_instances, 1, 9), dtype = wp.float32.
@@ -280,7 +282,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def projected_gravity_b(self) -> wp.array:
+    def projected_gravity_b(self) -> ProxyArray:
         """Projection of the gravity direction on base frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -289,7 +291,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def heading_w(self) -> wp.array:
+    def heading_w(self) -> ProxyArray:
         """Yaw heading of the base frame (in radians).
 
         Shape is (num_instances,), dtype = wp.float32. In torch this resolves to (num_instances,).
@@ -302,7 +304,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_lin_vel_b(self) -> wp.array:
+    def root_link_lin_vel_b(self) -> ProxyArray:
         """Root link linear velocity in base frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -314,7 +316,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_ang_vel_b(self) -> wp.array:
+    def root_link_ang_vel_b(self) -> ProxyArray:
         """Root link angular velocity in base frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -326,7 +328,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_lin_vel_b(self) -> wp.array:
+    def root_com_lin_vel_b(self) -> ProxyArray:
         """Root center of mass linear velocity in base frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -338,7 +340,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_ang_vel_b(self) -> wp.array:
+    def root_com_ang_vel_b(self) -> ProxyArray:
         """Root center of mass angular velocity in base frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -354,7 +356,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_pos_w(self) -> wp.array:
+    def root_link_pos_w(self) -> ProxyArray:
         """Root link position in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -365,7 +367,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_quat_w(self) -> wp.array:
+    def root_link_quat_w(self) -> ProxyArray:
         """Root link orientation (x, y, z, w) in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
@@ -376,7 +378,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_lin_vel_w(self) -> wp.array:
+    def root_link_lin_vel_w(self) -> ProxyArray:
         """Root linear velocity in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -387,7 +389,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_link_ang_vel_w(self) -> wp.array:
+    def root_link_ang_vel_w(self) -> ProxyArray:
         """Root link angular velocity in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -398,7 +400,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_pos_w(self) -> wp.array:
+    def root_com_pos_w(self) -> ProxyArray:
         """Root center of mass position in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -409,7 +411,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_quat_w(self) -> wp.array:
+    def root_com_quat_w(self) -> ProxyArray:
         """Root center of mass orientation (x, y, z, w) in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
@@ -420,7 +422,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_lin_vel_w(self) -> wp.array:
+    def root_com_lin_vel_w(self) -> ProxyArray:
         """Root center of mass linear velocity in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -431,7 +433,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def root_com_ang_vel_w(self) -> wp.array:
+    def root_com_ang_vel_w(self) -> ProxyArray:
         """Root center of mass angular velocity in simulation world frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -442,7 +444,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_pos_w(self) -> wp.array:
+    def body_link_pos_w(self) -> ProxyArray:
         """Positions of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.vec3f.  In torch this resolves to (num_instances, 1, 3).
@@ -453,7 +455,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_quat_w(self) -> wp.array:
+    def body_link_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
@@ -464,7 +466,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_lin_vel_w(self) -> wp.array:
+    def body_link_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
@@ -475,7 +477,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_link_ang_vel_w(self) -> wp.array:
+    def body_link_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
@@ -486,7 +488,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pos_w(self) -> wp.array:
+    def body_com_pos_w(self) -> ProxyArray:
         """Positions of all bodies' center of mass in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
@@ -497,7 +499,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_quat_w(self) -> wp.array:
+    def body_com_quat_w(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
@@ -508,7 +510,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_lin_vel_w(self) -> wp.array:
+    def body_com_lin_vel_w(self) -> ProxyArray:
         """Linear velocity of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
@@ -519,7 +521,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_vel_w(self) -> wp.array:
+    def body_com_ang_vel_w(self) -> ProxyArray:
         """Angular velocity of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
@@ -530,7 +532,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_lin_acc_w(self) -> wp.array:
+    def body_com_lin_acc_w(self) -> ProxyArray:
         """Linear acceleration of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
@@ -541,7 +543,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_ang_acc_w(self) -> wp.array:
+    def body_com_ang_acc_w(self) -> ProxyArray:
         """Angular acceleration of all bodies in simulation world frame.
 
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
@@ -552,7 +554,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_pos_b(self) -> wp.array:
+    def body_com_pos_b(self) -> ProxyArray:
         """Center of mass position of all of the bodies in their respective link frames.
 
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
@@ -563,7 +565,7 @@ class BaseRigidObjectData(ABC):
 
     @property
     @abstractmethod
-    def body_com_quat_b(self) -> wp.array:
+    def body_com_quat_b(self) -> ProxyArray:
         """Orientation (x, y, z, w) of the principal axes of inertia of all of the bodies in their
         respective link frames.
 
@@ -583,97 +585,97 @@ class BaseRigidObjectData(ABC):
     """
 
     @property
-    def root_pose_w(self) -> wp.array:
+    def root_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pose_w`."""
         return self.root_link_pose_w
 
     @property
-    def root_pos_w(self) -> wp.array:
+    def root_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_pos_w`."""
         return self.root_link_pos_w
 
     @property
-    def root_quat_w(self) -> wp.array:
+    def root_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_quat_w`."""
         return self.root_link_quat_w
 
     @property
-    def root_vel_w(self) -> wp.array:
+    def root_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_vel_w`."""
         return self.root_com_vel_w
 
     @property
-    def root_lin_vel_w(self) -> wp.array:
+    def root_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_w`."""
         return self.root_com_lin_vel_w
 
     @property
-    def root_ang_vel_w(self) -> wp.array:
+    def root_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_w`."""
         return self.root_com_ang_vel_w
 
     @property
-    def root_lin_vel_b(self) -> wp.array:
+    def root_lin_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_lin_vel_b`."""
         return self.root_com_lin_vel_b
 
     @property
-    def root_ang_vel_b(self) -> wp.array:
+    def root_ang_vel_b(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_ang_vel_b`."""
         return self.root_com_ang_vel_b
 
     @property
-    def body_pose_w(self) -> wp.array:
+    def body_pose_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pose_w`."""
         return self.body_link_pose_w
 
     @property
-    def body_pos_w(self) -> wp.array:
+    def body_pos_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_pos_w`."""
         return self.body_link_pos_w
 
     @property
-    def body_quat_w(self) -> wp.array:
+    def body_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_link_quat_w`."""
         return self.body_link_quat_w
 
     @property
-    def body_vel_w(self) -> wp.array:
+    def body_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
 
     @property
-    def body_lin_vel_w(self) -> wp.array:
+    def body_lin_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_vel_w`."""
         return self.body_com_lin_vel_w
 
     @property
-    def body_ang_vel_w(self) -> wp.array:
+    def body_ang_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_vel_w`."""
         return self.body_com_ang_vel_w
 
     @property
-    def body_acc_w(self) -> wp.array:
+    def body_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_acc_w`."""
         return self.body_com_acc_w
 
     @property
-    def body_lin_acc_w(self) -> wp.array:
+    def body_lin_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_lin_acc_w`."""
         return self.body_com_lin_acc_w
 
     @property
-    def body_ang_acc_w(self) -> wp.array:
+    def body_ang_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_ang_acc_w`."""
         return self.body_com_ang_acc_w
 
     @property
-    def com_pos_b(self) -> wp.array:
+    def com_pos_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_pos_b`."""
         return self.body_com_pos_b
 
     @property
-    def com_quat_b(self) -> wp.array:
+    def com_quat_b(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_quat_b`."""
         return self.body_com_quat_b
 
@@ -682,7 +684,7 @@ class BaseRigidObjectData(ABC):
     """
 
     @property
-    def default_mass(self) -> wp.array:
+    def default_mass(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
         warnings.warn(
             "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
@@ -691,11 +693,11 @@ class BaseRigidObjectData(ABC):
             stacklevel=2,
         )
         if self._default_mass is None:
-            self._default_mass = wp.clone(self.body_mass, self.device)
-        return self._default_mass
+            self._default_mass = wp.clone(self.body_mass.warp, self.device)
+        return ProxyArray(self._default_mass)
 
     @property
-    def default_inertia(self) -> wp.array:
+    def default_inertia(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
         warnings.warn(
             "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
@@ -704,5 +706,5 @@ class BaseRigidObjectData(ABC):
             stacklevel=2,
         )
         if self._default_inertia is None:
-            self._default_inertia = wp.clone(self.body_inertia, self.device)
-        return self._default_inertia
+            self._default_inertia = wp.clone(self.body_inertia.warp, self.device)
+        return ProxyArray(self._default_inertia)

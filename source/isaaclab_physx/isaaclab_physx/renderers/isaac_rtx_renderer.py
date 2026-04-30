@@ -17,13 +17,16 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 import warp as wp
+from packaging import version
+
+from pxr import Sdf
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
-from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
+from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update, ensure_rtx_hydra_engine_attached
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +36,25 @@ if TYPE_CHECKING:
 
     from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
-# RTX simple-shading constants (mode indices, AOV name, carb setting path)
+# RTX simple-shading constants.
+#
+# Simple shading is driven by Kit's RTX "Minimal" render mode via the
+# ``/rtx/minimal/mode`` carb setting (key ``omni:rtx:minimal:mode``), with
+# integer values:
+#   0 = No Rendering (black output; only other AOVs are produced)
+#   1 = Constant Diffuse (single constant color for all surfaces)
+#   2 = Texture Diffuse  (diffuse shading using texture colors)
+#   3 = Diffuse/Glossy/Emission (full material shading)
+#
+# The public data-type names we expose (``simple_shading_*``) are kept stable
+# for backwards compatibility and map onto the Kit integer values below.
 SIMPLE_SHADING_AOV = "SimpleShadingSD"
 SIMPLE_SHADING_MODES = {
-    "simple_shading_constant_diffuse": 0,
-    "simple_shading_diffuse_mdl": 1,
-    "simple_shading_full_mdl": 2,
+    "simple_shading_constant_diffuse": 1,
+    "simple_shading_diffuse_mdl": 2,
+    "simple_shading_full_mdl": 3,
 }
-SIMPLE_SHADING_MODE_SETTING = "/rtx/sdg/simpleShading/mode"
+SIMPLE_SHADING_MODE_SETTING = "/rtx/minimal/mode"
 
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
@@ -72,6 +86,51 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
+        # RTX rendering requires the app to be launched with ``--enable_cameras``.
+        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
+            raise RuntimeError(
+                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
+                " rendering."
+            )
+        ensure_rtx_hydra_engine_attached()
+        # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
+
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
+        """Publish the per-output Replicator layout this RTX backend writes.
+
+        ``ALBEDO`` and the three ``SIMPLE_SHADING_*`` outputs require Isaac Sim 6.0+
+        and are omitted on older versions. The three segmentation outputs report
+        ``RenderBufferSpec(4, uint8)`` when the matching ``self.cfg.colorize_*`` flag is
+        set, otherwise ``RenderBufferSpec(1, int32)``.
+        """
+        sim_major = get_isaac_sim_version().major
+
+        specs: dict[RenderBufferKind, RenderBufferSpec] = {
+            # Replicator's native layout for color output is rgba/uint8;
+            # ``Camera`` aliases ``rgb`` as a view into ``rgba`` storage.
+            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
+            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, torch.float32),
+        }
+
+        if sim_major >= 6:
+            specs[RenderBufferKind.ALBEDO] = RenderBufferSpec(4, torch.uint8)
+            for shading_type in SIMPLE_SHADING_MODES:
+                specs[RenderBufferKind(shading_type)] = RenderBufferSpec(3, torch.uint8)
+
+        seg_specs = (
+            (RenderBufferKind.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
+            (RenderBufferKind.INSTANCE_SEGMENTATION_FAST, self.cfg.colorize_instance_segmentation),
+            (RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
+        )
+        for name, colorize in seg_specs:
+            specs[name] = RenderBufferSpec(4, torch.uint8) if colorize else RenderBufferSpec(1, torch.int32)
+
+        return specs
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Isaac RTX - uses USD scene directly without export.
@@ -105,6 +164,21 @@ class IsaacRtxRenderer(BaseRenderer):
                     " The simple shading data types will be ignored."
                 )
 
+        # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation
+        # outputs for instanceable assets. Disable instancing as a workaround.
+        if isaac_sim_version == version.parse("4.5") and (
+            "semantic_segmentation" in sensor.cfg.data_types or "instance_segmentation_fast" in sensor.cfg.data_types
+        ):
+            logger.warning(
+                "Isaac Sim 4.5 introduced a bug in Camera when outputting instance and semantic"
+                " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
+                " will be disabled in the current workflow and may lead to longer load times and increased memory"
+                " usage."
+            )
+            with Sdf.ChangeBlock():
+                for prim in sensor.stage.Traverse():
+                    prim.SetInstanceable(False)
+
         # Get camera prim paths from sensor view
         view = sensor._view
         cam_prim_paths = []
@@ -122,7 +196,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         # Synthetic-data instance mapping filter for segmentation; before annotator attach.
         SyntheticData.Get().set_instance_mapping_semantic_filter(
-            _camera_semantic_filter_predicate(sensor.cfg.semantic_filter)
+            _camera_semantic_filter_predicate(self.cfg.semantic_filter)
         )
 
         # Register simple shading if needed
@@ -169,13 +243,13 @@ class IsaacRtxRenderer(BaseRenderer):
                 init_params = None
                 if annotator_type == "semantic_segmentation":
                     init_params = {
-                        "colorize": sensor.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(sensor.cfg.semantic_segmentation_mapping),
+                        "colorize": self.cfg.colorize_semantic_segmentation,
+                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
                     }
                 elif annotator_type == "instance_segmentation_fast":
-                    init_params = {"colorize": sensor.cfg.colorize_instance_segmentation}
+                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
                 elif annotator_type == "instance_id_segmentation_fast":
-                    init_params = {"colorize": sensor.cfg.colorize_instance_id_segmentation}
+                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
 
                 annotator = rep.AnnotatorRegistry.get_annotator(
                     annotator_type, init_params, device=sensor.device, do_array_copy=False
@@ -275,9 +349,9 @@ class IsaacRtxRenderer(BaseRenderer):
             # Note: Replicator returns raw buffers of dtype uint32 for segmentation types
             #   so we need to convert them to uint8 4 channel images for colorized types
             if (
-                (data_type == "semantic_segmentation" and cfg.colorize_semantic_segmentation)
-                or (data_type == "instance_segmentation_fast" and cfg.colorize_instance_segmentation)
-                or (data_type == "instance_id_segmentation_fast" and cfg.colorize_instance_id_segmentation)
+                (data_type == "semantic_segmentation" and self.cfg.colorize_semantic_segmentation)
+                or (data_type == "instance_segmentation_fast" and self.cfg.colorize_instance_segmentation)
+                or (data_type == "instance_id_segmentation_fast" and self.cfg.colorize_instance_id_segmentation)
             ):
                 tiled_data_buffer = wp.array(
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=sensor.device
@@ -321,10 +395,10 @@ class IsaacRtxRenderer(BaseRenderer):
             # apply defined clipping behavior
             if (
                 data_type in ("distance_to_camera", "distance_to_image_plane", "depth")
-                and cfg.depth_clipping_behavior != "none"
+                and self.cfg.depth_clipping_behavior != "none"
             ):
                 output_data[data_type][torch.isinf(output_data[data_type])] = (
-                    0.0 if cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
+                    0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 )
 
     def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
