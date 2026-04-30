@@ -169,19 +169,6 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    # newton + newton_renderer (warp)
-    pytest.param(
-        "newton",
-        "newton_renderer",
-        "rgb",
-        id="newton-newton_warp-rgb",
-    ),
-    pytest.param(
-        "newton",
-        "newton_renderer",
-        "depth",
-        id="newton-newton_warp-depth",
-    ),
     # newton + ovrtx_renderer
     pytest.param(
         "newton",
@@ -224,6 +211,19 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "semantic_segmentation",
         id="newton-ovrtx-semantic_segmentation",
+    ),
+    # newton + newton_renderer (warp)
+    pytest.param(
+        "newton",
+        "newton_renderer",
+        "rgb",
+        id="newton-newton_warp-rgb",
+    ),
+    pytest.param(
+        "newton",
+        "newton_renderer",
+        "depth",
+        id="newton-newton_warp-depth",
     ),
 ]
 
