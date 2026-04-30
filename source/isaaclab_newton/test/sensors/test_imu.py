@@ -87,8 +87,8 @@ def test_data_shapes(sim):
     scene.update(sim.get_physics_dt())
 
     imu: Imu = scene["imu"]
-    ang_vel = wp.to_torch(imu.data.ang_vel_b)
-    lin_acc = wp.to_torch(imu.data.lin_acc_b)
+    ang_vel = imu.data.ang_vel_b.torch
+    lin_acc = imu.data.lin_acc_b.torch
 
     assert ang_vel.shape == (2, 3)
     assert lin_acc.shape == (2, 3)
@@ -106,7 +106,7 @@ def test_gravity_at_rest(sim):
         scene.update(sim.get_physics_dt())
 
     imu: Imu = scene["imu"]
-    lin_acc = wp.to_torch(imu.data.lin_acc_b)
+    lin_acc = imu.data.lin_acc_b.torch
 
     # At rest, accelerometer should read ~9.81 in the up direction (Z body frame)
     torch.testing.assert_close(
@@ -135,7 +135,7 @@ def test_angular_velocity_at_rest(sim):
         scene.update(sim.get_physics_dt())
 
     imu: Imu = scene["imu"]
-    ang_vel = wp.to_torch(imu.data.ang_vel_b)
+    ang_vel = imu.data.ang_vel_b.torch
 
     torch.testing.assert_close(
         ang_vel,
@@ -160,7 +160,7 @@ def test_reset(sim):
 
     imu: Imu = scene["imu"]
 
-    lin_acc = wp.to_torch(imu.data.lin_acc_b)
+    lin_acc = imu.data.lin_acc_b.torch
     assert torch.any(lin_acc != 0), "Expected non-zero data before reset"
 
     imu.reset()
@@ -209,7 +209,7 @@ def test_freefall_acceleration(sim):
         scene.update(sim.get_physics_dt())
 
     imu: Imu = scene["imu"]
-    lin_acc = wp.to_torch(imu.data.lin_acc_b)
+    lin_acc = imu.data.lin_acc_b.torch
 
     # In freefall, accelerometer should read near zero (gravity and inertial acceleration cancel)
     acc_magnitude = torch.norm(lin_acc, dim=-1)

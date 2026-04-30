@@ -95,7 +95,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     )
 
 
-@pytest.mark.isaacsim_ci
 def test_generate_dataset_gr1t2_pickplace(setup_pickplace_gr1t2_test_environment):
     """Test dataset generation for the GR1T2 pick-place environment (single env)."""
     workflow_root, input_file = setup_pickplace_gr1t2_test_environment
@@ -103,7 +102,6 @@ def test_generate_dataset_gr1t2_pickplace(setup_pickplace_gr1t2_test_environment
     _run_generation(workflow_root, input_file, output_file, num_envs=1)
 
 
-@pytest.mark.isaacsim_ci
 def test_generate_dataset_gr1t2_pickplace_multi_env(setup_pickplace_gr1t2_test_environment):
     """Test dataset generation for the GR1T2 pick-place environment (5 envs)."""
     workflow_root, input_file = setup_pickplace_gr1t2_test_environment

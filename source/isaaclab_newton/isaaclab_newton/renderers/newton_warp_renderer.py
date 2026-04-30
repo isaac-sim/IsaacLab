@@ -15,8 +15,12 @@ import newton
 import torch
 import warp as wp
 
+<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
 from isaaclab.renderers import BaseRenderer
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+=======
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+>>>>>>> develop
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
@@ -30,13 +34,8 @@ logger = logging.getLogger(__name__)
 
 
 class RenderData:
-    class OutputNames:
-        RGB = "rgb"
-        RGBA = "rgba"
-        ALBEDO = "albedo"
-        DEPTH = "depth"
-        NORMALS = "normals"
-        INSTANCE_SEGMENTATION = "instance_segmentation_fast"
+    # Back-compat alias for callers of ``RenderData.OutputNames``.
+    OutputNames = RenderBufferKind
 
     @dataclass
     class CameraOutputs:
@@ -59,31 +58,31 @@ class RenderData:
 
     def set_outputs(self, output_data: dict[str, torch.Tensor]):
         for output_name, tensor_data in output_data.items():
-            if output_name == RenderData.OutputNames.RGBA:
+            if output_name == RenderBufferKind.RGBA:
                 self.outputs.color_image = self._from_torch(tensor_data, dtype=wp.uint32)
-            elif output_name == RenderData.OutputNames.ALBEDO:
+            elif output_name == RenderBufferKind.ALBEDO:
                 self.outputs.albedo_image = self._from_torch(tensor_data, dtype=wp.uint32)
-            elif output_name == RenderData.OutputNames.DEPTH:
+            elif output_name == RenderBufferKind.DEPTH:
                 self.outputs.depth_image = self._from_torch(tensor_data, dtype=wp.float32)
-            elif output_name == RenderData.OutputNames.NORMALS:
+            elif output_name == RenderBufferKind.NORMALS:
                 self.outputs.normals_image = self._from_torch(tensor_data, dtype=wp.vec3f)
-            elif output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
+            elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
                 self.outputs.instance_segmentation_image = self._from_torch(tensor_data, dtype=wp.uint32)
-            elif output_name == RenderData.OutputNames.RGB:
+            elif output_name == RenderBufferKind.RGB:
                 pass
             else:
                 logger.warning(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
 
     def get_output(self, output_name: str) -> wp.array:
-        if output_name == RenderData.OutputNames.RGBA:
+        if output_name == RenderBufferKind.RGBA:
             return self.outputs.color_image
-        elif output_name == RenderData.OutputNames.ALBEDO:
+        elif output_name == RenderBufferKind.ALBEDO:
             return self.outputs.albedo_image
-        elif output_name == RenderData.OutputNames.DEPTH:
+        elif output_name == RenderBufferKind.DEPTH:
             return self.outputs.depth_image
-        elif output_name == RenderData.OutputNames.NORMALS:
+        elif output_name == RenderBufferKind.NORMALS:
             return self.outputs.normals_image
-        elif output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
+        elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
             return self.outputs.instance_segmentation_image
         return None
 
@@ -111,13 +110,13 @@ class RenderData:
             )
 
     def _from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
-        torch_array = wp.from_torch(tensor)
+        proxy_array = wp.from_torch(tensor)
         if tensor.is_contiguous():
             return wp.array(
-                ptr=torch_array.ptr,
+                ptr=proxy_array.ptr,
                 dtype=dtype,
                 shape=(self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
-                device=torch_array.device,
+                device=proxy_array.device,
                 copy=False,
             )
 
@@ -125,7 +124,7 @@ class RenderData:
         return wp.zeros(
             (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
             dtype=dtype,
-            device=torch_array.device,
+            device=proxy_array.device,
         )
 
     @wp.kernel
@@ -154,6 +153,7 @@ class NewtonWarpRenderer(BaseRenderer):
             requirement_for_renderer_type,
         )
 
+        self.cfg = cfg
         sim = SimulationContext.instance()
         current_req = sim.get_scene_data_requirements()
         renderer_req = requirement_for_renderer_type("newton_warp")
@@ -183,6 +183,23 @@ class NewtonWarpRenderer(BaseRenderer):
 
         if cfg.create_default_light:
             self.newton_sensor.utils.create_default_light(enable_shadows=cfg.enable_shadows)
+
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
+        """Publish the per-output layout this Newton Warp backend writes.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
+        seg_spec = (
+            RenderBufferSpec(4, torch.uint8)
+            if self.cfg.colorize_instance_segmentation
+            else RenderBufferSpec(1, torch.int32)
+        )
+        return {
+            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
+            RenderBufferKind.INSTANCE_SEGMENTATION_FAST: seg_spec,
+        }
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Newton Warp - uses Newton scene directly without stage export.
@@ -221,6 +238,8 @@ class NewtonWarpRenderer(BaseRenderer):
             depth_image=render_data.outputs.depth_image,
             normal_image=render_data.outputs.normals_image,
             shape_index_image=render_data.outputs.instance_segmentation_image,
+            # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
+            clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
         )
 
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:

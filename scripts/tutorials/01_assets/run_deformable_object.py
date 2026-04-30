@@ -36,7 +36,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-import warp as wp
 from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
 
 # deformables supported in PhysX
@@ -98,7 +97,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
     count = 0
 
     # Nodal kinematic targets of the deformable bodies
-    nodal_kinematic_target = wp.to_torch(cube_object.data.nodal_kinematic_target).clone()
+    nodal_kinematic_target = cube_object.data.nodal_kinematic_target.torch.clone()
 
     # Simulate physics
     while simulation_app.is_running():
@@ -108,7 +107,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
             count = 0
 
             # reset the nodal state of the object
-            nodal_state = wp.to_torch(cube_object.data.default_nodal_state_w).clone()
+            nodal_state = cube_object.data.default_nodal_state_w.torch.clone()
             # apply random pose to the object
             pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device) * 0.1 + origins
             quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
@@ -150,9 +149,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
 
         # print the root positions every second
         if count % int(1.0 / sim_dt) == 0:
-            print(
-                f"Time {sim_time:.2f}s: \tRoot position (in world): {wp.to_torch(cube_object.data.root_pos_w)[:, :3]}"
-            )
+            print(f"Time {sim_time:.2f}s: \tRoot position (in world): {cube_object.data.root_pos_w.torch[:, :3]}")
 
 
 def main():

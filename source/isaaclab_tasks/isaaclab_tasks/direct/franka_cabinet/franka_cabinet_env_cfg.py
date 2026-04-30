@@ -149,3 +149,7 @@ class FrankaCabinetEnvCfg(DirectRLEnvCfg):
     open_reward_scale = 10.0
     action_penalty_scale = 0.05
     finger_reward_scale = 2.0
+
+    # success criteria
+    success_drawer_pos_threshold: float = 0.30
+    """Drawer joint position above which the drawer is considered successfully opened [m]."""

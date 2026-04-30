@@ -19,6 +19,8 @@ from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import Deformab
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 @pytest.fixture
 def sim():

@@ -35,7 +35,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -93,12 +92,12 @@ def main():
             sim_time = 0.0
             count = 0
             # reset dof state
-            joint_pos, joint_vel = wp.to_torch(robot.data.default_joint_pos), wp.to_torch(robot.data.default_joint_vel)
+            joint_pos, joint_vel = robot.data.default_joint_pos.torch, robot.data.default_joint_vel.torch
             robot.write_joint_position_to_sim_index(position=joint_pos)
             robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
-            default_root_pose = wp.to_torch(robot.data.default_root_pose)
+            default_root_pose = robot.data.default_root_pose.torch
             robot.write_root_pose_to_sim_index(root_pose=default_root_pose)
-            default_root_vel = wp.to_torch(robot.data.default_root_vel)
+            default_root_vel = robot.data.default_root_vel.torch
             robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel)
             robot.reset()
             # reset command

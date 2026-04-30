@@ -23,6 +23,10 @@ import isaaclab.sim as sim_utils
 from isaaclab.cloner import TemplateCloneCfg, clone_from_template, sequential, usd_replicate
 from isaaclab.sim import build_simulation_context
 
+wp.init()
+
+pytestmark = pytest.mark.isaacsim_ci
+
 
 @pytest.fixture(params=["cpu", "cuda"])
 def sim(request):
@@ -458,7 +462,6 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
     return torch.stack(velocities)
 
 
-@pytest.mark.isaacsim_ci
 def test_physx_replicate_env_consistency(sim):
     """Test that env_0 and env_1 produce matching velocities when using physx_replicate."""
     trajectory = _run_sphere_velocity_sim(sim, use_physx_replicate=True)
@@ -471,7 +474,6 @@ def test_physx_replicate_env_consistency(sim):
 
 
 @pytest.mark.xfail(reason="Source env gets physics from replicator, not USD parsing; may diverge from baseline.")
-@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_physx_replicate_vs_no_replicate(device):
     """Test that physx_replicate does not change the physics behavior of env_0.

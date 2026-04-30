@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.2.5 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated mobility path utilities to import from ``isaacsim.replicator.experimental.mobility_gen``.
+
+
 1.2.4 (2026-04-06)
 ~~~~~~~~~~~~~~~~~~~
 

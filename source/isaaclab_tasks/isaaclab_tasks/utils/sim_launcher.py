@@ -66,9 +66,9 @@ def _scan_config(cfg, predicates: list[Callable[[Any], bool]]) -> list[bool]:
     return results
 
 
-def _is_newton_physics(node) -> bool:
-    """True when the node is a Newton physics config (Kit is not required)."""
-    return isinstance(node, PhysicsCfg) and type(node).__name__ == "NewtonCfg"
+def _is_kitless_physics(node) -> bool:
+    """True when the node is a kitless physics config (Newton or OvPhysX)."""
+    return isinstance(node, PhysicsCfg) and type(node).__name__ in ("NewtonCfg", "OvPhysxCfg")
 
 
 def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> set[str]:
@@ -141,8 +141,8 @@ def compute_kit_requirements(
     Returns:
         (needs_kit, has_kit_cameras, visualizer_types)
     """
-    is_newton, has_kit_cameras = _scan_config(env_cfg, [_is_newton_physics, _is_kit_camera])
-    needs_kit = has_kit_cameras or not is_newton
+    is_kitless, has_kit_cameras = _scan_config(env_cfg, [_is_kitless_physics, _is_kit_camera])
+    needs_kit = has_kit_cameras or not is_kitless
     visualizer_types = _get_visualizer_types(launcher_args)
     if "kit" in visualizer_types:
         needs_kit = True
@@ -190,12 +190,38 @@ def launch_simulation(
         import importlib.util
 
         if importlib.util.find_spec("omni.kit") is None:
+            # Print a more obvious hint when a local _isaac_sim symlink
+            # exists but its env wasn't sourced (typical on Win11 + conda
+            # when activate.d hooks didn't fire, e.g. under `conda run`).
+            import os
+            import sys
+
+            isaaclab_path = os.environ.get("ISAACLAB_PATH")
+            local_sim = os.path.join(isaaclab_path, "_isaac_sim") if isaaclab_path else None
+            extra_hint = ""
+            if local_sim and os.path.isdir(local_sim):
+                if sys.platform == "win32":
+                    extra_hint = (
+                        f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
+                        f"  Either run via `isaaclab.bat ...` (which now sources setup_conda_env.bat\n"
+                        f"  automatically), or in your current shell run:\n"
+                        f'    call "{local_sim}\\setup_conda_env.bat"\n'
+                    )
+                else:
+                    extra_hint = (
+                        f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
+                        f"  Either run via `./isaaclab.sh ...` (which now sources setup_conda_env.sh\n"
+                        f"  automatically), or in your current shell run:\n"
+                        f'    source "{local_sim}/setup_conda_env.sh"\n'
+                    )
+
             logger.error(
                 "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"
                 "\n"
                 "  This environment requires Isaac Sim and Omniverse Kit.\n"
                 "    PhysX backend and Kit visualizer currently requires Isaac Sim.\n"
                 "\n"
+                f"{extra_hint}"
                 "  To fix this, ensure Isaac Sim is installed and available in the current environment.\n"
                 "\n"
                 "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
@@ -214,15 +240,17 @@ def launch_simulation(
         # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
         # selection in SettingsManager (works in standalone mode via plain dict) so that
         # SimulationContext._get_cli_visualizer_types() can find it.
-        from isaaclab.app.settings_manager import get_settings_manager
+        from isaaclab.app import AppLauncher
 
         disable_all = "none" in visualizer_types
-        active_types = [] if disable_all else sorted(visualizer_types)
-        visualizer_str = " ".join(active_types)
-        settings = get_settings_manager()
-        settings.set_string("/isaaclab/visualizer/types", visualizer_str)
-        settings.set_bool("/isaaclab/visualizer/explicit", True)
-        settings.set_bool("/isaaclab/visualizer/disable_all", disable_all)
+        if isinstance(launcher_args, argparse.Namespace):
+            AppLauncher.sync_visualizer_cli_settings_to_carb(
+                {**vars(launcher_args), "visualizer_explicit": True, "visualizer_disable_all": disable_all}
+            )
+        elif isinstance(launcher_args, dict):
+            AppLauncher.sync_visualizer_cli_settings_to_carb(
+                {**launcher_args, "visualizer_explicit": True, "visualizer_disable_all": disable_all}
+            )
 
     try:
         yield

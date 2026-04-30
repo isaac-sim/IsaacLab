@@ -25,6 +25,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
+pytestmark = pytest.mark.isaacsim_ci
+
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():

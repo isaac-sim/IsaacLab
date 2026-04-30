@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-import warp as wp
 
 from isaaclab.assets.articulation.articulation import Articulation
 
@@ -162,7 +161,7 @@ class ViewportCameraController:
         # set origin type to asset_root
         self.cfg.origin_type = "asset_root"
         # update the camera origins (convert Warp array to torch tensor first, then index)
-        root_pos = wp.to_torch(self._env.scene[self.cfg.asset_name].data.root_pos_w)
+        root_pos = self._env.scene[self.cfg.asset_name].data.root_pos_w.torch
         self.viewer_origin = root_pos[self.cfg.env_index]
         # update the camera view
         self.update_view_location()
@@ -196,7 +195,7 @@ class ViewportCameraController:
         # set origin type to asset_body
         self.cfg.origin_type = "asset_body"
         # update the camera origins (convert Warp array to torch tensor first, then index)
-        body_pos = wp.to_torch(self._env.scene[self.cfg.asset_name].data.body_pos_w)
+        body_pos = self._env.scene[self.cfg.asset_name].data.body_pos_w.torch
         self.viewer_origin = body_pos[self.cfg.env_index, body_id].squeeze(0)
         # update the camera view
         self.update_view_location()
@@ -218,8 +217,17 @@ class ViewportCameraController:
         cam_eye = viewer_origin + self.default_cam_eye
         cam_target = viewer_origin + self.default_cam_lookat
 
-        # set the camera view
-        self._env.sim.set_camera_view(eye=cam_eye, target=cam_target)
+        eye_t = (float(cam_eye[0]), float(cam_eye[1]), float(cam_eye[2]))
+        target_t = (float(cam_target[0]), float(cam_target[1]), float(cam_target[2]))
+        self._env.sim.set_camera_view(eye=eye_t, target=target_t)
+
+        # Renderer viewport camera (Isaac RTX / Kit); optional — pure-Newton installs have no isaaclab_physx.
+        try:
+            from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view
+
+            set_kit_renderer_camera_view(eye=cam_eye, target=cam_target, camera_prim_path=self.cfg.cam_prim_path)
+        except (ImportError, ModuleNotFoundError):
+            pass
 
     """
     Private Functions

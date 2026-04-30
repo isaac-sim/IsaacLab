@@ -1,8 +1,12 @@
 [package]
 
 # Note: Semantic Versioning is used: https://semver.org/
+<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
 version = "4.6.7"
 
+=======
+version = "4.6.23"
+>>>>>>> develop
 
 # Description
 title = "Isaac Lab framework for Robot Learning"

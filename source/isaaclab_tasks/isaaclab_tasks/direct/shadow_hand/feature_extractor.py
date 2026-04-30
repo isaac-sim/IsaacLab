@@ -168,15 +168,15 @@ class FeatureExtractor:
             cfg: Configuration for the feature extractor model.
             device: Device to run the model on.
             data_types: Ordered list of camera data types that form the CNN input channel
-                stack. Should match the resolved :attr:`~isaaclab.sensors.TiledCameraCfg.data_types`
-                of the tiled camera. Total input channels are derived from
+                stack. Should match the resolved :attr:`~isaaclab.sensors.CameraCfg.data_types`
+                of the camera. Total input channels are derived from
                 :data:`_DATA_TYPE_CHANNELS`.
             log_dir: Directory to save checkpoints. Default is None, which uses the local
                 "logs" folder resolved relative to this file.
-            height: Camera image height [px]. Must match the tiled camera
-                :attr:`~isaaclab.sensors.TiledCameraCfg.height`. Default is ``120``.
-            width: Camera image width [px]. Must match the tiled camera
-                :attr:`~isaaclab.sensors.TiledCameraCfg.width`. Default is ``120``.
+            height: Camera image height [px]. Must match the camera
+                :attr:`~isaaclab.sensors.CameraCfg.height`. Default is ``120``.
+            width: Camera image width [px]. Must match the camera
+                :attr:`~isaaclab.sensors.CameraCfg.width`. Default is ``120``.
         """
         self.cfg = cfg
         self.device = device

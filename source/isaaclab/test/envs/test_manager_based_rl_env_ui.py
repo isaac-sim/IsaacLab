@@ -16,7 +16,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-from isaacsim.core.utils.extensions import enable_extension
+from isaacsim.core.experimental.utils.app import enable_extension
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg

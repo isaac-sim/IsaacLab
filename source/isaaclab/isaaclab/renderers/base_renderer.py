@@ -11,7 +11,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
+<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
 from .camera_render_spec import CameraRenderSpec
+=======
+from .output_contract import RenderBufferKind, RenderBufferSpec
+>>>>>>> develop
 
 if TYPE_CHECKING:
     import torch
@@ -21,6 +25,17 @@ if TYPE_CHECKING:
 
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
+
+    @abstractmethod
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
+        """Per-output layout (channels + dtype) this renderer can produce.
+
+        Outputs absent from the mapping are not produced by this backend.
+
+        Returns:
+            Mapping from supported :class:`RenderBufferKind` to its :class:`RenderBufferSpec`.
+        """
+        pass
 
     @abstractmethod
     def prepare_stage(self, stage: Any, num_envs: int) -> None:

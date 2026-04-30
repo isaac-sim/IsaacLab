@@ -5,7 +5,7 @@
 Camera
 ======
 
-Camera sensors in Isaac Lab are renderer-backed sensors: each :class:`~sensors.TiledCamera` instance
+Camera sensors in Isaac Lab are renderer-backed sensors: each :class:`~sensors.Camera` instance
 is coupled to a **renderer** that produces the image data. The renderer and camera are intentionally
 isolated from each other — the camera defines *what* to capture (pose, resolution, field of view,
 data types), while the renderer defines *how* to render it (RTX ray-tracing, Newton Warp rasterizer,
@@ -25,7 +25,7 @@ Renderer Backends
 -----------------
 
 The renderer used by a camera is configured via the ``renderer_cfg`` field on
-:class:`~sensors.TiledCameraCfg`. The default is :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
+:class:`~sensors.CameraCfg`. The default is :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
 (NVIDIA RTX, requires Isaac Sim).
 
 .. list-table::
@@ -68,14 +68,14 @@ The Tiled Rendering API provides a vectorized interface for collecting image dat
 clones in a single batched render pass. Instead of one render call per camera, all copies of a camera
 are composited into a single large tiled image, dramatically reducing host-device transfer overhead.
 
-Isaac Lab provides tiled rendering through :class:`~sensors.TiledCamera`, configured via
-:class:`~sensors.TiledCameraCfg`. The ``renderer_cfg`` field selects the rendering backend.
+Isaac Lab provides tiled rendering through :class:`~sensors.Camera`, configured via
+:class:`~sensors.CameraCfg`. The ``renderer_cfg`` field selects the rendering backend.
 
 
-TiledCameraCfg with renderer_cfg
+CameraCfg with renderer_cfg
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The renderer is specified via ``renderer_cfg`` on :class:`~sensors.TiledCameraCfg`. The camera and
+The renderer is specified via ``renderer_cfg`` on :class:`~sensors.CameraCfg`. The camera and
 renderer configurations are fully decoupled: you can swap renderers without changing any other camera
 parameters.
 
@@ -83,13 +83,13 @@ parameters.
 
 .. code-block:: python
 
-    from isaaclab.sensors import TiledCameraCfg
+    from isaaclab.sensors import CameraCfg
     import isaaclab.sim as sim_utils
     # IsaacRtxRendererCfg is the default, no explicit import needed
 
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+    tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -103,13 +103,13 @@ parameters.
 
 .. code-block:: python
 
-    from isaaclab.sensors import TiledCameraCfg
+    from isaaclab.sensors import CameraCfg
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
     import isaaclab.sim as sim_utils
 
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+    tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
         data_types=["rgb", "depth"],  # only rgb and depth supported with Newton renderer
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -127,13 +127,13 @@ For environments that need to support both backends, use
 
 .. code-block:: python
 
-    from isaaclab.sensors import TiledCameraCfg
+    from isaaclab.sensors import CameraCfg
     from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
     import isaaclab.sim as sim_utils
 
-    tiled_camera: TiledCameraCfg = TiledCameraCfg(
+    tiled_camera: CameraCfg = CameraCfg(
         prim_path="/World/envs/env_.*/Camera",
-        offset=TiledCameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
+        offset=CameraCfg.OffsetCfg(pos=(-7.0, 0.0, 3.0), rot=(0.9945, 0.0, 0.1045, 0.0), convention="world"),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
@@ -162,7 +162,7 @@ Accessing camera data
 
 .. code-block:: python
 
-    tiled_camera = TiledCamera(cfg.tiled_camera)
+    tiled_camera = Camera(cfg.tiled_camera)
     data = tiled_camera.data.output["rgb"]  # shape: (num_cameras, H, W, 3), torch.uint8
 
 The returned data has shape ``(num_cameras, height, width, num_channels)``, ready to use directly
@@ -185,7 +185,7 @@ Annotators (RTX only)
    They are **not** available with the Newton Warp renderer or ovrtx, which
    support only ``rgb`` and ``depth``.
 
-:class:`~sensors.TiledCamera` exposes the following annotator
+:class:`~sensors.Camera` exposes the following annotator
 data types when using the RTX renderer:
 
 * ``"rgb"``: A 3-channel rendered color image.

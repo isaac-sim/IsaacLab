@@ -55,47 +55,39 @@ class TestMockArticulation:
 
     def test_root_state_shapes(self, robot):
         """Test root state tensor shapes."""
-        import warp as wp
-
         # Link frame - pose is wp.transformf so shape is (4,) but converts to (4, 7)
-        assert wp.to_torch(robot.data.root_link_pose_w).shape == (4, 7)
+        assert robot.data.root_link_pose_w.torch.shape == (4, 7)
         # vel is wp.spatial_vectorf so shape is (4,) but converts to (4, 6)
-        assert wp.to_torch(robot.data.root_link_vel_w).shape == (4, 6)
-        assert wp.to_torch(robot.data.root_link_state_w).shape == (4, 13)
+        assert robot.data.root_link_vel_w.torch.shape == (4, 6)
+        assert robot.data.root_link_state_w.torch.shape == (4, 13)
 
         # Sliced properties
-        assert wp.to_torch(robot.data.root_link_pos_w).shape == (4, 3)
-        assert wp.to_torch(robot.data.root_link_quat_w).shape == (4, 4)
-        assert wp.to_torch(robot.data.root_link_lin_vel_w).shape == (4, 3)
-        assert wp.to_torch(robot.data.root_link_ang_vel_w).shape == (4, 3)
+        assert robot.data.root_link_pos_w.torch.shape == (4, 3)
+        assert robot.data.root_link_quat_w.torch.shape == (4, 4)
+        assert robot.data.root_link_lin_vel_w.torch.shape == (4, 3)
+        assert robot.data.root_link_ang_vel_w.torch.shape == (4, 3)
 
     def test_body_state_shapes(self, robot):
         """Test body state tensor shapes."""
-        import warp as wp
-
         # body_link_pose_w is wp.transformf so shape is (4, 13) but converts to (4, 13, 7)
-        assert wp.to_torch(robot.data.body_link_pose_w).shape == (4, 13, 7)
+        assert robot.data.body_link_pose_w.torch.shape == (4, 13, 7)
         # body_link_vel_w is wp.spatial_vectorf so shape is (4, 13) but converts to (4, 13, 6)
-        assert wp.to_torch(robot.data.body_link_vel_w).shape == (4, 13, 6)
-        assert wp.to_torch(robot.data.body_link_state_w).shape == (4, 13, 13)
+        assert robot.data.body_link_vel_w.torch.shape == (4, 13, 6)
+        assert robot.data.body_link_state_w.torch.shape == (4, 13, 13)
 
     def test_default_state_shapes(self, robot):
         """Test default state tensor shapes."""
-        import warp as wp
-
         # default_root_pose is wp.transformf so shape is (4,) but converts to (4, 7)
-        assert wp.to_torch(robot.data.default_root_pose).shape == (4, 7)
+        assert robot.data.default_root_pose.torch.shape == (4, 7)
         # default_root_vel is wp.spatial_vectorf so shape is (4,) but converts to (4, 6)
-        assert wp.to_torch(robot.data.default_root_vel).shape == (4, 6)
-        assert wp.to_torch(robot.data.default_root_state).shape == (4, 13)
+        assert robot.data.default_root_vel.torch.shape == (4, 6)
+        assert robot.data.default_root_state.torch.shape == (4, 13)
         assert robot.data.default_joint_pos.shape == (4, 12)
         assert robot.data.default_joint_vel.shape == (4, 12)
 
     def test_identity_quaternion_default(self, robot):
         """Test that default quaternions are identity quaternions."""
-        import warp as wp
-
-        quat = wp.to_torch(robot.data.root_link_quat_w)
+        quat = robot.data.root_link_quat_w.torch
         # XYZW format: x=y=z=0, w=1
         expected = torch.zeros_like(quat)
         expected[:, 3] = 1.0  # Set w=1
@@ -103,23 +95,19 @@ class TestMockArticulation:
 
     def test_set_joint_pos(self, robot):
         """Test setting joint positions."""
-        import warp as wp
-
         joint_pos = torch.randn(4, 12)
         robot.data.set_joint_pos(joint_pos)
-        assert torch.allclose(wp.to_torch(robot.data.joint_pos), joint_pos)
+        assert torch.allclose(robot.data.joint_pos.torch, joint_pos)
 
     def test_set_mock_data_bulk(self, robot):
         """Test bulk data setter."""
-        import warp as wp
-
         joint_pos = torch.randn(4, 12)
         joint_vel = torch.randn(4, 12)
 
         robot.data.set_mock_data(joint_pos=joint_pos, joint_vel=joint_vel)
 
-        assert torch.allclose(wp.to_torch(robot.data.joint_pos), joint_pos)
-        assert torch.allclose(wp.to_torch(robot.data.joint_vel), joint_vel)
+        assert torch.allclose(robot.data.joint_pos.torch, joint_pos)
+        assert torch.allclose(robot.data.joint_vel.torch, joint_vel)
 
     def test_find_joints(self):
         """Test joint finding by regex."""
@@ -163,17 +151,13 @@ class TestMockArticulation:
 
     def test_set_joint_position_target(self, robot):
         """Test setting joint position targets."""
-        import warp as wp
-
         target = torch.randn(4, 12)
         robot.set_joint_position_target(target)
-        assert torch.allclose(wp.to_torch(robot.data.joint_pos_target), target)
+        assert torch.allclose(robot.data.joint_pos_target.torch, target)
 
     def test_joint_limits(self, robot):
         """Test joint limits."""
-        import warp as wp
-
-        limits = wp.to_torch(robot.data.joint_pos_limits)
+        limits = robot.data.joint_pos_limits.torch
         assert limits.shape == (4, 12, 2)
         # Default limits should be -inf to inf
         assert torch.all(limits[..., 0] == float("-inf"))
@@ -201,22 +185,18 @@ class TestMockRigidObject:
 
     def test_root_state_shapes(self, obj):
         """Test root state tensor shapes."""
-        import warp as wp
-
         # root_link_pose_w is wp.transformf so shape is (4,) but converts to (4, 7)
-        assert wp.to_torch(obj.data.root_link_pose_w).shape == (4, 7)
+        assert obj.data.root_link_pose_w.torch.shape == (4, 7)
         # root_link_vel_w is wp.spatial_vectorf so shape is (4,) but converts to (4, 6)
-        assert wp.to_torch(obj.data.root_link_vel_w).shape == (4, 6)
-        assert wp.to_torch(obj.data.root_link_state_w).shape == (4, 13)
+        assert obj.data.root_link_vel_w.torch.shape == (4, 6)
+        assert obj.data.root_link_state_w.torch.shape == (4, 13)
 
     def test_body_state_shapes(self, obj):
         """Test body state tensor shapes (single body)."""
-        import warp as wp
-
         # body_link_pose_w is wp.transformf so shape is (4, 1) but converts to (4, 1, 7)
-        assert wp.to_torch(obj.data.body_link_pose_w).shape == (4, 1, 7)
+        assert obj.data.body_link_pose_w.torch.shape == (4, 1, 7)
         # body_link_vel_w is wp.spatial_vectorf so shape is (4, 1) but converts to (4, 1, 6)
-        assert wp.to_torch(obj.data.body_link_vel_w).shape == (4, 1, 6)
+        assert obj.data.body_link_vel_w.torch.shape == (4, 1, 6)
 
     def test_body_properties(self, obj):
         """Test body property shapes."""
@@ -248,13 +228,11 @@ class TestMockRigidObjectCollection:
 
     def test_body_state_shapes(self, collection):
         """Test body state tensor shapes."""
-        import warp as wp
-
         # body_link_pose_w is wp.transformf so shape is (4, 5) but converts to (4, 5, 7)
-        assert wp.to_torch(collection.data.body_link_pose_w).shape == (4, 5, 7)
+        assert collection.data.body_link_pose_w.torch.shape == (4, 5, 7)
         # body_link_vel_w is wp.spatial_vectorf so shape is (4, 5) but converts to (4, 5, 6)
-        assert wp.to_torch(collection.data.body_link_vel_w).shape == (4, 5, 6)
-        assert wp.to_torch(collection.data.body_link_state_w).shape == (4, 5, 13)
+        assert collection.data.body_link_vel_w.torch.shape == (4, 5, 6)
+        assert collection.data.body_link_state_w.torch.shape == (4, 5, 13)
 
     def test_find_bodies_returns_mask(self, collection):
         """Test that find_bodies returns a mask tensor."""
@@ -301,17 +279,14 @@ class TestAssetFactories:
 
     def test_create_mock_rigid_object(self):
         """Test rigid object factory function."""
-        import warp as wp
-
         obj = create_mock_rigid_object(num_instances=3)
         assert obj.num_instances == 3
         assert obj.num_bodies == 1
         # root_link_pose_w is wp.transformf so shape is (3,) but converts to (3, 7)
-        assert wp.to_torch(obj.data.root_link_pose_w).shape == (3, 7)
+        assert obj.data.root_link_pose_w.torch.shape == (3, 7)
 
     def test_create_mock_rigid_object_collection(self):
         """Test rigid object collection factory function."""
-        import warp as wp
 
         collection = create_mock_rigid_object_collection(
             num_instances=4,
@@ -322,7 +297,7 @@ class TestAssetFactories:
         assert collection.num_bodies == 6
         assert collection.body_names == ["obj_0", "obj_1", "obj_2", "obj_3", "obj_4", "obj_5"]
         # body_link_pose_w is wp.transformf so shape is (4, 6) but converts to (4, 6, 7)
-        assert wp.to_torch(collection.data.body_link_pose_w).shape == (4, 6, 7)
+        assert collection.data.body_link_pose_w.torch.shape == (4, 6, 7)
 
 
 # ==============================================================================
@@ -349,7 +324,6 @@ class TestMockArticulationBuilder:
 
     def test_with_default_positions(self):
         """Test setting default joint positions."""
-        import warp as wp
 
         default_pos = [0.0, 0.5, -0.5]
         robot = (
@@ -360,11 +334,10 @@ class TestMockArticulationBuilder:
         )
 
         expected = torch.tensor([default_pos, default_pos])
-        assert torch.allclose(wp.to_torch(robot.data.joint_pos), expected)
+        assert torch.allclose(robot.data.joint_pos.torch, expected)
 
     def test_with_joint_limits(self):
         """Test setting joint limits."""
-        import warp as wp
 
         robot = (
             MockArticulationBuilder()
@@ -374,6 +347,6 @@ class TestMockArticulationBuilder:
             .build()
         )
 
-        limits = wp.to_torch(robot.data.joint_pos_limits)
+        limits = robot.data.joint_pos_limits.torch
         assert torch.all(limits[..., 0] == -1.0)
         assert torch.all(limits[..., 1] == 1.0)

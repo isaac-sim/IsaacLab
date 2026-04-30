@@ -12,26 +12,25 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 import torch
 import warp as wp
-from packaging import version
 
-from pxr import Sdf, UsdGeom
+from pxr import UsdGeom
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer
+
+from isaaclab.renderers import BaseRenderer, Renderer
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-from isaaclab.sim.views import XformPrimView
+from isaaclab.sim.views import FrameView, XformPrimView
 from isaaclab.utils import has_kit, to_camel_case
+
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.version import get_isaac_sim_version
 
 from ..sensor_base import SensorBase
-from .camera_data import CameraData
+from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -96,12 +95,6 @@ class Camera(SensorBase):
     }
     """The set of sensor types that are not supported by the camera class."""
 
-    SIMPLE_SHADING_TYPES: set[str] = {
-        "simple_shading_constant_diffuse",
-        "simple_shading_diffuse_mdl",
-        "simple_shading_full_mdl",
-    }
-
     def __init__(self, cfg: CameraCfg):
         """Initializes the camera sensor.
 
@@ -117,65 +110,31 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
 
-        # toggle rendering of rtx sensors as True
-        # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        settings = get_settings_manager()
-        settings.set_bool("/isaaclab/render/rtx_sensors", True)
+        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
+        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
+        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
+        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
+        # and several env classes read it before the renderer's __init__ runs.
+        if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
+            get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
-        # spawn the asset
-        if self.cfg.spawn is not None:
-            # Use spawn_path when set (points to template location for scene-cloned sensors).
-            # This allows the camera to be spawned inside the asset template (e.g. inside
-            # proto_asset_0) before clone_environments replicates it to all env paths.
-            spawn_target = (
-                self.cfg.spawn.spawn_path
-                if getattr(self.cfg.spawn, "spawn_path", None) is not None
-                else self.cfg.prim_path
-            )
-            # compute the rotation offset
-            rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
-            rot_offset = convert_camera_frame_orientation_convention(
-                rot, origin=self.cfg.offset.convention, target="opengl"
-            )
-            rot_offset = rot_offset.squeeze(0).cpu().numpy()
-            # ensure vertical aperture is set, otherwise replace with default for squared pixels
-            if self.cfg.spawn.vertical_aperture is None:
-                self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
-            self.cfg.spawn.func(spawn_target, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
-        # check that spawn was successful; use spawn_path if set (template location) since env
-        # paths are not yet populated at init time — they are filled in by clone_environments.
-        check_path = (
-            self.cfg.spawn.spawn_path
-            if self.cfg.spawn is not None and getattr(self.cfg.spawn, "spawn_path", None) is not None
-            else self.cfg.prim_path
+        # Compute camera orientation (convention conversion) and spawn
+        rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
+        rot_offset = convert_camera_frame_orientation_convention(
+            rot, origin=self.cfg.offset.convention, target="opengl"
         )
-        matching_prims = sim_utils.find_matching_prims(check_path)
-        if len(matching_prims) == 0:
-            raise RuntimeError(f"Could not find prim with path {check_path}.")
+        rot_offset = rot_offset.squeeze(0).cpu().numpy()
+        if self.cfg.spawn is not None and self.cfg.spawn.vertical_aperture is None:
+            self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
+        self._resolve_and_spawn("camera", translation=self.cfg.offset.pos, orientation=rot_offset)
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
-        # Create empty variables for storing output data
-        self._data = CameraData()
+        # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
+        self._data: CameraData | None = None
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
-
-        if not has_kit():
-            return
-        # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        # checks for Isaac Sim v4.5 as this issue exists there
-        if get_isaac_sim_version() == version.parse("4.5"):
-            if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
-                logger.warning(
-                    "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"
-                    " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
-                    " will be disabled in the current workflow and may lead to longer load times and increased memory"
-                    " usage."
-                )
-                with Sdf.ChangeBlock():
-                    for prim in self.stage.Traverse():
-                        prim.SetInstanceable(False)
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
@@ -191,10 +150,6 @@ class Camera(SensorBase):
         return (
             f"Camera @ '{self.cfg.prim_path}': \n"
             f"\tdata types   : {list(self.data.output.keys())} \n"
-            f"\tsemantic filter : {self.cfg.semantic_filter}\n"
-            f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
-            f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
-            f"\tcolorize instance id segm.: {self.cfg.colorize_instance_id_segmentation}\n"
             f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
             f"\tnumber of sensors : {self._view.count}"
@@ -336,8 +291,16 @@ class Camera(SensorBase):
             elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
-        # set the pose
-        self._view.set_world_poses(positions, orientations, env_ids)
+        # convert torch tensors to warp arrays for the view
+        pos_wp = wp.from_torch(positions.contiguous()) if positions is not None else None
+        ori_wp = wp.from_torch(orientations.contiguous()) if orientations is not None else None
+        if env_ids is not None:
+            if not isinstance(env_ids, torch.Tensor):
+                env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+            idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
+        else:
+            idx_wp = None
+        self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
 
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
@@ -360,7 +323,10 @@ class Camera(SensorBase):
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view
         orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
-        self._view.set_world_poses(eyes, orientations, env_ids)
+        if not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+        idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
+        self._view.set_world_poses(wp.from_torch(eyes.contiguous()), wp.from_torch(orientations.contiguous()), idx_wp)
 
     """
     Operations
@@ -398,16 +364,10 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
-            RuntimeError: If cameras are not enabled (missing ``--enable_cameras`` flag).
+            RuntimeError: Propagated from the renderer constructor when the active backend's
+                runtime requirements are not satisfied (e.g. the RTX backend requires the
+                simulation app to be launched with ``--enable_cameras``).
         """
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", "default")
-        needs_kit_cameras = renderer_type in ("default", "isaac_rtx")
-        if needs_kit_cameras and not get_settings_manager().get("/isaaclab/cameras_enabled"):
-            raise RuntimeError(
-                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
-                " rendering."
-            )
-
         # Initialize parent class
         super()._initialize_impl()
 
@@ -423,9 +383,7 @@ class Camera(SensorBase):
 
         # Create a view for the sensor with Fabric enabled for fast pose queries.
         # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
-        self._view = XformPrimView(
-            self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True
-        )
+        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -520,81 +478,39 @@ class Camera(SensorBase):
 
     def _create_buffers(self):
         """Create buffers for storing data."""
-        # -- intrinsic matrix
+        specs = self._renderer.supported_output_types()
+        # Split requested names into known/unsupported; warn once for any the renderer can't produce.
+        known: list[str] = []
+        unsupported: list[str] = []
+        for name in self.cfg.data_types:
+            try:
+                if RenderBufferKind(name) in specs:
+                    known.append(name)
+                else:
+                    unsupported.append(name)
+            except ValueError:
+                unsupported.append(name)
+        if unsupported:
+            logger.warning(
+                "Renderer %s does not support the following requested data types and will not produce them: %s",
+                type(self._renderer).__name__,
+                unsupported,
+            )
+        self._data = CameraData.allocate(
+            data_types=known,
+            height=self.cfg.height,
+            width=self.cfg.width,
+            num_views=self._view.count,
+            device=self._device,
+            supported_specs=specs,
+        )
+        # Camera-frame state (pose / intrinsics) is owned by the camera, not
+        # the renderer: populate it on the freshly constructed ``CameraData``.
         self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
         self._update_intrinsic_matrices(self._ALL_INDICES)
-        # -- pose of the cameras
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         self._update_poses(self._ALL_INDICES)
-        self._data.image_shape = self.image_shape
-        # -- output data (eagerly pre-allocated so renderer.set_outputs() can hold tensor references)
-        data_dict = dict()
-        if "rgba" in self.cfg.data_types or "rgb" in self.cfg.data_types:
-            data_dict["rgba"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-            ).contiguous()
-        if "rgb" in self.cfg.data_types:
-            data_dict["rgb"] = data_dict["rgba"][..., :3]
-        if "albedo" in self.cfg.data_types:
-            data_dict["albedo"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-            ).contiguous()
-        for data_type in self.SIMPLE_SHADING_TYPES:
-            if data_type in self.cfg.data_types:
-                data_dict[data_type] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.uint8
-                ).contiguous()
-        if "distance_to_image_plane" in self.cfg.data_types:
-            data_dict["distance_to_image_plane"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "depth" in self.cfg.data_types:
-            data_dict["depth"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "distance_to_camera" in self.cfg.data_types:
-            data_dict["distance_to_camera"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "normals" in self.cfg.data_types:
-            data_dict["normals"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 3), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "motion_vectors" in self.cfg.data_types:
-            data_dict["motion_vectors"] = torch.zeros(
-                (self._view.count, self.cfg.height, self.cfg.width, 2), device=self.device, dtype=torch.float32
-            ).contiguous()
-        if "semantic_segmentation" in self.cfg.data_types:
-            if self.cfg.colorize_semantic_segmentation:
-                data_dict["semantic_segmentation"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-                ).contiguous()
-            else:
-                data_dict["semantic_segmentation"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
-                ).contiguous()
-        if "instance_segmentation_fast" in self.cfg.data_types:
-            if self.cfg.colorize_instance_segmentation:
-                data_dict["instance_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-                ).contiguous()
-            else:
-                data_dict["instance_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
-                ).contiguous()
-        if "instance_id_segmentation_fast" in self.cfg.data_types:
-            if self.cfg.colorize_instance_id_segmentation:
-                data_dict["instance_id_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 4), device=self.device, dtype=torch.uint8
-                ).contiguous()
-            else:
-                data_dict["instance_id_segmentation_fast"] = torch.zeros(
-                    (self._view.count, self.cfg.height, self.cfg.width, 1), device=self.device, dtype=torch.int32
-                ).contiguous()
-
-        self._data.output = data_dict
-        self._data.info = {name: None for name in self.cfg.data_types}
         self._renderer.set_outputs(self._render_data, self._data.output)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
@@ -642,11 +558,14 @@ class Camera(SensorBase):
         if len(self._sensor_prims) == 0:
             raise RuntimeError("Camera prim is None. Please call 'sim.play()' first.")
 
-        # get the poses from the view
-        poses, quat = self._view.get_world_poses(env_ids)
-        self._data.pos_w[env_ids] = poses
+        # get the poses from the view (returns ProxyArray, use .torch for tensor access)
+        if env_ids is not None and not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+        pos_w, quat_w = self._view.get_world_poses(indices)
+        self._data.pos_w[env_ids] = pos_w.torch
         self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
-            quat, origin="opengl", target="world"
+            quat_w.torch, origin="opengl", target="world"
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:
