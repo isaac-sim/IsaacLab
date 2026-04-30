@@ -10,13 +10,13 @@ from collections.abc import Callable
 from typing import Any, cast
 
 import torch
-from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.managers import ManagerTermBase
+from isaaclab.utils.warp.proxy_array import ProxyArray
 
 from .leapp_semantics import resolve_leapp_element_names
-from .utils import build_state_connection, build_write_connection, ensure_torch_tensor
+from .utils import TracedProxyArray, build_write_connection
 
 
 def _resolve_annotated_property(
@@ -126,9 +126,10 @@ class _DataProxy:
     concrete backend overrides reuse semantic metadata authored on abstract base
     properties without copying decorators onto every implementation.
 
-    When a semantic property returns a ``torch.Tensor``, the result is annotated
-    as a LEAPP input and cached for deduplication. Non-tensor results and
-    ordinary attributes are forwarded transparently.
+    When a semantic property returns a :class:`~isaaclab.utils.warp.ProxyArray`,
+    the result is wrapped in a ``TracedProxyArray`` and cached for
+    deduplication. Non-proxy results and ordinary attributes are forwarded
+    transparently.
 
     All other attribute access is forwarded transparently to the real object.
     """
@@ -161,25 +162,25 @@ class _DataProxy:
         cache = object.__getattribute__(self, "_cache")
         cache_key = (id(real_data), name)
         if cache_key in cache:
-            return cache[cache_key].clone()
+            return cache[cache_key]
 
         execution_fget, semantics_meta = resolution
         result = execution_fget(real_data)
-        result = ensure_torch_tensor(result)
-        if not isinstance(result, torch.Tensor):
+        if not isinstance(result, ProxyArray):
             return result
 
         input_name = object.__getattribute__(self, "_input_name_resolver")(name)
-        sem = TensorSemantics(
-            name=input_name,
-            ref=result,
-            kind=semantics_meta.kind,
-            element_names=resolve_leapp_element_names(semantics_meta, real_data),
-            extra=build_state_connection(object.__getattribute__(self, "_entity_name"), name),
+        traced = TracedProxyArray(
+            result,
+            input_name=input_name,
+            semantics_meta=semantics_meta,
+            real_data=real_data,
+            entity_name=object.__getattribute__(self, "_entity_name"),
+            property_name=name,
+            task_name=object.__getattribute__(self, "_task_name"),
         )
-        annotated = annotate.input_tensors(object.__getattribute__(self, "_task_name"), sem)
-        cache[cache_key] = annotated
-        return annotated
+        cache[cache_key] = traced
+        return traced
 
 
 class _EntityProxy:

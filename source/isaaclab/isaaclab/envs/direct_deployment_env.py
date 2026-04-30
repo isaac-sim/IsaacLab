@@ -32,7 +32,6 @@ from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.configclass import resolve_cfg_presets
-from isaaclab.utils.leapp import ensure_torch_tensor
 
 from .ui import ViewportCameraController
 
@@ -322,7 +321,7 @@ class DirectDeploymentEnv:
         for key, spec in self._input_mapping.items():
             if isinstance(spec, StateInputSpec):
                 entity = self.scene[spec.entity_name]
-                value = ensure_torch_tensor(getattr(entity.data, spec.property_name))
+                value = getattr(entity.data, spec.property_name).torch
                 if spec.joint_ids is not None:
                     value = value[:, spec.joint_ids]
                 inputs[key] = value

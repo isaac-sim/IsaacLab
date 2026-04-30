@@ -47,10 +47,9 @@ from isaaclab.managers import ManagerTermBase
 
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
+    TracedProxyArray,
     build_command_connection,
     build_write_connection,
-    ensure_torch_tensor,
-    patch_warp_to_torch_passthrough,
     select_element_names,
 )
 
@@ -99,7 +98,7 @@ class ExportPatcher:
         self.task_name: str | None = None
         self.export_method = export_method
         self.required_obs_groups = required_obs_groups
-        self._annotated_tensor_cache: dict[tuple[int, str], torch.Tensor] = {}
+        self._annotated_tensor_cache: dict[tuple[int, str], TracedProxyArray] = {}
         self._data_property_resolution_cache: dict[tuple[type, str], tuple[Callable, object] | None] = {}
         self._write_method_resolution_cache: dict[
             tuple[type, str], tuple[Callable, object, inspect.Signature] | None
@@ -119,11 +118,12 @@ class ExportPatcher:
                 should be patched.
         """
         unwrapped = env.env.unwrapped
-        self.task_name = unwrapped.spec.id
+        task_name = str(unwrapped.spec.id)
+        self.task_name = task_name
 
         proxy_env = _EnvProxy(
             unwrapped,
-            self.task_name,
+            task_name,
             self._data_property_resolution_cache,
             self._annotated_tensor_cache,
         )
@@ -315,6 +315,7 @@ class ExportPatcher:
             action_manager: Action manager instance to patch.
             cache: Shared tensor dedup cache for annotated state reads.
         """
+        assert self.task_name is not None
         scene = action_manager._env.scene
         for term_name, term in action_manager._terms.items():
             asset = getattr(term, "_asset", None)
@@ -635,7 +636,7 @@ class ExportPatcher:
                 joint_names = getattr(real_asset, "joint_names", None)
                 scene_key = self._action_term_scene_keys.get(term_name, "ego")
                 if hasattr(data, "default_joint_stiffness") and data.default_joint_stiffness is not None:
-                    gains = ensure_torch_tensor(data.default_joint_stiffness)
+                    gains = data.default_joint_stiffness.torch
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kp_gains",
@@ -646,7 +647,7 @@ class ExportPatcher:
                         )
                     )
                 if hasattr(data, "default_joint_damping") and data.default_joint_damping is not None:
-                    gains = ensure_torch_tensor(data.default_joint_damping)
+                    gains = data.default_joint_damping.torch
                     static_values.append(
                         TensorSemantics(
                             name=f"{term_name}_kd_gains",
@@ -708,6 +709,5 @@ def patch_env_for_export(
         required_obs_groups: Observation groups that should be patched, or
             ``None`` to patch all groups.
     """
-    patch_warp_to_torch_passthrough()
     patcher = ExportPatcher(export_method, required_obs_groups=required_obs_groups)
     patcher.setup(env)

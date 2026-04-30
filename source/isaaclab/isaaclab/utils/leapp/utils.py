@@ -7,10 +7,53 @@ from __future__ import annotations
 
 from contextlib import suppress
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
-import warp as wp
+from leapp import annotate
+from leapp.utils.tensor_description import TensorSemantics
+
+from isaaclab.utils.warp.proxy_array import ProxyArray
+
+if TYPE_CHECKING:
+    from .leapp_semantics import LeappTensorSemantics
+
+
+class TracedProxyArray(ProxyArray):
+    _traced_array: torch.Tensor
+
+    def __init__(
+        self,
+        proxy_array: ProxyArray,
+        *,
+        input_name: str,
+        semantics_meta: LeappTensorSemantics,
+        real_data: Any,
+        entity_name: str,
+        property_name: str,
+        task_name: str,
+    ) -> None:
+        from .leapp_semantics import resolve_leapp_element_names
+
+        super().__init__(proxy_array.warp)
+        astorch = super().torch
+        sem = TensorSemantics(
+            name=input_name,
+            ref=astorch,
+            kind=semantics_meta.kind,
+            element_names=resolve_leapp_element_names(semantics_meta, real_data),
+            extra=build_state_connection(entity_name, property_name),
+        )
+        annotated = annotate.input_tensors(task_name, sem)
+        object.__setattr__(self, "_traced_array", annotated)
+
+    @property
+    def torch(self) -> torch.Tensor:
+        return self._traced_array
+
+    @property
+    def warp(self) -> Any:
+        raise AttributeError("warp arrays are not supported for leapp export")
 
 
 def select_element_names(names: list[str] | None, indices: Any = None) -> list[str] | None:
@@ -28,30 +71,6 @@ def select_element_names(names: list[str] | None, indices: Any = None) -> list[s
     if isinstance(indices, int):
         return [names[indices]]
     return None
-
-
-def ensure_torch_tensor(value):
-    """Convert Warp arrays to torch tensors while leaving torch tensors unchanged."""
-    if isinstance(value, torch.Tensor):
-        return value
-
-    return wp.to_torch(value)
-
-
-def patch_warp_to_torch_passthrough() -> None:
-    """Make ``wp.to_torch`` idempotent for torch tensors during export."""
-    if getattr(wp.to_torch, "_leapp_passthrough_patch", False):
-        return
-
-    original_to_torch = wp.to_torch
-
-    def patched_to_torch(value, *args, **kwargs):
-        if isinstance(value, torch.Tensor):
-            return value
-        return original_to_torch(value, *args, **kwargs)
-
-    patched_to_torch._leapp_passthrough_patch = True  # type: ignore[attr-defined]
-    wp.to_torch = patched_to_torch
 
 
 def ensure_env_spec_id(env, fallback_task_name: str = "policy") -> str:
