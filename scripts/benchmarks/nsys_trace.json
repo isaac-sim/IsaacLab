@@ -40,8 +40,7 @@
         "module": "isaaclab.envs.manager_based_rl_env",
         "functions": [
             {"function": "ManagerBasedRLEnv.__init__", "color": "0x9C27B0"},
-            {"function": "ManagerBasedRLEnv.step", "color": "0xAB47BC"},
-            {"function": "ManagerBasedRLEnv.reset", "color": "0xBA68C8"}
+            {"function": "ManagerBasedRLEnv.step", "color": "0xAB47BC"}
         ]
     },
     {
