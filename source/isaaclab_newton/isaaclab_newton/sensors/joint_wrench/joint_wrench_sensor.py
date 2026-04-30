@@ -98,9 +98,9 @@ class JointWrenchSensor(BaseJointWrenchSensor):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None)  -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the sensor buffers for the given environments.
-        
+
         Args:
             env_ids: the environment ids to reset.
             env_mask: the mask used to reset the environments. Shape is (num_envs)."""
@@ -170,7 +170,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
     def _update_buffers_impl(self, env_mask: wp.array) -> None:
         """Convert Newton's body_parent_f into INCOMING_JOINT_FRAME force and torque buffers.
-        
+
         Args:
             env_mask: A mask containing which environments need to be updated. Shape is (num_envs)
         """
@@ -196,7 +196,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
     def _invalidate_initialize_callback(self, event) -> None:
         """Drop view, cached sizes, and buffers; re-register the extended-state request.
-        
+
         Args:
             event: An invalidate event.
         """
