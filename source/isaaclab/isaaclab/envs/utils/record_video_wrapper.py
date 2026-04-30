@@ -44,6 +44,8 @@ class RecordVideoWrapper(gym.wrappers.RecordVideo):
         video_keep_last: int | None = None,
         **kwargs,
     ):
+        if video_keep_last is not None and video_keep_last < 1:
+            raise ValueError(f"video_keep_last must be >= 1 or None, got {video_keep_last}.")
         super().__init__(env, video_folder, **kwargs)
         self.video_keep_last = video_keep_last
 
@@ -55,10 +57,19 @@ class RecordVideoWrapper(gym.wrappers.RecordVideo):
             self._prune_old_videos()
         return result
 
+    def start_recording(self, video_name: str):
+        """Start a new recording, resetting the frame-skip counter on the underlying VideoRecorder."""
+        super().start_recording(video_name)
+        # Reset the frame-skip counter so the first step of every new clip always
+        # triggers a fresh GPU render, regardless of where the previous clip ended.
+        video_recorder = getattr(self.env, "video_recorder", None)
+        if video_recorder is not None and hasattr(video_recorder, "reset_frame_counter"):
+            video_recorder.reset_frame_counter()
+
     def _prune_old_videos(self) -> None:
         """Remove the oldest ``.mp4`` files so that at most ``video_keep_last`` remain."""
         all_files = sorted(glob.glob(os.path.join(self.video_folder, "*.mp4")), key=os.path.getmtime)
-        files_to_delete = all_files[: -self.video_keep_last] if self.video_keep_last > 0 else all_files
+        files_to_delete = all_files[: -self.video_keep_last]
         for path in files_to_delete:
             try:
                 os.remove(path)

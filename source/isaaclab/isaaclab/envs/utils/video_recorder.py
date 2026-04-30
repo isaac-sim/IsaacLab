@@ -5,15 +5,19 @@
 
 """Video recorder implementation.
 
-Captures a single wide-angle perspective view of the scene:
+Backend resolution (``--video`` + ``--visualizer``):
 
-* **Kit backends** (PhysX physics or Isaac RTX renderer) — uses
-  :mod:`isaaclab_physx.video_recording.isaacsim_kit_perspective_video`.
-* **Newton backends** (Newton physics or Newton Warp renderer only) — uses
-  :mod:`isaaclab_newton.video_recording.newton_gl_perspective_video`.
+1. **Active visualizer** - ``"kit"`` uses the Kit camera; ``"newton"`` uses the Newton GL viewer.
+   ``"viser"`` / ``"rerun"`` have no capture API and fall through to rule 2.
+2. **Physics/renderer stack** -
+   - PhysX or Isaac RTX uses the Kit camera;
+   - Newton physics or Newton Warp uses the Newton GL viewer.
+   Kit wins when both signals present.  Raises if nothing resolves.
 
-If neither a Kit nor a Newton backend is detected, construction raises so users do not
-use ``--video`` on unsupported setups.
+Camera sync when a visualizer drives the backend: construction copies ``camera_position`` /
+``camera_target`` from the visualizer config; each :meth:`~VideoRecorder.render_rgb_array`
+call then re-reads the Newton viewer's live ``camera.pos/pitch/yaw`` (Kit is free - its
+render product is pinned to the same camera prim ``KitVisualizer`` moves).
 
 See :mod:`video_recorder_cfg` for configuration.
 """
@@ -34,13 +38,40 @@ logger = logging.getLogger(__name__)
 
 _VideoBackend = Literal["kit", "newton_gl"]
 
+# visualizer types that map to a supported video backend.
+# viser and rerun are intentionally absent - they have no video-capture API.
+_VISUALIZER_TO_VIDEO_BACKEND: dict[str, _VideoBackend] = {
+    "kit": "kit",
+    "newton": "newton_gl",
+}
 
-def _resolve_video_backend(scene: InteractiveScene) -> _VideoBackend:
-    """Resolve which video backend to use from physics and renderer configs.
 
-    Priority: PhysX or Isaac RTX -> Kit camera; else Newton or Newton Warp -> GL viewer.
-    When both are present (e.g. PhysX + Newton Warp), Kit wins.
+def _resolve_video_backend(scene: InteractiveScene) -> tuple[_VideoBackend, str | None]:
+    """Return ``(backend, matched_visualizer_type)`` for the active scene.
+
+    ``matched_visualizer_type`` is ``"kit"`` / ``"newton"`` when a visualizer drove the
+    selection, or ``None`` when the physics/renderer preset stack was used instead.
+
+    Raises:
+        RuntimeError: If no supported backend is detected.
     """
+    # prefer the visualizer backend when --visualizer is active alongside --video.
+    visualizer_types: list[str] = scene.sim.resolve_visualizer_types()
+    if visualizer_types:
+        # kit takes priority when multiple visualizers are active
+        for preferred in ("kit", "newton"):
+            if preferred in visualizer_types:
+                backend = _VISUALIZER_TO_VIDEO_BACKEND[preferred]
+                logger.debug("[VideoRecorder] Using '%s' backend from active '%s' visualizer.", backend, preferred)
+                return backend, preferred
+        # only unsupported visualizer types (viser, rerun) are active.
+        logger.warning(
+            "[VideoRecorder] Active visualizer(s) %s do not support video capture; "
+            "falling back to physics/renderer stack detection.",
+            visualizer_types,
+        )
+
+    # fall back to physics/renderer preset stack detection.
     sim = scene.sim
     physics_name = sim.physics_manager.__name__.lower()
     renderer_types: list[str] = scene._sensor_renderer_types()
@@ -49,13 +80,55 @@ def _resolve_video_backend(scene: InteractiveScene) -> _VideoBackend:
     use_newton_gl = "newton" in physics_name or "newton_warp" in renderer_types
 
     if use_kit:
-        return "kit"
+        return "kit", None
     if use_newton_gl:
-        return "newton_gl"
+        return "newton_gl", None
     raise RuntimeError(
         "Video recording (--video) requires a supported backend: "
         "PhysX or Isaac RTX renderer (Kit camera), or Newton physics / Newton Warp renderer (GL viewer). "
         "No supported backend detected; do not use --video for this setup."
+    )
+
+
+def _sync_camera_from_visualizer(
+    scene: InteractiveScene,
+    visualizer_type: str,
+    cfg: VideoRecorderCfg,
+) -> None:
+    """Overwrite ``cfg.camera_position`` and ``cfg.camera_target`` from the active visualizer.
+
+    Args:
+        scene: The interactive scene that owns the sim context.
+        visualizer_type: The visualizer type string matched by ``_resolve_video_backend``
+            (e.g. ``"kit"`` or ``"newton"``).
+        cfg: The recorder configuration to update in place.
+    """
+    try:
+        resolved_cfgs = scene.sim._resolve_visualizer_cfgs()
+    except Exception as exc:
+        logger.debug("[VideoRecorder] Could not resolve visualizer cfgs for camera sync: %s", exc)
+        return
+
+    for vcfg in resolved_cfgs:
+        if getattr(vcfg, "visualizer_type", None) != visualizer_type:
+            continue
+        pos = getattr(vcfg, "camera_position", None)
+        tgt = getattr(vcfg, "camera_target", None)
+        if pos is None or tgt is None:
+            break
+        cfg.camera_position = tuple(float(x) for x in pos)
+        cfg.camera_target = tuple(float(x) for x in tgt)
+        logger.debug(
+            "[VideoRecorder] Camera synced from '%s' visualizer: position=%s, target=%s.",
+            visualizer_type,
+            cfg.camera_position,
+            cfg.camera_target,
+        )
+        return
+
+    logger.debug(
+        "[VideoRecorder] Could not find camera_position/target on '%s' visualizer cfg; keeping existing camera values.",
+        visualizer_type,
     )
 
 
@@ -72,17 +145,22 @@ class VideoRecorder:
         self._scene = scene
         self._backend: _VideoBackend | None = None
         self._capture = None
+        # visualizer type that drove backend selection (or None when using physics/renderer stack).
+        self._matched_visualizer: str | None = None
+        # live visualizer instance - looked up lazily on first render_rgb_array() call because
+        # visualizers are initialised by sim.reset(), which runs after VideoRecorder.__init__.
+        self._live_visualizer = None
+        # frame_skip state: incremented on each render_rgb_array call; reused when not on boundary.
         self._render_call_count: int = 0
         self._last_frame: np.ndarray | None = None
 
         if cfg.env_render_mode == "rgb_array":
-            self._backend = _resolve_video_backend(scene)
+            self._backend, self._matched_visualizer = _resolve_video_backend(scene)
+            if self._matched_visualizer is not None:
+                _sync_camera_from_visualizer(scene, self._matched_visualizer, cfg)
             if self._backend == "newton_gl":
                 try:
-                    import pyglet
-
-                    if not pyglet.options.get("headless", False):
-                        pyglet.options["headless"] = True
+                    import pyglet as _pyglet  # noqa: F401 - verify pyglet is available
                 except ImportError as e:
                     raise ImportError(
                         "The Newton GL video backend requires 'pyglet'. Install IsaacLab with './isaaclab.sh -i'."
@@ -115,15 +193,60 @@ class VideoRecorder:
                 )
                 self._capture = create_isaacsim_kit_perspective_video(kcfg)
 
+    def _sync_newton_camera(self) -> None:
+        """Push the Newton visualizer's live camera pose into the capture object.
+
+        Called once per :meth:`render_rgb_array` when a Newton visualizer is active.
+        The live visualizer instance is resolved lazily (visualizers are initialised by
+        ``sim.reset()``, which runs after ``VideoRecorder.__init__``).
+        """
+        if self._live_visualizer is None:
+            for viz in self._scene.sim.visualizers:
+                if getattr(getattr(viz, "cfg", None), "visualizer_type", None) == "newton":
+                    self._live_visualizer = viz
+                    break
+            if self._live_visualizer is None:
+                return
+
+        viewer = getattr(self._live_visualizer, "_viewer", None)
+        if viewer is None:
+            return
+
+        import math
+
+        cam = viewer.camera
+        pos = (float(cam.pos[0]), float(cam.pos[1]), float(cam.pos[2]))
+        yaw_rad = math.radians(float(cam.yaw))
+        pitch_rad = math.radians(float(cam.pitch))
+        dx = math.cos(pitch_rad) * math.cos(yaw_rad)
+        dy = math.cos(pitch_rad) * math.sin(yaw_rad)
+        dz = math.sin(pitch_rad)
+        target = (pos[0] + dx, pos[1] + dy, pos[2] + dz)
+        self._capture.update_camera(pos, target)
+
+    def reset_frame_counter(self) -> None:
+        """Reset the frame-skip counter and cached frame.
+
+        Call this at the start of each new recording clip so the first step of the new
+        clip always triggers a fresh GPU render, regardless of where the previous clip ended.
+        """
+        self._render_call_count = 0
+        self._last_frame = None
+
     def render_rgb_array(self) -> np.ndarray | None:
         """Return an RGB frame for the resolved backend, respecting :attr:`~VideoRecorderCfg.frame_skip`.
 
         The backend renderer is only invoked once every ``cfg.frame_skip`` calls. For all
-        intermediate calls the previous frame is returned unchanged, avoiding the GPU cost
-        of a full render on every simulation step.
+        intermediate calls the previous frame is returned unchanged, reducing GPU render
+        overhead at the cost of duplicate frames in the output video.
+
+        Returns:
+            An RGB numpy array of shape ``(H, W, 3)``, or ``None`` if no backend is active.
         """
         if self._backend is None or self._capture is None:
             return None
+        if self._matched_visualizer == "newton":
+            self._sync_newton_camera()
         if self._render_call_count % self.cfg.frame_skip == 0:
             self._last_frame = self._capture.render_rgb_array()
         self._render_call_count += 1

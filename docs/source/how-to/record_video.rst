@@ -13,6 +13,8 @@ script:
 * ``--video``: enables video recording during training
 * ``--video_length``: length of each recorded video (in steps)
 * ``--video_interval``: interval between each video recording (in steps)
+* ``--video_frame_skip``: render only every N-th step; intermediate steps reuse the previous frame (default: ``1``)
+* ``--video_keep_last``: keep only the N most recently completed video files; older files are deleted automatically (default: keep all)
 
 Note that enabling recording is equivalent to enabling rendering during training, which will slow down both startup and runtime performance.
 
@@ -42,6 +44,8 @@ The video recording feature is implemented using the ``VideoRecorder`` class. Th
   :class:`~isaaclab.envs.common.ViewerCfg` ``eye`` and ``lookat`` into those fields before the
   recorder is constructed, so training clips align with the task's intended viewport when
   ``origin_type`` is ``"world"``.
+* ``RecordVideoWrapper`` (``isaaclab.envs.utils.record_video_wrapper``) is a drop-in replacement
+  for ``gymnasium.wrappers.RecordVideo`` that adds a video retention policy via ``--video_keep_last``.
 
 
 Configuration: ``VideoRecorderCfg``
@@ -52,7 +56,7 @@ The dataclass lives in ``isaaclab.envs.utils.video_recorder_cfg``. Fields ``came
 
 .. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder_cfg.py
    :language: python
-   :lines: 20-48
+   :lines: 20-60
 
 
 Task framing: ``ViewerCfg``
@@ -123,6 +127,60 @@ as the interactive viewport:
             eye=(5.0, 5.0, 5.0),
             lookat=(0.0, 0.0, 1.0),
         )
+
+
+Resource-reduction options
+--------------------------
+
+Two flags reduce GPU and disk overhead when recording over long training runs.
+
+
+``--video_frame_skip``: reduce render overhead
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default every simulation step is rendered and captured (``frame_skip=1``). Setting
+``--video_frame_skip N`` causes the backend renderer to be invoked only once every N steps;
+intermediate steps reuse the previous frame, avoiding a full GPU render on each call.
+
+.. code-block:: bash
+
+   # Render only 1 in every 4 simulation steps — reduces render overhead by ~75 %
+   python scripts/reinforcement_learning/rsl_rl/train.py --video --video_frame_skip 4
+
+The flag is stored in ``VideoRecorderCfg.frame_skip``:
+
+.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder_cfg.py
+   :language: python
+   :start-at: frame_skip: int = 1
+   :end-at: that covers 200 simulation steps.
+
+The skip logic runs inside ``VideoRecorder.render_rgb_array()``:
+
+.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/video_recorder.py
+   :language: python
+   :start-at: def render_rgb_array(self) -> np.ndarray | None:
+   :end-at: return self._last_frame
+
+
+``--video_keep_last``: limit disk usage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default all recorded ``.mp4`` files are kept. Setting ``--video_keep_last N`` retains only
+the N most recently completed clips in the video folder; older files are deleted automatically
+after each clip finishes.
+
+.. code-block:: bash
+
+   # Keep only the 3 most recent video files
+   python scripts/reinforcement_learning/rsl_rl/train.py --video --video_keep_last 3
+
+This is implemented in ``RecordVideoWrapper``, a thin subclass of
+``gymnasium.wrappers.RecordVideo`` used by all training and benchmarking scripts:
+
+.. literalinclude:: ../../../source/isaaclab/isaaclab/envs/utils/record_video_wrapper.py
+   :language: python
+   :start-at: class RecordVideoWrapper(gym.wrappers.RecordVideo):
+   :end-at: logger.warning(f"Could not remove old video {path}: {exc}")
 
 
 Summary

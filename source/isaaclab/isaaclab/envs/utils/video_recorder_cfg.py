@@ -58,3 +58,7 @@ class VideoRecorderCfg:
     Example: ``frame_skip=4`` with ``video_length=200`` produces a 50-unique-frame clip
     that covers 200 simulation steps.
     """
+
+    def __post_init__(self):
+        if self.frame_skip < 1:
+            raise ValueError(f"VideoRecorderCfg.frame_skip must be >= 1, got {self.frame_skip}.")
