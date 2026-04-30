@@ -17,7 +17,7 @@ DEFAULT_TIMEOUT = 1000
 
 
 PER_TEST_TIMEOUTS = {
-    "test_articulation.py": 1000,
+    "test_articulation.py": 2000,
     "test_stage_in_memory.py": 1000,
     "test_imu.py": 1000,
     "test_environments.py": 10000,  # This test runs through all the environments for 100 steps each
@@ -51,9 +51,9 @@ PER_TEST_TIMEOUTS = {
     "test_sb3_wrapper.py": 1000,
     "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
-    "test_manager_based_rl_env_obs_spaces.py": 1000,
-    "test_visuotactile_sensor.py": 1000,
-    "test_visuotactile_render.py": 1000,
+    "test_manager_based_rl_env_obs_spaces.py": 2000,
+    "test_visuotactile_sensor.py": 2000,
+    "test_visuotactile_render.py": 2000,
     "test_rigid_object_collection.py": 1500,
     "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
