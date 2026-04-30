@@ -1,67 +1,20 @@
 Changelog
 ---------
 
-0.2.15 (2026-04-29)
+0.2.15 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* Refactored :class:`~isaaclab_ovphysx.assets.RigidObjectData` to allocate every per-instance
-  :class:`~isaaclab.utils.buffers.TimestampedBufferWarp` eagerly in
-  :meth:`~isaaclab_ovphysx.assets.RigidObjectData._create_buffers` (mirrors
-  :class:`~isaaclab_physx.assets.RigidObjectData`).  The lazy
-  ``_ensure_root_buffers`` / ``_ensure_derived_buffers`` / ``_ensure_body_prop_buffers``
-  helpers and their per-property guard calls are removed, and ``num_instances`` /
-  ``num_bodies`` / ``body_names`` are passed in via the constructor instead of set
-  post-construction.
-* Bridged the OVPhysX wheel's pull-only ``binding.read(target)`` API to PhysX's
-  pointer-stable view contract via a lazily-allocated pinned-host
-  :class:`wp.array` for CPU-only bindings (``RIGID_BODY_MASS`` / ``COM_POSE`` /
-  ``INERTIA``).  Previously a direct read into a CUDA buffer was rejected by the
-  wheel's device check.
-* Adopted the PhysX-pull-request-#5329 cache-update write pattern in every
-  :class:`~isaaclab_ovphysx.assets.RigidObject` setter (``set_masses_index``,
-  ``set_coms_index``, ``set_inertias_index``) and writer
-  (``write_root_link_pose_to_sim_index`` and friends): scatter the user data
-  into the cached ``_body_*`` / ``_root_*`` buffer via the matching
-  ``shared_kernels.write_*`` / ``shared_kernels.set_root_*_to_sim`` kernel,
-  then push the cache to the wheel via
-  ``binding.write(cache, indices=...)`` with pre-allocated pinned-host CPU
-  staging buffers reused across calls.  This keeps the cache as the single
-  source of truth post-write, so the previous ``_invalidate_caches`` machinery
-  is no longer needed.
-* Adopted the Newton-style native-mask write path for every ``*_mask`` setter
-  / writer.  Seven new mask kernels live in :mod:`isaaclab_ovphysx.assets.kernels`
-  (``set_root_link_pose_to_sim_mask``, ``set_root_com_pose_to_sim_mask``,
-  ``set_root_com_velocity_to_sim_mask``, ``set_root_link_velocity_to_sim_mask``,
-  ``write_2d_data_to_buffer_with_mask``, ``write_body_inertia_to_buffer_mask``,
-  ``write_body_com_pose_to_buffer_mask``); each scatters into the cache only
-  where the boolean mask is True, after which the cache is pushed via the
-  wheel's native ``binding.write(cache, mask=mask_u8)`` -- no
-  ``torch.nonzero`` round-trip.
-
-Added
-^^^^^
-
-* Added USD prim-scan validation to
-  :meth:`~isaaclab_ovphysx.assets.RigidObject._initialize_impl` mirroring the
-  PhysX backend.  ``RuntimeError`` is now raised cleanly when ``cfg.prim_path``
-  resolves to no ``UsdPhysics.RigidBodyAPI`` prim, multiple rigid-body prims,
-  or a prim that also has an enabled ``UsdPhysics.ArticulationRootAPI``,
-  instead of crashing with an obscure ``TypeError`` deep in property accessors.
-* Added a ``CI note`` section to ``test/assets/test_rigid_object.py`` and the
-  header of ``scripts/run_ovphysx.sh`` documenting that full coverage requires
-  two separate pytest invocations (``-k 'cpu'``, ``-k 'cuda:0'``) due to the
-  wheel's process-global device-mode lock (gap G5).
-
-Fixed
-^^^^^
-
-* Fixed :attr:`~isaaclab_ovphysx.assets.RigidObjectData.GRAVITY_VEC_W` returning
-  ``(0, 0, -1)`` instead of ``(0, 0, 0)`` when ``cfg.gravity`` is the zero
-  vector (``gravity_enabled=False``).  The zero-magnitude branch now returns a
-  zero direction vector rather than falling back to a default down vector.
+* Aligned :class:`~isaaclab_ovphysx.assets.RigidObject` and
+  :class:`~isaaclab_ovphysx.assets.RigidObjectData` with the PhysX (PR #5329) and
+  Newton conventions: eager buffer allocation in ``_create_buffers``, USD prim-scan
+  validation in ``_initialize_impl``, scatter-into-cache + ``binding.write(cache, indices=)``
+  for setters/writers with pre-allocated pinned-CPU staging, native-mask kernels
+  for every ``*_mask`` path (no ``torch.nonzero``), and pinned-host staging for
+  CPU-only binding reads.  Fixes ``GRAVITY_VEC_W`` returning ``(0, 0, -1)`` when
+  ``cfg.gravity`` is the zero vector.
 
 0.2.14 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~~
