@@ -55,7 +55,7 @@ Changed
 * Updated skrl agent configuration files to support skrl 2.0.
 
 
-1.5.28 (2026-04-24)
+1.5.29 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
