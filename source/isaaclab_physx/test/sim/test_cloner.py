@@ -628,7 +628,22 @@ def test_disabled_fabric_change_notifies_speedup_regression():
     def _make_cfg() -> _MinimalSceneCfg:
         return _MinimalSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
 
-    def _measure(simulate_pre_pr: bool) -> tuple[float, float]:
+    def _probe_flag(stage) -> bool | None:
+        """Read the IFabricUsd notice flag for ``stage``. Returns None if unreachable."""
+        try:
+            import usdrt
+            from pxr import UsdUtils
+
+            cache = UsdUtils.StageCache.Get()
+            cid = cache.GetId(stage)
+            stage_id = cid.ToLongInt() if cid.IsValid() else cache.Insert(stage).ToLongInt()
+            fabric_id = usdrt.Usd.Stage.Attach(stage_id).GetFabricId().id
+            bindings = fabric_notices_mod.get_bindings()
+            return None if bindings is None else bool(bindings.is_enabled(fabric_id))
+        except Exception:
+            return None
+
+    def _measure(simulate_pre_pr: bool) -> tuple[float, float, bool | None]:
         original = fabric_notices_mod.get_bindings
         if simulate_pre_pr:
             fabric_notices_mod.get_bindings = lambda: None
@@ -638,18 +653,35 @@ def test_disabled_fabric_change_notifies_speedup_regression():
         try:
             with build_simulation_context(device="cpu", dt=0.01, add_lighting=False) as sim:
                 t0 = time.perf_counter()
-                InteractiveScene(_make_cfg())
+                scene = InteractiveScene(_make_cfg())
                 scene_dt = time.perf_counter() - t0
+                # Probe BEFORE sim.reset() to see whether ``disabled_fabric_change_notifies(restore=False)``
+                # actually left the flag suspended through the cloning window. If suspension is engaging,
+                # the suspended path reads False here and the active(simulate_pre_pr) path reads True.
+                # Restore get_bindings temporarily so the probe sees real bindings even on the active run.
+                fabric_notices_mod.get_bindings = original
+                flag_after_scene = _probe_flag(scene.stage)
+                if simulate_pre_pr:
+                    fabric_notices_mod.get_bindings = lambda: None
                 t0 = time.perf_counter()
                 sim.reset()
                 reset_dt = time.perf_counter() - t0
-                return scene_dt, reset_dt
+                return scene_dt, reset_dt, flag_after_scene
         finally:
             fabric_notices_mod.get_bindings = original
 
+    # One-time diagnostic: report binding availability and validate_with outcome.
+    # When this fails on CI, the perf claim doesn't hold on that Kit build — the test will
+    # measure ~1.0x because both code paths fall through to a no-op.
+    _bindings_diag = fabric_notices_mod.get_bindings()
+    print(
+        f"\n[fabric-notice diag] bindings={_bindings_diag is not None}"
+        f" available={getattr(_bindings_diag, 'available', None)}"
+    )
+
     _measure(simulate_pre_pr=False)  # warmup
-    suspended_scene, suspended_reset = _measure(simulate_pre_pr=False)
-    active_scene, active_reset = _measure(simulate_pre_pr=True)
+    suspended_scene, suspended_reset, suspended_flag = _measure(simulate_pre_pr=False)
+    active_scene, active_reset, active_flag = _measure(simulate_pre_pr=True)
 
     suspended_total = suspended_scene + suspended_reset
     active_total = active_scene + active_reset
@@ -657,11 +689,14 @@ def test_disabled_fabric_change_notifies_speedup_regression():
 
     # Always print the ratio so CI logs show how close we run to the threshold —
     # makes it easy to spot drift before the test flips to FAILED.
+    # Also report the in-window flag state: suspended path expects False (listener off during clone),
+    # active path expects True (listener on). Mismatched flags localize a failure to the suspension
+    # mechanism rather than the perf measurement.
     print(
         f"\n[fabric-notice perf] active total={active_total:.3f}s "
-        f"(scene={active_scene:.3f}s reset={active_reset:.3f}s); "
+        f"(scene={active_scene:.3f}s reset={active_reset:.3f}s flag={active_flag}); "
         f"suspended total={suspended_total:.3f}s "
-        f"(scene={suspended_scene:.3f}s reset={suspended_reset:.3f}s); "
+        f"(scene={suspended_scene:.3f}s reset={suspended_reset:.3f}s flag={suspended_flag}); "
         f"speedup={speedup:.2f}x"
     )
 
