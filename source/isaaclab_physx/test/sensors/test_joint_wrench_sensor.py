@@ -27,6 +27,8 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
+from isaaclab_assets.robots.ant import ANT_CFG
+
 
 def _make_single_joint_articulation_cfg() -> ArticulationCfg:
     """Single-joint revolute test articulation (root ``CenterPivot`` + arm ``Arm``)."""
@@ -100,6 +102,16 @@ class _CartpoleDampedSceneCfg(InteractiveSceneCfg):
     env_spacing = 4.0
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
     robot = _make_cartpole_articulation_cfg(pole_damping=10.0)
+    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+
+@configclass
+class _NestedRootAntSceneCfg(InteractiveSceneCfg):
+    """Ant USD asset whose articulation root is nested under the configured asset prim."""
+
+    env_spacing = 4.0
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    robot = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
@@ -189,6 +201,22 @@ def test_multi_body_articulation(sim):
     assert sensor.data.torque.torch.shape == (num_envs, num_bodies, 3)
     assert sensor.body_names == robot.body_names
     assert len(sensor.body_names) == num_bodies
+    _assert_sensor_matches_physx_tensor(sensor)
+
+
+def test_nested_articulation_root_resolution(sim):
+    """Sensor accepts an asset prim path whose articulation root is nested in the USD asset."""
+    scene = InteractiveScene(_NestedRootAntSceneCfg(num_envs=1))
+    sim.reset()
+
+    robot: Articulation = scene["robot"]
+    sensor: JointWrenchSensor = scene["wrench"]
+    sim.step()
+    scene.update(sim.get_physics_dt())
+
+    assert sensor.body_names == robot.body_names
+    assert sensor.data.force.torch.shape == (1, robot.num_bodies, 3)
+    assert sensor.data.torque.torch.shape == (1, robot.num_bodies, 3)
     _assert_sensor_matches_physx_tensor(sensor)
 
 
