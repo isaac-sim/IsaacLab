@@ -16,6 +16,8 @@ from isaaclab_rl.rsl_rl import (
 
 from isaaclab_tasks.utils import PresetCfg
 
+from .rsl_rl_resnet_cfg import DexsuiteKukaAllegroPPOResNetRunnerCfg
+
 STATE_POLICY_CFG = RslRlMLPModelCfg(
     distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
     obs_normalization=True,
@@ -99,3 +101,5 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         critic=STATE_CRITIC_CFG,
         algorithm=ALGO_CFG.replace(num_mini_batches=2),
     )
+
+    resnet_single_camera = DexsuiteKukaAllegroPPOResNetRunnerCfg()
