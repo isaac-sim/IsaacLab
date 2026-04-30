@@ -226,5 +226,9 @@ class VideoRecorder:
         if self._backend is None or self._capture is None:
             return None
         if self._matched_visualizer == "newton":
+            # Newton GL camera state lives in the capture object and must be synced each frame
+            # to follow interactive viewer movement.
             self._sync_newton_camera()
+        # Kit: render product is pinned to a fixed camera prim; interactive viewport movement
+        # uses a separate camera and cannot affect the recording.
         return self._capture.render_rgb_array()
