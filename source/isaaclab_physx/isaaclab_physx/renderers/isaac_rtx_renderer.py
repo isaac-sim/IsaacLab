@@ -77,9 +77,9 @@ class IsaacRtxRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
         pass
 
-    def _create_render_data_impl(self, spec: CameraRenderSpec) -> IsaacRtxRenderData:
+    def create_render_data(self, spec: CameraRenderSpec) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer._create_render_data_impl`."""
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         import omni.replicator.core as rep
         from omni.syntheticdata import SyntheticData
         from pxr import UsdGeom

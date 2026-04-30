@@ -11,8 +11,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.sensors.sensor_base import SensorBase
-
 from .camera_render_spec import CameraRenderSpec
 
 if TYPE_CHECKING:
@@ -24,22 +22,13 @@ if TYPE_CHECKING:
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
-    @property
-    def uses_global_scene_transform_sync(self) -> bool:
-        """Whether :meth:`update_transforms` syncs shared scene state for all cameras.
-
-        When ``True``, :class:`~isaaclab.renderers.render_context.RenderContext` may invoke
-        :meth:`update_transforms` at most once per physics step across all cameras.
-        """
-        return False
-
     @abstractmethod
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
-        """Prepare the stage for rendering before create_render_data is called.
+        """Prepare the stage for rendering before :meth:`create_render_data` is called.
 
         Some renderers need to export or preprocess the USD stage before
         creating render data. This method is called after the renderer is
-        instantiated and before create_render_data.
+        instantiated and before :meth:`create_render_data`.
 
         Args:
             stage: USD stage to prepare, or None if not applicable.
@@ -47,31 +36,17 @@ class BaseRenderer(ABC):
         """
         pass
 
-    def create_render_data(self, source: CameraRenderSpec | SensorBase) -> Any:
-        """Create render data for the given camera description.
-
-        Args:
-            source: :class:`CameraRenderSpec` describing the tiled camera. Passing a
-                :class:`~isaaclab.sensors.sensor_base.SensorBase` is deprecated.
-
-        Returns:
-            Renderer-specific data object holding resources needed for rendering.
-            Passed to subsequent render calls.
-        """
-        spec = CameraRenderSpec.coerce(source)
-        return self._create_render_data_impl(spec)
-
     @abstractmethod
-    def _create_render_data_impl(self, spec: CameraRenderSpec) -> Any:
-        """Create render data from a :class:`CameraRenderSpec`.
+    def create_render_data(self, spec: CameraRenderSpec) -> Any:
+        """Create render data for the given camera :class:`CameraRenderSpec`.
 
         Args:
-            spec: Immutable camera binding (paths, cfg, device, counts).
+            spec: Immutable description of the tiled camera (paths, config, device).
 
         Returns:
-            Renderer-specific opaque handle passed to :meth:`render` and related methods.
+            Renderer-specific data for subsequent :meth:`render` / :meth:`read_output` calls.
         """
-        raise NotImplementedError
+        pass
 
     @abstractmethod
     def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]) -> None:

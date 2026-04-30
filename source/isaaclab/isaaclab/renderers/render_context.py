@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Simulation-scoped shared renderer for camera sensors."""
+"""Simulation-scoped renderers for camera sensors."""
 
 from __future__ import annotations
 
@@ -20,128 +20,93 @@ from .renderer_cfg import RendererCfg
 logger = logging.getLogger(__name__)
 
 
-def renderer_cfgs_compatible(a: RendererCfg, b: RendererCfg) -> bool:
-    """Return True if two camera renderer configs may share one BaseRenderer.
-
-    Args:
-        a: Renderer configuration from the first camera using this context.
-        b: Renderer configuration from another camera.
-
-    Returns:
-        Whether both configs use the same concrete class and ``renderer_type``.
-    """
-    if type(a) is not type(b):
-        return False
-    return getattr(a, "renderer_type", None) == getattr(b, "renderer_type", None)
-
-
 class RenderContext:
-    """Owns one Renderer / BaseRenderer for all scene cameras.
+    """Holds :class:`BaseRenderer` instances for all :class:`Camera` sensors in a simulation.
 
-    Every Camera with a compatible ``renderer_cfg`` shares the same backend.
-    ``prepare_stage`` runs once. For backends with
-    :attr:`~isaaclab.renderers.base_renderer.BaseRenderer.uses_global_scene_transform_sync`,
-    ``update_transforms`` runs at most once per physics step (see ``physics_step_count``).
+    A camera reuses a backend when a prior camera registered a config equal under ``==`` (value
+    equality) and the same concrete ``RendererCfg`` subclass. A distinct ``RendererCfg`` that
+    maps to a different implementation (e.g. Isaac RTX vs Newton) produces another backend; each
+    has :meth:`BaseRenderer.prepare_stage` run before use.
 
-    Mixing incompatible ``renderer_cfg`` in one simulation raises RuntimeError.
+    :meth:`update_transforms` is invoked at most once per :meth:`get_physics_step_count` for the
+    context; per-backend :attr:`~BaseRenderer.uses_global_scene_transform_sync` documents whether
+    that pass maps to shared work (e.g. Newton, OVRTX) vs a no-op (e.g. Isaac RTX under Kit).
     """
 
     __slots__ = (
-        "_renderer",
-        "_canonical_cfg",
-        "_stage_prepared",
+        "_renderer_entries",
+        "_prepared_renderer_ids",
         "_prepared_num_envs",
         "_last_transforms_step",
     )
 
     def __init__(self) -> None:
-        self._renderer: BaseRenderer | None = None
-        self._canonical_cfg: RendererCfg | None = None
-        self._stage_prepared: bool = False
+        self._renderer_entries: list[tuple[RendererCfg, BaseRenderer]] = []
+        self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
         self._last_transforms_step: int | None = None
 
-    @property
-    def renderer(self) -> BaseRenderer | None:
-        """Shared backend, or None if no camera requested a renderer yet."""
-        return self._renderer
-
     def get_renderer(self, cfg: RendererCfg) -> BaseRenderer:
-        """Return the shared BaseRenderer, creating it on first use.
+        """Return a backend for this configuration, reusing a matching instance if present.
+
+        Lookups use ``==`` and concrete ``RendererCfg`` type, so :func:`hash` is not used (configs
+        are typically not hashable).
 
         Args:
             cfg: Renderer configuration from the initializing camera.
 
         Returns:
-            Shared renderer backend.
-
-        Raises:
-            RuntimeError: If cfg is incompatible with an existing shared renderer.
+            A shared or newly created renderer backend.
         """
-        if self._renderer is None:
-            self._canonical_cfg = cfg
-            # Renderer.__new__ returns a BaseRenderer implementation.
-            self._renderer = cast(BaseRenderer, Renderer(cfg))  # type: ignore[misc]
-            logger.info(
-                "Created shared simulation renderer: %s",
-                type(self._renderer).__name__,
-            )
-            return self._renderer
-        if self._canonical_cfg is None or not renderer_cfgs_compatible(
-            self._canonical_cfg, cfg
-        ):
-            ex_t = type(self._canonical_cfg).__name__
-            ex_r = getattr(self._canonical_cfg, "renderer_type", None)
-            rq_t = type(cfg).__name__
-            rq_r = getattr(cfg, "renderer_type", None)
-            raise RuntimeError(
-                "All Camera sensors must use the same concrete renderer configuration "
-                "class and renderer_type when sharing the simulation renderer. "
-                f"Existing: {ex_t} ({ex_r!r}); this camera requested: {rq_t} ({rq_r!r})."
-            )
-        return self._renderer
+        for stored_cfg, r in self._renderer_entries:
+            if type(stored_cfg) is type(cfg) and stored_cfg == cfg:
+                return r
+        new_renderer = cast(BaseRenderer, Renderer(cfg))  # type: ignore[misc]
+        self._renderer_entries.append((cfg, new_renderer))
+        logger.info(
+            "Created new renderer for simulation: %s",
+            type(new_renderer).__name__,
+        )
+        return new_renderer
 
     def ensure_prepare_stage(self, stage: Any, num_envs: int) -> None:
-        """Call BaseRenderer.prepare_stage once for this simulation.
+        """Call :meth:`BaseRenderer.prepare_stage` for each registered backend (once per backend).
+
+        If a new backend is added after the first :meth:`prepare_stage` call, this method ensures
+        that new backend is prepared for the same ``stage`` and ``num_envs`` when the camera
+        that owns it is initialized.
 
         Args:
-            stage: USD stage passed to the backend.
-            num_envs: Environment count passed to the backend.
+            stage: USD stage passed to each backend.
+            num_envs: Environment count.
 
         Raises:
-            RuntimeError: If get_renderer was never called, or num_envs disagrees
-                with a previous successful prepare_stage.
+            RuntimeError: If :meth:`get_renderer` was never called, or ``num_envs`` disagrees with
+                a value already used for a prepared backend in this context.
         """
-        if self._renderer is None:
-            raise RuntimeError("get_renderer must be called before ensure_prepare_stage.")
-        if not self._stage_prepared:
-            self._renderer.prepare_stage(stage, num_envs)
-            self._stage_prepared = True
-            self._prepared_num_envs = num_envs
-            return
-        if self._prepared_num_envs != num_envs:
+        if not self._renderer_entries:
+            raise RuntimeError("get_renderer must be called at least once before ensure_prepare_stage.")
+        if self._prepared_num_envs is not None and self._prepared_num_envs != num_envs:
             raise RuntimeError(
-                "Shared renderer prepare_stage was already called with a different "
-                f"num_envs ({self._prepared_num_envs} vs {num_envs})."
+                "RenderContext prepare_stage was used with a different num_envs "
+                f"({self._prepared_num_envs} vs {num_envs})."
             )
+        for _cfg, renderer in self._renderer_entries:
+            rid = id(renderer)
+            if rid not in self._prepared_renderer_ids:
+                renderer.prepare_stage(stage, num_envs)
+                self._prepared_renderer_ids.add(rid)
+        if self._prepared_num_envs is None:
+            self._prepared_num_envs = num_envs
 
-    def maybe_update_transforms(self, physics_step_count: int) -> None:
-        """Call update_transforms at most once per physics step when needed.
-
-        Isaac RTX uses a no-op; Newton and OVRTX sync shared scene state.
-
-        Args:
-            physics_step_count: Monotonic counter from SimulationContext (see
-                get_physics_step_count).
-        """
-        if self._renderer is None:
-            return
-        if not self._renderer.uses_global_scene_transform_sync:
-            self._renderer.update_transforms()
+    def update_transforms(self, physics_step_count: int) -> None:
+        """Call :meth:`BaseRenderer.update_transforms` on all backends (at most once per step)."""
+        if not self._renderer_entries:
             return
         if self._last_transforms_step == physics_step_count:
             return
-        self._renderer.update_transforms()
+        for _cfg, renderer in self._renderer_entries:
+            renderer.update_transforms()
         self._last_transforms_step = physics_step_count
 
     def render_into_camera(
@@ -151,16 +116,16 @@ class RenderContext:
         camera_data: CameraData,
         physics_step_count: int,
     ) -> None:
-        """Sync scene transforms (if needed), render, and copy outputs into ``camera_data``."""
-        self.maybe_update_transforms(physics_step_count)
+        """Sync scene transforms, render, and read outputs into ``camera_data``."""
+        self.update_transforms(physics_step_count)
         renderer.render(render_data)
         renderer.read_output(render_data, camera_data)
 
     def reset_stage_prepare_flag(self) -> None:
-        """Allow ensure_prepare_stage to run prepare_stage again (e.g. new USD stage)."""
-        self._stage_prepared = False
+        """Allow :meth:`ensure_prepare_stage` to run ``prepare_stage`` again (e.g. a new USD stage)."""
+        self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
 
     def reset_transform_cadence(self) -> None:
-        """Clear per-step transform dedupe (e.g. after a long pause with no physics)."""
+        """Clear per-step transform dedupe (e.g. a long pause with no physics)."""
         self._last_transforms_step = None

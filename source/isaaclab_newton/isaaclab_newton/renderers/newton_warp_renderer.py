@@ -189,9 +189,9 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
         pass
 
-    def _create_render_data_impl(self, spec: CameraRenderSpec) -> RenderData:
+    def create_render_data(self, spec: CameraRenderSpec) -> RenderData:
         """Create render data for the Newton tiled camera.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer._create_render_data_impl`."""
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         return RenderData(self.newton_sensor, spec)
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):

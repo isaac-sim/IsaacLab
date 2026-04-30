@@ -1,64 +1,45 @@
 Changelog
 ---------
 
-4.6.7 (2026-04-22)
-~~~~~~~~~~~~~~~~~~~
+4.6.24 (2026-04-30)
+~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` so render
-  backends receive explicit camera inputs (USD paths, cfg, device, counts) instead
-  of the full sensor instance.
-* Added :meth:`~isaaclab.renderers.render_context.RenderContext.render_into_camera`
-  to centralize transform sync, :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`,
-  and :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output` for camera sensors.
+* Added :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` so render backends
+  take explicit camera inputs (USD paths, :class:`~isaaclab.sensors.camera.CameraCfg`, device,
+  counts) instead of the :class:`~isaaclab.sensors.camera.Camera` instance.
+* Added :class:`~isaaclab.renderers.render_context.RenderContext` (accessed as
+  :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context`) to own one or
+  more :class:`~isaaclab.renderers.base_renderer.BaseRenderer` instances: configurations that
+  compare equal under ``==`` and share the same concrete
+  :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` class reuse a backend; distinct
+  types (e.g. Isaac RTX and Newton) register separate backends, each with
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage` the first time a camera
+  with that configuration initializes.
+* Added :meth:`~isaaclab.renderers.render_context.RenderContext.render_into_camera` to run
+  :meth:`~isaaclab.renderers.render_context.RenderContext.update_transforms` (at most once
+  per physics step), then :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render` and
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
 * Added :attr:`~isaaclab.renderers.base_renderer.BaseRenderer.uses_global_scene_transform_sync`
-  so :class:`~isaaclab.renderers.render_context.RenderContext` can dedupe scene-wide
-  transform updates without hard-coding backend class names.
+  (property; ``True`` on Newton and OVRTX, ``False`` on Isaac RTX) to document which backends
+  use scene-wide work in :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`.
+* Added :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_physics_step_count`.
 
 Changed
 ^^^^^^^
 
-* :class:`~isaaclab.sensors.camera.Camera` now builds a
-  :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` and passes it to
-  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`; concrete
-  renderers implement :meth:`~isaaclab.renderers.base_renderer.BaseRenderer._create_render_data_impl`
-  instead of accepting the sensor object.
+* :class:`~isaaclab.sensors.camera.Camera` obtains a backend via
+  :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer` and calls
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data` with
+  a :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` (no
+  :class:`~isaaclab.sensors.sensor_base.SensorBase` reference on the public API).
 * :class:`~isaaclab.scene.interactive_scene.InteractiveScene` calls
-  :meth:`~isaaclab.renderers.render_context.RenderContext.maybe_update_transforms`
-  once at the start of :meth:`~isaaclab.scene.interactive_scene.InteractiveScene.update`
-  when ``lazy_sensor_update`` is disabled, complementing per-fetch deduplication.
-
-Deprecated
-^^^^^^^^^^
-
-* Deprecated passing a :class:`~isaaclab.sensors.sensor_base.SensorBase` to
-  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`; pass
-  :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` instead.
-
-
-4.6.6 (2026-04-17)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Introduced :class:`~isaaclab.renderers.render_context.RenderContext` on
-  :class:`~isaaclab.sim.simulation_context.SimulationContext` so all
-  :class:`~isaaclab.sensors.camera.Camera` sensors with compatible
-  :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` share one
-  :class:`~isaaclab.renderers.base_renderer.BaseRenderer` instance for the simulation
-  lifetime. :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage` runs once.
-  For Newton and OVRTX backends, :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`
-  is invoked at most once per physics step (see :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_physics_step_count`).
-  Mixing incompatible per-camera ``renderer_cfg`` in the same simulation raises :class:`RuntimeError`.
-  
-Added
-^^^^^
-
-* Added :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_physics_step_count` and
-  :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context`.
+  :meth:`~isaaclab.renderers.render_context.RenderContext.update_transforms` once at the start
+  of :meth:`~isaaclab.scene.interactive_scene.InteractiveScene.update` when
+  ``lazy_sensor_update`` is false; fetches that render still dedupe the same way via
+  ``physics_step_count`` in :class:`~isaaclab.renderers.render_context.RenderContext`.
 
 
 4.6.5 (2026-04-16)

@@ -31,7 +31,7 @@ def _make_mock_renderer_class(name: str):
         def prepare_stage(self, stage, num_envs):
             pass
 
-        def _create_render_data_impl(self, spec):
+        def create_render_data(self, spec):
             return None
 
         def set_outputs(self, render_data, output_data):

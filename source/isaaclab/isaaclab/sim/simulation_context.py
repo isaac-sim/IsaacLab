@@ -190,7 +190,7 @@ class SimulationContext:
         # Monotonic physics-step counter used by camera sensors for
         self._physics_step_count: int = 0
 
-        # Shared renderer for all Camera sensors (compatible renderer_cfg only).
+        # Shared renderers for all Camera sensors (compatible renderer_cfg only).
         self._render_context = RenderContext()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init

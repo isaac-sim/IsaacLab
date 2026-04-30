@@ -318,7 +318,7 @@ class OVRTXRenderer(BaseRenderer):
         except Exception as e:
             logger.warning("Error setting up object bindings: %s", e)
 
-    def _create_render_data_impl(self, spec: CameraRenderSpec) -> OVRTXRenderData:
+    def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
 
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
