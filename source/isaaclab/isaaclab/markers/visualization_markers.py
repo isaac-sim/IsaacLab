@@ -19,7 +19,6 @@ The marker prototypes can be configured with the :class:`VisualizationMarkersCfg
 # needed to import for allowing type-hinting: np.ndarray | torch.Tensor | None
 from __future__ import annotations
 
-import importlib
 import logging
 
 import numpy as np
@@ -31,22 +30,7 @@ from isaaclab.utils.version import has_kit
 
 from .visualization_markers_cfg import VisualizationMarkersCfg
 
-# import logger
 logger = logging.getLogger(__name__)
-
-
-def _import_pxr_modules():
-    """Import PXR modules lazily so Newton-only config resolution stays safe before SimulationApp."""
-
-    pxr = importlib.import_module("pxr")
-    return (
-        pxr.Gf,
-        pxr.Sdf,
-        pxr.Usd,
-        pxr.UsdGeom,
-        pxr.UsdPhysics,
-        pxr.Vt,
-    )
 
 
 class VisualizationMarkers:
@@ -196,7 +180,8 @@ class VisualizationMarkers:
         """
         self._is_visible = visible
         if self._instancer_manager is not None:
-            _, _, _, UsdGeom, _, _ = _import_pxr_modules()
+            from pxr import UsdGeom  # noqa: PLC0415
+
             imageable = UsdGeom.Imageable(self._instancer_manager)
             if visible:
                 imageable.MakeVisible()
@@ -213,7 +198,8 @@ class VisualizationMarkers:
             True if the markers are visible, False otherwise.
         """
         if self._instancer_manager is not None:
-            _, _, _, UsdGeom, _, _ = _import_pxr_modules()
+            from pxr import UsdGeom  # noqa: PLC0415
+
             return self._instancer_manager.GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
         return self._is_visible
 
@@ -324,7 +310,6 @@ class VisualizationMarkers:
 
     def _add_markers_prototypes(self, markers_cfg: dict[str, sim_utils.SpawnerCfg]):
         """Adds markers prototypes to the scene and sets the markers instancer to use them."""
-        _, _, _, _, _, _ = _import_pxr_modules()
         # add markers based on config
         for name, cfg in markers_cfg.items():
             # resolve prim path
@@ -356,7 +341,8 @@ class VisualizationMarkers:
         Args:
             prim: The prim to check.
         """
-        _, Sdf, _, UsdGeom, UsdPhysics, _ = _import_pxr_modules()
+        from pxr import Sdf, UsdGeom, UsdPhysics  # noqa: PLC0415
+
         # check if prim is valid
         if not prim.IsValid():
             raise ValueError(f"Prim at path '{prim.GetPrimAtPath()}' is not valid.")
@@ -403,11 +389,11 @@ class VisualizationMarkers:
             return
 
         has_kit_marker_backend = any(
-            viz.supports_markers() and viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
+            viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers
             for viz in sim.visualizers
         )
         has_newton_marker_backend = any(
-            viz.supports_markers() and not viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
+            viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers
             for viz in sim.visualizers
         )
 
@@ -417,7 +403,8 @@ class VisualizationMarkers:
             self._initialize_newton_backend()
 
     def _initialize_usd_backend(self) -> None:
-        Gf, _, _, UsdGeom, _, _ = _import_pxr_modules()
+        from pxr import Gf, UsdGeom  # noqa: PLC0415
+
         prim_path = sim_utils.get_next_free_prim_path(self.cfg.prim_path)
         self.stage = sim_utils.get_current_stage()
         self._instancer_manager = UsdGeom.PointInstancer.Define(self.stage, prim_path)
@@ -449,7 +436,8 @@ class VisualizationMarkers:
         scales: torch.Tensor | None,
         marker_indices: torch.Tensor | None,
     ) -> None:
-        _, _, _, _, _, Vt = _import_pxr_modules()
+        from pxr import Vt  # noqa: PLC0415
+
         num_markers = 0
         if translations is not None:
             translations_np = translations.detach().cpu().numpy()

@@ -23,7 +23,6 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.utils.version import has_kit
 
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
@@ -152,25 +151,10 @@ class SensorBase(ABC):
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
                 sim_ctx = sim_utils.SimulationContext.instance()
-                has_standalone_marker_viz = sim_ctx is not None and any(
-                    viz.supports_markers() and not viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
-                    for viz in sim_ctx.visualizers
-                )
-                has_app_pumping_marker_viz = sim_ctx is not None and any(
-                    viz.supports_markers() and viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
-                    for viz in sim_ctx.visualizers
-                )
-                if sim_ctx is not None and has_standalone_marker_viz and not has_app_pumping_marker_viz:
-                    callback_id = f"_debug_vis_callback:{type(self).__name__}:{id(self)}"
-                    self._debug_vis_handle = sim_ctx.add_visualizer_callback(
+                if sim_ctx is not None:
+                    callback_id = f"visualization_marker:{type(self).__name__}:{id(self)}"
+                    self._debug_vis_handle = sim_ctx.add_visualization_marker_callback(
                         callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                    )
-                elif has_kit():
-                    import omni.kit.app  # noqa: PLC0415
-
-                    app_interface = omni.kit.app.get_app_interface()
-                    self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                        lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                     )
         else:
             # remove the subscriber if it exists

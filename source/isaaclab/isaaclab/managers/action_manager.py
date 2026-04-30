@@ -17,11 +17,6 @@ from typing import TYPE_CHECKING, Any
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.utils.version import has_kit
-
-if has_kit():
-    import omni.kit.app
-
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -136,24 +131,10 @@ class ActionTerm(ManagerTermBase):
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
                 sim_ctx = self._env.sim
-                has_standalone_marker_viz = any(
-                    viz.supports_markers() and not viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
-                    for viz in sim_ctx.visualizers
+                callback_id = f"visualization_marker:{type(self).__name__}:{id(self)}"
+                self._debug_vis_handle = sim_ctx.add_visualization_marker_callback(
+                    callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                 )
-                has_app_pumping_marker_viz = any(
-                    viz.supports_markers() and viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
-                    for viz in sim_ctx.visualizers
-                )
-                if has_standalone_marker_viz and not has_app_pumping_marker_viz:
-                    callback_id = f"_debug_vis_callback:{type(self).__name__}:{id(self)}"
-                    self._debug_vis_handle = sim_ctx.add_visualizer_callback(
-                        callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                    )
-                else:
-                    app_interface = omni.kit.app.get_app_interface()
-                    self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                        lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                    )
         else:
             # remove the subscriber if it exists
             if self._debug_vis_handle is not None:
