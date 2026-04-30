@@ -86,6 +86,7 @@ class KukaAllegroSceneCfg(PresetCfg):
 
     default = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     single_camera = default.replace(base_camera=BaseTiledCameraCfg())
+    resnet_single_camera = single_camera
     duo_camera = default.replace(base_camera=BaseTiledCameraCfg(), wrist_camera=WristTiledCameraCfg())
 
 

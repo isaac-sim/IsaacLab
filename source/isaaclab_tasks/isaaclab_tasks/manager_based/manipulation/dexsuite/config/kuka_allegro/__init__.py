@@ -37,8 +37,6 @@ gym.register(
 )
 
 # Dexsuite Lift Environments
-# For ResNet feature extraction, use the base task with presets:
-# presets=newton,cube,resnet_single_camera (Newton) or presets=cube,resnet_single_camera (PhysX)
 gym.register(
     id="Isaac-Dexsuite-Kuka-Allegro-Lift-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
