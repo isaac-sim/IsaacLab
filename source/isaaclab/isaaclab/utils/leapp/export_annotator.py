@@ -45,12 +45,12 @@ from leapp.utils.tensor_description import TensorSemantics
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
 
+from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
     TracedProxyArray,
     build_command_connection,
     build_write_connection,
-    select_element_names,
 )
 
 if TYPE_CHECKING:

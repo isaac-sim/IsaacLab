@@ -5,9 +5,8 @@
 
 from __future__ import annotations
 
-from contextlib import suppress
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import torch
 from leapp import annotate
@@ -15,8 +14,7 @@ from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.utils.warp.proxy_array import ProxyArray
 
-if TYPE_CHECKING:
-    from .leapp_semantics import LeappTensorSemantics
+from .leapp_semantics import LeappTensorSemantics, resolve_leapp_element_names
 
 
 class TracedProxyArray(ProxyArray):
@@ -33,8 +31,6 @@ class TracedProxyArray(ProxyArray):
         property_name: str,
         task_name: str,
     ) -> None:
-        from .leapp_semantics import resolve_leapp_element_names
-
         super().__init__(proxy_array.warp)
         astorch = super().torch
         sem = TensorSemantics(
@@ -54,23 +50,6 @@ class TracedProxyArray(ProxyArray):
     @property
     def warp(self) -> Any:
         raise AttributeError("warp arrays are not supported for leapp export")
-
-
-def select_element_names(names: list[str] | None, indices: Any = None) -> list[str] | None:
-    """Select element names using optional runtime indices."""
-    if names is None:
-        return None
-    if indices is None or indices == slice(None):
-        return list(names)
-    if isinstance(indices, slice):
-        return list(names[indices])
-    with suppress(AttributeError):
-        indices = indices.tolist()
-    if isinstance(indices, (list, tuple)):
-        return [names[int(index)] for index in indices]
-    if isinstance(indices, int):
-        return [names[indices]]
-    return None
 
 
 def ensure_env_spec_id(env, fallback_task_name: str = "policy") -> str:

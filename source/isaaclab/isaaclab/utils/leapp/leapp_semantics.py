@@ -8,10 +8,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
-
-from .utils import select_element_names
 
 try:
     from leapp import InputKindEnum, OutputKindEnum
@@ -48,6 +47,23 @@ XYZ_ELEMENT_NAMES: list[str] = ["x", "y", "z"]
 QUAT_WXYZ_ELEMENT_NAMES: list[str] = ["qx", "qy", "qz", "qw"]
 POSE7_ELEMENT_NAMES: list[str] = ["x", "y", "z", "qx", "qy", "qz", "qw"]
 WRENCH6_ELEMENT_NAMES: list[str] = ["fx", "fy", "fz", "tx", "ty", "tz"]
+
+
+def select_element_names(names: list[str] | None, indices: Any = None) -> list[str] | None:
+    """Select element names using optional runtime indices."""
+    if names is None:
+        return None
+    if indices is None or indices == slice(None):
+        return list(names)
+    if isinstance(indices, slice):
+        return list(names[indices])
+    with suppress(AttributeError):
+        indices = indices.tolist()
+    if isinstance(indices, (list, tuple)):
+        return [names[int(index)] for index in indices]
+    if isinstance(indices, int):
+        return [names[indices]]
+    return None
 
 
 def leapp_tensor_semantics(
