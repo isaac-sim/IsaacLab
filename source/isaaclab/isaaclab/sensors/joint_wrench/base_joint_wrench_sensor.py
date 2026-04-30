@@ -48,6 +48,7 @@ class BaseJointWrenchSensor(SensorBase):
     @property
     @abstractmethod
     def data(self) -> BaseJointWrenchSensorData:
+        """The sensor data container, populated after simulation initialization."""
         raise NotImplementedError
 
     @property

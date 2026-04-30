@@ -42,6 +42,17 @@ Deprecated
 4.6.21 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
+Fixed
+^^^^^
+
+* Fixed ProxyArray migration guidance and static regression checks to cover
+  deprecated ``wp.to_torch(proxy_array)`` usage and direct tensor/wp.array
+  method calls on data properties.
+
+
+4.6.20 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
 Added
 ^^^^^
 

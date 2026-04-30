@@ -16,7 +16,6 @@ from newton.selection import ArticulationView
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 
-
 from .joint_wrench_sensor_data import JointWrenchSensorData
 from .kernels import joint_wrench_reset_kernel, joint_wrench_to_incoming_joint_frame_kernel
 
@@ -135,7 +134,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         try:
             body_parent_f = self._root_view.get_attribute("body_parent_f", state_0)
-        except KeyError as err:
+        except AttributeError as err:
             raise RuntimeError(
                 f"Joint wrench sensor '{self.cfg.prim_path}': Newton state does not expose"
                 " 'body_parent_f'. Construct the sensor before sim startup so the extended-state"
@@ -195,4 +194,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._data._force = None
         self._data._torque = None
         self._data._body_names = []
+        self._data._force_ta = None
+        self._data._torque_ta = None
         NewtonManager.request_extended_state_attribute("body_parent_f")

@@ -20,9 +20,11 @@ class BaseJointWrenchSensorData(ABC):
     def force(self) -> ProxyArray | None:
         """Linear component of the joint reaction wrench [N].
 
-        Shape is ``(num_envs, num_joints)``, dtype :class:`wp.vec3f`. In torch
-        this resolves to ``(num_envs, num_joints, 3)``. ``None`` before the
-        simulation is initialized.
+        Expressed in the frame selected by
+        :attr:`~isaaclab.sensors.JointWrenchSensorCfg.convention`. Shape is
+        ``(num_envs, num_joints)``, dtype ``wp.vec3f``. In torch this resolves
+        to ``(num_envs, num_joints, 3)``. ``None`` before the simulation is
+        initialized.
         """
         raise NotImplementedError
 
@@ -31,8 +33,10 @@ class BaseJointWrenchSensorData(ABC):
     def torque(self) -> ProxyArray | None:
         """Angular component of the joint reaction wrench [N·m].
 
-        Shape is ``(num_envs, num_joints)``, dtype :class:`wp.vec3f`. In torch
-        this resolves to ``(num_envs, num_joints, 3)``. ``None`` before the
-        simulation is initialized.
+        Expressed in the frame selected by
+        :attr:`~isaaclab.sensors.JointWrenchSensorCfg.convention`. Shape is
+        ``(num_envs, num_joints)``, dtype ``wp.vec3f``. In torch this resolves
+        to ``(num_envs, num_joints, 3)``. ``None`` before the simulation is
+        initialized.
         """
         raise NotImplementedError

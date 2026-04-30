@@ -39,11 +39,12 @@ def joint_wrench_to_incoming_joint_frame_kernel(
         return
 
     body_idx = joint_child[j]
+    assert body_idx >= 0 and body_idx < body_parent_f.shape[1]
 
-    # Source wrench: (force, torque-about-COM) in world frame.
+    # Source wrench in world frame.  Newton's body_parent_f stores (force, torque-about-COM).
     src = body_parent_f[env, body_idx]
-    f_world = wp.vec3f(src[0], src[1], src[2])
-    tau_world_com = wp.vec3f(src[3], src[4], src[5])
+    f_world = wp.spatial_top(src)
+    tau_world_com = wp.spatial_bottom(src)
 
     # Child link transform in world and COM offset in link frame.
     link_xform = body_q[env, body_idx]
