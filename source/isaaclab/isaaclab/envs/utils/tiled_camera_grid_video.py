@@ -122,7 +122,15 @@ class TiledCameraGridVideoCapture:
 
         self._video_camera = camera
         output = camera.data.output
-        self._video_rgb_key = "rgb" if "rgb" in output else "rgba"
+        if "rgb" in output:
+            self._video_rgb_key = "rgb"
+        elif "rgba" in output:
+            self._video_rgb_key = "rgba"
+        else:
+            raise RuntimeError(
+                f"Camera {camera} has no 'rgb' or 'rgba' in data.output after initialization. "
+                "Ensure data_types includes 'rgb' or 'rgba'."
+            )
         n_total = int(output[self._video_rgb_key].shape[0])
         n_envs = n_total if self._video_num_tiles < 0 else min(self._video_num_tiles, n_total)
         self._video_n_envs = n_envs

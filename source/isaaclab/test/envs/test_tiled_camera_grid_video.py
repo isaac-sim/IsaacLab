@@ -210,14 +210,14 @@ class TestFindVideoCameraFiltered:
         cap = _make_capture(scene_sensors={"cam": sensor}, preferred=("isaac_rtx",))
 
         with patch.dict(sys.modules, {"isaaclab.sensors.camera": _fake_camera_module()}):
-            with pytest.raises(RuntimeError, match="no Camera with RGB"):
+            with pytest.raises(RuntimeError, match="No Camera with RGB"):
                 cap._find_video_camera()
 
     def test_raises_when_no_matching_camera(self):
         cap = _make_capture(scene_sensors={}, preferred=("isaac_rtx",))
 
         with patch.dict(sys.modules, {"isaaclab.sensors.camera": _fake_camera_module()}):
-            with pytest.raises(RuntimeError, match="no Camera with RGB"):
+            with pytest.raises(RuntimeError, match="No Camera with RGB"):
                 cap._find_video_camera()
 
     def test_fallback_included_in_candidates(self):

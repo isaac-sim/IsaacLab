@@ -10,6 +10,10 @@ Supports ``video_mode="perspective"`` (Kit or Newton GL) and ``video_mode="tiled
 
 from __future__ import annotations
 
+import copy
+from dataclasses import field
+from typing import Literal
+
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCameraCfg
 from isaaclab.utils import configclass
@@ -46,13 +50,15 @@ class VideoRecorderCfg:
     Set automatically by the environment base classes; do not set manually.
     """
 
-    video_mode: str = "perspective"
+    video_mode: Literal["perspective", "tiled"] = "perspective"
     """``"perspective"`` or ``"tiled"``. Set via CLI: ``--video=perspective`` / ``--video=tiled``."""
 
     video_num_tiles: int = -1
     """Max environments per tiled frame (``-1`` = all). CLI: ``env.video_recorder.video_num_tiles=9``."""
 
-    fallback_camera_cfg: object | None = DEFAULT_TILED_RECORDING_CAMERA_CFG
+    fallback_camera_cfg: object | None = field(
+        default_factory=lambda: copy.deepcopy(DEFAULT_TILED_RECORDING_CAMERA_CFG)
+    )
     """Auto-spawned tiled camera when no suitable scene Camera exists. ``None`` disables; ignored in perspective mode.
     """
 
