@@ -73,6 +73,10 @@ class InHandReOrientationCommand(CommandTerm):
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["consecutive_success"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["success_rate"] = torch.zeros(self.num_envs, device=self.device)
+        # -- per-attempt success accounting: each success-driven resample completes one attempt;
+        #    the trailing attempt at episode end counts as one unsuccessful attempt.
+        self._completed_attempts = torch.zeros(self.num_envs, device=self.device)
 
     def __str__(self) -> str:
         msg = "InHandManipulationCommandGenerator:\n"
@@ -106,7 +110,27 @@ class InHandReOrientationCommand(CommandTerm):
         successes = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
         self.metrics["consecutive_success"] += successes.float()
 
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        # Snapshot per-attempt success rate BEFORE the base class logs and zeros metrics.
+        # success_rate = completed_attempts / (completed_attempts + 1 trailing in-progress).
+        if env_ids is None:
+            env_ids = slice(None)
+        completed = self._completed_attempts[env_ids]
+        self.metrics["success_rate"][env_ids] = completed / (completed + 1.0)
+        extras = super().reset(env_ids)
+        # super().reset() invoked _resample_command for the new initial goal, which
+        # incremented _completed_attempts; zero it back out so the new episode starts clean.
+        self._completed_attempts[env_ids] = 0.0
+        # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
+        # card across tasks); pop it from the returned dict so CommandManager does not
+        # additionally log it under ``Metrics/<term_name>/success_rate``.
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
+        return extras
+
     def _resample_command(self, env_ids: Sequence[int]):
+        # Each call corresponds to a success-driven (or initial) resample; count it as a
+        # completed attempt. The post-reset increment is cleared by ``reset()`` afterwards.
+        self._completed_attempts[env_ids] += 1.0
         # sample new orientation targets
         rand_floats = 2.0 * torch.rand((len(env_ids), 2), device=self.device) - 1.0
         # rotate randomly about x-axis and then y-axis

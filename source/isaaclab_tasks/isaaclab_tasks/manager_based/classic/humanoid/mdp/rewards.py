@@ -58,6 +58,9 @@ class progress_reward(ManagerTermBase):
         # reward terms
         self.potentials[env_ids] = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / self._env.step_dt
         self.prev_potentials[env_ids] = self.potentials[env_ids]
+        # flush survival success rate (survived = timed out without falling)
+        survived = self._env.termination_manager.time_outs[env_ids]
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
 
     def __call__(
         self,

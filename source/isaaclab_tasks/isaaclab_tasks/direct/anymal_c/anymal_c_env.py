@@ -32,6 +32,13 @@ class AnymalCEnv(DirectRLEnv):
         # X/Y linear velocity and yaw angular velocity commands
         self._commands = torch.zeros(self.num_envs, 3, device=self.device)
 
+        # Per-episode tracking accumulators for the velocity-tracking success metric.
+        # Errors are summed over actual episode steps and the mean is finalized at reset,
+        # so logged values reflect the just-ended episode rather than the post-reset instant.
+        self._error_xy_sum = torch.zeros(self.num_envs, device=self.device)
+        self._error_yaw_sum = torch.zeros(self.num_envs, device=self.device)
+        self._step_count = torch.zeros(self.num_envs, device=self.device)
+
         # Logging
         self._episode_sums = {
             key: torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
@@ -158,6 +165,13 @@ class AnymalCEnv(DirectRLEnv):
             "flat_orientation_l2": flat_orientation * self.cfg.flat_orientation_reward_scale * self.step_dt,
         }
         reward = torch.sum(torch.stack(list(rewards.values())), dim=0)
+        # Accumulate per-episode velocity tracking error sums; success is computed at reset
+        # as a per-env binary check on the *episode-mean* errors against the cfg thresholds.
+        error_xy = torch.linalg.norm(self._commands[:, :2] - self._robot.data.root_lin_vel_b.torch[:, :2], dim=-1)
+        error_yaw = torch.abs(self._commands[:, 2] - self._robot.data.root_ang_vel_b.torch[:, 2])
+        self._error_xy_sum += error_xy
+        self._error_yaw_sum += error_yaw
+        self._step_count += 1.0
         # Logging
         for key, value in rewards.items():
             self._episode_sums[key] += value
@@ -204,4 +218,23 @@ class AnymalCEnv(DirectRLEnv):
         extras = dict()
         extras["Episode_Termination/base_contact"] = torch.count_nonzero(self.reset_terminated[env_ids]).item()
         extras["Episode_Termination/time_out"] = torch.count_nonzero(self.reset_time_outs[env_ids]).item()
+        # Flush per-episode velocity tracking metrics. ``success_rate`` is per-env binary:
+        # the *episode-mean* error stayed below both thresholds, mean-reduced across env_ids.
+        denom = self._step_count[env_ids].clamp_min(1.0)
+        mean_error_xy = self._error_xy_sum[env_ids] / denom
+        mean_error_yaw = self._error_yaw_sum[env_ids] / denom
+        extras["Metrics/error_vel_xy"] = mean_error_xy.mean().item()
+        extras["Metrics/error_vel_yaw"] = mean_error_yaw.mean().item()
+        extras["Metrics/success_rate"] = (
+            (
+                (mean_error_xy < self.cfg.vel_xy_success_threshold)
+                & (mean_error_yaw < self.cfg.vel_yaw_success_threshold)
+            )
+            .float()
+            .mean()
+            .item()
+        )
+        self._error_xy_sum[env_ids] = 0.0
+        self._error_yaw_sum[env_ids] = 0.0
+        self._step_count[env_ids] = 0.0
         self.extras["log"].update(extras)
