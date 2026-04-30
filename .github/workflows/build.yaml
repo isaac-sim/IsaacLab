@@ -63,7 +63,7 @@ on:
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -147,7 +147,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -169,7 +169,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -191,7 +191,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -212,7 +212,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -233,7 +233,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -254,7 +254,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -275,7 +275,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -294,7 +294,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -313,7 +313,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -332,7 +332,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -351,7 +351,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -370,7 +370,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -389,7 +389,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -408,7 +408,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -427,7 +427,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -447,7 +447,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: always() && needs.build-curobo.result == 'success'
+    if: needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -469,7 +469,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: always() && needs.build-curobo.result == 'success'
+    if: needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -491,7 +491,7 @@ jobs:
     timeout-minutes: 300
     continue-on-error: true
     needs: [build, config]
-    if: always() && needs.build.result == 'success'
+    if: needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -515,7 +515,7 @@ jobs:
 #   continue-on-error: true
 #   needs: [build, config]
 #   if: >-
-#     always() && needs.build.result == 'success' &&
+#     needs.build.result == 'success' &&
 #     vars.RUN_QUARANTINED_TESTS == 'true'
 #   steps:
 #   - uses: actions/checkout@v6
