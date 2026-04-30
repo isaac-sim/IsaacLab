@@ -100,6 +100,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Reset the sensor buffers for the given environments."""
+        if self._data._force is None or self._data._torque is None:
+            return
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
         wp.launch(
@@ -151,6 +153,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         # so we take the first-env mapping as the 1-D kernel input.
         joint_child_full = self._root_view.get_attribute("joint_child", model)[:, 0]
         joint_child_np = joint_child_full.numpy()[0]
+        if not all(0 <= b < self._sim_bind_body_parent_f.shape[1] for b in joint_child_np):
+            raise RuntimeError(f"joint_child contains out-of-range body indices for '{self.cfg.prim_path}'")
         self._joint_child = wp.array(joint_child_np, dtype=wp.int32, device=self._device)
 
         link_names = list(self._root_view.link_names)

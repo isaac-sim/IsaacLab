@@ -39,7 +39,6 @@ def joint_wrench_to_incoming_joint_frame_kernel(
         return
 
     body_idx = joint_child[j]
-    assert body_idx >= 0 and body_idx < body_parent_f.shape[1]
 
     # Source wrench in world frame.  Newton's body_parent_f stores (force, torque-about-COM).
     src = body_parent_f[env, body_idx]
@@ -57,9 +56,10 @@ def joint_wrench_to_incoming_joint_frame_kernel(
     anchor_world = wp.transform_get_translation(joint_xform_world)
     joint_quat_world = wp.transform_get_rotation(joint_xform_world)
 
-    # Shift torque reference from COM to joint anchor: tau_B = tau_A + (A - B) x f.
-    r_com_to_anchor = com_world - anchor_world
-    tau_world_anchor = tau_world_com + wp.cross(r_com_to_anchor, f_world)
+    # Shift torque reference from COM to joint anchor:
+    #   tau_anchor = tau_com + (com - anchor) x f = tau_com + r_anchor_to_com x f.
+    r_anchor_to_com = com_world - anchor_world
+    tau_world_anchor = tau_world_com + wp.cross(r_anchor_to_com, f_world)
 
     # Rotate both components into the child-side joint frame.
     out_force[env, j] = wp.quat_rotate_inv(joint_quat_world, f_world)

@@ -256,9 +256,14 @@ def _compute_expected_wrench_in_joint_frame(
     # External force/torque on the child body only (if provided).  Actuator
     # torque is intentionally omitted; see tolerance comment in calling tests.
     if ext_force_b is not None:
-        total_force_w = total_force_w + math_utils.quat_apply(link_quat.unsqueeze(0), ext_force_b.unsqueeze(0)).squeeze(
-            0
-        )
+        ext_force_w = math_utils.quat_apply(link_quat.unsqueeze(0), ext_force_b.unsqueeze(0)).squeeze(0)
+        total_force_w = total_force_w + ext_force_w
+        # Moment of the external force about the joint anchor (applied at child COM).
+        child_com_local = wp.to_torch(sensor._sim_bind_body_com)[env, body_idx]
+        child_com_world = link_pos + math_utils.quat_apply(
+            link_quat.unsqueeze(0), child_com_local.unsqueeze(0)
+        ).squeeze(0)
+        total_torque_w = total_torque_w + torch.cross(child_com_world - anchor_world, ext_force_w, dim=-1)
     if ext_torque_b is not None:
         total_torque_w = total_torque_w + math_utils.quat_apply(
             link_quat.unsqueeze(0), ext_torque_b.unsqueeze(0)
