@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import contextlib
 from types import SimpleNamespace
 
 import pytest
@@ -140,6 +141,15 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
 
     # Avoid binding this unit test to global SimulationContext singleton state.
     monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
+
+    # ``disabled_fabric_change_notifies`` resolves the stage via UsdUtils.StageCache and would
+    # crash on the bare ``object()`` mocked above. This unit test exercises clone-dispatch
+    # logic only; the fabric notice path has its own coverage in ``test_cloner.py``.
+    @contextlib.contextmanager
+    def _noop_fabric_notices(stage, *, restore=True):
+        yield
+
+    monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.disabled_fabric_change_notifies", _noop_fabric_notices)
 
     physics_calls = []
     visualizer_calls = []
