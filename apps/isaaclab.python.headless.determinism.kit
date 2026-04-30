@@ -7,8 +7,8 @@
 ##
 
 [package]
-title = "Isaac Lab Python Headless Camera"
-description = "An app for running Isaac Lab headlessly with rendering enabled"
+title = "Isaac Lab Python Headless Deterministic Rendering"
+description = "An app for running Isaac Lab headlessly with rendering enabled and deterministic settings"
 version = "3.0.0"
 
 # That makes it browsable in UI with "experience" filter
@@ -164,5 +164,8 @@ persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-wes
 persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
 
 rtx.rendermode = "RealTimePathTracing"
+# Determinism: disable RTPT caches so each run recomputes lighting from the same
+# explicit inputs. Warm/cold cache history can otherwise change accumulation paths
+# and produce frame-to-frame drift across repeated experiments.
 rtx.rtpt.cached.enabled = false
 rtx.rtpt.lightcache.cached.enabled = false
