@@ -44,6 +44,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -239,8 +240,15 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # save every 10th image (for visualization purposes only)
         # note: saving images will slow down the simulation
         if count % 10 == 0:
+            # camera outputs are wp.array; lift to torch for image saving / matplotlib
+            camera_rgb = wp.to_torch(scene["camera"].data.output["rgb"])
+            tiled_rgb = wp.to_torch(scene["tiled_camera"].data.output["rgb"])
+            camera_depth = wp.to_torch(scene["camera"].data.output["distance_to_image_plane"])
+            tiled_depth = wp.to_torch(scene["tiled_camera"].data.output["distance_to_image_plane"])
+            raycast_depth = wp.to_torch(scene["raycast_camera"].data.output["distance_to_image_plane"])
+
             # compare generated RGB images across different cameras
-            rgb_images = [scene["camera"].data.output["rgb"][0, ..., :3], scene["tiled_camera"].data.output["rgb"][0]]
+            rgb_images = [camera_rgb[0, ..., :3], tiled_rgb[0]]
             save_images_grid(
                 rgb_images,
                 subtitles=["Camera"],
@@ -250,9 +258,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
             # compare generated Depth images across different cameras
             depth_images = [
-                scene["camera"].data.output["distance_to_image_plane"][0],
-                scene["tiled_camera"].data.output["distance_to_image_plane"][0, ..., 0],
-                scene["raycast_camera"].data.output["distance_to_image_plane"][0],
+                camera_depth[0],
+                tiled_depth[0, ..., 0],
+                raycast_depth[0],
             ]
             save_images_grid(
                 depth_images,
@@ -263,16 +271,15 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             )
 
             # save all tiled RGB images
-            tiled_images = scene["tiled_camera"].data.output["rgb"]
             save_images_grid(
-                tiled_images,
-                subtitles=[f"Cam{i}" for i in range(tiled_images.shape[0])],
+                tiled_rgb,
+                subtitles=[f"Cam{i}" for i in range(tiled_rgb.shape[0])],
                 title="Tiled RGB Image",
                 filename=os.path.join(output_dir, "tiled_rgb", f"{count:04d}.jpg"),
             )
 
             # save all camera RGB images
-            cam_images = scene["camera"].data.output["rgb"][..., :3]
+            cam_images = camera_rgb[..., :3]
             save_images_grid(
                 cam_images,
                 subtitles=[f"Cam{i}" for i in range(cam_images.shape[0])],

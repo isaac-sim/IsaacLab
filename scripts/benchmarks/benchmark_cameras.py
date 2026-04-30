@@ -256,6 +256,7 @@ import gymnasium as gym
 import numpy as np
 import psutil
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -635,7 +636,7 @@ def run_simulator(
         # Set camera world poses
         for camera_list in camera_lists:
             for camera in camera_list:
-                num_cameras = camera.data.intrinsic_matrices.size(0)
+                num_cameras = camera.data.intrinsic_matrices.shape[0]
                 positions = torch.tensor([[2.5, 2.5, 2.5]], device=sim.device).repeat(num_cameras, 1)
                 targets = torch.tensor([[0.0, 0.0, 0.0]], device=sim.device).repeat(num_cameras, 1)
                 camera.set_world_poses_from_view(positions, targets)
@@ -675,23 +676,24 @@ def run_simulator(
                     # Only update the camera if it hasn't been updated as part of scene_entities.update ...
                     camera.update(dt=sim.get_physics_dt())
 
+                # camera outputs and intrinsics are wp.array; lift to torch for math + collection
+                intrinsics_torch = wp.to_torch(camera.data.intrinsic_matrices)
+
                 for data_type in data_types:
                     data_label = f"{label}_{cam_idx}_{data_type}"
+                    output_torch = wp.to_torch(camera.data.output[data_type])
 
                     if depth_predicate(data_type):  # is a depth image, want to create cloud
-                        depth = camera.data.output[data_type]
+                        depth = output_torch
                         depth_images[data_label + "_raw"] = depth
                         if perspective_depth_predicate(data_type) and convert_depth_to_camera_to_image_plane:
-                            depth = orthogonalize_perspective_depth(
-                                camera.data.output[data_type], camera.data.intrinsic_matrices
-                            )
+                            depth = orthogonalize_perspective_depth(output_torch, intrinsics_torch)
                             depth_images[data_label + "_undistorted"] = depth
 
-                        pointcloud = unproject_depth(depth=depth, intrinsics=camera.data.intrinsic_matrices)
+                        pointcloud = unproject_depth(depth=depth, intrinsics=intrinsics_torch)
                         clouds[data_label] = pointcloud
                     else:  # rgb image, just save it
-                        image = camera.data.output[data_type]
-                        images[data_label] = image
+                        images[data_label] = output_torch
 
         # End timing for the step
         step_end_time = time.time()

@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -96,31 +97,32 @@ class CartpoleCameraEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         data_type = self.cfg.tiled_camera.data_types[0]
+        camera_output = self._tiled_camera.data.output
         if "rgb" in self.cfg.tiled_camera.data_types:
-            camera_data = self._tiled_camera.data.output[data_type] / 255.0
+            camera_data = wp.to_torch(camera_output[data_type]) / 255.0
             # normalize the camera data for better training results
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
             camera_data -= mean_tensor
         elif "albedo" in self.cfg.tiled_camera.data_types:
-            camera_data = self._tiled_camera.data.output[data_type][..., :3] / 255.0
+            camera_data = wp.to_torch(camera_output[data_type])[..., :3] / 255.0
             # normalize the camera data for better training results
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
             camera_data -= mean_tensor
         elif data_type in SIMPLE_SHADING_TYPES:
-            camera_data = self._tiled_camera.data.output[data_type] / 255.0
+            camera_data = wp.to_torch(camera_output[data_type]) / 255.0
             # normalize the camera data for better training results
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
             camera_data -= mean_tensor
         elif "depth" in self.cfg.tiled_camera.data_types:
-            camera_data = self._tiled_camera.data.output[data_type]
+            camera_data = wp.to_torch(camera_output[data_type])
             camera_data[camera_data == float("inf")] = 0
         elif "semantic_segmentation" in self.cfg.tiled_camera.data_types:
-            camera_data = self._tiled_camera.data.output[data_type]
+            camera_data = wp.to_torch(camera_output[data_type])
 
         observations = {"policy": camera_data.clone()}
 
         if self.cfg.write_image_to_file:
-            save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
+            save_images_to_file(wp.to_torch(camera_output[data_type]) / 255.0, f"cartpole_{data_type}.png")
 
         return observations
 

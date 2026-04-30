@@ -21,6 +21,7 @@ import random
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from flaky import flaky
 
 import omni.replicator.core as rep
@@ -119,16 +120,16 @@ def test_multi_tiled_camera_init(setup_camera):
         for i, camera in enumerate(tiled_cameras):
             # update camera
             camera.update(dt)
-            # check image data
-            for data_type, im_data in camera.data.output.items():
+            # check image data (camera outputs are wp.array; lift to torch for tensor ops)
+            for data_type, im_data_wp in camera.data.output.items():
                 if data_type == "rgb":
-                    im_data = im_data.clone() / 255.0
+                    im_data = wp.to_torch(im_data_wp).clone() / 255.0
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 3)
                     for j in range(num_cameras_per_tiled_camera):
                         assert (im_data[j]).mean().item() > 0.0
                     rgbs.append(im_data)
                 elif data_type == "distance_to_camera":
-                    im_data = im_data.clone()
+                    im_data = wp.to_torch(im_data_wp).clone()
                     im_data[torch.isinf(im_data)] = 0
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 1)
                     for j in range(num_cameras_per_tiled_camera):
@@ -207,8 +208,9 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         for i, camera in enumerate(tiled_cameras):
             # update camera
             camera.update(dt)
-            # check image data
-            for data_type, im_data in camera.data.output.items():
+            # check image data (camera outputs are wp.array; lift to torch for tensor ops)
+            for data_type, im_data_wp in camera.data.output.items():
+                im_data = wp.to_torch(im_data_wp)
                 if data_type in ["rgb", "normals"]:
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 3)
                 elif data_type in [
@@ -234,17 +236,17 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         # access image data and compare dtype
         output = camera.data.output
         info = camera.data.info
-        assert output["rgb"].dtype == torch.uint8
-        assert output["rgba"].dtype == torch.uint8
-        assert output["albedo"].dtype == torch.uint8
-        assert output["depth"].dtype == torch.float
-        assert output["distance_to_camera"].dtype == torch.float
-        assert output["distance_to_image_plane"].dtype == torch.float
-        assert output["normals"].dtype == torch.float
-        assert output["motion_vectors"].dtype == torch.float
-        assert output["semantic_segmentation"].dtype == torch.uint8
-        assert output["instance_segmentation_fast"].dtype == torch.uint8
-        assert output["instance_id_segmentation_fast"].dtype == torch.uint8
+        assert output["rgb"].dtype == wp.uint8
+        assert output["rgba"].dtype == wp.uint8
+        assert output["albedo"].dtype == wp.uint8
+        assert output["depth"].dtype == wp.float32
+        assert output["distance_to_camera"].dtype == wp.float32
+        assert output["distance_to_image_plane"].dtype == wp.float32
+        assert output["normals"].dtype == wp.float32
+        assert output["motion_vectors"].dtype == wp.float32
+        assert output["semantic_segmentation"].dtype == wp.uint8
+        assert output["instance_segmentation_fast"].dtype == wp.uint8
+        assert output["instance_id_segmentation_fast"].dtype == wp.uint8
         assert isinstance(info["semantic_segmentation"], dict)
         assert isinstance(info["instance_segmentation_fast"], dict)
         assert isinstance(info["instance_id_segmentation_fast"], dict)
@@ -303,15 +305,15 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         for i, camera in enumerate(tiled_cameras):
             # update camera
             camera.update(dt)
-            # check image data
-            for data_type, im_data in camera.data.output.items():
+            # check image data (camera outputs are wp.array; lift to torch for tensor ops)
+            for data_type, im_data_wp in camera.data.output.items():
                 if data_type == "rgb":
-                    im_data = im_data.clone() / 255.0
+                    im_data = wp.to_torch(im_data_wp).clone() / 255.0
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 3)
                     for j in range(num_cameras_per_tiled_camera):
                         assert (im_data[j]).mean().item() > 0.0
                 elif data_type == "distance_to_camera":
-                    im_data = im_data.clone()
+                    im_data = wp.to_torch(im_data_wp).clone()
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 1)
                     for j in range(num_cameras_per_tiled_camera):
                         assert im_data[j].mean().item() > 0.0
@@ -357,8 +359,8 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
         for camera in tiled_cameras:
             camera.update(dt)
 
-    # collect image data
-    image_befores = [camera.data.output["rgb"].clone() / 255.0 for camera in tiled_cameras]
+    # collect image data (camera outputs are wp.array; lift to torch for tensor ops)
+    image_befores = [wp.to_torch(camera.data.output["rgb"]).clone() / 255.0 for camera in tiled_cameras]
 
     # update scene
     for i in range(10):
@@ -374,7 +376,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
         camera.update(dt)
 
     # make sure the image is different
-    image_afters = [camera.data.output["rgb"].clone() / 255.0 for camera in tiled_cameras]
+    image_afters = [wp.to_torch(camera.data.output["rgb"]).clone() / 255.0 for camera in tiled_cameras]
 
     # check difference is above threshold
     for i in range(num_tiled_cameras):
@@ -422,16 +424,16 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
         for i, camera in enumerate(tiled_cameras):
             # update camera
             camera.update(dt)
-            # check image data
-            for data_type, im_data in camera.data.output.items():
+            # check image data (camera outputs are wp.array; lift to torch for tensor ops)
+            for data_type, im_data_wp in camera.data.output.items():
                 if data_type == "rgb":
-                    im_data = im_data.clone() / 255.0
+                    im_data = wp.to_torch(im_data_wp).clone() / 255.0
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 3)
                     for j in range(num_cameras_per_tiled_camera):
                         assert (im_data[j]).mean().item() > 0.0
                     rgbs.append(im_data)
                 elif data_type == "distance_to_camera":
-                    im_data = im_data.clone()
+                    im_data = wp.to_torch(im_data_wp).clone()
                     # replace inf with 0
                     im_data[torch.isinf(im_data)] = 0
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 1)

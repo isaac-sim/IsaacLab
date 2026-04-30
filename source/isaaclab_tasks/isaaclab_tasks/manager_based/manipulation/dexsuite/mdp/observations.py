@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
@@ -215,7 +216,7 @@ class vision_camera(ManagerTermBase):
     def __call__(
         self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True
     ) -> torch.Tensor:  # obtain the input image
-        images = self.sensor.data.output[self.sensor_type]
+        images = wp.to_torch(self.sensor.data.output[self.sensor_type])
         torch.nan_to_num_(images, nan=1e6)
         if normalize:
             images = self.norm_fn(images)

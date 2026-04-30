@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import torch
+import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
 from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
@@ -25,13 +25,13 @@ class CameraData:
     # Frame state.
     ##
 
-    pos_w: torch.Tensor = None
+    pos_w: wp.array = None
     """Position of the sensor origin in world frame, following ROS convention.
 
     Shape is (N, 3) where N is the number of sensors.
     """
 
-    quat_w_world: torch.Tensor = None
+    quat_w_world: wp.array = None
     """Quaternion orientation `(x, y, z, w)` of the sensor origin in world frame, following the world coordinate frame
 
     .. note::
@@ -47,13 +47,13 @@ class CameraData:
     image_shape: tuple[int, int] = None
     """A tuple containing (height, width) of the camera sensor."""
 
-    intrinsic_matrices: torch.Tensor = None
+    intrinsic_matrices: wp.array = None
     """The intrinsic matrices for the camera.
 
     Shape is (N, 3, 3) where N is the number of sensors.
     """
 
-    output: dict[str, torch.Tensor] = None
+    output: dict[str, wp.array] = None
     """The retrieved sensor data with sensor types as key.
 
     The format of the data is available in the `Replicator Documentation`_. For semantic-based data,
@@ -77,12 +77,12 @@ class CameraData:
         height: int,
         width: int,
         num_views: int,
-        device: torch.device | str,
+        device: str,
         supported_specs: dict[RenderBufferKind, RenderBufferSpec],
     ) -> CameraData:
         """Build a :class:`CameraData` with output buffers pre-allocated.
 
-        Allocates one ``(num_views, height, width, channels)`` tensor per kind
+        Allocates one ``(num_views, height, width, channels)`` Warp array per kind
         in the intersection of ``data_types`` and ``supported_specs``, using
         the channels and dtype from each :class:`RenderBufferSpec`.
 
@@ -92,7 +92,7 @@ class CameraData:
             height: Image height in pixels.
             width: Image width in pixels.
             num_views: Number of camera views (batch dimension).
-            device: Torch device on which to allocate the buffers.
+            device: Device on which to allocate the buffers.
             supported_specs: Per-buffer layout the active renderer can produce,
                 keyed by :class:`RenderBufferKind`. Names absent from this mapping
                 are not allocated.
@@ -124,19 +124,20 @@ class CameraData:
         if rgb_alias:
             requested.update({RenderBufferKind.RGB, RenderBufferKind.RGBA})
 
-        buffers: dict[str, torch.Tensor] = {}
+        buffers: dict[str, wp.array] = {}
         for name, spec in supported_specs.items():
             if name not in requested:
                 continue
             if rgb_alias and name == RenderBufferKind.RGB:
                 continue
-            buffers[str(name)] = torch.zeros(
+            buffers[str(name)] = wp.zeros(
                 (num_views, height, width, spec.channels),
                 dtype=spec.dtype,
                 device=device,
-            ).contiguous()
+            )
         if rgb_alias:
-            buffers[str(RenderBufferKind.RGB)] = buffers[str(RenderBufferKind.RGBA)][..., :3]
+            torch_rgba = wp.to_torch(buffers[str(RenderBufferKind.RGBA)])
+            buffers[str(RenderBufferKind.RGB)] = wp.from_torch(torch_rgba[..., :3])
 
         return cls(
             image_shape=(height, width),
@@ -149,7 +150,7 @@ class CameraData:
     ##
 
     @property
-    def quat_w_ros(self) -> torch.Tensor:
+    def quat_w_ros(self) -> wp.array:
         """Quaternion orientation `(x, y, z, w)` of the sensor origin in the world frame, following ROS convention.
 
         .. note::
@@ -157,10 +158,12 @@ class CameraData:
 
         Shape is (N, 4) where N is the number of sensors.
         """
-        return convert_camera_frame_orientation_convention(self.quat_w_world, origin="world", target="ros")
+        return wp.from_torch(
+            convert_camera_frame_orientation_convention(wp.to_torch(self.quat_w_world), origin="world", target="ros")
+        )
 
     @property
-    def quat_w_opengl(self) -> torch.Tensor:
+    def quat_w_opengl(self) -> wp.array:
         """Quaternion orientation `(x, y, z, w)` of the sensor origin in the world frame, following
         Opengl / USD Camera convention.
 
@@ -169,4 +172,6 @@ class CameraData:
 
         Shape is (N, 4) where N is the number of sensors.
         """
-        return convert_camera_frame_orientation_convention(self.quat_w_world, origin="world", target="opengl")
+        return wp.from_torch(
+            convert_camera_frame_orientation_convention(wp.to_torch(self.quat_w_world), origin="world", target="opengl")
+        )

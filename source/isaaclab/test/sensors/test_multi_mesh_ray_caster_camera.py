@@ -20,6 +20,7 @@ import copy
 import numpy as np
 import pytest
 import torch
+import warp as wp
 
 import omni.replicator.core as rep
 from pxr import Gf
@@ -115,7 +116,7 @@ def test_camera_init_offset(setup_simulation, convention, quat):
     camera.update(dt)
 
     # check that transform is set correctly
-    np.testing.assert_allclose(camera.data.pos_w[0].cpu().numpy(), cam_cfg_offset.offset.pos)
+    np.testing.assert_allclose(wp.to_torch(camera.data.pos_w)[0].cpu().numpy(), cam_cfg_offset.offset.pos)
 
     del camera
 
@@ -272,8 +273,8 @@ def test_camera_set_world_poses(setup_simulation):
     camera.set_world_poses(position.clone(), orientation.clone(), convention="world")
 
     # check if transform correctly set in output
-    torch.testing.assert_close(camera.data.pos_w, position)
-    torch.testing.assert_close(camera.data.quat_w_world, orientation)
+    torch.testing.assert_close(wp.to_torch(camera.data.pos_w), position)
+    torch.testing.assert_close(wp.to_torch(camera.data.quat_w_world), orientation)
 
     del camera
 
@@ -295,8 +296,8 @@ def test_camera_set_world_poses_from_view(setup_simulation):
     camera.set_world_poses_from_view(eyes.clone(), targets.clone())
 
     # check if transform correctly set in output
-    torch.testing.assert_close(camera.data.pos_w, eyes)
-    torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
+    torch.testing.assert_close(wp.to_torch(camera.data.pos_w), eyes)
+    torch.testing.assert_close(wp.to_torch(camera.data.quat_w_ros), quat_ros_gt)
 
     del camera
 
@@ -325,7 +326,7 @@ def test_intrinsic_matrix(setup_simulation, height, width):
         # update camera
         camera.update(dt)
         # Check that matrix is correct
-        torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices)
+        torch.testing.assert_close(rs_intrinsic_matrix, wp.to_torch(camera.data.intrinsic_matrices))
 
     del camera
 
@@ -792,16 +793,17 @@ def test_image_mesh_ids_identifies_hit_mesh(setup_simulation):
     sim.reset()
     camera.update(dt)
 
-    mesh_ids = camera.data.image_mesh_ids  # shape (N, H, W, 1), dtype torch.int16
-    assert mesh_ids is not None, "image_mesh_ids should not be None when update_mesh_ids=True"
-    assert mesh_ids.shape[-1] == 1
-    assert mesh_ids.dtype == torch.int16
+    mesh_ids_wp = camera.data.image_mesh_ids  # shape (N, H, W, 1), wp.int16
+    assert mesh_ids_wp is not None, "image_mesh_ids should not be None when update_mesh_ids=True"
+    assert mesh_ids_wp.shape[-1] == 1
+    assert mesh_ids_wp.dtype == wp.int16
+    mesh_ids = wp.to_torch(mesh_ids_wp)
 
     # Identify actual hits via distance < inf. This relies on depth_clipping_behavior="none"
     # (the default), which leaves missed rays at the Warp-kernel fill value of inf.
     # Under "max" clipping, missed rays would be clamped to a finite max_distance, making
     # the inf comparison incorrect.
-    hit_mask = camera.data.output["distance_to_camera"][0, :, :, 0] < float("inf")
+    hit_mask = wp.to_torch(camera.data.output["distance_to_camera"])[0, :, :, 0] < float("inf")
     assert hit_mask.any(), "Expected at least some rays to hit the ground plane"
 
     # All hits against the single registered mesh must carry mesh_id=0 (first mesh index).

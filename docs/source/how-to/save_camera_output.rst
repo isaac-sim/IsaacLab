@@ -58,14 +58,19 @@ PyTorch operations which allows faster computation.
 
 .. code-block:: python
 
+   import warp as wp
    from isaaclab.utils.math import transform_points, unproject_depth
 
-   # Pointcloud in world frame
-   points_3d_cam = unproject_depth(
-      camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices
-   )
+   # Camera ``data.output`` and pose fields are ``wp.array`` values; lift them to torch
+   # tensors before invoking the torch-based math utilities below.
+   depth = wp.to_torch(camera.data.output["distance_to_image_plane"])
+   intrinsics = wp.to_torch(camera.data.intrinsic_matrices)
+   pos_w = wp.to_torch(camera.data.pos_w)
+   quat_w_ros = wp.to_torch(camera.data.quat_w_ros)
 
-   points_3d_world = transform_points(points_3d_cam, camera.data.pos_w, camera.data.quat_w_ros)
+   # Pointcloud in world frame
+   points_3d_cam = unproject_depth(depth, intrinsics)
+   points_3d_world = transform_points(points_3d_cam, pos_w, quat_w_ros)
 
 Alternately, we can use the :meth:`isaaclab.sensors.camera.utils.create_pointcloud_from_depth` function
 to create a point cloud from the depth image and transform it to the world frame.

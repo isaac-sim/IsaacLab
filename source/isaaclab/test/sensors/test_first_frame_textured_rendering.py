@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest
 import torch
+import warp as wp
 
 import omni.replicator.core as rep
 
@@ -124,13 +125,13 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     # The first sim step + camera update should produce textured output
     sim.step()
     camera.update(dt)
-    first_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
+    first_frame = wp.to_torch(camera.data.output["rgb"])[0].clone().to(dtype=torch.float32)
 
     # Let the renderer stabilise, then capture the reference frame
     for _ in range(STABILISATION_STEPS):
         sim.step()
     camera.update(dt)
-    stable_frame = camera.data.output["rgb"][0].clone().to(dtype=torch.float32)
+    stable_frame = wp.to_torch(camera.data.output["rgb"])[0].clone().to(dtype=torch.float32)
 
     del camera
 

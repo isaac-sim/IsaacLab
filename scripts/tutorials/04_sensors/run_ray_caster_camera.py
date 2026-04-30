@@ -38,6 +38,7 @@ simulation_app = app_launcher.app
 import os
 
 import torch
+import warp as wp
 
 import omni.replicator.core as rep
 
@@ -144,17 +145,17 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
             rep_writer.write(rep_output)
 
-            # Pointcloud in world frame
-            points_3d_cam = unproject_depth(
-                camera.data.output["distance_to_image_plane"], camera.data.intrinsic_matrices
-            )
+            # Pointcloud in world frame; convert wp.array camera outputs to torch for math ops
+            depth_torch = wp.to_torch(camera.data.output["distance_to_image_plane"])
+            intrinsics_torch = wp.to_torch(camera.data.intrinsic_matrices)
+            points_3d_cam = unproject_depth(depth_torch, intrinsics_torch)
 
             # Check methods are valid
             im_height, im_width = camera.image_shape
             # -- project points to (u, v, d)
-            reproj_points = project_points(points_3d_cam, camera.data.intrinsic_matrices)
+            reproj_points = project_points(points_3d_cam, intrinsics_torch)
             reproj_depths = reproj_points[..., -1].view(-1, im_width, im_height).transpose_(1, 2)
-            sim_depths = camera.data.output["distance_to_image_plane"].squeeze(-1)
+            sim_depths = depth_torch.squeeze(-1)
             torch.testing.assert_close(reproj_depths, sim_depths)
 
 

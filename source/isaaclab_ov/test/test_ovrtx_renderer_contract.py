@@ -6,7 +6,7 @@
 """Tests for the OVRTX renderer output contract."""
 
 import pytest
-import torch
+import warp as wp
 
 pytest.importorskip("isaaclab_ov")
 pytest.importorskip("ovrtx")
@@ -58,19 +58,15 @@ def test_ovrtx_supported_output_types_key_set():
         RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.DISTANCE_TO_CAMERA,
     }
-    assert specs[RenderBufferKind.RGBA] == RenderBufferSpec(4, torch.uint8)
-    assert specs[RenderBufferKind.DEPTH] == RenderBufferSpec(1, torch.float32)
+    assert specs[RenderBufferKind.RGBA] == RenderBufferSpec(4, wp.uint8)
+    assert specs[RenderBufferKind.DEPTH] == RenderBufferSpec(1, wp.float32)
 
 
-def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
-    """OVRTXRenderer.set_outputs publishes warp views over the caller's torch storage."""
-    import warp as wp
-
+def test_ovrtx_set_outputs_stores_caller_warp_arrays():
+    """OVRTXRenderer.set_outputs stores caller-owned Warp arrays."""
     renderer = OVRTXRenderer(OVRTXRendererCfg())
 
-    if not torch.cuda.is_available():
-        pytest.skip("OVRTX zero-copy wrapping requires a CUDA device")
-    device = "cuda"
+    device = "cpu"
 
     cfg = _make_camera_cfg(["rgb", "rgba", "depth"])
     data = CameraData.allocate(
@@ -85,9 +81,9 @@ def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
     renderer.set_outputs(render_data, data.output)
 
     assert set(render_data.warp_buffers.keys()) >= {"rgba", "depth"}
-    assert render_data.warp_buffers["rgba"].ptr == wp.from_torch(data.output["rgba"]).ptr
-    assert render_data.warp_buffers["depth"].ptr == wp.from_torch(data.output["depth"]).ptr
-    assert "rgb" not in render_data.warp_buffers
+    assert render_data.warp_buffers["rgba"].ptr == data.output["rgba"].ptr
+    assert render_data.warp_buffers["depth"].ptr == data.output["depth"].ptr
+    assert render_data.warp_buffers["rgb"].ptr == data.output["rgb"].ptr
 
 
 def test_ovrtx_read_output_is_a_no_op_after_consolidation():

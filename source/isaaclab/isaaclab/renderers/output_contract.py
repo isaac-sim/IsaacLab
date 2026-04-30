@@ -14,10 +14,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import torch
 
 
 class RenderBufferKind(StrEnum):
@@ -48,7 +44,11 @@ class RenderBufferSpec:
     """Per-pixel layout (channels + dtype) for one render buffer kind."""
 
     channels: int
-    """Number of per-pixel channels (last dimension of the allocated tensor)."""
+    """Number of per-pixel channels (last dimension of the allocated array)."""
 
-    dtype: torch.dtype
-    """Torch dtype the renderer writes for this render buffer kind."""
+    dtype: type
+    """Warp dtype the renderer writes for this render buffer kind.
+
+    Must be a Warp scalar dtype class (e.g. ``warp.uint8``, ``warp.float32``,
+    ``warp.int32``) accepted by :func:`warp.zeros`.
+    """

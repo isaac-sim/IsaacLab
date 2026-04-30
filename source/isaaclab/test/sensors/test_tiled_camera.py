@@ -29,6 +29,7 @@ import warnings
 import numpy as np
 import pytest
 import torch
+import warp as wp
 
 import omni.replicator.core as rep
 from pxr import Gf, UsdGeom
@@ -142,8 +143,9 @@ def test_tiled_camera_basic_functionality(setup_camera, device):
         sim.step()
         # update camera
         camera.update(dt)
-        # check image data
-        for im_type, im_data in camera.data.output.items():
+        # check image data (camera outputs are wp.array; lift to torch for tensor ops)
+        for im_type, im_data_wp in camera.data.output.items():
+            im_data = wp.to_torch(im_data_wp)
             if im_type == "rgb":
                 assert im_data.shape == (1, camera_cfg.height, camera_cfg.width, 3)
                 assert (im_data / 255.0).mean() > 0.0

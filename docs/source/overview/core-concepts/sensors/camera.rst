@@ -162,8 +162,13 @@ Accessing camera data
 
 .. code-block:: python
 
+    import warp as wp
+
     tiled_camera = Camera(cfg.tiled_camera)
-    data = tiled_camera.data.output["rgb"]  # shape: (num_cameras, H, W, 3), torch.uint8
+    # ``data.output`` entries are ``wp.array`` values (e.g. ``wp.uint8``); use
+    # :func:`warp.to_torch` when Torch tensor operations are required.
+    data_wp = tiled_camera.data.output["rgb"]  # shape: (num_cameras, H, W, 3), wp.uint8
+    data = wp.to_torch(data_wp)  # zero-copy torch.uint8 view
 
 The returned data has shape ``(num_cameras, height, width, num_channels)``, ready to use directly
 as an observation in RL training.
@@ -207,11 +212,12 @@ RGB and RGBA
     :figwidth: 100%
     :alt: A scene captured in RGB
 
-``rgb`` returns a 3-channel RGB image of type ``torch.uint8``, shape ``(B, H, W, 3)``.
+``rgb`` returns a 3-channel RGB image of type ``wp.uint8``, shape ``(B, H, W, 3)``.
 
-``rgba`` returns a 4-channel RGBA image of type ``torch.uint8``, shape ``(B, H, W, 4)``.
+``rgba`` returns a 4-channel RGBA image of type ``wp.uint8``, shape ``(B, H, W, 4)``.
 
-To convert to ``torch.float32``, divide by 255.0.
+Use :func:`warp.to_torch` to obtain a zero-copy ``torch.uint8`` view; divide by ``255.0``
+to convert to ``torch.float32``.
 
 Depth and Distances
 ~~~~~~~~~~~~~~~~~~~
@@ -222,10 +228,10 @@ Depth and Distances
     :alt: A scene captured as depth
 
 ``distance_to_camera`` returns a single-channel depth image with distance to the camera optical
-center, shape ``(B, H, W, 1)``, type ``torch.float32``.
+center, shape ``(B, H, W, 1)``, type ``wp.float32``.
 
 ``distance_to_image_plane`` returns distances of 3D points from the camera plane along the Z-axis,
-shape ``(B, H, W, 1)``, type ``torch.float32``.
+shape ``(B, H, W, 1)``, type ``wp.float32``.
 
 ``depth`` is an alias for ``distance_to_image_plane``.
 
@@ -238,14 +244,14 @@ Normals
     :alt: A scene captured with surface normals
 
 ``normals`` returns local surface normal vectors at each pixel, shape ``(B, H, W, 3)`` containing
-``(x, y, z)``, type ``torch.float32``.
+``(x, y, z)``, type ``wp.float32``.
 
 Motion Vectors
 ~~~~~~~~~~~~~~
 
 ``motion_vectors`` returns per-pixel motion vectors in image space between frames.
 Shape ``(B, H, W, 2)``: ``x`` is horizontal motion (positive = left), ``y`` is vertical motion
-(positive = up). Type ``torch.float32``.
+(positive = up). Type ``wp.float32``.
 
 Semantic Segmentation
 ~~~~~~~~~~~~~~~~~~~~~
@@ -259,8 +265,8 @@ Semantic Segmentation
 An ``info`` dictionary is available via ``tiled_camera.data.info['semantic_segmentation']``.
 
 - If ``colorize_semantic_segmentation=True``: 4-channel RGBA image, shape ``(B, H, W, 4)``,
-  type ``torch.uint8``. The ``idToLabels`` dict maps color to semantic label.
-- If ``colorize_semantic_segmentation=False``: shape ``(B, H, W, 1)``, type ``torch.int32``,
+  type ``wp.uint8``. The ``idToLabels`` dict maps color to semantic label.
+- If ``colorize_semantic_segmentation=False``: shape ``(B, H, W, 1)``, type ``wp.int32``,
   containing semantic IDs. The ``idToLabels`` dict maps ID to label.
 
 Instance ID Segmentation
@@ -274,9 +280,9 @@ Instance ID Segmentation
 ``instance_id_segmentation_fast`` outputs per-pixel instance IDs, unique per USD prim path.
 An ``info`` dictionary is available via ``tiled_camera.data.info['instance_id_segmentation_fast']``.
 
-- If ``colorize_instance_id_segmentation=True``: shape ``(B, H, W, 4)``, type ``torch.uint8``.
+- If ``colorize_instance_id_segmentation=True``: shape ``(B, H, W, 4)``, type ``wp.uint8``.
   The ``idToLabels`` dict maps color to USD prim path.
-- If ``colorize_instance_id_segmentation=False``: shape ``(B, H, W, 1)``, type ``torch.int32``.
+- If ``colorize_instance_id_segmentation=False``: shape ``(B, H, W, 1)``, type ``wp.int32``.
   The ``idToLabels`` dict maps instance ID to USD prim path.
 
 Instance Segmentation
@@ -292,8 +298,8 @@ to the lowest level with semantic labels (unlike ``instance_id_segmentation_fast
 goes to the leaf prim).
 An ``info`` dictionary is available via ``tiled_camera.data.info['instance_segmentation_fast']``.
 
-- If ``colorize_instance_segmentation=True``: shape ``(B, H, W, 4)``, type ``torch.uint8``.
-- If ``colorize_instance_segmentation=False``: shape ``(B, H, W, 1)``, type ``torch.int32``.
+- If ``colorize_instance_segmentation=True``: shape ``(B, H, W, 4)``, type ``wp.uint8``.
+- If ``colorize_instance_segmentation=False``: shape ``(B, H, W, 1)``, type ``wp.int32``.
 
 The ``idToLabels`` dict maps color to USD prim path. The ``idToSemantics`` dict maps color to
 semantic label.

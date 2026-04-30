@@ -296,6 +296,8 @@ class Pva(BasePva):
                 device=self._device,
             )
         )
-        quat_w = math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world")
+        quat_w = wp.to_torch(
+            math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_opengl), "opengl", "world")
+        )
         # display markers
         self.acceleration_visualizer.visualize(base_pos_w, quat_w, arrow_scale)

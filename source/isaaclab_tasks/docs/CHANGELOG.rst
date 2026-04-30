@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+1.5.33 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed dexsuite ``vision_camera`` observation and the Franka stack
+  ``stack_ik_rel_blueprint`` ``image()`` helper to lift ``wp.array`` camera
+  outputs and intrinsics to torch tensors via :func:`warp.to_torch` before
+  applying Torch tensor operations.
+
+
+1.5.32 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated cartpole camera environments to consume ``wp.array`` camera outputs
+  via :func:`warp.to_torch` before applying Torch observation processing.
+
+
 1.5.31 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

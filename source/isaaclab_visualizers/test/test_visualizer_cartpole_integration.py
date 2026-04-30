@@ -236,9 +236,17 @@ def _get_physics_cfg(backend_kind: str):
     raise ValueError(f"Unknown backend: {backend_kind!r}")
 
 
-def _assert_non_black_tensor(image_tensor: torch.Tensor, *, min_nonzero_pixels: int = 1) -> None:
-    """Assert camera-like tensor contains non-black pixels."""
-    assert isinstance(image_tensor, torch.Tensor), f"Expected torch.Tensor, got {type(image_tensor)!r}"
+def _assert_non_black_tensor(image: torch.Tensor | wp.array, *, min_nonzero_pixels: int = 1) -> None:
+    """Assert camera-like image contains non-black pixels.
+
+    Accepts both ``torch.Tensor`` and ``wp.array`` (camera ``data.output`` entries are
+    Warp arrays after the wp-array migration).
+    """
+    if isinstance(image, wp.array):
+        image_tensor = wp.to_torch(image)
+    else:
+        assert isinstance(image, torch.Tensor), f"Expected torch.Tensor or wp.array, got {type(image)!r}"
+        image_tensor = image
     assert image_tensor.numel() > 0, "Image tensor is empty."
     finite_tensor = torch.where(torch.isfinite(image_tensor), image_tensor, torch.zeros_like(image_tensor))
     if finite_tensor.dtype.is_floating_point:

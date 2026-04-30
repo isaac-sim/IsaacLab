@@ -24,6 +24,7 @@ import pytest
 import scipy.spatial.transform as scipy_tf
 import torch
 import torch.utils.benchmark as benchmark
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 
@@ -333,31 +334,52 @@ def test_convention_converter(device):
 
     # from ROS
     torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "opengl"), quat_opengl
+        wp.to_torch(math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_ros), "ros", "opengl")),
+        quat_opengl,
     )
     torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "world"), quat_world
+        wp.to_torch(math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_ros), "ros", "world")),
+        quat_world,
     )
-    torch.testing.assert_close(math_utils.convert_camera_frame_orientation_convention(quat_ros, "ros", "ros"), quat_ros)
+    torch.testing.assert_close(
+        wp.to_torch(math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_ros), "ros", "ros")),
+        quat_ros,
+    )
     # from OpenGL
     torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "ros"), quat_ros
+        wp.to_torch(
+            math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_opengl), "opengl", "ros")
+        ),
+        quat_ros,
     )
     torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world"), quat_world
+        wp.to_torch(
+            math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_opengl), "opengl", "world")
+        ),
+        quat_world,
     )
     torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "opengl"), quat_opengl
+        wp.to_torch(
+            math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_opengl), "opengl", "opengl")
+        ),
+        quat_opengl,
     )
     # from World
     torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "ros"), quat_ros
+        wp.to_torch(math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_world), "world", "ros")),
+        quat_ros,
     )
     torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "opengl"), quat_opengl
+        wp.to_torch(
+            math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_world), "world", "opengl")
+        ),
+        quat_opengl,
     )
     torch.testing.assert_close(
-        math_utils.convert_camera_frame_orientation_convention(quat_world, "world", "world"), quat_world
+        wp.to_torch(
+            math_utils.convert_camera_frame_orientation_convention(wp.from_torch(quat_world), "world", "world")
+        ),
+        quat_world,
     )
 
 

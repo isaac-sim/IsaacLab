@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
-    import torch
+    import warp as wp
 
     from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -65,13 +65,13 @@ class BaseRenderer(ABC):
         pass
 
     @abstractmethod
-    def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]) -> None:
+    def set_outputs(self, render_data: Any, output_data: dict[str, wp.array]) -> None:
         """Store reference to output buffers for writing during render.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
             output_data: Dictionary mapping output names (e.g. ``"rgb"``, ``"depth"``)
-                to pre-allocated tensors where rendered data will be written.
+                to pre-allocated Warp arrays where rendered data will be written.
         """
         pass
 
@@ -85,7 +85,7 @@ class BaseRenderer(ABC):
 
     @abstractmethod
     def update_camera(
-        self, render_data: Any, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
+        self, render_data: Any, positions: wp.array, orientations: wp.array, intrinsics: wp.array
     ) -> None:
         """Update camera poses and intrinsics for the next render.
 

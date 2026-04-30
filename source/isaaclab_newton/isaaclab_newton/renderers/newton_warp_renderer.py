@@ -58,18 +58,18 @@ class RenderData:
         self.width = getattr(sensor.cfg, "width", 100)
         self.height = getattr(sensor.cfg, "height", 100)
 
-    def set_outputs(self, output_data: dict[str, torch.Tensor]):
-        for output_name, tensor_data in output_data.items():
+    def set_outputs(self, output_data: dict[str, wp.array]):
+        for output_name, array_data in output_data.items():
             if output_name == RenderBufferKind.RGBA:
-                self.outputs.color_image = self._from_torch(tensor_data, dtype=wp.uint32)
+                self.outputs.color_image = self._from_warp(array_data, dtype=wp.uint32)
             elif output_name == RenderBufferKind.ALBEDO:
-                self.outputs.albedo_image = self._from_torch(tensor_data, dtype=wp.uint32)
+                self.outputs.albedo_image = self._from_warp(array_data, dtype=wp.uint32)
             elif output_name == RenderBufferKind.DEPTH:
-                self.outputs.depth_image = self._from_torch(tensor_data, dtype=wp.float32)
+                self.outputs.depth_image = self._from_warp(array_data, dtype=wp.float32)
             elif output_name == RenderBufferKind.NORMALS:
-                self.outputs.normals_image = self._from_torch(tensor_data, dtype=wp.vec3f)
+                self.outputs.normals_image = self._from_warp(array_data, dtype=wp.vec3f)
             elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
-                self.outputs.instance_segmentation_image = self._from_torch(tensor_data, dtype=wp.uint32)
+                self.outputs.instance_segmentation_image = self._from_warp(array_data, dtype=wp.uint32)
             elif output_name == RenderBufferKind.RGB:
                 pass
             else:
@@ -88,10 +88,11 @@ class RenderData:
             return self.outputs.instance_segmentation_image
         return None
 
-    def update(self, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor):
-        converted_orientations = convert_camera_frame_orientation_convention(
-            orientations, origin="world", target="opengl"
-        )
+    def update(self, positions: wp.array, orientations: wp.array, intrinsics: wp.array):
+        intrinsics_torch = wp.to_torch(intrinsics)
+        converted_orientations = wp.from_torch(convert_camera_frame_orientation_convention(
+            wp.to_torch(orientations), origin="world", target="opengl"
+        ))
 
         self.camera_transforms = wp.empty(
             (1, self.newton_sensor.model.world_count), dtype=wp.transformf, device=self.newton_sensor.model.device
@@ -99,34 +100,41 @@ class RenderData:
         wp.launch(
             RenderData._update_transforms,
             self.newton_sensor.model.world_count,
-            [positions, converted_orientations, self.camera_transforms],
+            [
+                wp.array(
+                    ptr=positions.ptr,
+                    dtype=wp.vec3f,
+                    shape=(positions.shape[0],),
+                    device=positions.device,
+                    copy=False,
+                ),
+                wp.array(
+                    ptr=converted_orientations.ptr,
+                    dtype=wp.quatf,
+                    shape=(converted_orientations.shape[0],),
+                    device=converted_orientations.device,
+                    copy=False,
+                ),
+                self.camera_transforms,
+            ],
             device=self.newton_sensor.model.device,
         )
 
         if self.camera_rays is None:
-            first_focal_length = intrinsics[:, 1, 1][0:1]
+            first_focal_length = intrinsics_torch[:, 1, 1][0:1]
             fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
             self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
                 self.width, self.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
             )
 
-    def _from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
-        proxy_array = wp.from_torch(tensor)
-        if tensor.is_contiguous():
-            return wp.array(
-                ptr=proxy_array.ptr,
-                dtype=dtype,
-                shape=(self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
-                device=proxy_array.device,
-                copy=False,
-            )
-
-        logger.warning("NewtonWarpRenderer - torch output array is non-contiguous")
-        return wp.zeros(
-            (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
+    def _from_warp(self, array: wp.array, dtype) -> wp.array:
+        return wp.array(
+            ptr=array.ptr,
             dtype=dtype,
-            device=proxy_array.device,
+            shape=(self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
+            device=array.device,
+            copy=False,
         )
 
     @wp.kernel
@@ -185,16 +193,14 @@ class NewtonWarpRenderer(BaseRenderer):
         """Publish the per-output layout this Newton Warp backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         seg_spec = (
-            RenderBufferSpec(4, torch.uint8)
-            if self.cfg.colorize_instance_segmentation
-            else RenderBufferSpec(1, torch.int32)
+            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_instance_segmentation else RenderBufferSpec(1, wp.int32)
         )
         return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.INSTANCE_SEGMENTATION_FAST: seg_spec,
         }
 
@@ -208,7 +214,7 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         return RenderData(self.newton_sensor, sensor)
 
-    def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
+    def set_outputs(self, render_data: RenderData, output_data: dict[str, wp.array]):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.set_outputs(output_data)
 
@@ -217,9 +223,7 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
         SimulationContext.instance().update_scene_data_provider(True)
 
-    def update_camera(
-        self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
-    ):
+    def update_camera(self, render_data: RenderData, positions: wp.array, orientations: wp.array, intrinsics: wp.array):
         """Update camera poses and intrinsics.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         render_data.update(positions, orientations, intrinsics)
@@ -244,12 +248,17 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
         for output_name in camera_data.output:
             if output_name == "rgb":
+                # rgb is populated below by mirroring the first three channels of rgba.
                 continue
             image_data = render_data.get_output(output_name)
             if image_data is not None:
                 output_data = camera_data.output[output_name]
-                if image_data.ptr != output_data.data_ptr():
-                    wp.copy(wp.from_torch(output_data), image_data)
+                if image_data.ptr != output_data.ptr:
+                    wp.copy(output_data, image_data)
+        # Mirror rgba's first three channels into rgb when both are requested. This matches the
+        # legacy slice-aliased behavior so consumers requesting "rgb" still see populated pixels.
+        if "rgb" in camera_data.output and "rgba" in camera_data.output:
+            wp.to_torch(camera_data.output["rgb"]).copy_(wp.to_torch(camera_data.output["rgba"])[..., :3])
 
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.

@@ -100,13 +100,13 @@ class OVRTXRenderer(BaseRenderer):
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
         }
 
     def __init__(self, cfg: OVRTXRendererCfg):
@@ -330,44 +330,21 @@ class OVRTXRenderer(BaseRenderer):
             self.initialize(sensor)
         return OVRTXRenderData(sensor, DEVICE)
 
-    # Map torch dtypes to their warp counterparts for zero-copy wrapping.
-    _TORCH_TO_WP_DTYPE: dict[torch.dtype, Any] = {
-        torch.uint8: wp.uint8,
-        torch.float32: wp.float32,
-        torch.int32: wp.int32,
-    }
+    _SUPPORTED_OUTPUT_DTYPES: set[Any] = {wp.uint8, wp.float32, wp.int32}
 
-    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, torch.Tensor]) -> None:
-        """Wrap caller-owned torch output tensors as zero-copy warp arrays.
-
-        Aliased views over a contiguous sibling (e.g. ``rgb`` over ``rgba``) are
-        skipped; any other non-contiguous tensor raises ``ValueError``.
+    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, wp.array]) -> None:
+        """Store caller-owned Warp output arrays.
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`.
         """
         render_data.warp_buffers = {}
-        for name, tensor in output_data.items():
-            if not tensor.is_contiguous():
-                if tensor.data_ptr() in {t.data_ptr() for t in output_data.values() if t.is_contiguous()}:
-                    continue
+        for name, output_array in output_data.items():
+            if output_array.dtype not in self._SUPPORTED_OUTPUT_DTYPES:
                 raise ValueError(
-                    f"OVRTXRenderer.set_outputs: output '{name}' is non-contiguous and is not an"
-                    " alias of a contiguous output tensor; cannot wrap as a zero-copy warp array."
+                    f"OVRTXRenderer.set_outputs: unsupported Warp dtype {output_array.dtype} for output"
+                    f" '{name}'. Add it to OVRTXRenderer._SUPPORTED_OUTPUT_DTYPES."
                 )
-            wp_dtype = self._TORCH_TO_WP_DTYPE.get(tensor.dtype)
-            if wp_dtype is None:
-                raise ValueError(
-                    f"OVRTXRenderer.set_outputs: unsupported torch dtype {tensor.dtype} for output"
-                    f" '{name}'. Add it to OVRTXRenderer._TORCH_TO_WP_DTYPE."
-                )
-            torch_array = wp.from_torch(tensor)
-            render_data.warp_buffers[name] = wp.array(
-                ptr=torch_array.ptr,
-                dtype=wp_dtype,
-                shape=tuple(tensor.shape),
-                device=torch_array.device,
-                copy=False,
-            )
+            render_data.warp_buffers[name] = output_array
 
     def update_transforms(self) -> None:
         """Sync physics objects to OVRTX."""
@@ -399,15 +376,25 @@ class OVRTXRenderer(BaseRenderer):
     def update_camera(
         self,
         render_data: OVRTXRenderData,
-        positions: torch.Tensor,
-        orientations: torch.Tensor,
-        intrinsics: torch.Tensor,
+        positions: wp.array,
+        orientations: wp.array,
+        intrinsics: wp.array,
     ) -> None:
         """Update camera transforms in OVRTX binding."""
         num_envs = positions.shape[0]
-        camera_quats_opengl = convert_camera_frame_orientation_convention(orientations, origin="world", target="opengl")
-        camera_positions_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3)
-        camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
+        camera_quats_opengl = wp.from_torch(
+            convert_camera_frame_orientation_convention(wp.to_torch(orientations), origin="world", target="opengl")
+        )
+        camera_positions_wp = wp.array(
+            ptr=positions.ptr, dtype=wp.vec3, shape=(num_envs,), device=positions.device, copy=False
+        )
+        camera_orientations_wp = wp.array(
+            ptr=camera_quats_opengl.ptr,
+            dtype=wp.quatf,
+            shape=(num_envs,),
+            device=camera_quats_opengl.device,
+            copy=False,
+        )
         camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
         wp.launch(
             kernel=create_camera_transforms_kernel,
@@ -425,10 +412,10 @@ class OVRTXRenderer(BaseRenderer):
         render_data: OVRTXRenderData,
         camera_data: CameraData,
     ) -> None:
-        """No-op: outputs already live in the caller's torch storage.
+        """No-op: outputs already live in the caller's Warp storage.
 
-        :meth:`set_outputs` wraps each ``camera_data.output`` tensor as a
-        zero-copy warp array stored in ``render_data.warp_buffers``, and
+        :meth:`set_outputs` stores each ``camera_data.output`` array in
+        ``render_data.warp_buffers``, and
         :meth:`render` writes the rendered tiles directly into those warp
         arrays. There is therefore nothing to copy here.
 
@@ -505,6 +492,8 @@ class OVRTXRenderer(BaseRenderer):
             with frame.render_vars[rgb_render_var].map(device=Device.CUDA) as mapping:
                 tiled_data = wp.from_dlpack(mapping.tensor)
                 self._extract_rgba_tiles(render_data, tiled_data, output_buffers, "rgba", suffix="rgb")
+                if "rgb" in output_buffers:
+                    wp.to_torch(output_buffers["rgb"]).copy_(wp.to_torch(output_buffers["rgba"])[..., :3])
 
         for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:

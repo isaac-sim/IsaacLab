@@ -9,6 +9,7 @@ import os
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 from torchvision.utils import save_image
 
 import isaaclab.sim as sim_utils
@@ -65,12 +66,12 @@ def image(
     # extract the used quantities (to enable type-hinting)
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
-    # obtain the input image
-    images = sensor.data.output[data_type]
+    # obtain the input image; camera outputs are wp.array, lift to torch for tensor ops
+    images = wp.to_torch(sensor.data.output[data_type])
 
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
-        images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
+        images = math_utils.orthogonalize_perspective_depth(images, wp.to_torch(sensor.data.intrinsic_matrices))
 
     # rgb/depth image normalization
     if normalize:

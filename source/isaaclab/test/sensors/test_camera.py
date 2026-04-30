@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 import scipy.spatial.transform as tf
 import torch
+import warp as wp
 
 import omni.replicator.core as rep
 from pxr import Gf, Usd, UsdGeom
@@ -192,11 +193,13 @@ def test_camera_init_offset(setup_sim_camera):
         rtol=1e-5,
     )
 
-    # check if transform correctly set in output
-    np.testing.assert_allclose(camera_ros.data.pos_w[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos, rtol=1e-5)
-    np.testing.assert_allclose(camera_ros.data.quat_w_ros[0].cpu().numpy(), QUAT_ROS, rtol=1e-5)
-    np.testing.assert_allclose(camera_ros.data.quat_w_opengl[0].cpu().numpy(), QUAT_OPENGL, rtol=1e-5)
-    np.testing.assert_allclose(camera_ros.data.quat_w_world[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
+    # check if transform correctly set in output (camera pose fields are wp.array)
+    np.testing.assert_allclose(
+        wp.to_torch(camera_ros.data.pos_w)[0].cpu().numpy(), cam_cfg_offset_ros.offset.pos, rtol=1e-5
+    )
+    np.testing.assert_allclose(wp.to_torch(camera_ros.data.quat_w_ros)[0].cpu().numpy(), QUAT_ROS, rtol=1e-5)
+    np.testing.assert_allclose(wp.to_torch(camera_ros.data.quat_w_opengl)[0].cpu().numpy(), QUAT_OPENGL, rtol=1e-5)
+    np.testing.assert_allclose(wp.to_torch(camera_ros.data.quat_w_world)[0].cpu().numpy(), QUAT_WORLD, rtol=1e-5)
 
 
 def test_multi_camera_init(setup_sim_camera):
@@ -263,7 +266,7 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
     camera_1 = Camera(cfg=camera_cfg)
     # get intrinsic matrix
     sim.reset()
-    intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
+    intrinsic_matrix = wp.to_torch(camera_1.data.intrinsic_matrices)[0].cpu().flatten().tolist()
     teardown(sim)
     # reinit the first camera
     sim, camera_cfg, dt = setup()
@@ -295,15 +298,15 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
 
     # check image data
     torch.testing.assert_close(
-        camera_1.data.output["distance_to_image_plane"],
-        camera_2.data.output["distance_to_image_plane"],
+        wp.to_torch(camera_1.data.output["distance_to_image_plane"]),
+        wp.to_torch(camera_2.data.output["distance_to_image_plane"]),
         rtol=5e-3,
         atol=1e-4,
     )
     # check that both intrinsic matrices are the same
     torch.testing.assert_close(
-        camera_1.data.intrinsic_matrices[0],
-        camera_2.data.intrinsic_matrices[0],
+        wp.to_torch(camera_1.data.intrinsic_matrices)[0],
+        wp.to_torch(camera_2.data.intrinsic_matrices)[0],
         rtol=5e-3,
         atol=1e-4,
     )
@@ -326,8 +329,8 @@ def test_camera_set_world_poses(setup_sim_camera):
     camera.set_world_poses(position.clone(), orientation.clone(), convention="world")
 
     # check if transform correctly set in output
-    torch.testing.assert_close(camera.data.pos_w, position)
-    torch.testing.assert_close(camera.data.quat_w_world, orientation)
+    torch.testing.assert_close(wp.to_torch(camera.data.pos_w), position)
+    torch.testing.assert_close(wp.to_torch(camera.data.quat_w_world), orientation)
 
 
 def test_camera_set_world_poses_from_view(setup_sim_camera):
@@ -348,8 +351,8 @@ def test_camera_set_world_poses_from_view(setup_sim_camera):
     camera.set_world_poses_from_view(eyes.clone(), targets.clone())
 
     # check if transform correctly set in output
-    torch.testing.assert_close(camera.data.pos_w, eyes)
-    torch.testing.assert_close(camera.data.quat_w_ros, quat_ros_gt)
+    torch.testing.assert_close(wp.to_torch(camera.data.pos_w), eyes)
+    torch.testing.assert_close(wp.to_torch(camera.data.quat_w_ros), quat_ros_gt)
 
 
 def test_intrinsic_matrix(setup_sim_camera):
@@ -374,10 +377,11 @@ def test_intrinsic_matrix(setup_sim_camera):
         # update camera
         camera.update(dt)
         # Check that matrix is correct
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices[0, 0, 0])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices[0, 1, 1])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices[0, 0, 2])
-        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices[0, 1, 2])
+        intrinsics_torch = wp.to_torch(camera.data.intrinsic_matrices)
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 0], intrinsics_torch[0, 0, 0])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 1], intrinsics_torch[0, 1, 1])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 0, 2], intrinsics_torch[0, 0, 2])
+        torch.testing.assert_close(rs_intrinsic_matrix[0, 1, 2], intrinsics_torch[0, 1, 2])
 
 
 def test_depth_clipping(setup_sim_camera):
@@ -536,17 +540,17 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
 
     # access image data and compare dtype
     output = camera.data.output
-    assert output["rgb"].dtype == torch.uint8
-    assert output["rgba"].dtype == torch.uint8
-    assert output["albedo"].dtype == torch.uint8
-    assert output["depth"].dtype == torch.float
-    assert output["distance_to_camera"].dtype == torch.float
-    assert output["distance_to_image_plane"].dtype == torch.float
-    assert output["normals"].dtype == torch.float
-    assert output["motion_vectors"].dtype == torch.float
-    assert output["semantic_segmentation"].dtype == torch.uint8
-    assert output["instance_segmentation_fast"].dtype == torch.uint8
-    assert output["instance_id_segmentation_fast"].dtype == torch.uint8
+    assert output["rgb"].dtype == wp.uint8
+    assert output["rgba"].dtype == wp.uint8
+    assert output["albedo"].dtype == wp.uint8
+    assert output["depth"].dtype == wp.float32
+    assert output["distance_to_camera"].dtype == wp.float32
+    assert output["distance_to_image_plane"].dtype == wp.float32
+    assert output["normals"].dtype == wp.float32
+    assert output["motion_vectors"].dtype == wp.float32
+    assert output["semantic_segmentation"].dtype == wp.uint8
+    assert output["instance_segmentation_fast"].dtype == wp.uint8
+    assert output["instance_id_segmentation_fast"].dtype == wp.uint8
 
 
 def test_camera_resolution_no_colorize(setup_sim_camera):
@@ -597,17 +601,17 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
 
     # access image data and compare dtype
     output = camera.data.output
-    assert output["rgb"].dtype == torch.uint8
-    assert output["rgba"].dtype == torch.uint8
-    assert output["albedo"].dtype == torch.uint8
-    assert output["depth"].dtype == torch.float
-    assert output["distance_to_camera"].dtype == torch.float
-    assert output["distance_to_image_plane"].dtype == torch.float
-    assert output["normals"].dtype == torch.float
-    assert output["motion_vectors"].dtype == torch.float
-    assert output["semantic_segmentation"].dtype == torch.int32
-    assert output["instance_segmentation_fast"].dtype == torch.int32
-    assert output["instance_id_segmentation_fast"].dtype == torch.int32
+    assert output["rgb"].dtype == wp.uint8
+    assert output["rgba"].dtype == wp.uint8
+    assert output["albedo"].dtype == wp.uint8
+    assert output["depth"].dtype == wp.float32
+    assert output["distance_to_camera"].dtype == wp.float32
+    assert output["distance_to_image_plane"].dtype == wp.float32
+    assert output["normals"].dtype == wp.float32
+    assert output["motion_vectors"].dtype == wp.float32
+    assert output["semantic_segmentation"].dtype == wp.int32
+    assert output["instance_segmentation_fast"].dtype == wp.int32
+    assert output["instance_id_segmentation_fast"].dtype == wp.int32
 
 
 def test_camera_large_resolution_all_colorize(setup_sim_camera):
@@ -661,17 +665,17 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
 
     # access image data and compare dtype
     output = camera.data.output
-    assert output["rgb"].dtype == torch.uint8
-    assert output["rgba"].dtype == torch.uint8
-    assert output["albedo"].dtype == torch.uint8
-    assert output["depth"].dtype == torch.float
-    assert output["distance_to_camera"].dtype == torch.float
-    assert output["distance_to_image_plane"].dtype == torch.float
-    assert output["normals"].dtype == torch.float
-    assert output["motion_vectors"].dtype == torch.float
-    assert output["semantic_segmentation"].dtype == torch.uint8
-    assert output["instance_segmentation_fast"].dtype == torch.uint8
-    assert output["instance_id_segmentation_fast"].dtype == torch.uint8
+    assert output["rgb"].dtype == wp.uint8
+    assert output["rgba"].dtype == wp.uint8
+    assert output["albedo"].dtype == wp.uint8
+    assert output["depth"].dtype == wp.float32
+    assert output["distance_to_camera"].dtype == wp.float32
+    assert output["distance_to_image_plane"].dtype == wp.float32
+    assert output["normals"].dtype == wp.float32
+    assert output["motion_vectors"].dtype == wp.float32
+    assert output["semantic_segmentation"].dtype == wp.uint8
+    assert output["instance_segmentation_fast"].dtype == wp.uint8
+    assert output["instance_id_segmentation_fast"].dtype == wp.uint8
 
 
 def test_camera_resolution_rgb_only(setup_sim_camera):
@@ -693,7 +697,7 @@ def test_camera_resolution_rgb_only(setup_sim_camera):
     output = camera.data.output
     assert output["rgb"].shape == hw_3c_shape
     # access image data and compare dtype
-    assert output["rgb"].dtype == torch.uint8
+    assert output["rgb"].dtype == wp.uint8
 
 
 def test_camera_resolution_rgba_only(setup_sim_camera):
@@ -715,7 +719,7 @@ def test_camera_resolution_rgba_only(setup_sim_camera):
     output = camera.data.output
     assert output["rgba"].shape == hw_4c_shape
     # access image data and compare dtype
-    assert output["rgba"].dtype == torch.uint8
+    assert output["rgba"].dtype == wp.uint8
 
 
 def test_camera_resolution_albedo_only(setup_sim_camera):
@@ -737,7 +741,7 @@ def test_camera_resolution_albedo_only(setup_sim_camera):
     output = camera.data.output
     assert output["albedo"].shape == hw_4c_shape
     # access image data and compare dtype
-    assert output["albedo"].dtype == torch.uint8
+    assert output["albedo"].dtype == wp.uint8
 
 
 @pytest.mark.parametrize(
@@ -763,7 +767,7 @@ def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
     output = camera.data.output
     assert output[data_type].shape == hw_3c_shape
     # access image data and compare dtype
-    assert output[data_type].dtype == torch.uint8
+    assert output[data_type].dtype == wp.uint8
 
 
 def test_camera_resolution_depth_only(setup_sim_camera):
@@ -785,7 +789,7 @@ def test_camera_resolution_depth_only(setup_sim_camera):
     output = camera.data.output
     assert output["depth"].shape == hw_1c_shape
     # access image data and compare dtype
-    assert output["depth"].dtype == torch.float
+    assert output["depth"].dtype == wp.float32
 
 
 def test_sensor_print(setup_sim_camera):
@@ -857,7 +861,8 @@ def test_camera_multi_regex_init(setup_camera_device, device):
     for _ in range(10):
         sim.step()
         camera.update(dt)
-        for im_type, im_data in camera.data.output.items():
+        for im_type, im_data_wp in camera.data.output.items():
+            im_data = wp.to_torch(im_data_wp)
             if im_type == "rgb":
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
                 for i in range(4):
@@ -904,7 +909,8 @@ def test_camera_all_annotators(setup_camera_device, device):
     for _ in range(10):
         sim.step()
         camera.update(dt)
-        for data_type, im_data in camera.data.output.items():
+        for data_type, im_data_wp in camera.data.output.items():
+            im_data = wp.to_torch(im_data_wp)
             if data_type in ["rgb", "normals"]:
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
             elif data_type in [
@@ -928,17 +934,17 @@ def test_camera_all_annotators(setup_camera_device, device):
 
     output = camera.data.output
     info = camera.data.info
-    assert output["rgb"].dtype == torch.uint8
-    assert output["rgba"].dtype == torch.uint8
-    assert output["albedo"].dtype == torch.uint8
-    assert output["depth"].dtype == torch.float
-    assert output["distance_to_camera"].dtype == torch.float
-    assert output["distance_to_image_plane"].dtype == torch.float
-    assert output["normals"].dtype == torch.float
-    assert output["motion_vectors"].dtype == torch.float
-    assert output["semantic_segmentation"].dtype == torch.uint8
-    assert output["instance_segmentation_fast"].dtype == torch.uint8
-    assert output["instance_id_segmentation_fast"].dtype == torch.uint8
+    assert output["rgb"].dtype == wp.uint8
+    assert output["rgba"].dtype == wp.uint8
+    assert output["albedo"].dtype == wp.uint8
+    assert output["depth"].dtype == wp.float32
+    assert output["distance_to_camera"].dtype == wp.float32
+    assert output["distance_to_image_plane"].dtype == wp.float32
+    assert output["normals"].dtype == wp.float32
+    assert output["motion_vectors"].dtype == wp.float32
+    assert output["semantic_segmentation"].dtype == wp.uint8
+    assert output["instance_segmentation_fast"].dtype == wp.uint8
+    assert output["instance_id_segmentation_fast"].dtype == wp.uint8
     assert isinstance(info["semantic_segmentation"], dict)
     assert isinstance(info["instance_segmentation_fast"], dict)
     assert isinstance(info["instance_id_segmentation_fast"], dict)
@@ -970,7 +976,7 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
 
     for seg_type in camera_cfg.data_types:
         assert camera.data.output[seg_type].shape == (num_cameras, camera_cfg.height, camera_cfg.width, 1)
-        assert camera.data.output[seg_type].dtype == torch.int32
+        assert camera.data.output[seg_type].dtype == wp.int32
         assert isinstance(camera.data.info[seg_type], dict)
 
     del camera
@@ -994,14 +1000,14 @@ def test_camera_normals_unit_length(setup_camera_device, device):
     for _ in range(10):
         sim.step()
         camera.update(dt)
-        im_data = camera.data.output["normals"]
+        im_data = wp.to_torch(camera.data.output["normals"])
         assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
         for i in range(4):
             assert im_data[i].mean() > 0.0
         norms = torch.linalg.norm(im_data, dim=-1)
         assert torch.allclose(norms, torch.ones_like(norms), atol=1e-9)
 
-    assert camera.data.output["normals"].dtype == torch.float
+    assert camera.data.output["normals"].dtype == wp.float32
     del camera
 
 
@@ -1059,7 +1065,7 @@ def test_camera_frame_offset(setup_camera_device, device):
         sim.step()
         camera.update(dt)
 
-    image_before = camera.data.output["rgb"].clone() / 255.0
+    image_before = wp.to_torch(camera.data.output["rgb"]).clone() / 255.0
 
     for i in range(10):
         prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
@@ -1069,7 +1075,7 @@ def test_camera_frame_offset(setup_camera_device, device):
     sim.step()
     camera.update(dt)
 
-    image_after = camera.data.output["rgb"].clone() / 255.0
+    image_after = wp.to_torch(camera.data.output["rgb"]).clone() / 255.0
 
     assert torch.abs(image_after - image_before).mean() > 0.01
 
@@ -1096,7 +1102,7 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
             self.cfg = cfg
 
         def supported_output_types(self):
-            return {RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8)}
+            return {RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8)}
 
         def prepare_stage(self, stage, num_envs):
             pass

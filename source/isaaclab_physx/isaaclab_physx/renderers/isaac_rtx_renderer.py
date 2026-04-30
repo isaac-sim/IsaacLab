@@ -73,7 +73,7 @@ class IsaacRtxRenderData:
 
     annotators: dict[str, Any]
     render_product_paths: list[str]
-    output_data: dict[str, torch.Tensor] | None = None
+    output_data: dict[str, wp.array] | None = None
     sensor: SensorBase | None = None
     renderer_info: dict[str, Any] = field(default_factory=dict)
 
@@ -108,19 +108,19 @@ class IsaacRtxRenderer(BaseRenderer):
         specs: dict[RenderBufferKind, RenderBufferSpec] = {
             # Replicator's native layout for color output is rgba/uint8;
             # ``Camera`` aliases ``rgb`` as a view into ``rgba`` storage.
-            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
-            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
         }
 
         if sim_major >= 6:
-            specs[RenderBufferKind.ALBEDO] = RenderBufferSpec(4, torch.uint8)
+            specs[RenderBufferKind.ALBEDO] = RenderBufferSpec(4, wp.uint8)
             for shading_type in SIMPLE_SHADING_MODES:
-                specs[RenderBufferKind(shading_type)] = RenderBufferSpec(3, torch.uint8)
+                specs[RenderBufferKind(shading_type)] = RenderBufferSpec(3, wp.uint8)
 
         seg_specs = (
             (RenderBufferKind.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
@@ -128,7 +128,7 @@ class IsaacRtxRenderer(BaseRenderer):
             (RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
         )
         for name, colorize in seg_specs:
-            specs[name] = RenderBufferSpec(4, torch.uint8) if colorize else RenderBufferSpec(1, torch.int32)
+            specs[name] = RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
 
         return specs
 
@@ -283,7 +283,7 @@ class IsaacRtxRenderer(BaseRenderer):
             )
         return SIMPLE_SHADING_MODES[requested[0]]
 
-    def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, torch.Tensor]):
+    def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, wp.array]):
         """Store reference to output buffers for writing during render.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.output_data = output_data
@@ -296,9 +296,9 @@ class IsaacRtxRenderer(BaseRenderer):
     def update_camera(
         self,
         render_data: IsaacRtxRenderData,
-        positions: torch.Tensor,
-        orientations: torch.Tensor,
-        intrinsics: torch.Tensor,
+        positions: wp.array,
+        orientations: wp.array,
+        intrinsics: wp.array,
     ):
         """No-op for Replicator - uses USD camera prims directly.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
@@ -374,7 +374,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 dim=(view_count, cfg.height, cfg.width),
                 inputs=[
                     tiled_data_buffer.flatten(),
-                    wp.from_torch(output_data[data_type]),
+                    output_data[data_type],
                     *list(output_data[data_type].shape[1:]),
                     num_tiles_x,
                 ],
@@ -383,21 +383,23 @@ class IsaacRtxRenderer(BaseRenderer):
 
             # alias rgb as first 3 channels of rgba
             if data_type == "rgba" and "rgb" in cfg.data_types:
-                output_data["rgb"] = output_data["rgba"][..., :3]
+                wp.to_torch(output_data["rgb"]).copy_(wp.to_torch(output_data["rgba"])[..., :3])
 
             # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center.
             #       However, the replicator depth clipping is applied w.r.t. to the image plane which may result
             #       in values larger than the clipping range in the output. We apply an additional clipping to
             #       ensure values are within the clipping range for all the annotators.
             if data_type == "distance_to_camera":
-                output_data[data_type][output_data[data_type] > cfg.spawn.clipping_range[1]] = torch.inf
+                output_tensor = wp.to_torch(output_data[data_type])
+                output_tensor[output_tensor > cfg.spawn.clipping_range[1]] = torch.inf
 
             # apply defined clipping behavior
             if (
                 data_type in ("distance_to_camera", "distance_to_image_plane", "depth")
                 and self.cfg.depth_clipping_behavior != "none"
             ):
-                output_data[data_type][torch.isinf(output_data[data_type])] = (
+                output_tensor = wp.to_torch(output_data[data_type])
+                output_tensor[torch.isinf(output_tensor)] = (
                     0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 )
 
