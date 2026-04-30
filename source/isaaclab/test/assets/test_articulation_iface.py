@@ -34,24 +34,20 @@ if not _kitless:
     simulation_app = AppLauncher(headless=True).app
 else:
     simulation_app = None
-    # Stub out Kit/Omniverse modules that are unavailable in the kitless
-    # ovphysx wheel environment so downstream isaaclab_physx imports don't fail.
-    for _mod in (
-        "isaacsim.core",
-        "isaacsim.core.simulation_manager",
-        "omni",
-        "omni.physics",
-        "omni.physics.tensors",
-        "omni.physx",
-        "omni.kit",
-        "omni.kit.app",
-        "omni.timeline",
-        "omni.usd",
-        "carb",
-        "pxr",
-        "pxr.Sdf",
-        "pxr.UsdUtils",
-    ):
+    # Stub out the Kit/Omniverse modules that are not present under
+    # run_ovphysx.sh (pxr, carb, omni, omni.kit[.app] are real on PYTHONPATH).
+    # ``omni`` is a real namespace package, so missing submodules also need
+    # to be installed as attributes on it -- ``sys.modules`` alone is not
+    # enough because attribute access on the real ``omni`` won't fall
+    # through to ``sys.modules``.
+    import omni as _omni
+
+    for _mod in ("physics", "physics.tensors", "physx", "timeline", "usd"):
+        _stub = MagicMock()
+        sys.modules[f"omni.{_mod}"] = _stub
+        # Bind the leaf attribute so that ``omni.<leaf>`` resolves.
+        setattr(_omni, _mod.split(".", 1)[0], _stub)
+    for _mod in ("isaacsim.core", "isaacsim.core.simulation_manager"):
         sys.modules.setdefault(_mod, MagicMock())
 
 import numpy as np
