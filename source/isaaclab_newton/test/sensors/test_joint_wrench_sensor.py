@@ -23,6 +23,7 @@ from isaaclab.sensors.joint_wrench import JointWrenchSensor, JointWrenchSensorCf
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
+from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 
@@ -45,8 +46,12 @@ def _make_single_joint_articulation_cfg() -> ArticulationCfg:
     )
 
 
-def _make_cartpole_articulation_cfg() -> ArticulationCfg:
-    """Two-joint cartpole articulation (cart + pole)."""
+def _make_cartpole_articulation_cfg(pole_damping: float = 0.0) -> ArticulationCfg:
+    """Two-joint cartpole articulation (cart + pole).
+
+    Args:
+        pole_damping: Damping for the cart-to-pole revolute joint.
+    """
     return ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
@@ -61,7 +66,7 @@ def _make_cartpole_articulation_cfg() -> ArticulationCfg:
                 joint_names_expr=["slider_to_cart"], effort_limit_sim=400.0, stiffness=0.0, damping=10.0
             ),
             "pole_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["cart_to_pole"], effort_limit_sim=400.0, stiffness=0.0, damping=0.0
+                joint_names_expr=["cart_to_pole"], effort_limit_sim=400.0, stiffness=0.0, damping=pole_damping
             ),
         },
     )
@@ -84,6 +89,16 @@ class _CartpoleSceneCfg(InteractiveSceneCfg):
     env_spacing = 4.0
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
     robot = _make_cartpole_articulation_cfg()
+    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+
+@configclass
+class _CartpoleDampedSceneCfg(InteractiveSceneCfg):
+    """Cartpole with pole damping for steady-state physics validation tests."""
+
+    env_spacing = 4.0
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    robot = _make_cartpole_articulation_cfg(pole_damping=10.0)
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
@@ -160,36 +175,220 @@ def test_multi_body_articulation(sim):
 # ---------------------------------------------------------------------------
 
 
-def test_force_magnitude_matches_weight_at_rest(sim):
-    """At steady state, |force| on the arm joint should be close to its weight."""
+def _compute_expected_wrench_in_joint_frame(
+    sensor,
+    robot,
+    env: int,
+    joint: int,
+    gravity: torch.Tensor,
+    ext_force_b: torch.Tensor | None = None,
+    ext_torque_b: torch.Tensor | None = None,
+    descendant_body_names: list[str] | None = None,
+):
+    """Compute the analytical joint-frame wrench for a single joint.
+
+    Uses the same geometric data (body_com, joint_X_c, body_q) and frame
+    transformations as the kernel, but computes the wrench analytically from
+    known loads rather than reading body_parent_f.  Computes the moment of
+    forces about the joint anchor and rotates the result into the child-side
+    joint frame.
+
+    For terminal links, the wrench is due to the child body alone.  For
+    interior joints, pass all bodies in the subtree below the joint via
+    ``descendant_body_names`` so the helper sums their gravitational
+    contributions.
+
+    Args:
+        sensor: The JointWrenchSensor instance (used to read Newton model bindings).
+        robot: The Articulation asset (used for body mass lookup).
+        env: Environment index.
+        joint: Joint index within the sensor.
+        gravity: Gravity vector in world frame, shape (3,).
+        ext_force_b: External force on the child body in body frame [N], shape (3,).
+        ext_torque_b: External torque on the child body in body frame [N·m], shape (3,).
+        descendant_body_names: Bodies whose gravitational load acts through this
+            joint.  Defaults to the child body only (correct for terminal links).
+            For an interior joint, pass all bodies in the subtree below the joint.
+
+    Returns:
+        A tuple of (force, torque) tensors, each shape (3,), in the child-side
+        joint frame.
+    """
+    body_idx = wp.to_torch(sensor._joint_child)[joint].item()
+
+    # Link transform in world (of the child body — defines the joint frame).
+    link_xform = wp.to_torch(sensor._sim_bind_body_q)[env, body_idx]  # (7,) = pos(3) + quat(4)
+    link_pos = link_xform[:3]
+    link_quat = link_xform[3:]  # wp.quatf = (x, y, z, w)
+
+    # Joint anchor and orientation in world = link_xform * joint_X_c.
+    joint_X_c = wp.to_torch(sensor._sim_bind_joint_X_c)[env, joint]  # (7,)
+    jxc_pos = joint_X_c[:3]
+    jxc_quat = joint_X_c[3:]
+    anchor_world = link_pos + math_utils.quat_apply(link_quat.unsqueeze(0), jxc_pos.unsqueeze(0)).squeeze(0)
+    joint_quat_world = math_utils.quat_mul(link_quat.unsqueeze(0), jxc_quat.unsqueeze(0)).squeeze(0)
+
+    # Bodies whose weight contributes to the wrench at this joint.
+    if descendant_body_names is None:
+        descendant_body_names = [sensor.body_names[joint]]
+
+    link_names = list(sensor._root_view.link_names)
+
+    total_force_w = torch.zeros(3, device=gravity.device)
+    total_torque_w = torch.zeros(3, device=gravity.device)
+
+    for body_name in descendant_body_names:
+        b_idx = link_names.index(body_name)
+        b_xform = wp.to_torch(sensor._sim_bind_body_q)[env, b_idx]
+        b_pos = b_xform[:3]
+        b_quat = b_xform[3:]
+        b_com_local = wp.to_torch(sensor._sim_bind_body_com)[env, b_idx]
+        b_com_world = b_pos + math_utils.quat_apply(b_quat.unsqueeze(0), b_com_local.unsqueeze(0)).squeeze(0)
+
+        art_b_idx = robot.body_names.index(body_name)
+        mass = robot.data.body_mass.torch[env, art_b_idx].item()
+        weight_w = mass * gravity
+
+        total_force_w = total_force_w + weight_w
+        r = b_com_world - anchor_world
+        total_torque_w = total_torque_w + torch.cross(r, weight_w, dim=-1)
+
+    # External force/torque on the child body only (if provided).  Actuator
+    # torque is intentionally omitted; see tolerance comment in calling tests.
+    if ext_force_b is not None:
+        total_force_w = total_force_w + math_utils.quat_apply(link_quat.unsqueeze(0), ext_force_b.unsqueeze(0)).squeeze(
+            0
+        )
+    if ext_torque_b is not None:
+        total_torque_w = total_torque_w + math_utils.quat_apply(
+            link_quat.unsqueeze(0), ext_torque_b.unsqueeze(0)
+        ).squeeze(0)
+
+    # Reaction wrench = negation of total wrench (joint supports against all loads).
+    reaction_force_w = -total_force_w
+    reaction_torque_w = -total_torque_w
+
+    # Rotate into joint frame.
+    expected_force = math_utils.quat_apply_inverse(
+        joint_quat_world.unsqueeze(0), reaction_force_w.unsqueeze(0)
+    ).squeeze(0)
+    expected_torque = math_utils.quat_apply_inverse(
+        joint_quat_world.unsqueeze(0), reaction_torque_w.unsqueeze(0)
+    ).squeeze(0)
+
+    return expected_force, expected_torque
+
+
+def test_force_and_torque_components_at_rest(sim):
+    """Component-level validation of force and torque against analytical expectations (gravity only)."""
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
     sim.reset()
 
     sensor: JointWrenchSensor = scene["wrench"]
     robot: Articulation = scene["robot"]
-    # PD control damps out residual oscillation within a few hundred steps.
     for _ in range(400):
         sim.step()
         scene.update(sim.get_physics_dt())
 
-    force = sensor.data.force.torch[0, 0]  # (3,)
+    gravity = torch.tensor(sim.cfg.gravity, device=sim.device)
+    expected_force, expected_torque = _compute_expected_wrench_in_joint_frame(
+        sensor,
+        robot,
+        env=0,
+        joint=0,
+        gravity=gravity,
+    )
+
+    force = sensor.data.force.torch[0, 0]
     torque = sensor.data.torque.torch[0, 0]
 
-    assert torch.isfinite(force).all(), f"Force contains non-finite values: {force}"
-    assert torch.isfinite(torque).all(), f"Torque contains non-finite values: {torque}"
+    torch.testing.assert_close(force, expected_force, atol=1e-2, rtol=1e-3)
+    torch.testing.assert_close(torque, expected_torque, atol=1e-2, rtol=1e-3)
 
-    # The arm COM is offset from the joint anchor, so gravity creates a non-zero
-    # moment about the joint.  A zero torque would indicate a broken torque path.
-    torque_mag = torque.norm().item()
-    assert torque_mag > 0.1, f"|torque|={torque_mag:.3f} N·m, expected non-trivial (>0.1)"
 
-    # Frame-independent check: at rest the only external effect is gravity on the arm.
+def test_wrench_with_external_force_and_torque(sim):
+    """Full analytical wrench validation with external force and torque applied.
+
+    Mirrors the PhysX ``test_body_incoming_joint_wrench_b_single_joint`` pattern:
+    apply a known wrench, settle, compute the expected reaction wrench analytically,
+    and compare component-by-component.
+    """
+    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
+    sim.reset()
+
+    sensor: JointWrenchSensor = scene["wrench"]
+    robot: Articulation = scene["robot"]
     arm_idx = robot.body_names.index("Arm")
-    arm_mass = wp.to_torch(robot.data.body_mass)[0, arm_idx].item()
-    expected_weight = arm_mass * 9.81
-    assert abs(force.norm().item() - expected_weight) < 0.1 * expected_weight + 0.5, (
-        f"|force|={force.norm().item():.3f} N, expected ~{expected_weight:.3f} N"
+
+    # Apply 10 N in body-Y and 10 N·m in body-Z on the arm (matches PhysX test).
+    ext_force_b = torch.zeros((1, robot.num_bodies, 3), device=sim.device)
+    ext_force_b[:, arm_idx, 1] = 10.0
+    ext_torque_b = torch.zeros((1, robot.num_bodies, 3), device=sim.device)
+    ext_torque_b[:, arm_idx, 2] = 10.0
+
+    for _ in range(800):
+        robot.permanent_wrench_composer.set_forces_and_torques_index(forces=ext_force_b, torques=ext_torque_b)
+        robot.write_data_to_sim()
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
+    gravity = torch.tensor(sim.cfg.gravity, device=sim.device)
+    expected_force, expected_torque = _compute_expected_wrench_in_joint_frame(
+        sensor,
+        robot,
+        env=0,
+        joint=0,
+        gravity=gravity,
+        ext_force_b=ext_force_b[0, arm_idx],
+        ext_torque_b=ext_torque_b[0, arm_idx],
     )
+
+    force = sensor.data.force.torch[0, 0]
+    torque = sensor.data.torque.torch[0, 0]
+
+    # The PD actuator contributes a small torque (~0.1 N·m) to body_parent_f that is
+    # not modelled in the analytical helper.  Force is unaffected (actuator is pure torque).
+    torch.testing.assert_close(force, expected_force, atol=1e-2, rtol=1e-3)
+    torch.testing.assert_close(torque, expected_torque, atol=0.15, rtol=1e-2)
+
+
+def test_interior_joint_wrench_at_rest(sim):
+    """Interior joint wrench accounts for the weight of all descendant bodies.
+
+    The cartpole has two joints: ``slider_to_cart`` (interior, supports cart
+    and pole) and ``cart_to_pole`` (terminal, supports pole only).  At steady
+    state with gravity as the only load, the reaction wrench at the interior
+    joint must equal the combined weight of cart and pole, with torque
+    computed from each body's moment about the joint anchor.
+    """
+    scene = InteractiveScene(_CartpoleDampedSceneCfg(num_envs=1))
+    sim.reset()
+
+    sensor: JointWrenchSensor = scene["wrench"]
+    robot: Articulation = scene["robot"]
+
+    for _ in range(800):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
+    gravity = torch.tensor(sim.cfg.gravity, device=sim.device)
+
+    # Interior joint (index 0, slider_to_cart): reaction wrench supports
+    # all bodies in the subtree — both cart and pole.
+    expected_force, expected_torque = _compute_expected_wrench_in_joint_frame(
+        sensor,
+        robot,
+        env=0,
+        joint=0,
+        gravity=gravity,
+        descendant_body_names=list(sensor.body_names),
+    )
+
+    force = sensor.data.force.torch[0, 0]
+    torque = sensor.data.torque.torch[0, 0]
+
+    torch.testing.assert_close(force, expected_force, atol=1e-2, rtol=1e-3)
+    torch.testing.assert_close(torque, expected_torque, atol=1e-2, rtol=1e-3)
 
 
 # ---------------------------------------------------------------------------
