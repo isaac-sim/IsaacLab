@@ -43,7 +43,7 @@ Vectorized environment wrapper.
 
 def SkrlVecEnvWrapper(
     env: ManagerBasedRLEnv | DirectRLEnv | DirectMARLEnv,
-    ml_framework: Literal["torch", "jax", "jax-numpy"] = "torch",
+    ml_framework: Literal["torch", "jax", "warp"] = "torch",
     wrapper: Literal["auto", "isaaclab", "isaaclab-single-agent", "isaaclab-multi-agent"] = "isaaclab",
 ):
     """Wraps around Isaac Lab environment for skrl.
@@ -93,9 +93,11 @@ def SkrlVecEnvWrapper(
         from skrl.envs.wrappers.torch import wrap_env
     elif ml_framework.startswith("jax"):
         from skrl.envs.wrappers.jax import wrap_env
+    elif ml_framework.startswith("warp"):
+        from skrl.envs.wrappers.warp import wrap_env
     else:
-        ValueError(
-            f"Invalid ML framework for skrl: {ml_framework}. Available options are: 'torch', 'jax' or 'jax-numpy'"
+        raise ValueError(
+            f"Invalid ML framework for skrl: {ml_framework}. Available options are: 'torch', 'jax', 'warp'"
         )
 
     # wrap and return the environment
