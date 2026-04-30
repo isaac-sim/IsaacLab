@@ -66,6 +66,13 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 # Parametrization: (physics_backend, renderer, data_type)
 # ---------------------------------------------------------------------------
 
+# OVRTX kitless paths can segfault on GitHub Actions runners; keep warp/Kit paths in CI.
+_SKIP_ON_GITHUB_ACTIONS = os.environ.get("GITHUB_ACTIONS") == "true"
+_SKIP_ON_GITHUB_ACTIONS_MARK = pytest.mark.skipif(
+    _SKIP_ON_GITHUB_ACTIONS,
+    reason="Skipped on GitHub Actions until the test can run on GitHub Actions.",
+)
+
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
     # physx + isaacsim_rtx_renderer
     pytest.param(
@@ -175,42 +182,49 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "rgb",
         id="newton-ovrtx-rgb",
+        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "albedo",
         id="newton-ovrtx-albedo",
+        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "depth",
         id="newton-ovrtx-depth",
+        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_constant_diffuse",
         id="newton-ovrtx-simple_shading_constant_diffuse",
+        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_diffuse_mdl",
         id="newton-ovrtx-simple_shading_diffuse_mdl",
+        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_full_mdl",
         id="newton-ovrtx-simple_shading_full_mdl",
+        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "semantic_segmentation",
         id="newton-ovrtx-semantic_segmentation",
+        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
     ),
     # newton + newton_renderer (warp)
     pytest.param(

@@ -240,76 +240,6 @@ def _get_diagnostics(pre_kill_diag=""):
     return diag
 
 
-def _is_kitless_rendering_test_file(file_name: str) -> bool:
-    """Return True if the test file is a kitless test module."""
-    return file_name.startswith("test_rendering_") and file_name.endswith("_kitless.py")
-
-
-def _ovrtx_importable() -> bool:
-    """Return True if ``ovrtx`` is already available (skip redundant ``isaaclab.sh -i``)."""
-    try:
-        import ovrtx  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
-def _install_ovrtx_optional_dep(workspace_root: str) -> str | None:
-    """Install ``ov[ovrtx]`` once for kitless rendering tests.
-
-    If ``ovrtx`` is already importable in this interpreter (e.g. CI job retry with
-    a warm venv), the install step is skipped.
-
-    Args:
-        workspace_root: Absolute path to the repository root.
-
-    Returns:
-        ``None`` on success, otherwise an actionable error message.
-    """
-    if _ovrtx_importable():
-        print("🟢 ovrtx is already importable; skipping optional dependency install.")
-        return None
-
-    install_cmd = [f"{workspace_root}/isaaclab.sh", "-i", "ov[ovrtx]"]
-    try:
-        result = subprocess.run(
-            install_cmd,
-            cwd=workspace_root,
-            capture_output=True,
-            text=True,
-            timeout=1800,
-            check=False,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return f"Failed to run optional dependency install command for ov[ovrtx]: {exc}"
-
-    if result.returncode != 0:
-        return (
-            "Failed to install optional dependency ov[ovrtx] required for kitless OVRTX tests.\n"
-            f"Command: {' '.join(install_cmd)}\n"
-            f"Exit code: {result.returncode}\n"
-            f"STDOUT:\n{result.stdout}\n"
-            f"STDERR:\n{result.stderr}"
-        )
-
-    print("🟢 Optional dependency install complete: ov[ovrtx]")
-    return None
-
-
-def _ovrtx_libcarb_path() -> str | None:
-    """Return the path to ``libcarb.so`` from the installed ``ovrtx`` wheel, or ``None``.
-
-    Preloading this library is a workaround for OVRTX kitless workflow so the dynamic linker resolves Carb/RTX symbols
-    correctly in subprocess tests. This workaround will be removed once the Carb issue is resolved.
-    """
-    from pathlib import Path
-
-    import ovrtx
-
-    libcarb = Path(ovrtx.__file__).resolve().parent / "bin/plugins/libcarb.so"
-    return str(libcarb) if libcarb.is_file() else None
-
-
 def _capture_system_diagnostics():
     """Capture system diagnostics (GPU, memory, processes) for crash investigation.
 
@@ -377,30 +307,12 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     test_status = {}
     xml_reports = []
     cold_cache_applied = False
-    ovrtx_libcarb_path: str | None = None
-
-    if any(_is_kitless_rendering_test_file(os.path.basename(test_file)) for test_file in test_files):
-        print("🔵 Kitless tests detected. Ensuring optional dependency: ov[ovrtx]")
-        ovrtx_install_error = _install_ovrtx_optional_dep(workspace_root)
-        if ovrtx_install_error is None:
-            ovrtx_libcarb_path = _ovrtx_libcarb_path()
-            if ovrtx_libcarb_path:
-                print(f"🔵 OVRTX: will set LD_PRELOAD to {ovrtx_libcarb_path}.")
-            else:
-                print("⚠️ OVRTX: could not resolve libcarb.so for LD_PRELOAD.")
-        else:
-            print("⚠️ Optional dependency install failed for ov[ovrtx].")
-            print(ovrtx_install_error)
 
     for test_file in test_files:
         print(f"\n\n🚀 Running {test_file} independently...\n")
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
-
-        # set LD_PRELOAD to the path of the libcarb.so file if it is a kitless rendering test
-        if ovrtx_libcarb_path and _is_kitless_rendering_test_file(file_name):
-            env["LD_PRELOAD"] = ovrtx_libcarb_path
 
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
