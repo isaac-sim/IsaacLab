@@ -15,12 +15,9 @@ import newton
 import torch
 import warp as wp
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
-from isaaclab.renderers import BaseRenderer
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-=======
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
->>>>>>> develop
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 

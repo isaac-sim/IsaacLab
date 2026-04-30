@@ -1,9 +1,6 @@
 Changelog
 ---------
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
-0.5.15 (2026-04-22)
-=======
 0.5.25 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -132,17 +129,11 @@ Changed
 
 
 0.5.18 (2026-04-21)
->>>>>>> develop
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
-* Changed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` and
-  ``RenderData`` to use :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec`
-  instead of retaining a reference to the camera sensor.
-=======
 * Upgraded Newton from ``2684d75`` to ``a27277e``. Includes collision improvements, contact quality fixes,
   hydroelastic contact optimization, and memory usage fixes in CollisionPipeline. For details see
   ``Newton changelog <https://github.com/newton-physics/newton/blob/main/CHANGELOG.md>``.
@@ -188,7 +179,6 @@ Added
 * Added :class:`~isaaclab_newton.sensors.pva.Pva` sensor wrapping Newton's
   body state (``body_q``, ``body_qd``, ``body_qdd``) to provide world-frame
   pose and body-frame velocities/accelerations.
->>>>>>> develop
 
 
 0.5.14 (2026-04-14)

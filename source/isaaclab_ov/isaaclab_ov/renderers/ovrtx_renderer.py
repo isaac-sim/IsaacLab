@@ -65,11 +65,6 @@ if TYPE_CHECKING:
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
-
-class OVRTXRenderData:
-    """OVRTX-specific RenderData. Holds warp output buffers sized from :class:`CameraRenderSpec`."""
-=======
 # Shared integration floor for this module; reuse for ovrtx features that share one support floor.
 _OVRTX_VERSION = Version(ovrtx.__version__)
 _IS_OVRTX_0_3_0_OR_NEWER = Version("0.3.0") <= _OVRTX_VERSION
@@ -107,17 +102,12 @@ def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
             filtered_data_types,
             filtered_data_types[0],
         )
->>>>>>> develop
 
     return _RTX_MINIMAL_MODES[filtered_data_types[0]]
 
 
 class OVRTXRenderData:
-    """OVRTX-specific RenderData. Holds warp output buffers and a weakref to the sensor.
-
-    The sensor is stored as a weakref to avoid a Sensor ↔ RenderData reference cycle
-    (the sensor already owns this object).
-    """
+    """OVRTX-specific RenderData. Holds warp output buffers sized from :class:`CameraRenderSpec`."""
 
     def __init__(self, spec: CameraRenderSpec, device):
         """Create render data from a camera render specification."""
@@ -195,12 +185,7 @@ class OVRTXRenderer(BaseRenderer):
         """Initialize the OVRTX renderer with internal environment cloning.
 
         Args:
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
             spec: Tiled camera description (resolution, paths, data types).
-=======
-            sensor: The Camera sensor. width, height, num_envs, data_types are
-                obtained from sensor when needed. Weak ref stored to avoid circular ref.
->>>>>>> develop
         """
         width = spec.cfg.width
         height = spec.cfg.height

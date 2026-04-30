@@ -167,13 +167,6 @@ class IsaacRtxRenderer(BaseRenderer):
                     " The simple shading data types will be ignored."
                 )
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
-        cam_prim_paths = list(spec.camera_prim_paths)
-        stage = get_current_stage()
-        for cam_prim_path in cam_prim_paths:
-            prim = stage.GetPrimAtPath(cam_prim_path)
-            if not prim.IsValid() or not prim.IsA(UsdGeom.Camera):
-=======
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation
         # outputs for instanceable assets. Disable instancing as a workaround.
         if isaac_sim_version == version.parse("4.5") and (
@@ -195,7 +188,6 @@ class IsaacRtxRenderer(BaseRenderer):
         for cam_prim in view.prims:
             cam_prim_path = cam_prim.GetPath().pathString
             if not cam_prim.IsA(UsdGeom.Camera):
->>>>>>> develop
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
 
         # Create replicator tiled render product
@@ -206,11 +198,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         # Synthetic-data instance mapping filter for segmentation; before annotator attach.
         SyntheticData.Get().set_instance_mapping_semantic_filter(
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
             _camera_semantic_filter_predicate(spec.cfg.semantic_filter)
-=======
-            _camera_semantic_filter_predicate(self.cfg.semantic_filter)
->>>>>>> develop
         )
 
         # Register simple shading if needed
@@ -257,7 +245,6 @@ class IsaacRtxRenderer(BaseRenderer):
                 init_params = None
                 if annotator_type == "semantic_segmentation":
                     init_params = {
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
                         "colorize": spec.cfg.colorize_semantic_segmentation,
                         "mapping": json.dumps(spec.cfg.semantic_segmentation_mapping),
                     }
@@ -265,15 +252,6 @@ class IsaacRtxRenderer(BaseRenderer):
                     init_params = {"colorize": spec.cfg.colorize_instance_segmentation}
                 elif annotator_type == "instance_id_segmentation_fast":
                     init_params = {"colorize": spec.cfg.colorize_instance_id_segmentation}
-=======
-                        "colorize": self.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
-                    }
-                elif annotator_type == "instance_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
-                elif annotator_type == "instance_id_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
->>>>>>> develop
 
                 annotator = rep.AnnotatorRegistry.get_annotator(
                     annotator_type, init_params, device=spec.device, do_array_copy=False

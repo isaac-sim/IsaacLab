@@ -1,25 +1,12 @@
 Changelog
 ---------
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
-0.5.19 (2026-04-22)
-=======
 0.5.29 (2026-04-30)
->>>>>>> develop
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
-* Changed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to implement
-  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer._create_render_data_impl`
-  with :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec`.
-  :class:`~isaaclab_physx.renderers.IsaacRtxRenderData` now holds ``spec`` instead of
-  a weak reference to the camera sensor.
-
-
-=======
 * Added fused :meth:`~isaaclab_physx.assets.Articulation.write_joint_state_to_sim_index`
   that writes joint position and velocity in a single kernel launch instead of two.
 * Cached ``.view(wp.float32)`` results in root pose/velocity writers and wrench
@@ -190,7 +177,6 @@ Fixed
   the artifact, per-environment, and filtered Newton models in
   :class:`~isaaclab_physx.scene_data_providers.PhysxSceneDataProvider`.
 
->>>>>>> develop
 0.5.18 (2026-04-16)
 ~~~~~~~~~~~~~~~~~~~
 
