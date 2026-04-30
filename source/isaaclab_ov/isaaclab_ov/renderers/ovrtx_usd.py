@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def get_render_var_config(data_types: list[str], simple_shading_mode: bool) -> tuple[str, str, str]:
-    """Return (render_var_path, render_var_name, source_name) from data_types and shading mode."""
+def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
+    """Return (render_var_path, render_var_name, source_name) from data_types."""
     use_depth = any(dt in ["depth", "distance_to_image_plane", "distance_to_camera"] for dt in data_types)
     use_albedo = "albedo" in data_types
     use_semantic = "semantic_segmentation" in data_types
@@ -32,8 +32,6 @@ def get_render_var_config(data_types: list[str], simple_shading_mode: bool) -> t
         return "/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"
     if use_semantic and not (use_rgb or use_albedo):
         return "/Render/Vars/semantic", "semantic", "SemanticSegmentation"
-    if simple_shading_mode:
-        return "/Render/Vars/SimpleShading", "SimpleShading", "SimpleShadingSD"
     return "/Render/Vars/LdrColor", "LdrColor", "LdrColor"
 
 
@@ -45,16 +43,35 @@ def build_render_scope_usd(
     source_name: str,
     tiled_width: int,
     tiled_height: int,
-    simple_shading_mode: bool = False,
+    minimal_mode: int | None = None,
 ) -> str:
-    """Build the Render scope USD string (def Scope Render, RenderProduct, Vars)."""
-    render_mode = "Minimal" if simple_shading_mode else "RealTimePathTracing"
-    logger.info("Rendering mode: %s (omni:rtx:rendermode=%s)", render_var_name, render_mode)
-    if simple_shading_mode:
-        logger.info("Simple shading mode: ENABLED")
-    else:
-        logger.info("Simple shading mode: DISABLED (using full RTX path tracing)")
+    """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
+
+    Args:
+        camera_paths: List of camera prim paths.
+        render_product_name: Name of the render product.
+        render_var_path: Path of the render variable.
+        render_var_name: Name of the render variable.
+        source_name: Name of the source.
+        tiled_width: Width of the tiled image.
+        tiled_height: Height of the tiled image.
+        minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
+
+    Returns:
+        The USD string for the render scope.
+    """
     camera_rel_list = ", ".join([f"<{p}>" for p in camera_paths])
+
+    if minimal_mode is None:
+        render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
+    else:
+        render_mode_lines = [
+            'token omni:rtx:rendermode = "Minimal"',
+            f"int omni:rtx:minimal:mode = {minimal_mode}",
+        ]
+
+    render_mode_block = "\n        ".join(render_mode_lines)
+
     return f'''
 def Scope "Render"
 {{
@@ -63,7 +80,8 @@ def Scope "Render"
     ) {{
         rel camera = [{camera_rel_list}]
         token omni:rtx:background:source:type = "domeLight"
-        token omni:rtx:rendermode = "{render_mode}"
+        float omni:rtx:rt:ambientLight:intensity = 1.0
+        {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = <{render_var_path}>
         uniform int2 resolution = ({tiled_width}, {tiled_height})
@@ -94,6 +112,7 @@ def inject_cameras_into_usd(
     height: int,
     num_envs: int,
     data_types: list[str],
+    minimal_mode: int | None = None,
     camera_rel_path: str = "Camera",
 ) -> tuple[str, str]:
     """Inject camera and render product definitions into an existing USD file.
@@ -108,8 +127,8 @@ def inject_cameras_into_usd(
         height: Tile height from sensor config.
         num_envs: Number of environments from scene.
         data_types: Data types from sensor config.
-        camera_rel_path: Camera prim path relative to the env root (e.g. ``"Camera"``
-            or ``"Robot/head_cam"``).
+        minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
+        camera_rel_path: Camera prim path relative to the env root (e.g. ``"Camera"`` or ``"Robot/head_cam"``).
     """
     with open(usd_scene_path) as f:
         original_usd = f.read()
@@ -121,7 +140,7 @@ def inject_cameras_into_usd(
     render_product_name = "RenderProduct"
     render_product_path = f"/Render/{render_product_name}"
 
-    render_var_path, render_var_name, source_name = get_render_var_config(data_types, cfg.simple_shading_mode)
+    render_var_path, render_var_name, source_name = get_render_var_config(data_types)
 
     camera_content = build_render_scope_usd(
         camera_paths,
@@ -131,7 +150,7 @@ def inject_cameras_into_usd(
         source_name,
         tiled_width,
         tiled_height,
-        simple_shading_mode=cfg.simple_shading_mode,
+        minimal_mode,
     )
     combined_usd = original_usd.rstrip() + "\n\n" + camera_content
 

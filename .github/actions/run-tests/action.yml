@@ -125,6 +125,7 @@ runs:
             -e ISAAC_SIM_LOW_MEMORY=1 \
             -e PYTHONUNBUFFERED=1 \
             -e PYTHONIOENCODING=utf-8 \
+            -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
             -e TEST_RESULT_FILE=$result_file"
 
           if [ "$curobo_only" = "true" ]; then
@@ -278,7 +279,7 @@ runs:
             fi
           fi
 
-          # Copy comparison images (saved by test_rendering_correctness.py).
+          # Copy comparison images (saved by source/isaaclab_tasks/test/test_rendering_*.py).
           local img_dir="$reports_dir/comparison-images"
           if [ -n "$volume_mount_source" ] && [ -d "${volume_mount_source}/tests/comparison-images" ]; then
             cp -r "${volume_mount_source}/tests/comparison-images" "$img_dir"

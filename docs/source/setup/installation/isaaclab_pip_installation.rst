@@ -71,6 +71,8 @@ Isaac Lab sub-packages:
          # Isaac Lab + Isaac Sim + all sub-packages
          uv pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
+      .. include:: include/pip_extras_note.rst
+
    .. tab-item:: pip
 
       .. code-block:: bash
@@ -89,6 +91,8 @@ Isaac Lab sub-packages:
 
          # Isaac Lab + Isaac Sim + all Isaac Lab sub-packages
          pip install "isaaclab[isaacsim,all]" --extra-index-url https://pypi.nvidia.com --pre
+
+      .. include:: include/pip_extras_note.rst
 
 Installing dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~

@@ -1,6 +1,37 @@
 Changelog
 ---------
 
+4.6.25 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``isaaclab.bat --install`` on Windows 11 failing with
+  ``'"setuptools<82.0.0"': Expected package name at the start of dependency
+  specifier``. ``extract_python_exe`` now prefers the underlying
+  ``kit/python/python.exe`` over Isaac Sim's ``python.bat`` so child pip calls
+  bypass the cmd.exe quoting hop that was preserving the literal double
+  quotes through to pip's argv. The fallback ``cmd.exe /c`` wrapper for
+  ``.bat``/``.cmd`` invocations now also uses caret-escaping
+  (e.g. ``setuptools^<82.0.0``) for metacharacters instead of double-quoting,
+  so the bat-hop path no longer leaks quotes.
+
+
+4.6.24 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``./isaaclab.sh -i`` failing to build the ``nlopt`` wheel on ARM Linux
+  (e.g. DGX Spark) when the host image is missing SWIG. The bare-metal install
+  path now mirrors ``docker/Dockerfile.base``: on ARM Linux it installs
+  ``swig`` via apt and pre-installs ``nlopt==2.6.2`` with
+  ``--no-build-isolation`` so later submodule installs skip the source-build
+  fallback.
+
+
 4.6.23 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
