@@ -8,12 +8,13 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
-from isaaclab.renderers.render_context import (
-    RenderContext,
-)
-from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.renderers.base_renderer import BaseRenderer
+from isaaclab.renderers.render_context import RenderContext
+from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 
@@ -97,4 +98,133 @@ def test_update_transforms_dedupes_per_physics_step():
     assert len(calls) == 1
 
     ctx.update_transforms(2)
+    assert len(calls) == 2
+
+
+def test_render_into_camera_calls_update_render_read_order():
+    """render_into_camera runs update_transforms then render then read_output; dedupes UT per step."""
+    ctx = RenderContext()
+    events: list[str] = []
+
+    class FakeRenderer:
+        def prepare_stage(self, stage, num_envs):
+            pass
+
+        def create_render_data(self, spec):
+            return object()
+
+        def set_outputs(self, render_data, output_data):
+            pass
+
+        def update_camera(self, render_data, positions, orientations, intrinsics):
+            pass
+
+        def render(self, render_data):
+            events.append("render")
+
+        def read_output(self, render_data, camera_data):
+            events.append("read")
+
+        def cleanup(self, render_data):
+            pass
+
+        def update_transforms(self):
+            events.append("ut")
+
+    cfg = IsaacRtxRendererCfg()
+    fake = FakeRenderer()
+    ctx._renderer_entries = [(cfg, fake)]  # type: ignore[assignment]  # noqa: SLF001
+
+    rd = object()
+    cam_data = CameraData()
+    ctx.render_into_camera(cast(BaseRenderer, fake), rd, cam_data, physics_step_count=1)
+    assert events == ["ut", "render", "read"]
+
+    ctx.render_into_camera(cast(BaseRenderer, fake), rd, cam_data, physics_step_count=1)
+    assert events == ["ut", "render", "read", "render", "read"]
+
+
+def test_reset_stage_prepare_flag_allows_second_prepare_stage():
+    """After reset_stage_prepare_flag, ensure_prepare_stage invokes prepare_stage again."""
+    ctx = RenderContext()
+    prepares: list[int] = []
+
+    class FakeRenderer:
+        def prepare_stage(self, stage, num_envs):
+            prepares.append(1)
+
+        def create_render_data(self, spec):
+            return object()
+
+        def set_outputs(self, render_data, output_data):
+            pass
+
+        def update_camera(self, render_data, positions, orientations, intrinsics):
+            pass
+
+        def render(self, render_data):
+            pass
+
+        def read_output(self, render_data, camera_data):
+            pass
+
+        def cleanup(self, render_data):
+            pass
+
+        def update_transforms(self):
+            pass
+
+    cfg = IsaacRtxRendererCfg()
+    ctx._renderer_entries = [(cfg, FakeRenderer())]  # type: ignore[assignment]  # noqa: SLF001
+
+    ctx.ensure_prepare_stage(None, 4)
+    assert len(prepares) == 1
+    ctx.ensure_prepare_stage(None, 4)
+    assert len(prepares) == 1
+
+    ctx.reset_stage_prepare_flag()
+    ctx.ensure_prepare_stage(None, 4)
+    assert len(prepares) == 2
+
+
+def test_reset_transform_cadence_allows_repeat_update_transforms_same_step():
+    """reset_transform_cadence clears step dedupe so the same physics_step_count can sync again."""
+    ctx = RenderContext()
+    calls: list[int] = []
+
+    class FakeRenderer:
+        def prepare_stage(self, stage, num_envs):
+            pass
+
+        def create_render_data(self, spec):
+            return object()
+
+        def set_outputs(self, render_data, output_data):
+            pass
+
+        def update_camera(self, render_data, positions, orientations, intrinsics):
+            pass
+
+        def render(self, render_data):
+            pass
+
+        def read_output(self, render_data, camera_data):
+            pass
+
+        def cleanup(self, render_data):
+            pass
+
+        def update_transforms(self):
+            calls.append(1)
+
+    cfg = IsaacRtxRendererCfg()
+    ctx._renderer_entries = [(cfg, FakeRenderer())]  # type: ignore[assignment]  # noqa: SLF001
+
+    ctx.update_transforms(1)
+    assert len(calls) == 1
+    ctx.update_transforms(1)
+    assert len(calls) == 1
+
+    ctx.reset_transform_cadence()
+    ctx.update_transforms(1)
     assert len(calls) == 2
