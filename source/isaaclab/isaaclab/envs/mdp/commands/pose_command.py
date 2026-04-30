@@ -67,6 +67,10 @@ class UniformPoseCommand(CommandTerm):
         # -- metrics
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
+        # -- per-episode sticky success bit (only used when cfg.position_success_threshold is set)
+        self._track_success = cfg.position_success_threshold is not None
+        if self._track_success:
+            self._succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
     def __str__(self) -> str:
         msg = "UniformPoseCommand:\n"
@@ -107,6 +111,21 @@ class UniformPoseCommand(CommandTerm):
         )
         self.metrics["position_error"] = torch.linalg.norm(pos_error, dim=-1)
         self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
+        if self._track_success:
+            self._succeeded |= self.metrics["position_error"] < self.cfg.position_success_threshold
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        extras = super().reset(env_ids)
+        if self._track_success:
+            if env_ids is None:
+                env_ids = slice(None)
+            # Write the unified ``Metrics/success_rate`` directly to env extras so it shares
+            # a TensorBoard card with the same metric from other tasks.
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
+                self._succeeded[env_ids].float().mean().item()
+            )
+            self._succeeded[env_ids] = False
+        return extras
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets

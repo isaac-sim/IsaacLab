@@ -54,6 +54,9 @@ class QuadcopterEnv(DirectRLEnv):
         # Goal position
         self._desired_pos_w = torch.zeros(self.num_envs, 3, device=self.device)
 
+        # per-env count of steps meeting the success condition
+        self._success_step_count = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+
         # Logging
         self._episode_sums = {
             key: torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
@@ -125,6 +128,8 @@ class QuadcopterEnv(DirectRLEnv):
             "distance_to_goal": distance_to_goal_mapped * self.cfg.distance_to_goal_reward_scale * self.step_dt,
         }
         reward = torch.sum(torch.stack(list(rewards.values())), dim=0)
+        # Accumulate per-step in-region count for the hover success criterion.
+        self._success_step_count += (distance_to_goal < self.cfg.success_distance_threshold).long()
         # Logging
         for key, value in rewards.items():
             self._episode_sums[key] += value
@@ -156,6 +161,11 @@ class QuadcopterEnv(DirectRLEnv):
         extras["Episode_Termination/died"] = torch.count_nonzero(self.reset_terminated[env_ids]).item()
         extras["Episode_Termination/time_out"] = torch.count_nonzero(self.reset_time_outs[env_ids]).item()
         extras["Metrics/final_distance_to_goal"] = final_distance_to_goal.item()
+        success_step_threshold = int(self.max_episode_length * self.cfg.success_step_ratio)
+        extras["Metrics/success_rate"] = (
+            (self._success_step_count[env_ids] >= success_step_threshold).float().mean().item()
+        )
+        self._success_step_count[env_ids] = 0
         self.extras["log"].update(extras)
 
         self._robot.reset(env_ids)

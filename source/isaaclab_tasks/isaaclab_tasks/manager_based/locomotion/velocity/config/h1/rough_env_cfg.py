@@ -78,6 +78,10 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        # biped yaw control is harder than quadruped — relax the per-episode-mean yaw
+        # threshold to 0.8 rad/s (defaults work for quadrupeds).
+        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # Scene
         self.scene.robot = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         if self.scene.height_scanner:
