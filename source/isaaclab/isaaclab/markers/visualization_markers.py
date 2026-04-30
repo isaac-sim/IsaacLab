@@ -25,7 +25,6 @@ import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.markers.newton_marker_utils import NewtonMarkerGroupState, compile_markers_cfg_for_newton
 from isaaclab.utils.version import has_kit
 
 from .visualization_markers_cfg import VisualizationMarkersCfg
@@ -136,7 +135,7 @@ class VisualizationMarkers:
         self._count = self.num_prototypes
         self._is_visible = True
         self._newton_group_id = f"{cfg.prim_path}::{id(self)}"
-        self._newton_state: NewtonMarkerGroupState | None = None
+        self._newton_state: dict | None = None
         self._backend_names: set[str] = set()
         self._ensure_backends_initialized()
 
@@ -188,7 +187,7 @@ class VisualizationMarkers:
             else:
                 imageable.MakeInvisible()
         if self._newton_state is not None:
-            self._newton_state.visible = visible
+            self._newton_state["visible"] = visible
             self._publish_newton_state()
 
     def is_visible(self) -> bool:
@@ -415,12 +414,16 @@ class VisualizationMarkers:
         self._backend_names.add("usd")
 
     def _initialize_newton_backend(self) -> None:
-        self._newton_state = NewtonMarkerGroupState(
-            group_id=self._newton_group_id,
-            prototypes=compile_markers_cfg_for_newton(self.cfg.markers),
-            visible=self._is_visible,
-            count=self._count,
-        )
+        self._newton_state = {
+            "group_id": self._newton_group_id,
+            "cfg": self.cfg,
+            "visible": self._is_visible,
+            "translations": None,
+            "orientations": None,
+            "scales": None,
+            "marker_indices": None,
+            "count": self._count,
+        }
         self._publish_newton_state()
         self._backend_names.add("newton")
 
@@ -469,26 +472,26 @@ class VisualizationMarkers:
         if state is None:
             return
         if translations is not None:
-            state.translations = translations.detach()
-            state.count = translations.shape[0]
+            state["translations"] = translations.detach()
+            state["count"] = translations.shape[0]
         if orientations is not None:
-            state.orientations = orientations.detach()
-            state.count = orientations.shape[0]
+            state["orientations"] = orientations.detach()
+            state["count"] = orientations.shape[0]
         if scales is not None:
-            state.scales = scales.detach()
-            state.count = scales.shape[0]
+            state["scales"] = scales.detach()
+            state["count"] = scales.shape[0]
         if marker_indices is not None:
-            state.marker_indices = marker_indices.detach().to(dtype=torch.int32)
-            state.count = marker_indices.shape[0]
-        elif state.count != self._count and state.count != 0:
-            state.marker_indices = torch.zeros(state.count, dtype=torch.int32, device=self._infer_device())
+            state["marker_indices"] = marker_indices.detach().to(dtype=torch.int32)
+            state["count"] = marker_indices.shape[0]
+        elif state["count"] != self._count and state["count"] != 0:
+            state["marker_indices"] = torch.zeros(state["count"], dtype=torch.int32, device=self._infer_device())
         self._publish_newton_state()
 
     def _infer_device(self) -> torch.device:
         for value in (
-            self._newton_state.translations if self._newton_state else None,
-            self._newton_state.orientations if self._newton_state else None,
-            self._newton_state.scales if self._newton_state else None,
+            self._newton_state.get("translations") if self._newton_state else None,
+            self._newton_state.get("orientations") if self._newton_state else None,
+            self._newton_state.get("scales") if self._newton_state else None,
         ):
             if value is not None:
                 return value.device

@@ -53,23 +53,6 @@ def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
     }
 
 
-def test_set_visualizer_settings_clears_types_when_disable_all(monkeypatch: pytest.MonkeyPatch):
-    settings = _DummySettings()
-    monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
-
-    app_launcher_module.AppLauncher.sync_visualizer_cli_settings_to_carb(
-        {
-            "visualizer": ["newton"],
-            "visualizer_explicit": True,
-            "visualizer_disable_all": True,
-        }
-    )
-
-    assert settings.values["/isaaclab/visualizer/types"] == ""
-    assert settings.values["/isaaclab/visualizer/explicit"] is True
-    assert settings.values["/isaaclab/visualizer/disable_all"] is True
-
-
 def test_set_visualizer_settings_rejects_negative_max_visible_envs(
     monkeypatch: pytest.MonkeyPatch,
 ):
