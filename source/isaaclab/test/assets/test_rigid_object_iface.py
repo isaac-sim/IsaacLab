@@ -257,11 +257,16 @@ def create_ovphysx_rigid_object(
     data = OvPhysxRigidObjectData(mock_bindings.bindings, device)
     data.num_instances = num_instances
     data.num_bodies = 1
-    data._process_cfg(obj.cfg)
     data._is_primed = True
     object.__setattr__(obj, "_data", data)
 
-    # Wrench composers
+    # Build the buffers RigidObject normally allocates in _initialize_impl
+    # (_ALL_INDICES, _ALL_*_MASK, pinned CPU staging buffers, wrench buf).
+    # _create_buffers also instantiates real WrenchComposers; those get
+    # replaced with mocks just below.
+    obj._create_buffers()
+
+    # Replace the real wrench composers with mocks for iface coverage.
     mock_inst_wrench = MockWrenchComposer(obj)
     mock_perm_wrench = MockWrenchComposer(obj)
     object.__setattr__(obj, "_instantaneous_wrench_composer", mock_inst_wrench)
