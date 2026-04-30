@@ -101,6 +101,7 @@ jobs:
           --exclude 'huggingface\.co/nvidia/X-Mobility'
           --exclude 'openusd\.org'
           --exclude 'ubuntu\.com/server/docs'
+          --exclude 'docs\.conda\.io'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20
