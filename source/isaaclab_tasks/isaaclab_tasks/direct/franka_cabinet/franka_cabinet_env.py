@@ -122,6 +122,9 @@ class FrankaCabinetEnv(DirectRLEnv):
         self.drawer_grasp_rot = torch.zeros((self.num_envs, 4), device=self.device)
         self.drawer_grasp_pos = torch.zeros((self.num_envs, 3), device=self.device)
 
+        # Sticky per-env flag: True once the drawer was opened past the success threshold.
+        self._episode_succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
     def _setup_scene(self):
         self._robot = Articulation(self.cfg.robot)
         self._cabinet = Articulation(self.cfg.cabinet)
@@ -165,7 +168,7 @@ class FrankaCabinetEnv(DirectRLEnv):
         robot_left_finger_pos = self._robot.data.body_pos_w.torch[:, self.left_finger_link_idx]
         robot_right_finger_pos = self._robot.data.body_pos_w.torch[:, self.right_finger_link_idx]
 
-        return self._compute_rewards(
+        reward = self._compute_rewards(
             self.actions,
             self._cabinet.data.joint_pos.torch,
             self.robot_grasp_pos,
@@ -186,8 +189,18 @@ class FrankaCabinetEnv(DirectRLEnv):
             self.cfg.finger_reward_scale,
             self._robot.data.joint_pos.torch,
         )
+        drawer_pos = self._cabinet.data.joint_pos.torch[:, self.drawer_joint_idx]
+        self._episode_succeeded |= drawer_pos > self.cfg.success_drawer_pos_threshold
+        return reward
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
+        # Flush per-episode success (sticky binary: drawer ever opened past the cfg threshold).
+        drawer_pos = self._cabinet.data.joint_pos.torch[env_ids, self.drawer_joint_idx]
+        log = self.extras.setdefault("log", {})
+        log["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean().item()
+        log["Metrics/drawer_pos"] = drawer_pos.mean().item()
+        self._episode_succeeded[env_ids] = False
+
         super()._reset_idx(env_ids)
         # robot state
         joint_pos = self._robot.data.default_joint_pos.torch[env_ids] + sample_uniform(

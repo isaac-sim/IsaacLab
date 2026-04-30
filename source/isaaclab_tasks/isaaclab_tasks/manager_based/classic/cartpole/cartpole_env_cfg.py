@@ -184,6 +184,8 @@ class RewardsCfg:
         weight=-0.005,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
     )
+    # (6) Success rate tracking (zero-weight, metric only)
+    success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
 @configclass

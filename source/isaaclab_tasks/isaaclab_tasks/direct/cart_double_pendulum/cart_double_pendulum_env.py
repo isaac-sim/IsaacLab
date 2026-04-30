@@ -162,6 +162,13 @@ class CartDoublePendulumEnv(DirectMARLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
+        # Episode success = timed out without leaving the cart/pole bounds. All agents share
+        # the same termination signal in this task, so reading any agent's flag is fine.
+        # DirectMARLEnv only sets these dicts inside step(), so skip on the initial reset.
+        if hasattr(self, "time_out_dict"):
+            any_agent = next(iter(self.cfg.possible_agents))
+            survived = self.time_out_dict[any_agent][env_ids] & ~self.terminated_dict[any_agent][env_ids]
+            self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
         super()._reset_idx(env_ids)
 
         joint_pos = self.robot.data.default_joint_pos.torch[env_ids]

@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+4.6.23 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks` configuration option
+  to skip shape/dtype validation in setter and writer methods, reducing per-call overhead
+  in production workloads.
+
+Fixed
+^^^^^
+
+* Fixed cross-backend asset interface regression tests to cover tensor views passed to
+  backend index resolution helpers.
+
+
 4.6.22 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -425,7 +442,7 @@ Changed
 
 
 4.6.7 (2026-04-20)
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^

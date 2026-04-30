@@ -387,7 +387,9 @@ class FactoryEnv(DirectRLEnv):
         """Keep track of episode statistics and log rewards."""
         # Only log episode success rates at the end of an episode.
         if torch.any(self.reset_buf):
-            self.extras["successes"] = torch.count_nonzero(curr_successes) / self.num_envs
+            self.extras.setdefault("log", {})["Metrics/success_rate"] = (
+                torch.count_nonzero(curr_successes) / self.num_envs
+            ).item()
 
         # Get the time at which an episode first succeeds.
         first_success = torch.logical_and(curr_successes, torch.logical_not(self.ep_succeeded))
