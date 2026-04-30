@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Integration tests: cartpole env + per-backend visualizers (Kit Replicator, tiled camera, GL, Rerun, Viser).
+"""Integration tests for visualizer rendering across representative scenes.
 
 Visualizer packages use ``logging.getLogger(__name__)``, so loggers are named like
 ``isaaclab_visualizers.kit.kit_visualizer`` and ``isaaclab.visualizers.base_visualizer``.
@@ -39,12 +39,16 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
+from isaaclab_physx.sim import DeformableBodyMaterialCfg, DeformableBodyPropertiesCfg, SurfaceDeformableBodyMaterialCfg
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
 from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
+from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim import SimulationContext
 
 from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
@@ -75,6 +79,18 @@ _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (600, 600)
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (600, 600)
 """Tiled camera per-env tile width/height (preset default is 100×100); keeps ``observation_space`` consistent."""
+
+_DEFORMABLE_INTEGRATION_CAMERA_PATH = "/World/DeformableCamera"
+"""Camera used by the deformables visualizer smoke test."""
+
+_DEFORMABLE_INTEGRATION_EYE: tuple[float, float, float] = (4.0, 4.0, 3.0)
+"""Camera eye for the deformables scene."""
+
+_DEFORMABLE_INTEGRATION_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 1.0)
+"""Camera target for the deformables scene."""
+
+_DEFORMABLE_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (600, 600)
+"""Kit viewport render product resolution for the deformables motion check."""
 
 _VIS_FRAME_TEST_STEPS = 60
 """Steps for Kit / Newton frame capture: no early exit."""
@@ -199,6 +215,40 @@ def _get_visualizer_cfg(visualizer_kind: str):
             RerunVisualizer,
         )
     return KitVisualizerCfg(randomly_sample_visible_envs=False, **cam), KitVisualizer
+
+
+def _get_deformables_visualizer_cfg(visualizer_kind: str):
+    """Return visualizer config for the PhysX deformables smoke scene."""
+    cam = {
+        "eye": _DEFORMABLE_INTEGRATION_EYE,
+        "lookat": _DEFORMABLE_INTEGRATION_LOOKAT,
+        "cam_source": "cfg",
+        "randomly_sample_visible_envs": False,
+    }
+    if visualizer_kind == "newton":
+        __import__("newton")
+        nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
+        return NewtonVisualizerCfg(headless=True, window_width=nw, window_height=nh, **cam), NewtonVisualizer
+    if visualizer_kind == "viser":
+        __import__("newton")
+        __import__("viser")
+        port = _find_free_tcp_port(host="127.0.0.1")
+        return ViserVisualizerCfg(open_browser=False, port=port, **cam), ViserVisualizer
+    if visualizer_kind == "rerun":
+        __import__("newton")
+        __import__("rerun")
+        web_port, grpc_port = _allocate_rerun_test_ports(host="127.0.0.1")
+        return (
+            RerunVisualizerCfg(
+                bind_address="127.0.0.1",
+                open_browser=False,
+                web_port=web_port,
+                grpc_port=grpc_port,
+                **cam,
+            ),
+            RerunVisualizer,
+        )
+    return KitVisualizerCfg(**cam), KitVisualizer
 
 
 def _get_physics_cfg(backend_kind: str):
@@ -452,6 +502,267 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
     return CartpoleCameraEnv(env_cfg)
 
 
+def _make_deformables_camera() -> Camera:
+    """Create an RTX camera looking at the deformables scene."""
+    return Camera(
+        CameraCfg(
+            height=240,
+            width=320,
+            prim_path=_DEFORMABLE_INTEGRATION_CAMERA_PATH,
+            update_period=0,
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0,
+                focus_distance=400.0,
+                horizontal_aperture=20.955,
+                clipping_range=(0.1, 20.0),
+            ),
+        )
+    )
+
+
+def _spawn_deformables_demo_scene() -> dict[str, DeformableObject]:
+    """Spawn deterministic volume and surface deformables based on ``scripts/demos/deformables.py``."""
+    ground_cfg = sim_utils.GroundPlaneCfg()
+    ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
+    light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    light_cfg.func("/World/light", light_cfg)
+
+    volume_material = DeformableBodyMaterialCfg(youngs_modulus=5.0e7, poissons_ratio=0.35)
+    surface_material = SurfaceDeformableBodyMaterialCfg(youngs_modulus=5.0e7, poissons_ratio=0.35)
+    deformable_props = DeformableBodyPropertiesCfg()
+    volume_origins = [
+        (-1.25, 0.0, 2.4),
+        (-0.75, 0.0, 2.2),
+        (-0.25, 0.0, 2.0),
+        (0.25, 0.0, 2.2),
+        (0.75, 0.0, 2.4),
+    ]
+    volume_cfgs = [
+        sim_utils.MeshSphereCfg(
+            radius=0.28,
+            deformable_props=deformable_props,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.1, 0.1)),
+            physics_material=volume_material,
+        ),
+        sim_utils.MeshCuboidCfg(
+            size=(0.45, 0.45, 0.45),
+            deformable_props=deformable_props,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.8, 0.1)),
+            physics_material=volume_material,
+        ),
+        sim_utils.MeshCylinderCfg(
+            radius=0.2,
+            height=0.45,
+            deformable_props=deformable_props,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.2, 0.9)),
+            physics_material=volume_material,
+        ),
+        sim_utils.MeshCapsuleCfg(
+            radius=0.22,
+            height=0.45,
+            deformable_props=deformable_props,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.7, 0.1)),
+            physics_material=volume_material,
+        ),
+        sim_utils.MeshConeCfg(
+            radius=0.25,
+            height=0.55,
+            deformable_props=deformable_props,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.8)),
+            physics_material=volume_material,
+        ),
+    ]
+    for idx, (cfg, origin) in enumerate(zip(volume_cfgs, volume_origins)):
+        cfg.func(f"/World/Origin/Volume{idx:02d}", cfg, translation=origin)
+
+    cloth_cfg = sim_utils.MeshSquareCfg(
+        size=1.25,
+        resolution=(17, 17),
+        deformable_props=deformable_props,
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.8, 0.9)),
+        physics_material=surface_material,
+    )
+    cloth_cfg.func("/World/Origin/Surface00", cloth_cfg, translation=(0.0, -0.75, 2.8))
+
+    return {
+        "volume_deformable_object": DeformableObject(
+            cfg=DeformableObjectCfg(
+                prim_path="/World/Origin/Volume.*",
+                spawn=None,
+                init_state=DeformableObjectCfg.InitialStateCfg(),
+            )
+        ),
+        "surface_deformable_object": DeformableObject(
+            cfg=DeformableObjectCfg(
+                prim_path="/World/Origin/Surface.*",
+                spawn=None,
+                init_state=DeformableObjectCfg.InitialStateCfg(),
+            )
+        ),
+    }
+
+
+def _prebuild_deformables_newton_artifact(sim: SimulationContext) -> None:
+    """Prebuild a Newton visualizer artifact for the PhysX deformables scene when supported."""
+    try:
+        from isaaclab_newton.cloner.newton_replicate import newton_visualizer_prebuild
+
+        mapping = torch.ones((1, 1), device=sim.device, dtype=torch.bool)
+        env_ids = torch.zeros(1, device=sim.device, dtype=torch.long)
+        model, state = newton_visualizer_prebuild(
+            stage=sim.stage,
+            sources=["/World/Origin"],
+            destinations=["/World/Origin"],
+            env_ids=env_ids,
+            mapping=mapping,
+            device=sim.device,
+            simplify_meshes=False,
+        )
+        sim.set_scene_data_visualizer_prebuilt_artifact(
+            VisualizerPrebuiltArtifacts(
+                model=model,
+                state=state,
+                rigid_body_paths=list(getattr(model, "body_label", None) or getattr(model, "body_key", [])),
+                articulation_paths=list(
+                    getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
+                ),
+                num_envs=1,
+            )
+        )
+    except Exception as exc:
+        pytest.skip(f"Newton-backed visualizer artifact prebuild does not support this deformables scene: {exc}")
+
+
+def _step_deformables_scene(
+    sim: SimulationContext,
+    deformables: dict[str, DeformableObject],
+    camera: Camera,
+) -> None:
+    """Step simulation and refresh deformable/camera buffers."""
+    sim_dt = sim.get_physics_dt()
+    sim.step()
+    for deformable in deformables.values():
+        deformable.update(sim_dt)
+    camera.update(sim_dt)
+
+
+def _run_deformables_kit_camera_frame_motion_test(
+    sim: SimulationContext,
+    deformables: dict[str, DeformableObject],
+    camera: Camera,
+    kit_visualizer: KitVisualizer,
+) -> None:
+    """Assert Kit visualizer steps while camera buffers render moving deformables."""
+    assert kit_visualizer.is_running(), "Expected Kit visualizer to be running."
+
+    annotator = None
+    render_product = None
+    try:
+        annotator, render_product = _build_rgb_annotator_for_camera(
+            _DEFORMABLE_INTEGRATION_CAMERA_PATH,
+            resolution=_DEFORMABLE_INTEGRATION_RENDER_RESOLUTION,
+        )
+        frames: list = []
+        for _ in range(_VIS_FRAME_TEST_STEPS):
+            _step_deformables_scene(sim, deformables, camera)
+            rgb_data = annotator.get_data()
+            frames.append(_annotator_rgb_to_numpy(rgb_data))
+        _assert_non_black_frame_array(frames[-1])
+        _assert_early_and_late_motion_frames_differ(frames)
+        _assert_non_black_tensor(camera.data.output["rgb"])
+    finally:
+        if annotator is not None and render_product is not None:
+            with contextlib.suppress(Exception):
+                annotator.detach([render_product])
+
+
+def _make_deformables_visualizer_scene(visualizer_kind: str):
+    """Build the PhysX deformables scene with the requested visualizer config."""
+    sim = None
+    sim_utils.create_new_stage()
+    visualizer_cfg, expected_visualizer_cls = _get_deformables_visualizer_cfg(visualizer_kind)
+    sim = SimulationContext(sim_utils.SimulationCfg(dt=0.01, visualizer_cfgs=visualizer_cfg))
+    sim.set_setting("/isaaclab/render/rtx_sensors", True)
+    sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
+    deformables = _spawn_deformables_demo_scene()
+    camera = _make_deformables_camera()
+    if visualizer_kind in {"newton", "rerun", "viser"}:
+        _prebuild_deformables_newton_artifact(sim)
+    return sim, deformables, camera, expected_visualizer_cls
+
+
+@pytest.mark.isaacsim_ci
+def test_kit_visualizer_deformables_camera_rgb_motion(caplog: pytest.LogCaptureFixture) -> None:
+    """Kit + PhysX deformables: camera RGB is non-black and changes over time."""
+    sim = None
+    try:
+        sim, deformables, camera, _ = _make_deformables_visualizer_scene("kit")
+        with caplog.at_level(logging.WARNING):
+            sim.reset()
+            camera.set_world_poses_from_view(
+                torch.tensor([_DEFORMABLE_INTEGRATION_EYE], dtype=torch.float32, device=camera.device),
+                torch.tensor([_DEFORMABLE_INTEGRATION_LOOKAT], dtype=torch.float32, device=camera.device),
+            )
+            kit_visualizers = [viz for viz in sim.visualizers if isinstance(viz, KitVisualizer)]
+            assert kit_visualizers, "Expected an initialized Kit visualizer."
+            _run_deformables_kit_camera_frame_motion_test(sim, deformables, camera, kit_visualizers[0])
+        _assert_no_visualizer_log_issues(caplog)
+    finally:
+        if sim is not None:
+            sim.stop()
+        SimulationContext.clear_instance()
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_visualizer_deformables_viewergl_rgb_motion(caplog: pytest.LogCaptureFixture) -> None:
+    """Newton visualizer + PhysX deformables: ViewerGL frame is non-black and changes over time."""
+    sim = None
+    try:
+        sim, deformables, camera, _ = _make_deformables_visualizer_scene("newton")
+        with caplog.at_level(logging.WARNING):
+            sim.reset()
+            newton_visualizers = [viz for viz in sim.visualizers if isinstance(viz, NewtonVisualizer)]
+            assert newton_visualizers, "Expected an initialized Newton visualizer."
+            viewer = getattr(newton_visualizers[0], "_viewer", None)
+            assert viewer is not None, "Newton viewer was not created."
+
+            frames: list = []
+            for _ in range(_VIS_FRAME_TEST_STEPS):
+                _step_deformables_scene(sim, deformables, camera)
+                frames.append(viewer.get_frame())
+            _assert_non_black_frame_array(frames[-1])
+            _assert_early_and_late_motion_frames_differ(frames)
+        _assert_no_visualizer_log_issues(caplog)
+    finally:
+        if sim is not None:
+            sim.stop()
+        SimulationContext.clear_instance()
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("visualizer_kind", ["rerun", "viser"])
+def test_newton_backed_visualizer_deformables_smoke_steps_and_logs(
+    visualizer_kind: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Rerun/Viser + PhysX deformables: initialize, step, and keep visualizer logs clean."""
+    sim = None
+    try:
+        sim, deformables, camera, expected_visualizer_cls = _make_deformables_visualizer_scene(visualizer_kind)
+        with caplog.at_level(logging.WARNING):
+            sim.reset()
+            visualizers = [viz for viz in sim.visualizers if isinstance(viz, expected_visualizer_cls)]
+            assert visualizers, f"Expected an initialized {visualizer_kind} visualizer."
+            assert getattr(visualizers[0], "_viewer", None) is not None, f"{visualizer_kind} viewer was not created."
+            for _ in range(_MAX_NON_BLACK_STEPS):
+                _step_deformables_scene(sim, deformables, camera)
+        _assert_no_visualizer_log_issues(caplog)
+    finally:
+        if sim is not None:
+            sim.stop()
+        SimulationContext.clear_instance()
+
+
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize(
     "backend_kind",
@@ -476,7 +787,7 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
         ),
     ],
 )
-def test_cartpole_kit_visualizer_replicator_viewport_rgb_motion(
+def test_kit_visualizer_cartpole_replicator_viewport_rgb_motion(
     backend_kind: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Kit + cartpole: Replicator RGB on viewport camera; last frame non-black; early vs late frame differ; logs."""
@@ -500,7 +811,7 @@ def test_cartpole_kit_visualizer_replicator_viewport_rgb_motion(
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_cartpole_newton_visualizer_tiled_camera_rgb_non_black(
+def test_newton_visualizer_cartpole_tiled_camera_rgb_non_black(
     backend_kind: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Newton visualizer + cartpole: env tiled-camera RGB becomes non-black within a few steps; clean logs."""
@@ -523,7 +834,7 @@ def test_cartpole_newton_visualizer_tiled_camera_rgb_non_black(
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_cartpole_newton_visualizer_viewergl_rgb_motion(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+def test_newton_visualizer_cartpole_viewergl_rgb_motion(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Newton GL (``ViewerGL.get_frame``): full motion steps, last frame non-black; early vs late differ; logs."""
     env = None
     try:
@@ -552,7 +863,7 @@ def test_cartpole_newton_visualizer_viewergl_rgb_motion(backend_kind: str, caplo
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_cartpole_rerun_visualizer_smoke_steps_and_logs(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+def test_rerun_visualizer_cartpole_smoke_steps_and_logs(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Rerun + cartpole: visualizer and viewer initialize; env steps exercise the pipeline; clean logs.
 
     Rerun does not expose a per-frame RGB API like ``get_frame``, so we do not assert pixel content.
@@ -579,7 +890,7 @@ def test_cartpole_rerun_visualizer_smoke_steps_and_logs(backend_kind: str, caplo
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
-def test_cartpole_viser_visualizer_smoke_steps_and_logs(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
+def test_viser_visualizer_cartpole_smoke_steps_and_logs(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Viser + cartpole: visualizer and viewer initialize; env steps exercise the pipeline; clean logs.
 
     No per-frame RGB assertion (Viser does not mirror the Newton ``get_frame`` path used elsewhere).
