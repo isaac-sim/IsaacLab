@@ -10,7 +10,8 @@ Added
 * Added :class:`~isaaclab_physx.sensors.JointWrenchSensor` for reading PhysX
   incoming joint reaction wrenches as split force [N] and torque [N·m] buffers.
   The sensor accepts asset prim paths whose articulation root is nested below
-  the configured prim.
+  the configured prim and converts PhysX's native body-frame wrench to the
+  shared child-side joint-frame convention.
 
 Removed
 ^^^^^^^

@@ -343,6 +343,8 @@ The ``ArticulationData.body_incoming_joint_wrench_b`` property has been removed.
 Isaac Lab 3.0, incoming joint reaction wrenches are exposed through
 :class:`~isaaclab.sensors.JointWrenchSensor`, which has PhysX and Newton backend
 implementations and returns separate force [N] and torque [N·m] buffers.
+The sensor reports wrenches in the child-side incoming joint frame, with torque
+referenced at the child-side joint anchor.
 
 **Before (Isaac Lab 2.x):**
 
@@ -364,7 +366,7 @@ implementations and returns separate force [N] and torque [N·m] buffers.
 
    sensor = env.scene.sensors["joint_wrench"]
    data = sensor.data
-   wrench_b = torch.cat(
+   wrench_j = torch.cat(
        (
            data.force.torch[:, body_ids],
            data.torque.torch[:, body_ids],
