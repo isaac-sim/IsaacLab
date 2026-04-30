@@ -49,13 +49,11 @@ class RecordVideoWrapper(gym.wrappers.RecordVideo):
         super().__init__(env, video_folder, **kwargs)
         self.video_keep_last = video_keep_last
 
-    def step(self, action):
-        was_recording = self.recording
-        result = super().step(action)
-        # Prune old videos immediately after a clip finishes writing to disk.
-        if was_recording and not self.recording and self.video_keep_last is not None:
+    def stop_recording(self):
+        """Stop current recording, save the video, then prune old clips."""
+        super().stop_recording()
+        if self.video_keep_last is not None:
             self._prune_old_videos()
-        return result
 
     def start_recording(self, video_name: str):
         """Start a new recording, resetting the frame-skip counter on the underlying VideoRecorder."""
