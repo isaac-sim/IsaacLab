@@ -377,7 +377,6 @@ class SimulationContext:
         """Returns the physics time step."""
         return self.physics_manager.get_physics_dt()
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
     def get_physics_step_count(self) -> int:
         """Return the monotonic physics step counter (incremented each :meth:`step`)."""
         return self._physics_step_count
@@ -386,12 +385,10 @@ class SimulationContext:
     def render_context(self) -> RenderContext:
         """Shared :class:`~isaaclab.renderers.render_context.RenderContext` for camera renderers."""
         return self._render_context
-=======
     @property
     def render_generation(self) -> int:
         """Returns a monotonic counter for render() executions."""
         return self._render_generation
->>>>>>> develop
 
     def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configs for requested types.

@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
+
 4.6.24 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~
 
@@ -41,7 +41,8 @@ Changed
   of :meth:`~isaaclab.scene.interactive_scene.InteractiveScene.update` when
   ``lazy_sensor_update`` is false; fetches that render still dedupe the same way via
   ``physics_step_count`` in :class:`~isaaclab.renderers.render_context.RenderContext`.
-=======
+
+
 4.6.23 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -512,7 +513,6 @@ Changed
 
 * Changed the way the python interpreter is called from ``isaaclab.sh`` to allow
   error codes to bubble up to the process level.
->>>>>>> develop
 
 
 4.6.5 (2026-04-16)

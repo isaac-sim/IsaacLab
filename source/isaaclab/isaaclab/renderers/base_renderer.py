@@ -11,11 +11,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-<<<<<<< dev/rschmitt/OMPE_88032_decouple_renderer_from_camera
 from .camera_render_spec import CameraRenderSpec
-=======
 from .output_contract import RenderBufferKind, RenderBufferSpec
->>>>>>> develop
 
 if TYPE_CHECKING:
     import torch
