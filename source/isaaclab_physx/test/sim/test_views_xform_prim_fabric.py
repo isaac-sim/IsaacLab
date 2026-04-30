@@ -143,7 +143,7 @@ def _fill_position(out: wp.array(dtype=wp.float32, ndim=2), x: float, y: float, 
     out[i, 2] = wp.float32(z)
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
     """Verify that set_world_poses in Fabric mode does NOT sync back to USD.
 
