@@ -3461,6 +3461,9 @@ class Articulation(BaseArticulation):
 
             model = SimulationManager.get_model()
 
+            if not model.actuators:
+                return
+
             dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
             if dof_layout.slice is not None:
                 dof_offset = dof_layout.slice.start

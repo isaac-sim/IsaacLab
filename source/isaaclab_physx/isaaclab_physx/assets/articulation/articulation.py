@@ -4030,11 +4030,11 @@ class Articulation(BaseArticulation):
         # so Newton writes effort directly into the staging buffer.
         newton_adapter = self.actuators.get("newton")
         w = self._physx_actuator_wrapper
-        w.joint_q = self._data.joint_pos.reshape(-1)
-        w.joint_qd = self._data.joint_vel.reshape(-1)
-        w.joint_target_pos = self._data.joint_pos_target.reshape(-1)
-        w.joint_target_vel = self._data.joint_vel_target.reshape(-1)
-        w.joint_act = self._data.joint_effort_target.reshape(-1)
+        w.joint_q = self._data.joint_pos.warp.reshape(-1)
+        w.joint_qd = self._data.joint_vel.warp.reshape(-1)
+        w.joint_target_pos = self._data.joint_pos_target.warp.reshape(-1)
+        w.joint_target_vel = self._data.joint_vel_target.warp.reshape(-1)
+        w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
         w.joint_f = self._joint_effort_target_sim.reshape(-1)
 
         newton_adapter.step(w, w, SimulationManager.get_physics_dt())

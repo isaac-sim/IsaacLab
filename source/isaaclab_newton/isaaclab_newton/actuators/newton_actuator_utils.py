@@ -52,6 +52,7 @@ backends would not reduce code — it would only add coupling.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -59,6 +60,8 @@ from typing import Any
 import numpy as np
 import torch
 import warp as wp
+
+logger = logging.getLogger(__name__)
 
 from newton.actuators import (
     Actuator,
@@ -306,7 +309,7 @@ class NewtonActuatorAdapter:
             mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
             import torch  # noqa: PLC0415
             if isinstance(env_ids, torch.Tensor):
-                idx = wp.from_torch(env_ids.contiguous().to(torch.int32), dtype=wp.int32)
+                idx = wp.from_torch(env_ids.to(device=self._device).contiguous().to(torch.int32), dtype=wp.int32)
             else:
                 idx = wp.array(list(env_ids), dtype=wp.int32, device=self._device)
             wp.launch(_set_mask_kernel, dim=len(idx), inputs=[mask, idx], device=self._device)
@@ -592,9 +595,26 @@ def author_newton_actuator_prims(
 
     from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
     from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+    from isaaclab.actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
+
+    _SUPPORTED_CFG_TYPES = (
+        IdealPDActuatorCfg,
+        DCMotorCfg,
+        DelayedPDActuatorCfg,
+        RemotizedPDActuatorCfg,
+        ActuatorNetMLPCfg,
+        ActuatorNetLSTMCfg,
+    )
 
     for group_name, cfg, joint_names in cfg_entries:
+        if not isinstance(cfg, _SUPPORTED_CFG_TYPES):
+            logger.warning(
+                "Actuator group '%s' uses config type '%s' which is not supported by Newton-native"
+                " actuator authoring. The group will be skipped.",
+                group_name,
+                type(cfg).__name__,
+            )
+            continue
         stiffness_map = resolve(getattr(cfg, "stiffness", None), joint_names)
         damping_map = resolve(getattr(cfg, "damping", None), joint_names)
         effort_map = resolve(getattr(cfg, "effort_limit", None), joint_names)
