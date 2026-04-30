@@ -300,17 +300,17 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
 
         # Check values for cube 2 --> cube 1 is the only collision for cube 2
         torch.testing.assert_close(
-            wp.to_torch(contact_sensor_2.data.force_matrix_w)[:, :, 0],
-            wp.to_torch(contact_sensor_2.data.net_forces_w),
+            contact_sensor_2.data.force_matrix_w.torch[:, :, 0],
+            contact_sensor_2.data.net_forces_w.torch,
         )
         # Check that forces are opposite and equal
         torch.testing.assert_close(
-            wp.to_torch(contact_sensor_2.data.force_matrix_w)[:, :, 0],
-            -wp.to_torch(contact_sensor.data.force_matrix_w)[:, :, 0],
+            contact_sensor_2.data.force_matrix_w.torch[:, :, 0],
+            -contact_sensor.data.force_matrix_w.torch[:, :, 0],
         )
         # Check values are non-zero (contacts are happening and are getting reported)
-        assert wp.to_torch(contact_sensor_2.data.net_forces_w).sum().item() > 0.0
-        assert wp.to_torch(contact_sensor.data.net_forces_w).sum().item() > 0.0
+        assert contact_sensor_2.data.net_forces_w.torch.sum().item() > 0.0
+        assert contact_sensor.data.net_forces_w.torch.sum().item() > 0.0
 
 
 def test_no_contact_reporting(setup_simulation):
@@ -370,10 +370,10 @@ def test_no_contact_reporting(setup_simulation):
             _perform_sim_step(sim, scene, sim_dt)
 
         # check values are zero (contacts are happening but not reported)
-        assert wp.to_torch(contact_sensor.data.net_forces_w).sum().item() == 0.0
-        assert wp.to_torch(contact_sensor.data.force_matrix_w).sum().item() == 0.0
-        assert wp.to_torch(contact_sensor_2.data.net_forces_w).sum().item() == 0.0
-        assert wp.to_torch(contact_sensor_2.data.force_matrix_w).sum().item() == 0.0
+        assert contact_sensor.data.net_forces_w.torch.sum().item() == 0.0
+        assert contact_sensor.data.force_matrix_w.torch.sum().item() == 0.0
+        assert contact_sensor_2.data.net_forces_w.torch.sum().item() == 0.0
+        assert contact_sensor_2.data.force_matrix_w.torch.sum().item() == 0.0
 
 
 @pytest.mark.isaacsim_ci
@@ -490,7 +490,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
         # check that forces are being reported match expected friction forces
         expected_friction, _, _, _ = scene["contact_sensor"].contact_view.get_friction_data(dt=sim_dt)
         expected_friction_torch = wp.to_torch(expected_friction)
-        reported_friction = wp.to_torch(scene["contact_sensor"].data.friction_forces_w)[0, 0, :]
+        reported_friction = scene["contact_sensor"].data.friction_forces_w.torch[0, 0, :]
 
         torch.testing.assert_close(expected_friction_torch.sum(dim=0), reported_friction[0], atol=1e-6, rtol=1e-5)
 
@@ -751,7 +751,7 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
 
     # check shape of the friction_forces_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
     num_bodies = sensor.num_bodies
-    friction_torch = wp.to_torch(sensor._data.friction_forces_w)
+    friction_torch = sensor._data.friction_forces_w.torch
     assert friction_torch.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
     # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:
@@ -789,11 +789,11 @@ def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: Cont
 
     # check shape of the contact_pos_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
     num_bodies = sensor.num_bodies
-    contact_pos_torch = wp.to_torch(sensor._data.contact_pos_w)
+    contact_pos_torch = sensor._data.contact_pos_w.torch
     assert contact_pos_torch.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
     # check contact positions
     if mode == ContactTestMode.IN_CONTACT:
-        pos_w_torch = wp.to_torch(sensor._data.pos_w)
+        pos_w_torch = sensor._data.pos_w.torch
         contact_position = pos_w_torch + torch.tensor([[0.0, 0.0, -shape.cfg.spawn.radius]], device=pos_w_torch.device)
         assert torch.all(
             torch.abs(torch.linalg.norm(contact_pos_torch - contact_position.unsqueeze(1), ord=2, dim=-1)) < 1e-2
@@ -828,10 +828,10 @@ def _check_prim_contact_state_times(
         in_air = True
     if expected_contact_time > 0.0:
         in_contact = True
-    measured_contact_time = wp.to_torch(sensor.data.current_contact_time)
-    measured_air_time = wp.to_torch(sensor.data.current_air_time)
-    measured_last_contact_time = wp.to_torch(sensor.data.last_contact_time)
-    measured_last_air_time = wp.to_torch(sensor.data.last_air_time)
+    measured_contact_time = sensor.data.current_contact_time.torch
+    measured_air_time = sensor.data.current_air_time.torch
+    measured_last_contact_time = sensor.data.last_contact_time.torch
+    measured_last_air_time = sensor.data.last_air_time.torch
     # check current contact state
     assert pytest.approx(measured_contact_time.item(), 0.01) == expected_contact_time
     assert pytest.approx(measured_air_time.item(), 0.01) == expected_air_time
@@ -839,8 +839,8 @@ def _check_prim_contact_state_times(
     assert pytest.approx(measured_last_contact_time.item(), 0.01) == expected_last_contact_time
     assert pytest.approx(measured_last_air_time.item(), 0.01) == expected_last_air_time
     # check current contact mode
-    assert wp.to_torch(sensor.compute_first_contact(dt=dt)).item() == in_contact
-    assert wp.to_torch(sensor.compute_first_air(dt=dt)).item() == in_air
+    assert sensor.compute_first_contact(dt=dt).torch.item() == in_contact
+    assert sensor.compute_first_air(dt=dt).torch.item() == in_air
 
 
 def _perform_sim_step(sim, scene, sim_dt):

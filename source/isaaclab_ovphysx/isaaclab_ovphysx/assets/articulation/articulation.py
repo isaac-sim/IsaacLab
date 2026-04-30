@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import fnmatch
 import logging
 import re
 from collections.abc import Sequence
@@ -19,6 +18,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsManager
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
@@ -187,12 +187,12 @@ class Articulation(BaseArticulation):
         Returns:
             A tuple of lists containing the body indices and names.
         """
-        return self._find_names(self._body_names, name_keys, preserve_order)
+        return resolve_matching_names(name_keys, self._body_names, preserve_order)
 
     def find_joints(
         self,
         name_keys: str | Sequence[str],
-        joint_subset: list[int] | None = None,
+        joint_subset: list[str] | None = None,
         preserve_order: bool = False,
     ) -> tuple[list[int], list[str]]:
         """Find joints in the articulation based on the name keys.
@@ -202,18 +202,16 @@ class Articulation(BaseArticulation):
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the joint names.
-            joint_subset: A subset of joint indices to search within. Defaults to None, which means all joints
+            joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
 
         Returns:
             A tuple of lists containing the joint indices and names.
         """
-        names = [self._joint_names[i] for i in joint_subset] if joint_subset is not None else self._joint_names
-        indices, matched = self._find_names(names, name_keys, preserve_order)
-        if joint_subset is not None:
-            indices = [joint_subset[i] for i in indices]
-        return indices, matched
+        if joint_subset is None:
+            joint_subset = self._joint_names
+        return resolve_matching_names(name_keys, joint_subset, preserve_order)
 
     def find_fixed_tendons(
         self,
@@ -237,9 +235,7 @@ class Articulation(BaseArticulation):
         """
         if tendon_subsets is None:
             tendon_subsets = self.fixed_tendon_names
-        if not tendon_subsets:
-            return [], []
-        return self._find_names(tendon_subsets, name_keys, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     def find_spatial_tendons(
         self,
@@ -262,9 +258,7 @@ class Articulation(BaseArticulation):
         """
         if tendon_subsets is None:
             tendon_subsets = self.spatial_tendon_names
-        if not tendon_subsets:
-            return [], []
-        return self._find_names(tendon_subsets, name_keys, preserve_order)
+        return resolve_matching_names(name_keys, tendon_subsets, preserve_order)
 
     """
     Operations - State Writers.
@@ -2012,9 +2006,9 @@ class Articulation(BaseArticulation):
             all_joints = len(jids_t) == self._num_joints
 
             # warp -> torch (zero-copy on same device via DLPack)
-            jp_target_full = wp.to_torch(self._data.joint_pos_target)
-            jv_target_full = wp.to_torch(self._data.joint_vel_target)
-            je_target_full = wp.to_torch(self._data.joint_effort_target)
+            jp_target_full = self._data.joint_pos_target.torch
+            jv_target_full = self._data.joint_vel_target.torch
+            je_target_full = self._data.joint_effort_target.torch
             jp_target = jp_target_full if all_joints else jp_target_full[:, jids_t]
             jv_target = jv_target_full if all_joints else jv_target_full[:, jids_t]
             je_target = je_target_full if all_joints else je_target_full[:, jids_t]
@@ -2025,8 +2019,8 @@ class Articulation(BaseArticulation):
                 joint_efforts=je_target,
             )
 
-            jp_cur_full = wp.to_torch(self._data.joint_pos)
-            jv_cur_full = wp.to_torch(self._data.joint_vel)
+            jp_cur_full = self._data.joint_pos.torch
+            jv_cur_full = self._data.joint_vel.torch
             jp_cur = jp_cur_full if all_joints else jp_cur_full[:, jids_t]
             jv_cur = jv_cur_full if all_joints else jv_cur_full[:, jids_t]
 
@@ -2063,14 +2057,14 @@ class Articulation(BaseArticulation):
                 return f"[{v[0]:.1e}, {v[1]:.1e}]"
             return f"[{v[0]:.3f}, {v[1]:.3f}]"
 
-        stiffnesses = self.data.joint_stiffness.numpy()[0].tolist()
-        dampings = self.data.joint_damping.numpy()[0].tolist()
-        armatures = self.data.joint_armature.numpy()[0].tolist()
-        frictions = self.data.joint_friction_coeff.numpy()[0].tolist()
-        pos_limits_np = self.data.joint_pos_limits.numpy().reshape(self._num_instances, self._num_joints, 2)
+        stiffnesses = self.data.joint_stiffness.warp.numpy()[0].tolist()
+        dampings = self.data.joint_damping.warp.numpy()[0].tolist()
+        armatures = self.data.joint_armature.warp.numpy()[0].tolist()
+        frictions = self.data.joint_friction_coeff.warp.numpy()[0].tolist()
+        pos_limits_np = self.data.joint_pos_limits.warp.numpy().reshape(self._num_instances, self._num_joints, 2)
         position_limits = [tuple(pos_limits_np[0, j].tolist()) for j in range(self._num_joints)]
-        velocity_limits = self.data.joint_vel_limits.numpy()[0].tolist()
-        effort_limits = self.data.joint_effort_limits.numpy()[0].tolist()
+        velocity_limits = self.data.joint_vel_limits.warp.numpy()[0].tolist()
+        effort_limits = self.data.joint_effort_limits.warp.numpy()[0].tolist()
 
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
@@ -2111,15 +2105,15 @@ class Articulation(BaseArticulation):
         logger.info(f"Simulation parameters for joints in {self.cfg.prim_path}:\n" + joint_table.get_string())
 
         if self.num_fixed_tendons > 0:
-            ft_stiffnesses = self.data.fixed_tendon_stiffness.numpy()[0].tolist()
-            ft_dampings = self.data.fixed_tendon_damping.numpy()[0].tolist()
-            ft_limit_stiffnesses = self.data.fixed_tendon_limit_stiffness.numpy()[0].tolist()
-            ft_limits_np = self.data.fixed_tendon_pos_limits.numpy().reshape(
+            ft_stiffnesses = self.data.fixed_tendon_stiffness.warp.numpy()[0].tolist()
+            ft_dampings = self.data.fixed_tendon_damping.warp.numpy()[0].tolist()
+            ft_limit_stiffnesses = self.data.fixed_tendon_limit_stiffness.warp.numpy()[0].tolist()
+            ft_limits_np = self.data.fixed_tendon_pos_limits.warp.numpy().reshape(
                 self._num_instances, self.num_fixed_tendons, 2
             )
             ft_limits = [tuple(ft_limits_np[0, t].tolist()) for t in range(self.num_fixed_tendons)]
-            ft_rest_lengths = self.data.fixed_tendon_rest_length.numpy()[0].tolist()
-            ft_offsets = self.data.fixed_tendon_offset.numpy()[0].tolist()
+            ft_rest_lengths = self.data.fixed_tendon_rest_length.warp.numpy()[0].tolist()
+            ft_offsets = self.data.fixed_tendon_offset.warp.numpy()[0].tolist()
 
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
@@ -2155,10 +2149,10 @@ class Articulation(BaseArticulation):
             )
 
         if self.num_spatial_tendons > 0:
-            st_stiffnesses = self.data.spatial_tendon_stiffness.numpy()[0].tolist()
-            st_dampings = self.data.spatial_tendon_damping.numpy()[0].tolist()
-            st_limit_stiffnesses = self.data.spatial_tendon_limit_stiffness.numpy()[0].tolist()
-            st_offsets = self.data.spatial_tendon_offset.numpy()[0].tolist()
+            st_stiffnesses = self.data.spatial_tendon_stiffness.warp.numpy()[0].tolist()
+            st_dampings = self.data.spatial_tendon_damping.warp.numpy()[0].tolist()
+            st_limit_stiffnesses = self.data.spatial_tendon_limit_stiffness.warp.numpy()[0].tolist()
+            st_offsets = self.data.spatial_tendon_offset.warp.numpy()[0].tolist()
 
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Spatial Tendon Information (Prim path: {self.cfg.prim_path})"
@@ -2663,28 +2657,6 @@ class Articulation(BaseArticulation):
     def _nst(self):
         """Return the number of spatial tendons (0 if none)."""
         return getattr(self, "_num_spatial_tendons", 0)
-
-    @staticmethod
-    def _find_names(names: list[str], keys: str | Sequence[str], preserve_order: bool) -> tuple[list[int], list[str]]:
-        if isinstance(keys, str):
-            keys = [keys]
-        matched_indices: list[int] = []
-        matched_names: list[str] = []
-        if preserve_order:
-            for key in keys:
-                for idx, name in enumerate(names):
-                    if fnmatch.fnmatch(name, key) or re.fullmatch(key, name):
-                        if idx not in matched_indices:
-                            matched_indices.append(idx)
-                            matched_names.append(name)
-        else:
-            for idx, name in enumerate(names):
-                for key in keys:
-                    if fnmatch.fnmatch(name, key) or re.fullmatch(key, name):
-                        matched_indices.append(idx)
-                        matched_names.append(name)
-                        break
-        return matched_indices, matched_names
 
     def _resolve_joint_values(self, pattern_dict: dict[str, float], buffer: wp.array) -> None:
         """Resolve a {pattern: value} dict into a per-joint buffer.

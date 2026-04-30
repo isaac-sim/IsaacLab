@@ -17,6 +17,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -180,7 +181,7 @@ class Pva(BasePva):
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
         gravity_dir_repeated = gravity_dir.repeat(self.num_instances, 1)
-        self.GRAVITY_VEC_W = wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f)
+        self.GRAVITY_VEC_W = ProxyArray(wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f))
 
         # Create internal buffers
         self._initialize_buffers_impl()
@@ -276,19 +277,17 @@ class Pva(BasePva):
             return
         # get marker location
         # -- base state (convert warp -> torch for visualization)
-        base_pos_w = wp.to_torch(self._data.pos_w).clone()
+        base_pos_w = self._data.pos_w.torch.clone()
         base_pos_w[:, 2] += 0.5
         # -- resolve the scales
         default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
-        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(
-            wp.to_torch(self._data.lin_acc_b).shape[0], 1
-        )
+        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.torch.shape[0], 1)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # arrow-direction
-        pos_w_torch = wp.to_torch(self._data.pos_w)
-        quat_w_torch = wp.to_torch(self._data.quat_w)
-        lin_acc_b_torch = wp.to_torch(self._data.lin_acc_b)
+        pos_w_torch = self._data.pos_w.torch
+        quat_w_torch = self._data.quat_w.torch
+        lin_acc_b_torch = self._data.lin_acc_b.torch
         quat_opengl = math_utils.quat_from_matrix(
             math_utils.create_rotation_matrix_from_view(
                 pos_w_torch,

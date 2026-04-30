@@ -9,7 +9,6 @@ from typing import Any
 
 import numpy as np
 import torch
-import warp as wp
 
 from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModelState
 from curobo.geom.sdf.world import CollisionCheckerType
@@ -194,7 +193,7 @@ class CuroboPlanner(MotionPlannerBase):
 
             # Use env-local base translation for multi-env rendering consistency
             env_origin = self.env.scene.env_origins[env_id, :3]
-            base_translation = (wp.to_torch(self.robot.data.root_pos_w)[env_id, :3] - env_origin).detach().cpu().numpy()
+            base_translation = (self.robot.data.root_pos_w.torch[env_id, :3] - env_origin).detach().cpu().numpy()
             self.plan_visualizer = PlanVisualizer(
                 robot_name=self.config.robot_name,
                 recording_id=f"curobo_plan_{env_id}",
@@ -628,8 +627,8 @@ class CuroboPlanner(MotionPlannerBase):
             # Get current pose from Lab (may be on CPU or CUDA depending on --device flag)
             obj = rigid_objects[object_name]
             env_origin = self.env.scene.env_origins[self.env_id]
-            current_pos_raw = wp.to_torch(obj.data.root_pos_w)[self.env_id] - env_origin
-            current_quat_raw = wp.to_torch(obj.data.root_quat_w)[self.env_id]  # (x, y, z, w)
+            current_pos_raw = obj.data.root_pos_w.torch[self.env_id] - env_origin
+            current_quat_raw = obj.data.root_quat_w.torch[self.env_id]  # (x, y, z, w)
 
             # Convert to cuRobo device and extract float values for pose list
             current_pos = self._to_curobo_device(current_pos_raw)
@@ -669,8 +668,8 @@ class CuroboPlanner(MotionPlannerBase):
                 # Get current pose and update in collision checker
                 obj = rigid_objects[object_name]
                 env_origin = self.env.scene.env_origins[self.env_id]
-                current_pos_raw = wp.to_torch(obj.data.root_pos_w)[self.env_id] - env_origin
-                current_quat_raw = wp.to_torch(obj.data.root_quat_w)[self.env_id]
+                current_pos_raw = obj.data.root_pos_w.torch[self.env_id] - env_origin
+                current_quat_raw = obj.data.root_quat_w.torch[self.env_id]
 
                 current_pos = self._to_curobo_device(current_pos_raw)
                 current_quat = self._to_curobo_device(current_quat_raw)
@@ -933,7 +932,7 @@ class CuroboPlanner(MotionPlannerBase):
             and zero velocity/acceleration.
         """
         # Fetch joint position (shape: [1, num_joints])
-        joint_pos_raw: torch.Tensor = wp.to_torch(self.robot.data.joint_pos)[self.env_id, :].unsqueeze(0)
+        joint_pos_raw: torch.Tensor = self.robot.data.joint_pos.torch[self.env_id, :].unsqueeze(0)
         joint_vel_raw: torch.Tensor = torch.zeros_like(joint_pos_raw)
         joint_acc_raw: torch.Tensor = torch.zeros_like(joint_pos_raw)
 
@@ -1574,7 +1573,7 @@ class CuroboPlanner(MotionPlannerBase):
         if self.frame_counter % self.sphere_update_freq != 0:
             return
 
-        original_joints: torch.Tensor = wp.to_torch(self.robot.data.joint_pos)[self.env_id].clone()
+        original_joints: torch.Tensor = self.robot.data.joint_pos.torch[self.env_id].clone()
 
         try:
             # Ensure joint positions are on environment device for robot commands
@@ -1701,7 +1700,7 @@ class CuroboPlanner(MotionPlannerBase):
         opacity = 0.9 if is_attached else 0.5
 
         # Calculate position in world frame (do not use env_origin)
-        root_translation = wp.to_torch(self.robot.data.root_pos_w)[self.env_id, :3].detach().cpu().numpy()
+        root_translation = self.robot.data.root_pos_w.torch[self.env_id, :3].detach().cpu().numpy()
         position = sphere.position.cpu().numpy() if hasattr(sphere.position, "cpu") else sphere.position
         if not is_attached:
             position = position + root_translation
@@ -1788,7 +1787,7 @@ class CuroboPlanner(MotionPlannerBase):
         gripper_closed = expected_attached_object is not None
         self._set_gripper_state(gripper_closed)
         current_attached = self.get_attached_objects()
-        gripper_pos = wp.to_torch(self.robot.data.joint_pos)[env_id, -2:]
+        gripper_pos = self.robot.data.joint_pos.torch[env_id, -2:]
 
         self.logger.debug(f"Current attached objects: {current_attached}")
 
@@ -1810,13 +1809,13 @@ class CuroboPlanner(MotionPlannerBase):
                 if expected_attached_object in rigid_objects:
                     obj = rigid_objects[expected_attached_object]
                     origin = self.env.scene.env_origins[env_id]
-                    obj_pos = wp.to_torch(obj.data.root_pos_w)[env_id] - origin
+                    obj_pos = obj.data.root_pos_w.torch[env_id] - origin
                     self.logger.debug(f"Isaac Lab object position: {obj_pos}")
 
                     # Debug end-effector position
                     ee_frame_cfg = SceneEntityCfg("ee_frame")
                     ee_frame = self.env.scene[ee_frame_cfg.name]
-                    ee_pos = wp.to_torch(ee_frame.data.target_pos_w)[env_id, 0, :] - origin
+                    ee_pos = ee_frame.data.target_pos_w.torch[env_id, 0, :] - origin
                     self.logger.debug(f"End-effector position: {ee_pos}")
 
                     # Debug distance

@@ -13,6 +13,7 @@ simulation_app = app_launcher.app
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.test.mock_interfaces.sensors import (
     MockContactSensor,
@@ -50,40 +51,34 @@ class TestMockImu:
 
     def test_lazy_tensor_initialization(self, imu):
         """Test that unset properties return zero tensors with correct shapes."""
-        import warp as wp
-
         # IMU only has angular velocity and linear acceleration
-        ang_vel = wp.to_torch(imu.data.ang_vel_b)
+        ang_vel = imu.data.ang_vel_b.torch
         assert ang_vel.shape == (4, 3)
         assert torch.all(ang_vel == 0)
 
-        lin_acc = wp.to_torch(imu.data.lin_acc_b)
+        lin_acc = imu.data.lin_acc_b.torch
         assert lin_acc.shape == (4, 3)
         assert torch.all(lin_acc == 0)
 
     def test_set_mock_data(self, imu):
         """Test bulk data setter."""
-        import warp as wp
-
         ang_vel = torch.randn(4, 3)
         lin_acc = torch.randn(4, 3)
 
         imu.data.set_mock_data(ang_vel_b=ang_vel, lin_acc_b=lin_acc)
 
-        assert torch.allclose(wp.to_torch(imu.data.ang_vel_b), ang_vel)
-        assert torch.allclose(wp.to_torch(imu.data.lin_acc_b), lin_acc)
+        assert torch.allclose(imu.data.ang_vel_b.torch, ang_vel)
+        assert torch.allclose(imu.data.lin_acc_b.torch, lin_acc)
 
     def test_per_property_setter(self, imu):
         """Test individual property setters."""
-        import warp as wp
-
         lin_acc = torch.randn(4, 3)
         imu.data.set_lin_acc_b(lin_acc)
-        assert torch.allclose(wp.to_torch(imu.data.lin_acc_b), lin_acc)
+        assert torch.allclose(imu.data.lin_acc_b.torch, lin_acc)
 
         ang_vel = torch.randn(4, 3)
         imu.data.set_ang_vel_b(ang_vel)
-        assert torch.allclose(wp.to_torch(imu.data.ang_vel_b), ang_vel)
+        assert torch.allclose(imu.data.ang_vel_b.torch, ang_vel)
 
 
 # ==============================================================================
@@ -107,15 +102,13 @@ class TestMockPva:
 
     def test_lazy_tensor_initialization(self, pva):
         """Test that unset properties return zero tensors with correct shapes."""
-        import warp as wp
-
         # Position
-        pos = wp.to_torch(pva.data.pos_w)
+        pos = pva.data.pos_w.torch
         assert pos.shape == (4, 3)
         assert torch.all(pos == 0)
 
         # Quaternion (should be identity in XYZW format: x=0, y=0, z=0, w=1)
-        quat = wp.to_torch(pva.data.quat_w)
+        quat = pva.data.quat_w.torch
         assert quat.shape == (4, 4)
         assert torch.all(quat[:, :3] == 0)  # xyz components
         assert torch.all(quat[:, 3] == 1)  # w component
@@ -128,44 +121,36 @@ class TestMockPva:
 
     def test_projected_gravity_default(self, pva):
         """Test default gravity direction."""
-        import warp as wp
-
-        gravity = wp.to_torch(pva.data.projected_gravity_b)
+        gravity = pva.data.projected_gravity_b.torch
         assert gravity.shape == (4, 3)
         # Default gravity should point down: (0, 0, -1)
         assert torch.all(gravity[:, 2] == -1)
 
     def test_set_mock_data(self, pva):
         """Test bulk data setter."""
-        import warp as wp
-
         lin_vel = torch.randn(4, 3)
         ang_vel = torch.randn(4, 3)
 
         pva.data.set_mock_data(lin_vel_b=lin_vel, ang_vel_b=ang_vel)
 
-        assert torch.allclose(wp.to_torch(pva.data.lin_vel_b), lin_vel)
-        assert torch.allclose(wp.to_torch(pva.data.ang_vel_b), ang_vel)
+        assert torch.allclose(pva.data.lin_vel_b.torch, lin_vel)
+        assert torch.allclose(pva.data.ang_vel_b.torch, ang_vel)
 
     def test_per_property_setter(self, pva):
         """Test individual property setters."""
-        import warp as wp
-
         lin_acc = torch.randn(4, 3)
         pva.data.set_lin_acc_b(lin_acc)
-        assert torch.allclose(wp.to_torch(pva.data.lin_acc_b), lin_acc)
+        assert torch.allclose(pva.data.lin_acc_b.torch, lin_acc)
 
     def test_pose_composition(self, pva):
         """Test that pose_w combines pos_w and quat_w correctly."""
-        import warp as wp
-
         pos = torch.randn(4, 3)
         quat = torch.tensor([[0, 0, 0, 1]] * 4, dtype=torch.float32)  # XYZW format
 
         pva.data.set_pos_w(pos)
         pva.data.set_quat_w(quat)
 
-        pose = wp.to_torch(pva.data.pose_w)
+        pose = pva.data.pose_w.torch
         assert pose.shape == (4, 7)
         assert torch.allclose(pose[:, :3], pos)
         assert torch.allclose(pose[:, 3:], quat)
@@ -227,7 +212,6 @@ class TestMockContactSensor:
 
     def test_compute_first_contact(self, sensor):
         """Test first contact computation."""
-        import warp as wp
 
         # Set contact time to 0.5 for all bodies
         sensor.data.set_current_contact_time(torch.full((4, 4), 0.5))
@@ -242,7 +226,6 @@ class TestMockContactSensor:
 
     def test_compute_first_air(self, sensor):
         """Test first air computation."""
-        import warp as wp
 
         sensor.data.set_current_air_time(torch.full((4, 4), 0.2))
 

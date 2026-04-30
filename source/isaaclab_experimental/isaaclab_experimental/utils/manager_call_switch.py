@@ -46,6 +46,7 @@ class ManagerCallSwitch:
         "ObservationManager",
         "EventManager",
         "RecorderManager",
+        "CommandManager",
         "TerminationManager",
         "RewardManager",
         "CurriculumManager",
@@ -166,17 +167,18 @@ class ManagerCallSwitch:
         """Return the resolved execution mode for the given manager.
 
         Looks up the manager in the config dict, falls back to the default,
-        then caps by :attr:`MAX_MODE_OVERRIDES`.
+        then caps by :attr:`_max_modes` (static overrides + dynamic registrations).
         """
-        mode_value = self._cfg.get(manager_name, self._cfg[self.DEFAULT_KEY])
+        default_key = next(iter(self.DEFAULT_CONFIG))
+        mode_value = self._cfg.get(manager_name, self._cfg[default_key])
         cap = self._max_modes.get(manager_name)
         if cap is not None:
             mode_value = min(mode_value, cap)
         return ManagerCallMode(mode_value)
 
-    def resolve_manager_class(self, manager_name: str) -> type:
+    def resolve_manager_class(self, manager_name: str, mode_override: ManagerCallMode | int | None = None) -> type:
         """Import and return the manager class for the configured mode."""
-        mode = self.get_mode_for_manager(manager_name)
+        mode = self.get_mode_for_manager(manager_name) if mode_override is None else ManagerCallMode(mode_override)
         module_name = "isaaclab.managers" if mode == ManagerCallMode.STABLE else "isaaclab_experimental.managers"
         module = importlib.import_module(module_name)
         if not hasattr(module, manager_name):
@@ -206,8 +208,8 @@ class ManagerCallSwitch:
     def _wp_capture_or_launch(self, stage: str, call: dict[str, Any]) -> Any:
         """Capture Warp CUDA graph on first call, then replay.
 
-        Delegates to :class:`WarpGraphCache` which caches the return value
-        and replays immediately after the first capture for validation.
+        Delegates to :class:`WarpGraphCache` which handles warm-up, capture,
+        caching the return value, and replay.
         """
         return self._graph_cache.capture_or_replay(
             stage,
@@ -236,7 +238,7 @@ class ManagerCallSwitch:
         else:
             raise TypeError(f"cfg_source must be a dict, string, or None, got: {type(cfg_source)}")
 
-        # Validation
+        # validation
         for manager_name, mode_value in cfg.items():
             if not isinstance(mode_value, int):
                 raise TypeError(
@@ -249,7 +251,7 @@ class ManagerCallSwitch:
                     f"Invalid manager_call_config value for '{manager_name}': {mode_value}. Expected 0/1/2."
                 ) from exc
 
-        # Apply MAX_MODE_OVERRIDES: bake caps into the resolved config so
+        # Apply max mode caps: bake caps into the resolved config so
         # get_mode_for_manager never needs per-call branching.
         default_mode = cfg[self.DEFAULT_KEY]
         for name, max_mode in self._max_modes.items():

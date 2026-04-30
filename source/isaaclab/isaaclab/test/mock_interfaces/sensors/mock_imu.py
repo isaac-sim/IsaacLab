@@ -12,6 +12,8 @@ from collections.abc import Sequence
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 try:
     from isaaclab.sensors.imu.base_imu_data import BaseImuData
 except (ImportError, ModuleNotFoundError):
@@ -46,31 +48,43 @@ class MockImuData(BaseImuData):
         self._ang_vel_b: wp.array | None = None
         self._lin_acc_b: wp.array | None = None
 
+        # ProxyArray caches
+        self._ang_vel_b_ta: ProxyArray | None = None
+        self._lin_acc_b_ta: ProxyArray | None = None
+
     # -- Properties --
 
     @property
-    def ang_vel_b(self) -> wp.array:
+    def ang_vel_b(self) -> ProxyArray:
         """Angular velocity in IMU body frame [rad/s]. Shape: (N, 3)."""
         if self._ang_vel_b is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._ang_vel_b
+            self._ang_vel_b = wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
+            self._ang_vel_b_ta = None
+        if self._ang_vel_b_ta is None:
+            self._ang_vel_b_ta = ProxyArray(self._ang_vel_b)
+        return self._ang_vel_b_ta
 
     @property
-    def lin_acc_b(self) -> wp.array:
+    def lin_acc_b(self) -> ProxyArray:
         """Linear acceleration in IMU body frame [m/s^2]. Shape: (N, 3)."""
         if self._lin_acc_b is None:
-            return wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
-        return self._lin_acc_b
+            self._lin_acc_b = wp.zeros(shape=(self._num_instances, 3), dtype=wp.float32, device=self.device)
+            self._lin_acc_b_ta = None
+        if self._lin_acc_b_ta is None:
+            self._lin_acc_b_ta = ProxyArray(self._lin_acc_b)
+        return self._lin_acc_b_ta
 
     # -- Setters --
 
     def set_ang_vel_b(self, value: torch.Tensor) -> None:
         """Set angular velocity in body frame."""
         self._ang_vel_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._ang_vel_b_ta = None
 
     def set_lin_acc_b(self, value: torch.Tensor) -> None:
         """Set linear acceleration in body frame."""
         self._lin_acc_b = wp.from_torch(value.to(self.device).contiguous(), dtype=wp.float32)
+        self._lin_acc_b_ta = None
 
     def set_mock_data(
         self,

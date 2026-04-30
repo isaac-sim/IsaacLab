@@ -14,6 +14,7 @@ import pytest
 from isaaclab.envs.utils import video_recorder as _video_recorder_module
 from isaaclab.envs.utils.video_recorder import VideoRecorder
 
+pytestmark = pytest.mark.isaacsim_ci
 _BLANK_720p = np.zeros((720, 1280, 3), dtype=np.uint8)
 _DEFAULT_CFG = dict(
     env_render_mode="rgb_array",

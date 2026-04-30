@@ -30,11 +30,13 @@ class _FakeProvider:
     def __init__(self):
         self.update_calls = []
 
-    def update(self, env_ids=None):
-        self.update_calls.append(env_ids)
+    def update(self):
+        self.update_calls.append(True)
 
 
 class _FakeVisualizer:
+    """Minimal visualizer for orchestration tests."""
+
     def __init__(
         self,
         *,
@@ -102,7 +104,7 @@ def _make_context(visualizers, provider=None):
     return ctx
 
 
-def test_update_scene_data_provider_unions_env_ids_and_forwards():
+def test_update_scene_data_provider_forwards_and_updates_provider():
     provider = _FakeProvider()
     viz_a = _FakeVisualizer(env_ids=[0, 2], requires_forward=True)
     viz_b = _FakeVisualizer(env_ids=[2, 3])
@@ -112,7 +114,7 @@ def test_update_scene_data_provider_unions_env_ids_and_forwards():
     ctx.update_scene_data_provider()
 
     assert ctx.physics_manager.forward_calls == 1
-    assert provider.update_calls == [[0, 2, 3]]
+    assert provider.update_calls == [True]
     assert ctx._visualizer_step_counter == 1
 
 
@@ -121,7 +123,7 @@ def test_update_scene_data_provider_force_forward_with_no_visualizers():
     ctx = _make_context([], provider=provider)
     ctx.update_scene_data_provider(force_require_forward=True)
     assert ctx.physics_manager.forward_calls == 1
-    assert provider.update_calls == [None]
+    assert provider.update_calls == [True]
 
 
 def test_update_visualizers_removes_closed_nonrunning_and_failed(caplog):
@@ -177,9 +179,9 @@ class _DummyViserSceneDataProvider:
     def get_newton_model(self):
         return "dummy-model"
 
-    def get_newton_state(self, env_ids: list[int] | None):
-        self.state_calls.append(env_ids)
-        return {"state_call": len(self.state_calls), "env_ids": env_ids}
+    def get_newton_state(self):
+        self.state_calls.append(None)
+        return {"state_call": len(self.state_calls)}
 
 
 class _DummyViserViewer:
@@ -219,20 +221,23 @@ def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: p
     assert visualizer._sim_time == pytest.approx(0.25)
     assert viewer.calls[0][0] == "begin_frame"
     assert viewer.calls[0][1] == pytest.approx(0.25)
-    assert viewer.calls[1] == ("log_state", {"state_call": 2, "env_ids": None})
+    # log_state passes through get_newton_state() as-is; no env_ids (or other) keys are merged in.
+    assert viewer.calls[1] == ("log_state", {"state_call": 2})
     assert viewer.calls[2] == ("end_frame",)
 
 
 @pytest.mark.parametrize(
-    ("cfg_max_worlds", "expected_max_worlds"),
+    ("cfg_max_visible_envs", "expected_visible"),
     [
         (None, None),
-        (0, 0),
-        (3, 3),
+        (0, []),
+        (3, [0, 1, 2]),
     ],
 )
-def test_viser_visualizer_create_viewer_forwards_max_worlds(
-    monkeypatch: pytest.MonkeyPatch, cfg_max_worlds: int | None, expected_max_worlds: int | None
+def test_viser_visualizer_create_viewer_applies_visible_worlds(
+    monkeypatch: pytest.MonkeyPatch,
+    cfg_max_visible_envs: int | None,
+    expected_visible: list[int] | None,
 ):
     captured = {}
 
@@ -256,8 +261,11 @@ def test_viser_visualizer_create_viewer_forwards_max_worlds(
                 "metadata": metadata,
             }
 
-        def set_model(self, model: Any, max_worlds: int | None) -> None:
-            captured["set_model"] = {"model": model, "max_worlds": max_worlds}
+        def set_model(self, model: Any) -> None:
+            captured["set_model"] = model
+
+        def set_visible_worlds(self, worlds) -> None:
+            captured["visible_worlds"] = worlds
 
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
@@ -270,25 +278,33 @@ def test_viser_visualizer_create_viewer_forwards_max_worlds(
     )
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
 
-    cfg = ViserVisualizerCfg(max_worlds=cfg_max_worlds, open_browser=False)
+    cfg = ViserVisualizerCfg(
+        max_visible_envs=cfg_max_visible_envs,
+        open_browser=False,
+        randomly_sample_visible_envs=False,
+    )
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer._model = "dummy-model"
+    visualizer._env_ids = None  # normally set by initialize() -> _compute_visualized_env_ids()
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
-    assert captured["set_model"] == {"model": "dummy-model", "max_worlds": expected_max_worlds}
+    assert captured["set_model"] == "dummy-model"
+    assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
 
 
 @pytest.mark.parametrize(
-    ("cfg_max_worlds", "expected_max_worlds"),
+    ("cfg_max_visible_envs", "expected_visible"),
     [
         (None, None),
-        (0, 0),
-        (3, 3),
+        (0, []),
+        (3, [0, 1, 2]),
     ],
 )
-def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
-    monkeypatch: pytest.MonkeyPatch, cfg_max_worlds: int | None, expected_max_worlds: int | None
+def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
+    monkeypatch: pytest.MonkeyPatch,
+    cfg_max_visible_envs: int | None,
+    expected_visible: list[int] | None,
 ):
     captured = {}
 
@@ -316,8 +332,11 @@ def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
                 "record_to_rrd": record_to_rrd,
             }
 
-        def set_model(self, model: Any, max_worlds: int | None = None) -> None:
-            captured["set_model"] = {"model": model, "max_worlds": max_worlds}
+        def set_model(self, model: Any) -> None:
+            captured["set_model"] = model
+
+        def set_visible_worlds(self, worlds) -> None:
+            captured["visible_worlds"] = worlds
 
         def set_world_offsets(self, spacing) -> None:
             captured["set_world_offsets"] = tuple(spacing)
@@ -332,8 +351,8 @@ def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
         def get_newton_model(self):
             return "dummy-model"
 
-        def get_newton_state(self, env_ids: list[int] | None):
-            return {"env_ids": env_ids}
+        def get_newton_state(self):
+            return {"ok": True}
 
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(
@@ -347,11 +366,16 @@ def test_rerun_visualizer_initialize_forwards_max_worlds_and_world_offsets(
     )
     monkeypatch.setattr(rerun_visualizer.RerunVisualizer, "_apply_camera_pose", lambda self, pose: None)
 
-    cfg = RerunVisualizerCfg(open_browser=False, max_worlds=cfg_max_worlds)
+    cfg = RerunVisualizerCfg(
+        open_browser=False,
+        max_visible_envs=cfg_max_visible_envs,
+        randomly_sample_visible_envs=False,
+    )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
     visualizer.initialize(cast(Any, _DummyRerunSceneDataProvider()))
 
-    assert captured["set_model"] == {"model": "dummy-model", "max_worlds": expected_max_worlds}
+    assert captured["set_model"] == "dummy-model"
+    assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
 
 
@@ -456,7 +480,7 @@ def test_explicit_unknown_visualizer_type_raises():
         "/isaaclab/visualizer/types": "bogus_viz",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -470,7 +494,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
         "/isaaclab/visualizer/types": "rerun",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -497,7 +521,7 @@ def test_explicit_visualizer_create_failure_raises(monkeypatch: pytest.MonkeyPat
         "/isaaclab/visualizer/types": "newton",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
@@ -516,7 +540,7 @@ def test_explicit_visualizer_init_failure_raises(monkeypatch: pytest.MonkeyPatch
         "/isaaclab/visualizer/types": "newton",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 
@@ -534,7 +558,7 @@ def test_explicit_partial_valid_types_raises_for_invalid():
         "/isaaclab/visualizer/types": "newton,bogus_viz",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -548,7 +572,7 @@ def test_non_explicit_unknown_type_silently_skipped(caplog):
         "/isaaclab/visualizer/types": "bogus_viz",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings)
 
@@ -564,7 +588,7 @@ def test_non_explicit_create_failure_silently_logged(monkeypatch: pytest.MonkeyP
         "/isaaclab/visualizer/types": "",
         "/isaaclab/visualizer/explicit": False,
         "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_worlds": None,
+        "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[failing_cfg])
 

@@ -1,6 +1,108 @@
 Changelog
 ---------
 
+0.5.25 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.KaminoSolverCfg` to support Newton's Kamino
+  solver backend, a Proximal-ADMM based solver for constrained rigid multi-body dynamics.
+
+Fixed
+^^^^^
+
+* Replaced boolean ``_fk_dirty`` and ``_kamino_needs_fk`` flags with per-world
+  reset masks (``_world_reset_mask`` and ``_fk_reset_mask``). Asset write methods
+  now call :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk` with
+  ``env_mask``/``env_ids`` and ``articulation_ids``, so ``eval_fk`` and
+  ``SolverKamino.reset()`` only operate on dirtied environments. Rigid object
+  and rigid object collection write methods now also trigger FK invalidation.
+* Fixed CUDA error 700 (illegal memory access) when calling ``SolverKamino.reset()``
+  after CUDA graph capture. ``StateKamino.from_newton()`` lazily allocates
+  ``body_f_total``, ``joint_q_prev``, and ``joint_lambdas`` via ``wp.clone``/``wp.zeros``
+  during the first ``step()`` inside graph capture. These memory-pool addresses become
+  stale without a warm-up ``wp.capture_launch`` replay to pin them before any eager
+  ``solver.reset()`` call.
+
+
+0.5.24 (2026-04-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonShapeCfg` exposing
+  per-shape collision defaults (``margin``, ``gap``) via
+  :attr:`~isaaclab_newton.physics.NewtonCfg.default_shape_cfg`.
+  :meth:`~isaaclab_newton.physics.NewtonManager.create_builder` now
+  forwards the wrapper onto Newton's upstream
+  ``ModelBuilder.default_shape_cfg`` via
+  :func:`~isaaclab.utils.checked_apply`. The previous code only set
+  ``gap`` and left ``margin`` at Newton's upstream default of ``0.0``,
+  causing all non-Anymal-D robots to fail to learn rough-terrain
+  locomotion on triangle-mesh terrain. ``RoughPhysicsCfg`` opts in to
+  ``margin=0.01``.
+
+
+0.5.23 (2026-04-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` to match the
+  new :class:`~isaaclab.sim.views.BaseFrameView` ProxyArray return contract.
+  See the ``isaaclab`` 4.6.15 changelog for migration guidance.
+
+
+0.5.22 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Properties on the following data classes now return
+  :class:`~isaaclab.utils.warp.ProxyArray` instead of raw ``wp.array``:
+  :class:`~isaaclab_newton.assets.articulation.ArticulationData`,
+  :class:`~isaaclab_newton.assets.rigid_object.RigidObjectData`,
+  :class:`~isaaclab_newton.assets.rigid_object_collection.RigidObjectCollectionData`,
+  :class:`~isaaclab_newton.sensors.contact_sensor.ContactSensorData`,
+  :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformerData`,
+  :class:`~isaaclab_newton.sensors.imu.ImuData`, and
+  :class:`~isaaclab_newton.sensors.pva.PvaData`.
+  Use ``.torch`` for a cached zero-copy ``torch.Tensor`` view, or ``.warp`` for
+  the underlying ``wp.array``. Implicit torch operations (arithmetic,
+  ``torch.*`` functions) work during the deprecation period but emit a warning.
+
+
+0.5.21 (2026-04-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed flakiness in ``test_body_root_state_properties`` by bounding the random spin velocity so
+  numerical drift stays within the position tolerance over the simulated trajectory.
+
+
+0.5.20 (2026-04-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.views.XformPrimView` providing the Newton
+  backend implementation for xform prim views.
+
+Changed
+^^^^^^^
+
+* Renamed :class:`~isaaclab_newton.sim.views.NewtonSiteXformPrimView` to
+  :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`. Old name is kept as a deprecated alias.
+
+
 0.5.19 (2026-04-22)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -11,6 +113,9 @@ Changed
   :class:`~isaaclab_newton.assets.RigidObject`, and :class:`~isaaclab_newton.assets.RigidObjectCollection`
   to use the dual-buffer :class:`~isaaclab.utils.wrench_composer.WrenchComposer`. Composed wrenches are
   applied after body-frame composition.
+* Updated the PhysX Tensor API docstring link in :class:`~isaaclab_newton.assets.ArticulationData`
+  from ``omni.physics.tensors.impl.api`` to ``omni.physics.tensors.api`` to track the upstream
+  Isaac Sim module relocation (the ``impl`` submodule was removed).
 
 
 0.5.18 (2026-04-21)
@@ -128,10 +233,6 @@ Fixed
   pipeline. Added :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk`
   so articulation write methods trigger ``eval_fk`` before the next
   ``collide()``.
-
-
-0.5.9 (2026-03-16)
-~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

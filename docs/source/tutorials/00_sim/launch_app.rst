@@ -128,7 +128,7 @@ as we will demonstrate later in this tutorial.
 These arguments can be used with any script that starts the simulation using :class:`~app.AppLauncher`,
 with one exception, ``--enable_cameras``. This setting sets the rendering pipeline to use the
 offscreen renderer. However, this setting is only compatible with the :class:`isaaclab.sim.SimulationContext`.
-It will not work with Isaac Sim's :class:`isaacsim.core.api.simulation_context.SimulationContext` class.
+It will not work with Isaac Sim's legacy ``SimulationContext`` from deprecated Isaac Sim core extensions.
 For more information on this flag, please see the :class:`~app.AppLauncher` API documentation.
 
 

@@ -154,6 +154,7 @@ explicit = false
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
+override-dependencies = ["numpy>=2"]
 
 [tool.uv.pip]
 index-strategy = "unsafe-best-match"

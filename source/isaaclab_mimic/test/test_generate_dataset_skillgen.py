@@ -24,7 +24,7 @@ NUCLEUS_SKILLGEN_ANNOTATED_DATASET_PATH = os.path.join(
     ISAACLAB_NUCLEUS_DIR, "Mimic", "franka_stack_datasets", "annotated_dataset_skillgen.hdf5"
 )
 
-_SUBPROCESS_TIMEOUT = 600
+_SUBPROCESS_TIMEOUT = 5000
 
 
 @pytest.fixture
