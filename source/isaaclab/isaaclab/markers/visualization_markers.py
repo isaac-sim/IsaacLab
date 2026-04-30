@@ -148,7 +148,7 @@ class VisualizationMarkers:
             raise ValueError(f"The `cfg.markers` cannot be empty. Received: {self.cfg.markers}")
         self.stage = sim_utils.get_current_stage()
         self.prim_path = cfg.prim_path
-        self._instancer_manager: UsdGeom.PointInstancer | None = None
+        self._instancer_manager = None
         self._count = self.num_prototypes
         self._is_visible = True
         self._newton_group_id = f"{cfg.prim_path}::{id(self)}"
@@ -279,7 +279,9 @@ class VisualizationMarkers:
         norm_orientations = self._to_tensor(orientations, expected_width=4, name="orientations")
         norm_scales = self._to_tensor(scales, expected_width=3, name="scales")
         norm_marker_indices = self._to_index_tensor(marker_indices)
-        target_device = self._resolve_target_device(norm_translations, norm_orientations, norm_scales, norm_marker_indices)
+        target_device = self._resolve_target_device(
+            norm_translations, norm_orientations, norm_scales, norm_marker_indices
+        )
         if norm_translations is not None:
             norm_translations = norm_translations.to(device=target_device)
         if norm_orientations is not None:
@@ -401,15 +403,11 @@ class VisualizationMarkers:
             return
 
         has_kit_marker_backend = any(
-            viz.supports_markers()
-            and viz.pumps_app_update()
-            and getattr(viz.cfg, "enable_markers", True)
+            viz.supports_markers() and viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
             for viz in sim.visualizers
         )
         has_newton_marker_backend = any(
-            viz.supports_markers()
-            and not viz.pumps_app_update()
-            and getattr(viz.cfg, "enable_markers", True)
+            viz.supports_markers() and not viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
             for viz in sim.visualizers
         )
 

@@ -154,8 +154,12 @@ class ViserVisualizer(BaseVisualizer):
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
         num_envs_meta = int(metadata.get("num_envs", 0))
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs_meta)
-        num_visualized_envs = len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs_meta
+        self._resolved_visible_env_ids = resolve_visible_env_indices(
+            self._env_ids, self.cfg.max_visible_envs, num_envs_meta
+        )
+        num_visualized_envs = (
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs_meta
+        )
         viewer_url = _viser_web_viewer_url(self.cfg.port)
         self._log_initialization_table(
             logger=logger,

@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.sim.debug_vis import register_visualizer_step_debug_vis, should_use_visualizer_step_debug_vis
 from isaaclab.utils.version import has_kit
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -107,9 +106,21 @@ class CommandTerm(ManagerTermBase):
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
-        if debug_vis and should_use_visualizer_step_debug_vis():
+        sim_ctx = self._env.sim
+        has_standalone_marker_viz = any(
+            viz.supports_markers() and not viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
+            for viz in sim_ctx.visualizers
+        )
+        has_app_pumping_marker_viz = any(
+            viz.supports_markers() and viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
+            for viz in sim_ctx.visualizers
+        )
+        if debug_vis and has_standalone_marker_viz and not has_app_pumping_marker_viz:
             if self._debug_vis_handle is None:
-                self._debug_vis_handle = register_visualizer_step_debug_vis(self)
+                callback_id = f"_debug_vis_callback:{type(self).__name__}:{id(self)}"
+                self._debug_vis_handle = sim_ctx.add_visualizer_callback(
+                    callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                )
         elif debug_vis and has_kit():
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:

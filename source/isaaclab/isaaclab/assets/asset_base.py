@@ -16,7 +16,6 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.debug_vis import register_visualizer_step_debug_vis, should_use_visualizer_step_debug_vis
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
@@ -206,8 +205,19 @@ class AssetBase(ABC):
         if debug_vis:
             if self._debug_vis_handle is None:
                 sim_ctx = SimulationContext.instance()
-                if should_use_visualizer_step_debug_vis():
-                    self._debug_vis_handle = register_visualizer_step_debug_vis(self)
+                has_standalone_marker_viz = any(
+                    viz.supports_markers() and not viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
+                    for viz in sim_ctx.visualizers
+                )
+                has_app_pumping_marker_viz = any(
+                    viz.supports_markers() and viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
+                    for viz in sim_ctx.visualizers
+                )
+                if has_standalone_marker_viz and not has_app_pumping_marker_viz:
+                    callback_id = f"_debug_vis_callback:{type(self).__name__}:{id(self)}"
+                    self._debug_vis_handle = sim_ctx.add_visualizer_callback(
+                        callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                    )
                 elif "physx" in sim_ctx.physics_manager.__name__.lower():
                     import omni.kit.app
 

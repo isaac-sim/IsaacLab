@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.debug_vis import register_visualizer_step_debug_vis, should_use_visualizer_step_debug_vis
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.utils.version import has_kit
 
@@ -152,8 +151,20 @@ class SensorBase(ABC):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                if should_use_visualizer_step_debug_vis():
-                    self._debug_vis_handle = register_visualizer_step_debug_vis(self)
+                sim_ctx = sim_utils.SimulationContext.instance()
+                has_standalone_marker_viz = sim_ctx is not None and any(
+                    viz.supports_markers() and not viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
+                    for viz in sim_ctx.visualizers
+                )
+                has_app_pumping_marker_viz = sim_ctx is not None and any(
+                    viz.supports_markers() and viz.pumps_app_update() and getattr(viz.cfg, "enable_markers", True)
+                    for viz in sim_ctx.visualizers
+                )
+                if sim_ctx is not None and has_standalone_marker_viz and not has_app_pumping_marker_viz:
+                    callback_id = f"_debug_vis_callback:{type(self).__name__}:{id(self)}"
+                    self._debug_vis_handle = sim_ctx.add_visualizer_callback(
+                        callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+                    )
                 elif has_kit():
                     import omni.kit.app  # noqa: PLC0415
 
