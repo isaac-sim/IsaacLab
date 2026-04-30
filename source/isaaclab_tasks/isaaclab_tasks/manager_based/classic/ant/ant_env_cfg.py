@@ -151,37 +151,10 @@ class ObservationsCfg:
 
 
 @configclass
-class _AntNewtonObservationsCfg:
-    """Newton-compatible observations: excludes feet_body_forces (not implemented in Newton)."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for the policy."""
-
-        base_height = ObsTerm(func=mdp.base_pos_z)
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
-        base_yaw_roll = ObsTerm(func=mdp.base_yaw_roll)
-        base_angle_to_target = ObsTerm(func=mdp.base_angle_to_target, params={"target_pos": (1000.0, 0.0, 0.0)})
-        base_up_proj = ObsTerm(func=mdp.base_up_proj)
-        base_heading_proj = ObsTerm(func=mdp.base_heading_proj, params={"target_pos": (1000.0, 0.0, 0.0)})
-        joint_pos_norm = ObsTerm(func=mdp.joint_pos_limit_normalized)
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.2)
-        actions = ObsTerm(func=mdp.last_action)
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = True
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
-
-
-@configclass
 class AntObservationsCfg(PresetCfg):
     default: ObservationsCfg = ObservationsCfg()
     physx: ObservationsCfg = ObservationsCfg()
-    newton: _AntNewtonObservationsCfg = _AntNewtonObservationsCfg()
+    newton: ObservationsCfg = ObservationsCfg()
 
 
 @configclass

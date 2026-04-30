@@ -12,6 +12,12 @@ Removed
   and read :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
   :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
 
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sensors.JointWrenchSensor` initialization for
+  USD assets whose articulation root is nested below the configured asset prim.
+
 
 0.5.26 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
