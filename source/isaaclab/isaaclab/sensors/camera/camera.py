@@ -12,9 +12,8 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 import torch
 import warp as wp
-from packaging.version import Version
 
-from pxr import Sdf, UsdGeom
+from pxr import UsdGeom
 
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
@@ -26,7 +25,6 @@ from isaaclab.utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -135,22 +133,6 @@ class Camera(SensorBase):
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
-
-        if not has_kit():
-            return
-        # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        # checks for Isaac Sim v4.5 as this issue exists there
-        if get_isaac_sim_version() == Version("4.5"):
-            if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
-                logger.warning(
-                    "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"
-                    " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
-                    " will be disabled in the current workflow and may lead to longer load times and increased memory"
-                    " usage."
-                )
-                with Sdf.ChangeBlock():
-                    for prim in self.stage.Traverse():
-                        prim.SetInstanceable(False)
 
     def _register_renderer_scene_data_requirements(self) -> None:
         """Register renderer requirements early enough for clone-time prebuilds."""
