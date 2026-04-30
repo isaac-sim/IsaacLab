@@ -98,8 +98,12 @@ class JointWrenchSensor(BaseJointWrenchSensor):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
-        """Reset the sensor buffers for the given environments."""
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None)  -> None:
+        """Reset the sensor buffers for the given environments.
+        
+        Args:
+            env_ids: the environment ids to reset.
+            env_mask: the mask used to reset the environments. Shape is (num_envs)."""
         if self._data._force is None or self._data._torque is None:
             return
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
@@ -115,7 +119,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
     Implementation
     """
 
-    def _initialize_impl(self):
+    def _initialize_impl(self) -> None:
         """PHYSICS_READY callback: builds the articulation view and binds model / state arrays."""
         super()._initialize_impl()
 
@@ -164,8 +168,12 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         logger.info(f"Joint wrench sensor initialized: {self._num_envs} envs, {self._num_joints} joints")
 
-    def _update_buffers_impl(self, env_mask: wp.array):
-        """Convert Newton's body_parent_f into INCOMING_JOINT_FRAME force and torque buffers."""
+    def _update_buffers_impl(self, env_mask: wp.array) -> None:
+        """Convert Newton's body_parent_f into INCOMING_JOINT_FRAME force and torque buffers.
+        
+        Args:
+            env_mask: A mask containing which environments need to be updated. Shape is (num_envs)
+        """
         if self._sim_bind_body_parent_f is None:
             raise RuntimeError(
                 f"Joint wrench sensor '{self.cfg.prim_path}': not initialized."
@@ -186,8 +194,12 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             device=self._device,
         )
 
-    def _invalidate_initialize_callback(self, event):
-        """Drop view, cached sizes, and buffers; re-register the extended-state request."""
+    def _invalidate_initialize_callback(self, event) -> None:
+        """Drop view, cached sizes, and buffers; re-register the extended-state request.
+        
+        Args:
+            event: An invalidate event.
+        """
         super()._invalidate_initialize_callback(event)
         self._root_view = None
         self._sim_bind_body_parent_f = None

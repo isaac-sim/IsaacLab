@@ -62,7 +62,7 @@ class BaseJointWrenchSensor(SensorBase):
     """
 
     @abstractmethod
-    def _initialize_impl(self):
+    def _initialize_impl(self) -> None:
         """Initialize the sensor handles and internal buffers.
 
         Subclasses should call ``super()._initialize_impl()`` first to
@@ -72,5 +72,5 @@ class BaseJointWrenchSensor(SensorBase):
         super()._initialize_impl()
 
     @abstractmethod
-    def _update_buffers_impl(self, env_mask: wp.array):
+    def _update_buffers_impl(self, env_mask: wp.array) -> None:
         raise NotImplementedError
