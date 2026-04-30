@@ -178,17 +178,9 @@ class RigidObject(BaseRigidObject):
             outputs=[self._wrench_buf],
             device=self._device,
         )
-        # Reshape (N, 1, 9) → (N, 9) zero-copy for the binding write.
-        flat_view = wp.array(
-            ptr=self._wrench_buf.ptr,
-            shape=(self._num_instances, 9),
-            dtype=wp.float32,
-            device=self._device,
-            copy=False,
-        )
         binding = self._get_binding(TT.RIGID_BODY_WRENCH)
         if binding is not None:
-            binding.write(flat_view)
+            binding.write(self._wrench_buf_flat)
         inst.reset()
 
     def update(self, dt: float) -> None:
@@ -1101,7 +1093,16 @@ class RigidObject(BaseRigidObject):
         self._ALL_TRUE_BODY_MASK = wp.array(np.ones(B, dtype=bool), dtype=wp.bool, device=device)
 
         # external wrench composer
+        # The kernel writes into the (N, 1, 9) view; the binding consumes the (N, 9)
+        # view -- both alias the same allocation, so we cache the flat reshape once.
         self._wrench_buf = wp.zeros((N, 1, 9), dtype=wp.float32, device=device)
+        self._wrench_buf_flat = wp.array(
+            ptr=self._wrench_buf.ptr,
+            shape=(N, 9),
+            dtype=wp.float32,
+            device=device,
+            copy=False,
+        )
         self._instantaneous_wrench_composer = WrenchComposer(self)
         self._permanent_wrench_composer = WrenchComposer(self)
 
