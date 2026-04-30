@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+1.5.32 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated classic Ant/Humanoid manager-based environments and direct in-hand
+  manipulation environments to read body incoming wrenches from
+  :class:`~isaaclab.sensors.JointWrenchSensor` instead of
+  ``ArticulationData.body_incoming_joint_wrench_b``. Add a
+  :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene and pass its
+  :class:`~isaaclab.managers.SceneEntityCfg` as ``sensor_cfg``.
+
+
 1.5.31 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

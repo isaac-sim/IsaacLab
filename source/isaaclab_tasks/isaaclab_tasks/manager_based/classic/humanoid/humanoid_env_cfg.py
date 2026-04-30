@@ -16,6 +16,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -63,6 +64,9 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # robot
     robot = HUMANOID_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    # sensors
+    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
     # lights
     light = AssetBaseCfg(
@@ -117,7 +121,7 @@ class ObservationsCfg:
         feet_body_forces = ObsTerm(
             func=mdp.body_incoming_wrench,
             scale=0.01,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=["left_foot", "right_foot"])},
+            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=["left_foot", "right_foot"])},
         )
         actions = ObsTerm(func=mdp.last_action)
 

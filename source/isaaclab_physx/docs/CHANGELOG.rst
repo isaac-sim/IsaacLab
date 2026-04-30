@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+0.5.29 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sensors.JointWrenchSensor` for reading PhysX
+  incoming joint reaction wrenches as split force [N] and torque [N·m] buffers.
+
+Removed
+^^^^^^^
+
+* Removed ``ArticulationData.body_incoming_joint_wrench_b``.
+  Add :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene and read
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
+
+
 0.5.28 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 

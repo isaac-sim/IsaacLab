@@ -314,9 +314,8 @@ def test_force_and_torque_components_at_rest(sim):
 def test_wrench_with_external_force_and_torque(sim):
     """Full analytical wrench validation with external force and torque applied.
 
-    Mirrors the PhysX ``test_body_incoming_joint_wrench_b_single_joint`` pattern:
-    apply a known wrench, settle, compute the expected reaction wrench analytically,
-    and compare component-by-component.
+    Applies a known wrench, settles, computes the expected reaction wrench analytically,
+    and compares component-by-component.
     """
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
     sim.reset()

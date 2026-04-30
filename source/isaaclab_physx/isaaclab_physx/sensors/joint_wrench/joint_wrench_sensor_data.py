@@ -12,7 +12,7 @@ from isaaclab.utils.warp import ProxyArray
 
 
 class JointWrenchSensorData(BaseJointWrenchSensorData):
-    """Data container for the Newton joint-wrench sensor."""
+    """Data container for the PhysX joint-wrench sensor."""
 
     def __init__(self):
         self._force: wp.array | None = None
@@ -23,7 +23,7 @@ class JointWrenchSensorData(BaseJointWrenchSensorData):
 
     @property
     def force(self) -> ProxyArray | None:
-        """Linear component of the joint reaction wrench [N].
+        """Linear component of the incoming joint wrench [N].
 
         Expressed in the frame selected by
         :attr:`~isaaclab.sensors.JointWrenchSensorCfg.convention`. Shape is
@@ -39,7 +39,7 @@ class JointWrenchSensorData(BaseJointWrenchSensorData):
 
     @property
     def torque(self) -> ProxyArray | None:
-        """Angular component of the joint reaction wrench [N·m].
+        """Angular component of the incoming joint wrench [N·m].
 
         Expressed in the frame selected by
         :attr:`~isaaclab.sensors.JointWrenchSensorCfg.convention`. Shape is
@@ -53,15 +53,15 @@ class JointWrenchSensorData(BaseJointWrenchSensorData):
             self._torque_ta = ProxyArray(self._torque)
         return self._torque_ta
 
-    def create_buffers(self, num_envs: int, num_joints: int, device: str) -> None:
+    def create_buffers(self, num_envs: int, num_bodies: int, device: str) -> None:
         """Allocate internal buffers.
 
         Args:
             num_envs: Number of environments.
-            num_joints: Number of reported joints (excludes FREE and FIXED joint types).
+            num_bodies: Number of bodies with incoming joint wrench reports.
             device: Device for array storage.
         """
-        self._force = wp.zeros((num_envs, num_joints), dtype=wp.vec3f, device=device)
-        self._torque = wp.zeros((num_envs, num_joints), dtype=wp.vec3f, device=device)
+        self._force = wp.zeros((num_envs, num_bodies), dtype=wp.vec3f, device=device)
+        self._torque = wp.zeros((num_envs, num_bodies), dtype=wp.vec3f, device=device)
         self._force_ta = None
         self._torque_ta = None

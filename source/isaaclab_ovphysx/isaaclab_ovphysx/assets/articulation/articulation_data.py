@@ -810,23 +810,6 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
 
-    @property
-    def body_incoming_joint_wrench_b(self) -> ProxyArray:
-        """Incoming joint wrenches on each body in the body frame [N, N*m].
-
-        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
-        (num_instances, num_bodies, 6).
-
-        All body reaction wrenches are provided including the root body to the world of an articulation.
-        """
-        self._read_spatial_vector_binding(
-            TT.LINK_INCOMING_JOINT_FORCE,
-            self._body_incoming_joint_wrench_buf,
-        )
-        if self._body_incoming_joint_wrench_b_ta is None:
-            self._body_incoming_joint_wrench_b_ta = ProxyArray(self._body_incoming_joint_wrench_buf.data)
-        return self._body_incoming_joint_wrench_b_ta
-
     """
     Joint state properties.
     """
@@ -1361,8 +1344,6 @@ class ArticulationData(BaseArticulationData):
         self._body_com_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
-        self._body_incoming_joint_wrench_buf = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
-
         # -- Joint state buffers
         self._joint_pos_buf = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_vel_buf = TimestampedBuffer((N, D), dev, wp.float32)
@@ -1584,7 +1565,6 @@ class ArticulationData(BaseArticulationData):
         self._body_com_pose_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
-        self._body_incoming_joint_wrench_b_ta: ProxyArray | None = None
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
