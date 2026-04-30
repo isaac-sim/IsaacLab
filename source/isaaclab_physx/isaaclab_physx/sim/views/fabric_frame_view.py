@@ -23,6 +23,10 @@ from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
 
+# TODO: Currently we don't support multiple GPUs for Fabric-accelerated views
+# because USDRT SelectPrims only supported cuda:0 at the time of writing.
+_fabric_supported_devices = ("cpu", "cuda", "cuda:0")
+
 
 def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
     """Ensure array is compatible with Fabric kernels (2-D float32).
@@ -75,10 +79,11 @@ class FabricFrameView(BaseFrameView):
         settings = SettingsManager.instance()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
 
-        if self._use_fabric and self._device not in ("cuda", "cuda:0"):
+        if self._use_fabric and self._device not in _fabric_supported_devices:
             logger.warning(
                 f"Fabric mode is not supported on device '{self._device}'. "
-                "USDRT SelectPrims and Warp fabric arrays only support cuda:0. "
+                "USDRT SelectPrims and Warp fabric arrays are currently "
+                f"only supported on {', '.join(_fabric_supported_devices)}. "
                 "Falling back to standard USD operations. This may impact performance."
             )
             self._use_fabric = False
@@ -386,17 +391,10 @@ class FabricFrameView(BaseFrameView):
         )
         wp.synchronize()
 
+        # The constructor should have taken care of this, but double check here to avoid regressions
+        assert self._device in _fabric_supported_devices
+
         fabric_device = self._device
-        if self._device == "cuda":
-            logger.warning("Fabric device is not specified, defaulting to 'cuda:0'.")
-            fabric_device = "cuda:0"
-        elif self._device.startswith("cuda:"):
-            if self._device != "cuda:0":
-                logger.debug(
-                    f"SelectPrims only supports cuda:0. Using cuda:0 for SelectPrims "
-                    f"even though simulation device is {self._device}."
-                )
-            fabric_device = "cuda:0"
 
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
