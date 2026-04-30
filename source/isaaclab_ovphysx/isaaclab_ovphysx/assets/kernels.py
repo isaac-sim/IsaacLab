@@ -464,220 +464,122 @@ Root-level write kernels (1D — used by RigidObject + Articulation).
 
 
 @wp.kernel
-def set_root_link_pose_to_sim(
+def set_root_link_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
     env_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
     root_link_pose_w: wp.array(dtype=wp.transformf),
-    root_link_state_w: wp.array(dtype=vec13f),
-    root_state_w: wp.array(dtype=vec13f),
 ):
     """Write root link pose data to simulation buffers.
 
-    This kernel writes root link poses from the input array to the output buffers
-    and optionally updates the corresponding state vectors.
+    This kernel scatters root link poses from the partial input array into the cached
+    world-frame buffer at the specified environment indices.
 
     Args:
-        data: Input array of root link poses. Shape is (num_envs,) or (num_selected_envs,)
-            depending on from_mask.
+        data: Input array of root link poses. Shape is (num_selected_envs,).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        from_mask: Input flag indicating whether to use masked indexing. If True, env_ids
-            are used to index into data. If False, data is indexed sequentially.
         root_link_pose_w: Output array where root link poses are written. Shape is (num_envs,).
-        root_link_state_w: Output array where root link states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_state_w: Output array where root states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
-    # If from mask, then we get complete data. Otherwise, we get partial data.
     i = wp.tid()
-    if from_mask:
-        root_link_pose_w[env_ids[i]] = data[env_ids[i]]
-        if root_link_state_w:
-            root_link_state_w[env_ids[i]] = set_state_transforms_func(root_link_state_w[env_ids[i]], data[env_ids[i]])
-        if root_state_w:
-            root_state_w[env_ids[i]] = set_state_transforms_func(root_state_w[env_ids[i]], data[env_ids[i]])
-    else:
-        root_link_pose_w[env_ids[i]] = data[i]
-        if root_link_state_w:
-            root_link_state_w[env_ids[i]] = set_state_transforms_func(root_link_state_w[env_ids[i]], data[i])
-        if root_state_w:
-            root_state_w[env_ids[i]] = set_state_transforms_func(root_state_w[env_ids[i]], data[i])
+    root_link_pose_w[env_ids[i]] = data[i]
 
 
 @wp.kernel
-def set_root_com_pose_to_sim(
+def set_root_com_pose_to_sim_index(
     data: wp.array(dtype=wp.transformf),
     body_com_pose_b: wp.array2d(dtype=wp.transformf),
     env_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
     root_com_pose_w: wp.array(dtype=wp.transformf),
     root_link_pose_w: wp.array(dtype=wp.transformf),
-    root_com_state_w: wp.array(dtype=vec13f),
-    root_link_state_w: wp.array(dtype=vec13f),
-    root_state_w: wp.array(dtype=vec13f),
 ):
     """Write root COM pose data to simulation buffers.
 
-    This kernel writes root COM poses from the input array to the output buffers,
-    computes the corresponding link pose from the COM pose, and optionally updates
-    the corresponding state vectors.
+    This kernel scatters root COM poses from the partial input array into the cached
+    world-frame buffer at the specified environment indices and derives the
+    corresponding link pose via the body-frame COM offset.
 
     Args:
-        data: Input array of root COM poses. Shape is (num_envs,) or (num_selected_envs,)
-            depending on from_mask.
+        data: Input array of root COM poses. Shape is (num_selected_envs,).
         body_com_pose_b: Input array of body COM poses in body frame. Shape is
             (num_envs, num_bodies). Only the first body (index 0) is used for the root.
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        from_mask: Input flag indicating whether to use masked indexing. If True, env_ids
-            are used to index into data. If False, data is indexed sequentially.
         root_com_pose_w: Output array where root COM poses are written. Shape is (num_envs,).
         root_link_pose_w: Output array where root link poses (derived from COM) are written.
             Shape is (num_envs,).
-        root_com_state_w: Output array where root COM states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_link_state_w: Output array where root link states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_state_w: Output array where root states are updated (pose portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
-    # If from mask, then we get complete data. Otherwise, we get partial data.
-    if from_mask:
-        root_com_pose_w[env_ids[i]] = data[env_ids[i]]
-        if root_com_state_w:
-            root_com_state_w[env_ids[i]] = set_state_transforms_func(root_com_state_w[env_ids[i]], data[env_ids[i]])
-    else:
-        root_com_pose_w[env_ids[i]] = data[i]
-        if root_com_state_w:
-            root_com_state_w[env_ids[i]] = set_state_transforms_func(root_com_state_w[env_ids[i]], data[i])
+    root_com_pose_w[env_ids[i]] = data[i]
     # Get the com pose in the link frame
     root_link_pose_w[env_ids[i]] = get_com_pose_in_link_frame_func(
         root_com_pose_w[env_ids[i]], body_com_pose_b[env_ids[i], 0]
     )
-    if root_link_state_w:
-        root_link_state_w[env_ids[i]] = set_state_transforms_func(
-            root_link_state_w[env_ids[i]], root_link_pose_w[env_ids[i]]
-        )
-    if root_state_w:
-        root_state_w[env_ids[i]] = set_state_transforms_func(root_state_w[env_ids[i]], root_link_pose_w[env_ids[i]])
 
 
 @wp.kernel
-def set_root_com_velocity_to_sim(
+def set_root_com_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
     env_ids: wp.array(dtype=wp.int32),
     num_bodies: wp.int32,
-    from_mask: bool,
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    root_state_w: wp.array(dtype=vec13f),
-    root_com_state_w: wp.array(dtype=vec13f),
 ):
     """Write root COM velocity data to simulation buffers.
 
-    This kernel writes root COM velocities from the input array to the output buffers,
-    optionally updates the corresponding state vectors, and zeros out the body
-    acceleration buffer to prevent reporting stale values.
+    This kernel scatters root COM velocities from the partial input array into the cached
+    world-frame buffer at the specified environment indices and zeros the body acceleration
+    buffer to prevent reporting stale values.
 
     Args:
-        data: Input array of root COM spatial velocities. Shape is (num_envs,) or
-            (num_selected_envs,) depending on from_mask.
+        data: Input array of root COM spatial velocities. Shape is (num_selected_envs,).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         num_bodies: Input scalar number of bodies per environment.
-        from_mask: Input flag indicating whether to use masked indexing. If True, env_ids
-            are used to index into data. If False, data is indexed sequentially.
         root_com_velocity_w: Output array where root COM velocities are written. Shape is (num_envs,).
         body_acc_w: Output array where body accelerations are zeroed. Shape is
             (num_envs, num_bodies).
-        root_state_w: Output array where root states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_com_state_w: Output array where root COM states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
     i = wp.tid()
-    # If from mask, then we get complete data. Otherwise, we get partial data.
-    if from_mask:
-        root_com_velocity_w[env_ids[i]] = data[env_ids[i]]
-        if root_state_w:
-            root_state_w[env_ids[i]] = set_state_velocities_func(root_state_w[env_ids[i]], data[env_ids[i]])
-        if root_com_state_w:
-            root_com_state_w[env_ids[i]] = set_state_velocities_func(root_com_state_w[env_ids[i]], data[env_ids[i]])
-    else:
-        root_com_velocity_w[env_ids[i]] = data[i]
-        if root_state_w:
-            root_state_w[env_ids[i]] = set_state_velocities_func(root_state_w[env_ids[i]], data[i])
-        if root_com_state_w:
-            root_com_state_w[env_ids[i]] = set_state_velocities_func(root_com_state_w[env_ids[i]], data[i])
+    root_com_velocity_w[env_ids[i]] = data[i]
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
         body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 @wp.kernel
-def set_root_link_velocity_to_sim(
+def set_root_link_velocity_to_sim_index(
     data: wp.array(dtype=wp.spatial_vectorf),
     body_com_pose_b: wp.array2d(dtype=wp.transformf),
     link_pose_w: wp.array(dtype=wp.transformf),
     env_ids: wp.array(dtype=wp.int32),
     num_bodies: wp.int32,
-    from_mask: bool,
     root_link_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     root_com_velocity_w: wp.array(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    root_link_state_w: wp.array(dtype=vec13f),
-    root_state_w: wp.array(dtype=vec13f),
-    root_com_state_w: wp.array(dtype=vec13f),
 ):
     """Write root link velocity data to simulation buffers.
 
-    This kernel writes root link velocities from the input array to the output buffers,
-    computes the corresponding COM velocity from the link velocity, optionally updates
-    the corresponding state vectors, and zeros out the body acceleration buffer.
+    This kernel scatters root link velocities from the partial input array into the cached
+    world-frame buffer at the specified environment indices, derives the corresponding
+    COM velocity via the lever-arm transform, and zeros the body acceleration buffer.
 
     Args:
-        data: Input array of root link spatial velocities. Shape is (num_envs,) or
-            (num_selected_envs,) depending on from_mask.
+        data: Input array of root link spatial velocities. Shape is (num_selected_envs,).
         body_com_pose_b: Input array of body COM poses in body frame. Shape is
             (num_envs, num_bodies). Only the first body (index 0) is used for the root.
         link_pose_w: Input array of root link poses in world frame. Shape is (num_envs,).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         num_bodies: Input scalar number of bodies per environment.
-        from_mask: Input flag indicating whether to use masked indexing. If True, env_ids
-            are used to index into data. If False, data is indexed sequentially.
         root_link_velocity_w: Output array where root link velocities are written.
             Shape is (num_envs,).
         root_com_velocity_w: Output array where root COM velocities (derived from link)
             are written. Shape is (num_envs,).
         body_acc_w: Output array where body accelerations are zeroed.
             Shape is (num_envs, num_bodies).
-        root_link_state_w: Output array where root link states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_state_w: Output array where root states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
-        root_com_state_w: Output array where root COM states are updated (velocity portion).
-            Shape is (num_envs,). Can be None if not needed.
     """
-    # If from mask, then we get complete data. Otherwise, we get partial data.
     i = wp.tid()
-    if from_mask:
-        root_link_velocity_w[env_ids[i]] = data[env_ids[i]]
-        if root_link_state_w:
-            root_link_state_w[env_ids[i]] = set_state_velocities_func(root_link_state_w[env_ids[i]], data[env_ids[i]])
-    else:
-        root_link_velocity_w[env_ids[i]] = data[i]
-        if root_link_state_w:
-            root_link_state_w[env_ids[i]] = set_state_velocities_func(root_link_state_w[env_ids[i]], data[i])
+    root_link_velocity_w[env_ids[i]] = data[i]
     # Get the link velocity in the com frame
     root_com_velocity_w[env_ids[i]] = get_link_velocity_in_com_frame_func(
         root_link_velocity_w[env_ids[i]], link_pose_w[env_ids[i]], body_com_pose_b[env_ids[i], 0]
     )
-    if root_com_state_w:
-        root_com_state_w[env_ids[i]] = set_state_velocities_func(
-            root_com_state_w[env_ids[i]], root_com_velocity_w[env_ids[i]]
-        )
-    if root_state_w:
-        root_state_w[env_ids[i]] = set_state_velocities_func(root_state_w[env_ids[i]], root_com_velocity_w[env_ids[i]])
     # Make the acceleration zero to prevent reporting old values
     for j in range(num_bodies):
         body_acc_w[env_ids[i], j] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -946,115 +848,66 @@ def write_2d_data_to_buffer_with_indices(
     in_data: wp.array2d(dtype=wp.float32),
     env_ids: wp.array(dtype=wp.int32),
     joint_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
     out_data: wp.array2d(dtype=wp.float32),
 ):
     """Write 2D float data to a buffer at specified indices.
 
-    This kernel copies float data from an input array to an output buffer at the specified
-    environment and joint/body indices.
+    This kernel copies float data from a partial input array to an output buffer at the
+    specified environment and joint/body indices.
 
     Args:
-        in_data: Input array containing float data. Shape is (num_envs, num_joints) or
-            (num_selected_envs, num_selected_joints) depending on from_mask.
+        in_data: Input array containing float data. Shape is (num_selected_envs, num_selected_joints).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         joint_ids: Input array of joint/body indices to write to. Shape is (num_selected_joints,).
-        from_mask: Input flag indicating whether to use masked indexing. If True, env_ids
-            and joint_ids are used to index into in_data. If False, in_data is indexed
-            directly using the thread indices.
         out_data: Output array where data is written. Shape is (num_envs, num_joints).
     """
     i, j = wp.tid()
-    if from_mask:
-        out_data[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
-    else:
-        out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
+    out_data[env_ids[i], joint_ids[j]] = in_data[i, j]
 
 
 @wp.kernel
-def write_body_inertia_to_buffer(
+def write_body_inertia_to_buffer_index(
     in_data: wp.array3d(dtype=wp.float32),
     env_ids: wp.array(dtype=wp.int32),
     body_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
     out_data: wp.array3d(dtype=wp.float32),
 ):
     """Write body inertia data to a buffer at specified indices.
 
-    This kernel copies 3x3 inertia tensor data (stored as 9 floats) from an input array
-    to an output buffer at the specified environment and body indices.
+    This kernel copies 3x3 inertia tensor data (stored as 9 floats) from a partial input
+    array to an output buffer at the specified environment and body indices.
 
     Args:
-        in_data: Input array containing inertia data. Shape is (num_envs, num_bodies, 9) or
-            (num_selected_envs, num_selected_bodies, 9) depending on from_mask.
+        in_data: Input array containing inertia data. Shape is (num_selected_envs, num_selected_bodies, 9).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         body_ids: Input array of body indices to write to. Shape is (num_selected_bodies,).
-        from_mask: Input flag indicating whether to use masked indexing.
         out_data: Output array where inertia data is written. Shape is (num_envs, num_bodies, 9).
     """
     i, j = wp.tid()
-    if from_mask:
-        for k in range(9):
-            out_data[env_ids[i], body_ids[j], k] = in_data[env_ids[i], body_ids[j], k]
-    else:
-        for k in range(9):
-            out_data[env_ids[i], body_ids[j], k] = in_data[i, j, k]
+    for k in range(9):
+        out_data[env_ids[i], body_ids[j], k] = in_data[i, j, k]
 
 
 @wp.kernel
-def write_single_body_inertia_to_buffer(
-    in_data: wp.array2d(dtype=wp.float32),
-    env_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
-    out_data: wp.array2d(dtype=wp.float32),
-):
-    """Write body inertia data to a buffer at specified indices.
-
-    This kernel copies 3x3 inertia tensor data (stored as 9 floats) from an input array
-    to an output buffer at the specified environment and body indices.
-
-    Args:
-        in_data: Input array containing inertia data. Shape is (num_envs, 9) or
-            (num_selected_envs, 9) depending on from_mask.
-        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
-        from_mask: Input flag indicating whether to use masked indexing.
-        out_data: Output array where inertia data is written. Shape is (num_envs, 9).
-    """
-    i = wp.tid()
-    if from_mask:
-        for k in range(9):
-            out_data[env_ids[i], k] = in_data[env_ids[i], k]
-    else:
-        for k in range(9):
-            out_data[env_ids[i], k] = in_data[i, k]
-
-
-@wp.kernel
-def write_body_com_pose_to_buffer(
+def write_body_com_pose_to_buffer_index(
     in_data: wp.array2d(dtype=wp.transformf),
     env_ids: wp.array(dtype=wp.int32),
     body_ids: wp.array(dtype=wp.int32),
-    from_mask: bool,
     out_data: wp.array2d(dtype=wp.transformf),
 ):
     """Write body COM pose data to a buffer at specified indices.
 
-    This kernel copies body COM pose data from an input array to an output buffer at the
-    specified environment and body indices.
+    This kernel copies body COM pose data from a partial input array to an output buffer
+    at the specified environment and body indices.
 
     Args:
-        in_data: Input array containing body COM poses. Shape is (num_envs, num_bodies) or
-            (num_selected_envs, num_selected_bodies) depending on from_mask.
+        in_data: Input array containing body COM poses. Shape is (num_selected_envs, num_selected_bodies).
         env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
         body_ids: Input array of body indices to write to. Shape is (num_selected_bodies,).
-        from_mask: Input flag indicating whether to use masked indexing.
         out_data: Output array where body COM poses are written. Shape is (num_envs, num_bodies).
     """
     i, j = wp.tid()
-    if from_mask:
-        out_data[env_ids[i], body_ids[j]] = in_data[env_ids[i], body_ids[j]]
-    else:
-        out_data[env_ids[i], body_ids[j]] = in_data[i, j]
+    out_data[env_ids[i], body_ids[j]] = in_data[i, j]
 
 
 @wp.kernel
@@ -1135,27 +988,6 @@ def _scatter_rows_partial(
     """
     i, j = wp.tid()
     dst[ids[i], j] = src[i, j]
-
-
-@wp.kernel
-def _compose_root_link_pose_from_com(
-    com_pose_w: wp.array(dtype=wp.transformf),
-    com_pose_b: wp.array(dtype=wp.transformf, ndim=2),
-    link_pose_w: wp.array(dtype=wp.transformf),
-):
-    """Recover root link pose from world-frame COM pose and body-frame COM offset.
-
-    Inverse of :func:`get_root_com_pose_from_root_link_pose`:
-
-        ``link_pose_w = com_pose_w * inverse(com_pose_b)``
-
-    Args:
-        com_pose_w: World-frame COM poses ``[m, -]``. Shape is ``(num_envs,)``.
-        com_pose_b: Body-frame COM offsets ``[m, -]``. Shape is ``(num_envs, num_bodies)``.
-        link_pose_w: Output root link poses in world frame ``[m, -]``. Shape is ``(num_envs,)``.
-    """
-    i = wp.tid()
-    link_pose_w[i] = wp.transform_multiply(com_pose_w[i], wp.transform_inverse(com_pose_b[i, 0]))
 
 
 """

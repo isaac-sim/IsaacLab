@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import Any
 
@@ -25,11 +26,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
-from isaaclab_ovphysx.assets.kernels import (  # noqa: F401
-    _body_wrench_to_world,
-    _compose_root_link_pose_from_com,
-    _scatter_rows_partial,
-)
+from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .rigid_object_data import RigidObjectData
@@ -231,7 +228,22 @@ class RigidObject(BaseRigidObject):
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set the root pose over selected environment indices (alias for link pose; mirrors PhysX)."""
+        """Set the root pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_pose_to_sim_mask(
@@ -240,7 +252,20 @@ class RigidObject(BaseRigidObject):
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root pose over selected environment mask (alias for link pose; mirrors PhysX)."""
+        """Set the root pose over selected environment mask into the simulation.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
         self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask)
 
     def write_root_velocity_to_sim_index(
@@ -249,7 +274,25 @@ class RigidObject(BaseRigidObject):
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set the root velocity over selected environment indices (alias for COM velocity; mirrors PhysX)."""
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_velocity_to_sim_mask(
@@ -258,7 +301,20 @@ class RigidObject(BaseRigidObject):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root velocity over selected environment mask (alias for COM velocity; mirrors PhysX)."""
+        """Set the root center of mass velocity over selected environment mask into the simulation.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
         self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
 
     def write_root_link_pose_to_sim_index(
@@ -266,26 +322,30 @@ class RigidObject(BaseRigidObject):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
-        """Set the root link pose into the simulation. Mirrors PhysX:
-        scatter into the cached ``root_link_pose_w`` buffer, then push it to the
-        ``RIGID_BODY_POSE`` binding via an indexed write.
+        """Set the root link pose over selected environment indices into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
+            env_ids: Environment indices. If None, then all indices are used.
         """
         env_ids = self._resolve_env_ids(env_ids)
-        if full_data:
-            self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
-        else:
-            self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
+        self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         wp.launch(
-            shared_kernels.set_root_link_pose_to_sim,
+            shared_kernels.set_root_link_pose_to_sim_index,
             dim=env_ids.shape[0],
-            inputs=[root_pose, env_ids, full_data],
-            outputs=[
-                self.data.root_link_pose_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
-            ],
+            inputs=[root_pose, env_ids],
+            outputs=[self.data.root_link_pose_w],
             device=self._device,
         )
         # Invalidate dependent root_com_pose timestamp so the next read recomposes it.
@@ -300,11 +360,21 @@ class RigidObject(BaseRigidObject):
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root link pose using a native mask (Newton-style).
+        """Set the root link pose over selected environment mask into the simulation.
 
-        Scatters ``root_pose`` into the cached ``root_link_pose_w`` only where ``env_mask[i]``
-        is True, then pushes the cache to the ``RIGID_BODY_POSE`` binding via the wheel's
-        native ``binding.write(mask=...)`` -- no ``torch.nonzero`` round-trip.
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
@@ -324,30 +394,31 @@ class RigidObject(BaseRigidObject):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
-        """Set the root COM pose into the simulation (mirrors PhysX).
+        """Set the root center of mass pose over selected environment indices into the simulation.
 
-        The kernel scatters the user COM pose into ``root_com_pose_w`` and derives the
-        equivalent ``root_link_pose_w`` from the body-frame COM offset; the latter is
-        what we push to the ``RIGID_BODY_POSE`` binding.
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principal axes of inertia.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
+                or (len(env_ids),) with dtype wp.transformf.
+            env_ids: Environment indices. If None, then all indices are used.
         """
         env_ids = self._resolve_env_ids(env_ids)
-        if full_data:
-            self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
-        else:
-            self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
+        self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
         wp.launch(
-            shared_kernels.set_root_com_pose_to_sim,
+            shared_kernels.set_root_com_pose_to_sim_index,
             dim=env_ids.shape[0],
-            inputs=[root_pose, self.data.body_com_pose_b, env_ids, full_data],
-            outputs=[
-                self.data.root_com_pose_w,
-                self.data.root_link_pose_w,
-                None,  # self.data._root_com_state_w.data,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
-            ],
+            inputs=[root_pose, self.data.body_com_pose_b, env_ids],
+            outputs=[self.data.root_com_pose_w, self.data.root_link_pose_w],
             device=self._device,
         )
         binding = self._get_binding(TT.RIGID_BODY_POSE)
@@ -359,7 +430,23 @@ class RigidObject(BaseRigidObject):
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root COM pose using a native mask (Newton-style)."""
+        """Set the root center of mass pose over selected environment mask into the simulation.
+
+        The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
+        The orientation is the orientation of the principal axes of inertia.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
+                or (num_instances,) with dtype wp.transformf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
         wp.launch(
@@ -377,24 +464,33 @@ class RigidObject(BaseRigidObject):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
-        """Set the root COM velocity into the simulation (mirrors PhysX)."""
+        """Set the root center of mass velocity over selected environment indices into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
         env_ids = self._resolve_env_ids(env_ids)
-        if full_data:
-            self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
-        else:
-            self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
+        self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         wp.launch(
-            shared_kernels.set_root_com_velocity_to_sim,
+            shared_kernels.set_root_com_velocity_to_sim_index,
             dim=env_ids.shape[0],
-            inputs=[root_velocity, env_ids, 1, full_data],
-            outputs=[
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
-            ],
+            inputs=[root_velocity, env_ids, 1],
+            outputs=[self.data.root_com_vel_w, self.data.body_com_acc_w],
             device=self._device,
         )
         # Invalidate dependent root_link_vel timestamp.
@@ -408,7 +504,25 @@ class RigidObject(BaseRigidObject):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root COM velocity using a native mask (Newton-style)."""
+        """Set the root center of mass velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
         wp.launch(
@@ -427,20 +541,30 @@ class RigidObject(BaseRigidObject):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
-        """Set the root link velocity into the simulation (mirrors PhysX).
+        """Set the root link velocity over selected environment indices into the simulation.
 
-        The kernel converts user link velocity to COM velocity via the lever-arm transform
-        and writes both into the data caches; we push the COM velocity to the binding.
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
+                or (len(env_ids),) with dtype wp.spatial_vectorf.
+            env_ids: Environment indices. If None, then all indices are used.
         """
         env_ids = self._resolve_env_ids(env_ids)
-        if full_data:
-            self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
-        else:
-            self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
+        self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
         wp.launch(
-            shared_kernels.set_root_link_velocity_to_sim,
+            shared_kernels.set_root_link_velocity_to_sim_index,
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
@@ -448,16 +572,8 @@ class RigidObject(BaseRigidObject):
                 self.data.root_link_pose_w,
                 env_ids,
                 1,  # num_bodies is always 1 for RigidObject
-                full_data,
             ],
-            outputs=[
-                self.data.root_link_vel_w,
-                self.data.root_com_vel_w,
-                self.data.body_com_acc_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
-            ],
+            outputs=[self.data.root_link_vel_w, self.data.root_com_vel_w, self.data.body_com_acc_w],
             device=self._device,
         )
         binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
@@ -469,7 +585,25 @@ class RigidObject(BaseRigidObject):
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set the root link velocity using a native mask (Newton-style)."""
+        """Set the root link velocity over selected environment mask into the simulation.
+
+        The velocity comprises linear velocity (x, y, z) and angular velocity (x, y, z) in that order.
+
+        .. note::
+            This sets the velocity of the root's frame rather than the root's center of mass.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
+                or (num_instances,) with dtype wp.spatial_vectorf.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
         wp.launch(
@@ -492,38 +626,29 @@ class RigidObject(BaseRigidObject):
         masses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
         """Set masses of all bodies using indices.
 
-        Mirrors :meth:`isaaclab_physx.assets.RigidObject.set_masses_index`: scatter the
-        user-provided rows into the cached ``_body_mass`` buffer, then push the (now
-        consistent) cache to the ``RIGID_BODY_MASS`` binding via an indexed write.
-        The cache is the single source of truth -- no separate invalidation needed.
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)) or
-                (num_instances, num_bodies) if ``full_data``.
+            masses: Masses of all bodies. Shape is (len(env_ids), len(body_ids)).
             body_ids: The body indices to set the masses for. Defaults to None (all bodies).
-            env_ids: The environment indices to set the masses for. Defaults to None
-                (all environments).
-            full_data: Whether ``masses`` covers all instances. Defaults to False.
+            env_ids: The environment indices to set the masses for. Defaults to None (all environments).
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
-        # Normalise (K,) input from single-body callers to (K, 1) so the 2-D scatter kernel works.
-        if hasattr(masses, "shape") and len(masses.shape) == 1:
-            if isinstance(masses, torch.Tensor):
-                masses = masses.unsqueeze(-1)
-            else:
-                masses = wp.array(
-                    ptr=masses.ptr, shape=(masses.shape[0], 1), dtype=wp.float32, device=str(masses.device), copy=False
-                )
+        self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Scatter user data into the cached _body_mass at (env_ids, body_ids).
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[masses, env_ids, body_ids, full_data],
+            inputs=[masses, env_ids, body_ids],
             outputs=[self.data._body_mass],
             device=self._device,
         )
@@ -540,7 +665,20 @@ class RigidObject(BaseRigidObject):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set masses of all bodies using a native mask (Newton-style)."""
+        """Set masses of all bodies using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            masses: Masses of all bodies. Shape is (num_instances, num_bodies).
+            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
         env_mask_wp = self._resolve_env_mask(env_mask)
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
@@ -561,28 +699,29 @@ class RigidObject(BaseRigidObject):
         coms: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
-        """Set center of mass pose of all bodies using indices (mirrors PhysX).
+        """Set center of mass pose of all bodies using indices.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7) or
-                (num_instances, num_bodies, 7) if ``full_data``.
+            coms: Center of mass pose of all bodies. Shape is (len(env_ids), len(body_ids), 7).
             body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass pose for. Defaults to None
                 (all environments).
-            full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
-        if full_data:
-            self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
-        else:
-            self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer,
+            shared_kernels.write_body_com_pose_to_buffer_index,
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[coms, env_ids, body_ids, full_data],
+            inputs=[coms, env_ids, body_ids],
             outputs=[self.data._body_com_pose_b.data],
             device=self._device,
         )
@@ -602,7 +741,20 @@ class RigidObject(BaseRigidObject):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set center of mass pose using a native mask (Newton-style)."""
+        """Set center of mass pose of all bodies using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            coms: Center of mass pose of all bodies. Shape is (num_instances, num_bodies, 7).
+            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
         env_mask_wp = self._resolve_env_mask(env_mask)
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
@@ -624,27 +776,28 @@ class RigidObject(BaseRigidObject):
         inertias: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
     ) -> None:
-        """Set inertias of all bodies using indices (mirrors PhysX).
+        """Set inertias of all bodies using indices.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
 
         Args:
-            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9) or
-                (num_instances, num_bodies, 9) if ``full_data``.
+            inertias: Inertias of all bodies. Shape is (len(env_ids), len(body_ids), 9).
             body_ids: The body indices to set the inertias for. Defaults to None (all bodies).
             env_ids: The environment indices to set the inertias for. Defaults to None (all environments).
-            full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
-        if full_data:
-            self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
-        else:
-            self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer,
+            shared_kernels.write_body_inertia_to_buffer_index,
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[inertias, env_ids, self._ALL_BODY_INDICES, full_data],
+            inputs=[inertias, env_ids, body_ids],
             outputs=[self.data._body_inertia],
             device=self._device,
         )
@@ -662,7 +815,20 @@ class RigidObject(BaseRigidObject):
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set inertias using a native mask (Newton-style)."""
+        """Set inertias of all bodies using masks.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            inertias: Inertias of all bodies. Shape is (num_instances, num_bodies, 9).
+            body_mask: Body mask. If None, then all bodies are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
         env_mask_wp = self._resolve_env_mask(env_mask)
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
@@ -690,16 +856,14 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
         :meth:`write_root_com_velocity_to_sim_index`."""
-        import warnings
-
         warnings.warn(
             "The function 'write_root_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_root_link_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self._write_body_state(TT.RIGID_BODY_POSE, root_state[..., :7], env_ids)
-        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_com_state_to_sim(
         self,
@@ -708,17 +872,14 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Deprecated, same as :meth:`write_root_com_pose_to_sim_index` and
         :meth:`write_root_com_velocity_to_sim_index`."""
-        import warnings
-
         warnings.warn(
             "The function 'write_root_com_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_root_com_pose_to_sim_index' and 'write_root_com_velocity_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        link_pose = self._com_pose_to_link_pose(root_state[..., :7])
-        self._write_body_state(TT.RIGID_BODY_POSE, link_pose, env_ids)
-        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
+        self.write_root_com_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_link_state_to_sim(
         self,
@@ -727,299 +888,18 @@ class RigidObject(BaseRigidObject):
     ) -> None:
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and
         :meth:`write_root_link_velocity_to_sim_index`."""
-        import warnings
-
         warnings.warn(
             "The function 'write_root_link_state_to_sim' will be deprecated in a future release. Please"
             " use 'write_root_link_pose_to_sim_index' and 'write_root_link_velocity_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self._write_body_state(TT.RIGID_BODY_POSE, root_state[..., :7], env_ids)
-        self._write_body_state(TT.RIGID_BODY_VELOCITY, root_state[..., 7:], env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     # ------------------------------------------------------------------
-    # Internal helpers -- Write
+    # Internal helpers -- Resolve
     # ------------------------------------------------------------------
-
-    def _n_envs_index(self, env_ids) -> int:
-        """Return the number of environments from an env_ids argument."""
-        if env_ids is None:
-            return self._num_instances
-        if isinstance(env_ids, (list, tuple)):
-            return len(env_ids)
-        return env_ids.shape[0] if hasattr(env_ids, "shape") else len(env_ids)
-
-    def _to_flat_f32(self, data, target_shape: tuple[int, ...] | None = None) -> wp.array | np.ndarray:
-        """Ensure data is a contiguous float32 tensor suitable for binding I/O.
-
-        State tensor bindings (positions, velocities, poses) live on the
-        simulation device (GPU in GPU mode).  We always return data on
-        ``self._device`` so the binding device check passes.
-
-        For structured warp dtypes (``transformf``, ``spatial_vectorf``, etc.) a
-        zero-copy flat float32 view is created instead of roundtripping through
-        CPU numpy.
-
-        Args:
-            data: Input data as a warp array, torch tensor, numpy array, or scalar.
-            target_shape: Optional expected shape for validation (unused; reserved for future use).
-
-        Returns:
-            A float32 warp array on ``self._device``.
-        """
-        dev = self._device
-        if isinstance(data, wp.array):
-            if str(data.device) != dev:
-                data = wp.clone(data, device=dev)
-            if data.dtype == wp.float32:
-                return data
-            # Structured dtype: zero-copy flat float32 view.
-            # transformf -> [N, 7], spatial_vectorf -> [N, 6], etc.
-            floats_per_elem = data.strides[0] // 4
-            return wp.array(
-                ptr=data.ptr,
-                shape=(data.shape[0], floats_per_elem),
-                dtype=wp.float32,
-                device=dev,
-                copy=False,
-            )
-        elif isinstance(data, torch.Tensor):
-            if data.is_cuda and dev.startswith("cuda"):
-                return wp.from_torch(data.detach().contiguous().float())
-            np_data = data.detach().cpu().numpy().astype(np.float32)
-            return wp.from_numpy(np_data, dtype=wp.float32, device=dev)
-        elif isinstance(data, np.ndarray):
-            return wp.from_numpy(data.astype(np.float32), dtype=wp.float32, device=dev)
-        elif isinstance(data, (int, float)):
-            return wp.from_numpy(np.array(data, dtype=np.float32), dtype=wp.float32, device=dev)
-        return wp.from_numpy(np.asarray(data, dtype=np.float32), dtype=wp.float32, device=dev)
-
-    def _as_gpu_f32_2d(self, data, cols: int) -> wp.array:
-        """View/convert data as 2-D ``[rows, cols]`` float32 on ``self._device``.
-
-        For warp arrays with structured dtypes (``transformf``, ``spatial_vectorf``),
-        creates a zero-copy flat float32 view.  For torch/numpy, converts to warp
-        on the simulation device.
-
-        Args:
-            data: Input data.
-            cols: Number of float32 columns per row.
-
-        Returns:
-            A 2-D float32 warp array on ``self._device``.
-        """
-        dev = self._device
-        if isinstance(data, wp.array):
-            if str(data.device) != dev:
-                data = wp.clone(data, device=dev)
-            if data.dtype == wp.float32 and data.ndim == 2:
-                return data
-            n = data.shape[0]
-            return wp.array(
-                ptr=data.ptr,
-                shape=(n, cols),
-                dtype=wp.float32,
-                device=dev,
-                copy=False,
-            )
-        if isinstance(data, torch.Tensor) and data.is_cuda and dev.startswith("cuda"):
-            return wp.from_torch(data.detach().contiguous().float().reshape(-1, cols))
-        np_data = self._to_cpu_numpy(data).reshape(-1, cols)
-        return wp.from_numpy(np_data, dtype=wp.float32, device=dev)
-
-    def _get_write_scratch(self, tensor_type: int, binding) -> wp.array:
-        """Return a cached GPU scratch buffer for read-modify-write operations.
-
-        Args:
-            tensor_type: Tensor type key used to cache the scratch buffer.
-            binding: The binding whose shape the scratch buffer should match.
-
-        Returns:
-            A float32 warp array of shape ``binding.shape`` on ``self._device``.
-        """
-        if not hasattr(self, "_write_scratch"):
-            self._write_scratch: dict = {}
-        buf = self._write_scratch.get(tensor_type)
-        if buf is None:
-            buf = wp.zeros(binding.shape, dtype=wp.float32, device=self._device)
-            self._write_scratch[tensor_type] = buf
-        return buf
-
-    def _stage_to_pinned_cpu(self, tensor_type: int, role: str, src: wp.array) -> wp.array:
-        """Copy *src* into a lazily-allocated pinned-host :class:`wp.array` keyed by
-        ``(tensor_type, role)``.
-
-        Used to bridge GPU sources to CPU-only TensorBindings (e.g. ``RIGID_BODY_COM_POSE``
-        in GPU mode).  The staging buffer is reused across calls; reallocation only
-        happens when the shape or dtype changes.  Mirrors PhysX's pinned-staging pattern.
-        """
-        if not hasattr(self, "_cpu_staging"):
-            self._cpu_staging: dict = {}
-        key = (tensor_type, role)
-        staging = self._cpu_staging.get(key)
-        if staging is None or staging.shape != src.shape or staging.dtype != src.dtype:
-            staging = wp.zeros(src.shape, dtype=src.dtype, device="cpu", pinned=True)
-            self._cpu_staging[key] = staging
-        wp.copy(staging, src)
-        return staging
-
-    def _binding_write(
-        self, tensor_type: int, binding, src: wp.array, *, indices: wp.array | None = None, mask: wp.array | None = None
-    ) -> None:
-        """Write *src* to *binding*, staging through pinned-host buffers for CPU-only bindings."""
-        if tensor_type not in TT._CPU_ONLY_TYPES or self._device == "cpu":
-            binding.write(src, indices=indices, mask=mask)
-            return
-        src_cpu = self._stage_to_pinned_cpu(tensor_type, "data", src)
-        idx_cpu = self._stage_to_pinned_cpu(tensor_type, "indices", indices) if indices is not None else None
-        mask_cpu = self._stage_to_pinned_cpu(tensor_type, "mask", mask) if mask is not None else None
-        binding.write(src_cpu, indices=idx_cpu, mask=mask_cpu)
-
-    def _binding_read(self, tensor_type: int, binding, dst: wp.array) -> None:
-        """Read *binding* into *dst*, staging through a pinned-host buffer for CPU-only bindings."""
-        if tensor_type not in TT._CPU_ONLY_TYPES or self._device == "cpu":
-            binding.read(dst)
-            return
-        # Allocate or reuse the staging buffer; we only copy back to dst, not into staging first.
-        if not hasattr(self, "_cpu_staging"):
-            self._cpu_staging: dict = {}
-        key = (tensor_type, "data")
-        staging = self._cpu_staging.get(key)
-        if staging is None or staging.shape != dst.shape or staging.dtype != dst.dtype:
-            staging = wp.zeros(dst.shape, dtype=dst.dtype, device="cpu", pinned=True)
-            self._cpu_staging[key] = staging
-        binding.read(staging)
-        wp.copy(dst, staging)
-
-    def _write_body_state(self, tensor_type: int, data, env_ids=None, mask=None, _ids_gpu=None) -> None:
-        """GPU-native write for the single-body state of a rigid object.
-
-        Routes pose ``[N, 7]``, velocity ``[N, 6]``, scalar mass ``[N]``,
-        COM-pose ``[N, 7]``, or inertia ``[N, 9]`` data to the matching
-        OVPhysX binding via one of four paths, fastest first:
-
-        - Full write (no env_ids, no mask): zero-copy DLPack.
-        - Indexed write with full-size data: zero-copy view + indices.
-          The binding API only copies the indexed rows from the full buffer,
-          so no read-modify-write is needed when data is already ``[N, ...]``.
-        - Indexed write with partial data ``[K, ...]``: scatter kernel into a
-          GPU scratch buffer, then write with indices.
-        - Masked write: data is always full ``[N, ...]``, pass directly with mask.
-
-        1-D bindings (e.g. ``RIGID_BODY_MASS`` of shape ``(N,)``) are handled
-        by treating them as ``(N, 1)`` internally.
-
-        Args:
-            tensor_type: The TensorType constant (e.g. ``RIGID_BODY_POSE``).
-            data: State data to write.
-            env_ids: Optional environment indices.
-            mask: Optional boolean environment mask.
-            _ids_gpu: Pre-converted GPU warp int32 array of env indices. When
-                provided, skips the per-call GPU->CPU->GPU conversion of env_ids.
-        """
-        binding = self._get_binding(tensor_type)
-        if binding is None:
-            return
-        if len(binding.shape) == 1:
-            N, C = binding.shape[0], 1
-        else:
-            N, C = binding.shape[0], binding.shape[1]
-
-        is_1d = len(binding.shape) == 1
-
-        if env_ids is None and _ids_gpu is None and mask is None:
-            # Full write: data must cover all N instances.
-            data_rows = data.shape[0] if hasattr(data, "shape") and len(data.shape) > 0 else 1
-            if data_rows != N:
-                raise RuntimeError(
-                    f"Shape mismatch: binding has {N} rows (num_instances) but data"
-                    f" has {data_rows} rows. Expected data.shape[0] == {N}."
-                )
-            self._binding_write(tensor_type, binding, self._to_flat_f32(data))
-            self._invalidate_root_caches(tensor_type)
-            return
-
-        if is_1d:
-            # 1-D binding: ensure the source array is 1-D so that the binding's
-            # index/mask scatter operates on a flat buffer.  The caller may pass
-            # data as (K,) or (K, 1); normalise to (K,) here.
-            _src_raw = self._to_flat_f32(data)
-            n_elems = _src_raw.shape[0]
-            src = wp.array(
-                ptr=_src_raw.ptr,
-                shape=(n_elems,),
-                dtype=wp.float32,
-                device=self._device,
-                copy=False,
-            )
-        else:
-            src = self._as_gpu_f32_2d(data, C)
-
-        if env_ids is not None or _ids_gpu is not None:
-            if _ids_gpu is None:
-                _ids_gpu = self._env_ids_to_gpu_warp(env_ids)
-            K = _ids_gpu.shape[0]
-            if is_1d:
-                # 1-D binding (e.g. RIGID_BODY_MASS): pass data flat; the
-                # binding write() handles index scatter natively.
-                self._binding_write(tensor_type, binding, src, indices=_ids_gpu)
-            elif src.shape[0] == N:
-                self._binding_write(tensor_type, binding, src, indices=_ids_gpu)
-            else:
-                scratch = self._get_write_scratch(tensor_type, binding)
-                self._binding_read(tensor_type, binding, scratch)
-                wp.launch(
-                    _scatter_rows_partial,
-                    dim=(K, C),
-                    inputs=[scratch, src, _ids_gpu],
-                    device=self._device,
-                )
-                self._binding_write(tensor_type, binding, scratch, indices=_ids_gpu)
-        else:
-            mask_u8 = wp.from_numpy(
-                self._to_cpu_numpy(mask).astype(np.uint8),
-                device=self._device,
-            )
-            self._binding_write(tensor_type, binding, src, mask=mask_u8)
-
-    def _com_pose_to_link_pose(self, com_pose_w) -> wp.array:
-        """Convert a world-frame COM pose to a world-frame link (actor) pose.
-
-        Reads the body-frame COM offset from the ``RIGID_BODY_COM_POSE`` binding
-        and launches :func:`_compose_root_link_pose_from_com` to compute:
-        ``link_pose = com_pose_w * inverse(com_pose_b)``.
-
-        Args:
-            com_pose_w: World-frame COM poses. Shape is (N,) or (N, 7).
-
-        Returns:
-            A warp array of shape (N,) with dtype ``wp.transformf`` containing
-            the equivalent world-frame link (actor) poses.
-        """
-        # Force a fresh read of the COM offset: the caller may have mutated the
-        # RIGID_BODY_COM_POSE binding (e.g. via set_coms_index) since the last read.
-        self._data._body_com_pose_b.timestamp = -1.0
-        com_pose_b = self._data.body_com_pose_b.warp  # (N, 1) wp.transformf
-        N = self._num_instances
-        dev = self._device
-        com_flat = self._to_flat_f32(com_pose_w)
-        com_wp = wp.array(
-            ptr=com_flat.ptr,
-            shape=(N,),
-            dtype=wp.transformf,
-            device=dev,
-            copy=False,
-        )
-        link_pose_wp = wp.zeros(N, dtype=wp.transformf, device=dev)
-        wp.launch(
-            _compose_root_link_pose_from_com,
-            dim=N,
-            inputs=[com_wp, com_pose_b],
-            outputs=[link_pose_wp],
-            device=dev,
-        )
-        return link_pose_wp
 
     def _resolve_env_ids(self, env_ids) -> wp.array:
         """Resolve environment indices to a warp int32 array on ``self._device`` (mirrors PhysX).
@@ -1090,53 +970,6 @@ class RigidObject(BaseRigidObject):
         if env_ids.ptr == self._ALL_INDICES.ptr:
             return self._cpu_env_ids_all
         return wp.clone(env_ids, device="cpu")
-
-    @staticmethod
-    def _to_cpu_numpy(data) -> np.ndarray:
-        """Convert data (warp, torch, numpy, scalar) to a CPU numpy array."""
-        if isinstance(data, wp.array):
-            return data.numpy().astype(np.float32)
-        if isinstance(data, torch.Tensor):
-            return data.detach().cpu().numpy().astype(np.float32)
-        return np.asarray(data, dtype=np.float32)
-
-    @staticmethod
-    def _to_cpu_indices(data, dtype=np.int32) -> np.ndarray:
-        """Convert index array (warp, torch, list, numpy) to CPU numpy int array."""
-        if isinstance(data, torch.Tensor):
-            return data.detach().cpu().numpy().astype(dtype)
-        if isinstance(data, wp.array):
-            return data.numpy().astype(dtype)
-        return np.asarray(data, dtype=dtype)
-
-    def _env_ids_to_gpu_warp(self, env_ids) -> wp.array:
-        """Convert env_ids to a GPU int32 warp array, with single-entry caching.
-
-        The cache avoids repeated GPU->CPU->GPU round-trips when the same
-        ``env_ids`` object is passed to multiple binding writes in a single step.
-        A new object identity (``id()``) or shape change invalidates the cache.
-
-        Args:
-            env_ids: Environment indices as a torch tensor, warp array, list, or numpy array.
-
-        Returns:
-            A GPU int32 warp array containing the indices.
-        """
-        if hasattr(env_ids, "data_ptr"):
-            key = (env_ids.data_ptr(), env_ids.shape[0])
-        elif isinstance(env_ids, wp.array):
-            key = (env_ids.ptr, env_ids.shape[0])
-        else:
-            key = None
-
-        if key is not None and hasattr(self, "_ids_cache_key") and self._ids_cache_key == key:
-            return self._ids_cache_val
-
-        result = wp.array(self._to_cpu_indices(env_ids, np.int32), device=self._device)
-        if key is not None:
-            self._ids_cache_key = key
-            self._ids_cache_val = result
-        return result
 
     # ------------------------------------------------------------------
     # Internal helpers -- Lifecycle

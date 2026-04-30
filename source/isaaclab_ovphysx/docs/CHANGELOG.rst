@@ -1,6 +1,51 @@
 Changelog
 ---------
 
+0.2.16 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Aligned :class:`~isaaclab_ovphysx.assets.RigidObject` with the Newton-style
+  index/mask kernel split: ``set_root_link_pose_to_sim``,
+  ``set_root_com_pose_to_sim``, ``set_root_com_velocity_to_sim``, and
+  ``set_root_link_velocity_to_sim`` are renamed to ``*_to_sim_index`` and no
+  longer take a ``from_mask`` flag or unused ``root_link_state_w`` /
+  ``root_state_w`` outputs.  Same simplification for
+  ``write_2d_data_to_buffer_with_indices``,
+  ``write_body_inertia_to_buffer_index``, and
+  ``write_body_com_pose_to_buffer_index``.
+* Dropped the ``full_data`` parameter from every
+  :class:`~isaaclab_ovphysx.assets.RigidObject` ``*_index`` writer / setter
+  (``write_root_*_to_sim_index``, ``set_masses_index``, ``set_coms_index``,
+  ``set_inertias_index``).  Index methods now strictly accept partial data
+  shaped ``(len(env_ids), ...)``; full-data callers should use the matching
+  ``*_mask`` overload instead.  This matches the Newton/PhysX convention.
+* Reworded every public docstring on
+  :class:`~isaaclab_ovphysx.assets.RigidObject` to follow the Newton/PhysX
+  template (one-line summary, ``.. note::`` and ``.. tip::`` blocks,
+  ``Args:`` block with shape/dtype on the parameter line).
+
+Removed
+^^^^^^^
+
+* Removed the GPU-side write plumbing
+  (``RigidObject._write_body_state``, ``_com_pose_to_link_pose``,
+  ``_to_flat_f32``, ``_as_gpu_f32_2d``, ``_get_write_scratch``,
+  ``_stage_to_pinned_cpu``, ``_binding_write``, ``_binding_read``,
+  ``_to_cpu_numpy``, ``_to_cpu_indices``, ``_env_ids_to_gpu_warp``,
+  ``_n_envs_index``).  The deprecated ``write_root_state_to_sim`` /
+  ``write_root_com_state_to_sim`` / ``write_root_link_state_to_sim`` shims now
+  call the public ``write_root_*_to_sim_index`` methods directly, mirroring
+  PhysX/Newton.
+* Removed the now-unused ``_compose_root_link_pose_from_com`` kernel from
+  :mod:`isaaclab_ovphysx.assets.kernels`; the ``set_root_com_pose_to_sim_*``
+  kernels recover the link pose inline via ``get_com_pose_in_link_frame_func``.
+* Removed the ``masses`` 1-D-to-``(K, 1)`` auto-reshape from
+  :meth:`~isaaclab_ovphysx.assets.RigidObject.set_masses_index`; callers must
+  pass shape ``(len(env_ids), len(body_ids))`` explicitly (matches PhysX).
+
 0.2.15 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~~
 

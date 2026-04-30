@@ -876,10 +876,9 @@ def test_rigid_body_set_mass(num_cubes, device):
 
         indices = torch.tensor(range(num_cubes), dtype=torch.int32)
 
-        # Set the new masses via the OVPhysX writer (PhysX uses ``root_view.set_masses``).
-        # The RIGID_BODY_MASS binding is 1-D ``(N,)`` so we squeeze the trailing dim.
+        # Set the new masses via the OVPhysX writer (matches PhysX/Newton).
         cube_object.set_masses_index(
-            masses=wp.from_torch(masses.squeeze(-1).contiguous(), dtype=wp.float32),
+            masses=wp.from_torch(masses.contiguous(), dtype=wp.float32),
             env_ids=wp.from_torch(indices, dtype=wp.int32),
         )
 
