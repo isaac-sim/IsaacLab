@@ -203,6 +203,9 @@ def main():
         else:
             runner = Runner(IsaacAlgoObserver())
 
+        from isaaclab.utils.seed import configure_seed
+        configure_seed(env_cfg.seed, True)
+
         runner.load(agent_cfg)
         runner.reset()
 
