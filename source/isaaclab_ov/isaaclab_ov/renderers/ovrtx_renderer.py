@@ -70,29 +70,28 @@ if TYPE_CHECKING:
 _OVRTX_VERSION = Version(ovrtx.__version__)
 _IS_OVRTX_0_3_0_OR_NEWER = Version("0.3.0") <= _OVRTX_VERSION
 
-# RTX minimal modes:
-#
-# - simple_shading_constant_diffuse: Constant diffuse term only (flat appearance).
-# - simple_shading_diffuse_mdl: Diffuse-only MDL material evaluation.
-# - simple_shading_full_mdl: Full MDL material evaluation (includes specular/lighting effects).
-#
 # The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
-#
 _RTX_MINIMAL_MODES = {
-    "simple_shading_constant_diffuse": 1,
-    "simple_shading_diffuse_mdl": 2,
-    "simple_shading_full_mdl": 3,
+    RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE.value: 1,
+    RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL.value: 2,
+    RenderBufferKind.SIMPLE_SHADING_FULL_MDL.value: 3,
 }
 
 
-def _resolve_simple_shading_data_type(data_types: list[str]) -> str | None:
-    """Resolve the simple shading data types.
+def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
+    """Resolve the RTX minimal mode from data types.
+
+    RTX minimal mode is used to control the rendering quality. The higher the mode, the higher the quality.
+
+    If multiple simple shading data types are requested, the first one in the list is used and a warning is logged.
+
+    If no simple shading data types are requested, None is returned.
 
     Args:
         data_types: List of data types.
 
     Returns:
-        The resolved simple shading data type.
+        The resolved RTX minimal mode if simple shading data types are requested, otherwise None.
     """
     filtered_data_types = [data_type for data_type in data_types if data_type in _RTX_MINIMAL_MODES]
     if not filtered_data_types:
@@ -105,7 +104,7 @@ def _resolve_simple_shading_data_type(data_types: list[str]) -> str | None:
             filtered_data_types[0],
         )
 
-    return filtered_data_types[0]
+    return _RTX_MINIMAL_MODES[filtered_data_types[0]]
 
 
 class OVRTXRenderData:
@@ -143,6 +142,9 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, torch.uint8),
             RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, torch.uint8),
             RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
@@ -217,10 +219,6 @@ class OVRTXRenderer(BaseRenderer):
         if usd_scene_path is not None:
             logger.info("Injecting camera definitions...")
 
-            rtx_minimal_mode = None
-            if simple_shading_data_type := _resolve_simple_shading_data_type(data_types):
-                rtx_minimal_mode = _RTX_MINIMAL_MODES[simple_shading_data_type]
-
             combined_usd_path, render_product_path = inject_cameras_into_usd(
                 usd_scene_path,
                 self.cfg,
@@ -228,7 +226,7 @@ class OVRTXRenderer(BaseRenderer):
                 height=height,
                 num_envs=num_envs,
                 data_types=data_types,
-                minimal_mode=rtx_minimal_mode,
+                minimal_mode=_resolve_rtx_minimal_mode(data_types),
                 camera_rel_path=self._camera_rel_path,
             )
             self._render_product_paths.append(render_product_path)
