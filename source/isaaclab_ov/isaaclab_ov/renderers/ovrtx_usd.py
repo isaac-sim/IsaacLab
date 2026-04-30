@@ -80,6 +80,7 @@ def Scope "Render"
     ) {{
         rel camera = [{camera_rel_list}]
         token omni:rtx:background:source:type = "domeLight"
+        float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = <{render_var_path}>
