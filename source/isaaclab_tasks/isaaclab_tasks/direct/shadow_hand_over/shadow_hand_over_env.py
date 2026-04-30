@@ -79,6 +79,9 @@ class ShadowHandOverEnv(DirectMARLEnv):
         # initialize goal marker
         self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
 
+        # Sticky per-env flag: True once the object reached the goal within threshold.
+        self._episode_succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
         # unit tensors
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
@@ -286,6 +289,9 @@ class ShadowHandOverEnv(DirectMARLEnv):
             self.extras["log"] = dict()
         self.extras["log"]["dist_reward"] = rew_dist.mean()
         self.extras["log"]["dist_goal"] = goal_dist.mean()
+        self.extras["log"]["Metrics/goal_distance"] = goal_dist.mean().item()
+        # Sticky per-env success: True once the object reached the goal within threshold.
+        self._episode_succeeded |= goal_dist < self.cfg.success_distance_threshold
 
         return {"right_hand": rew_dist, "left_hand": rew_dist}
 
@@ -304,6 +310,11 @@ class ShadowHandOverEnv(DirectMARLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | None):
         if env_ids is None:
             env_ids = self.right_hand._ALL_INDICES
+        # Flush per-episode success (sticky binary: object ever reached the goal within threshold).
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = (
+            self._episode_succeeded[env_ids].float().mean().item()
+        )
+        self._episode_succeeded[env_ids] = False
         # reset articulation and rigid body attributes
         super()._reset_idx(env_ids)
 

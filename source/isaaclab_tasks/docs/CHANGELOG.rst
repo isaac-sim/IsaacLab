@@ -1,6 +1,45 @@
 Changelog
 ---------
 
+1.5.33 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Re-enabled ``add_base_mass`` randomization on H1 and Cassie in their
+  rough-terrain configs (previously ``= None`` per the pre-existing biped
+  convention). H1 uses the shared log-uniform scale default from
+  ``EventsCfg``; Cassie overrides to ``(1.0, 1.25)`` asymmetric heavier-bias
+  (never lighter than nominal). Symmetric ±25% regressed Cassie reward by
+  40% vs disabled due to closed-loop Achilles coupling destabilizing on
+  lighter pelvis mass; ``(1.0, 1.25)`` recovers to 90% of the
+  mass-rand-disabled baseline while retaining the domain-randomization
+  benefit.
+
+
+1.5.32 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Refactored rendering correctness tests under ``source/isaaclab_tasks/test/``: shared ``rendering_test_utils.py``,
+  split ``test_rendering_*`` modules (cartpole, Dexsuite Kuka Allegro lift, shadow hand) with ``*_kitless`` variants,
+  and Newton + OVRTX golden images. Newton + ``ovrtx_renderer`` test cases remain skipped on GitHub Actions temporarily
+  until they can run on GitHub Actions.
+
+
+1.5.31 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added benchmark extraction for ``Metrics/success_rate`` and survival
+  success logging for direct cartpole camera environments.
+
+
 1.5.30 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -9,6 +48,11 @@ Added
 
 * Added Kamino solver physics presets to direct and manager-based environment
   configs: cartpole and ant.
+
+Changed
+^^^^^^^
+
+* Updated skrl agent configuration files to support skrl 2.0.
 
 
 1.5.29 (2026-04-27)

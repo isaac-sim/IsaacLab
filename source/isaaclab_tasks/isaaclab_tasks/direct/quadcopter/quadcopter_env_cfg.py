@@ -68,3 +68,9 @@ class QuadcopterEnvCfg(DirectRLEnvCfg):
     lin_vel_reward_scale = -0.05
     ang_vel_reward_scale = -0.01
     distance_to_goal_reward_scale = 15.0
+
+    # success criteria (hovering task: success requires staying near goal for a fraction of the episode)
+    success_distance_threshold: float = 0.5
+    """Distance to goal below which a step counts toward the hover success criterion [m]."""
+    success_step_ratio: float = 0.25
+    """Fraction of episode steps that must satisfy the distance threshold for the episode to count as successful."""

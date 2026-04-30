@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+0.1.3 (2026-04-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Simple-shading outputs, with RTX Minimal mode resolved from the requested camera data types and written on
+  the injected render product in USD.
+* Expanded unit tests for OVRTX Warp kernels in ``test_ovrtx_renderer_kernels.py``.
+
+Changed
+^^^^^^^
+
+* OVRTX integration now branches ``read_gpu_transforms``, depth tile extraction, and semantic ID coloring kernels on
+  ovrtx **0.3.0** vs older versions so tiled buffers and transforms stay correct across ovrtx versions.
+* RGB tiling reads ``LdrColor`` and supports both 3- and 4-channel buffers.
+
+Removed
+^^^^^^^
+
+* Removed ``OVRTXRendererCfg.simple_shading_mode``. Request simple shading via the simple-shading data types on the
+  camera instead; the renderer derives RTX minimal mode from the data types.
+
 0.1.2 (2026-03-23)
 ~~~~~~~~~~~~~~~~~~
 

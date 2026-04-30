@@ -242,6 +242,74 @@ disabled unless explicitly selected:
     python train.py --task=Isaac-Reach-Franka-v0 env.scene.camera=large
 
 
+.. _hydra-backend-solver-presets:
+
+Backend and Solver Presets
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Physics backend selection uses the same preset system. A task can define a
+``PresetCfg`` whose entries replace the complete physics config:
+
+.. code-block:: python
+
+    from isaaclab.utils import configclass
+    from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+    from isaaclab_physx.physics import PhysxCfg
+    from isaaclab_tasks.utils import PresetCfg
+
+    @configclass
+    class CartpolePhysicsCfg(PresetCfg):
+        default: PhysxCfg = PhysxCfg()
+        physx: PhysxCfg = PhysxCfg()
+        newton: NewtonCfg = NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3),
+            num_substeps=1,
+        )
+        kamino: NewtonCfg = NewtonCfg(
+            solver_cfg=KaminoSolverCfg(
+                integrator="moreau",
+                use_collision_detector=True,
+                sparse_jacobian=True,
+                padmm_max_iterations=100,
+            ),
+            num_substeps=1,
+            debug_mode=False,
+            use_cuda_graph=True,
+        )
+
+The ``newton`` and ``kamino`` entries both select the Newton physics backend because
+both entries are :class:`~isaaclab_newton.physics.NewtonCfg` objects. The difference
+is the solver configuration: ``newton`` uses
+:class:`~isaaclab_newton.physics.MJWarpSolverCfg`, while ``kamino`` uses
+:class:`~isaaclab_newton.physics.KaminoSolverCfg`.
+
+Kamino is therefore a solver preset, not a separate Isaac Lab backend. The same
+Newton assets, sensors, renderers, and visualizers are used after the preset is
+resolved. It is a Proximal Alternating Direction Method of Multipliers (P-ADMM)
+based solver for constrained rigid multi-body dynamics, and its Isaac Lab support
+is currently beta.
+
+.. note::
+
+    Kamino support is experimental and currently depends on the asset being
+    structured in a way that Kamino can consume. Assets that work with the
+    MuJoCo-Warp or PhysX presets may still require model-structure updates before
+    they work with ``presets=kamino``.
+
+.. code-block:: bash
+
+    # Select the Kamino solver preset everywhere it is defined
+    python train.py --task=Isaac-Cartpole-v0 presets=kamino
+
+    # Select the Kamino solver preset for a specific physics config path
+    python train.py --task=Isaac-Cartpole-v0 env.sim.physics=kamino
+
+The ``kamino`` preset is currently defined for ``Isaac-Cartpole-Direct-v0``,
+``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole-v0``, and ``Isaac-Ant-v0``. Passing
+``presets=kamino`` to a task without a ``kamino`` preset does not enable Kamino;
+add and validate a task-specific preset first.
+
+
 Inline Presets with preset()
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

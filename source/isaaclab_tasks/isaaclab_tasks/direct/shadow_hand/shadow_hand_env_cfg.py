@@ -355,6 +355,8 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     vel_obs_scale = 0.2
     success_tolerance = 0.1
     max_consecutive_success = 0
+    success_count_threshold: int = 1
+    """Minimum number of goals reached in an episode to count it as a successful episode."""
     av_factor = 0.1
     act_moving_average = 1.0
     force_torque_obs_scale = 10.0
