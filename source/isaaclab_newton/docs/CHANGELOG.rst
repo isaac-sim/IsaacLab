@@ -18,6 +18,16 @@ Added
 
 * Added :class:`~isaaclab_newton.physics.KaminoSolverCfg` to support Newton's Kamino
   solver backend, a Proximal-ADMM based solver for constrained rigid multi-body dynamics.
+* Added fused :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_index`
+  and :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_mask` that
+  write joint position and velocity in a single kernel launch instead of two.
+
+Changed
+^^^^^^^
+
+* Removed dead state-buffer output parameters from 8 root pose/velocity warp kernels
+  in :mod:`~isaaclab_newton.assets.kernels`, reducing kernel argument marshalling
+  overhead.
 
 Fixed
 ^^^^^
@@ -140,7 +150,7 @@ Changed
 
 
 0.5.17 (2026-04-20)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -155,7 +165,6 @@ Changed
 * Changed Newton Warp tiled camera outputs to clear with a light linear gray
   (0xFFEEEEEE, 93% gray, fully opaque) background via ``SensorTiledCamera.ClearData``
   in :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`.
-
 
 0.5.16 (2026-04-17)
 ~~~~~~~~~~~~~~~~~~~

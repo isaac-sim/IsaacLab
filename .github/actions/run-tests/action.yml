@@ -77,6 +77,21 @@ runs:
           local shard_index="${11}"
           local shard_count="${12}"
           local volume_mount_source="${13}"
+          local logs_pid=""
+          local wait_pid=""
+          local docker_wait_file="/tmp/.docker_exit_${container_name}"
+
+          # Kill the container immediately if the runner is cancelled.
+          # The GitHub Actions runner can deliver HUP, INT, or TERM on cancellation
+          # (see actions/runner#1309). Trap all three so the cleanup always fires.
+          # shellcheck disable=SC2064
+          trap "echo '::warning::Cancellation signal - killing container ${container_name}'; \
+                docker kill '${container_name}' 2>/dev/null || true; \
+                docker rm -f '${container_name}' 2>/dev/null || true; \
+                rm -f '${docker_wait_file}'; \
+                if [ -n \"\$logs_pid\" ]; then kill \"\$logs_pid\" 2>/dev/null || true; fi; \
+                if [ -n \"\$wait_pid\" ]; then kill \"\$wait_pid\" 2>/dev/null || true; fi; \
+                exit 130" HUP INT TERM
 
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
@@ -189,16 +204,30 @@ runs:
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
-          # Stream container logs to CI output (this is the killable foreground process).
-          docker logs -f $container_name &
-          local logs_pid=$!
+          # Stream container logs in background.
+          docker logs -f "$container_name" &
+          logs_pid=$!
 
-          # Wait for the container to exit and capture its exit code.
-          DOCKER_EXIT=$(docker wait $container_name) || DOCKER_EXIT=1
+          # Background `docker wait` + bash `wait` (interruptible by signals).
+          docker wait "$container_name" > "$docker_wait_file" &
+          wait_pid=$!
+          wait $wait_pid 2>/dev/null
+          local wait_status=$?
+          wait_pid=""
+
+          # If interrupted by signal, trap already handled cleanup.
+          if [ $wait_status -gt 128 ]; then
+            kill $logs_pid 2>/dev/null || true
+            exit 130
+          fi
+
+          DOCKER_EXIT=$(cat "$docker_wait_file" 2>/dev/null) || DOCKER_EXIT=1
+          rm -f "$docker_wait_file"
 
           # Stop following logs.
           kill $logs_pid 2>/dev/null || true
           wait $logs_pid 2>/dev/null || true
+          logs_pid=""
 
           if [ $DOCKER_EXIT -eq 0 ]; then
             echo "🟢 Docker container completed successfully"
@@ -268,6 +297,14 @@ runs:
         # Call the function with provided parameters
         run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}"
 
+    - name: Kill container on cancellation
+      if: cancelled()
+      shell: bash
+      run: |
+        echo "::warning::Job cancelled - force-killing container"
+        docker kill "${{ inputs.container-name }}" 2>/dev/null || true
+        docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
+
     - name: Write job summary
       if: always()
       shell: bash
@@ -295,7 +332,7 @@ runs:
         retention-days: 7
 
     - name: Clean up Docker container
-      if: always()
+      if: always() && !cancelled()
       shell: bash
       run: |
         echo "🔵 Cleaning up Docker container..."
