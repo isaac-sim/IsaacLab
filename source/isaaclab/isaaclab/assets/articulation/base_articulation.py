@@ -130,7 +130,9 @@ class BaseArticulation(AssetBase):
 
         from isaaclab.sim.utils.queries import find_first_matching_prim  # noqa: PLC0415
 
-        first_prim = find_first_matching_prim(self.cfg.prim_path)
+        spawn_path = getattr(self.cfg.spawn, "spawn_path", None) if self.cfg.spawn is not None else None
+        search_path = spawn_path if spawn_path is not None else self.cfg.prim_path
+        first_prim = find_first_matching_prim(search_path)
         if first_prim is None:
             return
 

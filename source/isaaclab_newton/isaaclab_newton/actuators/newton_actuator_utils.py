@@ -304,7 +304,11 @@ class NewtonActuatorAdapter:
             mask = None
         else:
             mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
-            idx = wp.array(list(env_ids), dtype=wp.int32, device=self._device)
+            import torch  # noqa: PLC0415
+            if isinstance(env_ids, torch.Tensor):
+                idx = wp.from_torch(env_ids.contiguous().to(torch.int32), dtype=wp.int32)
+            else:
+                idx = wp.array(list(env_ids), dtype=wp.int32, device=self._device)
             wp.launch(_set_mask_kernel, dim=len(idx), inputs=[mask, idx], device=self._device)
 
         for sa, sb in zip(self._states_a, self._states_b):
