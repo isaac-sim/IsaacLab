@@ -79,6 +79,7 @@ __all__ = [
     "height_scan",
     "image",
     "image_features",
+    "resnet_utils",
     "imu_ang_vel",
     "imu_lin_acc",
     "pva_orientation",
@@ -240,6 +241,7 @@ from .observations import (
     root_pos_w,
     root_quat_w,
 )
+from . import resnet_utils
 from .recorders import (
     ActionStateRecorderManagerCfg,
     InitialStateRecorder,

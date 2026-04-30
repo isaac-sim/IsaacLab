@@ -63,6 +63,24 @@ def prepare_resnet_model(model_name: str, model_device: str, freeze: bool = True
             model.eval()
         return model.to(model_device)
 
+    normalization_tensors: dict[torch.device, tuple[torch.Tensor, torch.Tensor]] = {}
+
+    def _get_model_device(model: torch.nn.Module) -> torch.device:
+        try:
+            return next(model.parameters()).device
+        except StopIteration:
+            try:
+                return next(model.buffers()).device
+            except StopIteration:
+                return torch.device(model_device)
+
+    def _get_normalization_tensors(device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
+        if device not in normalization_tensors:
+            mean = torch.tensor([0.485, 0.456, 0.406], device=device, dtype=torch.float32).view(1, 3, 1, 1)
+            std = torch.tensor([0.229, 0.224, 0.225], device=device, dtype=torch.float32).view(1, 3, 1, 1)
+            normalization_tensors[device] = (mean, std)
+        return normalization_tensors[device]
+
     def _inference(model, images: torch.Tensor) -> torch.Tensor:
         """Run inference on the ResNet model.
 
@@ -73,10 +91,10 @@ def prepare_resnet_model(model_name: str, model_device: str, freeze: bool = True
         Returns:
             Feature tensor of shape ``(N, feature_dim)``.
         """
-        image_proc = images.to(model_device)
+        device = _get_model_device(model)
+        image_proc = images.to(device)
         image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
-        mean = torch.tensor([0.485, 0.456, 0.406], device=model_device, dtype=torch.float32).view(1, 3, 1, 1)
-        std = torch.tensor([0.229, 0.224, 0.225], device=model_device, dtype=torch.float32).view(1, 3, 1, 1)
+        mean, std = _get_normalization_tensors(device)
         image_proc = (image_proc - mean) / std
 
         if freeze:

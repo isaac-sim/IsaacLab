@@ -170,7 +170,8 @@ class SingleCameraObservationsCfg(StateObservationCfg):
         super().__post_init__()
         for group in self.__dataclass_fields__.values():
             obs_group = getattr(self, group.name)
-            obs_group.history_length = None
+            if isinstance(obs_group, ObsGroup):
+                obs_group.history_length = None
 
 
 @configclass
@@ -217,4 +218,5 @@ class ResNetSingleCameraObservationsCfg(StateObservationCfg):
         super().__post_init__()
         for group in self.__dataclass_fields__.values():
             obs_group = getattr(self, group.name)
-            obs_group.history_length = None
+            if isinstance(obs_group, ObsGroup):
+                obs_group.history_length = None

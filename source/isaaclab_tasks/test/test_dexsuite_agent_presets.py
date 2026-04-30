@@ -6,6 +6,7 @@
 """Tests for Dexsuite env/agent preset coupling."""
 
 import sys
+from unittest import mock
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.camera_cfg import (
@@ -15,12 +16,8 @@ from isaaclab_tasks.utils import resolve_task_config
 
 
 def _resolve_lift_with_presets(presets: str):
-    old_argv = sys.argv.copy()
-    try:
-        sys.argv = [sys.argv[0], f"presets={presets}"]
+    with mock.patch.object(sys, "argv", [sys.argv[0], f"presets={presets}"]):
         return resolve_task_config("Isaac-Dexsuite-Kuka-Allegro-Lift-v0", "rsl_rl_cfg_entry_point")
-    finally:
-        sys.argv = old_argv
 
 
 def test_resnet_single_camera_preset_selects_matching_agent():
