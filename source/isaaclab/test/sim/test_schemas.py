@@ -15,6 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 import math
 
 import pytest
+from isaaclab_physx.sim.schemas import PhysxJointDrivePropertiesCfg, PhysxRigidBodyPropertiesCfg
 
 from pxr import UsdPhysics
 
@@ -44,7 +45,7 @@ def setup_simulation():
         stabilization_threshold=5.0,
         fix_root_link=False,
     )
-    rigid_cfg = schemas.RigidBodyPropertiesCfg(
+    rigid_cfg = PhysxRigidBodyPropertiesCfg(
         rigid_body_enabled=True,
         kinematic_enabled=False,
         disable_gravity=False,
@@ -69,7 +70,7 @@ def setup_simulation():
         torsional_patch_radius=1.0,
     )
     mass_cfg = schemas.MassPropertiesCfg(mass=1.0, density=100.0)
-    joint_cfg = schemas.JointDrivePropertiesCfg(
+    joint_cfg = PhysxJointDrivePropertiesCfg(
         drive_type="acceleration", max_effort=80.0, max_velocity=10.0, stiffness=10.0, damping=0.1
     )
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg

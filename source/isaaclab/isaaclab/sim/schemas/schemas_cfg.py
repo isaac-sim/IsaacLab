@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import Literal
 
 from isaaclab.utils import configclass
@@ -81,87 +80,6 @@ class RigidBodyBaseCfg:
 
     For more information on kinematic bodies, please refer to the `documentation <https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies>`_.
     """
-
-
-@configclass
-class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
-    """PhysX-specific rigid body properties.
-
-    Extends :class:`RigidBodyBaseCfg` with properties from the `PhysxRigidBodyAPI`_ schema.
-
-    See :meth:`modify_rigid_body_properties` for more information.
-
-    .. note::
-        If the values are None, they are not modified. This is useful when you want to set only a subset of
-        the properties and leave the rest as-is.
-
-    .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
-    """
-
-    # -- Class metadata (not dataclass fields) --
-    # USD schema to apply on the prim before writing solver-specific attributes.
-    _usd_applied_schema = "PhysxRigidBodyAPI"
-    # Prim attribute namespace for solver-specific fields.
-    _usd_namespace = "physxRigidBody"
-
-    disable_gravity: bool | None = None
-    """Disable gravity for the actor."""
-
-    linear_damping: float | None = None
-    """Linear damping for the body."""
-
-    angular_damping: float | None = None
-    """Angular damping for the body."""
-
-    max_linear_velocity: float | None = None
-    """Maximum linear velocity for rigid bodies (in m/s)."""
-
-    max_angular_velocity: float | None = None
-    """Maximum angular velocity for rigid bodies (in deg/s)."""
-
-    max_depenetration_velocity: float | None = None
-    """Maximum depenetration velocity permitted to be introduced by the solver (in m/s)."""
-
-    max_contact_impulse: float | None = None
-    """The limit on the impulse that may be applied at a contact."""
-
-    enable_gyroscopic_forces: bool | None = None
-    """Enables computation of gyroscopic forces on the rigid body."""
-
-    retain_accelerations: bool | None = None
-    """Carries over forces/accelerations over sub-steps."""
-
-    solver_position_iteration_count: int | None = None
-    """Solver position iteration counts for the body."""
-
-    solver_velocity_iteration_count: int | None = None
-    """Solver velocity iteration counts for the body."""
-
-    sleep_threshold: float | None = None
-    """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
-
-    stabilization_threshold: float | None = None
-    """The mass-normalized kinetic energy threshold below which an actor may participate in stabilization."""
-
-
-@configclass
-class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
-    """Deprecated: use :class:`PhysxRigidBodyPropertiesCfg` or :class:`RigidBodyBaseCfg`.
-
-    .. deprecated:: 4.6.2
-        ``RigidBodyPropertiesCfg`` has been split into :class:`RigidBodyBaseCfg` (solver-common)
-        and :class:`PhysxRigidBodyPropertiesCfg` (PhysX-specific). This alias preserves backwards
-        compatibility but will be removed in a future release.
-    """
-
-    def __post_init__(self):
-        warnings.warn(
-            "'RigidBodyPropertiesCfg' is deprecated. Use 'PhysxRigidBodyPropertiesCfg' for PhysX"
-            " properties, or 'RigidBodyBaseCfg' for solver-common properties only.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
 
 @configclass
@@ -286,59 +204,6 @@ class JointDriveBaseCfg:
     recognises the drive as active.  The actual gains are expected to be
     overridden later by the actuator model.
     """
-
-
-@configclass
-class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
-    """PhysX-specific joint drive properties.
-
-    Extends :class:`JointDriveBaseCfg` with properties from the `PhysxJointAPI`_ schema.
-
-    See :meth:`modify_joint_drive_properties` for more information.
-
-    .. note::
-        If the values are None, they are not modified. This is useful when you want to set only a subset of
-        the properties and leave the rest as-is.
-
-    .. _PhysxJointAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_joint_a_p_i.html
-    """
-
-    # -- Class metadata (not dataclass fields) --
-    # USD schema to apply on the prim before writing solver-specific attributes.
-    _usd_applied_schema = "PhysxJointAPI"
-    # Prim attribute namespace for solver-specific fields.
-    _usd_namespace = "physxJoint"
-    # Mapping from cfg field names to USD attribute names (already in camelCase).
-    _usd_attr_name_map = {"max_velocity": "maxJointVelocity"}
-
-    max_velocity: float | None = None
-    """Maximum velocity of the joint.
-
-    The unit depends on the joint model:
-
-    * For linear joints, the unit is m/s.
-    * For angular joints, the unit is rad/s.
-    """
-
-
-@configclass
-class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
-    """Deprecated: use :class:`PhysxJointDrivePropertiesCfg` or :class:`JointDriveBaseCfg`.
-
-    .. deprecated:: 4.6.2
-        ``JointDrivePropertiesCfg`` has been split into :class:`JointDriveBaseCfg` (solver-common)
-        and :class:`PhysxJointDrivePropertiesCfg` (PhysX-specific). This alias preserves backwards
-        compatibility but will be removed in a future release.
-    """
-
-    def __post_init__(self):
-        warnings.warn(
-            "'JointDrivePropertiesCfg' is deprecated. Use 'PhysxJointDrivePropertiesCfg' for PhysX"
-            " properties, or 'JointDriveBaseCfg' for solver-common properties only.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
 
 @configclass

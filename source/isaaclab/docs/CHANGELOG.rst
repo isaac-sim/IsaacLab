@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+4.6.23 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Relocated :class:`PhysxRigidBodyPropertiesCfg`, :class:`PhysxJointDrivePropertiesCfg`,
+  and the deprecated aliases ``RigidBodyPropertiesCfg`` and ``JointDrivePropertiesCfg``
+  from :mod:`isaaclab.sim.schemas` to :mod:`isaaclab_physx.sim.schemas`. A forwarding
+  shim is installed on :mod:`isaaclab.sim.schemas` and :mod:`isaaclab.sim` so existing
+  imports continue to resolve. The shim is scheduled for removal in 5.0; downstream
+  code should migrate to ``from isaaclab_physx.sim.schemas import ...``.
+
+
 4.6.22 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~~
 

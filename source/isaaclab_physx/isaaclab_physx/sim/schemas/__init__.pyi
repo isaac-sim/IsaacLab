@@ -7,10 +7,20 @@ __all__ = [
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
     "DeformableBodyPropertiesCfg",
+    "JointDrivePropertiesCfg",
+    "PhysxJointDrivePropertiesCfg",
+    "PhysxRigidBodyPropertiesCfg",
+    "RigidBodyPropertiesCfg",
 ]
 
 from .schemas import (
     define_deformable_body_properties,
     modify_deformable_body_properties,
 )
-from .schemas_cfg import DeformableBodyPropertiesCfg
+from .schemas_cfg import (
+    DeformableBodyPropertiesCfg,
+    JointDrivePropertiesCfg,
+    PhysxJointDrivePropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+    RigidBodyPropertiesCfg,
+)

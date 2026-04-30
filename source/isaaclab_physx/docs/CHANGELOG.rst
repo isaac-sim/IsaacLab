@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+0.5.28 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg` (relocated from
+  :mod:`isaaclab.sim.schemas`), with PhysX-specific rigid body properties extending
+  :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`.
+* Added :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg` (relocated from
+  :mod:`isaaclab.sim.schemas`), with the PhysX-specific ``max_velocity`` field extending
+  :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`~isaaclab_physx.sim.schemas.RigidBodyPropertiesCfg` (relocated alias) in
+  favor of :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg`. Removal targeted
+  for 5.0.
+* Deprecated :class:`~isaaclab_physx.sim.schemas.JointDrivePropertiesCfg` (relocated alias) in
+  favor of :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg`. Removal targeted
+  for 5.0.
+
+
 0.5.27 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 
