@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils.math import matrix_from_quat
 
 if TYPE_CHECKING:
@@ -136,15 +136,37 @@ def grasp_handle(
     return is_close * torch.sum(open_joint_pos - gripper_joint_pos, dim=-1)
 
 
-def open_drawer_bonus(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+class open_drawer_bonus(ManagerTermBase):
     """Bonus for opening the drawer given by the joint position of the drawer.
 
     The bonus is given when the drawer is open. If the grasp is around the handle, the bonus is doubled.
-    """
-    drawer_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids[0]]
-    is_graspable = align_grasp_around_handle(env).float()
 
-    return (is_graspable + 1.0) * drawer_pos
+    If ``success_threshold`` is provided in the term params, this also tracks per-episode success
+    (sticky binary: drawer ever opened past ``success_threshold``) and logs the mean across
+    environments under ``Metrics/success_rate`` on reset.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._track_success = cfg.params.get("success_threshold") is not None
+        if self._track_success:
+            self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+    def reset(self, env_ids: torch.Tensor):
+        if self._track_success:
+            self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
+                self.succeeded[env_ids].float().mean().item()
+            )
+            self.succeeded[env_ids] = False
+
+    def __call__(
+        self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, success_threshold: float | None = None
+    ) -> torch.Tensor:
+        drawer_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids[0]]
+        is_graspable = align_grasp_around_handle(env).float()
+        if success_threshold is not None:
+            self.succeeded |= drawer_pos > success_threshold
+        return (is_graspable + 1.0) * drawer_pos
 
 
 def multi_stage_open_drawer(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:

@@ -19,6 +19,7 @@ _BENCHMARKING_DIR = os.path.join(
     os.path.dirname(__file__), "..", "..", "source", "isaaclab_tasks", "test", "benchmarking"
 )
 _CONFIGS_YAML = os.path.join(_BENCHMARKING_DIR, "configs.yaml")
+SUCCESS_RATE_LOG_TAGS = ("Metrics/success_rate", "Episode/Metrics/success_rate")
 
 
 def get_backend_type(cli_backend: str) -> str:
@@ -149,6 +150,23 @@ def log_rl_policy_episode_lengths(benchmark: BaseIsaacLabBenchmark, value: list)
     # log max episode length
     measurement = SingleMeasurement(name="Max Episode Lengths", value=max(value), unit="float")
     benchmark.add_measurement("train", measurement=measurement)
+
+
+def log_rl_policy_success_rates(benchmark: BaseIsaacLabBenchmark, value: list):
+    if not value:
+        return
+    measurement = ListMeasurement(name="Success Rates", value=value)
+    benchmark.add_measurement("train", measurement=measurement)
+    # Log the best observed success rate as a scalar for benchmark JSON backends.
+    measurement = SingleMeasurement(name="success_rate", value=max(value), unit="float")
+    benchmark.add_measurement("train", measurement=measurement)
+
+
+def get_success_rate_log(log_data: dict) -> list | None:
+    for tag in SUCCESS_RATE_LOG_TAGS:
+        if tag in log_data:
+            return log_data[tag]
+    return None
 
 
 def check_convergence(
