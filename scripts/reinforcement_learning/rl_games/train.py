@@ -25,6 +25,7 @@ from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+from isaaclab.utils.seed import configure_seed
 
 from isaaclab_rl.rl_games import MultiObserver, PbtAlgoObserver, RlGamesGpuEnv, RlGamesVecEnvWrapper
 
@@ -203,7 +204,6 @@ def main():
         else:
             runner = Runner(IsaacAlgoObserver())
 
-        from isaaclab.utils.seed import configure_seed
         configure_seed(env_cfg.seed, True)
 
         runner.load(agent_cfg)
