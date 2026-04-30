@@ -82,7 +82,7 @@ simulation_app = app_launcher.app
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
@@ -157,7 +157,7 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         # Camera configuration
         # Note: the camera is already spawned in the scene, properties are set in the
         # 'gelsight_r15_finger.usd' USD file
-        camera_cfg=TiledCameraCfg(
+        camera_cfg=CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/elastomer_tip/cam",
             height=GELSIGHT_R15_CFG.image_height,
             width=GELSIGHT_R15_CFG.image_width,

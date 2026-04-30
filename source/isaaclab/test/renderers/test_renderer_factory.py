@@ -28,6 +28,9 @@ def _make_mock_renderer_class(name: str):
         def __init__(self, cfg=None):
             pass
 
+        def supported_output_types(self):
+            return {}
+
         def prepare_stage(self, stage, num_envs):
             pass
 

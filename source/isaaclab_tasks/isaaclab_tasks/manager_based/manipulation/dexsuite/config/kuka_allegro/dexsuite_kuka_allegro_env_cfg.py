@@ -9,7 +9,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import ContactSensorCfg, TiledCameraCfg
+from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
@@ -67,9 +67,9 @@ class KukaAllegroSceneCfg(PresetCfg):
 
         robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-        base_camera: TiledCameraCfg | None = None
+        base_camera: CameraCfg | None = None
 
-        wrist_camera: TiledCameraCfg | None = None
+        wrist_camera: CameraCfg | None = None
 
         def __post_init__(self: dexsuite.SceneCfg):
             super().__post_init__()

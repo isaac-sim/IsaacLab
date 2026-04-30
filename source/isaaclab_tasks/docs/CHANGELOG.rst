@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+1.5.31 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added benchmark extraction for ``Metrics/success_rate`` and survival
+  success logging for direct cartpole camera environments.
+
+
 1.5.30 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -9,6 +19,11 @@ Added
 
 * Added Kamino solver physics presets to direct and manager-based environment
   configs: cartpole and ant.
+
+Changed
+^^^^^^^
+
+* Updated skrl agent configuration files to support skrl 2.0.
 
 
 1.5.29 (2026-04-27)

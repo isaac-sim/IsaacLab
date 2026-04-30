@@ -97,11 +97,13 @@ from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
     get_backend_type,
     get_preset_string,
+    get_success_rate_log,
     log_app_start_time,
     log_convergence,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
     log_rl_policy_rewards,
+    log_rl_policy_success_rates,
     log_runtime_step_times,
     log_scene_creation_time,
     log_simulation_start_time,
@@ -268,6 +270,9 @@ def main(
         log_runtime_step_times(benchmark, rl_training_times, compute_stats=True)
         log_rl_policy_rewards(benchmark, log_data["Train/mean_reward"])
         log_rl_policy_episode_lengths(benchmark, log_data["Train/mean_episode_length"])
+        success_rates = get_success_rate_log(log_data)
+        if success_rates is not None:
+            log_rl_policy_success_rates(benchmark, success_rates)
 
         log_convergence(
             benchmark,
