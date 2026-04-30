@@ -10,11 +10,12 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 from newton import JointType
 from newton.selection import ArticulationView
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
+
+from isaaclab_newton.physics import NewtonManager
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
 from .kernels import joint_wrench_reset_kernel, joint_wrench_to_incoming_joint_frame_kernel
