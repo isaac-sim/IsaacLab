@@ -75,6 +75,14 @@ class FabricFrameView(BaseFrameView):
         settings = SettingsManager.instance()
         self._use_fabric = bool(settings.get("/physics/fabricEnabled", False))
 
+        if self._use_fabric and self._device not in ("cuda", "cuda:0"):
+            logger.warning(
+                f"Fabric mode is not supported on device '{self._device}'. "
+                "USDRT SelectPrims and Warp fabric arrays only support cuda:0. "
+                "Falling back to standard USD operations. This may impact performance."
+            )
+            self._use_fabric = False
+
         self._fabric_initialized = False
         self._fabric_usd_sync_done = False
         self._fabric_selection = None
@@ -154,7 +162,7 @@ class FabricFrameView(BaseFrameView):
                 indices_wp,
                 self._view_to_fabric,
             ],
-            device=self._device,
+            device=self._fabric_device,
         )
         wp.synchronize()
 
@@ -192,7 +200,7 @@ class FabricFrameView(BaseFrameView):
                 indices_wp,
                 self._view_to_fabric,
             ],
-            device=self._device,
+            device=self._fabric_device,
         )
 
         if use_cached:
@@ -245,7 +253,7 @@ class FabricFrameView(BaseFrameView):
                 indices_wp,
                 self._view_to_fabric,
             ],
-            device=self._device,
+            device=self._fabric_device,
         )
         wp.synchronize()
 
@@ -281,7 +289,7 @@ class FabricFrameView(BaseFrameView):
                 indices_wp,
                 self._view_to_fabric,
             ],
-            device=self._device,
+            device=self._fabric_device,
         )
 
         if use_cached:
@@ -325,14 +333,14 @@ class FabricFrameView(BaseFrameView):
             f"Prim count changed ({self.count} vs {self._default_view_indices.shape[0]}). "
             "Fabric topology change added/removed tracked prims — full re-initialization required."
         )
-        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._device)
+        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._fabric_device)
         self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
 
         wp.launch(
             kernel=fabric_utils.set_view_to_fabric_array,
             dim=self._fabric_to_view.shape[0],
             inputs=[self._fabric_to_view, self._view_to_fabric],
-            device=self._device,
+            device=self._fabric_device,
         )
         wp.synchronize()
 
@@ -378,22 +386,34 @@ class FabricFrameView(BaseFrameView):
         )
         wp.synchronize()
 
+        fabric_device = self._device
+        if self._device == "cuda":
+            logger.warning("Fabric device is not specified, defaulting to 'cuda:0'.")
+            fabric_device = "cuda:0"
+        elif self._device.startswith("cuda:"):
+            if self._device != "cuda:0":
+                logger.debug(
+                    f"SelectPrims only supports cuda:0. Using cuda:0 for SelectPrims "
+                    f"even though simulation device is {self._device}."
+                )
+            fabric_device = "cuda:0"
+
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
                 (usdrt.Sdf.ValueTypeNames.UInt, self._view_index_attr, usdrt.Usd.Access.Read),
                 (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
             ],
-            device=self._device,
+            device=fabric_device,
         )
 
-        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._device)
+        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=fabric_device)
         self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
 
         wp.launch(
             kernel=fabric_utils.set_view_to_fabric_array,
             dim=self._fabric_to_view.shape[0],
             inputs=[self._fabric_to_view, self._view_to_fabric],
-            device=self._device,
+            device=fabric_device,
         )
         wp.synchronize()
 
@@ -405,6 +425,7 @@ class FabricFrameView(BaseFrameView):
         self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
         self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
         self._fabric_stage = fabric_stage
+        self._fabric_device = fabric_device
 
         self._fabric_initialized = True
         self._fabric_usd_sync_done = False
