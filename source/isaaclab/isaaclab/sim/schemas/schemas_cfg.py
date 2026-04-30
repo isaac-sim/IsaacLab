@@ -9,6 +9,34 @@ from typing import Literal
 
 from isaaclab.utils import configclass
 
+# Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
+# Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
+# RigidBodyPropertiesCfg`` continue to work without importing ``isaaclab_physx`` at module
+# load time.
+_PHYSX_FORWARDS = frozenset(
+    {
+        "RigidBodyPropertiesCfg",
+        "JointDrivePropertiesCfg",
+        "PhysxRigidBodyPropertiesCfg",
+        "PhysxJointDrivePropertiesCfg",
+    }
+)
+
+
+def __getattr__(name):
+    if name in _PHYSX_FORWARDS:
+        try:
+            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
+                " 'isaaclab_physx.sim.schemas.schemas_cfg'. Install the isaaclab_physx"
+                " extension or update your import. This forwarding shim is scheduled for"
+                " removal in 5.0."
+            ) from e
+        return getattr(_physx_cfg, name)
+    raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
+
 
 @configclass
 class ArticulationRootPropertiesCfg:

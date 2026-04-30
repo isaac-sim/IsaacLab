@@ -12,10 +12,11 @@ These tests do not require Isaac Sim — only Python import semantics.
 import warnings
 
 import pytest
+from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
-from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
+import isaaclab.sim.schemas.schemas_cfg as schemas_cfg_submodule
 
 FORWARDED_NAMES = [
     "RigidBodyPropertiesCfg",
@@ -36,6 +37,13 @@ def test_schemas_shim_resolves_to_physx_class(name):
 def test_sim_namespace_shim_resolves_to_physx_class(name):
     """``isaaclab.sim.<name>`` (i.e. ``sim_utils.<name>``) resolves to the same class object."""
     assert getattr(sim_utils, name) is getattr(physx_cfg, name)
+
+
+@pytest.mark.parametrize("name", FORWARDED_NAMES)
+def test_schemas_cfg_submodule_shim_resolves_to_physx_class(name):
+    """``from isaaclab.sim.schemas.schemas_cfg import <name>`` (direct submodule import path)
+    resolves to the same class object as the relocated definition."""
+    assert getattr(schemas_cfg_submodule, name) is getattr(physx_cfg, name)
 
 
 def test_deprecated_alias_emits_deprecation_warning():
