@@ -31,8 +31,19 @@ logger = logging.getLogger(__name__)
 #  Carb Framework struct layout (CARB_ABI function-pointer offsets, x86_64)
 # ---------------------------------------------------------------------------
 # Counting only CARB_ABI fields from the top of ``struct Framework``:
-#   24 = tryAcquireInterfaceWithClient
-#   96 = getInterfacePluginDesc
+#   0: loadPluginsEx
+#   8: unloadAllPlugins
+#  16: acquireInterfaceWithClient
+#  24: tryAcquireInterfaceWithClient  ← we use this one
+#  32: acquireInterfaceFromInterfaceWithClient
+#  40: tryAcquireInterfaceFromInterfaceWithClient
+#  48: acquireInterfaceFromLibraryWithClient
+#  56: tryAcquireInterfaceFromLibraryWithClient
+#  64: getInterfacesCountEx
+#  72: acquireInterfacesWithClient
+#  80: releaseInterfaceWithClient
+#  88: getPluginDesc
+#  96: getInterfacePluginDesc  ← we use this one
 _FW_OFF_TRY_ACQUIRE = 24
 _FW_OFF_GET_INTERFACE_PLUGIN_DESC = 96
 
@@ -54,9 +65,7 @@ _IA_OFF_RELEASE = 32
 _IA_OFF_BIND = 40
 _IA_OFF_COMPUTE = 64
 
-# Pinned IAdapter version. ``_verify_iadapter_version`` enforces an exact
-# match — carb's 0.x version negotiation is permissive (minor mismatches
-# yield only a stderr warning), so a silent miscall is otherwise possible.
+# Expected IAdapter version.
 _IA_EXPECTED_MAJOR = 0
 _IA_EXPECTED_MINOR = 2
 
@@ -243,7 +252,12 @@ class CubricBindings:
 
     @staticmethod
     def _verify_iadapter_version(fw_ptr: int, ia_ptr: int) -> bool:
-        """Confirm the acquired IAdapter advertises the expected version."""
+        """Confirm the acquired IAdapter advertises the expected version.
+
+        Carb's 0.x version negotiation is permissive — minor mismatches yield
+        only a stderr warning — so an exact-version match must be enforced
+        explicitly or a silent vtable miscall is possible.
+        """
         get_desc_addr = _read_u64(fw_ptr + _FW_OFF_GET_INTERFACE_PLUGIN_DESC)
         if get_desc_addr == 0:
             logger.warning("getInterfacePluginDesc is null in Framework")
@@ -260,13 +274,20 @@ class CubricBindings:
         if interfaces_ptr == 0 or interface_count == 0:
             logger.warning("PluginDesc reports zero interfaces for cubric plugin")
             return False
+        if interface_count > 64:
+            logger.warning(
+                "PluginDesc interfaceCount suspiciously large (%d); struct layout mismatch?",
+                interface_count,
+            )
+            return False
 
         for i in range(interface_count):
             entry_addr = interfaces_ptr + i * _INTERFACE_DESC_STRIDE
             name_addr = _read_u64(entry_addr)
             if name_addr == 0:
                 continue
-            if ctypes.string_at(name_addr) != b"omni::cubric::IAdapter":
+            target_name = b"omni::cubric::IAdapter\x00"
+            if ctypes.string_at(name_addr, len(target_name)) != target_name:
                 continue
             major = ctypes.c_uint32.from_address(entry_addr + 8).value
             minor = ctypes.c_uint32.from_address(entry_addr + 12).value
