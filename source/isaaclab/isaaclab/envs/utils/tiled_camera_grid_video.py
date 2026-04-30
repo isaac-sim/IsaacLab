@@ -151,6 +151,9 @@ class TiledCameraGridVideoCapture:
                 "Add a Camera sensor or use --video=perspective."
             )
         if video_camera is self._fallback_tiled_camera:
+            # Per-frame update for the fallback: keeps its data.output current each render call.
+            # Distinct from the one-time update in _find_video_camera(), which only runs at
+            # camera-selection time to confirm the output keys are populated before caching.
             self._fallback_tiled_camera.update(dt=0.0, force_recompute=True)
         rgb_all = self._video_camera.data.output[self._video_rgb_key]
         if self._video_rgb_key == "rgba":
