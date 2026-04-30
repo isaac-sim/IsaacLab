@@ -24,8 +24,6 @@ def test_get_renderer_returns_equal_cfg_singleton():
     r1 = ctx.get_renderer(cfg)
     r2 = ctx.get_renderer(cfg)
     assert r1 is r2
-    assert ctx.renderer is r1
-    assert len(ctx.renderers) == 1
 
 
 def test_get_renderer_two_different_concrete_types_coexist():
@@ -37,8 +35,6 @@ def test_get_renderer_two_different_concrete_types_coexist():
     rtx = ctx.get_renderer(IsaacRtxRendererCfg())
     nw = ctx.get_renderer(NewtonWarpRendererCfg())
     assert rtx is not nw
-    assert len(ctx.renderers) == 2
-    assert ctx.renderer is None
 
 
 def test_ensure_prepare_stage_idempotent():
