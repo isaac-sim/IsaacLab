@@ -83,9 +83,14 @@ class UniformVelocityCommand(CommandTerm):
         self.heading_target = torch.zeros(self.num_envs, device=self.device)
         self.is_heading_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.is_standing_env = torch.zeros_like(self.is_heading_env)
-        # -- metrics
+        # -- metrics: finalized per-episode means/rates, written at reset() and read by the base class
         self.metrics["error_vel_xy"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_vel_yaw"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["success_rate"] = torch.zeros(self.num_envs, device=self.device)
+        # -- per-episode running sums (cleared at episode reset)
+        self._error_xy_sum = torch.zeros(self.num_envs, device=self.device)
+        self._error_yaw_sum = torch.zeros(self.num_envs, device=self.device)
+        self._step_count = torch.zeros(self.num_envs, device=self.device)
 
     def __str__(self) -> str:
         """Return a string representation of the command generator."""
@@ -112,17 +117,39 @@ class UniformVelocityCommand(CommandTerm):
     """
 
     def _update_metrics(self):
-        # time for which the command was executed
-        max_command_time = self.cfg.resampling_time_range[1]
-        max_command_step = max_command_time / self._env.step_dt
-        # logs data
-        self.metrics["error_vel_xy"] += (
-            torch.linalg.norm(self.vel_command_b[:, :2] - self.robot.data.root_lin_vel_b.torch[:, :2], dim=-1)
-            / max_command_step
-        )
-        self.metrics["error_vel_yaw"] += (
-            torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b.torch[:, 2]) / max_command_step
-        )
+        # accumulate per-step tracking error sums; the per-episode mean is finalized in
+        # :meth:`reset` so the value is independent of episode length and
+        # ``resampling_time_range`` (no magic ``max_command_step`` divisor).
+        error_xy = torch.linalg.norm(self.vel_command_b[:, :2] - self.robot.data.root_lin_vel_b.torch[:, :2], dim=-1)
+        error_yaw = torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_ang_vel_b.torch[:, 2])
+        self._error_xy_sum += error_xy
+        self._error_yaw_sum += error_yaw
+        self._step_count += 1.0
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        # Finalize the just-ended episode's metrics into ``self.metrics`` BEFORE the base
+        # class reads them. ``success_rate`` is per-env binary: the *episode-mean* error
+        # is below both thresholds. Then super().reset() logs and zeros ``self.metrics``;
+        # we zero the running sums for ``env_ids`` afterwards so the next episode starts clean.
+        if env_ids is None:
+            env_ids = slice(None)
+        denom = self._step_count[env_ids].clamp_min(1.0)
+        mean_error_xy = self._error_xy_sum[env_ids] / denom
+        mean_error_yaw = self._error_yaw_sum[env_ids] / denom
+        self.metrics["error_vel_xy"][env_ids] = mean_error_xy
+        self.metrics["error_vel_yaw"][env_ids] = mean_error_yaw
+        self.metrics["success_rate"][env_ids] = (
+            (mean_error_xy < self.cfg.vel_xy_success_threshold) & (mean_error_yaw < self.cfg.vel_yaw_success_threshold)
+        ).float()
+        extras = super().reset(env_ids)
+        # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
+        # / wandb card across tasks); pop it from the returned dict so CommandManager does
+        # not additionally log it under ``Metrics/<term_name>/success_rate``.
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
+        self._error_xy_sum[env_ids] = 0.0
+        self._error_yaw_sum[env_ids] = 0.0
+        self._step_count[env_ids] = 0.0
+        return extras
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample velocity commands

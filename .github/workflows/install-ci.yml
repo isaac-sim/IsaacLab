@@ -14,6 +14,7 @@ on:
       - 'source/**'
       - '**/pyproject.toml'
       - '**/environment.yaml'
+      - '.github/actions/run-package-tests/**'
       - '.github/workflows/install-ci.yml'
   push:
     branches:
