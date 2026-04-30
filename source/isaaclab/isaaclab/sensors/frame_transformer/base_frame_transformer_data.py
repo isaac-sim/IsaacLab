@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-import warp as wp
+from isaaclab.utils.warp import ProxyArray
 
 
 class BaseFrameTransformerData(ABC):
@@ -30,7 +30,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def target_pose_source(self) -> wp.array | None:
+    def target_pose_source(self) -> ProxyArray | None:
         """Pose of the target frame(s) relative to source frame.
 
         Shape is (num_instances, num_target_frames), dtype = wp.transformf. In torch this resolves to
@@ -40,7 +40,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def target_pos_source(self) -> wp.array:
+    def target_pos_source(self) -> ProxyArray:
         """Position of the target frame(s) relative to source frame.
 
         Shape is (num_instances, num_target_frames), dtype = wp.vec3f. In torch this resolves to
@@ -50,7 +50,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def target_quat_source(self) -> wp.array:
+    def target_quat_source(self) -> ProxyArray:
         """Orientation of the target frame(s) relative to source frame.
 
         Shape is (num_instances, num_target_frames), dtype = wp.quatf. In torch this resolves to
@@ -60,7 +60,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def target_pose_w(self) -> wp.array | None:
+    def target_pose_w(self) -> ProxyArray | None:
         """Pose of the target frame(s) after offset in world frame.
 
         Shape is (num_instances, num_target_frames), dtype = wp.transformf. In torch this resolves to
@@ -70,7 +70,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def target_pos_w(self) -> wp.array:
+    def target_pos_w(self) -> ProxyArray:
         """Position of the target frame(s) after offset in world frame.
 
         Shape is (num_instances, num_target_frames), dtype = wp.vec3f. In torch this resolves to
@@ -80,7 +80,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def target_quat_w(self) -> wp.array:
+    def target_quat_w(self) -> ProxyArray:
         """Orientation of the target frame(s) after offset in world frame.
 
         Shape is (num_instances, num_target_frames), dtype = wp.quatf. In torch this resolves to
@@ -90,7 +90,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def source_pose_w(self) -> wp.array | None:
+    def source_pose_w(self) -> ProxyArray | None:
         """Pose of the source frame after offset in world frame.
 
         Shape is (num_instances,), dtype = wp.transformf. In torch this resolves to (num_instances, 7).
@@ -100,7 +100,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def source_pos_w(self) -> wp.array:
+    def source_pos_w(self) -> ProxyArray:
         """Position of the source frame after offset in world frame.
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
@@ -109,7 +109,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
-    def source_quat_w(self) -> wp.array:
+    def source_quat_w(self) -> ProxyArray:
         """Orientation of the source frame after offset in world frame.
 
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).

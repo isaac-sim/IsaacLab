@@ -285,10 +285,16 @@ class RewardsCfg:
     )
 
     # 3. Open the drawer
+    # ``open_drawer_bonus`` doubles as the success metric host: passing ``success_threshold``
+    # tells the term to flip a sticky per-env bit when the drawer crosses that joint position
+    # and to log the per-env mean as ``Metrics/success_rate`` on episode reset.
     open_drawer_bonus = RewTerm(
         func=mdp.open_drawer_bonus,
         weight=7.5,
-        params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_top_joint"])},
+        params={
+            "asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_top_joint"]),
+            "success_threshold": 0.30,
+        },
     )
     multi_stage_open_drawer = RewTerm(
         func=mdp.multi_stage_open_drawer,

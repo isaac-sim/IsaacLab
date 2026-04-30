@@ -178,8 +178,8 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
 
         # Compute camera world poses by composing view pose with sensor offset
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
-        pos_wp, quat_wp = self._view.get_world_poses(indices)
-        pos_w, quat_w = wp.to_torch(pos_wp), wp.to_torch(quat_wp)
+        pos_w, quat_w = self._view.get_world_poses(indices)
+        pos_w, quat_w = pos_w.torch, quat_w.torch
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )

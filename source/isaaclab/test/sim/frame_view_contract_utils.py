@@ -43,6 +43,8 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 CHILD_OFFSET = (0.1, 0.0, 0.05)
 """Local offset of the child prim from its parent, shared by all backend fixtures."""
 
@@ -60,7 +62,9 @@ class ViewBundle(NamedTuple):
 
 
 def _t(a):
-    """Convert wp.array to torch.Tensor (pass-through for Tensor)."""
+    """Convert a wp.array or ProxyArray return to a torch.Tensor (pass-through otherwise)."""
+    if isinstance(a, ProxyArray):
+        return a.torch
     return wp.to_torch(a) if isinstance(a, wp.array) else a
 
 
@@ -355,5 +359,46 @@ def test_set_world_indexed_only_affects_subset(device, view_factory):
         torch.testing.assert_close(updated[2], orig_pos[2], atol=0, rtol=0)
         torch.testing.assert_close(updated[1], _t(new_pos)[0], atol=ATOL, rtol=0)
         torch.testing.assert_close(updated[3], _t(new_pos)[1], atol=ATOL, rtol=0)
+    finally:
+        bundle.teardown()
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_return_types_are_torcharray(device, view_factory):
+    """Public API contract — every backend returns ProxyArray from the pose getters."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        pos_full, quat_full = bundle.view.get_world_poses()
+        assert isinstance(pos_full, ProxyArray), (
+            f"get_world_poses()[0] must be ProxyArray, got {type(pos_full).__name__}"
+        )
+        assert isinstance(quat_full, ProxyArray), (
+            f"get_world_poses()[1] must be ProxyArray, got {type(quat_full).__name__}"
+        )
+
+        indices = wp.array([0], dtype=wp.int32, device=bundle.view.device)
+        pos_idx, quat_idx = bundle.view.get_world_poses(indices)
+        assert isinstance(pos_idx, ProxyArray), (
+            f"get_world_poses(indices)[0] must be ProxyArray, got {type(pos_idx).__name__}"
+        )
+        assert isinstance(quat_idx, ProxyArray), (
+            f"get_world_poses(indices)[1] must be ProxyArray, got {type(quat_idx).__name__}"
+        )
+
+        lpos_full, lquat_full = bundle.view.get_local_poses()
+        assert isinstance(lpos_full, ProxyArray), (
+            f"get_local_poses()[0] must be ProxyArray, got {type(lpos_full).__name__}"
+        )
+        assert isinstance(lquat_full, ProxyArray), (
+            f"get_local_poses()[1] must be ProxyArray, got {type(lquat_full).__name__}"
+        )
+
+        lpos_idx, lquat_idx = bundle.view.get_local_poses(indices)
+        assert isinstance(lpos_idx, ProxyArray), (
+            f"get_local_poses(indices)[0] must be ProxyArray, got {type(lpos_idx).__name__}"
+        )
+        assert isinstance(lquat_idx, ProxyArray), (
+            f"get_local_poses(indices)[1] must be ProxyArray, got {type(lquat_idx).__name__}"
+        )
     finally:
         bundle.teardown()

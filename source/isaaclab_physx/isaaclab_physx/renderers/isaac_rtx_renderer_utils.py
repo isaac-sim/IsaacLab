@@ -11,6 +11,8 @@ import logging
 import time
 from typing import Any
 
+import omni.usd
+
 import isaaclab.sim as sim_utils
 
 logger = logging.getLogger(__name__)
@@ -58,13 +60,43 @@ def _wait_for_streaming_complete() -> None:
     omni.kit.app.get_app().update()
 
 
+def ensure_rtx_hydra_engine_attached() -> None:
+    """Attach the RTX Hydra engine to the USD context if not already attached.
+
+    Headless app files such as ``isaaclab.python.headless.rendering.kit`` intentionally
+    omit ``omni.kit.viewport.window`` to avoid pulling in the ``omni.ui``-based viewport
+    stack. However, ``ViewportWindow`` is normally responsible for calling
+    :func:`omni.usd.create_hydra_engine` at startup; without it the RTX Hydra engine is
+    never bound to the :class:`omni.usd.UsdContext`, and the first Replicator tiled
+    render product runs against a cold pipeline. On some GPUs this manifests as
+    ``cudaErrorIllegalAddress`` inside ``omni.rtx`` (CUDA ``freeAsync``) and/or all
+    tiles rendering as black.
+
+    This helper replicates only the activation step ``ViewportWindow`` performs,
+    without creating a UI or a window. It is idempotent: when the engine is already
+    attached (e.g. GUI runs that do load ``omni.kit.viewport.window``, or a previous
+    call already attached it) the function is a no-op. Failures are logged as errors
+    and do not propagate, so non-RTX contexts (e.g. unit tests importing this module
+    without a running Kit app) continue to work.
+    """
+    try:
+        ctx = omni.usd.get_context()
+        if ctx is None:
+            return
+        if "rtx" in ctx.get_attached_hydra_engine_names():
+            return
+        omni.usd.create_hydra_engine("rtx", ctx)
+    except Exception as e:  # noqa: BLE001
+        logger.error("RTX Hydra engine attach failed: %s", e)
+
+
 def ensure_isaac_rtx_render_update() -> None:
     """Ensure the Isaac RTX renderer has been pumped for the current sim step.
 
     This keeps the Kit-specific ``app.update()`` logic inside the renderers
     package rather than in the backend-agnostic ``SimulationContext``.
 
-    Safe to call from multiple ``Camera`` / ``TiledCamera`` instances per step —
+    Safe to call from multiple ``Camera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
     because the module-level ``_last_render_update_key`` already matches the
     current ``(id(sim), step_count, render_generation)`` tuple.
@@ -95,7 +127,11 @@ def ensure_isaac_rtx_render_update() -> None:
         return  # Already pumped this step (by another camera or a visualizer)
 
     # If a visualizer already pumps the Kit app loop, mark as done and skip.
-    if any(viz.pumps_app_update() for viz in sim.visualizers):
+    # However, on the very first call for a new SimulationContext, the visualizer
+    # has not had a chance to pump yet (sim.render() was never called), so we
+    # must perform the initial app.update() ourselves to populate annotator buffers.
+    first_call_for_sim = _last_render_update_key[0] != id(sim)
+    if not first_call_for_sim and any(viz.pumps_app_update() for viz in sim.visualizers):
         _last_render_update_key = key
         return
 

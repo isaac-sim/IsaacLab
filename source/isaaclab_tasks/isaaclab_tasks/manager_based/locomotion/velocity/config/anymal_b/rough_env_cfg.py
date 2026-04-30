@@ -3,14 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
-    EventsCfg,
-    LocomotionVelocityRoughEnvCfg,
-    StartupEventsCfg,
-)
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
 ##
 # Pre-defined configs
@@ -19,21 +15,7 @@ from isaaclab_assets import ANYMAL_B_CFG  # isort: skip
 
 
 @configclass
-class AnymalBPhysxEventsCfg(EventsCfg, StartupEventsCfg):
-    pass
-
-
-@configclass
-class AnymalBEventsCfg(PresetCfg):
-    default = AnymalBPhysxEventsCfg()
-    newton = EventsCfg()
-    physx = default
-
-
-@configclass
 class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    events: AnymalBEventsCfg = AnymalBEventsCfg()
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

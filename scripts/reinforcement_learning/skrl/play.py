@@ -34,7 +34,7 @@ from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
-SKRL_VERSION = "1.4.3"
+SKRL_VERSION = "2.0.0"
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl.")
@@ -65,7 +65,7 @@ parser.add_argument(
     "--ml_framework",
     type=str,
     default="torch",
-    choices=["torch", "jax", "jax-numpy"],
+    choices=["torch", "jax"],
     help="The ML framework used for training the skrl agent.",
 )
 parser.add_argument(
@@ -191,10 +191,11 @@ def main():
 
         print(f"[INFO] Loading model checkpoint from: {resume_path}")
         runner.agent.load(resume_path)
-        runner.agent.set_running_mode("eval")
+        runner.agent.enable_training_mode(False, apply_to_models=True)
 
         # reset environment
         obs, _ = env.reset()
+        states = env.state()
         timestep = 0
         # simulate environment
         try:
@@ -202,12 +203,13 @@ def main():
                 start_time = time.time()
 
                 with torch.inference_mode():
-                    outputs = runner.agent.act(obs, timestep=0, timesteps=0)
+                    outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
                     if hasattr(env, "possible_agents"):
                         actions = {a: outputs[-1][a].get("mean_actions", outputs[0][a]) for a in env.possible_agents}
                     else:
                         actions = outputs[-1].get("mean_actions", outputs[0])
                     obs, _, _, _, _ = env.step(actions)
+                    states = env.state()
                 if args_cli.video:
                     timestep += 1
                     if timestep == args_cli.video_length:

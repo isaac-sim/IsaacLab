@@ -14,7 +14,6 @@ simulation_app = AppLauncher(headless=True).app
 import numpy as np
 import pytest
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
@@ -97,9 +96,9 @@ def test_world_alignment_ignores_sensor_pitch(sim_ground):
     sensor_upright.update(dt)
     sensor_pitched.update(dt)
 
-    # ray_hits_w is a wp.array(dtype=wp.vec3f); convert to torch for indexing
-    hits_upright = wp.to_torch(sensor_upright.data.ray_hits_w)  # (1, 1, 3)
-    hits_pitched = wp.to_torch(sensor_pitched.data.ray_hits_w)
+    # ray_hits_w returns a ProxyArray; use .torch for tensor indexing.
+    hits_upright = sensor_upright.data.ray_hits_w.torch  # (1, 1, 3)
+    hits_pitched = sensor_pitched.data.ray_hits_w.torch
 
     # Both must hit z=0 (straight down, world frame direction)
     assert abs(hits_upright[0, 0, 2].item()) < 0.02, (
@@ -139,8 +138,8 @@ def test_base_alignment_rotates_ray_direction(sim_ground):
     sensor_world.update(dt)
     sensor_base.update(dt)
 
-    hits_world = wp.to_torch(sensor_world.data.ray_hits_w)  # (1, 1, 3)
-    hits_base = wp.to_torch(sensor_base.data.ray_hits_w)
+    hits_world = sensor_world.data.ray_hits_w.torch  # (1, 1, 3)
+    hits_base = sensor_base.data.ray_hits_w.torch
 
     # World mode: ray still hits directly below (x≈0, y≈0, z≈0)
     assert abs(hits_world[0, 0, 0].item()) < 0.05, f"World mode hit x must be near 0, got {hits_world[0, 0, 0].item()}"
@@ -201,8 +200,8 @@ def test_yaw_alignment_direction_unchanged(sim_ground):
     sensor_world.update(dt)
     sensor_yaw.update(dt)
 
-    hits_world = wp.to_torch(sensor_world.data.ray_hits_w)  # (1, 1, 3)
-    hits_yaw = wp.to_torch(sensor_yaw.data.ray_hits_w)
+    hits_world = sensor_world.data.ray_hits_w.torch  # (1, 1, 3)
+    hits_yaw = sensor_yaw.data.ray_hits_w.torch
 
     # Both modes must hit the ground (direction unchanged = straight down in both modes)
     assert abs(hits_world[0, 0, 2].item()) < 0.05, "World mode must hit z≈0"
