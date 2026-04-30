@@ -226,8 +226,8 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
 
         # Simulation bindings
         # Note: these are direct memory views into the Newton simulation data, they should not be modified directly
-        self.joint_pos = self.cartpole.data.joint_pos
-        self.joint_vel = self.cartpole.data.joint_vel
+        self.joint_pos = self.cartpole.data.joint_pos.warp
+        self.joint_vel = self.cartpole.data.joint_vel.warp
 
         # Buffers
         self.observations = wp.zeros((self.num_envs), dtype=wp.vec4f, device=self.device)
@@ -344,8 +344,8 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
             reset,
             dim=self.num_envs,
             inputs=[
-                self.cartpole.data.default_joint_pos,
-                self.cartpole.data.default_joint_vel,
+                self.cartpole.data.default_joint_pos.warp,
+                self.cartpole.data.default_joint_vel.warp,
                 self.joint_pos,
                 self.joint_vel,
                 self._cart_dof_idx[0],

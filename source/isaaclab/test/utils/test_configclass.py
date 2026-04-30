@@ -1145,3 +1145,66 @@ def test_dir_resolution_in_subclass():
     assert _field_module_dir(child, "class_type") == "some_package.sub_package"
     # extra should resolve to the child's module dir
     assert _field_module_dir(child, "extra") == "test_some_feature"
+
+
+# =============================================================================
+# Tests: checked_apply
+# =============================================================================
+
+
+def test_checked_apply_forwards_all_fields():
+    """checked_apply forwards every declared field on src onto target."""
+    from dataclasses import dataclass as plain_dataclass
+
+    from isaaclab.utils import checked_apply
+
+    @configclass
+    class WrapperCfg:
+        gap: float = 0.01
+        margin: float = 0.0
+
+    @plain_dataclass
+    class UpstreamLike:
+        gap: float = 99.0
+        margin: float = 99.0
+        unrelated: str = "keep me"
+
+    src = WrapperCfg(margin=0.005)
+    target = UpstreamLike()
+    checked_apply(src, target)
+
+    assert target.gap == 0.01
+    assert target.margin == 0.005
+    # fields not declared on src are not touched
+    assert target.unrelated == "keep me"
+
+
+def test_checked_apply_raises_on_missing_target_field():
+    """checked_apply fails loudly when target lacks a declared field."""
+    from dataclasses import dataclass as plain_dataclass
+
+    from isaaclab.utils import checked_apply
+
+    @configclass
+    class WrapperCfg:
+        margin: float = 0.01
+        renamed_in_upstream: float = 0.0
+
+    @plain_dataclass
+    class UpstreamMissingField:
+        margin: float = 0.0
+        # 'renamed_in_upstream' was renamed/removed upstream
+
+    with pytest.raises(AttributeError, match="renamed_in_upstream"):
+        checked_apply(WrapperCfg(), UpstreamMissingField())
+
+
+def test_checked_apply_rejects_non_dataclass_src():
+    """checked_apply requires src to be a dataclass."""
+    from isaaclab.utils import checked_apply
+
+    class NotADataclass:
+        margin = 0.01
+
+    with pytest.raises(TypeError, match="must be a dataclass"):
+        checked_apply(NotADataclass(), object())

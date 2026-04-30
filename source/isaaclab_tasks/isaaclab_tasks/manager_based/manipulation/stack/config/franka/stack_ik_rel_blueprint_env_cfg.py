@@ -26,7 +26,7 @@ from . import stack_joint_pos_env_cfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.sensors import Camera, RayCasterCamera, TiledCamera
+    from isaaclab.sensors import Camera, RayCasterCamera
 ##
 # Pre-defined configs
 ##
@@ -63,7 +63,7 @@ def image(
         The images produced at the last time-step
     """
     # extract the used quantities (to enable type-hinting)
-    sensor: TiledCamera | Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
+    sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
     # obtain the input image
     images = sensor.data.output[data_type]

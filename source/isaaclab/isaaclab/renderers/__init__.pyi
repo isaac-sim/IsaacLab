@@ -5,10 +5,13 @@
 
 __all__ = [
     "BaseRenderer",
+    "RenderBufferKind",
+    "RenderBufferSpec",
     "Renderer",
     "RendererCfg",
 ]
 
 from .base_renderer import BaseRenderer
+from .output_contract import RenderBufferKind, RenderBufferSpec
 from .renderer import Renderer
 from .renderer_cfg import RendererCfg

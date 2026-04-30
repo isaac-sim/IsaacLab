@@ -738,6 +738,22 @@ def test_dict_preset_with_factory():
 
 
 # =============================================================================
+# Tests: rough terrain config regressions
+# =============================================================================
+
+
+def test_go1_rough_newton_armature_preset():
+    """Go1 rough terrain uses higher Newton armature without changing PhysX."""
+    from isaaclab_tasks.manager_based.locomotion.velocity.config.go1.rough_env_cfg import UnitreeGo1RoughEnvCfg
+
+    env_cfg, _ = _apply(UnitreeGo1RoughEnvCfg(), global_presets=["newton"])
+    assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.02
+
+    env_cfg, _ = _apply(UnitreeGo1RoughEnvCfg())
+    assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.0
+
+
+# =============================================================================
 # Tests: PresetCfg inside deeply nested dicts (e.g., event term params)
 # =============================================================================
 

@@ -424,7 +424,7 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                 # iterate over the joint properties
                 for attr_name, attr_value in joint_cfg.__dict__.items():
                     # skip names we know are not present
-                    if attr_name == "func":
+                    if attr_name in ["func", "ensure_drives_exist"]:
                         continue
                     # resolve the drive (linear or angular)
                     drive_model = "linear" if joint_prim.IsA(UsdPhysics.PrismaticJoint) else "angular"

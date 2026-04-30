@@ -13,7 +13,6 @@
     MassPropertiesCfg
     JointDrivePropertiesCfg
     FixedTendonPropertiesCfg
-    DeformableBodyPropertiesCfg
 
   .. rubric:: Functions
 
@@ -30,8 +29,6 @@
     modify_mass_properties
     modify_joint_drive_properties
     modify_fixed_tendon_properties
-    define_deformable_body_properties
-    modify_deformable_body_properties
 
 Articulation Root
 -----------------
@@ -95,9 +92,11 @@ Fixed Tendon
 Deformable Body
 ---------------
 
-.. autoclass:: DeformableBodyPropertiesCfg
-    :members:
-    :exclude-members: __init__
+.. note::
 
-.. autofunction:: define_deformable_body_properties
-.. autofunction:: modify_deformable_body_properties
+   Deformable body schemas have moved to the PhysX backend extension. See
+   :class:`isaaclab_physx.sim.schemas.DeformableBodyPropertiesCfg`,
+   :func:`isaaclab_physx.sim.schemas.define_deformable_body_properties`, and
+   :func:`isaaclab_physx.sim.schemas.modify_deformable_body_properties`.
+
+   For migration details, see :ref:`migrating-deformables`.
