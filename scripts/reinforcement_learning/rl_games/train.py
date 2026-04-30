@@ -50,6 +50,15 @@ parser.add_argument(
 )
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
+    "--deterministic",
+    action="store_true",
+    default=False,
+    help=(
+        "Enable strict PyTorch determinism (torch.use_deterministic_algorithms(True), cudnn deterministic, "
+        "etc.). Opt-in: some CUDA ops may error if no deterministic implementation exists."
+    ),
+)
+parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
 parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
@@ -204,7 +213,7 @@ def main():
         else:
             runner = Runner(IsaacAlgoObserver())
 
-        configure_seed(env_cfg.seed, True)
+        configure_seed(env_cfg.seed, args_cli.deterministic)
 
         runner.load(agent_cfg)
         runner.reset()
