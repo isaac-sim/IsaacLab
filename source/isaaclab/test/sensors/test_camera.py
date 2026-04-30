@@ -408,12 +408,12 @@ def test_depth_clipping(setup_sim_camera):
 
     camera_cfg_none = copy.deepcopy(camera_cfg_zero)
     camera_cfg_none.prim_path = "/World/CameraNone"
-    camera_cfg_none.depth_clipping_behavior = "none"
+    camera_cfg_none.renderer_cfg.depth_clipping_behavior = "none"
     camera_none = Camera(camera_cfg_none)
 
     camera_cfg_max = copy.deepcopy(camera_cfg_zero)
     camera_cfg_max.prim_path = "/World/CameraMax"
-    camera_cfg_max.depth_clipping_behavior = "max"
+    camera_cfg_max.renderer_cfg.depth_clipping_behavior = "max"
     camera_max = Camera(camera_cfg_max)
 
     # Play sim
@@ -504,9 +504,9 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
         "instance_segmentation_fast",
         "instance_id_segmentation_fast",
     ]
-    camera_cfg.colorize_instance_id_segmentation = True
-    camera_cfg.colorize_instance_segmentation = True
-    camera_cfg.colorize_semantic_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = True
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = True
     # Create camera
     camera = Camera(camera_cfg)
 
@@ -566,9 +566,9 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
         "instance_segmentation_fast",
         "instance_id_segmentation_fast",
     ]
-    camera_cfg.colorize_instance_id_segmentation = False
-    camera_cfg.colorize_instance_segmentation = False
-    camera_cfg.colorize_semantic_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = False
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
     # Create camera
     camera = Camera(camera_cfg)
 
@@ -627,9 +627,9 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
         "instance_segmentation_fast",
         "instance_id_segmentation_fast",
     ]
-    camera_cfg.colorize_instance_id_segmentation = True
-    camera_cfg.colorize_instance_segmentation = True
-    camera_cfg.colorize_semantic_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = True
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = True
     camera_cfg.width = 512
     camera_cfg.height = 512
     # Create camera
@@ -957,9 +957,9 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation_fast", "instance_id_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera_cfg.colorize_semantic_segmentation = False
-    camera_cfg.colorize_instance_segmentation = False
-    camera_cfg.colorize_instance_id_segmentation = False
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -1074,6 +1074,91 @@ def test_camera_frame_offset(setup_camera_device, device):
     assert torch.abs(image_after - image_before).mean() > 0.01
 
     del camera
+
+
+def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
+    """Test Camera warns once and drops data types its renderer cannot produce."""
+    import logging
+
+    from isaaclab.renderers import Renderer
+    from isaaclab.renderers.base_renderer import BaseRenderer
+
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = ["rgba", "depth", "normals"]
+
+    from isaaclab.sensors.camera.camera_data import RenderBufferKind, RenderBufferSpec
+
+    class _PartialRenderer(BaseRenderer):
+        """Publishes only ``rgba`` in its supported-output contract."""
+
+        def __init__(self, cfg=None):
+            self.cfg = cfg
+
+        def supported_output_types(self):
+            return {RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8)}
+
+        def prepare_stage(self, stage, num_envs):
+            pass
+
+        def create_render_data(self, sensor):
+            return object()
+
+        def set_outputs(self, render_data, output_data):
+            pass
+
+        def update_transforms(self):
+            pass
+
+        def update_camera(self, render_data, positions, orientations, intrinsics):
+            pass
+
+        def render(self, render_data):
+            pass
+
+        def read_output(self, render_data, camera_data):
+            pass
+
+        def cleanup(self, render_data):
+            pass
+
+    backend = Renderer._get_backend(camera_cfg.renderer_cfg)
+    original = Renderer._registry.get(backend)
+    Renderer._registry[backend] = _PartialRenderer
+    try:
+        camera = Camera(camera_cfg)
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger="isaaclab.sensors.camera.camera"):
+            sim.reset()
+            # Step a few frames and confirm the warning is emitted once at init.
+            for _ in range(3):
+                sim.step()
+                camera.update(dt)
+
+        warning_records = [
+            r for r in caplog.records if r.levelno == logging.WARNING and "does not support" in r.getMessage()
+        ]
+        assert len(warning_records) == 1, (
+            f"Expected exactly one 'does not support' warning, got {len(warning_records)}:"
+            f" {[r.getMessage() for r in warning_records]}"
+        )
+        msg = warning_records[0].getMessage()
+        assert "_PartialRenderer" in msg
+        assert "depth" in msg
+        assert "normals" in msg
+        assert "rgba" not in msg
+
+        # Only the supported subset is in ``data.output``; the rest were dropped.
+        assert set(camera.data.output.keys()) == {"rgba"}
+        # ``data.info`` mirrors the ``data.output`` keys.
+        assert set(camera.data.info.keys()) == {"rgba"}
+
+        del camera
+    finally:
+        if original is not None:
+            Renderer._registry[backend] = original
+        else:
+            Renderer._registry.pop(backend, None)
 
 
 def _populate_scene():

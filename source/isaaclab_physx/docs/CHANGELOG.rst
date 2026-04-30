@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-0.5.28 (2026-04-28)
+0.5.29 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
@@ -14,6 +14,21 @@ Changed
 * Pre-allocated pinned CPU buffers for all joint property and body property writers,
   replacing per-call ``wp.clone(device="cpu")`` allocations with ``wp.copy`` into
   reusable pinned memory.
+
+
+0.5.28 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed camera observation hang when a visualizer (e.g. KitVisualizer for XR
+  teleop) is active and ``--enable_cameras`` is set.
+  :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.ensure_isaac_rtx_render_update`
+  now performs the initial ``app.update()`` on the very first call for a new
+  :class:`~isaaclab.sim.SimulationContext`, even when a visualizer reports that
+  it pumps the Kit app loop, because the visualizer has not had a chance to pump
+  yet at that point.
 
 
 0.5.27 (2026-04-27)

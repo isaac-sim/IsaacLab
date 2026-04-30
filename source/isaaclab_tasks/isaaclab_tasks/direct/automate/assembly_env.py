@@ -543,7 +543,9 @@ class AssemblyEnv(DirectRLEnv):
 
         # Only log episode success rates at the end of an episode.
         if torch.any(self.reset_buf):
-            self.extras["successes"] = torch.count_nonzero(self.ep_succeeded) / self.num_envs
+            self.extras.setdefault("log", {})["Metrics/success_rate"] = (
+                torch.count_nonzero(self.ep_succeeded) / self.num_envs
+            ).item()
 
             sbc_rwd_scale = automate_algo.get_curriculum_reward_scale(
                 curr_max_disp=self.curr_max_disp,
