@@ -161,6 +161,8 @@ class RslRlEarlyStopWrapper:
         if self.tracker.at_iteration_boundary:
             self.tracker.end_iteration()
             if self.stop_on_convergence and self.tracker.converged:
+                # relies on rsl_rl's rollout loop not catching arbitrary exceptions; if upstream
+                # ever wraps env.step in a broad except, this exception will be swallowed
                 raise EarlyStopConverged()
         return result
 
