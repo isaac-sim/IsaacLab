@@ -20,6 +20,33 @@ simulation results are reproducible across different runs. The seed is set into 
 parameters :attr:`isaaclab.envs.ManagerBasedEnvCfg.seed` or :attr:`isaaclab.envs.DirectRLEnvCfg.seed`
 depending on the manager-based or direct environment implementation respectively.
 
+.. note::
+
+   **Strict PyTorch determinism is only wired into the RL-Games training script.**
+
+   The optional ``--deterministic`` flag (which calls :meth:`~isaaclab.utils.seed.configure_seed` with
+   ``torch_deterministic=True``, enabling ``torch.use_deterministic_algorithms(True)`` and related CUDNN
+   settings) exists only on ``scripts/reinforcement_learning/rl_games/train.py``.
+
+   The RSL-RL, Stable-Baselines3, SKRL, and RLinf training scripts under
+   ``scripts/reinforcement_learning/`` still honor ``--seed`` / agent configuration for the Isaac Lab
+   environment and learning stack, but they do **not** expose an equivalent opt-in for strict PyTorch-wide
+   deterministic algorithms. If you need that behavior with another framework, call
+   :meth:`~isaaclab.utils.seed.configure_seed` with ``torch_deterministic=True`` from your own training
+   entry point, keeping in mind that some CUDA operations may error when no deterministic implementation
+   exists.
+
+To enable deterministic rendering/app settings, launch workflows with the deterministic experience file:
+
+.. code-block:: bash
+
+  ./isaaclab.sh -p scripts/reinforcement_learning/rl_games/train.py \
+    --task Isaac-Cartpole-v0 \
+    --experience isaaclab.python.headless.determinism.kit
+
+For RL-Games, combine this with ``--deterministic`` if you also want strict PyTorch deterministic
+algorithms in addition to deterministic app/render settings.
+
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 
 .. tip::
