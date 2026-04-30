@@ -31,6 +31,10 @@ def _as_list(value: str | list[str]) -> list[str]:
     return [value]
 
 
+def _assert_job_if_is_exactly(job: dict[str, Any], expected: str) -> None:
+    assert job["if"] == expected
+
+
 def test_required_docker_test_workflow_reports_for_docs_only_prs():
     workflow = _load_workflow("build.yaml")
 
@@ -43,19 +47,34 @@ def test_required_docker_test_workflow_reports_for_docs_only_prs():
     for job_name in ("build", "build-curobo"):
         job = jobs[job_name]
         assert "changes" in _as_list(job["needs"])
-        assert "needs.changes.outputs.run_docker_tests == 'true'" in job["if"]
+        _assert_job_if_is_exactly(job, "needs.changes.outputs.run_docker_tests == 'true'")
 
-    gate = jobs["docker-required-tests-gate"]
-    assert gate["name"] == "Docker Required Tests Gate"
+    gate = jobs["docker-tests-gate"]
+    assert gate["name"] == "Docker Tests Gate"
     assert gate["if"] == "always()"
-    assert "changes" in gate["needs"]
-    assert "build" in gate["needs"]
-    assert "test-isaaclab-core" in gate["needs"]
-    assert "test-isaaclab-core-2" in gate["needs"]
-    assert "test-isaaclab-core-3" in gate["needs"]
-    assert "test-isaaclab-assets" in gate["needs"]
-    assert "test-isaaclab-contrib" in gate["needs"]
-    assert "test-isaaclab-newton" in gate["needs"]
+    assert gate["needs"] == [
+        "changes",
+        "build",
+        "build-curobo",
+        "test-isaaclab-tasks",
+        "test-isaaclab-tasks-2",
+        "test-isaaclab-tasks-3",
+        "test-isaaclab-core",
+        "test-isaaclab-core-2",
+        "test-isaaclab-core-3",
+        "test-isaaclab-rl",
+        "test-isaaclab-mimic",
+        "test-isaaclab-assets",
+        "test-isaaclab-contrib",
+        "test-isaaclab-teleop",
+        "test-isaaclab-visualizers",
+        "test-isaaclab-newton",
+        "test-isaaclab-physx",
+        "test-isaaclab-ov",
+        "test-curobo",
+        "test-skillgen",
+        "test-environments-training",
+    ]
 
 
 def test_required_installation_workflow_reports_for_docs_only_prs():
@@ -69,7 +88,7 @@ def test_required_installation_workflow_reports_for_docs_only_prs():
 
     install_tests = jobs["install-tests"]
     assert "changes" in _as_list(install_tests["needs"])
-    assert "needs.changes.outputs.run_install_tests == 'true'" in install_tests["if"]
+    _assert_job_if_is_exactly(install_tests, "needs.changes.outputs.run_install_tests == 'true'")
 
     gate = jobs["installation-tests-gate"]
     assert gate["name"] == "Installation Tests Gate"
