@@ -82,34 +82,3 @@ jobs:
           fi
 
           tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
-
-  installation-tests-gate:
-    name: Installation Tests Gate
-    needs: [changes, install-tests]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check installation test result
-        env:
-          CHANGES_RESULT: ${{ needs.changes.result }}
-          RUN_INSTALL_TESTS: ${{ needs.changes.outputs.run_install_tests }}
-          INSTALL_TESTS_RESULT: ${{ needs.install-tests.result }}
-        run: |
-          set -euo pipefail
-
-          if [ "$CHANGES_RESULT" != "success" ]; then
-            echo "Change detection failed with result: $CHANGES_RESULT"
-            exit 1
-          fi
-
-          if [ "$RUN_INSTALL_TESTS" != "true" ]; then
-            echo "Installation tests are not required for this change."
-            exit 0
-          fi
-
-          if [ "$INSTALL_TESTS_RESULT" != "success" ]; then
-            echo "Installation Tests did not pass: $INSTALL_TESTS_RESULT"
-            exit 1
-          fi
-
-          echo "Installation Tests passed."
