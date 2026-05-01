@@ -2994,12 +2994,18 @@ def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_ena
     # Print metrics every run for stress-test capture.
     print(f"IK_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
 
-    # Regression sentinel: 15 cm best-of-tail. Newton converges to ~3-4 cm
-    # in normal operation; this bound absorbs the actuator floor + CUDA
-    # non-determinism (~2% non-convergence at tighter thresholds under
-    # 100x stress). A broken bridge would settle far above this bound.
-    assert pos_min < 1.5e-1, f"IK pos_min {pos_min:.4f} > 15 cm — bridge regression?"
-    assert rot_min < 5e-1, f"IK rot_min {rot_min:.4f} > 0.5 rad — bridge regression?"
+    # Regression sentinel: 5 cm best-of-tail. Newton with this exact test
+    # setup (initial pose, target = initial + 5 cm in x) converges to a
+    # deterministic ~4.14 cm and stays there bit-for-bit across 13+
+    # consecutive stress runs — Newton's MJWarp solver is deterministic
+    # for the short-trajectory case. The non-determinism we observed at
+    # 60 cm targets was specific to trajectories admitting multiple local
+    # minima. A bridge regression (wrong-frame Jacobian, missing
+    # COM->origin shift, DoF mis-ordering) would push the steady-state
+    # error well past 5 cm because the Newton actuator floor would
+    # compound with the bridge-induced bias.
+    assert pos_min < 5e-2, f"IK pos_min {pos_min:.4f} > 5 cm — bridge regression?"
+    assert rot_min < 2e-1, f"IK rot_min {rot_min:.4f} > 0.2 rad — bridge regression?"
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -3103,11 +3109,14 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
 
     print(f"OSC_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
 
-    # Regression sentinel — same logic as the IK test. OSC on Newton
-    # without gravity-comp and at low speeds should converge to within
-    # the same ~3-5 cm Newton actuator floor. A broken bridge produces a
-    # much larger steady-state error.
-    assert pos_min < 2e-1, f"OSC pos_min {pos_min:.4f} > 20 cm — bridge regression?"
+    # Regression sentinel: 3 cm best-of-tail. Newton OSC with this test
+    # setup converges to a deterministic ~1.78 cm across 12+ stress runs
+    # — tighter than the IK test (1.78 vs 4.14 cm) because OSC's
+    # force-control bypasses the joint-PD-tracking layer that introduces
+    # the IK floor. A bridge regression (wrong J, wrong M, or wrong DoF
+    # ordering) would push this past the bound because OSC mixes both
+    # accessors per step.
+    assert pos_min < 3e-2, f"OSC pos_min {pos_min:.4f} > 3 cm — bridge regression?"
     assert rot_min < 5e-1, f"OSC rot_min {rot_min:.4f} > 0.5 rad — bridge regression?"
 
 
