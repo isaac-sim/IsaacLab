@@ -278,7 +278,7 @@ def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
             )
         if usd_path.endswith("frame_prim.usd"):
             return _NewtonMarkerSpec(renderer="frame", scale=default_scale)
-        if "dex_cube" in usd_path or "cube" in usd_path:
+        if "dexcube" in usd_path or "dex_cube" in usd_path:
             # TODO: Remove this specialized DexCube mesh code when general
             # UsdFileCfg-to-Newton mesh conversion is supported.
             # DexCube USDs are roughly 6 cm wide. Keep scale separate so task

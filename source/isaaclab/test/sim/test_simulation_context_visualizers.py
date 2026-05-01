@@ -18,6 +18,7 @@ import torch
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
+from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
 
 
@@ -172,6 +173,26 @@ def test_update_visualizers_handles_training_pause_loop():
     ctx.update_visualizers(0.2)
 
     assert viz.step_calls == [0.0, 0.2]
+
+
+def test_vis_marker_registry_dispatch_allows_callback_mutation():
+    registry = VisMarkerRegistry()
+    calls = []
+
+    def _remove_other_callback(event):
+        calls.append(("remove_other", event))
+        registry.remove_callback("other")
+
+    def _other_callback(event):
+        calls.append(("other", event))
+
+    registry.add_callback("remove_other", _remove_other_callback)
+    registry.add_callback("other", _other_callback)
+
+    registry.dispatch_callbacks("tick")
+
+    assert calls == [("remove_other", "tick"), ("other", "tick")]
+    assert "other" not in registry._callbacks
 
 
 class _DummyViserSceneDataProvider:
@@ -591,6 +612,49 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     assert captured["set_model"] == "dummy-model"
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
+
+
+def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.MonkeyPatch):
+    class _FakeRerunViewer:
+        def __init__(self):
+            self.calls = []
+
+        def is_paused(self):
+            return False
+
+        def begin_frame(self, sim_time):
+            self.calls.append(("begin_frame", sim_time))
+
+        def log_state(self, state):
+            self.calls.append(("log_state", state))
+
+        def end_frame(self):
+            self.calls.append(("end_frame",))
+
+    class _DummyRerunSceneDataProvider:
+        def get_metadata(self) -> dict:
+            return {"num_envs": 4}
+
+        def get_newton_state(self):
+            return {"ok": True}
+
+    def _raise_marker_render(*args, **kwargs):
+        raise RuntimeError("marker render failed")
+
+    monkeypatch.setattr(rerun_visualizer, "render_newton_visualization_markers", _raise_marker_render)
+
+    visualizer = rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())
+    viewer = _FakeRerunViewer()
+    visualizer._is_initialized = True
+    visualizer._is_closed = False
+    visualizer._viewer = viewer
+    visualizer._scene_data_provider = _DummyRerunSceneDataProvider()
+    visualizer._resolved_visible_env_ids = None
+
+    with pytest.raises(RuntimeError, match="marker render failed"):
+        visualizer.step(0.25)
+
+    assert [call[0] for call in viewer.calls] == ["begin_frame", "log_state", "end_frame"]
 
 
 def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():

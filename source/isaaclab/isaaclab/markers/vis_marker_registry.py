@@ -50,7 +50,7 @@ class VisMarkerRegistry:
 
     def dispatch_callbacks(self, event: Any = None) -> None:
         """Invoke all registered visualization marker callbacks."""
-        for callback in self._callbacks.values():
+        for callback in list(self._callbacks.values()):
             callback(event)
 
     def set_group(self, group_id: str, state: Any) -> None:

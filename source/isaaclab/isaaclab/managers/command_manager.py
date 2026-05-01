@@ -59,7 +59,11 @@ class CommandTerm(ManagerTermBase):
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        self._env.sim.vis_marker_registry.clear_debug_vis_callback(self)
+        env = getattr(self, "_env", None)
+        sim = getattr(env, "sim", None)
+        registry = getattr(sim, "vis_marker_registry", None)
+        if registry is not None:
+            registry.clear_debug_vis_callback(self)
 
     """
     Properties

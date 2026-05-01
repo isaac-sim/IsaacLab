@@ -243,15 +243,18 @@ class RerunVisualizer(BaseVisualizer):
 
         if not self._viewer.is_paused():
             self._viewer.begin_frame(self._sim_time)
-            if self._state is not None:
-                body_q = getattr(self._state, "body_q", None)
-                if hasattr(body_q, "shape") and body_q.shape[0] == 0:
-                    self._viewer.end_frame()
-                    return
-                self._viewer.log_state(self._state)
-                if self.cfg.enable_markers:
-                    render_newton_visualization_markers(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
-            self._viewer.end_frame()
+            try:
+                if self._state is not None:
+                    body_q = getattr(self._state, "body_q", None)
+                    if hasattr(body_q, "shape") and body_q.shape[0] == 0:
+                        return
+                    self._viewer.log_state(self._state)
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(
+                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                        )
+            finally:
+                self._viewer.end_frame()
 
     def close(self) -> None:
         """Close viewer/session resources."""
