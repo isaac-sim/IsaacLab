@@ -89,37 +89,25 @@ Proper workflow:
 
 ## Changelog
 
-**Do not edit `CHANGELOG.rst` or `config/extension.toml` directly.**
-Each PR drops a fragment under `source/<package>/changelog.d/`. The
-nightly CI workflow (`.github/workflows/nightly-changelog.yml`) rolls
-accumulated fragments into per-package `CHANGELOG.rst` entries, bumps
-each `extension.toml` independently, deletes the consumed fragments,
-and pushes the result back to `develop`. Maintainers can also run
-`tools/changelog/cli.py compile` manually (e.g. when cutting a release
-needs to coincide with a specific version pin). The PR CI gate verifies
-every modified package has a valid fragment.
+- **Do not edit `CHANGELOG.rst` or `config/extension.toml` directly.** Each PR adds a fragment file under `source/<package>/changelog.d/`; the changelog and version are compiled by the nightly CI workflow.
+- **Add one fragment per touched package.** The filename suffix declares the bump tier; within a batch the highest tier wins for the package.
 
-### Adding a fragment
+  | Filename | Effect |
+  |---|---|
+  | `source/<pkg>/changelog.d/<pr-number>.rst` | patch bump |
+  | `source/<pkg>/changelog.d/<pr-number>.minor.rst` | minor bump |
+  | `source/<pkg>/changelog.d/<pr-number>.major.rst` | major bump |
+  | `source/<pkg>/changelog.d/<pr-number>.skip` | no entry, no bump (CI / docs / test-only) |
 
-For every PR that touches `source/<package>/`, add **one** file. The
-filename suffix declares the bump tier:
+- Use **past tense** matching the section header: "Added X", "Fixed Y", "Changed Z".
+- Place entries under the correct category: `Added`, `Changed`, `Deprecated`, `Removed`, or `Fixed`.
+- Avoid internal implementation details users wouldn't understand.
+- **For `Deprecated`, `Changed`, and `Removed` entries, include migration guidance.**
+  - Example: "Deprecated `Articulation.A` in favor of `Articulation.B`."
+- **Breaking changes** belong in `Changed`, prefixed with `**Breaking:**`.
+- Use Sphinx cross-reference roles for class/method/module names.
 
-| Filename | Effect |
-|---|---|
-| `source/<pkg>/changelog.d/<pr-number>.rst` | patch bump |
-| `source/<pkg>/changelog.d/<pr-number>.minor.rst` | minor bump |
-| `source/<pkg>/changelog.d/<pr-number>.major.rst` | major bump |
-| `source/<pkg>/changelog.d/<pr-number>.skip` | no entry, no bump (opt-out for CI / docs / test-only PRs) |
-
-A single PR touching multiple packages needs one fragment per package.
-Within a batch the **highest** declared bump wins for that package
-(`major > minor > patch`).
-
-### Fragment content
-
-Each `.rst` fragment mirrors the RST that will appear in the changelog —
-one or more section headings (`Added`, `Changed`, `Deprecated`,
-`Removed`, `Fixed`) each underlined with `^`:
+### RST formatting reference
 
 ```
 Added
@@ -134,17 +122,11 @@ Fixed
   not validated, causing ``AttributeError`` at runtime.
 ```
 
-- Use **past tense**: "Added X", "Fixed Y", "Changed Z".
-- **For `Deprecated`, `Changed`, and `Removed` entries, include migration guidance.**
-  - Example: "Deprecated `Articulation.A` in favor of `Articulation.B`."
-- **Breaking changes** belong in `Changed`, prefixed with `**Breaking:**`.
-- Avoid internal implementation details users wouldn't understand.
-- Use Sphinx cross-reference roles for class/method/module names.
+Key formatting rules:
 - Category heading: underline with `^` (carets), at least as long as the heading text.
 - Entries: `* ` prefix, continuation lines indented by 2 spaces.
 
-See `examples/changelog/` for three worked end-to-end demos (patch /
-minor / major).
+See `examples/changelog/` for end-to-end demos.
 
 ## Commit and Pull Request Guidelines
 
