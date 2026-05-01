@@ -92,7 +92,7 @@ jobs:
         printf '%s\n' "$changed_files"
 
         # config.yaml controls the base image names and tags consumed by the Docker build jobs.
-        if printf '%s\n' "$changed_files" | grep -qE '^(source/|docker/|tools/|apps/|\.github/workflows/build\.yaml$|\.github/workflows/config\.yaml$|\.github/actions/)'; then
+        if printf '%s\n' "$changed_files" | grep -qE '^(source/|docker/|tools/|apps/|scripts/|\.github/workflows/build\.yaml$|\.github/workflows/config\.yaml$|\.github/actions/)'; then
           echo "run_docker_tests=true" >> "$GITHUB_OUTPUT"
         else
           echo "run_docker_tests=false" >> "$GITHUB_OUTPUT"
