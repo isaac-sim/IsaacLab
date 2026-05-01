@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-import numpy as np
 import isaaclab_visualizers.newton.newton_visualization_markers as newton_markers
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
+import numpy as np
 import pytest
 import torch
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
@@ -367,9 +367,7 @@ def _patch_newton_marker_render_deps(monkeypatch: pytest.MonkeyPatch) -> None:
             color=(1.0, 1.0, 1.0),
             texture=np.zeros((2, 2, 3), dtype=np.uint8),
         ),
-        "sphere": newton_markers._NewtonMarkerSpec(
-            renderer="mesh", mesh_type="sphere", mesh_params={"radius": 1.0}
-        ),
+        "sphere": newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="sphere", mesh_params={"radius": 1.0}),
         "frame": newton_markers._NewtonMarkerSpec(renderer="frame"),
     }
 
