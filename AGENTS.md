@@ -89,23 +89,36 @@ Proper workflow:
 
 ## Changelog
 
-- **Update `CHANGELOG.rst` for every change** targeting the source directory. Each extension has its own changelog at `source/<package>/docs/CHANGELOG.rst` (e.g. `source/isaaclab/docs/CHANGELOG.rst`, `source/isaaclab_physx/docs/CHANGELOG.rst`).
-- **Always create a new version heading.** Never add entries to an existing version — they are released and immutable. Bump the patch version (e.g. `1.5.0` → `1.5.1`) and use today's date.
-- **Bump `config/extension.toml` to match.** When creating a new changelog version, update the `version` field in `source/<package>/config/extension.toml` to the same version string.
-- **Determine which changelog(s) to update** by looking at which `source/<package>/` directories your changes touch. A single PR may require entries in multiple changelogs.
-- Use **past tense** matching the section header: "Added X", "Fixed Y", "Changed Z".
-- Place entries under the correct category: `Added`, `Changed`, `Deprecated`, `Removed`, or `Fixed`.
-- Avoid internal implementation details users wouldn't understand.
-- **For `Deprecated`, `Changed`, and `Removed` entries, include migration guidance.**
-  - Example: "Deprecated `Articulation.A` in favor of `Articulation.B`."
-- Use Sphinx cross-reference roles for class/method/module names.
+**Do not edit `CHANGELOG.rst` or `config/extension.toml` directly.**
+Each PR drops a fragment under `source/<package>/changelog.d/`; a maintainer
+runs `tools/changelog/cli.py compile` at release time, which rolls
+accumulated fragments into per-package `CHANGELOG.rst` entries and bumps
+each `extension.toml` independently. The PR CI gate verifies every
+modified package has a valid fragment.
 
-### RST formatting reference
+### Adding a fragment
+
+For every PR that touches `source/<package>/`, add **one** file. The
+filename suffix declares the bump tier:
+
+| Filename | Effect |
+|---|---|
+| `source/<pkg>/changelog.d/<pr-number>.rst` | patch bump |
+| `source/<pkg>/changelog.d/<pr-number>.minor.rst` | minor bump |
+| `source/<pkg>/changelog.d/<pr-number>.major.rst` | major bump |
+| `source/<pkg>/changelog.d/<pr-number>.skip` | no entry, no bump (opt-out for CI / docs / test-only PRs) |
+
+A single PR touching multiple packages needs one fragment per package.
+Within a batch the **highest** declared bump wins for that package
+(`major > minor > patch`).
+
+### Fragment content
+
+Each `.rst` fragment mirrors the RST that will appear in the changelog —
+one or more section headings (`Added`, `Changed`, `Deprecated`,
+`Removed`, `Fixed`) each underlined with `^`:
 
 ```
-X.Y.Z (YYYY-MM-DD)
-~~~~~~~~~~~~~~~~~~
-
 Added
 ^^^^^
 
@@ -118,11 +131,28 @@ Fixed
   not validated, causing ``AttributeError`` at runtime.
 ```
 
-Key formatting rules:
-- Version heading: underline with `~` (tildes), must be at least as long as the heading text.
-- Category heading: underline with `^` (carets).
+- Use **past tense**: "Added X", "Fixed Y", "Changed Z".
+- **For `Deprecated`, `Changed`, and `Removed` entries, include migration guidance.**
+  - Example: "Deprecated `Articulation.A` in favor of `Articulation.B`."
+- **Breaking changes** belong in `Changed`, prefixed with `**Breaking:**`.
+- Avoid internal implementation details users wouldn't understand.
+- Use Sphinx cross-reference roles for class/method/module names.
+- Category heading: underline with `^` (carets), at least as long as the heading text.
 - Entries: `* ` prefix, continuation lines indented by 2 spaces.
-- Blank line between the last entry and the next version heading.
+
+### Local preview / sanity-check
+
+```bash
+# Validate your fragment against the gate's rules locally:
+./isaaclab.sh -p tools/changelog/cli.py check develop
+
+# Preview what the compile would produce without writing anything:
+./isaaclab.sh -p tools/changelog/cli.py compile --all --dry-run
+```
+
+See `examples/changelog/` for three worked end-to-end demos (patch /
+minor / major) and `tools/changelog/cli.py --help` for the full flag
+reference.
 
 ## Commit and Pull Request Guidelines
 
