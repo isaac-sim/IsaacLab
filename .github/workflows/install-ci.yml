@@ -54,6 +54,7 @@ jobs:
 
           decide() {
             local decision="$1" reason="$2" files="${3:-}"
+            echo "Decision: run_install_tests=$decision ($reason)"
             echo "run_install_tests=$decision" >> "$GITHUB_OUTPUT"
             {
               echo "## Installation test gating"
