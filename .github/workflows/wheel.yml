@@ -56,8 +56,6 @@ jobs:
           set -euo pipefail
           version=$(cat VERSION)
           sha_slug="${GITHUB_SHA:0:7}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "sha_slug=$sha_slug" >> "$GITHUB_OUTPUT"
           echo "artifact_name=isaaclab-${version}-build${{ github.run_number }}-${sha_slug}" >> "$GITHUB_OUTPUT"
 
       - name: Build wheel
