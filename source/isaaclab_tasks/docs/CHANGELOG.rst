@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+1.5.33 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Re-enabled ``add_base_mass`` randomization on H1 and Cassie in their
+  rough-terrain configs (previously ``= None`` per the pre-existing biped
+  convention). H1 uses the shared log-uniform scale default from
+  ``EventsCfg``; Cassie overrides to ``(1.0, 1.25)`` asymmetric heavier-bias
+  (never lighter than nominal). Symmetric ±25% regressed Cassie reward by
+  40% vs disabled due to closed-loop Achilles coupling destabilizing on
+  lighter pelvis mass; ``(1.0, 1.25)`` recovers to 90% of the
+  mass-rand-disabled baseline while retaining the domain-randomization
+  benefit.
+
+
 1.5.32 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 

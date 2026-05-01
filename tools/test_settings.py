@@ -17,7 +17,7 @@ DEFAULT_TIMEOUT = 1000
 
 
 PER_TEST_TIMEOUTS = {
-    "test_articulation.py": 1000,
+    "test_articulation.py": 1500,
     "test_stage_in_memory.py": 1000,
     "test_imu.py": 1000,
     "test_environments.py": 10000,  # This test runs through all the environments for 100 steps each

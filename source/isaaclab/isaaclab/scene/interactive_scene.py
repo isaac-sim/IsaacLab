@@ -181,9 +181,19 @@ class InteractiveScene:
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
         self._default_env_origins, _ = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing, device=self.device)
         # copy empty prim of env_0 to env_1, env_2, ..., env_{num_envs-1} with correct location.
-        cloner.usd_replicate(
-            self.stage, [self.env_fmt.format(0)], [self.env_fmt], self._ALL_INDICES, positions=self._default_env_origins
-        )
+        # Suspend Fabric's USD notice listener: scene-init is followed by ``SimulationContext.reset``,
+        # which does the Fabric resync naturally — re-enabling here would just trigger a redundant batch.
+        # Note: ``restore=False`` means the listener stays disabled past this ``with`` block — through
+        # ``_add_entities_from_cfg`` and ``clone_environments`` below — until ``SimulationContext.reset``
+        # re-enables it. The nested suspension inside ``clone_environments`` becomes a no-op as a result.
+        with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
+            cloner.usd_replicate(
+                self.stage,
+                [self.env_fmt.format(0)],
+                [self.env_fmt],
+                self._ALL_INDICES,
+                positions=self._default_env_origins,
+            )
 
         self._global_prim_paths = list()
         has_scene_cfg_entities = self._is_scene_setup_from_cfg()
@@ -232,25 +242,30 @@ class InteractiveScene:
             prim = self.stage.GetPrimAtPath("/physicsScene")
             prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
-        if self._is_scene_setup_from_cfg():
-            self.cloner_cfg.clone_physics = not copy_from_source
-            cloner.clone_from_template(self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg)
-        else:
-            mapping = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
-            replicate_args = (
-                [self.env_fmt.format(0)],
-                [self.env_fmt],
-                self._ALL_INDICES,
-                mapping,
-                self._default_env_origins,
-            )
+        # Suspend Fabric's USD notice listener around bulk authoring (re-entrant with the inner
+        # call inside :func:`clone_from_template`). ``restore=False`` because the downstream
+        # ``SimulationContext.reset`` does the Fabric resync — re-enabling here would batch-resync
+        # everything we just authored, which is slower than the unsuppressed baseline.
+        with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
+            if self._is_scene_setup_from_cfg():
+                self.cloner_cfg.clone_physics = not copy_from_source
+                cloner.clone_from_template(self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg)
+            else:
+                mapping = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
+                replicate_args = (
+                    [self.env_fmt.format(0)],
+                    [self.env_fmt],
+                    self._ALL_INDICES,
+                    mapping,
+                    self._default_env_origins,
+                )
 
-            if not copy_from_source and self.cloner_cfg.physics_clone_fn is not None:
-                self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
-            if self.cloner_cfg.visualizer_clone_fn is not None:
-                self.cloner_cfg.visualizer_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
-            if self.cloner_cfg.clone_usd:
-                cloner.usd_replicate(self.stage, *replicate_args)
+                if not copy_from_source and self.cloner_cfg.physics_clone_fn is not None:
+                    self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
+                if self.cloner_cfg.visualizer_clone_fn is not None:
+                    self.cloner_cfg.visualizer_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
+                if self.cloner_cfg.clone_usd:
+                    cloner.usd_replicate(self.stage, *replicate_args)
 
     def _sensor_renderer_types(self) -> list[str]:
         """Return renderer type names used by scene sensors."""

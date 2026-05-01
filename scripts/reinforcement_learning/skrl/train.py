@@ -117,7 +117,12 @@ def main():
 
         # override configurations with non-hydra CLI arguments
         env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+        # For distributed training, launch_simulation() already resolved the
+        # correct per-rank device; only apply a CLI --device override for
+        # non-distributed runs (the default "cuda:0" would clobber the
+        # per-rank device otherwise).
+        if not args_cli.distributed:
+            env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
         if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
             raise ValueError(
@@ -127,9 +132,9 @@ def main():
 
         # multi-gpu training config
         if args_cli.distributed:
-            local_rank = int(os.getenv("LOCAL_RANK", "0"))
             global_rank = int(os.getenv("RANK", "0"))
-            env_cfg.sim.device = f"cuda:{local_rank}"
+            # env_cfg.sim.device is resolved by launch_simulation() which
+            # accounts for CUDA_VISIBLE_DEVICES restrictions.
         # max iterations for training
         if args_cli.max_iterations:
             agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]
