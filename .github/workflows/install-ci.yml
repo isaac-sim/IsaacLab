@@ -44,7 +44,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REPO: ${{ github.repository }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
 
           path_regex='^(apps/|tools/|source/|\.github/actions/run-package-tests/|\.github/workflows/install-ci\.yml$|VERSION$)|(^|/)pyproject\.toml$|(^|/)environment\.ya?ml$'
 

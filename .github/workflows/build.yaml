@@ -83,7 +83,7 @@ jobs:
         EVENT_NAME: ${{ github.event_name }}
         REPO: ${{ github.repository }}
       run: |
-        set -uo pipefail
+        set -euo pipefail
 
         # config.yaml controls the base image names and tags consumed by the Docker build jobs.
         path_regex='^(source/|docker/|tools/|apps/|scripts/|\.github/workflows/build\.yaml$|\.github/workflows/config\.yaml$|\.github/actions/)'
