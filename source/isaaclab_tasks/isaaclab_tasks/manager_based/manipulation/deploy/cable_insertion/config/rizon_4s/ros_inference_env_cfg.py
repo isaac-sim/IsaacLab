@@ -13,11 +13,13 @@ from .joint_pos_env_cfg import Rizon4sGravCableInsertionEnvCfg
 
 @configclass
 class Rizon4sGravCableInsertionROSInferenceEnvCfg(Rizon4sGravCableInsertionEnvCfg):
-    """Configuration for ROS inference with Flexiv Rizon 4s for cable insertion.
+    """ROS / Isaac Manipulator inference fields plus deployment alignment for NVIDIA Hubble Lab.
 
     This configuration:
 
     - Exposes variables needed for Isaac Manipulator ROS inference.
+    - Aligns robot mounting pose with the Flexiv Rizon 4s installation at NVIDIA Hubble Lab
+      (wall-mount with 90° rotation about negative X-axis).
     - Overrides plug and socket initial poses for a fixed/deterministic setup.
     """
 
@@ -37,8 +39,22 @@ class Rizon4sGravCableInsertionROSInferenceEnvCfg(Rizon4sGravCableInsertionEnvCf
         self.joint_action_scale = self.actions.arm_action.scale
         self.action_scale_joint_space = [self.joint_action_scale] * self.action_space
 
-        # Override robot initial rotation for deterministic setup
-        self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
+        # --- NVIDIA Hubble Lab: Flexiv Rizon 4s mount ---
+        # Lab home joint pose (radians); aligns sim defaults / reset with the physical stand.
+        self.scene.robot.init_state.joint_pos = {
+            "joint1": math.radians(-90.0),
+            "joint2": math.radians(90.0),
+            "joint3": 0.0,
+            "joint4": math.radians(90.0),
+            "joint5": 0.0,
+            "joint6": 0.0,
+            "joint7": 0.0,
+        }
+
+        # Wall-mount quaternion (w, x, y, z) = (0.5, 0.5, 0.5, 0.5):
+        # 90° rotation about negative X-axis (matches Hubble Lab Flexiv Rizon 4s mount).
+        self.scene.robot.init_state.pos = (0.0, 0.0, 0.0)
+        self.scene.robot.init_state.rot = (0.5, 0.5, 0.5, 0.5)
 
         # Override plug and socket initial poses for ROS inference (fixed, deterministic)
         self.scene.gb300_socket.init_state = RigidObjectCfg.InitialStateCfg(
