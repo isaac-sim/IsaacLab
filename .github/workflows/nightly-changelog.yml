@@ -87,7 +87,13 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else
-            git commit -m "chore: compile nightly changelog fragments"
+            # ``[changelog]`` prefix matches the IsaacLab convention for
+            # area-tagged commits (cf. ``[Newton]``) and visually
+            # distinguishes the auto-commit from human PR merges in
+            # ``git log --oneline``. The trigger event (``schedule`` vs
+            # ``workflow_dispatch``) is captured so a maintainer can tell
+            # which run produced a given commit.
+            git commit -m "[changelog] Compile fragments (${{ github.event_name }})"
             # Push explicitly to develop so we don't accidentally write
             # to the source ref of a workflow_dispatch run.
             git push origin HEAD:develop
