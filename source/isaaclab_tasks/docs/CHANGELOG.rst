@@ -1,16 +1,6 @@
 Changelog
 ---------
 
-1.5.34 (2026-05-01)
-~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
-
-* Added ``Metrics/success_rate`` logging to the dexsuite object-pose command and to
-  ``Isaac-Cartpole-v0`` for use with the benchmark success-metric pipeline.
-
-
 1.5.33 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 

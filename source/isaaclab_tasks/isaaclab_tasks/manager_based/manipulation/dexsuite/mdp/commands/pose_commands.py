@@ -126,8 +126,6 @@ class ObjectUniformPoseCommand(CommandTerm):
         success_id = self.metrics["position_error"] < 0.05
         if not self.cfg.position_only:
             success_id &= self.metrics["orientation_error"] < 0.5
-        # log as a top-level tag so the benchmark success checker can find it across tasks
-        self._env.extras["log"]["Metrics/success_rate"] = success_id.float().mean()
         if self.success_vis_asset is not None:
             self.success_visualizer.visualize(
                 self.success_vis_asset.data.root_pos_w.torch, marker_indices=success_id.int()

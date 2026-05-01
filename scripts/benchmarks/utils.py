@@ -273,7 +273,6 @@ def log_success(benchmark, tracker, framework_iteration_count: int | None = None
         return
 
     converged = tracker.converged
-    benchmark.add_measurement("train", SingleMeasurement(name="Success Tag", value=tracker.metric_key, unit="string"))
     benchmark.add_measurement(
         "train", SingleMeasurement(name="Success Rate (tail mean)", value=round(tracker.tail_mean, 4), unit="float")
     )

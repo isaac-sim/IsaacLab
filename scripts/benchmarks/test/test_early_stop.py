@@ -12,7 +12,6 @@ import argparse
 import pytest
 
 from scripts.benchmarks.early_stop import (
-    DEFAULT_SUCCESS_TAG,
     DEFAULT_SUCCESS_THRESHOLD,
     DEFAULT_SUCCESS_WINDOW,
     RlGamesEarlyStopObserver,
@@ -22,7 +21,9 @@ from scripts.benchmarks.early_stop import (
     build_success_kwargs,
     get_success_tracker,
 )
-from scripts.benchmarks.utils import log_success
+from scripts.benchmarks.utils import SUCCESS_RATE_LOG_TAGS, log_success
+
+DEFAULT_SUCCESS_TAG = SUCCESS_RATE_LOG_TAGS[0]
 
 # -- fakes ------------------------------------------------------------------
 
@@ -125,33 +126,33 @@ class TestSuccessRateTracker:
 
     def test_records_metric_from_extras_log(self):
         """Test that a present metric is accumulated into the iteration sum."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
-        t.record_step({"log": {"sr": 0.9}})
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
+        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.9}})
         assert t._iter_sum == pytest.approx(0.9)
         assert t._iter_count == 1
 
     def test_ignores_missing_metric_key(self):
         """Test that a foreign key in extras["log"] is ignored."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.record_step({"log": {"other": 1.0}})
         assert t._iter_count == 0
 
     def test_missing_log_subdict_does_not_raise(self):
         """Test that an extras dict without a "log" sub-dict is handled gracefully."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.record_step({})
         assert t._iter_count == 0
         assert t._step_count == 1
 
     def test_tensor_value_uses_item_method(self):
         """Test that tensor-like values are extracted via ``.item()``."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
-        t.record_step({"log": {"sr": _FakeTensor(0.7)}})
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
+        t.record_step({"log": {DEFAULT_SUCCESS_TAG: _FakeTensor(0.7)}})
         assert t._iter_sum == pytest.approx(0.7)
 
     def test_step_count_increments_even_without_metric(self):
         """Test that ``_step_count`` tracks every call regardless of metric presence."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.record_step({})
         t.record_step({"log": {"other": 1.0}})
         assert t._step_count == 2
@@ -159,9 +160,9 @@ class TestSuccessRateTracker:
 
     def test_end_iteration_averages_and_resets(self):
         """Test that ``end_iteration`` averages recorded values and resets counters."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
-        t.record_step({"log": {"sr": 0.4}})
-        t.record_step({"log": {"sr": 0.6}})
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
+        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.4}})
+        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.6}})
         assert t.end_iteration() == pytest.approx(0.5)
         assert t.history == [pytest.approx(0.5)]
         assert t._iter_sum == 0.0
@@ -169,64 +170,64 @@ class TestSuccessRateTracker:
 
     def test_end_iteration_no_data_returns_none_without_recording(self):
         """Test that ``end_iteration`` returns None and skips history append when no data was seen."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         assert t.end_iteration() is None
         assert t.history == []
 
     def test_at_iteration_boundary_respects_num_steps_per_env(self):
         """Test that the boundary flag fires only after exactly ``num_steps_per_env`` calls."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         for _ in range(3):
-            t.record_step({"log": {"sr": 0.1}})
+            t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.1}})
         assert t.at_iteration_boundary is False
-        t.record_step({"log": {"sr": 0.1}})
+        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.1}})
         assert t.at_iteration_boundary is True
 
     def test_at_iteration_boundary_false_when_num_steps_zero(self):
         """Test that a post-hoc tracker (``num_steps_per_env=0``) never reports a boundary."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=0)
-        t.record_step({"log": {"sr": 0.1}})
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=0)
+        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.1}})
         assert t.at_iteration_boundary is False
 
     def test_not_converged_when_history_shorter_than_window(self):
         """Test that convergence is False when there aren't yet enough history entries."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.history = [0.9, 0.9]
         assert t.converged is False
 
     def test_not_converged_when_history_empty(self):
         """Test that convergence is False on a freshly-created tracker."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         assert t.history == []
         assert t.converged is False
 
     def test_converged_when_window_all_above_threshold(self):
         """Test that convergence is True when the trailing window is all above threshold."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.history = [0.1, 0.9, 0.9, 0.9]
         assert t.converged is True
 
     def test_converged_when_history_length_equals_window(self):
         """Test the window boundary: history length == window (minimum qualifying case)."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.history = [0.9, 0.9, 0.9]
         assert t.converged is True
 
     def test_converged_at_exact_threshold(self):
         """Test the threshold boundary: values equal to the threshold satisfy ``>= threshold``."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.history = [0.5, 0.5, 0.5]
         assert t.converged is True
 
     def test_not_converged_when_any_window_value_below(self):
         """Test that a single sub-threshold value in the trailing window blocks convergence."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.history = [0.9, 0.9, 0.4]
         assert t.converged is False
 
     def test_converged_with_window_of_one(self):
         """Test the degenerate ``window=1`` case: only the last value matters."""
-        t = SuccessRateTracker("sr", 0.5, 1, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 1, num_steps_per_env=4)
         t.history = [0.1, 0.2, 0.9]
         assert t.converged is True
         t.history = [0.9, 0.9, 0.1]
@@ -234,24 +235,24 @@ class TestSuccessRateTracker:
 
     def test_tail_mean_empty_history_is_zero(self):
         """Test that ``tail_mean`` returns 0.0 for an empty history."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         assert t.tail_mean == 0.0
 
     def test_tail_mean_shorter_than_window_uses_all_values(self):
         """Test that ``tail_mean`` averages the full history when it's shorter than the window."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.history = [0.2, 0.4]
         assert t.tail_mean == pytest.approx(0.3)
 
     def test_tail_mean_longer_than_window_uses_tail(self):
         """Test that ``tail_mean`` averages only the last ``window`` entries."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.history = [0.9, 0.9, 0.1, 0.2, 0.3]
         assert t.tail_mean == pytest.approx(0.2)
 
     def test_current_iteration_equals_history_length(self):
         """Test that ``current_iteration`` reports the history length."""
-        t = SuccessRateTracker("sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.history = [0.1, 0.2, 0.3]
         assert t.current_iteration == 3
 
@@ -266,7 +267,6 @@ class TestCliHelpers:
         """Test that unset args resolve to None / False."""
         args = _parser().parse_args([])
         assert args.check_success is False
-        assert args.success_tag is None
         assert args.success_threshold is None
         assert args.success_window is None
 
@@ -275,8 +275,6 @@ class TestCliHelpers:
         args = _parser().parse_args(
             [
                 "--check_success",
-                "--success_tag",
-                "Metrics/custom",
                 "--success_threshold",
                 "0.75",
                 "--success_window",
@@ -284,7 +282,6 @@ class TestCliHelpers:
             ]
         )
         assert args.check_success is True
-        assert args.success_tag == "Metrics/custom"
         assert args.success_threshold == 0.75
         assert args.success_window == 50
 
@@ -292,7 +289,6 @@ class TestCliHelpers:
         """Test that ``build_success_kwargs`` substitutes library defaults for unset args."""
         kwargs = build_success_kwargs(_parser().parse_args([]))
         assert kwargs == {
-            "metric_key": DEFAULT_SUCCESS_TAG,
             "threshold": DEFAULT_SUCCESS_THRESHOLD,
             "window": DEFAULT_SUCCESS_WINDOW,
             "stop_on_convergence": False,
@@ -303,8 +299,6 @@ class TestCliHelpers:
         args = _parser().parse_args(
             [
                 "--check_success",
-                "--success_tag",
-                "Metrics/foo",
                 "--success_threshold",
                 "0.1",
                 "--success_window",
@@ -312,7 +306,6 @@ class TestCliHelpers:
             ]
         )
         kwargs = build_success_kwargs(args)
-        assert kwargs["metric_key"] == "Metrics/foo"
         assert kwargs["threshold"] == pytest.approx(0.1)
         assert kwargs["window"] == 5
         assert kwargs["stop_on_convergence"] is True
@@ -331,13 +324,13 @@ class TestGetSuccessTracker:
 
     def test_prefers_live_tracker_with_history(self):
         """Test that a non-empty live tracker is returned as-is."""
-        live = SuccessRateTracker(DEFAULT_SUCCESS_TAG, 0.5, 3, num_steps_per_env=4)
+        live = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         live.history = [0.9, 0.9]
         assert get_success_tracker(_parser().parse_args([]), live, {}) is live
 
     def test_falls_back_to_post_hoc_when_live_tracker_empty(self):
         """Test that an empty live tracker falls back to TensorBoard replay."""
-        live = SuccessRateTracker(DEFAULT_SUCCESS_TAG, 0.5, 3, num_steps_per_env=4)
+        live = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         log_data = {DEFAULT_SUCCESS_TAG: [0.1, 0.2, 0.3]}
         result = get_success_tracker(_parser().parse_args([]), live, log_data)
         assert result is not live
@@ -357,14 +350,6 @@ class TestGetSuccessTracker:
     def test_returns_none_when_tag_absent_from_log_data(self):
         """Test that unrelated TensorBoard tags don't satisfy the fallback."""
         assert get_success_tracker(_parser().parse_args([]), None, {"Metrics/other": [1.0]}) is None
-
-    def test_post_hoc_honors_override_tag(self):
-        """Test that ``--success_tag`` picks a specific series from ``log_data``."""
-        args = _parser().parse_args(["--success_tag", "Metrics/custom"])
-        log_data = {"Metrics/custom": [0.5], DEFAULT_SUCCESS_TAG: [0.1]}
-        result = get_success_tracker(args, None, log_data)
-        assert result.metric_key == "Metrics/custom"
-        assert result.history == [pytest.approx(0.5)]
 
     def test_post_hoc_honors_override_threshold_and_window(self):
         """Test that CLI threshold/window overrides are applied to the post-hoc tracker."""
@@ -392,7 +377,7 @@ class TestRslRlEarlyStopWrapper:
         """Test that wrapped env.step records, and original step is restored on normal exit."""
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 5)
         runner = _FakeRunner()
-        with RslRlEarlyStopWrapper(env, runner, DEFAULT_SUCCESS_TAG, 0.5, 3, num_steps_per_env=2) as ctx:
+        with RslRlEarlyStopWrapper(env, runner, 0.5, 3, num_steps_per_env=2) as ctx:
             env.step(None)
             assert ctx.tracker._iter_sum == pytest.approx(0.9)
         # after exit, env.step no longer routes through the tracker
@@ -405,7 +390,7 @@ class TestRslRlEarlyStopWrapper:
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 100)
         runner = _FakeRunner()
         # num_steps_per_env=2, window=2 -> converges on step 4 (iter 2)
-        with RslRlEarlyStopWrapper(env, runner, DEFAULT_SUCCESS_TAG, 0.5, 2, num_steps_per_env=2) as ctx:
+        with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2) as ctx:
             for _ in range(10):
                 env.step(None)
         assert ctx.tracker.converged is True
@@ -420,7 +405,6 @@ class TestRslRlEarlyStopWrapper:
         with RslRlEarlyStopWrapper(
             env,
             runner,
-            DEFAULT_SUCCESS_TAG,
             0.5,
             2,
             num_steps_per_env=2,
@@ -438,14 +422,14 @@ class TestRslRlEarlyStopWrapper:
         env = _FakeEnv([{"log": {}}])
         runner = _FakeRunner()
         with pytest.raises(ValueError):
-            with RslRlEarlyStopWrapper(env, runner, DEFAULT_SUCCESS_TAG, 0.5, 2, num_steps_per_env=2):
+            with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2):
                 raise ValueError("not an early stop")
 
     def test_env_step_restored_after_early_stop_exception(self):
         """Test that env.step is unwrapped after an early-stop exception suppressed by __exit__."""
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 100)
         runner = _FakeRunner()
-        with RslRlEarlyStopWrapper(env, runner, DEFAULT_SUCCESS_TAG, 0.5, 2, num_steps_per_env=2) as ctx:
+        with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2) as ctx:
             for _ in range(10):
                 env.step(None)  # converges & raises at step 4, suppressed
         sum_at_exit = ctx.tracker._iter_sum
@@ -457,7 +441,7 @@ class TestRslRlEarlyStopWrapper:
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 10)
         runner = _FakeRunner()
         try:
-            with RslRlEarlyStopWrapper(env, runner, DEFAULT_SUCCESS_TAG, 0.5, 2, num_steps_per_env=2) as ctx:
+            with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2) as ctx:
                 env.step(None)
                 raise ValueError("boom")
         except ValueError:
@@ -471,7 +455,7 @@ class TestRslRlEarlyStopWrapper:
         env = _FakeEnv([{"log": {}}])
         runner = _FakeRunner()
         try:
-            with RslRlEarlyStopWrapper(env, runner, DEFAULT_SUCCESS_TAG, 0.5, 2, num_steps_per_env=2):
+            with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2):
                 raise ValueError("boom")
         except ValueError:
             pass
@@ -482,7 +466,7 @@ class TestRslRlEarlyStopWrapper:
         """Test that cleanup skips both save and flush when ``runner.logger.writer`` is ``None``."""
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 100)
         runner = _FakeRunner(has_writer=False)
-        with RslRlEarlyStopWrapper(env, runner, DEFAULT_SUCCESS_TAG, 0.5, 2, num_steps_per_env=2):
+        with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2):
             for _ in range(10):
                 env.step(None)
         assert runner.saved == []
@@ -493,7 +477,7 @@ class TestRslRlEarlyStopWrapper:
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.0}}])
         runner = _FakeRunner()
         runner.current_learning_iteration = 42
-        wrapper = RslRlEarlyStopWrapper(env, runner, DEFAULT_SUCCESS_TAG, 0.5, 3, num_steps_per_env=2)
+        wrapper = RslRlEarlyStopWrapper(env, runner, 0.5, 3, num_steps_per_env=2)
         assert wrapper.framework_iteration_count == 43
 
 
@@ -506,7 +490,7 @@ class TestRlGamesEarlyStopObserver:
     def test_delegates_every_call_to_base(self):
         """Test that all observer lifecycle calls are forwarded to the wrapped base observer."""
         base = _FakeBaseObserver()
-        obs = RlGamesEarlyStopObserver(base, DEFAULT_SUCCESS_TAG, 0.5, 3)
+        obs = RlGamesEarlyStopObserver(base, 0.5, 3)
         obs.before_init("name", {}, "exp")
         obs.after_init(_FakeAlgo(horizon_length=8))
         obs.process_infos({"episode": {}}, [])
@@ -524,39 +508,39 @@ class TestRlGamesEarlyStopObserver:
 
     def test_tracker_uses_horizon_length_attribute(self):
         """Test that the tracker pulls ``num_steps_per_env`` from ``algo.horizon_length`` when present."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 3)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
         obs.after_init(_FakeAlgo(horizon_length=24))
         assert obs.tracker.num_steps_per_env == 24
 
     def test_tracker_falls_back_to_config_horizon_length(self):
         """Test that the tracker falls back to ``algo.config['horizon_length']`` when the attr is missing."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 3)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
         obs.after_init(_FakeAlgo(horizon_length=None, config_horizon=32))
         assert obs.tracker.num_steps_per_env == 32
 
     def test_process_infos_records_from_episode_key(self):
         """Test that ``infos["episode"]`` is remapped to the tracker's extras["log"] shape."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 3)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
         obs.after_init(_FakeAlgo(horizon_length=2))
         obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.8}}, [])
         assert obs.tracker._iter_sum == pytest.approx(0.8)
 
     def test_process_infos_is_noop_before_after_init(self):
         """Test that ``process_infos`` before ``after_init`` does not raise (tracker is None)."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 3)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
         obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.8}}, [])
         assert obs.tracker is None
 
     def test_process_infos_ignores_non_dict_infos(self):
         """Test that non-dict ``infos`` are skipped gracefully without mutating the tracker."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 3)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
         obs.after_init(_FakeAlgo(horizon_length=2))
         obs.process_infos([], [])
         assert obs.tracker._iter_sum == 0.0
 
     def test_after_steps_sets_max_epochs_on_convergence(self):
         """Test that convergence on iteration N sets ``algo.max_epochs = N`` for clean exit."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 2)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 2)
         algo = _FakeAlgo(horizon_length=1)
         obs.after_init(algo)
         obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.9}}, [])
@@ -569,7 +553,6 @@ class TestRlGamesEarlyStopObserver:
         """Test that ``stop_on_convergence=False`` preserves the caller's ``algo.max_epochs``."""
         obs = RlGamesEarlyStopObserver(
             _FakeBaseObserver(),
-            DEFAULT_SUCCESS_TAG,
             0.5,
             2,
             stop_on_convergence=False,
@@ -585,13 +568,13 @@ class TestRlGamesEarlyStopObserver:
 
     def test_after_steps_noop_before_after_init(self):
         """Test that ``after_steps`` before ``after_init`` does not raise (tracker is None)."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 2)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 2)
         obs.after_steps()
         assert obs.tracker is None
 
     def test_each_after_steps_appends_one_iteration(self):
         """Test that each ``after_steps`` call finalizes exactly one iteration in the tracker."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 5)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 5)
         obs.after_init(_FakeAlgo(horizon_length=1))
         for i in range(4):
             obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.9}}, [])
@@ -600,7 +583,7 @@ class TestRlGamesEarlyStopObserver:
 
     def test_after_steps_does_not_converge_with_insufficient_history(self):
         """Test that a trailing window shorter than ``window`` does not trigger early stop."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 5)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 5)
         algo = _FakeAlgo(horizon_length=1)
         obs.after_init(algo)
         for _ in range(4):
@@ -610,12 +593,12 @@ class TestRlGamesEarlyStopObserver:
 
     def test_framework_iteration_count_returns_none_before_after_init(self):
         """Test that the framework-counter property returns ``None`` before an algo is attached."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 2)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 2)
         assert obs.framework_iteration_count is None
 
     def test_framework_iteration_count_reflects_algo_epoch_num(self):
         """Test that the framework-counter property mirrors ``algo.epoch_num``."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), DEFAULT_SUCCESS_TAG, 0.5, 2)
+        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 2)
         obs.after_init(_FakeAlgo(horizon_length=1, epoch_num=7))
         assert obs.framework_iteration_count == 7
 
@@ -628,7 +611,7 @@ class TestLogSuccess:
 
     def _tracker_with(self, history: list[float]) -> SuccessRateTracker:
         """Build a tracker with a pre-populated history for testing."""
-        t = SuccessRateTracker("Metrics/sr", 0.5, 3, num_steps_per_env=4)
+        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         t.history = history
         return t
 
@@ -644,12 +627,12 @@ class TestLogSuccess:
         log_success(bench, self._tracker_with([]))
         assert bench.measurements == []
 
-    def test_logs_all_four_measurements(self):
+    def test_logs_full_measurement_set(self):
         """Test that a populated tracker produces the full measurement set."""
         bench = _FakeBenchmark()
         log_success(bench, self._tracker_with([0.9, 0.9, 0.9]))
         names = {m[1] for m in bench.measurements}
-        assert names == {"Success Tag", "Success Rate (tail mean)", "Success Converged At Iter", "Success Passed"}
+        assert names == {"Success Rate (tail mean)", "Success Converged At Iter", "Success Passed"}
 
     def test_converged_path(self):
         """Test that a converged run reports ``Passed=1`` with the true converged iter + tail mean."""
@@ -705,7 +688,6 @@ class TestLogSuccess:
         with RslRlEarlyStopWrapper(
             env,
             runner,
-            DEFAULT_SUCCESS_TAG,
             0.5,
             3,
             num_steps_per_env=2,
