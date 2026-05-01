@@ -18,11 +18,11 @@ import rerun as rr
 import rerun.blueprint as rrb
 from newton.viewer import ViewerRerun
 
+from isaaclab.markers.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
-from ..newton.marker_renderer import NewtonMarkerRenderer
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
@@ -135,7 +135,6 @@ class RerunVisualizer(BaseVisualizer):
         self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
-        self._marker_renderer = NewtonMarkerRenderer()
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         """Initialize rerun viewer and bind scene data provider.
@@ -251,7 +250,7 @@ class RerunVisualizer(BaseVisualizer):
                     return
                 self._viewer.log_state(self._state)
                 if self.cfg.enable_markers:
-                    self._marker_renderer.render(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
+                    render_newton_visualization_markers(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
             self._viewer.end_frame()
 
     def close(self) -> None:

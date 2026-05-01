@@ -17,11 +17,11 @@ from typing import TYPE_CHECKING, Any
 
 from newton.viewer import ViewerViser
 
+from isaaclab.markers.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
-from ..newton.marker_renderer import NewtonMarkerRenderer
 from .viser_visualizer_cfg import ViserVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,6 @@ class ViserVisualizer(BaseVisualizer):
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
-        self._marker_renderer = NewtonMarkerRenderer()
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -195,7 +194,7 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer.begin_frame(self._sim_time)
         self._viewer.log_state(self._state)
         if self.cfg.enable_markers:
-            self._marker_renderer.render(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
+            render_newton_visualization_markers(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
         self._viewer.end_frame()
 
     def close(self) -> None:

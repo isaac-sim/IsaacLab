@@ -14,11 +14,11 @@ import numpy as np
 import warp as wp
 from newton.viewer import ViewerGL
 
+from isaaclab.markers.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
-from .marker_renderer import NewtonMarkerRenderer
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -270,7 +270,6 @@ class NewtonVisualizer(BaseVisualizer):
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
         self._resolved_visible_env_ids: list[int] | None = None
-        self._marker_renderer = NewtonMarkerRenderer()
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -408,7 +407,9 @@ class NewtonVisualizer(BaseVisualizer):
                         except RuntimeError as exc:
                             logger.debug(f"[NewtonVisualizer] Failed to log contacts: {exc}")
                     if self.cfg.enable_markers:
-                        self._marker_renderer.render(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
+                        render_newton_visualization_markers(
+                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                        )
                 self._viewer.end_frame()
             else:
                 self._viewer._update()

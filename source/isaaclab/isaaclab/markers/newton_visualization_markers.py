@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared marker rendering helpers for Newton-family visualizers."""
+"""Newton-family implementation for :class:`VisualizationMarkers`."""
 
 from __future__ import annotations
 
@@ -15,9 +15,10 @@ import torch
 import warp as wp
 from newton import Axis, Mesh
 
-from isaaclab.markers.visualization_markers_cfg import NewtonMarkerCfg, VisualizationMarkersCfg
-from isaaclab.sim import SimulationContext
+import isaaclab.sim as sim_utils
 from isaaclab.utils.math import quat_apply
+
+from .visualization_markers_cfg import NewtonMarkerCfg, VisualizationMarkersCfg
 
 logger = logging.getLogger(__name__)
 
@@ -28,68 +29,118 @@ _OMNIPBR_DEFAULTS = {
 _UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
 
 
-class NewtonMarkerRenderer:
-    """Render Isaac Lab visualization markers through Newton viewer APIs."""
+def render_newton_visualization_markers(viewer, visible_env_ids: list[int] | None, num_envs: int) -> None:
+    """Render all active Newton visualization marker groups into a Newton-family viewer."""
+    sim = sim_utils.SimulationContext.instance()
+    if sim is None:
+        return
 
-    def __init__(self):
+    for marker in sim.get_visualization_marker_groups().values():
+        if isinstance(marker, NewtonVisualizationMarkers):
+            marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
+
+
+class NewtonVisualizationMarkers:
+    """Newton-family backend for visualization markers."""
+
+    def __init__(self, cfg: VisualizationMarkersCfg, visible: bool = True):
+        self.cfg = cfg
+        self.group_id = f"{cfg.prim_path}::{id(self)}"
+        self.visible = visible
+        self.translations: torch.Tensor | None = None
+        self.orientations: torch.Tensor | None = None
+        self.scales: torch.Tensor | None = None
+        self.marker_indices: torch.Tensor | None = None
+        self.count = len(cfg.markers)
         self._registered_meshes: set[str] = set()
         self._warned_unsupported: set[str] = set()
 
-    def render(self, viewer, visible_env_ids: list[int] | None, num_envs: int) -> None:
-        sim = SimulationContext.instance()
-        if sim is None:
-            return
+        sim = sim_utils.SimulationContext.instance()
+        if sim is not None:
+            sim.set_visualization_marker_group(self.group_id, self)
 
-        for group_id, state in sim.get_visualization_marker_groups().items():
-            if not isinstance(state, dict) or "cfg" not in state:
-                continue
-            self._render_group(viewer, group_id, state, visible_env_ids=visible_env_ids, num_envs=num_envs)
+    def close(self) -> None:
+        """Remove marker backend from the simulation marker registry."""
+        sim = sim_utils.SimulationContext.instance()
+        if sim is not None:
+            sim.remove_visualization_marker_group(self.group_id)
 
-    def _render_group(
+    def infer_device(self) -> torch.device:
+        """Infer the device from current marker state."""
+        for value in (self.translations, self.orientations, self.scales, self.marker_indices):
+            if value is not None:
+                return value.device
+        return torch.device("cpu")
+
+    def set_visibility(self, visible: bool) -> None:
+        """Set marker visibility."""
+        self.visible = visible
+
+    def is_visible(self) -> bool:
+        """Return whether this marker group is visible."""
+        return self.visible
+
+    def visualize(
         self,
-        viewer,
-        group_id: str,
-        state: dict[str, Any],
-        visible_env_ids: list[int] | None,
-        num_envs: int,
+        translations: torch.Tensor | None,
+        orientations: torch.Tensor | None,
+        scales: torch.Tensor | None,
+        marker_indices: torch.Tensor | None,
     ) -> None:
-        filtered = _filter_group_state(state, visible_env_ids=visible_env_ids, num_envs=num_envs)
-        cfg: VisualizationMarkersCfg = filtered["cfg"]
-        if filtered["count"] == 0:
-            for name, marker_cfg in cfg.markers.items():
-                self._hide_batch(viewer, group_id, name, _resolve_newton_marker_cfg(name, marker_cfg, cfg))
+        """Update marker state consumed by Newton-family visualizers."""
+        if translations is not None:
+            self.translations = translations.detach()
+            self.count = translations.shape[0]
+        if orientations is not None:
+            self.orientations = orientations.detach()
+            self.count = orientations.shape[0]
+        if scales is not None:
+            self.scales = scales.detach()
+            self.count = scales.shape[0]
+        if marker_indices is not None:
+            self.marker_indices = marker_indices.detach().to(dtype=torch.int32)
+            self.count = marker_indices.shape[0]
+        elif self.count != 0:
+            self.marker_indices = torch.zeros(self.count, dtype=torch.int32, device=self.infer_device())
+
+    def render(self, viewer, visible_env_ids: list[int] | None, num_envs: int) -> None:
+        """Render marker state to a Newton viewer."""
+        state = _filter_marker_state(self, visible_env_ids=visible_env_ids, num_envs=num_envs)
+        if state["count"] == 0:
+            for name, marker_cfg in self.cfg.markers.items():
+                self._hide_batch(viewer, name, _resolve_newton_marker_cfg(name, marker_cfg, self.cfg))
             return
 
-        translations = filtered["translations"]
+        translations = state["translations"]
         if translations is None:
             return
-        orientations = filtered["orientations"]
+        orientations = state["orientations"]
         if orientations is None:
             orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=translations.device).repeat(
-                filtered["count"], 1
+                state["count"], 1
             )
-        scales = filtered["scales"]
+        scales = state["scales"]
         if scales is None:
-            scales = torch.ones((filtered["count"], 3), dtype=torch.float32, device=translations.device)
-        marker_indices = filtered["marker_indices"]
+            scales = torch.ones((state["count"], 3), dtype=torch.float32, device=translations.device)
+        marker_indices = state["marker_indices"]
         if marker_indices is None:
-            marker_indices = torch.zeros(filtered["count"], dtype=torch.int64, device=translations.device)
+            marker_indices = torch.zeros(state["count"], dtype=torch.int64, device=translations.device)
 
-        for proto_index, (name, marker_cfg) in enumerate(cfg.markers.items()):
-            newton_cfg = _resolve_newton_marker_cfg(name, marker_cfg, cfg)
-            batch_name = f"{group_id}/{name}"
+        for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
+            newton_cfg = _resolve_newton_marker_cfg(name, marker_cfg, self.cfg)
+            batch_name = f"{self.group_id}/{name}"
             selected = marker_indices == proto_index
-            if not filtered["visible"] or int(selected.sum().item()) == 0:
-                self._hide_batch(viewer, group_id, name, newton_cfg)
+            if not state["visible"] or int(selected.sum().item()) == 0:
+                self._hide_batch(viewer, name, newton_cfg)
                 continue
 
             if newton_cfg.renderer == "none":
-                unsupported_key = f"{group_id}:{name}"
+                unsupported_key = f"{self.group_id}:{name}"
                 if unsupported_key not in self._warned_unsupported:
                     logger.warning(
-                        "[NewtonMarkerRenderer] Unsupported marker prototype '%s' in group '%s'; skipping.",
+                        "[NewtonVisualizationMarkers] Unsupported marker prototype '%s' in group '%s'; skipping.",
                         name,
-                        group_id,
+                        self.group_id,
                     )
                     self._warned_unsupported.add(unsupported_key)
                 continue
@@ -102,7 +153,7 @@ class NewtonMarkerRenderer:
             ).unsqueeze(0)
 
             if newton_cfg.renderer == "mesh":
-                mesh_name = f"{group_id}/meshes/{name}"
+                mesh_name = f"{self.group_id}/meshes/{name}"
                 self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
                 color = newton_cfg.color or _extract_color(marker_cfg)
                 colors = torch.tensor(color, dtype=torch.float32, device=scales.device).repeat(
@@ -131,10 +182,10 @@ class NewtonMarkerRenderer:
                     hidden=False,
                 )
 
-    def _hide_batch(self, viewer, group_id: str, name: str, newton_cfg: NewtonMarkerCfg) -> None:
-        batch_name = f"{group_id}/{name}"
+    def _hide_batch(self, viewer, name: str, newton_cfg: NewtonMarkerCfg) -> None:
+        batch_name = f"{self.group_id}/{name}"
         if newton_cfg.renderer == "mesh" and newton_cfg.mesh_type is not None:
-            mesh_name = f"{group_id}/meshes/{name}"
+            mesh_name = f"{self.group_id}/meshes/{name}"
             self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
             viewer.log_instances(batch_name, mesh_name, None, None, None, None, hidden=True)
         elif newton_cfg.renderer == "frame":
@@ -245,45 +296,49 @@ def _create_mesh(newton_cfg: NewtonMarkerCfg):
     raise ValueError(f"Unsupported Newton mesh type: {newton_cfg.mesh_type}")
 
 
-def _filter_group_state(
-    state: dict[str, Any],
+def _filter_marker_state(
+    marker: NewtonVisualizationMarkers,
     visible_env_ids: list[int] | None,
     num_envs: int,
 ) -> dict[str, Any]:
-    count = int(state["count"])
-    if visible_env_ids is None or count == 0 or num_envs <= 0 or count % num_envs != 0:
-        return state
+    if visible_env_ids is None or marker.count == 0 or num_envs <= 0 or marker.count % num_envs != 0:
+        return {
+            "visible": marker.visible,
+            "translations": marker.translations,
+            "orientations": marker.orientations,
+            "scales": marker.scales,
+            "marker_indices": marker.marker_indices,
+            "count": marker.count,
+        }
 
     keep: list[int] = []
-    repeat_count = count // num_envs
+    repeat_count = marker.count // num_envs
     for block_idx in range(repeat_count):
         base = block_idx * num_envs
         for env_id in visible_env_ids:
             idx = base + env_id
-            if idx < count:
+            if idx < marker.count:
                 keep.append(idx)
 
-    if len(keep) == count:
-        return state
+    if len(keep) == marker.count:
+        return {
+            "visible": marker.visible,
+            "translations": marker.translations,
+            "orientations": marker.orientations,
+            "scales": marker.scales,
+            "marker_indices": marker.marker_indices,
+            "count": marker.count,
+        }
 
-    index = torch.tensor(keep, dtype=torch.long, device=_resolve_group_device(state))
-    out = dict(state)
-    out["translations"] = state["translations"].index_select(0, index) if state["translations"] is not None else None
-    out["orientations"] = state["orientations"].index_select(0, index) if state["orientations"] is not None else None
-    out["scales"] = state["scales"].index_select(0, index) if state["scales"] is not None else None
-    out["marker_indices"] = (
-        state["marker_indices"].index_select(0, index) if state["marker_indices"] is not None else None
-    )
-    out["count"] = len(keep)
-    return out
-
-
-def _resolve_group_device(state: dict[str, Any]) -> torch.device:
-    for key in ("translations", "orientations", "scales", "marker_indices"):
-        value = state[key]
-        if value is not None:
-            return value.device
-    return torch.device("cpu")
+    index = torch.tensor(keep, dtype=torch.long, device=marker.infer_device())
+    return {
+        "visible": marker.visible,
+        "translations": marker.translations.index_select(0, index) if marker.translations is not None else None,
+        "orientations": marker.orientations.index_select(0, index) if marker.orientations is not None else None,
+        "scales": marker.scales.index_select(0, index) if marker.scales is not None else None,
+        "marker_indices": marker.marker_indices.index_select(0, index) if marker.marker_indices is not None else None,
+        "count": len(keep),
+    }
 
 
 def _extract_scale_hint(marker_cfg: object) -> tuple[float, float, float]:
