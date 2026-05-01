@@ -38,6 +38,42 @@ CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 # slides out (which is what we observed in the un-flattened smoke tests).
 ASSETS_DIR = os.path.join(CONFIG_DIR, "cable_insertion_assets", "flattened")
 
+# ---------------------------------------------------------------------------
+# USD body-frame offsets (from IsaacLab_UR GB300AssetConfig)
+# ---------------------------------------------------------------------------
+# The GB300 socket/plug USD root frames are far from the actual insertion
+# geometry.  These constants map root → insertion point in each asset's
+# local frame and are used for observations, rewards, and computing the
+# correct root positions so the geometry ends up at the desired workspace
+# location.
+#
+# Socket:  gear_offsets['plug'] from GB300Socket — root to insertion slot.
+SOCKET_INSERTION_OFFSET = [0.0254, 0.5347, 0.0543]
+# Plug:  held_keypoint_origin_local ≈ R(goal_rot_inv) @ (gear_offsets - goal_pos).
+PLUG_INSERTION_OFFSET = [0.03, 0.0, 0.0]
+# Plug goal rotation relative to socket:  euler(180, 0, -90) deg in (x,y,z,w).
+PLUG_GOAL_ROT = [0.70711, -0.70711, 0.0, 0.0]
+# Its inverse (conjugate), used for keypoint alignment in rewards.
+PLUG_GOAL_ROT_INV = [-0.70711, 0.70711, 0.0, 0.0]
+
+# ---------------------------------------------------------------------------
+# Default socket/plug workspace positions  (identity socket rotation)
+# ---------------------------------------------------------------------------
+# Desired insertion-point position in world frame.  The socket ROOT is
+# placed so that root + SOCKET_INSERTION_OFFSET lands here.
+_INSERTION_POINT = [0.5, 0.0, 0.0]
+# socket_root = insertion_point - R(identity) @ SOCKET_INSERTION_OFFSET
+_SOCKET_ROOT_POS = (
+    _INSERTION_POINT[0] - SOCKET_INSERTION_OFFSET[0],
+    _INSERTION_POINT[1] - SOCKET_INSERTION_OFFSET[1],
+    _INSERTION_POINT[2] - SOCKET_INSERTION_OFFSET[2],
+)
+# Plug root at ~3 cm above the goal state (enough clearance for robot to
+# grasp before insertion).  Computed from IsaacLab_UR _reset_objects logic:
+#   gear_center_rel = kp_origin + insertion_axis*(base_h+h) + held_init_pos
+#   plug_root = socket_root + gear_center_rel - R(goal_rot) @ plug_kp_local
+_PLUG_ROOT_POS = (0.5, 0.03, 0.033)
+
 ##
 # Asset Configurations
 ##
@@ -67,7 +103,7 @@ class GB300Plug(RigidObjectCfg):
         mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
         collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
     )
-    init_state = RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.1), rot=(0.0, 0.0, 0.0, 1.0))
+    init_state = RigidObjectCfg.InitialStateCfg(pos=_PLUG_ROOT_POS, rot=PLUG_GOAL_ROT)
 
 
 @configclass
@@ -76,7 +112,7 @@ class GB300Socket(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/GB300Socket"
     spawn = sim_utils.UsdFileCfg(
-        usd_path=os.path.join(ASSETS_DIR, "socket_A_simplified_minimal_transformed.usd"),
+        usd_path=os.path.join(ASSETS_DIR, "socket_A_simplified_minimal.usd"),
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -94,7 +130,7 @@ class GB300Socket(RigidObjectCfg):
         mass_props=sim_utils.MassPropertiesCfg(mass=None),
         collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
     )
-    init_state = RigidObjectCfg.InitialStateCfg(pos=(0.45, 0.0, 0.1), rot=(0.0, 0.0, 0.0, 1.0))
+    init_state = RigidObjectCfg.InitialStateCfg(pos=_SOCKET_ROOT_POS, rot=(0.0, 0.0, 0.0, 1.0))
 
 
 ##
@@ -145,7 +181,7 @@ class ObservationsCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         socket_pos = ObsTerm(
             func=mdp.rigid_object_pos_w,
-            params={"asset_cfg": SceneEntityCfg("gb300_socket"), "offset": [0.0, 0.0, 0.0]},
+            params={"asset_cfg": SceneEntityCfg("gb300_socket"), "offset": SOCKET_INSERTION_OFFSET},
             noise=ResetSampledConstantNoiseModelCfg(
                 noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")
             ),
@@ -167,7 +203,7 @@ class ObservationsCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel, params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*"])})
         socket_pos = ObsTerm(
             func=mdp.rigid_object_pos_w,
-            params={"asset_cfg": SceneEntityCfg("gb300_socket"), "offset": [0.0, 0.0, 0.0]},
+            params={"asset_cfg": SceneEntityCfg("gb300_socket"), "offset": SOCKET_INSERTION_OFFSET},
         )
         socket_quat = ObsTerm(
             func=mdp.rigid_object_quat_w,
@@ -175,7 +211,7 @@ class ObservationsCfg:
         )
         plug_pos = ObsTerm(
             func=mdp.rigid_object_pos_w,
-            params={"asset_cfg": SceneEntityCfg("gb300_plug")},
+            params={"asset_cfg": SceneEntityCfg("gb300_plug"), "offset": PLUG_INSERTION_OFFSET},
         )
         plug_quat = ObsTerm(
             func=mdp.rigid_object_quat_w,
@@ -203,6 +239,9 @@ class RewardsCfg:
         params={
             "asset_cfg_1": SceneEntityCfg("gb300_socket"),
             "asset_cfg_2": SceneEntityCfg("gb300_plug"),
+            "offset_1": SOCKET_INSERTION_OFFSET,
+            "offset_2": PLUG_INSERTION_OFFSET,
+            "rot_offset_2": PLUG_GOAL_ROT_INV,
             "keypoint_scale": 0.15,
         },
     )
@@ -213,6 +252,9 @@ class RewardsCfg:
         params={
             "asset_cfg_1": SceneEntityCfg("gb300_socket"),
             "asset_cfg_2": SceneEntityCfg("gb300_plug"),
+            "offset_1": SOCKET_INSERTION_OFFSET,
+            "offset_2": PLUG_INSERTION_OFFSET,
+            "rot_offset_2": PLUG_GOAL_ROT_INV,
             "kp_exp_coeffs": [(10, 0.0001), (50, 0.0001), (150, 0.0001), (300, 0.0001)],
             "kp_use_sum_of_exps": False,
             "keypoint_scale": 0.15,

@@ -19,6 +19,28 @@ from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.cable_inse
     CableInsertionEnvCfg,
 )
 
+# ---------------------------------------------------------------------------
+# Flexiv workspace layout (matches gear assembly from ashwinvk/hubble-gear-position-1)
+# ---------------------------------------------------------------------------
+# Desired socket-geometry position (same as gear base in the gear assembly task).
+_GEAR_BASE_POS = (0.481, -0.073, 0.071)
+_SOCKET_ROT = (0.0, 0.0, 0.70711, -0.70711)  # −90° Z, same as gear base
+
+# R_z(−90°) @ SOCKET_INSERTION_OFFSET = [0.5347, −0.0254, 0.0543]
+# socket_root = geometry_pos − world_offset
+_SOCKET_ROOT = (
+    _GEAR_BASE_POS[0] - 0.5347,
+    _GEAR_BASE_POS[1] + 0.0254,
+    _GEAR_BASE_POS[2] - 0.0543,
+)
+
+# Plug root at goal is at socket_root + R(socket_rot)@goal_pos ≈ (0.511, −0.073, 0.071).
+# Start the plug ~0.068 m above the insertion point (matching gear z-offset
+# range center 0.0675 from the gear assembly).
+_PLUG_ROOT = (0.511, -0.073, 0.139)
+# Plug world rotation = quat_mul(socket_rot, PLUG_GOAL_ROT) = 180° around Y.
+_PLUG_ROT = (0.0, 1.0, 0.0, 0.0)
+
 ##
 # Pre-defined configs
 ##
@@ -156,10 +178,8 @@ class TerminationsCfg:
             "plug_asset_cfg": SceneEntityCfg("gb300_plug"),
             "distance_threshold": 0.15,
             "end_effector_body_name": "link7",
-            # grasp_offset/grasp_rot_offset are populated in __post_init__ to keep
-            # them in sync with the IK grasp-pose configuration.
-            "grasp_offset": [0.0, 0.0, -0.13],
-            "grasp_rot_offset": [-0.70711, 0.70711, 0.0, 0.0],
+            "grasp_offset": [0.0, 0.0, 0.0],
+            "grasp_rot_offset": [0.0, 0.0, 0.0, 1.0],
         },
     )
 
@@ -172,7 +192,7 @@ class TerminationsCfg:
             "pitch_threshold_deg": 15.0,
             "yaw_threshold_deg": 180.0,
             "end_effector_body_name": "link7",
-            "grasp_rot_offset": [-0.70711, 0.70711, 0.0, 0.0],
+            "grasp_rot_offset": [0.0, 0.0, 0.0, 1.0],
         },
     )
 
@@ -186,27 +206,12 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
 
         self.end_effector_body_name = "link7"
         self.num_arm_joints = 7
-        # ``grasp_offset`` is the offset from the plug body origin to ``link7`` expressed
-        # in the rotated plug frame (after applying ``grasp_rot_offset``). With the
-        # FLATTENED plug USD the visible/collidable mesh is centred on the rigid-body
-        # origin (``bbox_center_local = (0, 0, 0)``; verified via
-        # ``scripts/tools/inspect_cable_usd_kit.py``), so ``grasp_offset`` only needs
-        # to back the gripper off by the gripper tool length so that the fingertips
-        # end up exactly at the plug body origin (= visible mesh centre).
-        #
-        # Grav tool length: the IsaacLab Nucleus ``rizon4s_with_grav.usd`` has
-        # ``link7 -> fingertip = 0.13 m`` (verified empirically: with the un-flattened
-        # plug + the (now-removed) bbox-compensated ``grasp_offset``, the IK ended up
-        # placing ``link7`` exactly ``0.13 m`` above the plug body origin; the
-        # gear-assembly task uses ``-0.35 m`` here because its target is the top of
-        # the 0.22 m gear shaft, so 0.35 = 0.22 + 0.13).
-        #
-        # ``grasp_rot_offset = R_x(-90 deg)`` matches the gear-assembly task; combined
-        # with the plug's identity ``init_state.rot``, ``link7`` ends up pointing
-        # straight down (gripper finger axis perpendicular to the plug's long body Y
-        # axis, so the fingers can clamp the plug's narrow body X axis = 1.18 cm).
-        self.grasp_offset = [0.0, 0.0, -0.13]
-        self.grasp_rot_offset = [-0.70711, 0.70711, 0.0, 0.0]
+        # grasp_offset: position of link7 in the plug's local frame when
+        # properly grasped.  z = -0.35 matches the gear assembly's
+        # link7-to-fingertip calibration; x/y from GB300Plug.grasp_pos.
+        self.grasp_offset = [0.03, 0.002, -0.35]
+        # Identity: the target EEF orientation equals the plug orientation.
+        self.grasp_rot_offset = [0.0, 0.0, 0.0, 1.0]
         self.gripper_joint_setter_func = set_finger_joint_pos_grav
 
         self.plug_orientation_roll_threshold_deg = 15.0
@@ -311,47 +316,33 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
             damping=0.0,
         )
 
-        # Override plug/socket positions to match the gear-assembly Flexiv workspace
-        # layout. Socket = gear_base (fixed insertion target). Plug = gear (held
-        # object, offset above socket so it can be inserted downward).
-        #
-        # Both assets use IDENTITY rotation -- the FLATTENED USDs already align the
-        # collidable mesh long axis with body Y and the insertion axis with body Z.
-        # The plug spawn pose only seeds the IK target; after IK,
-        # :class:`mdp.set_robot_to_object_grasp_pose` snaps the plug to the achieved
-        # gripper pose so any small spawn-pose error is washed out.
+        # Override plug/socket positions to match the gear assembly Flexiv workspace.
+        # Socket root is placed so that the insertion geometry lands at _GEAR_BASE_POS,
+        # using the same −90° Z rotation as the gear base.
         self.scene.gb300_socket.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.481, -0.073, 0.071),
-            rot=(0.0, 0.0, 0.0, 1.0),
+            pos=_SOCKET_ROOT,
+            rot=_SOCKET_ROT,
         )
         # Plug ~5 cm above the socket so the policy has room to descend during
         # insertion. With grasp_offset = (0, 0, -0.13) and identity plug rotation,
         # link7 ends up at plug_pos + (0, 0, 0.13) and the fingertips at plug_pos.
         self.scene.gb300_plug.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.481, -0.073, 0.121),
-            rot=(0.0, 0.0, 0.0, 1.0),
+            pos=_PLUG_ROOT,
+            rot=_PLUG_ROT,
         )
 
-        # Grav gripper joint convention (per ``FLEXIV_RIZON4S_GRAV_GRIPPER_CFG``):
-        #   ``+0.785 rad (45 deg)`` fully open, ``-0.155 rad (-8.88 deg)`` fully
-        #   closed.
-        # The flattened plug body is ~11.8 mm wide along the squeeze axis (body X,
-        # per the USD bbox). At the reset, ``hand_grasp_width=0.05 rad`` opens the
-        # fingers to ~16 mm so the plug fits between them; the drive is then
-        # commanded to close to ``hand_close_width=0.0 rad`` (matching the
-        # gear-assembly small-gear close width). At ``0.0`` the fingers would meet
-        # if unobstructed, but the plug stops them via collision and the drive
-        # applies a steady squeeze (200 N -> ~80 N at the fingertips, plenty for a
-        # 19 g plug). Using the hard-close limit ``-0.155`` was tried previously
-        # and ejected the plug because the drive over-commanded the fingers.
-        self.hand_grasp_width = 0.05
-        self.hand_close_width = 0.0
+        # Grasp widths for the Grav gripper (matching IsaacLab_UR defaults).
+        # ``hand_grasp_width`` opens fingers for the plug (0.3 rad ≈ 17°),
+        # ``hand_close_width`` fully closes to hold it (-0.155 rad ≈ -8.9°).
+        self.hand_grasp_width = 0.3
+        self.hand_close_width = -0.155
 
         self.events.set_robot_to_grasp_pose.params["end_effector_body_name"] = self.end_effector_body_name
         self.events.set_robot_to_grasp_pose.params["num_arm_joints"] = self.num_arm_joints
         self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
         self.events.set_robot_to_grasp_pose.params["grasp_offset"] = self.grasp_offset
         self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
+        self.events.set_robot_to_grasp_pose.params["max_iterations"] = 150
 
         self.terminations.plug_dropped.params["end_effector_body_name"] = self.end_effector_body_name
         self.terminations.plug_dropped.params["grasp_offset"] = self.grasp_offset
