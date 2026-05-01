@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers
 # (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
@@ -11,11 +16,11 @@ from __future__ import annotations
 from typing import cast
 
 import pytest
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.sensors.camera.camera_data import CameraData
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 
 def test_get_renderer_returns_equal_cfg_singleton():

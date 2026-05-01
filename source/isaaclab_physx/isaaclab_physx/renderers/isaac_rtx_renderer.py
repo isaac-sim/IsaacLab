@@ -21,10 +21,8 @@ from packaging import version
 from pxr import Sdf
 
 from isaaclab.app.settings_manager import get_settings_manager
-
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
@@ -178,7 +176,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
                 " will be disabled in the current workflow and may lead to longer load times and increased memory"
                 " usage."
-            )            
+            )
             with Sdf.ChangeBlock():
                 for prim in stage.Traverse():
                     prim.SetInstanceable(False)
@@ -191,14 +189,12 @@ class IsaacRtxRenderer(BaseRenderer):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
 
         # Create replicator tiled render product
-        rp = rep.create.render_product_tiled(
-            cameras=cam_prim_paths, tile_resolution=(spec.cfg.width, spec.cfg.height)
-        )
+        rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(spec.cfg.width, spec.cfg.height))
         render_product_paths = [rp.path]
 
         # Synthetic-data instance mapping filter for segmentation; before annotator attach.
         SyntheticData.Get().set_instance_mapping_semantic_filter(
-            _camera_semantic_filter_predicate(spec.cfg.semantic_filter)
+            _camera_semantic_filter_predicate(self.cfg.semantic_filter)
         )
 
         # Register simple shading if needed
@@ -246,12 +242,12 @@ class IsaacRtxRenderer(BaseRenderer):
                 if annotator_type == "semantic_segmentation":
                     init_params = {
                         "colorize": spec.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(spec.cfg.semantic_segmentation_mapping),
+                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
                     }
                 elif annotator_type == "instance_segmentation_fast":
-                    init_params = {"colorize": spec.cfg.colorize_instance_segmentation}
+                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
                 elif annotator_type == "instance_id_segmentation_fast":
-                    init_params = {"colorize": spec.cfg.colorize_instance_id_segmentation}
+                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
 
                 annotator = rep.AnnotatorRegistry.get_annotator(
                     annotator_type, init_params, device=spec.device, do_array_copy=False

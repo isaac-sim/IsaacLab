@@ -15,14 +15,13 @@ import warp as wp
 
 from pxr import UsdGeom
 
+import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
-
 from isaaclab.renderers import BaseRenderer
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
-
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
@@ -410,9 +409,7 @@ class Camera(SensorBase):
         cam_paths = tuple(cam_prim.GetPath().pathString for cam_prim in self._view.prims)
         env_0_prefix = "/World/envs/env_0/"
         rel_under_env0 = (
-            cam_paths[0].removeprefix(env_0_prefix)
-            if cam_paths and cam_paths[0].startswith(env_0_prefix)
-            else ""
+            cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
         )
         device_str = self._device if isinstance(self._device, str) else str(self._device)
         render_spec = CameraRenderSpec(

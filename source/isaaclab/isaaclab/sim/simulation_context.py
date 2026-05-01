@@ -28,10 +28,10 @@ from isaaclab.physics.scene_data_requirements import (
     VisualizerPrebuiltArtifacts,
     resolve_scene_data_requirements,
 )
+from isaaclab.renderers.render_context import RenderContext
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
-from isaaclab.renderers.render_context import RenderContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from .simulation_cfg import SimulationCfg

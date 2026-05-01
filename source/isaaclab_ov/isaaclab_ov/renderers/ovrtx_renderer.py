@@ -626,6 +626,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
         """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
+
         # Unbind before tearing down renderer
         def _safe_unbind(binding, name: str) -> None:
             if binding is None:
