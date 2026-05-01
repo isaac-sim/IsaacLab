@@ -89,7 +89,6 @@ class RenderData:
         return None
 
     def update(self, positions: wp.array, orientations: wp.array, intrinsics: wp.array):
-        intrinsics_torch = wp.to_torch(intrinsics)
         converted_orientations = wp.from_torch(
             convert_camera_frame_orientation_convention(wp.to_torch(orientations), origin="world", target="opengl")
         )
@@ -100,28 +99,12 @@ class RenderData:
         wp.launch(
             RenderData._update_transforms,
             self.newton_sensor.model.world_count,
-            [
-                wp.array(
-                    ptr=positions.ptr,
-                    dtype=wp.vec3f,
-                    shape=(positions.shape[0],),
-                    device=positions.device,
-                    copy=False,
-                ),
-                wp.array(
-                    ptr=converted_orientations.ptr,
-                    dtype=wp.quatf,
-                    shape=(converted_orientations.shape[0],),
-                    device=converted_orientations.device,
-                    copy=False,
-                ),
-                self.camera_transforms,
-            ],
+            [positions, converted_orientations, self.camera_transforms],
             device=self.newton_sensor.model.device,
         )
 
         if self.camera_rays is None:
-            first_focal_length = intrinsics_torch[:, 1, 1][0:1]
+            first_focal_length = wp.to_torch(intrinsics)[:, 1, 1][0:1]
             fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
             self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
@@ -255,10 +238,6 @@ class NewtonWarpRenderer(BaseRenderer):
                 output_data = camera_data.output[output_name]
                 if image_data.ptr != output_data.ptr:
                     wp.copy(output_data, image_data)
-        # Mirror rgba's first three channels into rgb when both are requested. This matches the
-        # legacy slice-aliased behavior so consumers requesting "rgb" still see populated pixels.
-        if "rgb" in camera_data.output and "rgba" in camera_data.output:
-            wp.to_torch(camera_data.output["rgb"]).copy_(wp.to_torch(camera_data.output["rgba"])[..., :3])
 
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.
