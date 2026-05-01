@@ -17,9 +17,8 @@ import warp as wp
 from newton import Axis, Mesh
 
 import isaaclab.sim as sim_utils
+from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.utils.math import quat_apply
-
-from .visualization_markers_cfg import VisualizationMarkersCfg
 
 logger = logging.getLogger(__name__)
 

@@ -126,7 +126,7 @@ class VisualizationMarkers:
     def _ensure_backends_initialized(self) -> None:
         sim = sim_utils.SimulationContext.instance()
         if sim is None:
-            from .kit_visualization_markers import KitVisualizationMarkers
+            from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 
             if not any(isinstance(backend, KitVisualizationMarkers) for backend in self._backends):
                 self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible))
@@ -140,12 +140,12 @@ class VisualizationMarkers:
         )
 
         if has_kit_marker_backend:
-            from .kit_visualization_markers import KitVisualizationMarkers
+            from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 
             if not any(isinstance(backend, KitVisualizationMarkers) for backend in self._backends):
                 self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible))
         if has_newton_marker_backend:
-            from .newton_visualization_markers import NewtonVisualizationMarkers
+            from isaaclab_visualizers.newton.newton_visualization_markers import NewtonVisualizationMarkers
 
             if not any(isinstance(backend, NewtonVisualizationMarkers) for backend in self._backends):
                 self._backends.append(NewtonVisualizationMarkers(self.cfg, visible=self._is_visible))

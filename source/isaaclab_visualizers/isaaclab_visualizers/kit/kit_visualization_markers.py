@@ -12,9 +12,8 @@ import logging
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.utils.version import has_kit
-
-from .visualization_markers_cfg import VisualizationMarkersCfg
 
 logger = logging.getLogger(__name__)
 
