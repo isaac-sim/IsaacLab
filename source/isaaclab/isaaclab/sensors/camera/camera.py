@@ -18,10 +18,10 @@ from pxr import UsdGeom
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
 
-from isaaclab.renderers import BaseRenderer, Renderer
+from isaaclab.renderers import BaseRenderer
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-from isaaclab.sim.views import FrameView, XformPrimView
-from isaaclab.utils import has_kit, to_camel_case
+from isaaclab.sim.views import FrameView
+from isaaclab.utils import to_camel_case
 
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,

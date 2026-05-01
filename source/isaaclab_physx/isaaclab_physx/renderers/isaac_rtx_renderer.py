@@ -169,24 +169,24 @@ class IsaacRtxRenderer(BaseRenderer):
 
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation
         # outputs for instanceable assets. Disable instancing as a workaround.
+        stage = get_current_stage()
         if isaac_sim_version == version.parse("4.5") and (
-            "semantic_segmentation" in sensor.cfg.data_types or "instance_segmentation_fast" in sensor.cfg.data_types
+            "semantic_segmentation" in spec.cfg.data_types or "instance_segmentation_fast" in spec.cfg.data_types
         ):
             logger.warning(
                 "Isaac Sim 4.5 introduced a bug in Camera when outputting instance and semantic"
                 " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
                 " will be disabled in the current workflow and may lead to longer load times and increased memory"
                 " usage."
-            )
+            )            
             with Sdf.ChangeBlock():
-                for prim in sensor.stage.Traverse():
+                for prim in stage.Traverse():
                     prim.SetInstanceable(False)
 
         # Get camera prim paths from sensor view
-        view = sensor._view
-        cam_prim_paths = []
-        for cam_prim in view.prims:
-            cam_prim_path = cam_prim.GetPath().pathString
+        cam_prim_paths = list(spec.camera_prim_paths)
+        for cam_prim_path in cam_prim_paths:
+            cam_prim = stage.GetPrimAtPath(cam_prim_path)
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
 
