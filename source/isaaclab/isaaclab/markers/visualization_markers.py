@@ -136,8 +136,7 @@ class VisualizationMarkers:
             viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
         )
         has_newton_marker_backend = any(
-            viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers
-            for viz in sim.visualizers
+            viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
         )
 
         if has_kit_marker_backend:

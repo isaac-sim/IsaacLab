@@ -22,6 +22,7 @@ from .manager_term_cfg import CommandTermCfg
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
+
 class CommandTerm(ManagerTermBase):
     """The base class for implementing a command term.
 

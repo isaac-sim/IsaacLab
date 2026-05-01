@@ -8,7 +8,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -18,7 +19,7 @@ from newton import Axis, Mesh
 import isaaclab.sim as sim_utils
 from isaaclab.utils.math import quat_apply
 
-from .visualization_markers_cfg import NewtonMarkerCfg, VisualizationMarkersCfg
+from .visualization_markers_cfg import VisualizationMarkersCfg
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,15 @@ _OMNIPBR_DEFAULTS = {
     "diffuse_tint": (1.0, 1.0, 1.0),
 }
 _UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
+
+
+@dataclass(frozen=True)
+class _NewtonMarkerSpec:
+    renderer: Literal["mesh", "frame", "none"]
+    mesh_type: Literal["arrow", "box", "sphere", "cylinder", "capsule", "cone"] | None = None
+    mesh_params: dict[str, float | tuple[float, float, float]] | None = None
+    scale: tuple[float, float, float] | None = None
+    color: tuple[float, float, float] | None = None
 
 
 def render_newton_visualization_markers(viewer, visible_env_ids: list[int] | None, num_envs: int) -> None:
@@ -116,9 +126,7 @@ class NewtonVisualizationMarkers:
             return
         orientations = state["orientations"]
         if orientations is None:
-            orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=translations.device).repeat(
-                state["count"], 1
-            )
+            orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=translations.device).repeat(state["count"], 1)
         scales = state["scales"]
         if scales is None:
             scales = torch.ones((state["count"], 3), dtype=torch.float32, device=translations.device)
@@ -182,7 +190,7 @@ class NewtonVisualizationMarkers:
                     hidden=False,
                 )
 
-    def _hide_batch(self, viewer, name: str, newton_cfg: NewtonMarkerCfg) -> None:
+    def _hide_batch(self, viewer, name: str, newton_cfg: _NewtonMarkerSpec) -> None:
         batch_name = f"{self.group_id}/{name}"
         if newton_cfg.renderer == "mesh" and newton_cfg.mesh_type is not None:
             mesh_name = f"{self.group_id}/meshes/{name}"
@@ -191,7 +199,7 @@ class NewtonVisualizationMarkers:
         elif newton_cfg.renderer == "frame":
             viewer.log_lines(batch_name, None, None, None, hidden=True)
 
-    def _ensure_mesh_registered(self, viewer, mesh_name: str, newton_cfg: NewtonMarkerCfg) -> None:
+    def _ensure_mesh_registered(self, viewer, mesh_name: str, newton_cfg: _NewtonMarkerSpec) -> None:
         if mesh_name in self._registered_meshes or newton_cfg.mesh_type is None:
             return
         mesh = _create_mesh(newton_cfg)
@@ -206,35 +214,34 @@ class NewtonVisualizationMarkers:
         self._registered_meshes.add(mesh_name)
 
 
-def _resolve_newton_marker_cfg(name: str, marker_cfg: object, cfg: VisualizationMarkersCfg) -> NewtonMarkerCfg:
-    if name in cfg.newton_markers:
-        return cfg.newton_markers[name]
+def _resolve_newton_marker_cfg(name: str, marker_cfg: object, cfg: VisualizationMarkersCfg) -> _NewtonMarkerSpec:
+    del name, cfg
     return _infer_newton_marker_cfg(marker_cfg)
 
 
-def _infer_newton_marker_cfg(marker_cfg: object) -> NewtonMarkerCfg:
+def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
     cfg_type = type(marker_cfg).__name__
 
     if cfg_type == "SphereCfg":
-        return NewtonMarkerCfg(renderer="mesh", mesh_type="sphere", mesh_params={"radius": float(marker_cfg.radius)})
+        return _NewtonMarkerSpec(renderer="mesh", mesh_type="sphere", mesh_params={"radius": float(marker_cfg.radius)})
     if cfg_type == "CuboidCfg":
-        return NewtonMarkerCfg(
+        return _NewtonMarkerSpec(
             renderer="mesh", mesh_type="box", mesh_params={"size": tuple(float(v) for v in marker_cfg.size)}
         )
     if cfg_type == "CylinderCfg":
-        return NewtonMarkerCfg(
+        return _NewtonMarkerSpec(
             renderer="mesh",
             mesh_type="cylinder",
             mesh_params={"radius": float(marker_cfg.radius), "height": float(marker_cfg.height)},
         )
     if cfg_type == "CapsuleCfg":
-        return NewtonMarkerCfg(
+        return _NewtonMarkerSpec(
             renderer="mesh",
             mesh_type="capsule",
             mesh_params={"radius": float(marker_cfg.radius), "height": float(marker_cfg.height)},
         )
     if cfg_type == "ConeCfg":
-        return NewtonMarkerCfg(
+        return _NewtonMarkerSpec(
             renderer="mesh",
             mesh_type="cone",
             mesh_params={"radius": float(marker_cfg.radius), "height": float(marker_cfg.height)},
@@ -244,53 +251,54 @@ def _infer_newton_marker_cfg(marker_cfg: object) -> NewtonMarkerCfg:
         usd_path = str(marker_cfg.usd_path).lower()
         default_scale = _extract_scale_hint(marker_cfg)
         if usd_path.endswith("arrow_x.usd"):
-            return NewtonMarkerCfg(
+            return _NewtonMarkerSpec(
                 renderer="mesh",
                 mesh_type="arrow",
                 mesh_params={"base_radius": 0.08, "base_height": 0.7, "cap_radius": 0.16, "cap_height": 0.3},
                 scale=(default_scale[0], default_scale[1] * 2.5, default_scale[2] * 2.5),
             )
         if usd_path.endswith("frame_prim.usd"):
-            return NewtonMarkerCfg(renderer="frame", scale=default_scale)
+            return _NewtonMarkerSpec(renderer="frame", scale=default_scale)
         if "dex_cube" in usd_path or "cube" in usd_path:
-            return NewtonMarkerCfg(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
+            return _NewtonMarkerSpec(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
 
         # TODO: Add generic UsdFileCfg -> Newton mesh extraction for mesh-backed USD marker assets.
         # For now, only common marker USDs are mapped to lightweight Newton-native fallbacks.
 
-    return NewtonMarkerCfg(renderer="none")
+    return _NewtonMarkerSpec(renderer="none")
 
 
-def _create_mesh(newton_cfg: NewtonMarkerCfg):
+def _create_mesh(newton_cfg: _NewtonMarkerSpec):
+    mesh_params = newton_cfg.mesh_params or {}
     if newton_cfg.mesh_type == "arrow":
         return Mesh.create_arrow(
-            float(newton_cfg.mesh_params["base_radius"]),
-            float(newton_cfg.mesh_params["base_height"]),
-            cap_radius=float(newton_cfg.mesh_params["cap_radius"]),
-            cap_height=float(newton_cfg.mesh_params["cap_height"]),
+            float(mesh_params["base_radius"]),
+            float(mesh_params["base_height"]),
+            cap_radius=float(mesh_params["cap_radius"]),
+            cap_height=float(mesh_params["cap_height"]),
             up_axis=Axis.X,
         )
     if newton_cfg.mesh_type == "box":
-        size = newton_cfg.mesh_params["size"]
+        size = mesh_params["size"]
         return Mesh.create_box(float(size[0]) * 0.5, float(size[1]) * 0.5, float(size[2]) * 0.5)
     if newton_cfg.mesh_type == "sphere":
-        return Mesh.create_sphere(radius=float(newton_cfg.mesh_params["radius"]))
+        return Mesh.create_sphere(radius=float(mesh_params["radius"]))
     if newton_cfg.mesh_type == "cylinder":
         return Mesh.create_cylinder(
-            float(newton_cfg.mesh_params["radius"]),
-            float(newton_cfg.mesh_params["height"]) * 0.5,
+            float(mesh_params["radius"]),
+            float(mesh_params["height"]) * 0.5,
             up_axis=Axis.Z,
         )
     if newton_cfg.mesh_type == "capsule":
         return Mesh.create_capsule(
-            float(newton_cfg.mesh_params["radius"]),
-            float(newton_cfg.mesh_params["height"]) * 0.5,
+            float(mesh_params["radius"]),
+            float(mesh_params["height"]) * 0.5,
             up_axis=Axis.Z,
         )
     if newton_cfg.mesh_type == "cone":
         return Mesh.create_cone(
-            float(newton_cfg.mesh_params["radius"]),
-            float(newton_cfg.mesh_params["height"]) * 0.5,
+            float(mesh_params["radius"]),
+            float(mesh_params["height"]) * 0.5,
             up_axis=Axis.Z,
         )
     raise ValueError(f"Unsupported Newton mesh type: {newton_cfg.mesh_type}")
