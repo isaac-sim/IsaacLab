@@ -1,6 +1,64 @@
 Changelog
 ---------
 
+0.5.26 (2026-05-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.get_jacobians` to return
+  a Jacobian whose linear-velocity rows reference the **link origin** in
+  world frame, matching the contract documented on
+  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians` and consumed by
+  the IsaacLab task-space controllers (IK, OSC, RMPFlow). Previously the
+  wrapper passed Newton's ``eval_jacobian`` output through verbatim — those
+  rows reference each link's center of mass, so for any pose with non-zero
+  body angular velocity the linear rows differed from
+  :attr:`~isaaclab.assets.ArticulationData.body_link_lin_vel_w` by
+  ``-omega x R · body_com_pos_b``. Under Franka IK on Newton this surfaced
+  as a steady-state end-effector tracking offset of roughly the panda hand
+  COM offset (~3 cm).
+  The fix adds a new
+  :func:`~isaaclab_newton.assets.articulation.kernels.shift_jacobian_com_to_origin`
+  Warp kernel that applies the standard
+  ``v_origin = v_com - omega x (R · body_com_pos_b)`` shift per Jacobian
+  column on the gathered, view-sized buffer. ``get_mass_matrix`` is
+  unchanged: the joint-space mass matrix is invariant to the velocity
+  reference point, and Newton's :func:`newton.eval_mass_matrix` still
+  consumes the unshifted COM-referenced source buffer internally.
+
+Added
+^^^^^
+
+* Added ``test_get_jacobians_link_origin_contract`` (Newton + PhysX
+  mirror): pins the ``J · q_dot == [body_link_lin_vel_w; body_link_ang_vel_w]``
+  contract by injecting a non-trivial ``q_dot``, stepping once, and
+  asserting the identity holds for every body. Catches the COM-vs-origin
+  reference-point bug directly.
+* Added ``test_franka_ik_tracking_accuracy`` on Newton: exercises the full
+  IK pipeline through the new ``get_jacobians`` accessor with scene gravity
+  disabled, asserting EE position error < 1 cm and rotation error < ~1° at
+  convergence. End-to-end validation that the bridge is correct on Newton.
+
+Notes
+^^^^^
+
+* :meth:`~isaaclab_newton.assets.Articulation.get_gravity_compensation_forces`
+  continues to raise :class:`NotImplementedError`. Newton has no
+  inverse-dynamics primitive yet — see upstream Newton issues
+  `#2497 <https://github.com/newton-physics/newton/issues/2497>`_ (parent
+  feature request) and
+  `#2529 <https://github.com/newton-physics/newton/issues/2529>`_ (Coriolis
+  + gravity compensation sub-task), with a known floating-base bug at
+  `#2625 <https://github.com/newton-physics/newton/issues/2625>`_. Once
+  upstream Newton lands the primitive, the wrapper will switch from
+  :class:`NotImplementedError` to a real implementation and the strict-xfail
+  pin in ``test_get_gravity_compensation_forces_not_implemented_on_newton``
+  will flip to ``XPASS``, alerting the maintainer to remove the stub. OSC
+  users on Newton must continue to set ``gravity_compensation=False`` (the
+  default for ``Isaac-Reach-Franka-OSC-v0``).
+
 0.5.25 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 

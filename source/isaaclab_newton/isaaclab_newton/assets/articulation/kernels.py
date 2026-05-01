@@ -621,3 +621,66 @@ def gather_mass_matrix_rows(
     """
     i, r, c = wp.tid()
     dst[i, r, c] = src[art_ids[i], r, c]
+
+
+@wp.kernel
+def shift_jacobian_com_to_origin(
+    body_link_pose: wp.array2d(dtype=wp.transformf),
+    body_com_pos_b: wp.array2d(dtype=wp.vec3f),
+    link_offset: wp.int32,
+    J: wp.array4d(dtype=wp.float32),
+):
+    """Shift the linear-velocity rows of the Jacobian from COM to link origin.
+
+    Newton's ``eval_jacobian`` returns ``J · q_dot = [v_com_world, omega_world]``
+    per link — the linear rows are the velocity of the link's center of mass,
+    expressed in world frame. PhysX (and the IsaacLab task-space controllers
+    that consume :meth:`~isaaclab.assets.BaseArticulation.get_jacobians`) expect
+    the linear rows to be the velocity at the link **origin** (USD prim
+    transform), so that ``J · q_dot[body_idx]`` matches
+    :attr:`~isaaclab.assets.ArticulationData.body_link_lin_vel_w` /
+    :attr:`~isaaclab.assets.ArticulationData.body_link_ang_vel_w`.
+
+    The shift is the same one applied per-body by
+    :func:`get_link_vel_from_root_com_vel_func`, but layered onto every
+    Jacobian column: each column represents the spatial velocity contribution
+    of one DoF, and shifting a spatial velocity from COM to link origin uses
+    the same ``v_origin = v_com - omega x (R · body_com_pos_b)`` identity.
+
+    Notes on layout:
+        * Jacobian rows ``[0:3]`` are linear velocity, ``[3:6]`` are angular,
+          matching the IsaacLab convention used by the IK / OSC controllers.
+        * ``body_link_pose`` and ``body_com_pos_b`` are indexed by the
+          articulation's full body count, so ``link_offset`` must be applied
+          to map a row in the (already-gathered) ``J`` to its body index in
+          the asset data. ``link_offset = 1`` for fixed-base (Newton's row 0
+          fixed-root row was dropped during the prior gather);
+          ``link_offset = 0`` for floating-base.
+
+    Args:
+        body_link_pose: Per-body link pose in world frame. Shape is
+            (num_instances, num_bodies).
+        body_com_pos_b: Per-body center-of-mass offset expressed in the body's
+            link frame. Shape is (num_instances, num_bodies).
+        link_offset: Offset added to the jacobian-row body index to reach the
+            full body index. ``1`` for fixed-base, ``0`` for floating-base.
+        J: View-sized Jacobian, shifted in-place. Shape is
+            (num_instances, num_jacobi_bodies, 6, num_jacobi_joints). On exit
+            the linear rows ``[0:3]`` reference the link origin; angular rows
+            ``[3:6]`` are unchanged (angular velocity is reference-point
+            invariant).
+    """
+    n, b, dof = wp.tid()
+    full_body_idx = b + link_offset
+
+    R = wp.transform_get_rotation(body_link_pose[n, full_body_idx])
+    c_world = wp.quat_rotate(R, body_com_pos_b[n, full_body_idx])
+
+    v_com = wp.vec3(J[n, b, 0, dof], J[n, b, 1, dof], J[n, b, 2, dof])
+    omega = wp.vec3(J[n, b, 3, dof], J[n, b, 4, dof], J[n, b, 5, dof])
+
+    v_origin = v_com - wp.cross(omega, c_world)
+
+    J[n, b, 0, dof] = v_origin[0]
+    J[n, b, 1, dof] = v_origin[1]
+    J[n, b, 2, dof] = v_origin[2]

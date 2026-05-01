@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+4.6.23 (2026-05-01)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Tightened the docstring contract on
+  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians` to specify the
+  Jacobian's reference point (link origin / USD prim transform), frame
+  (world), and row layout (linear ``[0:3]``, angular ``[3:6]``), and to
+  state the ``J · q_dot == [body_link_lin_vel_w; body_link_ang_vel_w]``
+  identity. Backend implementations whose native Jacobian is expressed at
+  a different reference point must apply the appropriate shift before
+  returning. No behavior change for existing PhysX consumers; the Newton
+  backend now applies a COM-to-origin shift to honor this contract.
+
 4.6.22 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 

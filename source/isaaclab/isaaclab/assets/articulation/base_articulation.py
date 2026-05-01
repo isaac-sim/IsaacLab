@@ -174,15 +174,35 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     def get_jacobians(self) -> wp.array:
-        """Per-env spatial Jacobians in world frame.
+        """Per-env geometric Jacobians, referenced at each link origin in world frame.
 
-        Each backend implementation returns a 4-D array with shape
-        ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)``, where
-        ``num_jacobi_bodies`` excludes the fixed base body (if any) and
-        ``num_jacobi_joints`` is the per-articulation generalized DoF
-        count (see backend-specific note below). Task-space controllers
-        (IK, OSC, RMPFlow) slice this array to extract the end-effector
-        Jacobian.
+        Returns the geometric Jacobian ``J`` such that, for any joint-velocity
+        vector ``q_dot`` consistent with the asset's DoF ordering,
+
+        .. code-block:: text
+
+            J[:, body_idx, 0:3, :] @ q_dot == data.body_link_lin_vel_w[:, body_idx]
+            J[:, body_idx, 3:6, :] @ q_dot == data.body_link_ang_vel_w[:, body_idx]
+
+        That is, the linear-velocity rows ``[0:3]`` give the velocity at the
+        link origin (the body's USD prim transform / actor frame), in world
+        frame; the angular rows ``[3:6]`` give the body's angular velocity in
+        world frame. Both share the world-frame contract used by
+        :attr:`~isaaclab.assets.ArticulationData.body_link_pos_w`,
+        :attr:`~isaaclab.assets.ArticulationData.body_link_lin_vel_w`, and the
+        body-offset shift in
+        :class:`~isaaclab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction`.
+
+        Backend implementations whose native Jacobian is expressed at a
+        different reference point (e.g. Newton's ``eval_jacobian``, which is
+        center-of-mass referenced) MUST apply the corresponding shift before
+        returning so this contract holds across backends.
+
+        Shape is ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)``,
+        where ``num_jacobi_bodies`` excludes the fixed base body (if any) and
+        ``num_jacobi_joints`` is the per-articulation generalized DoF count.
+        Task-space controllers (IK, OSC, RMPFlow) slice this array to extract
+        the end-effector Jacobian.
 
         .. note::
             Newton and PhysX implementations differ in how the underlying
@@ -209,9 +229,11 @@ class BaseArticulation(AssetBase):
         actually invoked, matching the deprecation policy in AGENTS.md.
 
         Returns:
-            The per-env spatial Jacobian as a Warp array. Shape
+            The per-env geometric Jacobian, link-origin referenced, in world
+            frame. Shape
             ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)``,
-            dtype ``float32``.
+            dtype ``float32``. Linear rows ``[0:3]`` [m/s], angular rows
+            ``[3:6]`` [rad/s].
         """
         raise NotImplementedError(
             f"{type(self).__name__} does not implement get_jacobians."

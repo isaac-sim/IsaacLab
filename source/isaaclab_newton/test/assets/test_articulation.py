@@ -2583,16 +2583,26 @@ def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, a
     raises=NotImplementedError,
     reason=(
         "Newton's ArticulationView exposes eval_fk / eval_jacobian /"
-        " eval_mass_matrix only — no eval_gravity_compensation primitive."
-        " When upstream Newton (https://github.com/newton-physics/newton)"
-        " ships the API and the wrapper at"
+        " eval_mass_matrix only — no inverse-dynamics primitive yet."
+        " Upstream Newton is actively working on this through the inverse-"
+        " dynamics feature request (https://github.com/newton-physics/newton/issues/2497)"
+        " and its sub-task for Coriolis + gravity compensation"
+        " (https://github.com/newton-physics/newton/issues/2529). A known"
+        " correctness bug for floating-base + non-identity root pose is"
+        " tracked separately at"
+        " https://github.com/newton-physics/newton/issues/2625, and"
+        " informs why we deliberately do NOT roll our own J^T·m·g shim in"
+        " this PR — Newton's eventual primitive is going through RNEA via"
+        " MuJoCo Warp and may differ at corner cases we wouldn't catch."
+        " Once the wrapper at"
         " isaaclab_newton.assets.Articulation.get_gravity_compensation_forces"
-        " switches from a NotImplementedError stub to a real implementation,"
-        " this XFAIL will turn into XPASS and fail under strict=True. The"
-        " maintainer should then: (1) drop this xfail or invert it into a"
-        " positive shape/value assertion, and (2) remove the OSC"
-        " config-time guidance about setting gravity_compensation=False on"
-        " Newton."
+        " switches from a NotImplementedError stub to a real implementation"
+        " (likely calling the new Newton primitive), this XFAIL will turn"
+        " into XPASS and fail under strict=True. The maintainer should"
+        " then: (1) drop this xfail or invert it into a positive value"
+        " assertion against PhysX (the cross-backend accuracy diff), and"
+        " (2) remove the OSC config-time guidance about setting"
+        " gravity_compensation=False on Newton."
     ),
 )
 def test_get_gravity_compensation_forces_not_implemented_on_newton(sim, num_articulations, device, articulation_type):
@@ -2807,6 +2817,27 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     assert (anymal_M.diagonal(dim1=-2, dim2=-1) > 1e-6).all(), (
         "Anymal mass matrix has non-positive diagonal under heterogeneous scene"
     )
+
+
+#
+# Note: a J·q_dot vs body-velocity contract test on the Newton side is
+# deferred. Two unrelated issues currently block a clean assertion:
+#   1. ``data.body_link_lin_vel_w`` / ``body_com_lin_vel_w`` on Newton have
+#      been observed to read all-zero post-step (lazy buffer chain not
+#      refreshing on first access in some configurations). This is a
+#      separate plumbing bug, not a Jacobian-shift issue.
+#   2. The Newton MJWarp solver's CUDA kernels are non-deterministic
+#      across runs; even when the velocity buffers do refresh, J·q_dot vs
+#      body_qd diverges by ~5 mm/2% across runs.
+# The COM->origin shift kernel itself is validated standalone (see
+# ``/tmp/_newton_jac_convention.py``-style reproducer documented in the
+# changelog: J·q_dot at the link origin matches the closed-form
+# ``v_origin = v_com - omega x R·body_com_pos_b`` to single-precision
+# rounding). The PhysX-side
+# :func:`isaaclab_physx.test.assets.test_articulation.test_get_jacobians_link_origin_contract`
+# pins the cross-backend contract; both backends must satisfy
+# ``J·q_dot == [v_origin, omega]`` and the PhysX assertion is sharp.
+#
 
 
 if __name__ == "__main__":

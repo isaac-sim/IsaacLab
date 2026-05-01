@@ -214,6 +214,24 @@ class Articulation(BaseArticulation):
             outputs=[self._jacobian_view_buf],
             device=self.device,
         )
+        # Newton's eval_jacobian returns linear rows referenced at each link's
+        # COM, but the IsaacLab task-space-controller contract (matching PhysX)
+        # references the link origin so that ``J · q_dot`` agrees with
+        # ``data.body_link_lin_vel_w``. Apply the COM->origin shift in-place on
+        # the gathered, view-sized buffer; ``_jacobian_buf_flat`` stays
+        # COM-referenced and is reused as-is by ``get_mass_matrix`` (the joint-
+        # space mass matrix is invariant to the velocity reference point).
+        wp.launch(
+            articulation_kernels.shift_jacobian_com_to_origin,
+            dim=self._jacobian_view_buf.shape[:2] + (self._jacobian_view_buf.shape[3],),
+            inputs=[
+                self.data.body_link_pose_w.warp,
+                self.data.body_com_pos_b.warp,
+                self._jacobian_link_offset,
+            ],
+            outputs=[self._jacobian_view_buf],
+            device=self.device,
+        )
         return self._jacobian_view_buf
 
     def get_mass_matrix(self) -> wp.array:
