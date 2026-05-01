@@ -71,6 +71,16 @@ def _is_kitless_physics(node) -> bool:
     return isinstance(node, PhysicsCfg) and type(node).__name__ in ("NewtonCfg", "OvPhysxCfg")
 
 
+def _is_kit_physics(node) -> bool:
+    """True when the node is a Kit-required physics config (Isaac Sim PhysX)."""
+    return isinstance(node, PhysicsCfg) and type(node).__name__ == "PhysxCfg"
+
+
+def _is_ovrtx_renderer(node) -> bool:
+    """True when the node is an OVRTX renderer config."""
+    return isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"
+
+
 def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> set[str]:
     """Extract requested visualizer type names from launcher args."""
     if isinstance(launcher_args, argparse.Namespace):
@@ -156,6 +166,60 @@ def compute_kit_requirements(
     if "kit" in visualizer_types:
         needs_kit = True
     return needs_kit, has_kit_cameras, visualizer_types
+
+
+def validate_runtime_compatibility(
+    env_cfg,
+    launcher_args: argparse.Namespace | dict | None = None,
+) -> None:
+    """Validate that the resolved physics, renderer, and visualizer combination is supported.
+
+    The OVRTX renderer (``OVRTXRendererCfg``, ``renderer_type="ovrtx"``) is a kitless
+    renderer that runs without Isaac Sim / Omniverse Kit. Combining it with Kit-based
+    runtimes — Isaac Sim PhysX physics (``PhysxCfg``) or the Kit visualizer
+    (``--visualizer kit`` / a ``visualizer_cfgs`` entry with ``visualizer_type="kit"``) —
+    is unsupported. When such a combination is detected this function raises with a
+    message that points the user at the correct ``isaacsim_rtx_renderer`` preset.
+
+    Args:
+        env_cfg: Resolved environment config (e.g. from :func:`resolve_task_config`).
+        launcher_args: Optional CLI args. Inspected for ``--visualizer kit``.
+
+    Raises:
+        ValueError: If the OVRTX renderer is combined with Kit-based physics or the
+            Kit visualizer.
+    """
+    has_kit_physics, has_ovrtx_renderer = _scan_config(env_cfg, [_is_kit_physics, _is_ovrtx_renderer])
+    if not has_ovrtx_renderer:
+        return
+
+    visualizer_intent = _compute_visualizer_intent(env_cfg)
+    visualizer_types = _get_visualizer_types(launcher_args)
+    has_kit_visualizer = "kit" in visualizer_types or visualizer_intent.get("has_kit_visualizer", False)
+
+    if not has_kit_physics and not has_kit_visualizer:
+        return
+
+    sources = []
+    if has_kit_physics:
+        sources.append("Isaac Sim PhysX physics (`PhysxCfg`)")
+    if has_kit_visualizer:
+        sources.append('the Kit visualizer (`--visualizer kit` / `visualizer_type="kit"`)')
+    sources_text = " and ".join(sources)
+
+    raise ValueError(
+        "Invalid backend combination: the OVRTX renderer (`OVRTXRendererCfg`,"
+        ' `renderer_type="ovrtx"`) is a kitless renderer and cannot be used together'
+        f" with Isaac Sim / Kit ({sources_text}).\n"
+        "\n"
+        "To fix this, pick one of the following supported combinations:\n"
+        "  * Keep Isaac Sim / Kit and switch the renderer:\n"
+        "      presets=isaacsim_rtx_renderer\n"
+        "    (uses `IsaacRtxRendererCfg`, the Kit-compatible renderer.)\n"
+        "  * Keep the OVRTX renderer and switch to a kitless physics backend\n"
+        "    (and avoid `--visualizer kit`):\n"
+        "      presets=newton,ovrtx_renderer\n"
+    )
 
 
 def _resolve_distributed_device(
@@ -254,6 +318,7 @@ def launch_simulation(
                 "Use '--visualizer newton' instead, which is fully compatible with ovrtx presets."
             )
 
+    validate_runtime_compatibility(env_cfg, launcher_args)
     needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
     visualizer_intent = _compute_visualizer_intent(env_cfg)
     _set_visualizer_intent_on_launcher_args(launcher_args, visualizer_intent)
