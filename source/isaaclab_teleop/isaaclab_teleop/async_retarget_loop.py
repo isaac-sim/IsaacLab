@@ -199,7 +199,7 @@ class EmaTimingEstimatorCfg(TimingEstimatorCfg):
     but are more sensitive to jitter.  The default 0.3 gives a half-life
     of ~2 samples (``ln2 / ln(1 / 0.7) ≈ 1.9``)."""
 
-    margin_s: float = 0.005
+    margin_s: float = 0.015
     """Safety margin [s] subtracted from the predicted deadline so the
     retarget finishes slightly early."""
 
