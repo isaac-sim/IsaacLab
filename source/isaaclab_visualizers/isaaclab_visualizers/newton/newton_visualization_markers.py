@@ -18,6 +18,7 @@ from newton import Axis, Mesh
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import quat_apply
 
 logger = logging.getLogger(__name__)
@@ -27,15 +28,25 @@ _OMNIPBR_DEFAULTS = {
     "diffuse_tint": (1.0, 1.0, 1.0),
 }
 _UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
+_DEX_CUBE_TEXTURE_URL = f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/Materials/dex_cube_mod.png"
 
 
 @dataclass(frozen=True)
 class _NewtonMarkerSpec:
     renderer: Literal["mesh", "frame", "none"]
-    mesh_type: Literal["arrow", "box", "sphere", "cylinder", "capsule", "cone"] | None = None
+    mesh_type: Literal["arrow", "box", "textured_box", "sphere", "cylinder", "capsule", "cone"] | None = None
     mesh_params: dict[str, float | tuple[float, float, float]] | None = None
     scale: tuple[float, float, float] | None = None
     color: tuple[float, float, float] | None = None
+    texture: Any | None = None
+
+
+@dataclass(frozen=True)
+class _MeshData:
+    vertices: np.ndarray
+    indices: np.ndarray
+    normals: np.ndarray
+    uvs: np.ndarray
 
 
 def render_newton_visualization_markers(viewer, visible_env_ids: list[int] | None, num_envs: int) -> None:
@@ -167,6 +178,10 @@ class NewtonVisualizationMarkers:
                     selected_scales.shape[0], 1
                 )
                 materials = torch.zeros((selected_scales.shape[0], 4), dtype=torch.float32, device=scales.device)
+                if newton_cfg.texture is not None:
+                    # ViewerGL gates texture sampling with material.w. Rerun and
+                    # Viser ignore this flag but consume the mesh texture.
+                    materials[:, 3] = 1.0
                 xforms = torch.cat((selected_translations, selected_orientations), dim=1).detach().cpu().numpy()
                 viewer.log_instances(
                     batch_name,
@@ -212,6 +227,7 @@ class NewtonVisualizationMarkers:
             wp.array(mesh.indices.astype(np.int32), dtype=wp.int32),
             normals=wp.array(mesh.normals.astype(np.float32), dtype=wp.vec3) if mesh.normals.size else None,
             uvs=wp.array(mesh.uvs.astype(np.float32), dtype=wp.vec2) if mesh.uvs.size else None,
+            texture=newton_cfg.texture,
             hidden=True,
         )
         self._registered_meshes.add(registered_key)
@@ -263,7 +279,17 @@ def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
         if usd_path.endswith("frame_prim.usd"):
             return _NewtonMarkerSpec(renderer="frame", scale=default_scale)
         if "dex_cube" in usd_path or "cube" in usd_path:
-            return _NewtonMarkerSpec(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
+            # TODO: Remove this specialized DexCube mesh code when general
+            # UsdFileCfg-to-Newton mesh conversion is supported.
+            # DexCube USDs are roughly 6 cm wide. Keep scale separate so task
+            # configs such as scale=(1.2, 1.2, 1.2) still apply naturally.
+            return _NewtonMarkerSpec(
+                renderer="mesh",
+                mesh_type="textured_box",
+                mesh_params={"size": (0.06, 0.06, 0.06)},
+                color=(1.0, 1.0, 1.0),
+                texture=_DEX_CUBE_TEXTURE_URL,
+            )
 
         # TODO: Add generic UsdFileCfg -> Newton mesh extraction for mesh-backed USD marker assets.
         # For now, only common marker USDs are mapped to lightweight Newton-native fallbacks.
@@ -284,6 +310,8 @@ def _create_mesh(newton_cfg: _NewtonMarkerSpec):
     if newton_cfg.mesh_type == "box":
         size = mesh_params["size"]
         return Mesh.create_box(float(size[0]) * 0.5, float(size[1]) * 0.5, float(size[2]) * 0.5)
+    if newton_cfg.mesh_type == "textured_box":
+        return _create_textured_box_mesh(mesh_params["size"])
     if newton_cfg.mesh_type == "sphere":
         return Mesh.create_sphere(radius=float(mesh_params["radius"]))
     if newton_cfg.mesh_type == "cylinder":
@@ -305,6 +333,79 @@ def _create_mesh(newton_cfg: _NewtonMarkerSpec):
             up_axis=Axis.Z,
         )
     raise ValueError(f"Unsupported Newton mesh type: {newton_cfg.mesh_type}")
+
+
+def _create_textured_box_mesh(size: tuple[float, float, float]) -> _MeshData:
+    # TODO: Remove this specialized DexCube mesh code when general
+    # UsdFileCfg-to-Newton mesh conversion is supported.
+    half = np.asarray(size, dtype=np.float32) * 0.5
+    usd_vertices = np.asarray(
+        [
+            (-1.0, -1.0, 1.0),
+            (-1.0, 1.0, 1.0),
+            (-1.0, 1.0, -1.0),
+            (-1.0, -1.0, -1.0),
+            (-1.0, -1.0, -1.0),
+            (-1.0, 1.0, -1.0),
+            (1.0, 1.0, -1.0),
+            (1.0, -1.0, -1.0),
+            (1.0, -1.0, -1.0),
+            (1.0, 1.0, -1.0),
+            (1.0, 1.0, 1.0),
+            (1.0, -1.0, 1.0),
+            (1.0, -1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            (-1.0, 1.0, 1.0),
+            (-1.0, -1.0, 1.0),
+            (-1.0, -1.0, -1.0),
+            (1.0, -1.0, -1.0),
+            (1.0, -1.0, 1.0),
+            (-1.0, -1.0, 1.0),
+            (1.0, 1.0, -1.0),
+            (-1.0, 1.0, -1.0),
+            (-1.0, 1.0, 1.0),
+            (1.0, 1.0, 1.0),
+        ],
+        dtype=np.float32,
+    )
+    uvs = np.asarray(
+        [
+            (1.0, 0.333333),
+            (1.0, 0.666667),
+            (0.5, 0.666667),
+            (0.5, 0.333333),
+            (0.5, 0.666667),
+            (0.5, 1.0),
+            (0.0, 1.0),
+            (0.0, 0.666667),
+            (0.5, 0.333333),
+            (0.5, 0.666667),
+            (0.0, 0.666667),
+            (0.0, 0.333333),
+            (1.0, 0.0),
+            (1.0, 0.333333),
+            (0.5, 0.333333),
+            (0.5, 0.0),
+            (0.5, 0.0),
+            (0.5, 0.333333),
+            (0.0, 0.333333),
+            (0.0, 0.0),
+            (1.0, 0.666667),
+            (1.0, 1.0),
+            (0.5, 1.0),
+            (0.5, 0.666667),
+        ],
+        dtype=np.float32,
+    )
+    indices: list[int] = []
+    for base in range(0, 24, 4):
+        indices.extend([base, base + 1, base + 2, base, base + 2, base + 3])
+    return _MeshData(
+        vertices=usd_vertices * half,
+        indices=np.asarray(indices, dtype=np.int32),
+        normals=np.zeros((0, 3), dtype=np.float32),
+        uvs=uvs,
+    )
 
 
 def _filter_marker_state(

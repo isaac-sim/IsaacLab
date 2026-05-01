@@ -14,6 +14,7 @@ import isaaclab_visualizers.newton.newton_visualization_markers as newton_marker
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
+import torch
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
@@ -95,6 +96,9 @@ class _FakeVisualizer:
 
     def pumps_app_update(self):
         return self._pumps_app_update
+
+    def supports_markers(self):
+        return False
 
 
 def _make_context(visualizers, provider=None):
@@ -288,6 +292,154 @@ def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.Monke
 
     assert len(viewer_a.meshes) == 1
     assert len(viewer_b.meshes) == 1
+
+
+class _FakeNewtonMarkerMesh:
+    vertices = np.zeros((1, 3), dtype=np.float32)
+    indices = np.zeros((3,), dtype=np.int32)
+    normals = np.zeros((0, 3), dtype=np.float32)
+    uvs = np.zeros((0, 2), dtype=np.float32)
+
+
+class _FakeNewtonMarkerViewer:
+    def __init__(self):
+        self.meshes = []
+        self.instances = []
+        self.lines = []
+
+    def log_mesh(self, name, vertices, indices, **kwargs):
+        self.meshes.append((name, vertices, indices, kwargs))
+
+    def log_instances(self, batch_name, mesh_name, xforms, scales, colors, materials, hidden=False):
+        self.instances.append(
+            {
+                "batch_name": batch_name,
+                "mesh_name": mesh_name,
+                "xforms": xforms,
+                "scales": scales,
+                "colors": colors,
+                "materials": materials,
+                "hidden": hidden,
+            }
+        )
+
+    def log_lines(self, batch_name, starts, ends, colors, width=None, hidden=False):
+        self.lines.append(
+            {
+                "batch_name": batch_name,
+                "starts": starts,
+                "ends": ends,
+                "colors": colors,
+                "width": width,
+                "hidden": hidden,
+            }
+        )
+
+
+def _make_newton_marker_for_render(
+    *,
+    marker_names: list[str],
+    translations: torch.Tensor,
+    marker_indices: torch.Tensor | None = None,
+    visible: bool = True,
+):
+    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
+    marker_cfg_type = type("MarkerCfg", (), {"visual_material": None})
+    marker.cfg = type("Cfg", (), {"markers": {name: marker_cfg_type() for name in marker_names}})()
+    marker.group_id = "/Visuals/marker::test"
+    marker.visible = visible
+    marker.translations = translations
+    marker.orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32).repeat(translations.shape[0], 1)
+    marker.scales = torch.ones((translations.shape[0], 3), dtype=torch.float32)
+    marker.marker_indices = marker_indices
+    marker.count = translations.shape[0]
+    marker._registered_meshes = set()
+    marker._warned_unsupported = set()
+    return marker
+
+
+def _patch_newton_marker_render_deps(monkeypatch: pytest.MonkeyPatch) -> None:
+    specs = {
+        "arrow": newton_markers._NewtonMarkerSpec(
+            renderer="mesh",
+            mesh_type="box",
+            mesh_params={"size": (1.0, 1.0, 1.0)},
+            color=(1.0, 1.0, 1.0),
+            texture=np.zeros((2, 2, 3), dtype=np.uint8),
+        ),
+        "sphere": newton_markers._NewtonMarkerSpec(
+            renderer="mesh", mesh_type="sphere", mesh_params={"radius": 1.0}
+        ),
+        "frame": newton_markers._NewtonMarkerSpec(renderer="frame"),
+    }
+
+    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeNewtonMarkerMesh())
+    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None: value)
+    monkeypatch.setattr(newton_markers, "_resolve_newton_marker_cfg", lambda name, marker_cfg, cfg: specs[name])
+
+
+def test_newton_marker_render_filters_visible_envs(monkeypatch: pytest.MonkeyPatch):
+    _patch_newton_marker_render_deps(monkeypatch)
+    translations = torch.arange(8, dtype=torch.float32).unsqueeze(1).repeat(1, 3)
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow"],
+        translations=translations,
+        marker_indices=torch.zeros(8, dtype=torch.int32),
+    )
+    viewer = _FakeNewtonMarkerViewer()
+
+    marker.render(viewer, visible_env_ids=[1, 3], num_envs=4)
+
+    assert len(viewer.instances) == 1
+    assert viewer.instances[0]["hidden"] is False
+    assert viewer.instances[0]["xforms"][:, 0].tolist() == [1.0, 3.0, 5.0, 7.0]
+
+
+def test_newton_marker_render_routes_instances_by_prototype(monkeypatch: pytest.MonkeyPatch):
+    _patch_newton_marker_render_deps(monkeypatch)
+    translations = torch.arange(4, dtype=torch.float32).unsqueeze(1).repeat(1, 3)
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow", "sphere"],
+        translations=translations,
+        marker_indices=torch.tensor([0, 1, 0, 1], dtype=torch.int32),
+    )
+    viewer = _FakeNewtonMarkerViewer()
+
+    marker.render(viewer, visible_env_ids=None, num_envs=4)
+
+    visible_instances = [call for call in viewer.instances if not call["hidden"]]
+    assert [call["batch_name"] for call in visible_instances] == [
+        "/Visuals/marker::test/arrow",
+        "/Visuals/marker::test/sphere",
+    ]
+    assert [call["xforms"].shape[0] for call in visible_instances] == [2, 2]
+    assert visible_instances[0]["materials"][:, 3].tolist() == [1.0, 1.0]
+    assert visible_instances[1]["materials"][:, 3].tolist() == [0.0, 0.0]
+
+
+def test_newton_marker_render_hides_unselected_prototypes(monkeypatch: pytest.MonkeyPatch):
+    _patch_newton_marker_render_deps(monkeypatch)
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow", "sphere", "frame"],
+        translations=torch.zeros((3, 3), dtype=torch.float32),
+        marker_indices=torch.zeros(3, dtype=torch.int32),
+    )
+    viewer = _FakeNewtonMarkerViewer()
+
+    marker.render(viewer, visible_env_ids=None, num_envs=3)
+
+    hidden_instances = [call for call in viewer.instances if call["hidden"]]
+    assert [call["batch_name"] for call in hidden_instances] == ["/Visuals/marker::test/sphere"]
+    assert viewer.lines == [
+        {
+            "batch_name": "/Visuals/marker::test/frame",
+            "starts": None,
+            "ends": None,
+            "colors": None,
+            "width": None,
+            "hidden": True,
+        }
+    ]
 
 
 @pytest.mark.parametrize(
