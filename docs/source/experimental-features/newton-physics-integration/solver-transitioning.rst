@@ -2,7 +2,16 @@ Solver Transitioning
 ====================
 
 Transitioning to the Newton physics engine introduces new physics solvers that handle simulation using different numerical approaches.
-While Newton supports several different solvers, our initial focus for Isaac Lab is on using the MuJoCo-Warp solver from Google DeepMind.
+While Newton supports several different solvers, our initial focus for Isaac Lab is on using the
+MuJoCo-Warp solver from Google DeepMind. Isaac Lab also includes beta support for the Kamino
+solver on selected classic tasks. Kamino is selected through a physics preset rather than as a
+separate backend; see :ref:`hydra-backend-solver-presets`.
+
+.. note::
+
+    Kamino support is experimental and currently depends on assets being structured
+    in a way that Kamino can consume. Assets that work with MuJoCo-Warp or PhysX
+    may still require model-structure updates before they work with Kamino.
 
 The way the physics scene itself is defined does not change - we continue to use USD as the primary way to set basic parameters of objects and robots in the scene,
 and for current environments, the exact same USD files used for the PhysX-based Isaac Lab are used.
@@ -12,15 +21,18 @@ What does require change is the way that some solver-specific settings are confi
 Tuning these parameters can have a significant impact on both simulation performance and behaviour.
 
 For now, we will show an example of setting these parameters to help provide a feel for these changes.
-Note that the :class:`~isaaclab.sim.NewtonCfg` replaces the :class:`~isaaclab.sim.PhysxCfg` and is used to set everything related to the physical simulation parameters except for the ``dt``:
+Note that the :class:`~isaaclab_newton.physics.NewtonCfg` replaces
+:class:`~isaaclab_physx.physics.PhysxCfg` and is used to set everything related to the physical
+simulation parameters except for the ``dt``:
 
 .. code-block:: python
 
-    from isaaclab.sim._impl.newton_manager_cfg import NewtonCfg
-    from isaaclab.sim._impl.solvers_cfg import MJWarpSolverCfg
+    from isaaclab.sim import SimulationCfg
+    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
     solver_cfg = MJWarpSolverCfg(
-        nefc_per_env=35,
+        njmax=35,
+        nconmax=20,
         ls_iterations=10,
         cone="pyramidal",
         ls_parallel=True,
@@ -31,14 +43,17 @@ Note that the :class:`~isaaclab.sim.NewtonCfg` replaces the :class:`~isaaclab.si
         num_substeps=1,
         debug_mode=False,
     )
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, newton_cfg=newton_cfg)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=newton_cfg)
 
 
 Here is a very brief explanation of some of the key parameters above:
 
-* ``nefc_per_env``: This is the size of the buffer constraints we want MuJoCo warp to
-  pre-allocate for a given environment. A large value will slow down the simulation,
-  while a too small value may lead to some contacts being missed.
+* ``njmax``: This is the number of constraint rows MuJoCo-Warp pre-allocates for a
+  given environment. A large value will slow down the simulation, while a too small
+  value may lead to missing constraints.
+
+* ``nconmax``: This is the maximum number of contact points MuJoCo-Warp pre-allocates
+  for a given environment. Set it high enough for the expected contact count.
 
 * ``ls_iterations``: The number of line searches performed by the MuJoCo Warp solver.
   Line searches are used to find an optimal step size, and for each solver step,

@@ -46,13 +46,28 @@ jobs:
           python-version: "3.12"
           architecture: x64
 
+      # Compose Docker-image-style metadata for the artifact. The artifact
+      # name is what QA sees in `gh run download`, so we make it scannable:
+      # isaaclab-<VERSION>-build<RUN_NUMBER>-<SHA7>. The wheel inside follows
+      # PEP 440 (VERSION+buildN.SHA7) since pip requires that format.
+      - name: Compute wheel metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          version=$(cat VERSION)
+          sha_slug="${GITHUB_SHA:0:7}"
+          echo "artifact_name=isaaclab-${version}-build${{ github.run_number }}-${sha_slug}" >> "$GITHUB_OUTPUT"
+
       - name: Build wheel
+        env:
+          WHEEL_BUILD_NUMBER: ${{ github.run_number }}
+          WHEEL_SHA: ${{ github.sha }}
         run: bash tools/wheel_builder/build.sh
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ github.event_name == 'pull_request' && format('isaaclab-wheel-pr-{0}-{1}', github.event.pull_request.number, github.sha) || format('isaaclab-wheel-{0}-{1}', github.ref_name, github.sha) }}
+          name: ${{ steps.meta.outputs.artifact_name }}
           path: tools/wheel_builder/build/dist/isaaclab-*.whl
           if-no-files-found: error
           retention-days: 30

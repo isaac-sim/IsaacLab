@@ -67,68 +67,11 @@ def test_load_prebuilt_artifact_populates_provider_state():
     assert provider._xform_mask_buf is None
 
 
-def test_load_prebuilt_artifact_missing_falls_back_to_usd_build():
-    """When no artifact is registered, the USD-traversal fallback is invoked."""
+def test_load_prebuilt_artifact_missing_sets_error_state():
+    """When no artifact is registered, model/state stay unset."""
     provider = _make_provider()
-    fallback_artifact = VisualizerPrebuiltArtifacts(
-        model="usd-built-model",
-        state="usd-built-state",
-        rigid_body_paths=["/World/envs/env_0/A"],
-        articulation_paths=[],
-        num_envs=2,
-    )
-    stored: list[VisualizerPrebuiltArtifacts] = []
-    provider._simulation_context = SimpleNamespace(
-        get_scene_data_visualizer_prebuilt_artifact=lambda: None,
-        set_scene_data_visualizer_prebuilt_artifact=stored.append,
-    )
-    provider._stage = None
-    provider._xform_views = {}
-    provider._view_body_index_map = {}
-    provider._view_order_tensors = {}
-    provider._pose_buf_num_bodies = 0
-    provider._positions_buf = None
-    provider._orientations_buf = None
-    provider._covered_buf = None
-    provider._xform_mask_buf = None
-
-    with (
-        patch.object(
-            PhysxSceneDataProvider,
-            "_build_newton_artifact_from_usd_fallback",
-            autospec=True,
-            return_value=fallback_artifact,
-        ),
-        patch(
-            "isaaclab_physx.scene_data_providers.physx_scene_data_provider.replace_newton_shape_colors",
-            lambda m, s: None,
-        ),
-    ):
-        provider._load_newton_model_from_prebuilt_artifact()
-
-    assert provider._last_newton_model_build_source == "usd_fallback"
-    assert provider._newton_model == "usd-built-model"
-    assert provider._newton_state == "usd-built-state"
-    assert provider._rigid_body_paths == ["/World/envs/env_0/A"]
-    assert provider._num_envs_at_last_newton_build == 2
-    # The fallback artifact is cached on the simulation context so subsequent providers see it.
-    assert stored == [fallback_artifact]
-
-
-def test_load_prebuilt_artifact_missing_and_fallback_failed_sets_missing_state():
-    """When both the prebuilt artifact and the USD-traversal fallback fail, model/state stay unset."""
-    provider = _make_provider()
-    provider._simulation_context = SimpleNamespace(
-        get_scene_data_visualizer_prebuilt_artifact=lambda: None,
-        set_scene_data_visualizer_prebuilt_artifact=lambda artifact: None,
-    )
-    with patch.object(
-        PhysxSceneDataProvider,
-        "_build_newton_artifact_from_usd_fallback",
-        autospec=True,
-        return_value=None,
-    ):
-        provider._load_newton_model_from_prebuilt_artifact()
+    provider._simulation_context = SimpleNamespace(get_scene_data_visualizer_prebuilt_artifact=lambda: None)
+    provider._load_newton_model_from_prebuilt_artifact()
     assert provider._last_newton_model_build_source == "missing"
     assert provider._newton_model is None
     assert provider._newton_state is None

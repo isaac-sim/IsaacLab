@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.3.9 (2026-04-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed installation failure on Windows by adding ``platform_system == 'Linux'``
+  marker to the ``isaacteleop`` dependency, which is only available on Linux.
+
+
 0.3.8 (2026-04-24)
 ~~~~~~~~~~~~~~~~~~
 

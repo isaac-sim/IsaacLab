@@ -18,7 +18,6 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 from isaaclab.physics.base_scene_data_provider import BaseSceneDataProvider
-from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 
 logger = logging.getLogger(__name__)
@@ -106,8 +105,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
                 "[PhysxSceneDataProvider] USD stage is None and not available from simulation_context. "
                 "Ensure the simulation context has a valid stage when using OV/Newton/Rerun/Viser visualizers."
             )
-        # Cached so the USD-traversal fallback can hand it to ``newton.ModelBuilder``.
-        self._up_axis = UsdGeom.GetStageUpAxis(self._stage)
         self._num_envs_at_last_newton_build: int | None = None  # for _refresh_newton_model_if_needed
 
         self._device = getattr(self._simulation_context, "device", "cuda:0")
@@ -125,7 +122,7 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._xform_mask_buf = None
         # View index order as device tensors for vectorized scatter in _apply_view_poses.
         self._view_order_tensors: dict[str, Any] = {}
-        # Last load outcome (tests / debug): "prebuilt" | "usd_fallback" | "missing" | "error".
+        # Last load outcome (tests / debug): "prebuilt" | "missing" | "error".
         self._last_newton_model_build_source: str | None = None
         self._last_newton_model_build_elapsed_ms: float | None = None
 
@@ -168,40 +165,35 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         return list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
 
     def _load_newton_model_from_prebuilt_artifact(self) -> None:
-        """Load Newton model and state, preferring the prebuilt artifact and falling back to USD traversal.
-
-        The fast path consumes the artifact stashed on
-        :class:`~isaaclab.sim.SimulationContext` by the cloner's visualizer prebuild
-        hook. When the artifact is missing — for example when a Direct env adds a
-        camera in :meth:`_setup_scene` after the scene's clone-time requirement
-        resolution has already run — fall back to building the model directly from
-        the USD stage and stash the result on the simulation context so subsequent
-        callers hit the fast path.
-        """
+        """Load Newton model and state from the simulation context prebuilt artifact."""
         start_t = time.perf_counter()
         try:
             artifact = self._simulation_context.get_scene_data_visualizer_prebuilt_artifact()
-            if not artifact or artifact.model is None or artifact.state is None:
-                artifact = self._build_newton_artifact_from_usd_fallback()
-                if artifact is None:
-                    self._last_newton_model_build_source = "missing"
-                    logger.error(
-                        "[PhysxSceneDataProvider] No visualizer prebuilt artifact on the simulation context "
-                        "and the USD-traversal fallback failed; cannot sync PhysX to Newton."
-                    )
-                    self._clear_newton_model_state()
-                    return
-                self._simulation_context.set_scene_data_visualizer_prebuilt_artifact(artifact)
-                self._last_newton_model_build_source = "usd_fallback"
-            else:
-                self._last_newton_model_build_source = "prebuilt"
+            if not artifact:
+                self._last_newton_model_build_source = "missing"
+                logger.error(
+                    "[PhysxSceneDataProvider] No visualizer prebuilt artifact on the simulation context "
+                    "(expected VisualizerPrebuiltArtifacts from scene setup)."
+                )
+                self._clear_newton_model_state()
+                return
 
-            self._newton_model = artifact.model
-            self._newton_state = artifact.state
+            model = artifact.model
+            state = artifact.state
+            if model is None or state is None:
+                self._last_newton_model_build_source = "missing"
+                logger.error(
+                    "[PhysxSceneDataProvider] Prebuilt artifact is missing model or state; cannot sync PhysX to Newton."
+                )
+                self._clear_newton_model_state()
+                return
+
+            self._newton_model = model
+            self._newton_state = state
 
             replace_newton_shape_colors(self._newton_model, self._stage)
 
-            body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(artifact.model)
+            body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
             self._rigid_body_paths = body_paths
             view_paths = list(body_paths)
             if artifact.articulation_paths:
@@ -220,9 +212,10 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
             self._covered_buf = None
             self._xform_mask_buf = None
             self._num_envs_at_last_newton_build = int(artifact.num_envs)
+            self._last_newton_model_build_source = "prebuilt"
         except Exception as exc:
             self._last_newton_model_build_source = "error"
-            logger.error("[PhysxSceneDataProvider] Failed to load Newton model: %s", exc)
+            logger.error("[PhysxSceneDataProvider] Failed to load Newton model from prebuilt artifact: %s", exc)
             self._clear_newton_model_state()
         finally:
             elapsed_ms = (time.perf_counter() - start_t) * 1000.0
@@ -245,58 +238,6 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._rigid_body_paths = []
         self._rigid_body_view_paths = []
         self._num_envs_at_last_newton_build = None
-
-    def _build_newton_artifact_from_usd_fallback(self) -> VisualizerPrebuiltArtifacts | None:
-        """Build a Newton model from USD when no prebuilt artifact is available.
-
-        Used by Direct envs that add their camera in :meth:`_setup_scene` after
-        :class:`~isaaclab.scene.InteractiveScene` has already resolved scene-data
-        requirements (with no sensors registered). Slower than the cloner-time
-        prebuild path because Newton has to traverse the full USD scene per
-        environment, but functionally equivalent and required for those envs.
-
-        Returns:
-            A :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`
-            wrapping the freshly built Newton model, or ``None`` when the build
-            could not be performed.
-        """
-        try:
-            from newton import ModelBuilder
-        except ModuleNotFoundError as exc:
-            logger.error(
-                "[PhysxSceneDataProvider] Newton module not available; cannot build USD-fallback model. "
-                "Install the Newton backend to use newton/rerun/viser visualizers or the newton_warp renderer."
-            )
-            logger.debug("[PhysxSceneDataProvider] Newton import error: %s", exc)
-            return None
-
-        num_envs = self.get_num_envs()
-        if num_envs <= 0:
-            return None
-
-        try:
-            builder = ModelBuilder(up_axis=self._up_axis)
-            builder.add_usd(self._stage, ignore_paths=[r"/World/envs/.*"])
-            for env_id in range(num_envs):
-                builder.begin_world()
-                builder.add_usd(self._stage, root_path=f"/World/envs/env_{env_id}")
-                builder.end_world()
-
-            model = builder.finalize(device=self._device)
-            state = model.state()
-        except Exception as exc:
-            logger.error("[PhysxSceneDataProvider] USD-traversal Newton build failed: %s", exc)
-            return None
-
-        body_paths = self._model_body_paths(model)
-        articulation_paths = list(getattr(model, "articulation_label", None) or getattr(model, "articulation_key", []))
-        return VisualizerPrebuiltArtifacts(
-            model=model,
-            state=state,
-            rigid_body_paths=body_paths,
-            articulation_paths=articulation_paths,
-            num_envs=num_envs,
-        )
 
     def _setup_rigid_body_view(self) -> None:
         """Create PhysX RigidBodyView from Newton's body paths.
