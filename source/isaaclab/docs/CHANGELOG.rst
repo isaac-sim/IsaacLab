@@ -23,9 +23,6 @@ Added
   :meth:`~isaaclab.renderers.render_context.RenderContext.update_transforms` (at most once
   per physics step), then :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render` and
   :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
-* Added :attr:`~isaaclab.renderers.base_renderer.BaseRenderer.uses_global_scene_transform_sync`
-  (property; ``True`` on Newton and OVRTX, ``False`` on Isaac RTX) to document which backends
-  use scene-wide work in :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`.
 * Added :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_physics_step_count`.
 
 Changed

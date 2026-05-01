@@ -138,11 +138,6 @@ class NewtonWarpRenderer(BaseRenderer):
 
     RenderData = RenderData
 
-    @property
-    def uses_global_scene_transform_sync(self) -> bool:
-        """Scene transform sync is shared across all cameras using this renderer."""
-        return True
-
     def __init__(self, cfg: NewtonWarpRendererCfg):
         from isaaclab.physics.scene_data_requirements import (
             aggregate_requirements,

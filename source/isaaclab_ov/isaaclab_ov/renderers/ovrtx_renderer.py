@@ -176,11 +176,6 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_path = export_path
         logger.info("Exported to %s", export_path)
 
-    @property
-    def uses_global_scene_transform_sync(self) -> bool:
-        """Scene transform sync is shared across all cameras using this renderer."""
-        return True
-
     def initialize(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
 

@@ -3,12 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers
-# (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Simulation-scoped renderers for camera sensors."""
 
 from __future__ import annotations
@@ -34,8 +28,7 @@ class RenderContext:
     has :meth:`BaseRenderer.prepare_stage` run before use.
 
     :meth:`update_transforms` is invoked at most once per :meth:`get_physics_step_count` for the
-    context; per-backend :attr:`~BaseRenderer.uses_global_scene_transform_sync` documents whether
-    that pass maps to shared work (e.g. Newton, OVRTX) vs a no-op (e.g. Isaac RTX under Kit).
+    context;
     """
 
     __slots__ = (
