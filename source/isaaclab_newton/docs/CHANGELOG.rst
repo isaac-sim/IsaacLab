@@ -57,6 +57,26 @@ Notes
   will flip to ``XPASS``, alerting the maintainer to remove the stub. OSC
   users on Newton must continue to set ``gravity_compensation=False`` (the
   default for ``Isaac-Reach-Franka-OSC-v0``).
+* **Known issue (out of scope for this PR): Newton task-space tracking floor.**
+  IK convergence on Newton plateaus at ~4 cm steady-state EE error with
+  ``FRANKA_PANDA_HIGH_PD_CFG`` (stiffness=400, damping=80) and ~3.3 cm even
+  at 6x stiffness (2400/480). PhysX with the same gains and IK math reaches
+  1 mm in 250 steps. The bridge accessors themselves are correct (the J·q̇
+  contract test pins them to 5 mm tolerance against ``state.body_qd``); the
+  plateau is upstream of the bridge in Newton's MJWarp solver / actuator
+  dispatch / integration step interaction. Bumping stiffness 400→600 buys
+  ~5 mm but diminishing returns set in fast. Likely candidates for follow-up
+  investigation:
+
+  - MJWarp solver tolerance / ``ls_iterations`` (currently 20).
+  - Reduce ``dt`` from 1/120 to 1/240, or add ``num_substeps``.
+  - Implicit vs explicit actuator dispatch path differences vs PhysX.
+  - Joint-limit / actuator clamping interaction.
+
+  The Newton-side accuracy tests (``test_franka_ik_tracking_accuracy``,
+  ``test_franka_osc_tracking_accuracy``) are deliberately framed as
+  regression sentinels with thresholds that absorb the current floor; once
+  the floor narrows, the thresholds can be tightened to lock in the gain.
 
 0.5.25 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
