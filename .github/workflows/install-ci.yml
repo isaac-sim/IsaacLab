@@ -46,6 +46,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Installation tests run only when paths in `path_regex` change.
+          # Otherwise the test job skips via `if:` and reports green to branch
+          # protection, which is why we don't use a workflow-level `paths:`
+          # filter (a not-triggered required check would block the PR forever).
           path_regex='^(apps/|tools/|source/|\.github/actions/run-package-tests/|\.github/workflows/install-ci\.yml$|VERSION$)|(^|/)pyproject\.toml$|(^|/)environment\.ya?ml$'
 
           decide() {

@@ -85,7 +85,12 @@ jobs:
       run: |
         set -euo pipefail
 
-        # config.yaml controls the base image names and tags consumed by the Docker build jobs.
+        # Docker test jobs run only when paths in `path_regex` change. Otherwise
+        # they skip via `if:` and report green to branch protection, which is
+        # why we don't use a workflow-level `paths:` filter (a not-triggered
+        # required check would block the PR forever).
+        # config.yaml is included because it controls the base image names and
+        # tags consumed by the Docker build jobs.
         path_regex='^(source/|docker/|tools/|apps/|scripts/|\.github/workflows/build\.yaml$|\.github/workflows/config\.yaml$|\.github/actions/)'
 
         decide() {
