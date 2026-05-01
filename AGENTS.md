@@ -143,19 +143,8 @@ Fixed
 - Category heading: underline with `^` (carets), at least as long as the heading text.
 - Entries: `* ` prefix, continuation lines indented by 2 spaces.
 
-### Local preview / sanity-check
-
-```bash
-# Validate your fragment against the gate's rules locally:
-./isaaclab.sh -p tools/changelog/cli.py check develop
-
-# Preview what the compile would produce without writing anything:
-./isaaclab.sh -p tools/changelog/cli.py compile --all --dry-run
-```
-
 See `examples/changelog/` for three worked end-to-end demos (patch /
-minor / major) and `tools/changelog/cli.py --help` for the full flag
-reference.
+minor / major).
 
 ## Commit and Pull Request Guidelines
 
