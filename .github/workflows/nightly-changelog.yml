@@ -95,7 +95,24 @@ jobs:
             # ``git log --grep``). The second tag names the specific
             # action. The trigger event suffix (``schedule`` vs
             # ``workflow_dispatch``) is preserved for traceability.
-            git commit -m "[CI][Auto Version Bump] Compile changelog fragments (${{ github.event_name }})"
+            #
+            # The body lists every package that bumped, derived from the
+            # staged ``extension.toml`` diff so the entries are accurate
+            # regardless of which packages happen to have pending
+            # fragments this run.
+            MSG_FILE=$(mktemp)
+            {
+              echo "[CI][Auto Version Bump] Compile changelog fragments (${{ github.event_name }})"
+              echo
+              echo "Bumped packages:"
+              for tom in $(git diff --staged --name-only -- 'source/*/config/extension.toml'); do
+                pkg=$(echo "$tom" | sed -E 's|source/([^/]+)/config/extension.toml|\1|')
+                old=$(git diff --staged "$tom" | awk -F'"' '/^-version/{print $2; exit}')
+                new=$(git diff --staged "$tom" | awk -F'"' '/^\+version/{print $2; exit}')
+                echo "- $pkg: $old → $new"
+              done
+            } > "$MSG_FILE"
+            git commit -F "$MSG_FILE"
             # Push explicitly to develop so we don't accidentally write
             # to the source ref of a workflow_dispatch run.
             git push origin HEAD:develop
