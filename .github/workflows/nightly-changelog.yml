@@ -87,13 +87,15 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else
-            # ``[changelog]`` prefix matches the IsaacLab convention for
-            # area-tagged commits (cf. ``[Newton]``) and visually
-            # distinguishes the auto-commit from human PR merges in
-            # ``git log --oneline``. The trigger event (``schedule`` vs
-            # ``workflow_dispatch``) is captured so a maintainer can tell
-            # which run produced a given commit.
-            git commit -m "[changelog] Compile fragments (${{ github.event_name }})"
+            # Convention for CI-driven auto-commits on this repo:
+            #   [CI][<Specific Action>] <one-line summary>
+            # The leading ``[CI]`` tag groups every machine-driven commit
+            # (so future automations — auto image rebuilds, auto publish,
+            # etc. — all share the prefix and are easy to find/filter in
+            # ``git log --grep``). The second tag names the specific
+            # action. The trigger event suffix (``schedule`` vs
+            # ``workflow_dispatch``) is preserved for traceability.
+            git commit -m "[CI][Auto Version Bump] Compile changelog fragments (${{ github.event_name }})"
             # Push explicitly to develop so we don't accidentally write
             # to the source ref of a workflow_dispatch run.
             git push origin HEAD:develop
