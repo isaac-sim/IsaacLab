@@ -44,8 +44,9 @@ class LeappTensorSemantics:
 
 
 XYZ_ELEMENT_NAMES: list[str] = ["x", "y", "z"]
-QUAT_WXYZ_ELEMENT_NAMES: list[str] = ["qx", "qy", "qz", "qw"]
+QUAT_XYZW_ELEMENT_NAMES: list[str] = ["qx", "qy", "qz", "qw"]
 POSE7_ELEMENT_NAMES: list[str] = ["x", "y", "z", "qx", "qy", "qz", "qw"]
+POSE6_ELEMENT_NAMES: list[str] = ["x", "y", "z", "angular_x", "angular_y", "angular_z"]
 WRENCH6_ELEMENT_NAMES: list[str] = ["fx", "fy", "fz", "tx", "ty", "tz"]
 
 
@@ -136,8 +137,9 @@ def _target_frame_names(data_self) -> list[str] | None:
 
 body_xyz_resolver = _compound_resolver(body_names_resolver, XYZ_ELEMENT_NAMES)
 body_pose_resolver = _compound_resolver(body_names_resolver, POSE7_ELEMENT_NAMES)
-body_quat_resolver = _compound_resolver(body_names_resolver, QUAT_WXYZ_ELEMENT_NAMES)
+body_pose6_resolver = _compound_resolver(body_names_resolver, POSE6_ELEMENT_NAMES)
+body_quat_resolver = _compound_resolver(body_names_resolver, QUAT_XYZW_ELEMENT_NAMES)
 body_wrench_resolver = _compound_resolver(body_names_resolver, WRENCH6_ELEMENT_NAMES)
 target_frame_xyz_resolver = _compound_resolver(_target_frame_names, XYZ_ELEMENT_NAMES)
-target_frame_quat_resolver = _compound_resolver(_target_frame_names, QUAT_WXYZ_ELEMENT_NAMES)
+target_frame_quat_resolver = _compound_resolver(_target_frame_names, QUAT_XYZW_ELEMENT_NAMES)
 target_frame_pose_resolver = _compound_resolver(_target_frame_names, POSE7_ELEMENT_NAMES)

@@ -9,14 +9,14 @@ from abc import ABC, abstractmethod
 import warp as wp
 
 from isaaclab.utils.leapp import (
+    POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
-    QUAT_WXYZ_ELEMENT_NAMES,
-    WRENCH6_ELEMENT_NAMES,
+    QUAT_XYZW_ELEMENT_NAMES,
     XYZ_ELEMENT_NAMES,
     InputKindEnum,
+    body_pose6_resolver,
     body_pose_resolver,
     body_quat_resolver,
-    body_wrench_resolver,
     body_xyz_resolver,
     joint_names_resolver,
     leapp_tensor_semantics,
@@ -488,7 +488,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=WRENCH6_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
     def root_link_vel_w(self) -> ProxyArray:
         """Root link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -514,7 +514,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=WRENCH6_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
     def root_com_vel_w(self) -> ProxyArray:
         """Root center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -587,7 +587,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
     def body_link_vel_w(self) -> ProxyArray:
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -615,7 +615,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
     def body_com_vel_w(self) -> ProxyArray:
         """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
 
@@ -650,7 +650,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose_resolver)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
 
@@ -828,7 +828,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_WXYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def root_link_quat_w(self) -> ProxyArray:
         """Root link orientation (x, y, z, w) in simulation world frame.
 
@@ -876,7 +876,7 @@ class BaseArticulationData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_WXYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def root_com_quat_w(self) -> ProxyArray:
         """Root center of mass orientation (x, y, z, w) in simulation world frame.
 
@@ -1105,13 +1105,13 @@ class BaseArticulationData(ABC):
         return self.root_link_pos_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_WXYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def root_quat_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_link_quat_w`."""
         return self.root_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=WRENCH6_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names=POSE6_ELEMENT_NAMES)
     def root_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`root_com_vel_w`."""
         return self.root_com_vel_w
@@ -1159,7 +1159,7 @@ class BaseArticulationData(ABC):
         return self.body_link_quat_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_wrench_resolver)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
     def body_vel_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_vel_w`."""
         return self.body_com_vel_w
@@ -1177,7 +1177,7 @@ class BaseArticulationData(ABC):
         return self.body_com_ang_vel_w
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_wrench_resolver)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
     def body_acc_w(self) -> ProxyArray:
         """Shorthand for :attr:`body_com_acc_w`."""
         return self.body_com_acc_w

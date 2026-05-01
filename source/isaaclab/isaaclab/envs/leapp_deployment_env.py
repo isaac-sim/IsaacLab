@@ -90,6 +90,11 @@ def _resolve_joint_ids(element_names: list | None, entity: Any) -> list[int] | N
     """
     if element_names is None or not hasattr(entity, "find_joints"):
         return None
+
+    # leapp tensor semantics will always store the array in a nested list of lists.
+    # NOTE: this is added in explicitly to handle partial joint application. currently
+    # this environment does not handle element reordering yet. Thus, this function
+    # is specialized to handle joints, hence reading index 0.
     joint_names = element_names[0]
     if not isinstance(joint_names, list) or not joint_names:
         return None
@@ -130,11 +135,11 @@ def _first_param_name(method: Any) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════
-# DirectDeploymentEnv
+# LeappDeploymentEnv
 # ══════════════════════════════════════════════════════════════════
 
 
-class DirectDeploymentEnv:
+class LeappDeploymentEnv:
     """Runs a LEAPP-exported policy in an Isaac Lab scene.
 
     The environment sets up the simulation scene and physics from a standard
@@ -211,7 +216,7 @@ class DirectDeploymentEnv:
         self._resolve_io()
 
         logger.info(
-            "DirectDeploymentEnv ready — %d inputs, %d outputs mapped",
+            "LeappDeploymentEnv ready — %d inputs, %d outputs mapped",
             len(self._input_mapping),
             len(self._output_mapping),
         )
@@ -357,7 +362,7 @@ class DirectDeploymentEnv:
         Returns:
             The initial input tensors (for logging / debugging).
         """
-        env_ids = torch.tensor([0], device=self.device, dtype=torch.long)
+        env_ids = [0]
 
         self.scene.reset(env_ids)
 

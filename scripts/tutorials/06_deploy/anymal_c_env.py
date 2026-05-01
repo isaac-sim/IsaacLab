@@ -26,16 +26,13 @@ class AnymalCEnv(DirectRLEnv):
     def __init__(self, cfg: AnymalCFlatEnvCfg | AnymalCRoughEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
-        # Joint position command (deviation from default joint positions)
         self._actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
         self._previous_actions = torch.zeros(
             self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device
         )
 
-        # X/Y linear velocity and yaw angular velocity commands
         self._commands = torch.zeros(self.num_envs, 3, device=self.device)
 
-        # Logging
         self._episode_sums = {
             key: torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
             for key in [
@@ -51,7 +48,6 @@ class AnymalCEnv(DirectRLEnv):
                 "flat_orientation_l2",
             ]
         }
-        # Get specific body indices
         self._base_id, _ = self._contact_sensor.find_sensors("base")
         self._feet_ids, _ = self._contact_sensor.find_sensors(".*FOOT")
         self._undesired_contact_body_ids, _ = self._contact_sensor.find_sensors(".*THIGH")
@@ -62,18 +58,14 @@ class AnymalCEnv(DirectRLEnv):
         self._contact_sensor = ContactSensor(self.cfg.contact_sensor)
         self.scene.sensors["contact_sensor"] = self._contact_sensor
         if isinstance(self.cfg, AnymalCRoughEnvCfg):
-            # we add a height scanner for perceptive locomotion
             self._height_scanner = RayCaster(self.cfg.height_scanner)
             self.scene.sensors["height_scanner"] = self._height_scanner
         self.cfg.terrain.num_envs = self.scene.cfg.num_envs
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
-        # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
-        # we need to explicitly filter collisions for CPU simulation
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
-        # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
@@ -127,7 +119,7 @@ class AnymalCEnv(DirectRLEnv):
                     commands,
                     joint_pos - default_joint_pos,
                     joint_vel,
-                    height_data,  # height data is not used by the flat policy. not needed for this example
+                    height_data,
                     previous_actions,
                 )
                 if tensor is not None
@@ -138,38 +130,28 @@ class AnymalCEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
-        # linear velocity tracking
         lin_vel_error = torch.sum(
             torch.square(self._commands[:, :2] - wp.to_torch(self._robot.data.root_lin_vel_b)[:, :2]), dim=1
         )
         lin_vel_error_mapped = torch.exp(-lin_vel_error / 0.25)
-        # yaw rate tracking
         yaw_rate_error = torch.square(self._commands[:, 2] - wp.to_torch(self._robot.data.root_ang_vel_b)[:, 2])
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
-        # z velocity tracking
         z_vel_error = torch.square(wp.to_torch(self._robot.data.root_lin_vel_b)[:, 2])
-        # angular velocity x/y
         ang_vel_error = torch.sum(torch.square(wp.to_torch(self._robot.data.root_ang_vel_b)[:, :2]), dim=1)
-        # joint torques
         joint_torques = torch.sum(torch.square(wp.to_torch(self._robot.data.applied_torque)), dim=1)
-        # joint acceleration
         joint_accel = torch.sum(torch.square(wp.to_torch(self._robot.data.joint_acc)), dim=1)
-        # action rate
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
-        # feet air time
         first_contact = wp.to_torch(self._contact_sensor.compute_first_contact(self.step_dt))[:, self._feet_ids]
         last_air_time = wp.to_torch(self._contact_sensor.data.last_air_time)[:, self._feet_ids]
         air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
             torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1
         )
-        # undesired contacts
         net_contact_forces = wp.to_torch(self._contact_sensor.data.net_forces_w_history)
         is_contact = (
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0]
             > 1.0
         )
         contacts = torch.sum(is_contact, dim=1)
-        # flat orientation
         flat_orientation = torch.sum(torch.square(wp.to_torch(self._robot.data.projected_gravity_b)[:, :2]), dim=1)
 
         rewards = {
@@ -185,7 +167,6 @@ class AnymalCEnv(DirectRLEnv):
             "flat_orientation_l2": flat_orientation * self.cfg.flat_orientation_reward_scale * self.step_dt,
         }
         reward = torch.sum(torch.stack(list(rewards.values())), dim=0)
-        # Logging
         for key, value in rewards.items():
             self._episode_sums[key] += value
         return reward
@@ -204,13 +185,10 @@ class AnymalCEnv(DirectRLEnv):
         self._robot.reset(env_ids)
         super()._reset_idx(env_ids)
         if len(env_ids) == self.num_envs:
-            # Spread out the resets to avoid spikes in training when many environments reset at a similar time
             self.episode_length_buf[:] = torch.randint_like(self.episode_length_buf, high=int(self.max_episode_length))
         self._actions[env_ids] = 0.0
         self._previous_actions[env_ids] = 0.0
-        # Sample new commands
         self._commands[env_ids] = torch.zeros_like(self._commands[env_ids]).uniform_(-1.0, 1.0)
-        # Reset robot state
         joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
         joint_vel = wp.to_torch(self._robot.data.default_joint_vel)[env_ids]
         default_root_pose = wp.to_torch(self._robot.data.default_root_pose)[env_ids]
@@ -220,7 +198,6 @@ class AnymalCEnv(DirectRLEnv):
         self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
         self._robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
         self._robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
-        # Logging
         extras = dict()
         for key in self._episode_sums.keys():
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])

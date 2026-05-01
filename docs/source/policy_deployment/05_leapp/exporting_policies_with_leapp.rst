@@ -10,7 +10,7 @@ output semantics needed for deployment, so downstream users do not need to reimp
 observation preprocessing, action postprocessing, or recurrent-state handling by hand.
 
 In practice, this makes the exported policy a much better fit for Isaac deployment libraries.
-Isaac Lab can already consume these exports through :class:`~envs.DirectDeploymentEnv`, and Isaac
+Isaac Lab can already consume these exports through :class:`~envs.LeappDeploymentEnv`, and Isaac
 ROS will add direct support for running LEAPP-exported policies in a future release.
 
 .. note::
@@ -231,16 +231,16 @@ initial hidden state values are saved in the ``.safetensors`` file.
 Running the Exported Policy in Simulation
 -----------------------------------------
 
-Isaac Lab provides :class:`~envs.DirectDeploymentEnv` for running exported policies back in
+Isaac Lab provides :class:`~envs.LeappDeploymentEnv` for running exported policies back in
 simulation without the training infrastructure. This is the Isaac Lab deployment path for
 LEAPP-exported policies and is useful for validating that the packaged policy still behaves
 correctly when driven through the deployment stack instead of the training stack.
 
-For direct deployment policies, see the
-:doc:`direct deployment LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_deployment_policies_with_leapp>`.
+For Direct workflow policies, see the
+:doc:`Direct workflow LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp>`.
 That guide shows how to add LEAPP annotations to a direct RL environment so it can be
 exported with ``scripts/reinforcement_learning/leapp/rsl_rl/export.py``. Direct
-deployment policies are not currently supported by ``scripts/reinforcement_learning/leapp/deploy.py``.
+workflow policies are not currently supported by ``scripts/reinforcement_learning/leapp/deploy.py``.
 
 
 Further Reading
@@ -248,4 +248,4 @@ Further Reading
 
 - `LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`_
 - `LEAPP API reference <https://github.com/nvidia-isaac/leapp/blob/main/docs/api.md>`_
-- :class:`~envs.DirectDeploymentEnv` API reference
+- :class:`~envs.LeappDeploymentEnv` API reference

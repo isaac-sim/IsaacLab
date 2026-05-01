@@ -112,10 +112,10 @@ tutorials show you how to use motion generators to control the robots at the tas
 Exporting Policies
 ------------------
 
-The following tutorial shows how to prepare a direct deployment policy for export with LEAPP.
+The following tutorial shows how to prepare a Direct workflow policy for export with LEAPP.
 
 .. toctree::
     :maxdepth: 1
     :titlesonly:
 
-    06_exporting/exporting_direct_deployment_policies_with_leapp
+    06_exporting/exporting_direct_workflow_policies_with_leapp

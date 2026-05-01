@@ -1,9 +1,9 @@
-Exporting Direct Deployment Policies with LEAPP
-===============================================
+Exporting Direct Workflow Policies with LEAPP
+=============================================
 
 .. currentmodule:: isaaclab
 
-This tutorial shows how to prepare a direct deployment policy for export with
+This tutorial shows how to prepare a Direct workflow policy for export with
 LEAPP. If your policy is manager-based, use the
 :doc:`manager-based LEAPP export guide </source/policy_deployment/05_leapp/exporting_policies_with_leapp>`
 instead.
@@ -12,7 +12,7 @@ instead.
 Overview
 ~~~~~~~~
 
-To export a direct deployment policy with LEAPP, you add LEAPP annotations to the
+To export a Direct workflow policy with LEAPP, you add LEAPP annotations to the
 environment code. During export, LEAPP traces the annotated tensors and builds an
 intermediate representation of the full policy pipeline. These annotations remain
 dormant during normal environment execution and only add a small amount of
@@ -41,7 +41,7 @@ artifacts. If you omit it, the export is written next to the checkpoint.
 
 .. warning::
 
-   This tutorial covers exporting direct deployment policies only. Direct deployment
+   This tutorial covers exporting Direct workflow policies only. Direct workflow
    policies are not currently supported by
    ``scripts/reinforcement_learning/leapp/deploy.py``.
 

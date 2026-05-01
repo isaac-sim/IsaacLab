@@ -276,7 +276,6 @@ class _SceneProxy:
         property_resolution_cache: dict[tuple[type, str], tuple[Callable, Any] | None],
         cache: dict,
     ):
-        # use object.__setattr__ to avoid creating new attributes, only set the ones that are already defined
         object.__setattr__(self, "_real_scene", real_scene)
         object.__setattr__(self, "_task_name", task_name)
         object.__setattr__(self, "_property_resolution_cache", property_resolution_cache)

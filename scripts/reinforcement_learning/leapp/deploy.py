@@ -36,7 +36,7 @@ simulation_app = app_launcher.app
 
 import torch
 
-from isaaclab.envs.direct_deployment_env import DirectDeploymentEnv
+from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
@@ -53,7 +53,7 @@ def main():
         env_cfg.sim.device = args_cli.device
 
     # ── Create deploy env ─────────────────────────────────────────
-    env = DirectDeploymentEnv(env_cfg, args_cli.leapp_model)
+    env = LeappDeploymentEnv(env_cfg, args_cli.leapp_model)
 
     if getattr(args_cli, "headless", False):
         print(

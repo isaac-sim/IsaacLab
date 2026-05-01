@@ -9,15 +9,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from isaaclab.utils.warp import ProxyArray
-
 from isaaclab.utils.leapp import (
     POSE7_ELEMENT_NAMES,
-    QUAT_WXYZ_ELEMENT_NAMES,
+    QUAT_XYZW_ELEMENT_NAMES,
     XYZ_ELEMENT_NAMES,
     InputKindEnum,
     leapp_tensor_semantics,
 )
+from isaaclab.utils.warp import ProxyArray
 
 
 class BasePvaData(ABC):
@@ -50,7 +49,7 @@ class BasePvaData(ABC):
 
     @property
     @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_WXYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def quat_w(self) -> ProxyArray:
         """Orientation of the sensor origin in world frame.
 

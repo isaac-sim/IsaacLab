@@ -30,14 +30,12 @@ torch.jit._state.disable()
 
 from isaaclab.app import AppLauncher
 
-# local imports
 _RSL_RL_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "rsl_rl"
 if str(_RSL_RL_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_RSL_RL_SCRIPTS_DIR))
 import cli_args  # isort: skip
 
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -58,7 +56,7 @@ parser.add_argument(
     "--export_task_name",
     type=str,
     default=None,
-    help="Name of the exported task",
+    help="Name of the exported graph. Defaults to the task name.",
 )
 parser.add_argument(
     "--export_method",
@@ -86,21 +84,16 @@ parser.add_argument(
     help="Disable LEAPP graph visualization during compile_graph().",
 )
 
-# append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
-# append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
 args_cli, hydra_args = parser.parse_known_args()
 args_cli.headless = True
 
 # clear out sys.argv for Hydra
 sys.argv = [sys.argv[0]] + hydra_args
 
-# Check for installed RSL-RL version
 installed_version = metadata.version("rsl-rl-lib")
 
-# launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
@@ -175,23 +168,18 @@ def actor_hidden_from_registered(registered_state, original_hidden):
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Export a RSL-RL agent."""
-    # grab task name for checkpoint path
     task_name = args_cli.task.split(":")[-1]
     train_task_name = task_name.replace("-Play", "")
 
-    # override configurations with non-hydra CLI arguments
     agent_cfg: RslRlBaseRunnerCfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
     env_cfg.scene.num_envs = 1
 
-    # handle deprecated configurations
     agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
-    # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-    # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading experiment from directory: {log_root_path}")
@@ -207,15 +195,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
 
     log_dir = os.path.dirname(resume_path)
 
-    # set the log directory for the environment (works for all environment types)
     env_cfg.log_dir = log_dir
 
-    # create isaac environment
-    # Note: observation functions are already patched at module level (before isaaclab_tasks import)
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
-    annotation_task_name = ensure_env_spec_id(env)
+    policy_node_name = ensure_env_spec_id(env)
 
-    export_task_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
+    graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
     if isinstance(env.unwrapped, ManagerBasedRLEnv):
         # Patch only the observation groups consumed by the actor policy.
@@ -231,11 +216,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
             required_obs_groups=required_obs_groups,
         )
 
-    # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
     print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-    # load previously trained model
     if agent_cfg.class_name == "OnPolicyRunner":
         runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
     elif agent_cfg.class_name == "DistillationRunner":
@@ -244,12 +227,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
         raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
     runner.load(resume_path)
 
-    # obtain the trained policy for inference
     policy = runner.get_inference_policy(device=env.unwrapped.device)
     policy_nn = getattr(policy, "__self__", None)
 
-    # start annotation tracing
-    # Note: all patching is done at module/class level before isaaclab_tasks import
     if args_cli.export_save_path is not None:
         save_path = args_cli.export_save_path
     elif args_cli.use_pretrained_checkpoint:
@@ -257,15 +237,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
         save_path = os.path.join(".pretrained_checkpoints", "rsl_rl", train_task_name)
     else:
         save_path = log_dir
-    leapp.start(export_task_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
-    # obs = env.get_observations()
+    leapp.start(graph_name, save_path=save_path, max_cached_io=max(args_cli.validation_steps, 2))
     obs = env.reset()[0]
-    # simulate environment
     while not simulation_app.is_running():
         time.sleep(0.5)
 
     for _ in range(max(args_cli.validation_steps, 2)):
-        # run everything in inference mode
         with torch.inference_mode():
             if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
                 actor_hidden = ensure_actor_hidden_state_initialized(
@@ -275,37 +252,31 @@ def main(env_cfg: ManagerBasedRLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
                     dtype=next(policy_nn.parameters()).dtype,
                 )
                 registered_state = annotate.state_tensors(
-                    annotation_task_name,
+                    policy_node_name,
                     state_dict_from_actor_hidden(actor_hidden),
                 )
                 actor_memory = get_actor_memory_module(policy_nn)
                 if actor_memory is not None:
                     actor_memory.hidden_state = actor_hidden_from_registered(registered_state, actor_hidden)
 
-            # =============RUN POLICY=============
             actions = policy(obs)
-            # =============END POLICY=============
 
             if policy_nn is not None and getattr(policy_nn, "is_recurrent", False):
                 actor_hidden_after = policy_nn.get_hidden_states()[0]
                 annotate.update_state(
-                    annotation_task_name,
+                    policy_node_name,
                     state_dict_from_actor_hidden(actor_hidden_after),
                 )
 
-            # env stepping
             obs, _, _, _ = env.step(actions)
 
     leapp.stop()
     validate = args_cli.validation_steps > 0
     leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
 
-    # close the simulator
     env.close()
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
     simulation_app.close()

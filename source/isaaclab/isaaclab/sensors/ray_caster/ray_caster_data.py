@@ -8,7 +8,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.utils.leapp import (
-    QUAT_WXYZ_ELEMENT_NAMES,
+    QUAT_XYZW_ELEMENT_NAMES,
     XYZ_ELEMENT_NAMES,
     leapp_tensor_semantics,
 )
@@ -43,7 +43,7 @@ class RayCasterData:
         return self._pos_w_ta
 
     @property
-    @leapp_tensor_semantics(kind="state/sensor/rotation", element_names=QUAT_WXYZ_ELEMENT_NAMES)
+    @leapp_tensor_semantics(kind="state/sensor/rotation", element_names=QUAT_XYZW_ELEMENT_NAMES)
     def quat_w(self) -> ProxyArray:
         """Orientation of the sensor origin in quaternion (x, y, z, w) in world frame.
 
