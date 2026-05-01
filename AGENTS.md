@@ -90,11 +90,14 @@ Proper workflow:
 ## Changelog
 
 **Do not edit `CHANGELOG.rst` or `config/extension.toml` directly.**
-Each PR drops a fragment under `source/<package>/changelog.d/`; a maintainer
-runs `tools/changelog/cli.py compile` at release time, which rolls
-accumulated fragments into per-package `CHANGELOG.rst` entries and bumps
-each `extension.toml` independently. The PR CI gate verifies every
-modified package has a valid fragment.
+Each PR drops a fragment under `source/<package>/changelog.d/`. The
+nightly CI workflow (`.github/workflows/nightly-changelog.yml`) rolls
+accumulated fragments into per-package `CHANGELOG.rst` entries, bumps
+each `extension.toml` independently, deletes the consumed fragments,
+and pushes the result back to `develop`. Maintainers can also run
+`tools/changelog/cli.py compile` manually (e.g. when cutting a release
+needs to coincide with a specific version pin). The PR CI gate verifies
+every modified package has a valid fragment.
 
 ### Adding a fragment
 

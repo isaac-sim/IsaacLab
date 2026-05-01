@@ -71,9 +71,10 @@ exactly what the compiler would produce.
 ## Other CLI invocations
 
 ```bash
-# Real release-time compile across all managed packages — bumps each
-# package's extension.toml and CHANGELOG.rst from its own changelog.d/,
-# then deletes consumed fragments. Maintainer command.
+# Real compile across all managed packages — bumps each package's
+# extension.toml and CHANGELOG.rst from its own changelog.d/, then
+# deletes consumed fragments. The nightly workflow runs this on cron;
+# maintainers also run it manually when cutting a coordinated release.
 ./isaaclab.sh -p tools/changelog/cli.py compile --all
 
 # Pin one package to a specific version (skips the per-fragment bump

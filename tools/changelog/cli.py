@@ -22,8 +22,10 @@ package (one ``.major.rst`` anywhere → major).
 Subcommands:
 
   check    PR gate. Verifies every modified package has a valid fragment.
-  compile  Maintainer release-time tool. Rolls accumulated fragments into
-           ``CHANGELOG.rst`` and bumps ``extension.toml``.
+  compile  Roll accumulated fragments into ``CHANGELOG.rst`` and bump
+           ``extension.toml``. Run by the nightly workflow
+           (``.github/workflows/nightly-changelog.yml``) on a cron and
+           by maintainers manually when cutting a release.
 
 Usage:
 
