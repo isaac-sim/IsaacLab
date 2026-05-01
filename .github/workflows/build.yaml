@@ -71,7 +71,7 @@ env:
 
 jobs:
   changes:
-    name: Detect Docker Test Changes
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
