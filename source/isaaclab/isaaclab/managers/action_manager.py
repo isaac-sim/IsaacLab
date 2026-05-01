@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import inspect
 import re
-import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -17,14 +16,15 @@ from typing import TYPE_CHECKING, Any
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 from isaaclab.utils.version import has_kit
-
-from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ActionTermCfg
 
 if has_kit():
     import omni.kit.app
+
+from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
+
+from .manager_base import ManagerBase, ManagerTermBase
+from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import AssetBase
@@ -65,7 +65,7 @@ class ActionTerm(ManagerTermBase):
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        self._clear_debug_vis_callback()
+        self._env.sim.vis_marker_registry.clear_debug_vis_callback(self)
 
     """
     Properties.
@@ -132,25 +132,12 @@ class ActionTerm(ManagerTermBase):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                self._register_debug_vis_callback()
+                self._debug_vis_handle = self._env.sim.vis_marker_registry.add_debug_vis_callback(self)
         else:
             # remove the subscriber if it exists
-            self._clear_debug_vis_callback()
+            self._env.sim.vis_marker_registry.clear_debug_vis_callback(self)
         # return success
         return True
-
-    def _register_debug_vis_callback(self) -> None:
-        """Register the debug visualization callback with the simulation marker registry."""
-        callback_id = f"visualization_marker:{type(self).__name__}:{id(self)}"
-        self._debug_vis_handle = self._env.sim.visualization_marker_registry.add_callback(
-            callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-        )
-
-    def _clear_debug_vis_callback(self) -> None:
-        """Clear the debug visualization callback if it is registered."""
-        if self._debug_vis_handle is not None:
-            self._env.sim.visualization_marker_registry.remove_callback(self._debug_vis_handle)
-            self._debug_vis_handle = None
 
     @abstractmethod
     def process_actions(self, actions: torch.Tensor):

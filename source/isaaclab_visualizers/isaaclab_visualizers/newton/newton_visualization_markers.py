@@ -44,7 +44,7 @@ def render_newton_visualization_markers(viewer, visible_env_ids: list[int] | Non
     if sim is None:
         return
 
-    for marker in sim.visualization_marker_registry.get_groups().values():
+    for marker in sim.vis_marker_registry.get_groups().values():
         if isinstance(marker, NewtonVisualizationMarkers):
             marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
 
@@ -66,13 +66,13 @@ class NewtonVisualizationMarkers:
 
         sim = sim_utils.SimulationContext.instance()
         if sim is not None:
-            sim.visualization_marker_registry.set_group(self.group_id, self)
+            sim.vis_marker_registry.set_group(self.group_id, self)
 
     def close(self) -> None:
         """Remove marker backend from the simulation marker registry."""
         sim = sim_utils.SimulationContext.instance()
         if sim is not None:
-            sim.visualization_marker_registry.remove_group(self.group_id)
+            sim.vis_marker_registry.remove_group(self.group_id)
 
     def infer_device(self) -> torch.device:
         """Infer the device from current marker state."""
