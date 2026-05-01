@@ -375,6 +375,11 @@ def sim(request):
     articulation_type = request.getfixturevalue("articulation_type")
     sim_cfg = SIM_CFGs[articulation_type]
     sim_cfg.device = device
+    # ``gravity_enabled`` is silently ignored by ``build_simulation_context``
+    # when an explicit ``sim_cfg`` is also passed; apply it here so the
+    # fixture honors what its parameter advertises.
+    if not gravity_enabled:
+        sim_cfg.gravity = (0.0, 0.0, 0.0)
     with build_simulation_context(
         device=device,
         auto_add_lighting=True,
@@ -2908,22 +2913,24 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
 def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_enabled):
-    """Newton-side IK convergence sentinel — not a correctness oracle.
+    """Newton-side IK convergence sentinel.
 
     Runs a full IK tracking loop end-to-end through the new
     ``robot.get_jacobians()`` accessor and records the steady-state EE
-    pose error. The assertion threshold is a **regression sentinel**: it
-    catches "IK is fundamentally broken" failures (no convergence,
-    runaway divergence) but does NOT certify mm-level correctness.
+    pose error. With the robot teleported to its configured init_state
+    home pose and scene gravity off, Newton's IK converges to
+    machine-precision tracking (sub-mm). A bridge regression
+    (wrong-reference-frame Jacobian, missing COM->origin shift, DoF
+    mis-ordering) would push the steady-state error well above the
+    threshold below.
 
-    Newton's MJWarp solver has an actuator-tracking floor of roughly 3-5
-    cm regardless of target distance, plus run-to-run variance from
-    non-deterministic CUDA kernel ordering. The threshold below absorbs
-    that floor while remaining well below the "totally broken" regime
-    where IK either fails to converge at all or settles ~30+ cm off
-    target. A wrong-reference-frame Jacobian, missing COM->origin shift,
-    or DoF-ordering swap would push the steady-state error well past
-    this bound and trip the test.
+    The pose teleport is deliberate: the standalone test path does not
+    invoke a manager-based env reset (which is what normally pushes
+    :attr:`~isaaclab.assets.ArticulationData.default_joint_pos` to sim).
+    Without it, the robot starts at the URDF-neutral pose where the
+    Franka wrist axes nearly align (rank-deficient Jacobian) and DLS
+    plateaus at multi-cm error -- a kinematic-singularity artifact, not
+    a bridge or Newton issue.
 
     See ``test_get_jacobians_link_origin_contract`` (above) for the
     sharper unit-level pin on the Jacobian's reference-point contract.
@@ -2938,14 +2945,26 @@ def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_ena
     ee_jacobi_idx = ee_frame_idx - 1
     arm_joint_ids = robot.find_joints(["panda_joint.*"])[0]
 
+    # Teleport joints to the configured init_state home pose. ``sim.reset()``
+    # does not auto-push :attr:`default_joint_pos` to the simulator -- that
+    # happens through the env reset path in production. Without this
+    # explicit write, the robot remains at the URDF-neutral pose, which is
+    # near-singular for the Franka wrist (joints 5/6/7 ~ 0 align the
+    # twist axes) and produces a 2-4 cm DLS plateau unrelated to the
+    # bridge under test.
+    robot.write_joint_position_to_sim_index(
+        position=robot.data.default_joint_pos.torch[:, :].clone(),
+    )
+    robot.write_joint_velocity_to_sim_index(
+        velocity=robot.data.default_joint_vel.torch[:, :].clone(),
+    )
+
     ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
     ik = DifferentialIKController(ik_cfg, num_envs=1, device=device)
 
     # Pick a small relative target to keep the IK trajectory short and
-    # bounded. Long traversals compound non-determinism into occasional
-    # non-convergence (~2% under 100x stress on Newton); a 5 cm offset
-    # exercises the bridge accessors without exposing solver-level
-    # convergence robustness which is out of scope for this PR.
+    # bounded. A 5 cm offset exercises the bridge accessors without
+    # exposing solver-level convergence robustness on long traversals.
     sim.step()
     robot.update(sim.cfg.dt)
     initial_ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx].clone()
@@ -2994,18 +3013,15 @@ def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_ena
     # Print metrics every run for stress-test capture.
     print(f"IK_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
 
-    # Regression sentinel: 5 cm best-of-tail. Newton with this exact test
-    # setup (initial pose, target = initial + 5 cm in x) converges to a
-    # deterministic ~4.14 cm and stays there bit-for-bit across 13+
-    # consecutive stress runs — Newton's MJWarp solver is deterministic
-    # for the short-trajectory case. The non-determinism we observed at
-    # 60 cm targets was specific to trajectories admitting multiple local
-    # minima. A bridge regression (wrong-frame Jacobian, missing
+    # Regression sentinel: 5 mm best-of-tail. With the configured home
+    # pose and scene gravity off, Newton converges to machine precision
+    # (sub-mm) on this 5 cm Cartesian step. The 5 mm bound absorbs any
+    # CUDA-kernel-ordering noise while remaining well below the "totally
+    # broken" regime: a bridge regression (wrong-frame Jacobian, missing
     # COM->origin shift, DoF mis-ordering) would push the steady-state
-    # error well past 5 cm because the Newton actuator floor would
-    # compound with the bridge-induced bias.
-    assert pos_min < 5e-2, f"IK pos_min {pos_min:.4f} > 5 cm — bridge regression?"
-    assert rot_min < 2e-1, f"IK rot_min {rot_min:.4f} > 0.2 rad — bridge regression?"
+    # error well past this bound.
+    assert pos_min < 5e-3, f"IK pos_min {pos_min:.5f} > 5 mm — bridge regression?"
+    assert rot_min < 5e-2, f"IK rot_min {rot_min:.5f} > 0.05 rad — bridge regression?"
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -3029,7 +3045,17 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     exercises ``get_mass_matrix`` and the Newton COM-referenced J →
     M_b → J product.
     """
-    cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/Env_.*/Robot")
+    # OSC outputs joint efforts; the implicit actuator's PD term would
+    # otherwise oppose OSC by pulling joints back toward the position
+    # target. Zero out the PD stiffness/damping so OSC has full control
+    # of the joint efforts, mirroring how OSC is wired in production
+    # action terms (zero PD on the actuator side, OSC computes total
+    # joint effort).
+    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_.*/Robot")
+    cfg.actuators["panda_shoulder"].stiffness = 0.0
+    cfg.actuators["panda_shoulder"].damping = 0.0
+    cfg.actuators["panda_forearm"].stiffness = 0.0
+    cfg.actuators["panda_forearm"].damping = 0.0
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
     robot = Articulation(cfg)
     sim.reset()
@@ -3038,6 +3064,16 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
     ee_jacobi_idx = ee_frame_idx - 1
     arm_joint_ids = robot.find_joints(["panda_joint.*"])[0]
+
+    # Same teleport as the IK test: push the configured home pose so the
+    # OSC loop starts from a non-singular configuration, matching what an
+    # env reset would normally do.
+    robot.write_joint_position_to_sim_index(
+        position=robot.data.default_joint_pos.torch[:, :].clone(),
+    )
+    robot.write_joint_velocity_to_sim_index(
+        velocity=robot.data.default_joint_vel.torch[:, :].clone(),
+    )
 
     osc_cfg = OperationalSpaceControllerCfg(
         target_types=["pose_abs"],
@@ -3109,15 +3145,19 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
 
     print(f"OSC_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
 
-    # Regression sentinel: 3 cm best-of-tail. Newton OSC with this test
-    # setup converges to a deterministic ~1.78 cm across 12+ stress runs
-    # — tighter than the IK test (1.78 vs 4.14 cm) because OSC's
-    # force-control bypasses the joint-PD-tracking layer that introduces
-    # the IK floor. A bridge regression (wrong J, wrong M, or wrong DoF
-    # ordering) would push this past the bound because OSC mixes both
-    # accessors per step.
-    assert pos_min < 3e-2, f"OSC pos_min {pos_min:.4f} > 3 cm — bridge regression?"
-    assert rot_min < 5e-1, f"OSC rot_min {rot_min:.4f} > 0.5 rad — bridge regression?"
+    # Regression sentinel: 1 cm best-of-tail. With the home pose start,
+    # zero actuator PD, and no gravity, OSC reaches ~7 mm pos_min on
+    # this 5 cm Cartesian step. The exact floor is governed by the
+    # OSC's task-space impedance settling against the operational-space
+    # inertia at the home configuration; tighter bounds would require
+    # bumping ``motion_stiffness_task`` or providing a non-zero
+    # ``current_ee_vel_b``, neither of which is the bridge-pinning
+    # contract this test cares about. A bridge regression (wrong J,
+    # wrong mass matrix, DoF mis-ordering) would push the error well
+    # past 1 cm because OSC consumes both ``get_jacobians`` and
+    # ``get_mass_matrix`` per step.
+    assert pos_min < 1e-2, f"OSC pos_min {pos_min:.5f} > 1 cm — bridge regression?"
+    assert rot_min < 1e-1, f"OSC rot_min {rot_min:.5f} > 0.1 rad — bridge regression?"
 
 
 if __name__ == "__main__":
