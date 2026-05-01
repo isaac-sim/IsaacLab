@@ -241,7 +241,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 init_params = None
                 if annotator_type == "semantic_segmentation":
                     init_params = {
-                        "colorize": spec.cfg.colorize_semantic_segmentation,
+                        "colorize": self.cfg.colorize_semantic_segmentation,
                         "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
                     }
                 elif annotator_type == "instance_segmentation_fast":
