@@ -41,6 +41,7 @@ def _export_command(task_name: str, export_dir: str) -> list[str]:
         _THIS_SCRIPT,
         "--task",
         task_name,
+        "--use_pretrained_checkpoint",
         "--export_save_path",
         export_dir,
         "--disable_graph_visualization",
@@ -163,8 +164,6 @@ def test_direct_env_export_flow():
     artifact_dir = _artifact_dir(export_dir, _TASK_NAME)
     shutil.rmtree(artifact_dir, ignore_errors=True)
 
-    # TODO: Switch this test to --use_pretrained_checkpoint when a published
-    # checkpoint is available for the direct tutorial task.
     result = subprocess.run(
         _export_command(_TASK_NAME, export_dir),
         cwd=_REPO_ROOT,
@@ -172,6 +171,9 @@ def test_direct_env_export_flow():
         text=True,
         timeout=6000,
     )
+
+    if "pre-trained checkpoint is currently unavailable" in result.stdout:
+        pytest.skip(f"No pretrained checkpoint available for {_TASK_NAME}")
 
     if result.returncode != 0:
         pytest.fail(f"export.py exited with code {result.returncode}.\n{_build_failure_context(result, artifact_dir)}")
