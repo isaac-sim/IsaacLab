@@ -4,7 +4,7 @@ Exporting Policies with LEAPP
 .. currentmodule:: isaaclab
 
 This guide covers how to export trained reinforcement learning policies from Isaac Lab using
-`LEAPP <LEAPP_REPO_LINK_PLACEHOLDER>`_ (Lightweight Export Annotations for Policy Pipelines).
+`LEAPP <https://github.com/nvidia-isaac/leapp>`_ (Lightweight Export Annotations for Policy Pipelines).
 The main goal of the LEAPP export path is to package the policy together with the input and
 output semantics needed for deployment, so downstream users do not need to reimplement Isaac Lab
 observation preprocessing, action postprocessing, or recurrent-state handling by hand.
@@ -22,16 +22,10 @@ ROS will add direct support for running LEAPP-exported policies in a future rele
 Prerequisites
 -------------
 
-.. admonition:: TODO
-   :class: warning
-
-   Installation instructions will be finalized once LEAPP is publicly released.
-
 LEAPP requires Python >= 3.8 and PyTorch >= 2.6. Install it with:
 
 .. code-block:: bash
 
-   # PLACEHOLDER — replace with the actual install command once available
    pip install leapp
 
 Ensure you have a trained RSL-RL checkpoint before proceeding. The standard Isaac Lab
@@ -57,7 +51,7 @@ consumers can run the policy without reconstructing observation ordering, comman
 targets, or policy feedback loops themselves.
 
 For a detailed description of LEAPP's generated artifacts and APIs, refer to the
-`LEAPP documentation <LEAPP_REPO_LINK_PLACEHOLDER>`_.
+`LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`_.
 
 
 Exporting a Policy
@@ -248,15 +242,10 @@ That guide shows how to add LEAPP annotations to a direct RL environment so it c
 exported with ``scripts/reinforcement_learning/leapp/rsl_rl/export.py``. Direct
 deployment policies are not currently supported by ``scripts/reinforcement_learning/leapp/deploy.py``.
 
-.. admonition:: TODO
-   :class: warning
-
-   Add a link to the Isaac ROS feature that directly runs LEAPP-exported policies once that
-   documentation is available.
-
 
 Further Reading
 ---------------
 
-- `LEAPP documentation and API reference <LEAPP_REPO_LINK_PLACEHOLDER>`_
+- `LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`_
+- `LEAPP API reference <https://github.com/nvidia-isaac/leapp/blob/main/docs/api.md>`_
 - :class:`~envs.DirectDeploymentEnv` API reference

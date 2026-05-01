@@ -177,6 +177,7 @@ into deployment systems.
 
 .. note::
 
-   Refer to the full LEAPP documentation and API reference for details on
-   authoring semantic annotations once that documentation becomes publicly
-   available.
+   Refer to the `LEAPP semantic annotation guide
+   <https://github.com/nvidia-isaac/leapp/blob/main/docs/5_semantic_data_annotation.md>`_
+   and `LEAPP API reference <https://github.com/nvidia-isaac/leapp/blob/main/docs/api.md>`_
+   for details on authoring semantic annotations.
