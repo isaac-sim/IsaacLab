@@ -569,118 +569,120 @@ class keypoint_ee_grasp_error_exp(keypoint_ee_grasp_error):
 
 
 class keypoint_two_body_error(ManagerTermBase):
-    """Compute keypoint distance between two explicit :class:`~isaaclab.assets.RigidObject` assets.
+    """Keypoint distance between two rigid objects with body-frame offsets.
 
-    Unlike :class:`keypoint_entity_error` which relies on the gear-type manager
-    to select the active gear, this term takes two explicit asset configs and
-    always computes the keypoint distance between them. Suitable for cable
-    insertion and other two-body alignment tasks.
+    Computes keypoint frames for each object by applying a local-frame offset
+    (translation and optional rotation) to each object's root pose, then
+    measures the mean keypoint distance between the two frames.
+
+    This handles USD assets whose root frame doesn't coincide with the
+    functionally relevant geometry (e.g., the GB300 socket whose root frame
+    is far from the actual insertion slot).
 
     Args:
-        asset_cfg_1: First rigid object asset config.
-        asset_cfg_2: Second rigid object asset config.
-        keypoint_scale: Scaling factor [m] for the keypoint cube size used for
-            distance computation.
-        add_cube_center_kp: Whether to include the cube center keypoint.
+        asset_cfg_1: Scene entity config for the first rigid object (e.g., socket).
+        asset_cfg_2: Scene entity config for the second rigid object (e.g., plug).
+        offset_1: 3D offset ``[x, y, z]`` in asset 1's local frame to its keypoint
+            origin. Defaults to ``[0, 0, 0]``.
+        offset_2: 3D offset ``[x, y, z]`` in asset 2's local frame to its keypoint
+            origin. Defaults to ``[0, 0, 0]``.
+        rot_offset_2: Quaternion ``(x, y, z, w)`` rotation applied to asset 2's
+            keypoint frame orientation. Typically the inverse of the goal rotation
+            so that keypoint frames align at the insertion goal. Defaults to identity.
+        keypoint_scale: Scale factor for keypoint offsets. Defaults to 0.15.
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
 
-        if "asset_cfg_1" not in cfg.params or "asset_cfg_2" not in cfg.params:
-            raise ValueError(
-                "'asset_cfg_1' and 'asset_cfg_2' parameters are required in keypoint_two_body_error configuration."
-            )
+        self.asset_1 = env.scene[cfg.params["asset_cfg_1"].name]
+        self.asset_2 = env.scene[cfg.params["asset_cfg_2"].name]
 
-        self.asset_cfg_1: SceneEntityCfg = cfg.params["asset_cfg_1"]
-        self.asset_1 = env.scene[self.asset_cfg_1.name]
+        offset_1 = cfg.params.get("offset_1", [0.0, 0.0, 0.0])
+        self.offset_1 = torch.tensor(offset_1, device=env.device, dtype=torch.float32)
 
-        self.asset_cfg_2: SceneEntityCfg = cfg.params["asset_cfg_2"]
-        self.asset_2 = env.scene[self.asset_cfg_2.name]
+        offset_2 = cfg.params.get("offset_2", [0.0, 0.0, 0.0])
+        self.offset_2 = torch.tensor(offset_2, device=env.device, dtype=torch.float32)
+
+        rot_offset_2 = cfg.params.get("rot_offset_2", [0.0, 0.0, 0.0, 1.0])
+        self.rot_offset_2 = (
+            torch.tensor(rot_offset_2, device=env.device, dtype=torch.float32).unsqueeze(0).repeat(env.num_envs, 1)
+        )
+
+        self.identity_quat = (
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32).repeat(env.num_envs, 1)
+        )
 
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
+
+    def _get_kp_frames(
+        self, env: ManagerBasedRLEnv
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Compute keypoint frames for both assets with offsets applied."""
+        import warp as wp
+
+        pos_1 = wp.to_torch(self.asset_1.data.root_pos_w)
+        quat_1 = wp.to_torch(self.asset_1.data.root_quat_w)
+        pos_2 = wp.to_torch(self.asset_2.data.root_pos_w)
+        quat_2 = wp.to_torch(self.asset_2.data.root_quat_w)
+
+        offset_1_batch = self.offset_1.unsqueeze(0).expand(env.num_envs, -1)
+        kp_pos_1, kp_quat_1 = combine_frame_transforms(pos_1, quat_1, offset_1_batch, self.identity_quat)
+
+        offset_2_batch = self.offset_2.unsqueeze(0).expand(env.num_envs, -1)
+        kp_pos_2, kp_quat_2 = combine_frame_transforms(pos_2, quat_2, offset_2_batch, self.rot_offset_2)
+
+        return kp_pos_1, kp_quat_1, kp_pos_2, kp_quat_2
 
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        asset_cfg_1: SceneEntityCfg | None = None,
-        asset_cfg_2: SceneEntityCfg | None = None,
-        keypoint_scale: float = 1.0,
-        add_cube_center_kp: bool = True,
+        asset_cfg_1: SceneEntityCfg = SceneEntityCfg("factory_gear_base"),
+        asset_cfg_2: SceneEntityCfg = SceneEntityCfg("factory_gear_small"),
+        keypoint_scale: float = 0.15,
+        offset_1: list | None = None,
+        offset_2: list | None = None,
+        rot_offset_2: list | None = None,
     ) -> torch.Tensor:
-        curr_pos_1 = wp.to_torch(self.asset_1.data.body_pos_w)[:, 0]
-        curr_quat_1 = wp.to_torch(self.asset_1.data.body_quat_w)[:, 0]
-
-        curr_pos_2 = wp.to_torch(self.asset_2.data.body_pos_w)[:, 0]
-        curr_quat_2 = wp.to_torch(self.asset_2.data.body_quat_w)[:, 0]
+        kp_pos_1, kp_quat_1, kp_pos_2, kp_quat_2 = self._get_kp_frames(env)
 
         keypoint_dist_sep = self.keypoint_computer.compute(
-            current_pos=curr_pos_1,
-            current_quat=curr_quat_1,
-            target_pos=curr_pos_2,
-            target_quat=curr_quat_2,
+            current_pos=kp_pos_1,
+            current_quat=kp_quat_1,
+            target_pos=kp_pos_2,
+            target_quat=kp_quat_2,
             keypoint_scale=keypoint_scale,
         )
 
         return keypoint_dist_sep.mean(-1)
 
 
-class keypoint_two_body_error_exp(ManagerTermBase):
-    """Exponential keypoint reward between two explicit :class:`~isaaclab.assets.RigidObject` assets.
+class keypoint_two_body_error_exp(keypoint_two_body_error):
+    """Exponential keypoint reward between two rigid objects with body-frame offsets.
 
-    Exponential version of :class:`keypoint_two_body_error`. The reward peaks
-    near 1.0 when the two bodies are aligned and drops sharply as they diverge.
-
-    Args:
-        asset_cfg_1: First rigid object asset config.
-        asset_cfg_2: Second rigid object asset config.
-        kp_exp_coeffs: List of ``(a, b)`` coefficients for the
-            ``1 / (exp(a*d) + b + exp(-a*d))`` shaping terms that are summed
-            (or averaged) into the final reward.
-        kp_use_sum_of_exps: If ``True`` (default), apply the exponential
-            shaping per keypoint and average; otherwise apply once on the
-            mean keypoint distance.
-        keypoint_scale: Scaling factor [m] for the keypoint cube size.
-        add_cube_center_kp: Whether to include the cube center keypoint.
+    Same offset logic as :class:`keypoint_two_body_error`, but applies an
+    exponential reward transformation for sharper shaping near the goal.
     """
-
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-
-        if "asset_cfg_1" not in cfg.params or "asset_cfg_2" not in cfg.params:
-            raise ValueError(
-                "'asset_cfg_1' and 'asset_cfg_2' parameters are required in keypoint_two_body_error_exp configuration."
-            )
-
-        self.asset_cfg_1: SceneEntityCfg = cfg.params["asset_cfg_1"]
-        self.asset_1 = env.scene[self.asset_cfg_1.name]
-
-        self.asset_cfg_2: SceneEntityCfg = cfg.params["asset_cfg_2"]
-        self.asset_2 = env.scene[self.asset_cfg_2.name]
-
-        self.keypoint_computer = _compute_keypoint_distance(cfg, env)
 
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        asset_cfg_1: SceneEntityCfg | None = None,
-        asset_cfg_2: SceneEntityCfg | None = None,
+        asset_cfg_1: SceneEntityCfg = SceneEntityCfg("factory_gear_base"),
+        asset_cfg_2: SceneEntityCfg = SceneEntityCfg("factory_gear_small"),
         kp_exp_coeffs: list[tuple[float, float]] = [(1.0, 0.1)],
         kp_use_sum_of_exps: bool = True,
-        keypoint_scale: float = 1.0,
-        add_cube_center_kp: bool = True,
+        keypoint_scale: float = 0.15,
+        offset_1: list | None = None,
+        offset_2: list | None = None,
+        rot_offset_2: list | None = None,
     ) -> torch.Tensor:
-        curr_pos_1 = wp.to_torch(self.asset_1.data.body_pos_w)[:, 0]
-        curr_quat_1 = wp.to_torch(self.asset_1.data.body_quat_w)[:, 0]
-
-        curr_pos_2 = wp.to_torch(self.asset_2.data.body_pos_w)[:, 0]
-        curr_quat_2 = wp.to_torch(self.asset_2.data.body_quat_w)[:, 0]
+        kp_pos_1, kp_quat_1, kp_pos_2, kp_quat_2 = self._get_kp_frames(env)
 
         keypoint_dist_sep = self.keypoint_computer.compute(
-            current_pos=curr_pos_1,
-            current_quat=curr_quat_1,
-            target_pos=curr_pos_2,
-            target_quat=curr_quat_2,
+            current_pos=kp_pos_1,
+            current_quat=kp_quat_1,
+            target_pos=kp_pos_2,
+            target_quat=kp_quat_2,
             keypoint_scale=keypoint_scale,
         )
 

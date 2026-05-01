@@ -10,6 +10,25 @@ from isaaclab.utils import configclass
 
 from .joint_pos_env_cfg import Rizon4sGravCableInsertionEnvCfg
 
+# ---------------------------------------------------------------------------
+# Hubble Lab socket/plug positions  (same −90° Z rotation as training config)
+# ---------------------------------------------------------------------------
+# Desired socket-geometry position for the Hubble Lab workspace.
+_HUBBLE_GEOMETRY_POS = (0.6, 0.0, -0.15)
+_HUBBLE_SOCKET_ROT = (0.0, 0.0, 0.70711, -0.70711)
+
+# R_z(−90°) @ SOCKET_INSERTION_OFFSET = [0.5347, −0.0254, 0.0543]
+_HUBBLE_SOCKET_ROOT = (
+    _HUBBLE_GEOMETRY_POS[0] - 0.5347,
+    _HUBBLE_GEOMETRY_POS[1] + 0.0254,
+    _HUBBLE_GEOMETRY_POS[2] - 0.0543,
+)
+
+# Plug root ~0.068 m above the geometry position, world-frame rotation
+# = quat_mul(socket_rot, PLUG_GOAL_ROT) = 180° around Y  →  (0, 1, 0, 0)
+_HUBBLE_PLUG_ROOT = (0.631, 0.0, -0.082)
+_HUBBLE_PLUG_ROT = (0.0, 1.0, 0.0, 0.0)
+
 
 @configclass
 class Rizon4sGravCableInsertionROSInferenceEnvCfg(Rizon4sGravCableInsertionEnvCfg):
@@ -51,21 +70,25 @@ class Rizon4sGravCableInsertionROSInferenceEnvCfg(Rizon4sGravCableInsertionEnvCf
             "joint7": 0.0,
         }
 
-        # Wall-mount quaternion (w, x, y, z) = (0.5, 0.5, 0.5, 0.5):
-        # 90° rotation about negative X-axis (matches Hubble Lab Flexiv Rizon 4s mount).
+        # Orientation of robot is based on the Flexiv Rizon 4s mount in the Hubble Lab
         self.scene.robot.init_state.pos = (0.0, 0.0, 0.0)
         self.scene.robot.init_state.rot = (0.5, 0.5, 0.5, 0.5)
 
-        # Override plug and socket initial poses for ROS inference (fixed, deterministic)
+        # Socket/plug positions account for GB300 USD root-to-geometry offset.
+        # Same −90° Z rotation as the training config.
         self.scene.gb300_socket.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(-0.6, -0.4, 0.1),
-            rot=(0.0, 0.0, 0.0, 1.0),
+            pos=_HUBBLE_SOCKET_ROOT,
+            rot=_HUBBLE_SOCKET_ROT,
         )
 
         self.scene.gb300_plug.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(-0.6, -0.4, 0.1),
-            rot=(0.0, 0.0, 0.0, 1.0),
+            pos=_HUBBLE_PLUG_ROOT,
+            rot=_HUBBLE_PLUG_ROT,
         )
+
+        # Increase IK iterations for the grasp event — the Hubble home pose is
+        # further from typical IK solutions than the table-mount default.
+        self.events.set_robot_to_grasp_pose.params["max_iterations"] = 150
 
         # Fixed asset parameters for ROS inference - derived from configuration
         self.fixed_asset_init_pos_center = list(self.scene.gb300_socket.init_state.pos)
@@ -76,7 +99,7 @@ class Rizon4sGravCableInsertionROSInferenceEnvCfg(Rizon4sGravCableInsertionEnvCf
             pose_range["y"][1],
             pose_range["z"][1],
         ]
-        self.fixed_asset_init_orn_deg = [0.0, 0.0, 0.0]
+        self.fixed_asset_init_orn_deg = [0.0, 0.0, -90.0]
         self.fixed_asset_init_orn_deg_range = [
             math.degrees(pose_range["roll"][1]),
             math.degrees(pose_range["pitch"][1]),
