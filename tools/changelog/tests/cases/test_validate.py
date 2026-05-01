@@ -133,6 +133,38 @@ def test_check_fragments_slug_collision_with_existing(tmp_path):
     assert "collides" in invalid_map["source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst"]
 
 
+def test_check_fragments_collision_independent_of_iterdir_order(tmp_path, monkeypatch):
+    """Regression: an added file must not be allowed to *replace* a colliding
+    pre-existing fragment in the existing-slug map. The CI checkout contains
+    both, and depending on filesystem iteration order the added file could
+    end up as the "existing" entry, hiding the collision."""
+    pkg = _pkg_under(tmp_path, "isaaclab")
+    (pkg.root / "changelog.d").mkdir()
+    (pkg.root / "changelog.d" / "jdoe-foo.rst").write_text("Fixed\n^^^^^\n\n* x\n", encoding="utf-8")
+    (pkg.root / "changelog.d" / "jdoe-foo.minor.rst").write_text("Added\n^^^^^\n\n* y\n", encoding="utf-8")
+    changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/jdoe-foo.minor.rst"}
+    added = changed
+
+    # Force iterdir() to return the added file *last* so it would overwrite
+    # the pre-existing entry in a buggy implementation. Sort with the added
+    # file ranked highest, so it lands at the tail regardless of natural
+    # alphabetical order.
+    real_iterdir = Path.iterdir
+    added_name = "jdoe-foo.minor.rst"
+
+    def ordered_iterdir(self):
+        if self == pkg.root / "changelog.d":
+            return iter(sorted(real_iterdir(self), key=lambda p: (p.name == added_name, p.name)))
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", ordered_iterdir)
+
+    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    invalid_map = dict(invalid)
+    assert "source/isaaclab/changelog.d/jdoe-foo.minor.rst" in invalid_map
+    assert "collides" in invalid_map["source/isaaclab/changelog.d/jdoe-foo.minor.rst"]
+
+
 def test_check_fragments_slug_collision_within_pr(tmp_path):
     """Two added fragments in the same PR that share a slug (e.g. across tiers) fail."""
     pkg = _pkg_under(tmp_path, "isaaclab")

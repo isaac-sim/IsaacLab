@@ -725,14 +725,19 @@ class PRDiff:
             source_changed = [f for f in self.changed if f.startswith(pkg_prefix) and not f.startswith(changelog_dir)]
             fragment_changes = [f for f in self.changed if f.startswith(changelog_dir)]
 
-            # Map existing fragments in the package's changelog.d/ by slug,
-            # for the uniqueness check below. Skip ``.gitkeep`` and unrecognised
-            # filenames — they can't collide with a slug.
+            # Map *pre-existing* fragments in the package's changelog.d/ by slug,
+            # for the uniqueness check below. The CI checkout contains both
+            # base-branch fragments and the PR's additions side by side, so we
+            # must explicitly exclude added files — otherwise an added file can
+            # overwrite the entry for a colliding pre-existing fragment with
+            # the same slug, hiding the very collision we're trying to detect.
+            # Skip ``.gitkeep`` and unrecognised filenames — they can't collide.
+            added_basenames = {Path(f).name for f in self.added if f.startswith(changelog_dir)}
             existing_slugs: dict[str, str] = {}
             existing_dir = pkg.default_fragment_dir
             if existing_dir.is_dir():
                 for p in existing_dir.iterdir():
-                    if p.is_dir() or p.name == ".gitkeep":
+                    if p.is_dir() or p.name == ".gitkeep" or p.name in added_basenames:
                         continue
                     slug = Fragment.parse_slug(p.name)
                     if slug is not None:
