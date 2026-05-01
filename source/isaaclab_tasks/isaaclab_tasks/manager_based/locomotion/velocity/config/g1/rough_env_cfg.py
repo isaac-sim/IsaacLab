@@ -123,6 +123,8 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.events.add_base_mass = None
         self.events.base_com = None
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_link"
+        # G1 has precise initial pose — don't scale joint defaults randomly on reset
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
 
         # Rewards
         self.rewards.lin_vel_z_l2.weight = 0.0

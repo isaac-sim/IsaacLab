@@ -122,6 +122,15 @@ def _is_kit_camera(node) -> bool:
         return True
     if isinstance(renderer_cfg, RendererCfg):
         return renderer_cfg.renderer_type in ("default", "isaac_rtx")
+    # PresetCfg renderers (e.g. MultiBackendRendererCfg) are resolved during
+    # environment construction when the physics backend is known (see
+    # resolve_task_config and preset resolution in presets.py).  At this
+    # stage we assume they will match the physics backend, so not
+    # necessarily Kit.
+    from isaaclab_tasks.utils import PresetCfg
+
+    if isinstance(renderer_cfg, PresetCfg):
+        return False
     return True
 
 
@@ -147,6 +156,64 @@ def compute_kit_requirements(
     if "kit" in visualizer_types:
         needs_kit = True
     return needs_kit, has_kit_cameras, visualizer_types
+
+
+def _resolve_distributed_device(
+    env_cfg,
+    launcher_args: argparse.Namespace | dict | None,
+) -> None:
+    """Set ``env_cfg.sim.device`` for distributed training.
+
+    When ``--distributed`` is active and CUDA_VISIBLE_DEVICES restricts each
+    process to a single GPU, ``local_rank`` may exceed the visible device count.
+    This helper applies the same fallback logic used by :class:`AppLauncher` so
+    that **training scripts do not need their own device-resolution code**.
+
+    For the Kit path, :func:`launch_simulation` additionally propagates
+    ``AppLauncher.device`` after creation; this function handles the early
+    (pre-AppLauncher) and kitless cases.
+    """
+    distributed = False
+    if isinstance(launcher_args, argparse.Namespace):
+        distributed = getattr(launcher_args, "distributed", False)
+    elif isinstance(launcher_args, dict):
+        distributed = launcher_args.get("distributed", False)
+
+    if not distributed:
+        return
+
+    import os
+
+    import torch
+
+    local_rank = int(os.getenv("LOCAL_RANK", "0")) + int(os.getenv("JAX_LOCAL_RANK", "0"))
+    num_visible_gpus = torch.cuda.device_count()
+
+    # Compare local_rank against device_count (not WORLD_SIZE) so that
+    # multi-node setups work correctly: WORLD_SIZE is global across all
+    # nodes, but device_count is local.
+    if local_rank < num_visible_gpus:
+        device_str = f"cuda:{local_rank}"
+    else:
+        device_str = "cuda:0"
+
+    sim_cfg = getattr(env_cfg, "sim", None)
+    if sim_cfg is not None:
+        sim_cfg.device = device_str
+
+    # Set CUDA device early so physics backends that allocate on the
+    # "current" device during init get the correct GPU. For the Kit path,
+    # AppLauncher._resolve_device_settings will call set_device again with
+    # the same value, which is harmless. For the kitless Newton path, this
+    # is the only place it gets set.
+    torch.cuda.set_device(device_str)
+
+    logger.info(
+        "Distributed device resolved to %s (local_rank=%d, visible_gpus=%d)",
+        device_str,
+        local_rank,
+        num_visible_gpus,
+    )
 
 
 @contextmanager
@@ -184,6 +251,9 @@ def launch_simulation(
                 launcher_args["enable_cameras"] = True
 
     close_fn: Any = None
+
+    # Resolve distributed device early, before AppLauncher or physics init.
+    _resolve_distributed_device(env_cfg, launcher_args)
 
     if needs_kit:
         # check if Isaac Sim is installed
@@ -235,6 +305,13 @@ def launch_simulation(
             from isaaclab.app import AppLauncher
 
             app_launcher = AppLauncher(launcher_args)
+            # AppLauncher may refine the device choice (e.g. Kit-specific
+            # overrides), so propagate its final value to env_cfg.  This
+            # intentionally overwrites the earlier value set by
+            # _resolve_distributed_device.
+            sim_cfg = getattr(env_cfg, "sim", None)
+            if sim_cfg is not None and hasattr(app_launcher, "device"):
+                sim_cfg.device = app_launcher.device
             close_fn = app_launcher.app.close
     elif visualizer_types:
         # Newton path without Kit: AppLauncher is skipped, so manually store the visualizer
