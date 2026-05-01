@@ -5,7 +5,7 @@ Exporting Direct Deployment Policies with LEAPP
 
 This tutorial shows how to prepare a direct deployment policy for export with
 LEAPP. If your policy is manager-based, use the
-:doc:`manager-based LEAPP export guide </source/policy_deployment/04_leapp/exporting_policies_with_leapp>`
+:doc:`manager-based LEAPP export guide </source/policy_deployment/05_leapp/exporting_policies_with_leapp>`
 instead.
 
 
@@ -46,7 +46,7 @@ artifacts. If you omit it, the export is written next to the checkpoint.
    ``scripts/reinforcement_learning/leapp/deploy.py``.
 
 For more information on the export arguments, see the
-:doc:`manager-based LEAPP export guide </source/policy_deployment/04_leapp/exporting_policies_with_leapp>`.
+:doc:`manager-based LEAPP export guide </source/policy_deployment/05_leapp/exporting_policies_with_leapp>`.
 
 
 .. dropdown:: Full example script
