@@ -161,7 +161,7 @@ def test_usd_replicate_changeblock_batch_size(sim):
             [3.0, 0.0, 0.0],
             [4.0, 0.0, 0.0],
         ],
-        dtype=torch.float64,
+        dtype=torch.float32,
     )
 
     usd_replicate(
@@ -180,7 +180,8 @@ def test_usd_replicate_changeblock_batch_size(sim):
         assert tuple(translate) == pytest.approx(tuple(positions[i].tolist()))
 
 
-def test_usd_replicate_rejects_invalid_batch_size(sim):
+@pytest.mark.parametrize("_batch_size", [0, -1])
+def test_usd_replicate_rejects_invalid_batch_size(sim, _batch_size):
     """Batch size must be positive to avoid an infinite chunking loop."""
     sim_utils.create_prim("/World/template", "Xform")
     sim_utils.create_prim("/World/template/Robot", "Xform")
@@ -193,7 +194,7 @@ def test_usd_replicate_rejects_invalid_batch_size(sim):
             sources=["/World/template/Robot"],
             destinations=["/World/envs/env_{}/Robot"],
             env_ids=torch.tensor([0], dtype=torch.long),
-            _batch_size=0,
+            _batch_size=_batch_size,
         )
 
 

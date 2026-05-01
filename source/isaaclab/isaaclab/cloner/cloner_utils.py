@@ -160,11 +160,16 @@ def _replicate_env_batch(
     in multi-process distributed training scenarios. Larger batches perform better
     in single-process but cause severe slowdowns when multiple processes commit
     simultaneously due to contention in the USD/Kit runtime.
+
+    The ``wid_list`` entries are expected to be valid row indices into any
+    provided position or quaternion tensors.
     """
     with Sdf.ChangeBlock():
         for wid in wid_list:
             dp = tmpl.format(wid)
             Sdf.CreatePrimInLayer(rl, dp)
+            # Self-copy is skipped because CreatePrimInLayer already ensures the
+            # prim exists, while CopySpec would overwrite the source spec.
             if src != dp:
                 Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
             if positions is not None or quaternions is not None:
@@ -220,8 +225,9 @@ def usd_replicate(
         mask: Optional per-source or shared mask. ``None`` selects all.
         positions: Optional positions (``[E, 3]``) -> ``xformOp:translate``.
         quaternions: Optional orientations (``[E, 4]``) in ``xyzw`` -> ``xformOp:orient``.
-        _batch_size: Number of environments per ChangeBlock commit. Default 1 avoids
-            multi-process contention. Larger values may improve single-process perf.
+        _batch_size: Internal tuning parameter controlling the number of
+            environments per ChangeBlock commit. Default 1 avoids multi-process
+            contention. Larger values may improve single-process perf.
     """
     rl = stage.GetRootLayer()
     if _batch_size < 1:
