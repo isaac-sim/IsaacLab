@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
@@ -37,18 +38,17 @@ class InHandManipulationEnv(DirectRLEnv):
         self.prev_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
         self.cur_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
 
-        # list of actuated joints
-        self.actuated_dof_indices = list()
-        for joint_name in cfg.actuated_joint_names:
-            self.actuated_dof_indices.append(self.hand.joint_names.index(joint_name))
-        self.actuated_dof_indices.sort()
+        # actuated joints — store as a GPU torch.tensor (and a parallel wp.int32
+        # array for Newton's joint_ids) so that ``tensor[:, idx]`` advanced
+        # indexing in ``_apply_action`` does not pay a host→device sync per call.
+        _actuated_idx = sorted(self.hand.joint_names.index(j) for j in cfg.actuated_joint_names)
+        self.actuated_dof_indices = torch.tensor(_actuated_idx, dtype=torch.long, device=self.device)
+        self.actuated_dof_indices_int32 = wp.from_torch(self.actuated_dof_indices.to(torch.int32), dtype=wp.int32)
 
-        # finger bodies
-        self.finger_bodies = list()
-        for body_name in self.cfg.fingertip_body_names:
-            self.finger_bodies.append(self.hand.body_names.index(body_name))
-        self.finger_bodies.sort()
-        self.num_fingertips = len(self.finger_bodies)
+        # fingertip bodies — same reasoning (used in ``_compute_intermediate_values``).
+        _finger_idx = sorted(self.hand.body_names.index(b) for b in self.cfg.fingertip_body_names)
+        self.finger_bodies = torch.tensor(_finger_idx, dtype=torch.long, device=self.device)
+        self.num_fingertips = len(_finger_idx)
 
         # joint limits
         joint_pos_limits = self.hand.data.joint_limits.torch.to(self.device)
@@ -130,7 +130,7 @@ class InHandManipulationEnv(DirectRLEnv):
         self.prev_targets[:, self.actuated_dof_indices] = self.cur_targets[:, self.actuated_dof_indices]
 
         self._set_joint_pos_target(
-            target=self.cur_targets[:, self.actuated_dof_indices], joint_ids=self.actuated_dof_indices
+            target=self.cur_targets[:, self.actuated_dof_indices], joint_ids=self.actuated_dof_indices_int32
         )
 
     def _get_observations(self) -> dict:

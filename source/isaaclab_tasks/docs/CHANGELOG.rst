@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+1.5.33 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Stored ``actuated_dof_indices`` and ``finger_bodies`` in
+  :class:`~isaaclab_tasks.direct.inhand_manipulation.InHandManipulationEnv` as
+  pre-allocated GPU :class:`torch.Tensor` objects (plus a parallel
+  :class:`warp.array` of ``int32`` for Newton's ``joint_ids``) instead of
+  Python lists. Eliminates the per-substep host→device sync caused by
+  PyTorch advanced indexing (``tensor[:, py_list]``) constructing and copying
+  a fresh long-tensor on every call.
+
+
 1.5.32 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
