@@ -206,12 +206,14 @@ class AssetBase(ABC):
             if self._debug_vis_handle is None:
                 sim_ctx = SimulationContext.instance()
                 callback_id = f"visualization_marker:{type(self).__name__}:{id(self)}"
-                self._debug_vis_handle = sim_ctx.add_visualization_marker_callback(
+                self._debug_vis_handle = sim_ctx.visualization_marker_registry.add_callback(
                     callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                 )
         else:
             if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
+                sim_ctx = SimulationContext.instance()
+                if sim_ctx is not None:
+                    sim_ctx.visualization_marker_registry.remove_callback(self._debug_vis_handle)
                 self._debug_vis_handle = None
         # return success
         return True
@@ -402,7 +404,9 @@ class AssetBase(ABC):
         """Invalidates the scene elements."""
         self._is_initialized = False
         if self._debug_vis_handle is not None:
-            self._debug_vis_handle.unsubscribe()
+            sim_ctx = SimulationContext.instance()
+            if sim_ctx is not None:
+                sim_ctx.visualization_marker_registry.remove_callback(self._debug_vis_handle)
             self._debug_vis_handle = None
 
     def _on_prim_deletion(self, event) -> None:
@@ -433,5 +437,7 @@ class AssetBase(ABC):
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
         if self._debug_vis_handle is not None:
-            self._debug_vis_handle.unsubscribe()
+            sim_ctx = SimulationContext.instance()
+            if sim_ctx is not None:
+                sim_ctx.visualization_marker_registry.remove_callback(self._debug_vis_handle)
             self._debug_vis_handle = None

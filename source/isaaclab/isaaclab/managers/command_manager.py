@@ -61,7 +61,7 @@ class CommandTerm(ManagerTermBase):
     def __del__(self):
         """Unsubscribe from the callbacks."""
         if self._debug_vis_handle:
-            self._debug_vis_handle.unsubscribe()
+            self._env.sim.visualization_marker_registry.remove_callback(self._debug_vis_handle)
             self._debug_vis_handle = None
 
     """
@@ -105,13 +105,13 @@ class CommandTerm(ManagerTermBase):
             if self._debug_vis_handle is None:
                 sim_ctx = self._env.sim
                 callback_id = f"visualization_marker:{type(self).__name__}:{id(self)}"
-                self._debug_vis_handle = sim_ctx.add_visualization_marker_callback(
+                self._debug_vis_handle = sim_ctx.visualization_marker_registry.add_callback(
                     callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
                 )
         else:
             # remove the subscriber if it exists
             if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
+                self._env.sim.visualization_marker_registry.remove_callback(self._debug_vis_handle)
                 self._debug_vis_handle = None
         # return success
         return True
