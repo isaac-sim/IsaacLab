@@ -31,15 +31,14 @@ Fixed
 Added
 ^^^^^
 
-* Added ``test_get_jacobians_link_origin_contract`` (Newton + PhysX
-  mirror): pins the ``J · q_dot == [body_link_lin_vel_w; body_link_ang_vel_w]``
-  contract by injecting a non-trivial ``q_dot``, stepping once, and
-  asserting the identity holds for every body. Catches the COM-vs-origin
-  reference-point bug directly.
-* Added ``test_franka_ik_tracking_accuracy`` on Newton: exercises the full
-  IK pipeline through the new ``get_jacobians`` accessor with scene gravity
-  disabled, asserting EE position error < 1 cm and rotation error < ~1° at
-  convergence. End-to-end validation that the bridge is correct on Newton.
+* Added ``test_get_jacobians_link_origin_contract`` on both Newton and
+  PhysX. Both backends inject a non-trivial ``q_dot``, step once, and
+  assert ``J · q_dot``'s linear rows equal ``v_origin = v_com − ω × (R · body_com_pos_b)``
+  (Newton reads the ground-truth ``v_com`` directly via
+  ``ArticulationView.get_link_velocities`` to bypass IsaacLab's lazy
+  velocity-buffer chain). Catches the COM-vs-origin reference-point bug
+  cleanly: a wrong shift produces a constant per-body offset of order the
+  COM distance times the injected angular speed.
 
 Notes
 ^^^^^

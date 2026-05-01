@@ -2819,25 +2819,81 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     )
 
 
-#
-# Note: a J·q_dot vs body-velocity contract test on the Newton side is
-# deferred. Two unrelated issues currently block a clean assertion:
-#   1. ``data.body_link_lin_vel_w`` / ``body_com_lin_vel_w`` on Newton have
-#      been observed to read all-zero post-step (lazy buffer chain not
-#      refreshing on first access in some configurations). This is a
-#      separate plumbing bug, not a Jacobian-shift issue.
-#   2. The Newton MJWarp solver's CUDA kernels are non-deterministic
-#      across runs; even when the velocity buffers do refresh, J·q_dot vs
-#      body_qd diverges by ~5 mm/2% across runs.
-# The COM->origin shift kernel itself is validated standalone (see
-# ``/tmp/_newton_jac_convention.py``-style reproducer documented in the
-# changelog: J·q_dot at the link origin matches the closed-form
-# ``v_origin = v_com - omega x R·body_com_pos_b`` to single-precision
-# rounding). The PhysX-side
-# :func:`isaaclab_physx.test.assets.test_articulation.test_get_jacobians_link_origin_contract`
-# pins the cross-backend contract; both backends must satisfy
-# ``J·q_dot == [v_origin, omega]`` and the PhysX assertion is sharp.
-#
+@pytest.mark.parametrize("num_articulations", [4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_get_jacobians_link_origin_contract(sim, num_articulations, device, articulation_type, gravity_enabled):
+    """``J · q_dot`` must encode the link-origin twist (after the COM->origin shift).
+
+    The IsaacLab task-space controllers (IK / OSC / RMPFlow) silently
+    rely on ``get_jacobians()`` returning a Jacobian whose linear rows
+    reference each link's origin (the body's USD prim transform), not its
+    COM. Newton's ``eval_jacobian`` natively produces COM-referenced
+    rows; the wrapper applies a per-column shift
+    ``v_origin = v_com - omega x (R · body_com_pos_b)`` to honor the
+    contract. This test asserts the identity by computing both sides
+    independently:
+
+    * Predicted by ``J · q_dot``: takes the (already-shifted) Jacobian
+      and the same ``q_dot`` Newton has post-step. Linear rows should
+      equal v_origin.
+    * Ground truth from ``state.body_qd``: read Newton's per-body spatial
+      twist directly via ``ArticulationView.get_link_velocities`` (which
+      returns ``(v_com_world, omega_world)``), then apply the same shift
+      in python and compare.
+
+    Reading the velocity from the ArticulationView state rather than
+    ``data.body_com_lin_vel_w`` bypasses the IsaacLab lazy-buffer chain,
+    which is irrelevant to the contract being tested.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Reproducible non-trivial q_dot — large enough to drive omega well above
+    # the floor where COM offset effects would round into noise.
+    torch.manual_seed(0)
+    qdot = torch.randn(num_articulations, articulation.num_joints, device=device) * 0.5
+    articulation.write_joint_velocity_to_sim_index(velocity=qdot)
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    J = wp.to_torch(articulation.get_jacobians())  # (N, B_jac, 6, J_jac)
+    qdot_view = articulation.data.joint_vel.torch
+    v_pred = torch.einsum("nbij,nj->nbi", J, qdot_view)  # (N, B_jac, 6)
+    v_pred_lin = v_pred[..., 0:3]
+    v_pred_ang = v_pred[..., 3:6]
+
+    # Ground truth from Newton state. ``get_link_velocities`` returns shape
+    # (num_instances, 1, num_bodies, 6) — per-articulation grouping with
+    # one articulation per instance — so we squeeze the inner dim.
+    state = SimulationManager.get_state_0()
+    body_qd_view = wp.to_torch(articulation.root_view.get_link_velocities(state)).squeeze(1)
+    body_v_com = body_qd_view[..., :3]
+    body_omega = body_qd_view[..., 3:]
+
+    # World-frame COM-to-origin offset, derived from already-computed
+    # data layer outputs (avoids quaternion-convention pitfalls).
+    body_com_pos_w = articulation.data.body_com_pos_w.torch  # (N, num_bodies, 3)
+    body_link_pos_w = articulation.data.body_link_pos_w.torch  # (N, num_bodies, 3)
+    c_world = body_com_pos_w - body_link_pos_w
+
+    if articulation.is_fixed_base:
+        body_v_com = body_v_com[:, 1:]
+        body_omega = body_omega[:, 1:]
+        c_world = c_world[:, 1:]
+
+    # Expected v_origin = v_com - omega x c_world.
+    v_origin_expected = body_v_com - torch.cross(body_omega, c_world, dim=-1)
+
+    # Tolerance: 5 mm absolute. The COM-offset bug produces a ~3 cm bias
+    # on the panda hand under the 0.5-rad/s injected qdot, well above
+    # this floor; numerical noise from kernel ordering stays under 1 mm.
+    torch.testing.assert_close(v_pred_ang, body_omega, atol=5e-3, rtol=1e-2)
+    torch.testing.assert_close(v_pred_lin, v_origin_expected, atol=5e-3, rtol=1e-2)
 
 
 if __name__ == "__main__":
