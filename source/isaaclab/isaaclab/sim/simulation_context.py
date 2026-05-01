@@ -32,10 +32,10 @@ from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.markers.visualization_marker_registry import VisualizationMarkerRegistry
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
-from .visualization_marker_registry import VisualizationMarkerRegistry
 
 logger = logging.getLogger(__name__)
 

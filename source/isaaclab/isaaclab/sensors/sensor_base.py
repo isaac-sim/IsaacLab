@@ -150,21 +150,31 @@ class SensorBase(ABC):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                sim_ctx = sim_utils.SimulationContext.instance()
-                if sim_ctx is not None:
-                    callback_id = f"visualization_marker:{type(self).__name__}:{id(self)}"
-                    self._debug_vis_handle = sim_ctx.visualization_marker_registry.add_callback(
-                        callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                    )
+                self._register_debug_vis_callback()
         else:
             # remove the subscriber if it exists
-            if self._debug_vis_handle is not None:
-                sim_ctx = sim_utils.SimulationContext.instance()
-                if sim_ctx is not None:
-                    sim_ctx.visualization_marker_registry.remove_callback(self._debug_vis_handle)
-                self._debug_vis_handle = None
+            self._clear_debug_vis_callback()
         # return success
         return True
+
+    def _register_debug_vis_callback(self) -> None:
+        """Register the debug visualization callback with the simulation marker registry."""
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is None:
+            return
+        callback_id = f"visualization_marker:{type(self).__name__}:{id(self)}"
+        self._debug_vis_handle = sim_ctx.visualization_marker_registry.add_callback(
+            callback_id, lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
+        )
+
+    def _clear_debug_vis_callback(self) -> None:
+        """Clear the debug visualization callback if it is registered."""
+        if self._debug_vis_handle is None:
+            return
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.visualization_marker_registry.remove_callback(self._debug_vis_handle)
+        self._debug_vis_handle = None
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Resets the sensor internals.
@@ -323,11 +333,7 @@ class SensorBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-        if self._debug_vis_handle is not None:
-            sim_ctx = sim_utils.SimulationContext.instance()
-            if sim_ctx is not None:
-                sim_ctx.visualization_marker_registry.remove_callback(self._debug_vis_handle)
-            self._debug_vis_handle = None
+        self._clear_debug_vis_callback()
 
     def _on_prim_deletion(self, event) -> None:
         """Invalidates and deletes the callbacks when the prim is deleted.
@@ -360,11 +366,7 @@ class SensorBase(ABC):
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
         # Clear debug visualization
-        if self._debug_vis_handle is not None:
-            sim_ctx = sim_utils.SimulationContext.instance()
-            if sim_ctx is not None:
-                sim_ctx.visualization_marker_registry.remove_callback(self._debug_vis_handle)
-            self._debug_vis_handle = None
+        self._clear_debug_vis_callback()
 
     """
     Helper functions.

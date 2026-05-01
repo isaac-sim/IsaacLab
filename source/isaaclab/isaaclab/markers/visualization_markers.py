@@ -126,29 +126,29 @@ class VisualizationMarkers:
     def _ensure_backends_initialized(self) -> None:
         sim = sim_utils.SimulationContext.instance()
         if sim is None:
-            from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
-
-            if not any(isinstance(backend, KitVisualizationMarkers) for backend in self._backends):
-                self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible))
+            self._ensure_kit_backend()
             return
 
-        has_kit_marker_backend = any(
-            viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
-        )
-        has_newton_marker_backend = any(
+        if any(viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers):
+            self._ensure_kit_backend()
+        if any(
             viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
-        )
+        ):
+            self._ensure_newton_backend()
 
-        if has_kit_marker_backend:
-            from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
+    def _ensure_kit_backend(self) -> None:
+        """Create the Kit marker backend if it is not already active."""
+        from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 
-            if not any(isinstance(backend, KitVisualizationMarkers) for backend in self._backends):
-                self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible))
-        if has_newton_marker_backend:
-            from isaaclab_visualizers.newton.newton_visualization_markers import NewtonVisualizationMarkers
+        if not any(isinstance(backend, KitVisualizationMarkers) for backend in self._backends):
+            self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible))
 
-            if not any(isinstance(backend, NewtonVisualizationMarkers) for backend in self._backends):
-                self._backends.append(NewtonVisualizationMarkers(self.cfg, visible=self._is_visible))
+    def _ensure_newton_backend(self) -> None:
+        """Create the Newton-family marker backend if it is not already active."""
+        from isaaclab_visualizers.newton.newton_visualization_markers import NewtonVisualizationMarkers
+
+        if not any(isinstance(backend, NewtonVisualizationMarkers) for backend in self._backends):
+            self._backends.append(NewtonVisualizationMarkers(self.cfg, visible=self._is_visible))
 
     def _resolve_target_device(self, *values: torch.Tensor | None) -> torch.device:
         for value in values:

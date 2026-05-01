@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Registry for simulation-scoped visualization marker state."""
+"""Registry for visualization marker state."""
 
 from __future__ import annotations
 
