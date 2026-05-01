@@ -131,6 +131,7 @@ class ViserVisualizer(BaseVisualizer):
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
+        self._warned_marker_render_failure = False
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -192,10 +193,23 @@ class ViserVisualizer(BaseVisualizer):
         num_envs = int(self._scene_data_provider.get_metadata().get("num_envs", 0))
         self._sim_time += dt
         self._viewer.begin_frame(self._sim_time)
-        self._viewer.log_state(self._state)
-        if self.cfg.enable_markers:
+        try:
+            self._viewer.log_state(self._state)
+            if self.cfg.enable_markers:
+                self._render_markers(num_envs)
+        finally:
+            self._viewer.end_frame()
+
+    def _render_markers(self, num_envs: int) -> None:
+        """Render marker overlays without letting them interrupt Viser body updates."""
+        try:
             render_newton_visualization_markers(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
-        self._viewer.end_frame()
+        except Exception as exc:
+            if not self._warned_marker_render_failure:
+                logger.warning("[ViserVisualizer] Marker rendering failed; continuing body updates: %s", exc)
+                self._warned_marker_render_failure = True
+            else:
+                logger.debug("[ViserVisualizer] Marker rendering failed: %s", exc)
 
     def close(self) -> None:
         """Close viewer resources and finalize optional recording."""

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+import numpy as np
+import isaaclab_visualizers.newton.newton_visualization_markers as newton_markers
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
@@ -224,6 +226,68 @@ def test_viser_visualizer_initialize_and_step_uses_provider_state(monkeypatch: p
     # log_state passes through get_newton_state() as-is; no env_ids (or other) keys are merged in.
     assert viewer.calls[1] == ("log_state", {"state_call": 2})
     assert viewer.calls[2] == ("end_frame",)
+
+
+def test_viser_visualizer_marker_render_failure_does_not_interrupt_state_updates(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    provider = _DummyViserSceneDataProvider()
+    viewer = _DummyViserViewer()
+    marker_calls = []
+
+    def _fake_create_viewer(self, record_to_viser: str | None, metadata: dict | None = None):
+        self._viewer = viewer
+
+    def _raise_marker_render(*args, **kwargs):
+        marker_calls.append((args, kwargs))
+        raise RuntimeError("marker overlay failed")
+
+    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
+    monkeypatch.setattr(viser_visualizer, "render_newton_visualization_markers", _raise_marker_render)
+
+    visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
+    visualizer.initialize(cast(Any, provider))
+
+    with caplog.at_level("WARNING"):
+        visualizer.step(0.25)
+
+    assert marker_calls
+    assert viewer.calls[0][0] == "begin_frame"
+    assert viewer.calls[1] == ("log_state", {"state_call": 2})
+    assert viewer.calls[2] == ("end_frame",)
+    assert "Marker rendering failed; continuing body updates" in caplog.text
+
+
+def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.MonkeyPatch):
+    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
+    marker._registered_meshes = set()
+
+    class _FakeMesh:
+        vertices = np.zeros((1, 3), dtype=np.float32)
+        indices = np.zeros((3,), dtype=np.int32)
+        normals = np.zeros((0, 3), dtype=np.float32)
+        uvs = np.zeros((0, 2), dtype=np.float32)
+
+    class _FakeViewer:
+        def __init__(self):
+            self.meshes = []
+
+        def log_mesh(self, name, vertices, indices, **kwargs):
+            self.meshes.append((name, vertices, indices, kwargs))
+
+    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeMesh())
+    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None: value)
+
+    spec = newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
+    viewer_a = _FakeViewer()
+    viewer_b = _FakeViewer()
+
+    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
+    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
+    marker._ensure_mesh_registered(viewer_b, "/Visuals/marker/meshes/arrow", spec)
+
+    assert len(viewer_a.meshes) == 1
+    assert len(viewer_b.meshes) == 1
 
 
 @pytest.mark.parametrize(

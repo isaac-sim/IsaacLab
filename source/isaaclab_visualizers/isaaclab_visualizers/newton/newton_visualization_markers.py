@@ -61,7 +61,7 @@ class NewtonVisualizationMarkers:
         self.scales: torch.Tensor | None = None
         self.marker_indices: torch.Tensor | None = None
         self.count = len(cfg.markers)
-        self._registered_meshes: set[str] = set()
+        self._registered_meshes: set[tuple[int, str]] = set()
         self._warned_unsupported: set[str] = set()
 
         sim = sim_utils.SimulationContext.instance()
@@ -199,7 +199,11 @@ class NewtonVisualizationMarkers:
             viewer.log_lines(batch_name, None, None, None, hidden=True)
 
     def _ensure_mesh_registered(self, viewer, mesh_name: str, newton_cfg: _NewtonMarkerSpec) -> None:
-        if mesh_name in self._registered_meshes or newton_cfg.mesh_type is None:
+        # The marker backend is shared by all Newton-family visualizers. Mesh
+        # registration is viewer-local, so the same marker mesh must be logged
+        # once per viewer (for example, once for Rerun and once for Viser).
+        registered_key = (id(viewer), mesh_name)
+        if registered_key in self._registered_meshes or newton_cfg.mesh_type is None:
             return
         mesh = _create_mesh(newton_cfg)
         viewer.log_mesh(
@@ -210,7 +214,7 @@ class NewtonVisualizationMarkers:
             uvs=wp.array(mesh.uvs.astype(np.float32), dtype=wp.vec2) if mesh.uvs.size else None,
             hidden=True,
         )
-        self._registered_meshes.add(mesh_name)
+        self._registered_meshes.add(registered_key)
 
 
 def _resolve_newton_marker_cfg(name: str, marker_cfg: object, cfg: VisualizationMarkersCfg) -> _NewtonMarkerSpec:
