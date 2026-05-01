@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -17,12 +19,21 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.direct.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg
+from isaaclab_tasks.utils import PresetCfg
+
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
 
 @configclass
 class EventCfg:
-    """Configuration for randomization."""
+    """Configuration for randomization (PhysX path).
+
+    Note: this config is currently not wired into ``ShadowHandOverEnvCfg.events`` -
+    it is kept as a reference for future event-randomization work. The event
+    terms here use PhysX-only APIs (rigid-body materials, fixed tendons), so
+    they would need a Newton variant before being enabled in the env.
+    """
 
     # -- robot
     robot_physics_material = EventTerm(
@@ -113,6 +124,186 @@ class EventCfg:
     )
 
 
+# Reuse the single-agent Shadow Hand Newton port (USD path, ``rot`` reapplication
+# workaround, effort limits, joint regex). The multi-agent variant only diverges
+# in actuator gains (stiffness/damping bumped for the catch task) and adds a
+# ``distal_passive`` override for the J0 USD-baked values.
+_SHADOW_HAND_NEWTON_CFG = ShadowHandRobotCfg().newton_mjwarp
+
+
+def _newton_shadow_hand_cfg(
+    prim_path: str, init_pos: tuple[float, float, float], init_rot: tuple[float, float, float, float]
+) -> ArticulationCfg:
+    """Newton Shadow Hand cfg parameterized by per-robot ``prim_path`` and init pose.
+
+    Two overrides versus the single-agent Newton port:
+
+    * ``fingers`` actuator: ``stiffness=20.0`` / ``damping=2.0`` (vs PhysX's
+      ``5.0`` / ``0.5`` on wrists and ``1.0`` / ``0.1`` on fingers). PhysX layers
+      ``fixed_tendons_props(limit_stiffness=30, damping=0.1)`` and runs
+      ``solver_position_iteration_count=8`` per substep — both amplify the
+      effective torque per unit nominal gain. Newton's MJWarp implicit-PD path
+      has neither, so a larger nominal gain is needed for comparable joint
+      authority. ``20.0`` / ``2.0`` is the smallest tested setting at which
+      MAPPO learns the catch (mean reward at iter 200 / 2048 envs goes from
+      ~27 at PhysX-mirrored gains to ~777).
+    * ``distal_passive`` actuator on the four ``robot0_(FF|MF|RF|LF)J0`` joints
+      with ``stiffness=10.0`` / ``damping=0.1``. The Newton USD bakes
+      ``stiffness=286 / damping=57`` on these joints from the MJCF→USD
+      translation, which fights the ``MjcTendon`` coupling and bounces the
+      ball. ``stiffness=10`` (1/3 of PhysX ``limit_stiffness=30``) keeps the
+      joints near-passive while the tendon constraint dominates.
+    """
+    return _SHADOW_HAND_NEWTON_CFG.replace(
+        prim_path=prim_path,
+        init_state=_SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=init_rot),
+        actuators={
+            "fingers": _SHADOW_HAND_NEWTON_CFG.actuators["fingers"].replace(stiffness=20.0, damping=2.0),
+            "distal_passive": ImplicitActuatorCfg(
+                joint_names_expr=["robot0_(FF|MF|RF|LF)J0"],
+                stiffness=10.0,
+                damping=0.1,
+                friction=1e-2,
+                armature=2e-3,
+            ),
+        },
+    )
+
+
+@configclass
+class RightRobotCfg(PresetCfg):
+    physx = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/RightRobot").replace(
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.5),
+            rot=(0.0, 0.0, 0.0, 1.0),
+            joint_pos={".*": 0.0},
+        )
+    )
+    newton_mjwarp = _newton_shadow_hand_cfg(
+        prim_path="/World/envs/env_.*/RightRobot",
+        init_pos=(0.0, 0.0, 0.5),
+        init_rot=(0.0, 0.0, 0.0, 1.0),
+    )
+    default = physx
+
+
+@configclass
+class LeftRobotCfg(PresetCfg):
+    physx = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/LeftRobot").replace(
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.0, -1.0, 0.5),
+            rot=(0.0, 0.0, 1.0, 0.0),
+            joint_pos={".*": 0.0},
+        )
+    )
+    newton_mjwarp = _newton_shadow_hand_cfg(
+        prim_path="/World/envs/env_.*/LeftRobot",
+        init_pos=(0.0, -1.0, 0.5),
+        init_rot=(0.0, 0.0, 1.0, 0.0),
+    )
+    default = physx
+
+
+@configclass
+class ObjectCfg(PresetCfg):
+    """Hand-over object preset.
+
+    Both backends spawn the same procedural sphere as a free rigid body:
+    Newton's :class:`~isaaclab_newton.assets.RigidObject` resolves the
+    asset via the ``UsdPhysics.RigidBodyAPI`` that
+    :class:`~isaaclab.sim.RigidBodyPropertiesCfg` applies. The Newton
+    variant drops PhysX-only knobs (per-shape solver iterations, sleep
+    thresholds, max depenetration velocity, custom physics material).
+    """
+
+    physx = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/object",
+        spawn=sim_utils.SphereCfg(
+            radius=0.0335,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
+            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                kinematic_enabled=False,
+                disable_gravity=False,
+                enable_gyroscopic_forces=True,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0025,
+                max_depenetration_velocity=1000.0,
+            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(density=500.0),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
+    )
+    newton_mjwarp = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/object",
+        spawn=sim_utils.SphereCfg(
+            radius=0.0335,
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                kinematic_enabled=False,
+                disable_gravity=False,
+                enable_gyroscopic_forces=True,
+            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(density=500.0),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
+    )
+    default = physx
+
+
+@configclass
+class ShadowHandOverSceneCfg(PresetCfg):
+    """Scene preset.
+
+    PhysX supports ``clone_in_fabric=True`` for faster cloning. Newton's
+    cloning path does not, so the Newton variant disables Fabric cloning.
+    """
+
+    physx: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=2048, env_spacing=1.5, replicate_physics=True, clone_in_fabric=True
+    )
+    newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=2048, env_spacing=1.5, replicate_physics=True, clone_in_fabric=False
+    )
+    default: InteractiveSceneCfg = physx
+
+
+@configclass
+class PhysicsCfg(PresetCfg):
+    """Physics-backend preset (PhysX vs Newton/MJWarp).
+
+    Newton settings mirror the single-agent ShadowHand Newton port: elliptic
+    cone, ``impratio=10`` (favors normal contacts over friction), 100 solver
+    iterations, 2 substeps. Empirically converges on the single-agent ShadowHand
+    tasks; tuning may be needed for handover-specific contact dynamics.
+    """
+
+    physx = PhysxCfg(
+        bounce_threshold_velocity=0.2,
+        gpu_max_rigid_contact_count=2**23,
+        gpu_max_rigid_patch_count=2**23,
+    )
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            njmax=200,
+            nconmax=70,
+            impratio=10.0,
+            cone="elliptic",
+            update_data_interval=2,
+            iterations=100,
+        ),
+        num_substeps=2,
+        debug_mode=False,
+    )
+    default = physx
+
+
 @configclass
 class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
     # env
@@ -131,25 +322,11 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
-        physics=PhysxCfg(
-            bounce_threshold_velocity=0.2,
-        ),
+        physics=PhysicsCfg(),
     )
     # robot
-    right_robot_cfg: ArticulationCfg = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/RightRobot").replace(
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            rot=(0.0, 0.0, 0.0, 1.0),
-            joint_pos={".*": 0.0},
-        )
-    )
-    left_robot_cfg: ArticulationCfg = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/LeftRobot").replace(
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, -1.0, 0.5),
-            rot=(0.0, 0.0, 1.0, 0.0),
-            joint_pos={".*": 0.0},
-        )
-    )
+    right_robot_cfg: RightRobotCfg = RightRobotCfg()
+    left_robot_cfg: LeftRobotCfg = LeftRobotCfg()
     actuated_joint_names = [
         "robot0_WRJ1",
         "robot0_WRJ0",
@@ -181,27 +358,7 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
     ]
 
     # in-hand object
-    object_cfg: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/object",
-        spawn=sim_utils.SphereCfg(
-            radius=0.0335,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
-            physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                kinematic_enabled=False,
-                disable_gravity=False,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=8,
-                solver_velocity_iteration_count=0,
-                sleep_threshold=0.005,
-                stabilization_threshold=0.0025,
-                max_depenetration_velocity=1000.0,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(density=500.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
-    )
+    object_cfg: ObjectCfg = ObjectCfg()
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/goal_marker",
@@ -212,8 +369,8 @@ class ShadowHandOverEnvCfg(DirectMARLEnvCfg):
             ),
         },
     )
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
+    # scene - use ShadowHandOverSceneCfg so that --preset newton disables clone_in_fabric automatically
+    scene: ShadowHandOverSceneCfg = ShadowHandOverSceneCfg()
 
     # reset
     reset_position_noise = 0.01  # range of position at reset
