@@ -257,17 +257,6 @@ class BaseArticulationData(ABC):
     @property
     @abstractmethod
     @leapp_tensor_semantics(const=True)
-    def joint_viscous_friction_coeff(self) -> ProxyArray:
-        """Joint viscous friction coefficient provided to the simulation.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
-        (num_instances, num_joints).
-        """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    @leapp_tensor_semantics(const=True)
     def joint_pos_limits(self) -> ProxyArray:
         """Joint position limits provided to the simulation.
 
@@ -1340,7 +1329,9 @@ class BaseArticulationData(ABC):
             stacklevel=2,
         )
         if self._default_joint_viscous_friction_coeff is None:
-            self._default_joint_viscous_friction_coeff = wp.clone(self.joint_viscous_friction_coeff.warp, self.device)
+            self._default_joint_viscous_friction_coeff = wp.clone(
+                getattr(self, "joint_viscous_friction_coeff").warp, self.device
+            )
         return ProxyArray(self._default_joint_viscous_friction_coeff)
 
     @property
