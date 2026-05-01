@@ -85,13 +85,51 @@ jobs:
       run: |
         set -euo pipefail
 
-        # Docker test jobs run only when paths in `path_regex` change. Otherwise
-        # they skip via `if:` and report green to branch protection, which is
-        # why we don't use a workflow-level `paths:` filter (a not-triggered
-        # required check would block the PR forever).
+        # Docker test jobs run only when paths in the patterns table change.
+        # Otherwise they skip via `if:` and report green to branch protection,
+        # which is why we don't use a workflow-level `paths:` filter (a
+        # not-triggered required check would block the PR forever).
         # config.yaml is included because it controls the base image names and
         # tags consumed by the Docker build jobs.
-        path_regex='^(source/|docker/|tools/|apps/|scripts/|\.github/workflows/build\.yaml$|\.github/workflows/config\.yaml$|\.github/actions/)'
+        patterns=(
+          $'^source/\tLibrary source code'
+          $'^docker/\tContainer build inputs'
+          $'^tools/\tBuild tooling'
+          $'^apps/\tStandalone apps'
+          $'^scripts/\tStandalone scripts'
+          $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
+          $'^\\.github/workflows/config\\.yaml$\tBase image config'
+          $'^\\.github/actions/\tCI actions'
+        )
+        triggered_jobs="Docker build + all test-* matrix jobs"
+
+        render_table() {
+          local files="$1" entry regex desc count sample
+          echo "| Pattern | What it covers | Matched files |"
+          echo "|---|---|---|"
+          for entry in "${patterns[@]}"; do
+            IFS=$'\t' read -r regex desc <<< "$entry"
+            count=$(printf '%s\n' "$files" | grep -cE "$regex" || true)
+            if [ "$count" -gt 0 ]; then
+              sample=$(printf '%s\n' "$files" | grep -E "$regex" | head -3 | paste -sd ', ' -)
+              [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
+              echo "| \`$regex\` | $desc | $sample |"
+            else
+              echo "| \`$regex\` | $desc | - |"
+            fi
+          done
+        }
+
+        any_match() {
+          local files="$1" entry regex
+          for entry in "${patterns[@]}"; do
+            IFS=$'\t' read -r regex _ <<< "$entry"
+            if printf '%s\n' "$files" | grep -qE "$regex"; then
+              return 0
+            fi
+          done
+          return 1
+        }
 
         decide() {
           local decision="$1" reason="$2" files="${3:-}"
@@ -105,14 +143,11 @@ jobs:
             else
               echo "Docker tests will be **skipped**: $reason."
             fi
+            echo ""
+            echo "Triggered jobs: $triggered_jobs."
             if [ -n "$files" ]; then
               echo ""
-              echo "<details><summary>Changed files</summary>"
-              echo ""
-              echo '```'
-              echo "$files"
-              echo '```'
-              echo "</details>"
+              render_table "$files"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
         }
@@ -131,7 +166,7 @@ jobs:
 
         printf '%s\n' "$changed_files"
 
-        if printf '%s\n' "$changed_files" | grep -qE "$path_regex"; then
+        if any_match "$changed_files"; then
           decide true "relevant paths changed" "$changed_files"
         else
           decide false "no relevant paths changed" "$changed_files"
