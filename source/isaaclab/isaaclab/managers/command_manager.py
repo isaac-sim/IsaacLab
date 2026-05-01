@@ -15,16 +15,11 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.utils.version import has_kit
-
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
-if has_kit():
-    pass
 
 
 class CommandTerm(ManagerTermBase):
