@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import ctypes
 import logging
-import warnings
 
 logger = logging.getLogger(__name__)
 
@@ -51,24 +50,23 @@ _FW_OFF_GET_INTERFACE_PLUGIN_DESC = 96
 # ---------------------------------------------------------------------------
 #  IAdapter struct layout  (from omni/cubric/IAdapter.h)
 # ---------------------------------------------------------------------------
-# v0.2 layout:
+# v0.1 layout:
 #   0: getAttribute
 #   8: create(AdapterId*)
 #  16: refcount
 #  24: retain
 #  32: release(AdapterId)
 #  40: bindToStage(AdapterId, const FabricId&)
-#  48: bindToStageWithListener
-#  56: unbind
-#  64: compute(AdapterId, options, dirtyMode, outFlags*)
+#  48: unbind
+#  56: compute(AdapterId, options, dirtyMode, outFlags*)
 _IA_OFF_CREATE = 8
 _IA_OFF_RELEASE = 32
 _IA_OFF_BIND = 40
-_IA_OFF_COMPUTE = 64
+_IA_OFF_COMPUTE = 56
 
 # Expected IAdapter version.
 _IA_EXPECTED_MAJOR = 0
-_IA_EXPECTED_MINOR = 2
+_IA_EXPECTED_MINOR = 1
 
 # AdapterId sentinel
 _INVALID_ADAPTER_ID = ctypes.c_uint64(~0).value
@@ -305,14 +303,15 @@ class CubricBindings:
                 )
                 return False
             if minor > _IA_EXPECTED_MINOR:
-                warnings.warn(
-                    f"cubric IAdapter minor version newer than this shim was validated "
-                    f"against: plugin reports v{major}.{minor}, shim is pinned to "
-                    f"v{_IA_EXPECTED_MAJOR}.{_IA_EXPECTED_MINOR}. Proceeding under "
-                    f"semver minor-compatibility — if transforms misbehave, verify the "
-                    f"vtable layout against omni/cubric/IAdapter.h.",
-                    RuntimeWarning,
-                    stacklevel=2,
+                logger.warning(
+                    "cubric IAdapter minor version newer than this shim was validated "
+                    "against: plugin reports v%d.%d, shim is pinned to v%d.%d. Proceeding "
+                    "under semver minor-compatibility — if transforms misbehave, verify "
+                    "the vtable layout against omni/cubric/IAdapter.h.",
+                    major,
+                    minor,
+                    _IA_EXPECTED_MAJOR,
+                    _IA_EXPECTED_MINOR,
                 )
             return True
 
