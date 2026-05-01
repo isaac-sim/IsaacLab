@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 if has_kit():
-    import omni.kit.app
+    pass
 
 
 class CommandTerm(ManagerTermBase):

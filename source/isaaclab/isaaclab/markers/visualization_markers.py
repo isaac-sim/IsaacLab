@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend-agnostic visualization marker facade."""
+"""Backend-agnostic facade for coordinating groups of visual markers.
+
+The :class:`VisualizationMarkers` class is used to create a group of visual
+markers and visualize them through the active visualizer backends. The marker
+prototypes are configured with :class:`VisualizationMarkersCfg`, and individual
+marker instances can be updated by passing prototype indices and their
+translations, orientations, and scales.
+"""
 
 from __future__ import annotations
 
@@ -22,13 +29,81 @@ logger = logging.getLogger(__name__)
 class VisualizationMarkers:
     """Coordinate groups of visual markers across active visualizer backends.
 
+    This class allows visualization of different UI markers in the scene, such
+    as points, frames, arrows, and shapes. Marker prototypes are reusable
+    templates that define variations of objects to visualize. For example, a
+    sphere marker prototype can be used to create many sphere marker instances
+    at different locations.
+
+    The class parses the configuration to create the marker prototypes in each
+    active backend. The marker prototype name comes from the key in the
+    :attr:`VisualizationMarkersCfg.markers` dictionary, and prototype indices
+    are based on the dictionary order. For example, if the dictionary has two
+    markers, ``"marker1"`` and ``"marker2"``, their prototype indices are 0
+    and 1 respectively. These indices can be passed to :meth:`visualize` as a
+    list or array of integers.
+
+    Switching between marker prototypes is possible by calling
+    :meth:`visualize` with the corresponding prototype indices. The marker
+    transforms are updated only for the arguments that are provided; omitted
+    translations, orientations, scales, or marker indices are left unchanged
+    when supported by the active backend.
+
+    Usage:
+        The following snippet creates 24 sphere markers at random translations.
+        The first 12 markers use the first prototype and the rest use the
+        second prototype.
+
+        .. code-block:: python
+
+            import numpy as np
+
+            import isaaclab.sim as sim_utils
+            from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+
+            cfg = VisualizationMarkersCfg(
+                prim_path="/World/Visuals/testMarkers",
+                markers={
+                    "marker1": sim_utils.SphereCfg(
+                        radius=1.0,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
+                    ),
+                    "marker2": sim_utils.SphereCfg(
+                        radius=1.0,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+                    ),
+                },
+            )
+
+            marker = VisualizationMarkers(cfg)
+            marker_translations = np.random.uniform(-1.0, 1.0, (24, 3))
+
+            # This creates 24 markers using the first prototype because marker
+            # indices are not given.
+            marker.visualize(translations=marker_translations)
+
+            # 0 -> marker1, 1 -> marker2. Since translations are omitted here,
+            # only the marker prototypes are changed.
+            marker_indices = [0] * 12 + [1] * 12
+            marker.visualize(marker_indices=marker_indices)
+
+            # Update both marker prototypes and translations.
+            marker.visualize(marker_indices=marker_indices, translations=marker_translations)
+
     The public API intentionally remains the historical marker API:
     :meth:`set_visibility`, :meth:`is_visible`, and :meth:`visualize`. Backend
     details are delegated to Kit and Newton marker implementations.
     """
 
     def __init__(self, cfg: VisualizationMarkersCfg):
-        """Initialize visualization marker backends from the active simulation context."""
+        """Initialize visualization marker backends from the active simulation context.
+
+        Args:
+            cfg: The configuration for the markers.
+
+        Raises:
+            ValueError: When no markers are provided in the :obj:`cfg`.
+        """
         if len(cfg.markers) == 0:
             raise ValueError(f"The `cfg.markers` cannot be empty. Received: {cfg.markers}")
 
@@ -79,8 +154,54 @@ class VisualizationMarkers:
         scales: np.ndarray | torch.Tensor | None = None,
         marker_indices: list[int] | np.ndarray | torch.Tensor | None = None,
     ):
-        """Update markers in all initialized visualizer backends."""
+        """Update markers in all initialized visualizer backends.
+
+        .. note::
+            If the markers are hidden, the function returns without updating
+            backend marker state. This avoids unnecessary work while debug
+            visualization is disabled.
+
+        Whenever updating the markers, the input arrays must have the same
+        number of elements in the first dimension. Backends generally require
+        all per-marker arrays to describe the same number of marker instances.
+
+        The function supports dynamic updates of the marker count. For example,
+        if you have 24 points to visualize, you can pass 24 translations,
+        orientations, and scales. If you later want to visualize only 12
+        points, you can pass arrays with 12 rows and the backends will update
+        the number of marker instances.
+
+        The function also updates marker prototypes based on prototype indices.
+        For instance, if there are two marker prototypes and you pass marker
+        indices ``[0, 1, 0, 1]``, the first and third markers use the first
+        prototype and the second and fourth markers use the second prototype.
+
+        .. caution::
+            This function updates all markers instanced from the prototypes. If
+            you want to update only a subset of markers, handle the indexing
+            externally and pass complete arrays to this function.
+
+        Args:
+            translations: Translations w.r.t. parent prim frame. Shape is
+                (M, 3). Defaults to None, which means left unchanged.
+            orientations: Quaternion orientations (x, y, z, w) w.r.t. parent
+                prim frame. Shape is (M, 4). Defaults to None, which means left
+                unchanged.
+            scales: Scale applied before any rotation is applied. Shape is
+                (M, 3). Defaults to None, which means left unchanged.
+            marker_indices: Decides which marker prototype to visualize. Shape
+                is (M). Defaults to None, which means left unchanged provided
+                that the total number of markers is the same as the previous
+                call. If the number of markers is different, the function will
+                update the number of markers.
+
+        Raises:
+            ValueError: When input arrays do not follow the expected shapes.
+            ValueError: When the function is called with all None arguments.
+        """
         self._ensure_backends_initialized()
+        # If markers are hidden, do not spend time normalizing or dispatching
+        # marker state to the active backends.
         if not self.is_visible():
             return
 

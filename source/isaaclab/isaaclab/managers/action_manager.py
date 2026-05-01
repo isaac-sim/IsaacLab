@@ -19,7 +19,7 @@ from prettytable import PrettyTable
 from isaaclab.utils.version import has_kit
 
 if has_kit():
-    import omni.kit.app
+    pass
 
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
