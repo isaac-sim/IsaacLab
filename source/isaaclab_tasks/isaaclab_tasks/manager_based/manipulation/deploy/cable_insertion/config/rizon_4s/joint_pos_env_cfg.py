@@ -156,7 +156,9 @@ class TerminationsCfg:
             "plug_asset_cfg": SceneEntityCfg("gb300_plug"),
             "distance_threshold": 0.15,
             "end_effector_body_name": "link7",
-            "grasp_offset": [0.0, 0.0, -0.35],
+            # grasp_offset/grasp_rot_offset are populated in __post_init__ to keep
+            # them in sync with the IK grasp-pose configuration.
+            "grasp_offset": [0.0, 0.0, -0.13],
             "grasp_rot_offset": [-0.70711, 0.70711, 0.0, 0.0],
         },
     )
@@ -184,7 +186,26 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
 
         self.end_effector_body_name = "link7"
         self.num_arm_joints = 7
-        self.grasp_offset = [0.0, 0.0, -0.35]
+        # ``grasp_offset`` is the offset from the plug body origin to ``link7`` expressed
+        # in the rotated plug frame (after applying ``grasp_rot_offset``). With the
+        # FLATTENED plug USD the visible/collidable mesh is centred on the rigid-body
+        # origin (``bbox_center_local = (0, 0, 0)``; verified via
+        # ``scripts/tools/inspect_cable_usd_kit.py``), so ``grasp_offset`` only needs
+        # to back the gripper off by the gripper tool length so that the fingertips
+        # end up exactly at the plug body origin (= visible mesh centre).
+        #
+        # Grav tool length: the IsaacLab Nucleus ``rizon4s_with_grav.usd`` has
+        # ``link7 -> fingertip = 0.13 m`` (verified empirically: with the un-flattened
+        # plug + the (now-removed) bbox-compensated ``grasp_offset``, the IK ended up
+        # placing ``link7`` exactly ``0.13 m`` above the plug body origin; the
+        # gear-assembly task uses ``-0.35 m`` here because its target is the top of
+        # the 0.22 m gear shaft, so 0.35 = 0.22 + 0.13).
+        #
+        # ``grasp_rot_offset = R_x(-90 deg)`` matches the gear-assembly task; combined
+        # with the plug's identity ``init_state.rot``, ``link7`` ends up pointing
+        # straight down (gripper finger axis perpendicular to the plug's long body Y
+        # axis, so the fingers can clamp the plug's narrow body X axis = 1.18 cm).
+        self.grasp_offset = [0.0, 0.0, -0.13]
         self.grasp_rot_offset = [-0.70711, 0.70711, 0.0, 0.0]
         self.gripper_joint_setter_func = set_finger_joint_pos_grav
 
@@ -271,10 +292,12 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
             ),
         )
 
-        # Grav gripper actuator configuration (implicit - PhysX built-in joint drives)
+        # Grav gripper actuator configuration (implicit - PhysX built-in joint drives).
+        # Match gear_assembly Rizon-Grav settings: 2 N*m squeeze is enough to firmly hold
+        # a 19 g plug between the fingers without overdriving the joint past its limit.
         self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
-            effort_limit_sim=1.0,
+            effort_limit_sim=2.0,
             velocity_limit_sim=1.0,
             stiffness=2e3,
             damping=1e1,
@@ -288,20 +311,39 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
             damping=0.0,
         )
 
-        # Override plug/socket positions to match the gear assembly Flexiv workspace layout.
-        # Socket = gear_base (fixed target), Plug = gear (held object, offset above socket).
+        # Override plug/socket positions to match the gear-assembly Flexiv workspace
+        # layout. Socket = gear_base (fixed insertion target). Plug = gear (held
+        # object, offset above socket so it can be inserted downward).
+        #
+        # Both assets use IDENTITY rotation -- the FLATTENED USDs already align the
+        # collidable mesh long axis with body Y and the insertion axis with body Z.
+        # The plug spawn pose only seeds the IK target; after IK,
+        # :class:`mdp.set_robot_to_object_grasp_pose` snaps the plug to the achieved
+        # gripper pose so any small spawn-pose error is washed out.
         self.scene.gb300_socket.init_state = RigidObjectCfg.InitialStateCfg(
             pos=(0.481, -0.073, 0.071),
-            rot=(0.0, 0.0, 0.70711, -0.70711),
+            rot=(0.0, 0.0, 0.0, 1.0),
         )
+        # Plug ~5 cm above the socket so the policy has room to descend during
+        # insertion. With grasp_offset = (0, 0, -0.13) and identity plug rotation,
+        # link7 ends up at plug_pos + (0, 0, 0.13) and the fingertips at plug_pos.
         self.scene.gb300_plug.init_state = RigidObjectCfg.InitialStateCfg(
-            pos=(0.481, -0.073, 0.139),
-            rot=(0.0, 0.0, 0.70711, -0.70711),
+            pos=(0.481, -0.073, 0.121),
+            rot=(0.0, 0.0, 0.0, 1.0),
         )
 
-        # Grasp widths for the Grav gripper holding the plug. Positive values open
-        # the gripper; ``hand_grasp_width`` creates a gap for the plug, while
-        # ``hand_close_width`` squeezes the fingers shut to hold it.
+        # Grav gripper joint convention (per ``FLEXIV_RIZON4S_GRAV_GRIPPER_CFG``):
+        #   ``+0.785 rad (45 deg)`` fully open, ``-0.155 rad (-8.88 deg)`` fully
+        #   closed.
+        # The flattened plug body is ~11.8 mm wide along the squeeze axis (body X,
+        # per the USD bbox). At the reset, ``hand_grasp_width=0.05 rad`` opens the
+        # fingers to ~16 mm so the plug fits between them; the drive is then
+        # commanded to close to ``hand_close_width=0.0 rad`` (matching the
+        # gear-assembly small-gear close width). At ``0.0`` the fingers would meet
+        # if unobstructed, but the plug stops them via collision and the drive
+        # applies a steady squeeze (200 N -> ~80 N at the fingertips, plenty for a
+        # 19 g plug). Using the hard-close limit ``-0.155`` was tried previously
+        # and ejected the plug because the drive over-commanded the fingers.
         self.hand_grasp_width = 0.05
         self.hand_close_width = 0.0
 

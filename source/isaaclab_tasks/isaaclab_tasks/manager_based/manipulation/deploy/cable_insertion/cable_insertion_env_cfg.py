@@ -27,7 +27,16 @@ import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
 
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
-ASSETS_DIR = os.path.join(CONFIG_DIR, "cable_insertion_assets")
+# Use the FLATTENED USDs (produced by ``scripts/tools/flatten_cable_usd.py``).
+# Flattening bakes any per-prim ``xformOp`` translations/rotations into the mesh
+# vertices and recentres the collidable mesh so that ``bbox_center == (0, 0, 0)``
+# in the rigid-body frame. This is required for stable grasping because the
+# IK-based grasp event places the gripper at the rigid-body origin via
+# ``grasp_offset`` -- if the visible/collision mesh is offset from the body
+# origin (as in the un-flattened source USDs), the fingertips end up beside the
+# plug rather than around it, the gripper closes on empty space, and the plug
+# slides out (which is what we observed in the un-flattened smoke tests).
+ASSETS_DIR = os.path.join(CONFIG_DIR, "cable_insertion_assets", "flattened")
 
 ##
 # Asset Configurations
@@ -40,14 +49,10 @@ class GB300Plug(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/GB300Plug"
     spawn = sim_utils.UsdFileCfg(
-        usd_path=os.path.join(ASSETS_DIR, "plug_A_no_snapfit_latch_transformed.usd"),
+        usd_path=os.path.join(ASSETS_DIR, "plug_A_no_snapfit_latch_no_bulge_collision_mesh.usd"),
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            # NOTE: gravity disabled while bringing up the task. With gravity on,
-            # any tiny gap between the gripper fingers and the plug at reset
-            # time causes the plug to slip and fall before the policy can
-            # stabilize the grasp. Re-enable once the grasp wiring is verified.
-            disable_gravity=True,
+            disable_gravity=False,
             kinematic_enabled=False,
             max_depenetration_velocity=5.0,
             linear_damping=0.0,
