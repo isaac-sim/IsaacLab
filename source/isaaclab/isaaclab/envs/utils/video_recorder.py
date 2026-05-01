@@ -14,10 +14,13 @@ Backend resolution (``--video`` + ``--visualizer``):
    - Newton physics or Newton Warp uses the Newton GL viewer.
    Kit wins when both signals present.  Raises if nothing resolves.
 
-Camera sync when a visualizer drives the backend: construction copies ``camera_position`` /
-``camera_target`` from the visualizer config; each :meth:`~VideoRecorder.render_rgb_array`
-call then re-reads the Newton viewer's live ``camera.pos/pitch/yaw`` (Kit is free - its
-render product is pinned to the same camera prim ``KitVisualizer`` moves).
+Set :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.backend_source` to ``"renderer"``
+to ignore active visualizers and record from the physics/renderer stack.
+
+Camera sync when a visualizer drives the backend: construction copies the visualizer config's
+``eye`` / ``lookat`` into the recorder config; each :meth:`~VideoRecorder.render_rgb_array`
+call then re-reads the Newton viewer's live ``camera.pos/pitch/yaw``. Kit video uses the
+configured ``eye`` / ``lookat`` at construction time.
 
 See :mod:`video_recorder_cfg` for configuration.
 """
@@ -46,17 +49,27 @@ _VISUALIZER_TO_VIDEO_BACKEND: dict[str, _VideoBackend] = {
 }
 
 
-def _resolve_video_backend(scene: InteractiveScene) -> tuple[_VideoBackend, str | None]:
+def _resolve_video_backend(
+    scene: InteractiveScene, backend_source: str = "visualizer"
+) -> tuple[_VideoBackend, str | None]:
     """Return ``(backend, matched_visualizer_type)`` for the active scene.
 
     ``matched_visualizer_type`` is ``"kit"`` / ``"newton"`` when a visualizer drove the
     selection, or ``None`` when the physics/renderer preset stack was used instead.
 
+    Args:
+        scene: The interactive scene that owns the sim context.
+        backend_source: ``"visualizer"`` to let active visualizers choose the backend, or ``"renderer"``
+            to ignore active visualizers and use the physics/renderer stack.
+
     Raises:
         RuntimeError: If no supported backend is detected.
     """
-    # prefer the visualizer backend when --visualizer is active alongside --video.
-    visualizer_types: list[str] = scene.sim.resolve_visualizer_types()
+    if backend_source not in ("visualizer", "renderer"):
+        raise ValueError("VideoRecorderCfg.backend_source must be either 'visualizer' or 'renderer'.")
+
+    # Prefer the visualizer backend when --visualizer is active alongside --video.
+    visualizer_types: list[str] = scene.sim.resolve_visualizer_types() if backend_source == "visualizer" else []
     if visualizer_types:
         # kit takes priority when multiple visualizers are active
         for preferred in ("kit", "newton"):
@@ -95,7 +108,7 @@ def _sync_camera_from_visualizer(
     visualizer_type: str,
     cfg: VideoRecorderCfg,
 ) -> None:
-    """Overwrite ``cfg.camera_position`` and ``cfg.camera_target`` from the active visualizer.
+    """Overwrite ``cfg.eye`` and ``cfg.lookat`` from the active visualizer.
 
     Args:
         scene: The interactive scene that owns the sim context.
@@ -112,22 +125,22 @@ def _sync_camera_from_visualizer(
     for vcfg in resolved_cfgs:
         if getattr(vcfg, "visualizer_type", None) != visualizer_type:
             continue
-        pos = getattr(vcfg, "camera_position", None)
-        tgt = getattr(vcfg, "camera_target", None)
+        pos = getattr(vcfg, "eye", None)
+        tgt = getattr(vcfg, "lookat", None)
         if pos is None or tgt is None:
             break
-        cfg.camera_position = tuple(float(x) for x in pos)
-        cfg.camera_target = tuple(float(x) for x in tgt)
+        cfg.eye = tuple(float(x) for x in pos)
+        cfg.lookat = tuple(float(x) for x in tgt)
         logger.debug(
             "[VideoRecorder] Camera synced from '%s' visualizer: position=%s, target=%s.",
             visualizer_type,
-            cfg.camera_position,
-            cfg.camera_target,
+            cfg.eye,
+            cfg.lookat,
         )
         return
 
     logger.debug(
-        "[VideoRecorder] Could not find camera_position/target on '%s' visualizer cfg; keeping existing camera values.",
+        "[VideoRecorder] Could not find eye/lookat on '%s' visualizer cfg; keeping existing camera values.",
         visualizer_type,
     )
 
@@ -152,7 +165,8 @@ class VideoRecorder:
         self._live_visualizer = None
 
         if cfg.env_render_mode == "rgb_array":
-            self._backend, self._matched_visualizer = _resolve_video_backend(scene)
+            backend_source = getattr(cfg, "backend_source", "visualizer")
+            self._backend, self._matched_visualizer = _resolve_video_backend(scene, backend_source)
             if self._matched_visualizer is not None:
                 _sync_camera_from_visualizer(scene, self._matched_visualizer, cfg)
             if self._backend == "newton_gl":
@@ -170,8 +184,8 @@ class VideoRecorder:
                 ncfg = NewtonGlPerspectiveVideoCfg(
                     window_width=cfg.window_width,
                     window_height=cfg.window_height,
-                    camera_position=cfg.camera_position,
-                    camera_target=cfg.camera_target,
+                    eye=cfg.eye,
+                    lookat=cfg.lookat,
                 )
                 self._capture = create_newton_gl_perspective_video(ncfg)
             else:
@@ -183,8 +197,8 @@ class VideoRecorder:
                 )
 
                 kcfg = IsaacsimKitPerspectiveVideoCfg(
-                    camera_position=cfg.camera_position,
-                    camera_target=cfg.camera_target,
+                    eye=cfg.eye,
+                    lookat=cfg.lookat,
                     window_width=cfg.window_width,
                     window_height=cfg.window_height,
                 )
@@ -229,6 +243,5 @@ class VideoRecorder:
             # Newton GL camera state lives in the capture object and must be synced each frame
             # to follow interactive viewer movement.
             self._sync_newton_camera()
-        # Kit: render product is pinned to a fixed camera prim; interactive viewport movement
-        # uses a separate camera and cannot affect the recording.
+        # Kit capture uses the configured eye/lookat applied to the recording camera at construction time.
         return self._capture.render_rgb_array()

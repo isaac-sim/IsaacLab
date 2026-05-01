@@ -19,8 +19,9 @@ pytestmark = pytest.mark.isaacsim_ci
 _BLANK_720p = np.zeros((720, 1280, 3), dtype=np.uint8)
 _DEFAULT_CFG = dict(
     env_render_mode="rgb_array",
-    camera_position=(7.5, 7.5, 7.5),
-    camera_target=(0.0, 0.0, 0.0),
+    eye=(7.5, 7.5, 7.5),
+    lookat=(0.0, 0.0, 0.0),
+    backend_source="visualizer",
     window_width=1280,
     window_height=720,
 )
@@ -155,6 +156,14 @@ def test_resolve_backend_prefers_newton_visualizer():
     assert matched == "newton"
 
 
+def test_resolve_backend_renderer_source_ignores_visualizer():
+    """When backend_source is 'renderer', active visualizers do not drive backend selection."""
+    scene = _make_scene(["newton"], physics_name="PhysxPhysicsManager")
+    backend, matched = _resolve_video_backend(scene, backend_source="renderer")
+    assert backend == "kit"
+    assert matched is None
+
+
 def test_resolve_backend_kit_wins_over_newton_visualizer():
     """When both kit and newton visualizers are active, kit takes priority."""
     scene = _make_scene(["newton", "kit"])
@@ -194,47 +203,50 @@ def test_resolve_backend_raises_when_no_supported_backend():
         _resolve_video_backend(scene)
 
 
-def _make_visualizer_cfg(visualizer_type, camera_position=None, camera_target=None):
-    vcfg = MagicMock()
-    vcfg.visualizer_type = visualizer_type
-    vcfg.camera_position = camera_position
-    vcfg.camera_target = camera_target
-    return vcfg
+def test_resolve_backend_raises_for_invalid_backend_source():
+    """Only 'visualizer' and 'renderer' are valid backend source modes."""
+    scene = _make_scene([])
+    with pytest.raises(ValueError, match="backend_source"):
+        _resolve_video_backend(scene, backend_source="invalid")
+
+
+def _make_visualizer_cfg(visualizer_type, eye=None, lookat=None):
+    return SimpleNamespace(visualizer_type=visualizer_type, eye=eye, lookat=lookat)
 
 
 def test_sync_camera_overwrites_cfg_from_visualizer():
-    """Camera position/target from visualizer cfg are written into VideoRecorderCfg."""
+    """Visualizer cfg eye/lookat are written into VideoRecorderCfg."""
     scene = MagicMock()
     scene.sim._resolve_visualizer_cfgs.return_value = [
-        _make_visualizer_cfg("newton", camera_position=(1.0, 2.0, 3.0), camera_target=(4.0, 5.0, 6.0)),
+        _make_visualizer_cfg("newton", eye=(1.0, 2.0, 3.0), lookat=(4.0, 5.0, 6.0)),
     ]
     cfg = SimpleNamespace(**_DEFAULT_CFG)
     _sync_camera_from_visualizer(scene, "newton", cfg)
-    assert cfg.camera_position == (1.0, 2.0, 3.0)
-    assert cfg.camera_target == (4.0, 5.0, 6.0)
+    assert cfg.eye == (1.0, 2.0, 3.0)
+    assert cfg.lookat == (4.0, 5.0, 6.0)
 
 
 def test_sync_camera_skips_wrong_visualizer_type():
     """Only the matching visualizer type updates the cfg."""
     scene = MagicMock()
     scene.sim._resolve_visualizer_cfgs.return_value = [
-        _make_visualizer_cfg("kit", camera_position=(9.0, 9.0, 9.0), camera_target=(1.0, 1.0, 1.0)),
+        _make_visualizer_cfg("kit", eye=(9.0, 9.0, 9.0), lookat=(1.0, 1.0, 1.0)),
     ]
     cfg = SimpleNamespace(**_DEFAULT_CFG)
-    original_pos = cfg.camera_position
+    original_eye = cfg.eye
     _sync_camera_from_visualizer(scene, "newton", cfg)
-    assert cfg.camera_position == original_pos  # unchanged
+    assert cfg.eye == original_eye  # unchanged
 
 
 def test_sync_camera_handles_missing_camera_fields():
     """If visualizer cfg has no camera fields, existing cfg values are kept."""
     scene = MagicMock()
-    vcfg = _make_visualizer_cfg("newton", camera_position=None, camera_target=None)
+    vcfg = _make_visualizer_cfg("newton", eye=None, lookat=None)
     scene.sim._resolve_visualizer_cfgs.return_value = [vcfg]
     cfg = SimpleNamespace(**_DEFAULT_CFG)
-    original_pos = cfg.camera_position
+    original_eye = cfg.eye
     _sync_camera_from_visualizer(scene, "newton", cfg)
-    assert cfg.camera_position == original_pos
+    assert cfg.eye == original_eye
 
 
 def test_sync_camera_handles_resolve_exception():
@@ -242,9 +254,9 @@ def test_sync_camera_handles_resolve_exception():
     scene = MagicMock()
     scene.sim._resolve_visualizer_cfgs.side_effect = RuntimeError("boom")
     cfg = SimpleNamespace(**_DEFAULT_CFG)
-    original_pos = cfg.camera_position
+    original_eye = cfg.eye
     _sync_camera_from_visualizer(scene, "newton", cfg)
-    assert cfg.camera_position == original_pos
+    assert cfg.eye == original_eye
 
 
 def test_render_rgb_array_delegates_to_capture():

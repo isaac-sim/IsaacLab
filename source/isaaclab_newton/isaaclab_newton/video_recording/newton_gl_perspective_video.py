@@ -58,7 +58,7 @@ class NewtonGlPerspectiveVideo:
         viewer.camera.fov = v_fov_deg
 
         self._viewer = viewer
-        self._apply_camera(self.cfg.camera_position, self.cfg.camera_target)
+        self._apply_camera(self.cfg.eye, self.cfg.lookat)
         logger.info("[NewtonGlPerspectiveVideo] ViewerGL ready (%dx%d).", w, h)
 
     def _apply_camera(
