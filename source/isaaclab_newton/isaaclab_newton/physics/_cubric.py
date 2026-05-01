@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import warnings
 
 logger = logging.getLogger(__name__)
 
@@ -304,16 +305,14 @@ class CubricBindings:
                 )
                 return False
             if minor > _IA_EXPECTED_MINOR:
-                logger.warning(
-                    "cubric IAdapter minor version newer than this shim was "
-                    "validated against: plugin reports v%d.%d, shim is pinned to "
-                    "v%d.%d. Proceeding under semver minor-compatibility — if "
-                    "transforms misbehave, verify the vtable layout against "
-                    "omni/cubric/IAdapter.h.",
-                    major,
-                    minor,
-                    _IA_EXPECTED_MAJOR,
-                    _IA_EXPECTED_MINOR,
+                warnings.warn(
+                    f"cubric IAdapter minor version newer than this shim was validated "
+                    f"against: plugin reports v{major}.{minor}, shim is pinned to "
+                    f"v{_IA_EXPECTED_MAJOR}.{_IA_EXPECTED_MINOR}. Proceeding under "
+                    f"semver minor-compatibility — if transforms misbehave, verify the "
+                    f"vtable layout against omni/cubric/IAdapter.h.",
+                    RuntimeWarning,
+                    stacklevel=2,
                 )
             return True
 
