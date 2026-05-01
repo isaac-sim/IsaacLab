@@ -90,9 +90,9 @@ class RenderData:
 
     def update(self, positions: wp.array, orientations: wp.array, intrinsics: wp.array):
         intrinsics_torch = wp.to_torch(intrinsics)
-        converted_orientations = wp.from_torch(convert_camera_frame_orientation_convention(
-            wp.to_torch(orientations), origin="world", target="opengl"
-        ))
+        converted_orientations = wp.from_torch(
+            convert_camera_frame_orientation_convention(wp.to_torch(orientations), origin="world", target="opengl")
+        )
 
         self.camera_transforms = wp.empty(
             (1, self.newton_sensor.model.world_count), dtype=wp.transformf, device=self.newton_sensor.model.device

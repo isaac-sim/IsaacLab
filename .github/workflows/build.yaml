@@ -48,13 +48,6 @@ name: Docker + Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - 'source/**'
-      - 'docker/**'
-      - 'tools/**'
-      - 'apps/**'
-      - '.github/workflows/build.yaml'
-      - '.github/actions/**'
     branches:
       - main
       - develop
@@ -77,6 +70,34 @@ env:
   CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
+  changes:
+    name: Detect Docker Test Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
+    steps:
+    - id: detect
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+
+        if [ "${{ github.event_name }}" != "pull_request" ]; then
+          echo "run_docker_tests=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        changed_files="$(gh api --paginate "repos/${{ github.repository }}/pulls/${PR_NUMBER}/files" --jq '.[].filename')"
+        printf '%s\n' "$changed_files"
+
+        # config.yaml controls the base image names and tags consumed by the Docker build jobs.
+        if printf '%s\n' "$changed_files" | grep -qE '^(source/|docker/|tools/|apps/|\.github/workflows/build\.yaml$|\.github/workflows/config\.yaml$|\.github/actions/)'; then
+          echo "run_docker_tests=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "run_docker_tests=false" >> "$GITHUB_OUTPUT"
+        fi
+
   config:
     name: Load Config
     runs-on: ubuntu-latest
@@ -102,7 +123,8 @@ jobs:
   build:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
-    needs: [config]
+    needs: [changes, config]
+    if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -122,7 +144,8 @@ jobs:
   build-curobo:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
-    needs: [config]
+    needs: [changes, config]
+    if: needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -506,6 +529,100 @@ jobs:
         include-files: "test_environments_training.py"
         container-name: isaac-lab-environments-training-test
   #endregion
+
+  docker-tests-gate:
+    name: Docker Tests Gate
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - build
+      - build-curobo
+      - test-isaaclab-tasks
+      - test-isaaclab-tasks-2
+      - test-isaaclab-tasks-3
+      - test-isaaclab-core
+      - test-isaaclab-core-2
+      - test-isaaclab-core-3
+      - test-isaaclab-rl
+      - test-isaaclab-mimic
+      - test-isaaclab-assets
+      - test-isaaclab-contrib
+      - test-isaaclab-teleop
+      - test-isaaclab-visualizers
+      - test-isaaclab-newton
+      - test-isaaclab-physx
+      - test-isaaclab-ov
+      - test-curobo
+      - test-skillgen
+      - test-environments-training
+    if: always()
+    steps:
+    - name: Check Docker test results
+      env:
+        CHANGES_RESULT: ${{ needs.changes.result }}
+        RUN_DOCKER_TESTS: ${{ needs.changes.outputs.run_docker_tests }}
+        BUILD_RESULT: ${{ needs.build.result }}
+        BUILD_CUROBO_RESULT: ${{ needs.build-curobo.result }}
+        TASKS_1_RESULT: ${{ needs.test-isaaclab-tasks.result }}
+        TASKS_2_RESULT: ${{ needs.test-isaaclab-tasks-2.result }}
+        TASKS_3_RESULT: ${{ needs.test-isaaclab-tasks-3.result }}
+        CORE_1_RESULT: ${{ needs.test-isaaclab-core.result }}
+        CORE_2_RESULT: ${{ needs.test-isaaclab-core-2.result }}
+        CORE_3_RESULT: ${{ needs.test-isaaclab-core-3.result }}
+        RL_RESULT: ${{ needs.test-isaaclab-rl.result }}
+        MIMIC_RESULT: ${{ needs.test-isaaclab-mimic.result }}
+        ASSETS_RESULT: ${{ needs.test-isaaclab-assets.result }}
+        CONTRIB_RESULT: ${{ needs.test-isaaclab-contrib.result }}
+        TELEOP_RESULT: ${{ needs.test-isaaclab-teleop.result }}
+        VISUALIZERS_RESULT: ${{ needs.test-isaaclab-visualizers.result }}
+        NEWTON_RESULT: ${{ needs.test-isaaclab-newton.result }}
+        PHYSX_RESULT: ${{ needs.test-isaaclab-physx.result }}
+        OV_RESULT: ${{ needs.test-isaaclab-ov.result }}
+        CUROBO_RESULT: ${{ needs.test-curobo.result }}
+        SKILLGEN_RESULT: ${{ needs.test-skillgen.result }}
+        ENVIRONMENTS_TRAINING_RESULT: ${{ needs.test-environments-training.result }}
+      run: |
+        set -euo pipefail
+
+        if [ "$CHANGES_RESULT" != "success" ]; then
+          echo "Change detection failed with result: $CHANGES_RESULT"
+          exit 1
+        fi
+
+        if [ "$RUN_DOCKER_TESTS" != "true" ]; then
+          echo "Docker tests are not required for this change."
+          exit 0
+        fi
+
+        failures=()
+        [ "$BUILD_RESULT" = "success" ] || failures+=("Build Base Docker Image: $BUILD_RESULT")
+        [ "$BUILD_CUROBO_RESULT" = "success" ] || failures+=("Build cuRobo Docker Image: $BUILD_CUROBO_RESULT")
+        [ "$TASKS_1_RESULT" = "success" ] || failures+=("isaaclab_tasks [1/3]: $TASKS_1_RESULT")
+        [ "$TASKS_2_RESULT" = "success" ] || failures+=("isaaclab_tasks [2/3]: $TASKS_2_RESULT")
+        [ "$TASKS_3_RESULT" = "success" ] || failures+=("isaaclab_tasks [3/3]: $TASKS_3_RESULT")
+        [ "$CORE_1_RESULT" = "success" ] || failures+=("isaaclab (core) [1/3]: $CORE_1_RESULT")
+        [ "$CORE_2_RESULT" = "success" ] || failures+=("isaaclab (core) [2/3]: $CORE_2_RESULT")
+        [ "$CORE_3_RESULT" = "success" ] || failures+=("isaaclab (core) [3/3]: $CORE_3_RESULT")
+        [ "$RL_RESULT" = "success" ] || failures+=("isaaclab_rl: $RL_RESULT")
+        [ "$MIMIC_RESULT" = "success" ] || failures+=("isaaclab_mimic: $MIMIC_RESULT")
+        [ "$ASSETS_RESULT" = "success" ] || failures+=("isaaclab_assets: $ASSETS_RESULT")
+        [ "$CONTRIB_RESULT" = "success" ] || failures+=("isaaclab_contrib: $CONTRIB_RESULT")
+        [ "$TELEOP_RESULT" = "success" ] || failures+=("isaaclab_teleop: $TELEOP_RESULT")
+        [ "$VISUALIZERS_RESULT" = "success" ] || failures+=("isaaclab_visualizers: $VISUALIZERS_RESULT")
+        [ "$NEWTON_RESULT" = "success" ] || failures+=("isaaclab_newton: $NEWTON_RESULT")
+        [ "$PHYSX_RESULT" = "success" ] || failures+=("isaaclab_physx: $PHYSX_RESULT")
+        [ "$OV_RESULT" = "success" ] || failures+=("isaaclab_ov: $OV_RESULT")
+        [ "$CUROBO_RESULT" = "success" ] || failures+=("test-curobo: $CUROBO_RESULT")
+        [ "$SKILLGEN_RESULT" = "success" ] || failures+=("test-skillgen: $SKILLGEN_RESULT")
+        [ "$ENVIRONMENTS_TRAINING_RESULT" = "success" ] || failures+=("environments_training: $ENVIRONMENTS_TRAINING_RESULT")
+
+        if [ "${#failures[@]}" -gt 0 ]; then
+          printf 'Docker checks did not pass:\n'
+          printf ' - %s\n' "${failures[@]}"
+          exit 1
+        fi
+
+        echo "Docker checks passed."
 
 #region disabled quarantined tests
 # test-quarantined:

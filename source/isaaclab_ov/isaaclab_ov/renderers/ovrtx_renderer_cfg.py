@@ -24,14 +24,6 @@ class OVRTXRendererCfg(RendererCfg):
     renderer_type: str = "ovrtx"
     """Type identifier for OVRTX renderer."""
 
-    simple_shading_mode: bool = True
-    """Whether to use simple shading mode (default: True).
-
-    When enabled, uses SimpleShadingSD RenderVar instead of LdrColor for RGB rendering.
-    Provides faster, simpler rendering suitable for many vision-based tasks.
-    Set to False to use full RTX path-traced rendering with LdrColor.
-    """
-
     temp_usd_dir: str = str(Path(tempfile.gettempdir()) / "ovrtx")
     """Directory for temporary combined USD files (scene + injected cameras).
     Used by the OVRTX renderer when building the render scope; must be writable.

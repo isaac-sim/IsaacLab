@@ -7,15 +7,6 @@ name: Installation Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - 'apps/**'
-      - 'VERSION'
-      - 'tools/**'
-      - 'source/**'
-      - '**/pyproject.toml'
-      - '**/environment.yaml'
-      - '.github/actions/run-package-tests/**'
-      - '.github/workflows/install-ci.yml'
   push:
     branches:
       - main
@@ -38,9 +29,39 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 jobs:
+  changes:
+    name: Detect Installation Test Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
+    steps:
+      - id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run_install_tests=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(gh api --paginate "repos/${{ github.repository }}/pulls/${PR_NUMBER}/files" --jq '.[].filename')"
+          printf '%s\n' "$changed_files"
+
+          if printf '%s\n' "$changed_files" | grep -qE '^(apps/|tools/|source/|\.github/actions/run-package-tests/|\.github/workflows/install-ci\.yml$|VERSION$)|(^|/)pyproject\.toml$|(^|/)environment\.ya?ml$'; then
+            echo "run_install_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_install_tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
   install-tests:
     name: Installation Tests
+    needs: [changes]
+    if: needs.changes.outputs.run_install_tests == 'true'
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     steps:
@@ -61,3 +82,34 @@ jobs:
           fi
 
           tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
+
+  installation-tests-gate:
+    name: Installation Tests Gate
+    needs: [changes, install-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check installation test result
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          RUN_INSTALL_TESTS: ${{ needs.changes.outputs.run_install_tests }}
+          INSTALL_TESTS_RESULT: ${{ needs.install-tests.result }}
+        run: |
+          set -euo pipefail
+
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "Change detection failed with result: $CHANGES_RESULT"
+            exit 1
+          fi
+
+          if [ "$RUN_INSTALL_TESTS" != "true" ]; then
+            echo "Installation tests are not required for this change."
+            exit 0
+          fi
+
+          if [ "$INSTALL_TESTS_RESULT" != "success" ]; then
+            echo "Installation Tests did not pass: $INSTALL_TESTS_RESULT"
+            exit 1
+          fi
+
+          echo "Installation Tests passed."

@@ -5,23 +5,103 @@
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import logging
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
 import torch
 
-from pxr import Gf, Sdf, Usd, UsdGeom, Vt
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics.scene_data_requirements import SceneDataRequirement, VisualizerPrebuiltArtifacts
+
+from . import _fabric_notices
 
 if TYPE_CHECKING:
     from .cloner_cfg import TemplateCloneCfg
 
 logger = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -> Iterator[None]:
+    """Suspend the ``IFabricUsd`` USD notice listener for the body of the ``with`` block.
+
+    Targets the same handler that :meth:`isaacsim.core.cloner.Cloner.disable_change_listener`
+    toggles, but goes through ``omni::fabric::IFabricUsd`` directly so we don't take an
+    ``isaacsim.core.simulation_manager`` dependency.
+
+    The listener is a global ``TfNotice`` registered when ``omni.fabric`` loads; it
+    short-circuits via a soft flag (``IFabricUsd.cpp:739``). Toggling that flag is what
+    skips the per-``Sdf.CopySpec`` Fabric sync that dominates cloning time on large scenes.
+
+    When this provides a measurable speedup
+    ----------------------------------------
+    Bisection on the regression test (see ``test_cloner.py``) shows the listener cost is
+    only on the critical path when **all** of these hold:
+
+    1. The clone happens through the ``InteractiveScene`` path with ``replicate_physics=True``.
+       Calling :func:`usd_replicate` directly on a stage produces no measurable gap; with
+       ``replicate_physics=False`` the gap drops to ~1.19x. The PhysX replication path is
+       what amplifies per-spec listener work.
+    2. The cloned prims carry PhysX rigid-body schemas (e.g. ``UsdPhysics.RigidBodyAPI``,
+       authored via ``rigid_props`` on a spawn cfg). Plain Xforms or geometry without
+       physics schemas produce ~1.0x — the listener has no Fabric-tracked state to sync.
+       ``mass_props`` and ``collision_props`` add nothing beyond ``rigid_props``.
+    3. Total per-``Sdf.CopySpec`` firings reach ~32K — i.e. ``num_bodies × num_envs`` is
+       large enough to dominate scene-init cost. Below this the speedup sinks into noise.
+
+    Conditions outside this envelope (no PhysX schemas, single-env scenes, raw
+    ``usd_replicate`` calls, ``replicate_physics=False``) won't see a perf win — the
+    suspension is correct but its effect is lost in the rest of the work.
+
+    Re-entrant: if the flag is already off on entry, ``__exit__`` leaves it off. Falls
+    through to a no-op if the Carbonite interface can't be acquired (e.g. outside a live
+    Kit application) — the caller never breaks, it just doesn't get the perf win.
+
+    Args:
+        stage: USD stage whose Fabric notice handler should be suspended.
+        restore: When ``True`` (default), re-enable the handler on exit. Set to ``False``
+            inside a known clone-then-``sim.reset`` window where the downstream Fabric
+            resync happens anyway and re-enabling here would trigger a redundant
+            ``forceMinimalPopulate`` batch — see ``PluginInterface.cpp:337``.
+
+    Yields:
+        None.
+    """
+    bindings = _fabric_notices.get_bindings()
+    if bindings is None:
+        yield
+        return
+
+    # usdrt only works with a live Kit app — defer import so module load stays cheap.
+    import usdrt
+
+    # Avoid leaking a strong reference into the global ``StageCache`` for stages we did not
+    # author into the cache: ``Insert`` keeps the stage alive for the rest of the process.
+    cache = UsdUtils.StageCache.Get()
+    cached_id = cache.GetId(stage)
+    stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
+    # ``FabricId`` wraps a uint64; the C ABI needs the raw integer.
+    fabric_id = usdrt.Usd.Stage.Attach(stage_id).GetFabricId().id
+    # First-call ABI sanity check — if the toggle doesn't actually round-trip the flag
+    # (e.g. Kit's vtable shifted), fall through to a no-op rather than corrupting state.
+    if not bindings.validate_with(fabric_id):
+        logger.warning("Fabric notice toggle failed round-trip check — suspension disabled")
+        yield
+        return
+    was_enabled = bindings.is_enabled(fabric_id)
+    if was_enabled:
+        bindings.set_enable(fabric_id, False)
+    try:
+        yield
+    finally:
+        if restore and was_enabled:
+            bindings.set_enable(fabric_id, True)
 
 
 def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg) -> None:
@@ -37,64 +117,80 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         num_clones: Number of environments to clone to (typically equals ``cfg.num_clones``).
         template_clone_cfg: Configuration describing template location, destination pattern,
             and replication/mapping behavior.
+
+    Note:
+        This function suspends the Fabric USD notice listener for the duration of the call
+        and **leaves it disabled on return**. It is intended to be invoked from a scene-init
+        path that is followed by :meth:`isaaclab.sim.SimulationContext.reset`, whose Fabric
+        resync naturally recovers the listener state. Callers that bypass that reset
+        contract (ad-hoc tooling, unit tests on a bare stage) should re-enable Fabric
+        notices themselves or wrap the call in
+        :func:`disabled_fabric_change_notifies` with ``restore=True``.
     """
     cfg: TemplateCloneCfg = template_clone_cfg
-    world_indices = torch.arange(num_clones, device=cfg.device)
-    clone_path_fmt = cfg.clone_regex.replace(".*", "{}")
-    prototype_id = cfg.template_prototype_identifier
-    prototypes = sim_utils.get_all_matching_child_prims(
-        cfg.template_root,
-        predicate=lambda prim: str(prim.GetPath()).split("/")[-1].startswith(prototype_id),
-    )
-    if len(prototypes) > 0:
-        # Canonicalize prototype-root order. Some simulation/visualization backends might apply order-dependent
-        # processing, so varying USD traversal or set iteration order can change outputs noticeably. Sorting here
-        # removes that nondeterminism at the source (group order feeds ``make_clone_plan`` and downstream replication),
-        # which matters for run-to-run reproducibility across IsaacLab's multi-backend stack.
-        prototype_roots = sorted({"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes})
+    # Suspend Fabric's USD notice listener for the duration of bulk authoring. ``restore=False``
+    # because clone_from_template is only called at scene-init time, which is followed by
+    # ``SimulationContext.reset`` — that reset path does the Fabric resync naturally, and
+    # re-enabling here would trigger a redundant ``forceMinimalPopulate`` batch.
+    with disabled_fabric_change_notifies(stage, restore=False):
+        world_indices = torch.arange(num_clones, device=cfg.device)
+        clone_path_fmt = cfg.clone_regex.replace(".*", "{}")
+        prototype_id = cfg.template_prototype_identifier
+        prototypes = sim_utils.get_all_matching_child_prims(
+            cfg.template_root,
+            predicate=lambda prim: str(prim.GetPath()).split("/")[-1].startswith(prototype_id),
+        )
+        if len(prototypes) > 0:
+            # Canonicalize prototype-root order. Some simulation/visualization backends might apply order-dependent
+            # processing, so varying USD traversal or set iteration order can change outputs noticeably. Sorting here
+            # removes that nondeterminism at the source (group order feeds ``make_clone_plan`` and downstream
+            # replication), which matters for run-to-run reproducibility across IsaacLab's multi-backend stack.
+            prototype_roots = sorted({"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes})
 
-        # discover prototypes per root then make a clone plan
-        src: list[list[str]] = []
-        dest: list[str] = []
+            # discover prototypes per root then make a clone plan
+            src: list[list[str]] = []
+            dest: list[str] = []
 
-        for prototype_root in prototype_roots:
-            protos = sim_utils.find_matching_prim_paths(f"{prototype_root}/.*")
-            protos = [proto for proto in protos if proto.split("/")[-1].startswith(prototype_id)]
-            src.append(protos)
-            dest.append(prototype_root.replace(cfg.template_root, clone_path_fmt))
+            for prototype_root in prototype_roots:
+                protos = sim_utils.find_matching_prim_paths(f"{prototype_root}/.*")
+                protos = [proto for proto in protos if proto.split("/")[-1].startswith(prototype_id)]
+                src.append(protos)
+                dest.append(prototype_root.replace(cfg.template_root, clone_path_fmt))
 
-        src_paths, dest_paths, clone_masking = make_clone_plan(src, dest, num_clones, cfg.clone_strategy, cfg.device)
+            src_paths, dest_paths, clone_masking = make_clone_plan(
+                src, dest, num_clones, cfg.clone_strategy, cfg.device
+            )
 
-        # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first instances
-        # will be served as sources for usd and physics replication.
-        proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
-        proto_mask = torch.zeros_like(clone_masking)
-        proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_masking.any(dim=1, keepdim=True))
-        usd_replicate(stage, src_paths, dest_paths, world_indices, proto_mask)
-        stage.GetPrimAtPath(cfg.template_root).SetActive(False)
-        get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
-        positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
-        # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
-        if torch.all(proto_idx == 0):
-            mapping = clone_masking.new_ones(1, num_clones)
-            replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, mapping
-            if cfg.clone_physics and cfg.physics_clone_fn is not None:
-                cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-            if cfg.visualizer_clone_fn is not None:
-                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-            if cfg.clone_usd:
-                # parse env_origins directly from clone_path
-                usd_replicate(stage, *replicate_args, positions=positions)
+            # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first
+            # instances will be served as sources for usd and physics replication.
+            proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
+            proto_mask = torch.zeros_like(clone_masking)
+            proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_masking.any(dim=1, keepdim=True))
+            usd_replicate(stage, src_paths, dest_paths, world_indices, proto_mask)
+            stage.GetPrimAtPath(cfg.template_root).SetActive(False)
+            get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
+            positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
+            # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
+            if torch.all(proto_idx == 0):
+                mapping = clone_masking.new_ones(1, num_clones)
+                replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, mapping
+                if cfg.clone_physics and cfg.physics_clone_fn is not None:
+                    cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+                if cfg.visualizer_clone_fn is not None:
+                    cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+                if cfg.clone_usd:
+                    # parse env_origins directly from clone_path
+                    usd_replicate(stage, *replicate_args, positions=positions)
 
-        else:
-            selected_src = [tpl.format(int(idx)) for tpl, idx in zip(dest_paths, proto_idx.tolist())]
-            replicate_args = selected_src, dest_paths, world_indices, clone_masking
-            if cfg.clone_physics and cfg.physics_clone_fn is not None:
-                cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-            if cfg.visualizer_clone_fn is not None:
-                cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-            if cfg.clone_usd:
-                usd_replicate(stage, *replicate_args)
+            else:
+                selected_src = [tpl.format(int(idx)) for tpl, idx in zip(dest_paths, proto_idx.tolist())]
+                replicate_args = selected_src, dest_paths, world_indices, clone_masking
+                if cfg.clone_physics and cfg.physics_clone_fn is not None:
+                    cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+                if cfg.visualizer_clone_fn is not None:
+                    cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
+                if cfg.clone_usd:
+                    usd_replicate(stage, *replicate_args)
 
 
 def make_clone_plan(
