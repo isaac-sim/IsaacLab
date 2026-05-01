@@ -50,6 +50,12 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
+          # Operate on develop, not the repo's default branch. Scheduled
+          # workflows fire from the default branch's workflow file by
+          # default, but we want the *checkout* to be develop so the
+          # compile sees develop's accumulated fragments and the push
+          # writes back to develop.
+          ref: develop
           # Use a PAT so the auto-commit triggers downstream CI; falls back
           # to GITHUB_TOKEN which is sufficient for the push itself.
           token: ${{ secrets.CHANGELOG_PAT || secrets.GITHUB_TOKEN }}
@@ -82,5 +88,7 @@ jobs:
             echo "No changelog fragments found — nothing to commit."
           else
             git commit -m "chore: compile nightly changelog fragments"
-            git push
+            # Push explicitly to develop so we don't accidentally write
+            # to the source ref of a workflow_dispatch run.
+            git push origin HEAD:develop
           fi

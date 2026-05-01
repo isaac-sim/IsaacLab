@@ -587,9 +587,13 @@ class Package:
             )
 
         if not batch.valid:
-            if not dry_run and batch.skip_paths:
-                n = batch.delete_skips()
-                print(f"  {self.name}: cleaned {n} stale skip file(s).")
+            if batch.skip_paths:
+                n = len(batch.skip_paths)
+                if dry_run:
+                    print(f"  {self.name}: would clean {n} stale skip file(s).")
+                else:
+                    batch.delete_skips()
+                    print(f"  {self.name}: cleaned {n} stale skip file(s).")
             else:
                 print(f"  {self.name}: no fragments, skipping.")
             return False
