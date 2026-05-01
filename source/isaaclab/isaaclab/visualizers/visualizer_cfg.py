@@ -40,7 +40,7 @@ class VisualizerCfg:
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Initial camera look-at point (x, y, z) in world coordinates."""
 
-    cam_source: Literal["cfg", "prim_path"] = "cfg"
+    cam_source: Literal["cfg", "prim_path"] = "prim_path"
     """Camera source mode: 'cfg' uses eye/lookat, 'prim_path' follows a camera prim."""
 
     cam_prim_path: str = "/World/envs/env_0/Camera"
