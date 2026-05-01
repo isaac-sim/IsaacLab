@@ -1,6 +1,20 @@
 Changelog
 ---------
 
+0.5.29 (2026-05-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``test_franka_ik_tracking_accuracy`` and
+  ``test_franka_osc_tracking_accuracy`` on the PhysX side as the
+  symmetric counterpart to the Newton-side tests added in
+  ``isaaclab_newton`` 0.5.27. Same setup (home pose teleport, gravity
+  off, OSC with zero-PD actuators) and same thresholds (5 mm IK,
+  2 cm OSC) so both backends are pinned by identical IK and OSC
+  trajectories.
+
 0.5.28 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -29,16 +29,23 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
+from isaaclab.controllers import (
+    DifferentialIKController,
+    DifferentialIKControllerCfg,
+    OperationalSpaceController,
+    OperationalSpaceControllerCfg,
+)
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, subtract_frame_transforms
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG, SHADOW_HAND_CFG  # isort:skip
 
 
 def generate_articulation_cfg(
@@ -2473,6 +2480,203 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
         " whether get_gravity_compensation_forces returns g(q) (positive) or"
         " its negation."
     )
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_enabled):
+    """PhysX-side IK convergence sentinel — backend parity with the Newton test.
+
+    Mirrors :func:`isaaclab_newton.test.assets.test_articulation.test_franka_ik_tracking_accuracy`
+    so both backends are pinned by the same IK trajectory. With the
+    robot teleported to its configured init_state home pose and scene
+    gravity off, PhysX's IK converges to ~mm precision on this 5 cm
+    Cartesian step. A bridge regression (wrong J shape, wrong DoF
+    ordering) would push the steady-state error well past the
+    threshold.
+    """
+    cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/Env_.*/Robot")
+    sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
+    robot = Articulation(cfg)
+    sim.reset()
+    assert robot.is_initialized
+
+    ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
+    ee_jacobi_idx = ee_frame_idx - 1
+    arm_joint_ids = robot.find_joints(["panda_joint.*"])[0]
+
+    # Teleport joints to the configured init_state home pose. ``sim.reset()``
+    # does not auto-push :attr:`default_joint_pos` to the simulator -- that
+    # happens through the env reset path in production. Without this
+    # explicit write, the robot remains at the URDF-neutral pose, which is
+    # near-singular for the Franka wrist (joints 5/6/7 ~ 0 align the
+    # twist axes) and produces a 1-2 cm DLS plateau unrelated to the
+    # bridge under test.
+    robot.write_joint_state_to_sim(
+        position=robot.data.default_joint_pos.torch[:, :].clone(),
+        velocity=robot.data.default_joint_vel.torch[:, :].clone(),
+    )
+
+    ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
+    ik = DifferentialIKController(ik_cfg, num_envs=1, device=device)
+
+    sim.step()
+    robot.update(sim.cfg.dt)
+    initial_ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx].clone()
+    initial_root_pose_w = robot.data.root_pose_w.torch
+    initial_ee_pos_b, initial_ee_quat_b = subtract_frame_transforms(
+        initial_root_pose_w[:, 0:3],
+        initial_root_pose_w[:, 3:7],
+        initial_ee_pose_w[:, 0:3],
+        initial_ee_pose_w[:, 3:7],
+    )
+    target_pos_b = initial_ee_pos_b + torch.tensor([0.05, 0.0, 0.0], device=device)
+    target_pose_b = torch.cat([target_pos_b, initial_ee_quat_b], dim=-1)
+    ik.set_command(target_pose_b)
+
+    pos_history: list[float] = []
+    rot_history: list[float] = []
+    for _ in range(800):
+        jacobian_w = wp.to_torch(robot.get_jacobians())[:, ee_jacobi_idx, :, :][:, :, arm_joint_ids]
+        ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
+        root_pose_w = robot.data.root_pose_w.torch
+        base_rot_matrix = matrix_from_quat(quat_inv(root_pose_w[:, 3:7]))
+        jacobian = jacobian_w.clone()
+        jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
+        jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
+
+        joint_pos = robot.data.joint_pos.torch[:, arm_joint_ids]
+        ee_pos_b, ee_quat_b = subtract_frame_transforms(
+            root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
+        )
+
+        joint_pos_des = ik.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
+
+        robot.set_joint_position_target(joint_pos_des, joint_ids=arm_joint_ids)
+        robot.write_data_to_sim()
+        sim.step()
+        robot.update(sim.cfg.dt)
+
+        pos_error, rot_error = compute_pose_error(ee_pos_b, ee_quat_b, target_pose_b[:, 0:3], target_pose_b[:, 3:7])
+        pos_history.append(pos_error.norm(dim=-1).max().item())
+        rot_history.append(rot_error.norm(dim=-1).max().item())
+
+    pos_min = min(pos_history[-200:])
+    pos_mean = sum(pos_history[-200:]) / 200
+    rot_min = min(rot_history[-200:])
+    rot_mean = sum(rot_history[-200:]) / 200
+
+    print(f"IK_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
+
+    # Threshold matched to the Newton-side test (5 mm / 0.05 rad). PhysX
+    # historically achieves sub-mm here; the slightly looser bound just
+    # absorbs run-to-run variance.
+    assert pos_min < 5e-3, f"IK pos_min {pos_min:.5f} > 5 mm — bridge regression?"
+    assert rot_min < 5e-2, f"IK rot_min {rot_min:.5f} > 0.05 rad — bridge regression?"
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_enabled):
+    """PhysX-side OSC pose tracking sentinel — backend parity with Newton.
+
+    Mirrors :func:`isaaclab_newton.test.assets.test_articulation.test_franka_osc_tracking_accuracy`.
+    Zero out the actuator's PD gains so OSC's joint-effort output is
+    not opposed by the implicit-PD term, matching the Newton test setup.
+    """
+    cfg = FRANKA_PANDA_HIGH_PD_CFG.copy().replace(prim_path="/World/Env_.*/Robot")
+    cfg.actuators["panda_shoulder"].stiffness = 0.0
+    cfg.actuators["panda_shoulder"].damping = 0.0
+    cfg.actuators["panda_forearm"].stiffness = 0.0
+    cfg.actuators["panda_forearm"].damping = 0.0
+    sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
+    robot = Articulation(cfg)
+    sim.reset()
+    assert robot.is_initialized
+
+    ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
+    ee_jacobi_idx = ee_frame_idx - 1
+    arm_joint_ids = robot.find_joints(["panda_joint.*"])[0]
+
+    robot.write_joint_state_to_sim(
+        position=robot.data.default_joint_pos.torch[:, :].clone(),
+        velocity=robot.data.default_joint_vel.torch[:, :].clone(),
+    )
+
+    osc_cfg = OperationalSpaceControllerCfg(
+        target_types=["pose_abs"],
+        impedance_mode="fixed",
+        inertial_dynamics_decoupling=True,
+        partial_inertial_dynamics_decoupling=False,
+        gravity_compensation=False,
+        motion_stiffness_task=500.0,
+        motion_damping_ratio_task=1.0,
+    )
+    osc = OperationalSpaceController(osc_cfg, num_envs=1, device=device)
+
+    sim.step()
+    robot.update(sim.cfg.dt)
+    initial_ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx].clone()
+    initial_root_pose_w = robot.data.root_pose_w.torch
+    initial_ee_pos_b, initial_ee_quat_b = subtract_frame_transforms(
+        initial_root_pose_w[:, 0:3],
+        initial_root_pose_w[:, 3:7],
+        initial_ee_pose_w[:, 0:3],
+        initial_ee_pose_w[:, 3:7],
+    )
+    target_pos_b = initial_ee_pos_b + torch.tensor([0.05, 0.0, 0.0], device=device)
+    target_pose_b = torch.cat([target_pos_b, initial_ee_quat_b], dim=-1)
+
+    pos_history: list[float] = []
+    rot_history: list[float] = []
+    for _ in range(800):
+        jacobian_w = wp.to_torch(robot.get_jacobians())[:, ee_jacobi_idx, :, :][:, :, arm_joint_ids]
+        mass_matrix = wp.to_torch(robot.get_mass_matrix())[:, arm_joint_ids, :][:, :, arm_joint_ids]
+        ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
+        root_pose_w = robot.data.root_pose_w.torch
+        base_rot_matrix = matrix_from_quat(quat_inv(root_pose_w[:, 3:7]))
+        jacobian_b = jacobian_w.clone()
+        jacobian_b[:, :3, :] = torch.bmm(base_rot_matrix, jacobian_b[:, :3, :])
+        jacobian_b[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian_b[:, 3:, :])
+
+        ee_pos_b, ee_quat_b = subtract_frame_transforms(
+            root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
+        )
+        ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+        ee_vel_b = torch.zeros(1, 6, device=device)
+
+        osc.set_command(target_pose_b, current_ee_pose_b=ee_pose_b)
+        joint_efforts = osc.compute(
+            jacobian_b=jacobian_b,
+            current_ee_pose_b=ee_pose_b,
+            current_ee_vel_b=ee_vel_b,
+            mass_matrix=mass_matrix,
+            gravity=None,
+        )
+
+        robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
+        robot.write_data_to_sim()
+        sim.step()
+        robot.update(sim.cfg.dt)
+
+        pos_error, rot_error = compute_pose_error(ee_pos_b, ee_quat_b, target_pose_b[:, 0:3], target_pose_b[:, 3:7])
+        pos_history.append(pos_error.norm(dim=-1).max().item())
+        rot_history.append(rot_error.norm(dim=-1).max().item())
+
+    pos_min = min(pos_history[-200:])
+    pos_mean = sum(pos_history[-200:]) / 200
+    rot_min = min(rot_history[-200:])
+    rot_mean = sum(rot_history[-200:]) / 200
+
+    print(f"OSC_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
+
+    # Threshold matches the Newton-side test (2 cm / 0.2 rad).
+    assert pos_min < 2e-2, f"OSC pos_min {pos_min:.5f} > 2 cm — bridge regression?"
+    assert rot_min < 2e-1, f"OSC rot_min {rot_min:.5f} > 0.2 rad — bridge regression?"
 
 
 if __name__ == "__main__":
