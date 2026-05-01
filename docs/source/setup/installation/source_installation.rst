@@ -23,6 +23,15 @@ or want to test Isaac Lab with the nightly version of Isaac Sim.
 The following instructions are adapted from the `Isaac Sim documentation <https://github.com/isaac-sim/IsaacSim?tab=readme-ov-file#quick-start>`_
 for the convenience of users.
 
+.. warning::
+
+   **Compatibility warning for Isaac Sim GitHub develop:** A recent breaking change on the Isaac Lab
+   ``develop`` branch is not compatible with the ``develop`` branch of Isaac Sim on GitHub. To run
+   Isaac Lab with Isaac Sim's GitHub ``develop`` branch, use Isaac Lab commit
+   `f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa <https://github.com/isaac-sim/IsaacLab/commit/f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa>`__
+   or an earlier commit. Alternatively, use the Isaac Lab
+   `v3.0.0-beta <https://github.com/isaac-sim/IsaacLab/tree/v3.0.0-beta>`__ tag.
+
 .. attention::
 
    Building Isaac Sim from source requires Ubuntu 22.04 LTS or higher.
