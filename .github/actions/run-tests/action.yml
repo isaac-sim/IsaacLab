@@ -315,6 +315,14 @@ runs:
         # Call the function with provided parameters
         run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}"
 
+    - name: Kill container on cancellation
+      if: cancelled()
+      shell: bash
+      run: |
+        echo "::warning::Job cancelled - force-killing container"
+        docker kill "${{ inputs.container-name }}" 2>/dev/null || true
+        docker rm -f "${{ inputs.container-name }}" 2>/dev/null || true
+
     - name: Write job summary
       if: always()
       shell: bash
@@ -342,7 +350,7 @@ runs:
         retention-days: 7
 
     - name: Clean up Docker container
-      if: always()
+      if: always() && !cancelled()
       shell: bash
       run: |
         echo "🔵 Cleaning up Docker container..."
