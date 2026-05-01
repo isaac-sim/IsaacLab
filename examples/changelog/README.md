@@ -12,15 +12,15 @@ from real compiler behavior.
 examples/changelog/
 ├── README.md                       ← this file
 ├── 01_patch_bump/                  ← multiple .rst → patch bump
-│   ├── fragments/{8001.rst, 8002.rst}
+│   ├── fragments/{jdoe-fix-mass-units.rst, asmith-fix-collision-margin.rst}
 │   ├── changelog_before.rst        starting state (1.2.3)
 │   └── changelog_after.rst         compiled state (1.2.4)
 ├── 02_minor_bump/                  ← mix of .rst + .minor.rst → minor bump
-│   ├── fragments/{8003.rst, 8004.minor.rst, 8005.minor.rst}
+│   ├── fragments/{jdoe-fix-rotation-frame.rst, asmith-add-multi-asset-spawner.minor.rst, blee-add-camera-output-contract.minor.rst}
 │   ├── changelog_before.rst        (1.2.3)
 │   └── changelog_after.rst         (1.3.0)
 └── 03_major_bump/                  ← mix incl. .major.rst → major bump
-    ├── fragments/{8006.rst, 8007.minor.rst, 8008.major.rst}
+    ├── fragments/{jdoe-fix-articulation-state.rst, asmith-add-warp-contact-stream.minor.rst, blee-rename-articulation-api.major.rst}
     ├── changelog_before.rst        (1.2.3)
     └── changelog_after.rst         (2.0.0)
 ```
@@ -32,14 +32,16 @@ collapse into one section in the compiled output.
 
 ## Filename convention
 
-Each fragment's name encodes the **PR number** and the **bump type**:
+Each fragment's name encodes a **slug** (any short, unique identifier;
+the contributor's branch name with `/` replaced by `-` is the
+recommended default) and the **bump type**:
 
 | Filename | Bump |
 |---|---|
-| `<pr-number>.rst` | patch (default) |
-| `<pr-number>.minor.rst` | minor (new APIs, no breakage) |
-| `<pr-number>.major.rst` | major (breaking change / removal) |
-| `<pr-number>.skip` | no entry, no bump |
+| `<slug>.rst` | patch (default) |
+| `<slug>.minor.rst` | minor (new APIs, no breakage) |
+| `<slug>.major.rst` | major (breaking change / removal) |
+| `<slug>.skip` | no entry, no bump |
 
 Within a batch the **highest** bump wins for the package
 (`major > minor > patch`). The bump tier is the contributor's
@@ -82,7 +84,7 @@ exactly what the compiler would produce.
 # has its own version trajectory.
 ./isaaclab.sh -p tools/changelog/cli.py compile --package isaaclab --version 4.7.0
 
-# PR gate (CI also runs this with --pr ${{ github.event.number }}):
+# PR gate (CI runs this on every pull request):
 ./isaaclab.sh -p tools/changelog/cli.py check develop
 ```
 

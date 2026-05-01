@@ -46,7 +46,7 @@ def test_validate_accepts_major_suffix(tmp_path):
 
 
 def test_validate_rejects_unknown_filename_from_fixture():
-    err = cli.Fragment(FIXTURES / "invalid_filenames" / "weird-name.rst").validate()
+    err = cli.Fragment(FIXTURES / "invalid_filenames" / "multi.dot.slug.rst").validate()
     assert err is not None and "invalid filename" in err
 
 
@@ -71,26 +71,8 @@ def test_validate_rejects_section_without_bullets_from_fixture():
 
 
 # ---------------------------------------------------------------------------
-# Fragment.parse_pr_number — extract the declared PR number from a fragment's name
-# ---------------------------------------------------------------------------
-
-
-def test_parse_pr_number_for_recognised_filenames():
-    assert cli.Fragment.parse_pr_number("4444.rst") == 4444
-    assert cli.Fragment.parse_pr_number("4444.minor.rst") == 4444
-    assert cli.Fragment.parse_pr_number("4444.major.rst") == 4444
-    assert cli.Fragment.parse_pr_number("4444.skip") == 4444
-
-
-def test_parse_pr_number_returns_none_for_unrecognised():
-    assert cli.Fragment.parse_pr_number("README.md") is None
-    assert cli.Fragment.parse_pr_number(".gitkeep") is None
-    assert cli.Fragment.parse_pr_number("not-a-fragment.rst") is None
-
-
-# ---------------------------------------------------------------------------
-# check_fragments — gate orchestration: immutability, chain tolerance, and
-# the per-PR "must own a fragment" rule
+# check_fragments — gate orchestration: immutability, slug uniqueness, and
+# the "PR must add at least one fragment per touched package" rule
 # ---------------------------------------------------------------------------
 
 
@@ -107,68 +89,77 @@ def _pkg_under(tmp_path: Path, name: str) -> cli.Package:
 def test_check_fragments_immutability_rejects_modified_fragment(tmp_path):
     """Modifying an existing fragment is forbidden — must add a new one instead."""
     pkg = _pkg_under(tmp_path, "isaaclab")
-    changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/4444.rst"}
-    added = {"source/isaaclab/code.py"}  # 4444.rst exists already; the PR only modified it
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate(5555, [pkg])
+    changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/jdoe-fix-bug.rst"}
+    added = {"source/isaaclab/code.py"}  # fragment exists already; the PR only modified it
+    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == ["isaaclab"]
     invalid_map = dict(invalid)
-    assert "source/isaaclab/changelog.d/4444.rst" in invalid_map
-    assert "immutable" in invalid_map["source/isaaclab/changelog.d/4444.rst"]
+    assert "source/isaaclab/changelog.d/jdoe-fix-bug.rst" in invalid_map
+    assert "immutable" in invalid_map["source/isaaclab/changelog.d/jdoe-fix-bug.rst"]
 
 
 def test_check_fragments_chain_allows_other_pr_fragment(tmp_path):
-    """A chained PR (B based on develop, parent A still open) sees A's fragment in
-    its diff. That should not fail — A's fragment is silently tolerated as long as
-    B contributes its own fragment for the touched package."""
+    """A chained PR (B based on A's branch, A still open) sees A's fragment in
+    its diff. That should pass — both fragments have distinct slugs and B
+    contributes its own fragment for the touched package."""
     pkg = _pkg_under(tmp_path, "isaaclab")
     (pkg.root / "changelog.d").mkdir()
-    (pkg.root / "changelog.d" / "4444.rst").write_text("Fixed\n^^^^^\n\n* x\n", encoding="utf-8")
-    (pkg.root / "changelog.d" / "5555.rst").write_text("Added\n^^^^^\n\n* y\n", encoding="utf-8")
+    (pkg.root / "changelog.d" / "alice-feature-a.rst").write_text("Fixed\n^^^^^\n\n* x\n", encoding="utf-8")
+    (pkg.root / "changelog.d" / "bob-feature-b.rst").write_text("Added\n^^^^^\n\n* y\n", encoding="utf-8")
     changed = {
         "source/isaaclab/code.py",
-        "source/isaaclab/changelog.d/4444.rst",  # parent PR's fragment
-        "source/isaaclab/changelog.d/5555.rst",  # this PR's own fragment
+        "source/isaaclab/changelog.d/alice-feature-a.rst",  # parent PR's fragment
+        "source/isaaclab/changelog.d/bob-feature-b.rst",  # this PR's own fragment
     }
-    added = changed - {"source/isaaclab/code.py"} | {"source/isaaclab/code.py"}  # all three are added
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate(5555, [pkg])
+    added = changed
+    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == []
     assert invalid == []
 
 
-def test_check_fragments_requires_own_fragment_when_pr_set(tmp_path):
-    """If the PR touches a package but only adds someone else's fragment, fail."""
+def test_check_fragments_slug_collision_with_existing(tmp_path):
+    """Adding a fragment whose slug collides with one already in changelog.d/ fails."""
     pkg = _pkg_under(tmp_path, "isaaclab")
     (pkg.root / "changelog.d").mkdir()
-    (pkg.root / "changelog.d" / "4444.rst").write_text("Fixed\n^^^^^\n\n* x\n", encoding="utf-8")
-    changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/4444.rst"}
+    # Pre-existing fragment on develop with the same slug as the one this PR adds.
+    (pkg.root / "changelog.d" / "jdoe-fix-bug.rst").write_text("Fixed\n^^^^^\n\n* x\n", encoding="utf-8")
+    # PR adds a fresh fragment whose slug collides — different tier, same slug.
+    (pkg.root / "changelog.d" / "jdoe-fix-bug.minor.rst").write_text("Added\n^^^^^\n\n* y\n", encoding="utf-8")
+    changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst"}
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate(5555, [pkg])
-    # Source touched, but no fragment with PR=5555 → missing.
-    assert missing == ["isaaclab"]
-    # The 4444.rst is tolerated (no error) since chained-PR fragments are allowed.
-    assert invalid == []
+    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    invalid_map = dict(invalid)
+    assert "source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst" in invalid_map
+    assert "collides" in invalid_map["source/isaaclab/changelog.d/jdoe-fix-bug.minor.rst"]
 
 
-def test_check_fragments_no_pr_falls_back_to_any_valid_fragment(tmp_path):
-    """Without ``--pr``, any valid added fragment satisfies the requirement."""
+def test_check_fragments_slug_collision_within_pr(tmp_path):
+    """Two added fragments in the same PR that share a slug (e.g. across tiers) fail."""
     pkg = _pkg_under(tmp_path, "isaaclab")
     (pkg.root / "changelog.d").mkdir()
-    (pkg.root / "changelog.d" / "4444.rst").write_text("Fixed\n^^^^^\n\n* x\n", encoding="utf-8")
-    changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/4444.rst"}
+    (pkg.root / "changelog.d" / "jdoe-fix.rst").write_text("Fixed\n^^^^^\n\n* x\n", encoding="utf-8")
+    (pkg.root / "changelog.d" / "jdoe-fix.minor.rst").write_text("Added\n^^^^^\n\n* y\n", encoding="utf-8")
+    changed = {
+        "source/isaaclab/code.py",
+        "source/isaaclab/changelog.d/jdoe-fix.rst",
+        "source/isaaclab/changelog.d/jdoe-fix.minor.rst",
+    }
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate(None, [pkg])
-    assert missing == []
-    assert invalid == []
+    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    # One of the two is the offender; the other is the first-seen "winner".
+    invalid_paths = [p for p, _ in invalid]
+    assert any("jdoe-fix" in p for p in invalid_paths)
+    assert any("collides" in r for _, r in invalid)
 
 
-def test_check_fragments_skip_file_satisfies_when_pr_matches(tmp_path):
-    """A `<pr>.skip` opt-out is a valid form of "PR owns a fragment for this pkg"."""
+def test_check_fragments_skip_file_satisfies_requirement(tmp_path):
+    """A ``<slug>.skip`` opt-out is a valid form of "PR owns a fragment for this pkg"."""
     pkg = _pkg_under(tmp_path, "isaaclab")
     (pkg.root / "changelog.d").mkdir()
-    (pkg.root / "changelog.d" / "5555.skip").write_text("", encoding="utf-8")
-    changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/5555.skip"}
+    (pkg.root / "changelog.d" / "ci-only.skip").write_text("", encoding="utf-8")
+    changed = {"source/isaaclab/code.py", "source/isaaclab/changelog.d/ci-only.skip"}
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate(5555, [pkg])
+    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == []
     assert invalid == []
 
@@ -178,8 +169,18 @@ def test_check_fragments_no_source_changes_means_no_required_fragment(tmp_path):
     pkg = _pkg_under(tmp_path, "isaaclab")
     changed = {"docs/something.rst"}  # not under source/isaaclab/
     added = changed
-    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate(5555, [pkg])
+    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
     assert missing == []
+    assert invalid == []
+
+
+def test_check_fragments_missing_when_source_touched_without_fragment(tmp_path):
+    """If the PR touches a package's source but adds no fragment, the package is missing."""
+    pkg = _pkg_under(tmp_path, "isaaclab")
+    changed = {"source/isaaclab/code.py"}
+    added = changed
+    missing, invalid = cli.PRDiff(changed=changed, added=added).evaluate([pkg])
+    assert missing == ["isaaclab"]
     assert invalid == []
 
 

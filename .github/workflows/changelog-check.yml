@@ -45,9 +45,4 @@ jobs:
         run: git fetch origin ${{ steps.base.outputs.ref }}
 
       - name: Verify changelog fragments
-        run: |
-          PR_FLAG=""
-          if [ -n "${{ github.event.number }}" ]; then
-            PR_FLAG="--pr ${{ github.event.number }}"
-          fi
-          python3 tools/changelog/cli.py check ${{ steps.base.outputs.ref }} $PR_FLAG
+        run: python3 tools/changelog/cli.py check ${{ steps.base.outputs.ref }}

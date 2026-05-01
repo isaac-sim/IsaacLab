@@ -12,8 +12,8 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed off-by-one in :meth:`~example.Foo.bar` when the input list was empty.
 * Fixed missing GPU sync in :func:`~example.refresh_buffers` that occasionally returned stale data.
+* Fixed off-by-one in :meth:`~example.Foo.bar` when the input list was empty.
 
 
 1.2.3 (2026-01-15)

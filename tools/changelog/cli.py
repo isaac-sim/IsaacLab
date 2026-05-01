@@ -5,16 +5,17 @@
 
 """Manage changelog fragments — single entry point with two subcommands.
 
-Each PR drops a fragment under ``source/<package>/changelog.d/<pr>.rst``.
-The file mirrors the RST that will appear in the changelog — one or
-more section headings (``Added``, ``Changed``, ``Deprecated``,
-``Removed``, ``Fixed``) each underlined with ``^``. The **filename
-suffix** declares the bump tier:
+Each PR drops a fragment under ``source/<package>/changelog.d/<slug>.rst``.
+The slug is any short, unique name — the contributor's branch name (with
+``/`` replaced by ``-``) is the recommended default. The file mirrors
+the RST that will appear in the changelog — one or more section headings
+(``Added``, ``Changed``, ``Deprecated``, ``Removed``, ``Fixed``) each
+underlined with ``^``. The **filename suffix** declares the bump tier:
 
-- ``<pr>.rst`` — patch bump.
-- ``<pr>.minor.rst`` — minor bump.
-- ``<pr>.major.rst`` — major bump.
-- ``<pr>.skip`` — no entry, no bump.
+- ``<slug>.rst`` — patch bump.
+- ``<slug>.minor.rst`` — minor bump.
+- ``<slug>.major.rst`` — major bump.
+- ``<slug>.skip`` — no entry, no bump.
 
 When a batch compiles together, the highest declared bump wins for the
 package (one ``.major.rst`` anywhere → major).
@@ -31,10 +32,7 @@ Usage:
 
     # ── check ─────────────────────────────────────────────────────
     # CI invocation on every pull_request:
-    cli.py check <base-branch> --pr <N>
-
-    # Local sanity check (skips the per-PR-number rule):
-    cli.py check develop
+    cli.py check <base-branch>
 
     # ── compile ───────────────────────────────────────────────────
     # Normal release-time invocation — bump every managed package
@@ -74,12 +72,15 @@ from typing import ClassVar
 REPO_ROOT = Path(__file__).parent.parent.parent
 PACKAGES_ROOT = REPO_ROOT / "source"
 
-# Recognised fragment filename patterns. ``<n>`` is the PR number. These
-# regexes live at module level because three classes (Fragment, FragmentBatch,
-# PRDiff) all match against them — they are the wire-format contract between
+# Recognised fragment filename patterns. ``<slug>`` is any short identifier
+# the contributor chose — typically their branch name with ``/`` replaced by
+# ``-``. The slug must not contain ``.`` (reserved for the tier suffix) or
+# ``/`` (path separator), but otherwise mirrors what git allows in a ref name.
+# These regexes live at module level because Fragment, FragmentBatch, and
+# PRDiff all match against them — they are the wire-format contract between
 # contributors and the gate.
-FRAGMENT_RE = re.compile(r"^(?P<pr>\d+)(?:\.(?P<bump>minor|major))?\.rst$")
-SKIP_RE = re.compile(r"^(?P<pr>\d+)\.skip$")
+FRAGMENT_RE = re.compile(r"^(?P<slug>[^./][^./]*)(?:\.(?P<bump>minor|major))?\.rst$")
+SKIP_RE = re.compile(r"^(?P<slug>[^./][^./]*)\.skip$")
 
 
 def _display_path(p: Path) -> str:
@@ -177,10 +178,6 @@ class Fragment:
             return self._match.group("bump")
         return "patch"
 
-    @property
-    def pr_number(self) -> int | None:
-        return int(self._match.group("pr")) if self._match else None
-
     def parse(self) -> dict[str, list[str]]:
         """Return ``{section: [lines]}`` from this fragment's content.
 
@@ -230,16 +227,16 @@ class Fragment:
         return lines
 
     @staticmethod
-    def parse_pr_number(filename: str) -> int | None:
-        """Return the PR number declared by a fragment / skip filename, or ``None``.
+    def parse_slug(filename: str) -> str | None:
+        """Return the slug declared by a fragment / skip filename, or ``None``.
 
-        Used by :class:`PRDiff` to compare a raw diff entry's basename against
-        the current PR's number, without needing to materialise a
-        :class:`Fragment` (the file may not exist on disk for renamed
-        entries).
+        Used by :class:`PRDiff` to detect collisions between an added
+        fragment's slug and an existing fragment in the same directory,
+        without needing to materialise a :class:`Fragment` (the diff entry
+        may not exist on disk yet during a gate run).
         """
         m = FRAGMENT_RE.match(filename) or SKIP_RE.match(filename)
-        return int(m.group("pr")) if m else None
+        return m.group("slug") if m else None
 
     def merge_time(self) -> int:
         """Unix timestamp of the merge commit that introduced this fragment.
@@ -275,8 +272,9 @@ class Fragment:
         """
         if not self.is_valid_filename:
             return (
-                "invalid filename — must be <pr-number>.rst, <pr-number>.minor.rst, "
-                "<pr-number>.major.rst, or <pr-number>.skip"
+                "invalid filename — must be <slug>.rst, <slug>.minor.rst, "
+                "<slug>.major.rst, or <slug>.skip (slug = your branch name "
+                "with `/` replaced by `-`, no dots)"
             )
         if not self.path.exists():
             # Deleted fragments don't need validating (consumed by a previous compile).
@@ -354,7 +352,10 @@ class FragmentBatch:
                 valid.append(f)
             else:
                 invalid.append(p)
-        valid.sort(key=lambda f: f.merge_time())
+        # Sort by merge time, breaking ties on filename so the compiled output
+        # is deterministic when fragments share a merge commit (or when none
+        # are in git history yet — e.g. a local dry-run against test fixtures).
+        valid.sort(key=lambda f: (f.merge_time(), f.name))
         return cls(valid, invalid, skips)
 
     # ---- Queries against this batch's state ---------------------------
@@ -582,7 +583,7 @@ class Package:
         for p in batch.invalid:
             print(
                 f"  WARNING: {_display_path(p)} does not match any recognised fragment "
-                "pattern (<n>.rst, <n>.minor.rst, <n>.major.rst, <n>.skip) — skipping.",
+                "pattern (<slug>.rst, <slug>.minor.rst, <slug>.major.rst, <slug>.skip) — skipping.",
                 file=sys.stderr,
             )
 
@@ -688,7 +689,6 @@ class PRDiff:
 
     def evaluate(
         self,
-        pr: int | None,
         packages: list[Package],
     ) -> tuple[list[str], list[tuple[str, str]]]:
         """Apply the PR-gate rules and return ``(missing_packages, invalid_fragments)``.
@@ -703,15 +703,17 @@ class PRDiff:
            (recognised section headings + at least one bullet). ``.skip`` and
            ``.gitkeep`` are exempt.
 
-        3. **Required fragment per touched package** — when ``pr`` is set,
-           for each managed package the PR touches in ``source/`` (outside
-           ``changelog.d/``), the PR must *add* at least one fragment whose
-           filename declares the same PR number. Fragments from other PRs
-           (chained-PR artifacts, where the parent PR's fragment shows up
-           in this PR's diff because both PRs target develop) are accepted
-           but do not satisfy the requirement. When ``pr`` is ``None`` the
-           rule degrades to "any valid fragment counts" for ad-hoc local
-           runs.
+        3. **Slug uniqueness** — within a package's ``changelog.d/``, no two
+           fragments may share the same slug. If an added fragment's slug
+           collides with an existing or co-added fragment, fail with a hint
+           to rename (e.g. append ``-2``).
+
+        4. **Required fragment per touched package** — for each managed
+           package the PR touches in ``source/`` (outside ``changelog.d/``),
+           the PR must *add* at least one valid fragment to that package's
+           ``changelog.d/``. Chained PRs (parent PR's fragment shows up in
+           the child's diff) naturally satisfy this — slug uniqueness is
+           the only constraint that matters.
         """
         missing: list[str] = []
         invalid_fragments: list[tuple[str, str]] = []
@@ -723,6 +725,20 @@ class PRDiff:
             source_changed = [f for f in self.changed if f.startswith(pkg_prefix) and not f.startswith(changelog_dir)]
             fragment_changes = [f for f in self.changed if f.startswith(changelog_dir)]
 
+            # Map existing fragments in the package's changelog.d/ by slug,
+            # for the uniqueness check below. Skip ``.gitkeep`` and unrecognised
+            # filenames — they can't collide with a slug.
+            existing_slugs: dict[str, str] = {}
+            existing_dir = pkg.default_fragment_dir
+            if existing_dir.is_dir():
+                for p in existing_dir.iterdir():
+                    if p.is_dir() or p.name == ".gitkeep":
+                        continue
+                    slug = Fragment.parse_slug(p.name)
+                    if slug is not None:
+                        existing_slugs[slug] = p.name
+
+            added_slugs: dict[str, str] = {}
             for f in fragment_changes:
                 path = Path(f)
                 if path.name == ".gitkeep":
@@ -731,7 +747,11 @@ class PRDiff:
                 # Rule 1: immutability — modifying an existing fragment is forbidden.
                 if f not in self.added:
                     invalid_fragments.append(
-                        (f, "fragments are immutable — add a new <pr>.rst instead of editing an existing one")
+                        (
+                            f,
+                            "fragments are immutable — add a new fragment with a different slug "
+                            "instead of editing an existing one",
+                        )
                     )
                     continue
 
@@ -740,21 +760,45 @@ class PRDiff:
                     err = Fragment(REPO_ROOT / f).validate()
                     if err:
                         invalid_fragments.append((f, err))
+                        continue
+
+                # Rule 3: slug uniqueness within the package's changelog.d/.
+                slug = Fragment.parse_slug(path.name)
+                if slug is None:
+                    # Filename validation already flagged this above for *.rst,
+                    # but a malformed *.skip would slip through. Surface it.
+                    invalid_fragments.append(
+                        (f, "invalid filename — must be <slug>.rst, <slug>.minor.rst, <slug>.major.rst, or <slug>.skip")
+                    )
+                    continue
+                if slug in existing_slugs and existing_slugs[slug] != path.name:
+                    invalid_fragments.append(
+                        (
+                            f,
+                            f"slug {slug!r} collides with existing fragment "
+                            f"{existing_slugs[slug]!r} — rename to {slug}-2 (or any unused slug)",
+                        )
+                    )
+                    continue
+                if slug in added_slugs and added_slugs[slug] != path.name:
+                    invalid_fragments.append(
+                        (
+                            f,
+                            f"slug {slug!r} collides with another added fragment "
+                            f"{added_slugs[slug]!r} — rename one to {slug}-2 (or any unused slug)",
+                        )
+                    )
+                    continue
+                added_slugs[slug] = path.name
 
             if not source_changed:
                 continue
 
-            # Rule 3: this PR must own at least one fragment for the package.
+            # Rule 4: this PR must add at least one valid fragment for the package.
             owned = [
                 f
                 for f in fragment_changes
-                if f in self.added
-                and (
-                    pr is None
-                    and (FRAGMENT_RE.match(Path(f).name) or SKIP_RE.match(Path(f).name))
-                    or pr is not None
-                    and Fragment.parse_pr_number(Path(f).name) == pr
-                )
+                if f in self.added and (FRAGMENT_RE.match(Path(f).name) or SKIP_RE.match(Path(f).name))
             ]
             if not owned:
                 missing.append(pkg.name)
@@ -823,7 +867,7 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
         print(f"ERROR: git diff failed: {e.stderr}", file=sys.stderr)
         return 1
 
-    missing, invalid_fragments = diff.evaluate(args.pr, Package.discover())
+    missing, invalid_fragments = diff.evaluate(Package.discover())
 
     if invalid_fragments:
         print("::error::Invalid changelog fragment(s) in this PR:")
@@ -836,12 +880,14 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
         print("::error::Missing changelog fragments for the following packages:")
         for pkg_name in missing:
             print(f"  • {pkg_name}")
-            print(f"    → add  source/{pkg_name}/changelog.d/<pr-number>.rst         (patch bump)")
-            print(f"    → or   source/{pkg_name}/changelog.d/<pr-number>.minor.rst   (minor bump)")
-            print(f"    → or   source/{pkg_name}/changelog.d/<pr-number>.major.rst   (major bump)")
-            print(f"    → or   source/{pkg_name}/changelog.d/<pr-number>.skip        (no entry, no bump)")
+            print(f"    → add  source/{pkg_name}/changelog.d/<slug>.rst         (patch bump)")
+            print(f"    → or   source/{pkg_name}/changelog.d/<slug>.minor.rst   (minor bump)")
+            print(f"    → or   source/{pkg_name}/changelog.d/<slug>.major.rst   (major bump)")
+            print(f"    → or   source/{pkg_name}/changelog.d/<slug>.skip        (no entry, no bump)")
         print()
-        print("Fragment format (source/<pkg>/changelog.d/<pr-number>[.minor|.major].rst):")
+        print("Slug = your branch name with `/` replaced by `-` (or any short, unique name).")
+        print()
+        print("Fragment format (source/<pkg>/changelog.d/<slug>[.minor|.major].rst):")
         print()
         print("    Added")
         print("    ^^^^^")
@@ -942,20 +988,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Base branch to diff against (e.g. 'main' or 'develop'). "
             "The diff is taken against ``origin/<base_ref>...HEAD``."
-        ),
-    )
-    p_check.add_argument(
-        "--pr",
-        type=int,
-        default=None,
-        metavar="N",
-        help=(
-            "PR number for this run. When set, this PR must add at least one "
-            "fragment whose filename declares PR ``N`` (e.g. ``N.rst``) per "
-            "managed package it touches in source/. Fragments declaring other "
-            "PR numbers are tolerated as chained-PR artifacts. Modifying or "
-            "renaming an existing fragment is always rejected (immutability). "
-            "Pass via ``--pr ${{ github.event.number }}`` from CI."
         ),
     )
 

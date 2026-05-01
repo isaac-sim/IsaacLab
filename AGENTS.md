@@ -90,14 +90,14 @@ Proper workflow:
 ## Changelog
 
 - **Do not edit `CHANGELOG.rst` or `config/extension.toml` directly.** Each PR adds a fragment file under `source/<package>/changelog.d/`; the changelog and version are compiled by the nightly CI workflow.
-- **Add one fragment per touched package.** The filename suffix declares the bump tier; within a batch the highest tier wins for the package.
+- **Add one fragment per touched package.** Pick any short, unique slug for the filename — your branch name (with `/` replaced by `-`) is a good default. The filename suffix declares the bump tier; within a batch the highest tier wins for the package.
 
   | Filename | Effect |
   |---|---|
-  | `source/<pkg>/changelog.d/<pr-number>.rst` | patch bump |
-  | `source/<pkg>/changelog.d/<pr-number>.minor.rst` | minor bump |
-  | `source/<pkg>/changelog.d/<pr-number>.major.rst` | major bump |
-  | `source/<pkg>/changelog.d/<pr-number>.skip` | no entry, no bump (CI / docs / test-only) |
+  | `source/<pkg>/changelog.d/<slug>.rst` | patch bump |
+  | `source/<pkg>/changelog.d/<slug>.minor.rst` | minor bump |
+  | `source/<pkg>/changelog.d/<slug>.major.rst` | major bump |
+  | `source/<pkg>/changelog.d/<slug>.skip` | no entry, no bump (CI / docs / test-only) |
 
 - Use **past tense** matching the section header: "Added X", "Fixed Y", "Changed Z".
 - Place entries under the correct category: `Added`, `Changed`, `Deprecated`, `Removed`, or `Fixed`.
