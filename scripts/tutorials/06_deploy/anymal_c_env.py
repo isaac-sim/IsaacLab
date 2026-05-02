@@ -71,9 +71,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()
-        self._processed_actions = self.cfg.action_scale * self._actions + wp.to_torch(
-            self._robot.data.default_joint_pos
-        )
+        self._processed_actions = self.cfg.action_scale * self._actions + self._robot.data.default_joint_pos.torch
         # start LEAPP annotations for outputs
         annotate.update_state(self.spec.id, {"previous_actions": actions})
         annotate.output_tensors(self.spec.id, {"processed_actions": self._processed_actions}, export_with="onnx-dynamo")
@@ -87,25 +85,23 @@ class AnymalCEnv(DirectRLEnv):
         height_data = None
         if isinstance(self.cfg, AnymalCRoughEnvCfg):
             height_data = (
-                self._height_scanner.data.pos_w[:, 2].unsqueeze(1) - self._height_scanner.data.ray_hits_w[..., 2] - 0.5
+                self._height_scanner.data.pos_w.torch[:, 2].unsqueeze(1)
+                - self._height_scanner.data.ray_hits_w.torch[..., 2]
+                - 0.5
             ).clip(-1.0, 1.0)
         # start LEAPP annotations for inputs
         # NOTE: height data is not used by the flat policy. not needed for this example
-        root_lin_vel_b = annotate.input_tensors(
-            self.spec.id, {"root_lin_vel_b": wp.to_torch(self._robot.data.root_lin_vel_b)}
-        )
-        root_ang_vel_b = annotate.input_tensors(
-            self.spec.id, {"root_ang_vel_b": wp.to_torch(self._robot.data.root_ang_vel_b)}
-        )
+        root_lin_vel_b = annotate.input_tensors(self.spec.id, {"root_lin_vel_b": self._robot.data.root_lin_vel_b.torch})
+        root_ang_vel_b = annotate.input_tensors(self.spec.id, {"root_ang_vel_b": self._robot.data.root_ang_vel_b.torch})
         projected_gravity_b = annotate.input_tensors(
-            self.spec.id, {"projected_gravity_b": wp.to_torch(self._robot.data.projected_gravity_b)}
+            self.spec.id, {"projected_gravity_b": self._robot.data.projected_gravity_b.torch}
         )
         commands = annotate.input_tensors(self.spec.id, {"commands": self._commands})
-        joint_pos = annotate.input_tensors(self.spec.id, {"joint_pos": wp.to_torch(self._robot.data.joint_pos)})
+        joint_pos = annotate.input_tensors(self.spec.id, {"joint_pos": self._robot.data.joint_pos.torch})
         default_joint_pos = annotate.input_tensors(
-            self.spec.id, {"default_joint_pos": wp.to_torch(self._robot.data.default_joint_pos)}
+            self.spec.id, {"default_joint_pos": self._robot.data.default_joint_pos.torch}
         )
-        joint_vel = annotate.input_tensors(self.spec.id, {"joint_vel": wp.to_torch(self._robot.data.joint_vel)})
+        joint_vel = annotate.input_tensors(self.spec.id, {"joint_vel": self._robot.data.joint_vel.torch})
         previous_actions = annotate.state_tensors(self.spec.id, {"previous_actions": self._actions})
         # end LEAPP annotations for inputs
 
@@ -131,28 +127,28 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_rewards(self) -> torch.Tensor:
         lin_vel_error = torch.sum(
-            torch.square(self._commands[:, :2] - wp.to_torch(self._robot.data.root_lin_vel_b)[:, :2]), dim=1
+            torch.square(self._commands[:, :2] - self._robot.data.root_lin_vel_b.torch[:, :2]), dim=1
         )
         lin_vel_error_mapped = torch.exp(-lin_vel_error / 0.25)
-        yaw_rate_error = torch.square(self._commands[:, 2] - wp.to_torch(self._robot.data.root_ang_vel_b)[:, 2])
+        yaw_rate_error = torch.square(self._commands[:, 2] - self._robot.data.root_ang_vel_b.torch[:, 2])
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
-        z_vel_error = torch.square(wp.to_torch(self._robot.data.root_lin_vel_b)[:, 2])
-        ang_vel_error = torch.sum(torch.square(wp.to_torch(self._robot.data.root_ang_vel_b)[:, :2]), dim=1)
-        joint_torques = torch.sum(torch.square(wp.to_torch(self._robot.data.applied_torque)), dim=1)
-        joint_accel = torch.sum(torch.square(wp.to_torch(self._robot.data.joint_acc)), dim=1)
+        z_vel_error = torch.square(self._robot.data.root_lin_vel_b.torch[:, 2])
+        ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b.torch[:, :2]), dim=1)
+        joint_torques = torch.sum(torch.square(self._robot.data.applied_torque.torch), dim=1)
+        joint_accel = torch.sum(torch.square(self._robot.data.joint_acc.torch), dim=1)
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
-        first_contact = wp.to_torch(self._contact_sensor.compute_first_contact(self.step_dt))[:, self._feet_ids]
-        last_air_time = wp.to_torch(self._contact_sensor.data.last_air_time)[:, self._feet_ids]
+        first_contact = self._contact_sensor.compute_first_contact(self.step_dt).torch[:, self._feet_ids]
+        last_air_time = self._contact_sensor.data.last_air_time.torch[:, self._feet_ids]
         air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
             torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1
         )
-        net_contact_forces = wp.to_torch(self._contact_sensor.data.net_forces_w_history)
+        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
         is_contact = (
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0]
             > 1.0
         )
         contacts = torch.sum(is_contact, dim=1)
-        flat_orientation = torch.sum(torch.square(wp.to_torch(self._robot.data.projected_gravity_b)[:, :2]), dim=1)
+        flat_orientation = torch.sum(torch.square(self._robot.data.projected_gravity_b.torch[:, :2]), dim=1)
 
         rewards = {
             "track_lin_vel_xy_exp": lin_vel_error_mapped * self.cfg.lin_vel_reward_scale * self.step_dt,
@@ -173,7 +169,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        net_contact_forces = wp.to_torch(self._contact_sensor.data.net_forces_w_history)
+        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
         died = torch.any(
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1
         )
@@ -182,6 +178,7 @@ class AnymalCEnv(DirectRLEnv):
     def _reset_idx(self, env_ids: torch.Tensor | None):
         if env_ids is None or len(env_ids) == self.num_envs:
             env_ids = wp.to_torch(self._robot._ALL_INDICES)
+        assert env_ids is not None
         self._robot.reset(env_ids)
         super()._reset_idx(env_ids)
         if len(env_ids) == self.num_envs:
@@ -189,10 +186,10 @@ class AnymalCEnv(DirectRLEnv):
         self._actions[env_ids] = 0.0
         self._previous_actions[env_ids] = 0.0
         self._commands[env_ids] = torch.zeros_like(self._commands[env_ids]).uniform_(-1.0, 1.0)
-        joint_pos = wp.to_torch(self._robot.data.default_joint_pos)[env_ids]
-        joint_vel = wp.to_torch(self._robot.data.default_joint_vel)[env_ids]
-        default_root_pose = wp.to_torch(self._robot.data.default_root_pose)[env_ids]
-        default_root_vel = wp.to_torch(self._robot.data.default_root_vel)[env_ids]
+        joint_pos = self._robot.data.default_joint_pos.torch[env_ids]
+        joint_vel = self._robot.data.default_joint_vel.torch[env_ids]
+        default_root_pose = self._robot.data.default_root_pose.torch[env_ids]
+        default_root_vel = self._robot.data.default_root_vel.torch[env_ids]
         default_root_pose[:, :3] += self._terrain.env_origins[env_ids]
         self._robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self._robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
