@@ -625,6 +625,7 @@ def gather_jacobian_rows(
     src: wp.array4d(dtype=wp.float32),
     art_ids: wp.array(dtype=wp.int32),
     link_offset: wp.int32,
+    dof_offset: wp.int32,
     dst: wp.array4d(dtype=wp.float32),
 ):
     """Copy per-view articulation jacobian rows from a model-sized buffer into a view-sized buffer.
@@ -637,10 +638,14 @@ def gather_jacobian_rows(
     caller-facing :meth:`~isaaclab.assets.BaseArticulation.get_jacobians` contract
     ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)`` is preserved.
 
-    For fixed-base articulations Newton fills row 0 with the fixed root joint
-    (zero motion subspace). The PhysX contract excludes that row and reindexes
-    bodies by ``-1``. Pass ``link_offset=1`` to skip the fixed root; pass
-    ``link_offset=0`` for floating-base articulations.
+    For fixed-base articulations Newton fills link row 0 with the fixed root joint
+    (zero motion subspace). For floating-base articulations Newton fills the first
+    6 DoF columns with the free root joint, which the IsaacLab Newton view excludes
+    via ``exclude_joint_types=[FREE, FIXED]``. The view's contract drops both: the
+    PhysX-equivalent shape is ``num_jacobi_bodies = max_links - link_offset`` and
+    ``num_jacobi_joints = max_dofs - dof_offset``. Pass ``link_offset=1`` /
+    ``dof_offset=0`` for fixed-base; ``link_offset=0`` / ``dof_offset=6`` for
+    floating-base.
 
     The gather is in-place on a pre-allocated ``dst`` buffer, so the kernel launch
     is safe under CUDA graph capture.
@@ -653,35 +658,46 @@ def gather_jacobian_rows(
         link_offset: Constant offset added to the destination link index when
             reading from ``src``. ``1`` for fixed-base views, ``0`` for
             floating-base.
+        dof_offset: Constant offset added to the destination DoF index when
+            reading from ``src``. ``0`` for fixed-base views, ``6`` for
+            floating-base (skips the free-root joint's 6 columns).
         dst: Output jacobian buffer for this view. Shape is
             (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), where
-            ``num_jacobi_bodies = max_links - link_offset``.
+            ``num_jacobi_bodies = max_links - link_offset`` and
+            ``num_jacobi_joints = max_dofs - dof_offset``.
     """
     i, link, s, d = wp.tid()
-    dst[i, link, s, d] = src[art_ids[i], link + link_offset, s, d]
+    dst[i, link, s, d] = src[art_ids[i], link + link_offset, s, d + dof_offset]
 
 
 @wp.kernel
 def gather_mass_matrix_rows(
     src: wp.array3d(dtype=wp.float32),
     art_ids: wp.array(dtype=wp.int32),
+    dof_offset: wp.int32,
     dst: wp.array3d(dtype=wp.float32),
 ):
     """Copy per-view articulation mass-matrix rows from a model-sized buffer into a view-sized buffer.
 
     3-D analogue of :func:`gather_jacobian_rows` for the joint-space mass
-    matrix written by :func:`newton.sim.articulation.eval_mass_matrix`.
+    matrix written by :func:`newton.sim.articulation.eval_mass_matrix`. The
+    same ``dof_offset`` shift is applied on both axes (the mass matrix is a
+    symmetric square in DoF space).
 
     Args:
         src: Input mass-matrix buffer. Shape is
             (model.articulation_count, max_dofs, max_dofs).
         art_ids: Model-level articulation indices owned by this view. Shape is
             (num_instances,).
+        dof_offset: Constant offset added to both row and column indices when
+            reading from ``src``. ``0`` for fixed-base; ``6`` for floating-base
+            (skips the free-root joint's 6 rows/columns).
         dst: Output mass-matrix buffer for this view. Shape is
-            (num_instances, max_dofs, max_dofs).
+            (num_instances, num_jacobi_joints, num_jacobi_joints), where
+            ``num_jacobi_joints = max_dofs - dof_offset``.
     """
     i, r, c = wp.tid()
-    dst[i, r, c] = src[art_ids[i], r, c]
+    dst[i, r, c] = src[art_ids[i], r + dof_offset, c + dof_offset]
 
 
 @wp.kernel

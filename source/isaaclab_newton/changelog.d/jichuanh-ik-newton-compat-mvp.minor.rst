@@ -27,6 +27,23 @@ Added
   frame -- matching the cross-backend
   :meth:`~isaaclab.assets.BaseArticulation.get_jacobians` contract.
 
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.get_jacobians` and
+  :meth:`~isaaclab_newton.assets.Articulation.get_mass_matrix` returning
+  the wrong DoF columns for floating-base articulations. The IsaacLab
+  Newton view is constructed with ``exclude_joint_types=[FREE, FIXED]``
+  so its joint count excludes the free-root joint, but Newton's
+  :func:`newton.eval_jacobian` and :func:`newton.eval_mass_matrix`
+  write the full articulation buffer with the free-root's 6 DoF columns
+  at the start. The view-sized gather kernels now apply a matching
+  ``dof_offset`` (0 fixed-base, 6 floating-base) so the returned
+  buffers contain only the actuated joints' columns. Fixed-base assets
+  (e.g. the Franka tracking-accuracy tests) are unaffected; floating-
+  base assets (e.g. quadrupeds) previously returned root columns where
+  the action terms expected actuated columns.
+
 Changed
 ^^^^^^^
 

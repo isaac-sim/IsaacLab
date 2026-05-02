@@ -217,7 +217,12 @@ class Articulation(BaseArticulation):
         wp.launch(
             articulation_kernels.gather_jacobian_rows,
             dim=self._jacobian_view_buf.shape,
-            inputs=[self._jacobian_buf, self._jacobian_view_art_ids, self._jacobian_link_offset],
+            inputs=[
+                self._jacobian_buf,
+                self._jacobian_view_art_ids,
+                self._jacobian_link_offset,
+                self._jacobian_dof_offset,
+            ],
             outputs=[self._jacobian_view_buf],
             device=self.device,
         )
@@ -264,7 +269,11 @@ class Articulation(BaseArticulation):
         wp.launch(
             articulation_kernels.gather_mass_matrix_rows,
             dim=self._mass_matrix_view_buf.shape,
-            inputs=[self._mass_matrix_buf, self._jacobian_view_art_ids],
+            inputs=[
+                self._mass_matrix_buf,
+                self._jacobian_view_art_ids,
+                self._jacobian_dof_offset,
+            ],
             outputs=[self._mass_matrix_view_buf],
             device=self.device,
         )
@@ -3434,13 +3443,21 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # View-sized output returned by get_jacobians; matches PhysX shape.
-        # For fixed-base articulations, Newton fills row 0 with the fixed-root
-        # joint (zero motion subspace). PhysX excludes that row and reindexes
-        # bodies by -1. The gather kernel below applies a corresponding offset.
-        # Output buffers are sized using THIS articulation's body / DoF counts
-        # (not the model-wide ``max_*``) so heterogeneous scenes do not
-        # leak zero-padded rows/cols into the returned tensor.
+        # Newton's eval_jacobian writes the model-sized buffer in full
+        # articulation order. The IsaacLab Newton view is constructed with
+        # ``exclude_joint_types=[FREE, FIXED]``, so its joint_dof_count
+        # excludes both the fixed root (0 DoFs) and the free root (6 DoFs),
+        # and link_count excludes the root body row. The two gather kernels
+        # below apply matching offsets when reading from the source buffer:
+        #   link_offset = 1 fixed-base / 0 floating-base (skips the row
+        #     Newton fills with the fixed-root joint's zero motion subspace).
+        #   dof_offset  = 0 fixed-base / 6 floating-base (skips the columns
+        #     Newton fills with the free-root joint's 6 DoFs).
+        # Output buffers are sized using THIS articulation's body / DoF
+        # counts (not the model-wide ``max_*``) so heterogeneous scenes
+        # do not leak zero-padded rows/cols into the returned tensor.
         self._jacobian_link_offset = 1 if self.is_fixed_base else 0
+        self._jacobian_dof_offset = 0 if self.is_fixed_base else 6
         num_jacobi_bodies = self.num_bodies - self._jacobian_link_offset
         self._jacobian_view_buf = wp.zeros(
             (self.num_instances, num_jacobi_bodies, 6, self.num_joints),
