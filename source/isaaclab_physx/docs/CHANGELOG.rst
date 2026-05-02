@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.30 (2026-05-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Mirrors the same OSC-test fix from ``isaaclab_newton`` 0.5.28: feed
+  OSC ``J · q_dot`` for the end-effector velocity so its damping term
+  engages, and assert on the tail mean (not min). Threshold tightened
+  to 5 mm.
+
 0.5.29 (2026-05-01)
 ~~~~~~~~~~~~~~~~~~~
 

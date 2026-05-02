@@ -252,6 +252,20 @@ def _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids):
     return jacobian
 
 
+def _compute_ee_vel_root(jacobian_b, joint_vel):
+    """Return the EE 6D velocity in the root frame as ``J · q_dot``.
+
+    Required to make OSC's ``kd * ee_vel_b`` damping term meaningful.
+    Passing zero EE velocity (the convenient hack) leaves the impedance
+    undamped and the EE oscillates around the target. ``J · q_dot``
+    avoids relying on ``data.body_vel_w`` (Newton's lazy velocity
+    buffers can return stale/zero values until forced materialization),
+    keeping the helper backend-symmetric. ``J`` correctness is pinned
+    independently by ``test_get_jacobians_link_origin_contract``.
+    """
+    return torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
+
+
 def _build_relative_pose_target(robot, ee_frame_idx, delta_xyz, device):
     """Build a target pose = (current EE pose) + ``delta_xyz``, preserving orientation."""
     initial_ee_pos_b, initial_ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
@@ -2609,11 +2623,11 @@ def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_ena
 
     print(f"IK_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
 
-    # Threshold matched to the Newton-side test (5 mm / 0.05 rad). PhysX
-    # historically achieves sub-mm here; the slightly looser bound just
-    # absorbs run-to-run variance.
-    assert pos_min < 5e-3, f"IK pos_min {pos_min:.5f} > 5 mm — bridge regression?"
-    assert rot_min < 5e-2, f"IK rot_min {rot_min:.5f} > 0.05 rad — bridge regression?"
+    # Assert on tail mean (not min) so an oscillating envelope can't
+    # squeeze through. Threshold matched to the Newton-side test
+    # (5 mm / 0.05 rad).
+    assert pos_mean < 5e-3, f"IK pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
+    assert rot_mean < 5e-2, f"IK rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -2649,12 +2663,13 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
 
     pos_history: list[float] = []
     rot_history: list[float] = []
-    ee_vel_b = torch.zeros(1, 6, device=device)
     for _ in range(800):
         jacobian_b = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
         mass_matrix = wp.to_torch(robot.get_mass_matrix())[:, arm_joint_ids, :][:, :, arm_joint_ids]
         ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
         ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+        joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+        ee_vel_b = _compute_ee_vel_root(jacobian_b, joint_vel)
 
         osc.set_command(target_pose_b, current_ee_pose_b=ee_pose_b)
         joint_efforts = osc.compute(
@@ -2679,9 +2694,11 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
 
     print(f"OSC_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
 
-    # Threshold matches the Newton-side test (2 cm / 0.2 rad).
-    assert pos_min < 2e-2, f"OSC pos_min {pos_min:.5f} > 2 cm — bridge regression?"
-    assert rot_min < 2e-1, f"OSC rot_min {rot_min:.5f} > 0.2 rad — bridge regression?"
+    # Assert on tail mean. Threshold matched to the Newton-side test
+    # (5 mm / 0.05 rad). Both backends converge to machine precision
+    # with proper ee-velocity feedback (``J · q_dot``).
+    assert pos_mean < 5e-3, f"OSC pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
+    assert rot_mean < 5e-2, f"OSC rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
 
 
 if __name__ == "__main__":

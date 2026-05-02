@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+0.5.28 (2026-05-02)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* OSC accuracy test now feeds OSC the actual end-effector velocity
+  (computed as ``J · q_dot``, not ``zeros``) so OSC's ``kd · v`` damping
+  term engages. With damping active, OSC converges to machine
+  precision on the 5 cm Cartesian step instead of oscillating around
+  the target. Both accuracy tests now assert on the tail mean rather
+  than the tail min (the latter is the bottom of any oscillation
+  envelope and can pass spuriously). OSC threshold tightened from
+  2 cm/min to 5 mm/mean.
+
 0.5.27 (2026-05-01)
 ~~~~~~~~~~~~~~~~~~~
 

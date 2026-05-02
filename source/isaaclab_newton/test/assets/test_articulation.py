@@ -424,6 +424,21 @@ def _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids):
     return jacobian
 
 
+def _compute_ee_vel_root(jacobian_b, joint_vel):
+    """Return the EE 6D velocity in the root frame as ``J · q_dot``.
+
+    Required to make OSC's ``kd * ee_vel_b`` damping term meaningful.
+    Passing zero EE velocity (the convenient hack) leaves the impedance
+    undamped and the EE oscillates around the target. We use ``J · q_dot``
+    rather than reading ``data.body_vel_w`` because Newton's lazy
+    velocity buffers can return stale/zero values until forced
+    materialization, while ``joint_vel`` and ``J`` are already pulled
+    by the loop. ``J`` correctness is pinned independently by
+    ``test_get_jacobians_link_origin_contract``.
+    """
+    return torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
+
+
 def _build_relative_pose_target(robot, ee_frame_idx, delta_xyz, device):
     """Build a target pose = (current EE pose) + ``delta_xyz``, preserving orientation."""
     initial_ee_pos_b, initial_ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
@@ -3049,15 +3064,17 @@ def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_ena
     # Print metrics every run for stress-test capture.
     print(f"IK_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
 
-    # Regression sentinel: 5 mm best-of-tail. With the configured home
-    # pose and scene gravity off, Newton converges to machine precision
-    # (sub-mm) on this 5 cm Cartesian step. The 5 mm bound absorbs any
-    # CUDA-kernel-ordering noise while remaining well below the "totally
-    # broken" regime: a bridge regression (wrong-frame Jacobian, missing
-    # COM->origin shift, DoF mis-ordering) would push the steady-state
-    # error well past this bound.
-    assert pos_min < 5e-3, f"IK pos_min {pos_min:.5f} > 5 mm — bridge regression?"
-    assert rot_min < 5e-2, f"IK rot_min {rot_min:.5f} > 0.05 rad — bridge regression?"
+    # Regression sentinel: assert on tail mean rather than min. Tail
+    # min is the bottom of any oscillation envelope and can be tiny
+    # while the actual tracking error is much larger. With the
+    # configured home pose and scene gravity off, Newton converges to
+    # machine precision (sub-mm). The 5 mm bound absorbs any CUDA-
+    # kernel-ordering noise while remaining well below the "totally
+    # broken" regime: a bridge regression (wrong-frame Jacobian,
+    # missing COM->origin shift, DoF mis-ordering) would push the
+    # steady-state error well past this bound.
+    assert pos_mean < 5e-3, f"IK pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
+    assert rot_mean < 5e-2, f"IK rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -3104,12 +3121,13 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
 
     pos_history: list[float] = []
     rot_history: list[float] = []
-    ee_vel_b = torch.zeros(1, 6, device=device)  # OSC needs vel; use zero (works at low speed).
     for _ in range(800):
         jacobian_b = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
         mass_matrix = wp.to_torch(robot.get_mass_matrix())[:, arm_joint_ids, :][:, :, arm_joint_ids]
         ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
         ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+        joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+        ee_vel_b = _compute_ee_vel_root(jacobian_b, joint_vel)
 
         osc.set_command(target_pose_b, current_ee_pose_b=ee_pose_b)
         joint_efforts = osc.compute(
@@ -3134,18 +3152,16 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
 
     print(f"OSC_METRIC pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
 
-    # Regression sentinel: 2 cm best-of-tail (matches the PhysX-side
-    # test). With the home pose start, zero actuator PD, and no
-    # gravity, both backends settle into a sustained sub-cm oscillation
-    # around the target driven by the critically damped impedance
-    # against ``current_ee_vel_b = 0``. Tighter bounds would require
-    # non-zero ee-velocity feedback or a larger ``motion_stiffness_task``,
-    # neither of which is part of the bridge-pinning contract. A bridge
-    # regression (wrong J, wrong mass matrix, DoF mis-ordering) pushes
-    # the error well past 2 cm because OSC consumes both
-    # ``get_jacobians`` and ``get_mass_matrix`` per step.
-    assert pos_min < 2e-2, f"OSC pos_min {pos_min:.5f} > 2 cm — bridge regression?"
-    assert rot_min < 2e-1, f"OSC rot_min {rot_min:.5f} > 0.2 rad — bridge regression?"
+    # Regression sentinel: assert on tail mean rather than min. With
+    # ``current_ee_vel_b = J · q_dot`` providing OSC's damping term and
+    # the actuator PD zeroed, the impedance settles to machine
+    # precision -- same ballpark as the IK test. The 5 mm bound is a
+    # bridge regression sentinel: a wrong J, wrong mass matrix, or
+    # DoF mis-ordering pushes the steady-state error well past it
+    # because OSC consumes both ``get_jacobians`` and
+    # ``get_mass_matrix`` per step.
+    assert pos_mean < 5e-3, f"OSC pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
+    assert rot_mean < 5e-2, f"OSC rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
 
 
 if __name__ == "__main__":
