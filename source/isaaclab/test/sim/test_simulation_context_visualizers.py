@@ -183,6 +183,9 @@ class _DummyViserSceneDataProvider:
         self.state_calls.append(None)
         return {"state_call": len(self.state_calls)}
 
+    def get_camera_transforms(self):
+        return {}
+
 
 class _DummyViserViewer:
     def __init__(self):
@@ -353,6 +356,9 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
 
         def get_newton_state(self):
             return {"ok": True}
+
+        def get_camera_transforms(self):
+            return {}
 
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(

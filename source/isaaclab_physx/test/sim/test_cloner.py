@@ -552,10 +552,17 @@ def test_disabled_fabric_change_notifies_toggles_ifabricusd_flag(sim):
     assert bindings.is_enabled(fabric_id), "outer exit should restore the flag"
 
 
+@pytest.mark.skip(
+    reason=(
+        "Local-only perf regression; correctness is covered by"
+        " test_disabled_fabric_change_notifies_toggles_ifabricusd_flag."
+        " Re-enable manually when touching listener suspension."
+    )
+)
 def test_disabled_fabric_change_notifies_speedup_regression():
     """Local-only perf regression: listener suspension speeds up clone+reset by >= 1.2x.
 
-    Skipped under ``CI=true`` — the suspension mechanism's correctness is covered by
+    Skipped unconditionally — the suspension mechanism's correctness is covered by
     :func:`test_disabled_fabric_change_notifies_toggles_ifabricusd_flag`; the wall-clock
     win is platform-sensitive (deferred Fabric resync in ``sim.reset`` can offset the
     scene-time savings on some hardware). Re-verify locally when touching the suspension.
@@ -564,7 +571,6 @@ def test_disabled_fabric_change_notifies_speedup_regression():
     ``replicate_physics=True`` is required (drops to ~1.19x without), and 16 bodies x
     4096 envs ≈ 64K firings keeps listener cost above noise. See PR #5432.
     """
-    import os
     import time
 
     import isaaclab.cloner._fabric_notices as fabric_notices_mod
@@ -573,8 +579,6 @@ def test_disabled_fabric_change_notifies_speedup_regression():
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.utils import configclass
 
-    if os.getenv("CI", "").lower() in ("true", "1"):
-        pytest.skip("CI: covered by toggle test; perf is platform-sensitive — re-verify locally")
     if fabric_notices_mod.get_bindings() is None:
         pytest.skip("omni::fabric::IFabricUsd unavailable")
 
