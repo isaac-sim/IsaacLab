@@ -10,4 +10,4 @@
 # Run with: ``./isaaclab.sh -p -m pytest tools/changelog/``
 [tool.pytest.ini_options]
 pythonpath = ["."]
-testpaths = ["tests/cases"]
+testpaths = ["test"]

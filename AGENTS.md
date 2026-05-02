@@ -126,7 +126,7 @@ Key formatting rules:
 - Category heading: underline with `^` (carets), at least as long as the heading text.
 - Entries: `* ` prefix, continuation lines indented by 2 spaces.
 
-See `tools/changelog/tests/fixtures/integration/` for worked examples that double as integration-test fixtures.
+See `tools/changelog/test/integration/` for worked examples that double as integration-test fixtures.
 
 ## Commit and Pull Request Guidelines
 

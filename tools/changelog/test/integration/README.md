@@ -4,7 +4,7 @@ End-to-end test fixtures for `tools/changelog/cli.py compile`. Each
 subdirectory holds a worked example: input fragments, the starting
 `CHANGELOG.rst`, and the expected compiled output.
 
-`tools/changelog/tests/cases/test_integration.py` runs the compiler
+`tools/changelog/test/test_integration.py` runs the compiler
 against each one and asserts the output matches `changelog_after.rst`.
 The fixtures double as human-readable demos — read alongside the PR
 description to see how the system handles patch / minor / major bumps
@@ -26,7 +26,7 @@ Each demo includes a `changelog_before.rst` (initial state) and a
 
 ```bash
 ./isaaclab.sh -p tools/changelog/cli.py compile --package isaaclab \
-    --fragments-dir tools/changelog/tests/fixtures/integration/02_minor_bump/fragments \
+    --fragments-dir tools/changelog/test/integration/02_minor_bump/fragments \
     --dry-run
 ```
 

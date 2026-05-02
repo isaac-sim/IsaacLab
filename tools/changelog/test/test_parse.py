@@ -11,7 +11,7 @@ from pathlib import Path
 
 import cli
 
-FIXTURES = Path(__file__).parent.parent / "fixtures"
+FIXTURES = Path(__file__).parent
 
 
 def _write(path: Path, body: str) -> Path:

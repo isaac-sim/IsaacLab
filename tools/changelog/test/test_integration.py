@@ -20,8 +20,7 @@ from pathlib import Path
 import cli
 import pytest
 
-# tests/cases/<file> → tests → fixtures/integration
-EXAMPLES = Path(__file__).parent.parent / "fixtures" / "integration"
+EXAMPLES = Path(__file__).parent / "integration"
 
 # Strip the ``(YYYY-MM-DD)`` suffix from version headings so the fixed example
 # files don't drift when the compiler stamps today's date.
