@@ -8,10 +8,11 @@ Added
   ``root_view`` accessors directly. Backends without a native
   primitive raise :class:`NotImplementedError`.
 * Added :attr:`~isaaclab.assets.BaseArticulation.num_jacobi_joints`
-  property reporting the size of the Jacobian's joint axis. Defaults
-  to :attr:`~isaaclab.assets.BaseArticulation.num_joints`; backends
-  that prepend floating-base DoFs to the Jacobian without counting
-  them in :attr:`num_joints` (e.g. PhysX floating-base) override.
+  property reporting the size of the Jacobian's joint axis. Concrete
+  with :class:`NotImplementedError` on the base class -- backends
+  declare their own convention. Used by the task-space action terms
+  to translate logical joint indices to Jacobian column indices via
+  ``num_jacobi_joints - num_joints`` (0 or 6).
 
 Changed
 ^^^^^^^

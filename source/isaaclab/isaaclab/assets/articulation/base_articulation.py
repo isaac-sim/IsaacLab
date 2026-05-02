@@ -175,21 +175,19 @@ class BaseArticulation(AssetBase):
 
     @property
     def num_jacobi_joints(self) -> int:
-        """Size of the Jacobian's joint axis (its last dimension).
+        """Size of the joint axis of :meth:`get_jacobians`'s return value.
 
-        For most backends this equals :attr:`num_joints`. Some
-        backends prepend the 6 floating-base DoFs to the Jacobian's
-        joint axis without counting them in :attr:`num_joints`; on
-        those, ``num_jacobi_joints`` is ``num_joints + 6`` for
-        floating-base assets. The default returns :attr:`num_joints`;
-        backends that carry extra leading columns override.
+        Equals :attr:`num_joints` on backends whose Jacobian counts the
+        same DoFs as joint-state buffers. Backends that prepend the 6
+        floating-base DoFs to the Jacobian's joint axis without
+        counting them in :attr:`num_joints` (PhysX floating-base, for
+        example) return ``num_joints + 6``.
 
         To convert a logical joint index (from :meth:`find_joints`)
-        into the matching Jacobian column index, add the difference
-        ``num_jacobi_joints - num_joints`` — ``0`` for the default
-        convention, ``6`` for the prepend-floating-base convention.
+        into the matching Jacobian column index, add
+        ``num_jacobi_joints - num_joints``.
         """
-        return self.num_joints
+        raise NotImplementedError(f"{type(self).__name__} does not implement num_jacobi_joints.")
 
     def get_jacobians(self) -> wp.array:
         """Per-env geometric Jacobians, referenced at each link origin in world frame.

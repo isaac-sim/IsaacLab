@@ -1,6 +1,11 @@
 Added
 ^^^^^
 
+* Added :attr:`~isaaclab_newton.assets.Articulation.num_jacobi_joints`
+  override returning :attr:`num_joints` directly. Newton's
+  ``ArticulationView.joint_dof_count`` already counts the 6
+  floating-base DoFs on floating-base assets, so the Jacobian's
+  joint axis matches :attr:`num_joints`.
 * Added :meth:`~isaaclab_newton.assets.Articulation.get_jacobians`
   and :meth:`~isaaclab_newton.assets.Articulation.get_mass_matrix`
   wrapping ``ArticulationView.eval_jacobian`` and
