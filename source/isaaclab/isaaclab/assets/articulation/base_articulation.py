@@ -173,6 +173,24 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
+    @property
+    def num_jacobi_joints(self) -> int:
+        """Size of the Jacobian's joint axis (its last dimension).
+
+        For most backends this equals :attr:`num_joints`. Some
+        backends prepend the 6 floating-base DoFs to the Jacobian's
+        joint axis without counting them in :attr:`num_joints`; on
+        those, ``num_jacobi_joints`` is ``num_joints + 6`` for
+        floating-base assets. The default returns :attr:`num_joints`;
+        backends that carry extra leading columns override.
+
+        To convert a logical joint index (from :meth:`find_joints`)
+        into the matching Jacobian column index, add the difference
+        ``num_jacobi_joints - num_joints`` — ``0`` for the default
+        convention, ``6`` for the prepend-floating-base convention.
+        """
+        return self.num_joints
+
     def get_jacobians(self) -> wp.array:
         """Per-env geometric Jacobians, referenced at each link origin in world frame.
 
@@ -181,8 +199,8 @@ class BaseArticulation(AssetBase):
 
         .. code-block:: text
 
-            J[:, body_idx, 0:3, :] @ q_dot == data.body_link_lin_vel_w[:, body_idx]
-            J[:, body_idx, 3:6, :] @ q_dot == data.body_link_ang_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 0:3, :] @ q_dot == data.body_link_lin_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 3:6, :] @ q_dot == data.body_link_ang_vel_w[:, body_idx]
 
         Linear rows ``[0:3]`` give the velocity at the link origin (the
         body's USD prim transform / actor frame) in world frame.
@@ -190,17 +208,21 @@ class BaseArticulation(AssetBase):
         world frame. Both share the contract used by
         :attr:`~isaaclab.assets.ArticulationData.body_link_pos_w` and
         :attr:`~isaaclab.assets.ArticulationData.body_link_lin_vel_w`.
+        For fixed-base articulations, ``jacobi_body_idx`` excludes the
+        fixed root body and is therefore ``body_idx - 1``. For
+        floating-base articulations, ``jacobi_body_idx == body_idx``.
 
         Implementations whose native Jacobian is expressed at a
         different reference point (e.g. body center of mass) MUST shift
         the linear rows to the link origin before returning so the
         contract above holds across backends.
 
-        Floating-base joint-dim convention differs across backends:
-        some prepend the floating-base 6 DoFs to the joint dimension,
-        others fold them into the native joint-DoF count. The total
-        joint dimension is the same; only how :attr:`num_joints` is
-        reported differs.
+        The joint-dimension size is reported by
+        :attr:`num_jacobi_joints`. Backends that prepend floating-base
+        DoFs to the Jacobian columns expose the offset implicitly via
+        ``num_jacobi_joints - num_joints``; callers that index into
+        the joint axis should consult that property rather than
+        hard-coding a constant.
 
         Returns:
             The per-env geometric Jacobian. Shape

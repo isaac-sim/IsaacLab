@@ -179,6 +179,13 @@ class Articulation(BaseArticulation):
         """
         return self._root_view
 
+    @property
+    def num_jacobi_joints(self) -> int:
+        # PhysX's Jacobian prepends 6 floating-base columns for floating-base
+        # articulations; ``num_joints`` does not count them. Fixed-base assets
+        # have no prepended columns.
+        return self.num_joints if self.is_fixed_base else self.num_joints + 6
+
     def get_jacobians(self) -> wp.array:
         return self._root_view.get_jacobians()
 

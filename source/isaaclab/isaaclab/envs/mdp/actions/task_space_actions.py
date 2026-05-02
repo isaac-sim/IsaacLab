@@ -77,10 +77,14 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # this means that number of bodies is one less than the articulation's number of bodies
         if self._asset.is_fixed_base:
             self._jacobi_body_idx = self._body_idx - 1
-            self._jacobi_joint_ids = self._joint_ids
         else:
             self._jacobi_body_idx = self._body_idx
-            self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
+        # Map logical joint indices to Jacobian column indices. Some backends
+        # (e.g. PhysX, floating-base) prepend the 6 floating-base DoFs to the
+        # Jacobian's joint axis without counting them in ``num_joints``;
+        # ``num_jacobi_joints - num_joints`` is that leading offset (0 or 6).
+        jacobi_joint_offset = self._asset.num_jacobi_joints - self._asset.num_joints
+        self._jacobi_joint_ids = [i + jacobi_joint_offset for i in self._joint_ids]
 
         # log info for debugging
         logger.info(
@@ -305,10 +309,12 @@ class OperationalSpaceControllerAction(ActionTerm):
         # this means that number of bodies is one less than the articulation's number of bodies
         if self._asset.is_fixed_base:
             self._jacobi_ee_body_idx = self._ee_body_idx - 1
-            self._jacobi_joint_idx = self._joint_ids
         else:
             self._jacobi_ee_body_idx = self._ee_body_idx
-            self._jacobi_joint_idx = [i + 6 for i in self._joint_ids]
+        # See ``DifferentialInverseKinematicsAction.__init__`` for the rationale
+        # behind this offset.
+        jacobi_joint_offset = self._asset.num_jacobi_joints - self._asset.num_joints
+        self._jacobi_joint_idx = [i + jacobi_joint_offset for i in self._joint_ids]
 
         # log info for debugging
         logger.info(
