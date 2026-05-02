@@ -48,7 +48,7 @@ Usage:
 
     # Preview against a worked example without touching real packages:
     cli.py compile --package isaaclab --dry-run \\
-        --fragments-dir examples/changelog/02_minor_bump/fragments
+        --fragments-dir tools/changelog/tests/fixtures/integration/02_minor_bump/fragments
 
 For big version jumps (e.g. ``2.1`` → ``4.7``) edit
 ``source/<pkg>/config/extension.toml`` and prepend a manual entry to
@@ -650,8 +650,8 @@ class Package:
         ``None`` means "use this package's own ``changelog.d/``"; an
         absolute path is used as-is; a relative path is resolved against
         ``REPO_ROOT`` so callers can pass things like
-        ``examples/changelog/01_patch_bump/fragments`` without worrying
-        about the cwd.
+        ``tools/changelog/tests/fixtures/integration/01_patch_bump/fragments``
+        without worrying about the cwd.
         """
         if override is None:
             return self.default_fragment_dir

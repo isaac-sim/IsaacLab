@@ -17,7 +17,7 @@ from pathlib import Path
 import cli
 import pytest
 
-EXAMPLES = Path(__file__).parent.parent.parent.parent.parent / "examples" / "changelog"
+EXAMPLES = Path(__file__).parent.parent / "fixtures" / "integration"
 
 
 # ---------------------------------------------------------------------------

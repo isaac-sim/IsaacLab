@@ -20,8 +20,8 @@ from pathlib import Path
 import cli
 import pytest
 
-# Examples live at the repo root: tests/cases/<file> → tests → changelog → tools → repo
-EXAMPLES = Path(__file__).parent.parent.parent.parent.parent / "examples" / "changelog"
+# tests/cases/<file> → tests → fixtures/integration
+EXAMPLES = Path(__file__).parent.parent / "fixtures" / "integration"
 
 # Strip the ``(YYYY-MM-DD)`` suffix from version headings so the fixed example
 # files don't drift when the compiler stamps today's date.
