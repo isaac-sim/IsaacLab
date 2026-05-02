@@ -79,9 +79,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._jacobi_body_idx = self._body_idx - 1
         else:
             self._jacobi_body_idx = self._body_idx
-        # Some backends (e.g. PhysX, floating-base) prepend 6 floating-base DoFs
-        # to the Jacobian's joint axis without counting them in ``num_joints``;
-        # the asset reports the leading offset to apply (0 or 6).
         self._jacobi_joint_ids = [i + self._asset.joint_to_jacobi_offset for i in self._joint_ids]
 
         # log info for debugging
@@ -309,8 +306,6 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._jacobi_ee_body_idx = self._ee_body_idx - 1
         else:
             self._jacobi_ee_body_idx = self._ee_body_idx
-        # See ``DifferentialInverseKinematicsAction.__init__`` for the rationale
-        # behind this offset.
         self._jacobi_joint_idx = [i + self._asset.joint_to_jacobi_offset for i in self._joint_ids]
 
         # log info for debugging
