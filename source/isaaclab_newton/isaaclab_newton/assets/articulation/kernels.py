@@ -634,10 +634,10 @@ def shift_jacobian_com_to_origin(
 
     Newton's ``eval_jacobian`` returns ``J · q_dot = [v_com_world, omega_world]``
     per link — the linear rows are the velocity of the link's center of mass,
-    expressed in world frame. PhysX (and the IsaacLab task-space controllers
-    that consume :meth:`~isaaclab.assets.BaseArticulation.get_jacobians`) expect
-    the linear rows to be the velocity at the link **origin** (USD prim
-    transform), so that ``J · q_dot[body_idx]`` matches
+    expressed in world frame. The
+    :meth:`~isaaclab.assets.BaseArticulation.get_jacobians` contract
+    requires the linear rows to be the velocity at the link **origin**
+    (USD prim transform) so that ``J · q_dot[body_idx]`` matches
     :attr:`~isaaclab.assets.ArticulationData.body_link_lin_vel_w` /
     :attr:`~isaaclab.assets.ArticulationData.body_link_ang_vel_w`.
 
@@ -648,8 +648,7 @@ def shift_jacobian_com_to_origin(
     the same ``v_origin = v_com - omega x (R · body_com_pos_b)`` identity.
 
     Notes on layout:
-        * Jacobian rows ``[0:3]`` are linear velocity, ``[3:6]`` are angular,
-          matching the IsaacLab convention used by the IK / OSC controllers.
+        * Jacobian rows ``[0:3]`` are linear velocity, ``[3:6]`` are angular.
         * ``body_link_pose`` and ``body_com_pos_b`` are indexed by the
           articulation's full body count, so ``link_offset`` must be applied
           to map a row in the (already-gathered) ``J`` to its body index in

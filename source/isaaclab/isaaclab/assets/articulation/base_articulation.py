@@ -176,110 +176,70 @@ class BaseArticulation(AssetBase):
     def get_jacobians(self) -> wp.array:
         """Per-env geometric Jacobians, referenced at each link origin in world frame.
 
-        Returns the geometric Jacobian ``J`` such that, for any joint-velocity
-        vector ``q_dot`` consistent with the asset's DoF ordering,
+        For any joint-velocity vector ``q_dot`` consistent with the
+        asset's DoF ordering, the returned Jacobian ``J`` satisfies:
 
         .. code-block:: text
 
             J[:, body_idx, 0:3, :] @ q_dot == data.body_link_lin_vel_w[:, body_idx]
             J[:, body_idx, 3:6, :] @ q_dot == data.body_link_ang_vel_w[:, body_idx]
 
-        That is, the linear-velocity rows ``[0:3]`` give the velocity at the
-        link origin (the body's USD prim transform / actor frame), in world
-        frame; the angular rows ``[3:6]`` give the body's angular velocity in
-        world frame. Both share the world-frame contract used by
-        :attr:`~isaaclab.assets.ArticulationData.body_link_pos_w`,
-        :attr:`~isaaclab.assets.ArticulationData.body_link_lin_vel_w`, and the
-        body-offset shift in
-        :class:`~isaaclab.envs.mdp.actions.task_space_actions.DifferentialInverseKinematicsAction`.
+        Linear rows ``[0:3]`` give the velocity at the link origin (the
+        body's USD prim transform / actor frame) in world frame.
+        Angular rows ``[3:6]`` give the body's angular velocity in
+        world frame. Both share the contract used by
+        :attr:`~isaaclab.assets.ArticulationData.body_link_pos_w` and
+        :attr:`~isaaclab.assets.ArticulationData.body_link_lin_vel_w`.
 
-        Backend implementations whose native Jacobian is expressed at a
-        different reference point (e.g. Newton's ``eval_jacobian``, which is
-        center-of-mass referenced) MUST apply the corresponding shift before
-        returning so this contract holds across backends.
+        Implementations whose native Jacobian is expressed at a
+        different reference point (e.g. body center of mass) MUST shift
+        the linear rows to the link origin before returning so the
+        contract above holds across backends.
 
-        Shape is ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)``,
-        where ``num_jacobi_bodies`` excludes the fixed base body (if any) and
-        ``num_jacobi_joints`` is the per-articulation generalized DoF count.
-        Task-space controllers (IK, OSC, RMPFlow) slice this array to extract
-        the end-effector Jacobian.
-
-        .. note::
-            Newton and PhysX implementations differ in how the underlying
-            view exposes the Jacobian. Callers should use this method
-            instead of calling ``root_view.get_jacobians()`` directly,
-            which only works on PhysX.
-
-        .. note::
-            Floating-base joint-dim convention differs across backends.
-            PhysX prepends 6 virtual DoFs to the joint dimension, so its
-            Jacobian shape is ``(N, num_bodies, 6, num_joints + 6)`` where
-            ``num_joints`` counts only the actuated joints. Newton already
-            counts the floating-base joint's 6 DoFs inside
-            ``ArticulationView.joint_dof_count``, so the Newton wrapper
-            returns ``(N, num_bodies, 6, num_joints)``. The total
-            joint-dim is the same on both backends; only how
-            :attr:`num_joints` is reported differs. Floating-base
-            task-space callers should verify their joint indexing against
-            the active backend's DoF ordering.
-
-        This method is concrete with a ``NotImplementedError`` body so
-        out-of-tree backends that subclass ``BaseArticulation`` do not
-        break at instantiation; they fail only when this accessor is
-        actually invoked, matching the deprecation policy in AGENTS.md.
+        Floating-base joint-dim convention differs across backends:
+        some prepend the floating-base 6 DoFs to the joint dimension,
+        others fold them into the native joint-DoF count. The total
+        joint dimension is the same; only how :attr:`num_joints` is
+        reported differs.
 
         Returns:
-            The per-env geometric Jacobian, link-origin referenced, in world
-            frame. Shape
+            The per-env geometric Jacobian. Shape
             ``(num_instances, num_jacobi_bodies, 6, num_jacobi_joints)``,
-            dtype ``float32``. Linear rows ``[0:3]`` [m/s], angular rows
-            ``[3:6]`` [rad/s].
+            dtype ``float32``. Linear rows ``[0:3]`` [m/s], angular
+            rows ``[3:6]`` [rad/s] for unit ``q_dot``.
         """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement get_jacobians."
-            " Concrete IsaacLab backends (PhysX, Newton) override this method."
-        )
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_jacobians.")
 
     def get_mass_matrix(self) -> wp.array:
         """Per-env generalized mass matrix in joint space.
 
-        Used by :class:`~isaaclab.controllers.OperationalSpaceController`
-        when ``inertial_dynamics_decoupling`` is enabled or when
-        ``nullspace_control != "none"``. Backend implementations return
-        shape ``(num_instances, num_jacobi_joints, num_jacobi_joints)``
-        matching the Jacobian's joint-space dimension.
-
-        Concrete with ``NotImplementedError`` for the same backwards-
-        compatibility reason as :meth:`get_jacobians`.
+        Returns the symmetric positive-definite inertia matrix
+        ``M(q)`` of the articulation in its generalized joint
+        coordinates. ``M[i, j]`` is the coefficient relating joint
+        ``j``'s acceleration to the inertial torque on joint ``i`` in
+        the equation of motion ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
 
         Returns:
-            The per-env mass matrix as a Warp array. Shape
+            The per-env mass matrix. Shape
             ``(num_instances, num_jacobi_joints, num_jacobi_joints)``,
-            dtype ``float32``.
+            dtype ``float32`` [kg·m²].
         """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement get_mass_matrix."
-            " Concrete IsaacLab backends (PhysX, Newton) override this method."
-        )
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_mass_matrix.")
 
     def get_gravity_compensation_forces(self) -> wp.array:
-        """Per-env joint-space gravity compensation torques.
+        """Per-env gravity compensation torques in joint space.
 
-        Used by :class:`~isaaclab.controllers.OperationalSpaceController`
-        when ``gravity_compensation`` is enabled. Backends that lack a
-        native primitive (Newton at present) override this method to
-        raise :class:`NotImplementedError`; callers should gate this
-        method behind their own feature flag.
+        Returns ``g(q)`` -- the joint-space gravity-loading term in the
+        equation of motion ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
+        Applying ``tau = g(q)`` at ``q_dot = 0`` with no external load
+        yields ``q_ddot = 0`` (static equilibrium under gravity).
 
         Returns:
-            The per-env gravity-compensation joint torques as a Warp
-            array. Shape ``(num_instances, num_jacobi_joints)``, dtype
-            ``float32``.
+            The per-env gravity-compensation joint torques. Shape
+            ``(num_instances, num_jacobi_joints)``, dtype ``float32``
+            [N·m].
         """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement get_gravity_compensation_forces."
-            " The PhysX backend implements this; Newton does not (no upstream primitive)."
-        )
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_gravity_compensation_forces.")
 
     @property
     @abstractmethod

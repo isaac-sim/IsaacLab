@@ -3315,7 +3315,7 @@ class Articulation(BaseArticulation):
         self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
         self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
 
-        # -- jacobian buffers for task-space controllers (IK, OSC, RMPFlow).
+        # -- jacobian buffers backing :meth:`get_jacobians`.
         # Pre-allocated here (not lazily on first call) for capture safety.
         model = SimulationManager.get_model()
         max_links = model.max_joints_per_articulation
