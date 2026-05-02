@@ -61,10 +61,12 @@ class RMPFlowAction(ActionTerm):
         # this means that number of bodies is one less than the articulation's number of bodies
         if self._asset.is_fixed_base:
             self._jacobi_body_idx = self._body_idx - 1
-            self._jacobi_joint_ids = self._joint_ids
         else:
             self._jacobi_body_idx = self._body_idx
-            self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
+        # See ``DifferentialInverseKinematicsAction.__init__`` for the rationale
+        # behind this offset.
+        jacobi_joint_offset = self._asset.num_jacobi_joints - self._asset.num_joints
+        self._jacobi_joint_ids = [i + jacobi_joint_offset for i in self._joint_ids]
 
         # log info for debugging
         logger.info(

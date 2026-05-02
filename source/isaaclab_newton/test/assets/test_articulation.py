@@ -18,6 +18,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import sys
+from copy import deepcopy
 
 import pytest
 import torch
@@ -465,7 +466,7 @@ def sim(request):
     else:
         add_ground_plane = False  # default to no ground plane
     articulation_type = request.getfixturevalue("articulation_type")
-    sim_cfg = SIM_CFGs[articulation_type]
+    sim_cfg = deepcopy(SIM_CFGs[articulation_type])
     sim_cfg.device = device
     # ``gravity_enabled`` is silently ignored by ``build_simulation_context``
     # when an explicit ``sim_cfg`` is also passed; apply it here so the
