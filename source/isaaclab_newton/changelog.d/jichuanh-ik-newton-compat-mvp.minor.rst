@@ -1,11 +1,12 @@
 Added
 ^^^^^
 
-* Added :attr:`~isaaclab_newton.assets.Articulation.num_jacobi_joints`
-  override returning :attr:`num_joints` directly. Newton's
+* Added :attr:`~isaaclab_newton.assets.Articulation.joint_to_jacobi_offset`
+  override returning ``0``. Newton's
   ``ArticulationView.joint_dof_count`` already counts the 6
-  floating-base DoFs on floating-base assets, so the Jacobian's
-  joint axis matches :attr:`num_joints`.
+  floating-base DoFs on floating-base assets, so a state-space
+  joint index is also the matching Jacobian column index without
+  any shift.
 * Added :meth:`~isaaclab_newton.assets.Articulation.get_jacobians`
   and :meth:`~isaaclab_newton.assets.Articulation.get_mass_matrix`
   wrapping ``ArticulationView.eval_jacobian`` and

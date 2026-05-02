@@ -7,12 +7,14 @@ Added
   abstract methods, so task-space controllers no longer call PhysX-only
   ``root_view`` accessors directly. Backends without a native
   primitive raise :class:`NotImplementedError`.
-* Added :attr:`~isaaclab.assets.BaseArticulation.num_jacobi_joints`
-  property reporting the size of the Jacobian's joint axis. Concrete
-  with :class:`NotImplementedError` on the base class -- backends
-  declare their own convention. Used by the task-space action terms
-  to translate logical joint indices to Jacobian column indices via
-  ``num_jacobi_joints - num_joints`` (0 or 6).
+* Added :attr:`~isaaclab.assets.BaseArticulation.joint_to_jacobi_offset`
+  property: the offset added to a state-space joint index to get the
+  matching Jacobian column index. Concrete with
+  :class:`NotImplementedError` on the base class so backends declare
+  their own convention explicitly. Returns 0 on backends whose
+  Jacobian counts the same DoFs as joint-state buffers, and 6 on
+  PhysX floating-base where the Jacobian prepends 6 floating-base
+  DoFs.
 
 Changed
 ^^^^^^^
@@ -29,7 +31,7 @@ Changed
   so backends without a native primitive are not invoked when the
   controller does not consume the result.
 * Replaced the hard-coded ``+6`` floating-base Jacobian column offset
-  in the three task-space action terms with
-  ``num_jacobi_joints - num_joints`` so backends with different
-  floating-base joint-axis conventions work without changes to the
-  action terms.
+  in the three task-space action terms with the new
+  :attr:`~isaaclab.assets.BaseArticulation.joint_to_jacobi_offset`
+  property, so backends with different floating-base joint-axis
+  conventions work without changes to the action terms.

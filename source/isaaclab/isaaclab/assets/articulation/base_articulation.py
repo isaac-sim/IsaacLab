@@ -174,20 +174,20 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
-    def num_jacobi_joints(self) -> int:
-        """Size of the joint axis of :meth:`get_jacobians`'s return value.
+    def joint_to_jacobi_offset(self) -> int:
+        """Offset added to a state-space joint index to get the matching Jacobian column index.
 
-        Equals :attr:`num_joints` on backends whose Jacobian counts the
-        same DoFs as joint-state buffers. Backends that prepend the 6
-        floating-base DoFs to the Jacobian's joint axis without
-        counting them in :attr:`num_joints` (PhysX floating-base, for
-        example) return ``num_joints + 6``.
+        That is, for ``j`` returned by :meth:`find_joints`, the
+        corresponding Jacobian-column index is
+        ``j + joint_to_jacobi_offset``.
 
-        To convert a logical joint index (from :meth:`find_joints`)
-        into the matching Jacobian column index, add
-        ``num_jacobi_joints - num_joints``.
+        Zero on backends whose Jacobian counts the same DoFs as joint-
+        state buffers (e.g. Newton, PhysX fixed-base). Backends that
+        prepend the 6 floating-base DoFs to the Jacobian's joint axis
+        without counting them in :attr:`num_joints` (PhysX floating-
+        base) return 6.
         """
-        raise NotImplementedError(f"{type(self).__name__} does not implement num_jacobi_joints.")
+        raise NotImplementedError(f"{type(self).__name__} does not implement joint_to_jacobi_offset.")
 
     def get_jacobians(self) -> wp.array:
         """Per-env geometric Jacobians, referenced at each link origin in world frame.
@@ -215,12 +215,11 @@ class BaseArticulation(AssetBase):
         the linear rows to the link origin before returning so the
         contract above holds across backends.
 
-        The joint-dimension size is reported by
-        :attr:`num_jacobi_joints`. Backends that prepend floating-base
-        DoFs to the Jacobian columns expose the offset implicitly via
-        ``num_jacobi_joints - num_joints``; callers that index into
-        the joint axis should consult that property rather than
-        hard-coding a constant.
+        Backends that prepend floating-base DoFs to the Jacobian
+        columns expose the leading offset via
+        :attr:`joint_to_jacobi_offset`. Callers that index into the
+        joint axis with a state-space joint id should add that offset
+        rather than hard-coding a constant.
 
         Returns:
             The per-env geometric Jacobian. Shape

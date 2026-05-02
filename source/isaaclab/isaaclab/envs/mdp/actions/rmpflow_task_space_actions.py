@@ -65,8 +65,7 @@ class RMPFlowAction(ActionTerm):
             self._jacobi_body_idx = self._body_idx
         # See ``DifferentialInverseKinematicsAction.__init__`` for the rationale
         # behind this offset.
-        jacobi_joint_offset = self._asset.num_jacobi_joints - self._asset.num_joints
-        self._jacobi_joint_ids = [i + jacobi_joint_offset for i in self._joint_ids]
+        self._jacobi_joint_ids = [i + self._asset.joint_to_jacobi_offset for i in self._joint_ids]
 
         # log info for debugging
         logger.info(
