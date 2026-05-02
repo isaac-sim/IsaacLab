@@ -1,43 +1,34 @@
 Changelog
 ---------
 
-0.5.30 (2026-05-02)
+0.5.29 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* Mirrors the same OSC-test fix from ``isaaclab_newton`` 0.5.28: feed
-  OSC ``J · q_dot`` for the end-effector velocity so its damping term
-  engages, and assert on the tail mean (not min). Threshold tightened
-  to 5 mm.
+* Added fused :meth:`~isaaclab_physx.assets.Articulation.write_joint_state_to_sim_index`
+  that writes joint position and velocity in a single kernel launch instead of two.
+* Cached ``.view(wp.float32)`` results in root pose/velocity writers and wrench
+  composer views in ``write_data_to_sim`` to avoid per-call wrapper allocations.
+* Pre-allocated pinned CPU buffers for all joint property and body property writers,
+  replacing per-call ``wp.clone(device="cpu")`` allocations with ``wp.copy`` into
+  reusable pinned memory.
 
-0.5.29 (2026-05-01)
+
+0.5.28 (2026-04-29)
 ~~~~~~~~~~~~~~~~~~~
 
-Added
+Fixed
 ^^^^^
 
-* Added ``test_franka_ik_tracking_accuracy`` and
-  ``test_franka_osc_tracking_accuracy`` on the PhysX side as the
-  symmetric counterpart to the Newton-side tests added in
-  ``isaaclab_newton`` 0.5.27. Same setup (home pose teleport, gravity
-  off, OSC with zero-PD actuators) and same thresholds (5 mm IK,
-  2 cm OSC) so both backends are pinned by identical IK and OSC
-  trajectories.
-
-0.5.28 (2026-04-28)
-~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
-
-* Added PhysX implementations of
-  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians`,
-  :meth:`~isaaclab.assets.BaseArticulation.get_mass_matrix`, and
-  :meth:`~isaaclab.assets.BaseArticulation.get_gravity_compensation_forces`
-  as one-line passthroughs to the corresponding
-  ``physx.ArticulationView`` methods.
+* Fixed camera observation hang when a visualizer (e.g. KitVisualizer for XR
+  teleop) is active and ``--enable_cameras`` is set.
+  :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.ensure_isaac_rtx_render_update`
+  now performs the initial ``app.update()`` on the very first call for a new
+  :class:`~isaaclab.sim.SimulationContext`, even when a visualizer reports that
+  it pumps the Kit app loop, because the visualizer has not had a chance to pump
+  yet at that point.
 
 
 0.5.27 (2026-04-27)
@@ -175,7 +166,7 @@ Changed
 
 
 0.5.19 (2026-04-20)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^

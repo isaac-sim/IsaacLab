@@ -448,9 +448,13 @@ class DisassemblyEnv(DirectRLEnv):
 
     def _get_rewards(self):
         """Update rewards and compute success statistics."""
-        # Get successful and failed envs at current timestep
-
         rew_buf = self._update_rew_buf()
+
+        if torch.any(self.reset_buf):
+            self.extras.setdefault("log", {})["Metrics/success_rate"] = (
+                torch.count_nonzero(self.ep_succeeded) / self.num_envs
+            ).item()
+
         return rew_buf
 
     def _update_rew_buf(self):

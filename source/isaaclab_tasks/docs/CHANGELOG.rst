@@ -1,34 +1,76 @@
 Changelog
 ---------
 
-1.5.30 (2026-04-28)
+1.5.34 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+Added
+^^^^^
+
+* Added Flexiv Rizon 4s gear assembly environment with Grav parallel gripper, including
+  training, ROS inference, and deterministic play/debug configurations.
+* Added EE-grasp keypoint reward terms (``keypoint_ee_grasp_error``, ``keypoint_ee_grasp_error_exp``)
+  for tracking end-effector alignment with the grasp-corrected pose.
+* Added quaternion noise model (``ResetSampledQuaternionNoiseModelCfg``) for Rizon 4s
+  gear shaft orientation observations.
+
+Fixed
+^^^^^
+
+* Fixed quaternion w-component indexing in gear assembly observation functions to match XYZW convention.
+
+
+1.5.33 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
 Changed
 ^^^^^^^
 
-* Removed the hardcoded ``self.sim.physics = PhysxCfg(...)`` workaround in
-  ``Isaac-Reach-Franka-IK-Abs-v0``, ``Isaac-Reach-Franka-IK-Rel-v0``,
-  and ``Isaac-Reach-Franka-OSC-v0``. The previous comments
-  *"{IK,OSC} control is not supported with Newton physics; use PhysX only"*
-  no longer hold now that the task-space accessors
-  (:meth:`~isaaclab.assets.BaseArticulation.get_jacobians`,
-  :meth:`~isaaclab.assets.BaseArticulation.get_mass_matrix`) provide a
-  backend-agnostic surface and the OSC action term gates its
-  gravity-compensation fetch by config flag. All three tasks now inherit
-  their physics backend from the parent ``ReachPhysicsCfg`` preset, so
-  ``presets=newton`` selects ``NewtonCfg`` and the env runs under Newton
-  without further overrides. The default OSC config keeps
-  ``gravity_compensation=False`` so the Newton path does not hit the
-  upstream-blocked gravity-compensation primitive.
-* Migrated the remaining direct-workflow callers
-  (``Isaac-Factory-*``, ``Isaac-Automate-Assembly-*``,
-  ``Isaac-Automate-Disassembly-*``) and the deploy-task event
-  ``manipulation/deploy/mdp/events.py`` to use the new
-  backend-agnostic accessors. These envs still carry their own
-  PhysX-specific physics overrides (collision cooking, GPU patch
-  counts, etc.) — those are real PhysX tunings unrelated to the
-  Newton-compat workaround and were not removed.
+* Re-enabled ``add_base_mass`` randomization on H1 and Cassie in their
+  rough-terrain configs (previously ``= None`` per the pre-existing biped
+  convention). H1 uses the shared log-uniform scale default from
+  ``EventsCfg``; Cassie overrides to ``(1.0, 1.25)`` asymmetric heavier-bias
+  (never lighter than nominal). Symmetric ±25% regressed Cassie reward by
+  40% vs disabled due to closed-loop Achilles coupling destabilizing on
+  lighter pelvis mass; ``(1.0, 1.25)`` recovers to 90% of the
+  mass-rand-disabled baseline while retaining the domain-randomization
+  benefit.
+
+
+1.5.32 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Refactored rendering correctness tests under ``source/isaaclab_tasks/test/``: shared ``rendering_test_utils.py``,
+  split ``test_rendering_*`` modules (cartpole, Dexsuite Kuka Allegro lift, shadow hand) with ``*_kitless`` variants,
+  and Newton + OVRTX golden images. Newton + ``ovrtx_renderer`` test cases remain skipped on GitHub Actions temporarily
+  until they can run on GitHub Actions.
+
+
+1.5.31 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added benchmark extraction for ``Metrics/success_rate`` and survival
+  success logging for direct cartpole camera environments.
+
+
+1.5.30 (2026-04-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Kamino solver physics presets to direct and manager-based environment
+  configs: cartpole and ant.
+
+Changed
+^^^^^^^
+
+* Updated skrl agent configuration files to support skrl 2.0.
 
 
 1.5.29 (2026-04-27)

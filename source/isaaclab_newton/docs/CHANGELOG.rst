@@ -1,143 +1,40 @@
 Changelog
 ---------
 
-0.5.28 (2026-05-02)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* OSC accuracy test now feeds OSC the actual end-effector velocity
-  (computed as ``J · q_dot``, not ``zeros``) so OSC's ``kd · v`` damping
-  term engages. With damping active, OSC converges to machine
-  precision on the 5 cm Cartesian step instead of oscillating around
-  the target. Both accuracy tests now assert on the tail mean rather
-  than the tail min (the latter is the bottom of any oscillation
-  envelope and can pass spuriously). OSC threshold tightened from
-  2 cm/min to 5 mm/mean.
-
-0.5.27 (2026-05-01)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Tightened ``test_franka_ik_tracking_accuracy`` (5 cm → 5 mm) and
-  ``test_franka_osc_tracking_accuracy`` (3 cm → 1 cm). Both tests now
-  teleport the robot to its configured :attr:`default_joint_pos` (the
-  Franka home pose) post-reset, since the standalone test path does
-  not invoke the manager-based env reset that otherwise applies
-  init_state. The OSC test also zeroes the actuator's PD gains so
-  OSC's effort output is not opposed by the implicit-PD's ``kp·(target − q)``.
-
-Fixed
-^^^^^
-
-* ``test_articulation.py`` ``sim`` fixture now honors
-  ``gravity_enabled=False`` by overriding ``sim_cfg.gravity = (0, 0, 0)``;
-  :func:`~isaaclab.sim.build_simulation_context` silently drops the
-  argument when an explicit ``sim_cfg`` is also passed.
-
-0.5.26 (2026-05-01)
-~~~~~~~~~~~~~~~~~~~
-
-Fixed
-^^^^^
-
-* Fixed :meth:`~isaaclab_newton.assets.Articulation.get_jacobians` to return
-  a Jacobian whose linear-velocity rows reference the **link origin** in
-  world frame, matching the contract documented on
-  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians` and consumed by
-  the IsaacLab task-space controllers (IK, OSC, RMPFlow). Previously the
-  wrapper passed Newton's ``eval_jacobian`` output through verbatim — those
-  rows reference each link's center of mass, so for any pose with non-zero
-  body angular velocity the linear rows differed from
-  :attr:`~isaaclab.assets.ArticulationData.body_link_lin_vel_w` by
-  ``-omega x R · body_com_pos_b``. Under Franka IK on Newton this surfaced
-  as a steady-state end-effector tracking offset of roughly the panda hand
-  COM offset (~3 cm).
-  The fix adds a new
-  :func:`~isaaclab_newton.assets.articulation.kernels.shift_jacobian_com_to_origin`
-  Warp kernel that applies the standard
-  ``v_origin = v_com - omega x (R · body_com_pos_b)`` shift per Jacobian
-  column on the gathered, view-sized buffer. ``get_mass_matrix`` is
-  unchanged: the joint-space mass matrix is invariant to the velocity
-  reference point, and Newton's :func:`newton.eval_mass_matrix` still
-  consumes the unshifted COM-referenced source buffer internally.
-
-Added
-^^^^^
-
-* Added ``test_get_jacobians_link_origin_contract`` on both Newton and
-  PhysX. Both backends inject a non-trivial ``q_dot``, step once, and
-  assert ``J · q_dot``'s linear rows equal ``v_origin = v_com − ω × (R · body_com_pos_b)``
-  (Newton reads the ground-truth ``v_com`` directly via
-  ``ArticulationView.get_link_velocities`` to bypass IsaacLab's lazy
-  velocity-buffer chain). Catches the COM-vs-origin reference-point bug
-  cleanly: a wrong shift produces a constant per-body offset of order the
-  COM distance times the injected angular speed.
-
-Notes
-^^^^^
-
-* :meth:`~isaaclab_newton.assets.Articulation.get_gravity_compensation_forces`
-  continues to raise :class:`NotImplementedError`. Newton has no
-  inverse-dynamics primitive yet — see upstream Newton issues
-  `#2497 <https://github.com/newton-physics/newton/issues/2497>`_ (parent
-  feature request) and
-  `#2529 <https://github.com/newton-physics/newton/issues/2529>`_ (Coriolis
-  + gravity compensation sub-task), with a known floating-base bug at
-  `#2625 <https://github.com/newton-physics/newton/issues/2625>`_. Once
-  upstream Newton lands the primitive, the wrapper will switch from
-  :class:`NotImplementedError` to a real implementation and the strict-xfail
-  pin in ``test_get_gravity_compensation_forces_not_implemented_on_newton``
-  will flip to ``XPASS``, alerting the maintainer to remove the stub. OSC
-  users on Newton must continue to set ``gravity_compensation=False`` (the
-  default for ``Isaac-Reach-Franka-OSC-v0``).
-
 0.5.25 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
 Added
 ^^^^^
 
-* Added Newton implementations of
-  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians` and
-  :meth:`~isaaclab.assets.BaseArticulation.get_mass_matrix` that wrap
-  ``ArticulationView.eval_jacobian`` /
-  ``ArticulationView.eval_mass_matrix`` and return view-sized arrays
-  matching the PhysX contract. Per-step behavior is allocation-free
-  and safe under CUDA graph capture:
-
-  - All source / scratch / output buffers
-    (``_jacobian_buf_flat`` / ``_jacobian_buf``,
-    ``_jacobian_joint_S_s_buf``, ``_jacobian_view_buf``,
-    ``_mass_matrix_buf``, ``_mass_matrix_view_buf``) are pre-allocated
-    in ``_create_buffers``.
-  - Newton's ``eval_*`` kernels write every articulation in the model,
-    not just the ones owned by this view. New
-    :func:`~isaaclab_newton.assets.articulation.kernels.gather_jacobian_rows`
-    (4-D) and
-    :func:`~isaaclab_newton.assets.articulation.kernels.gather_mass_matrix_rows`
-    (3-D) Warp kernels gather the rows indexed by
-    ``ArticulationView.articulation_ids`` into the view-sized output,
-    preserving the PhysX shape contract in scenes with multiple
-    articulation types.
+* Added :class:`~isaaclab_newton.physics.KaminoSolverCfg` to support Newton's Kamino
+  solver backend, a Proximal-ADMM based solver for constrained rigid multi-body dynamics.
+* Added fused :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_index`
+  and :meth:`~isaaclab_newton.assets.Articulation.write_joint_state_to_sim_mask` that
+  write joint position and velocity in a single kernel launch instead of two.
 
 Changed
 ^^^^^^^
 
-* :meth:`~isaaclab.assets.BaseArticulation.get_gravity_compensation_forces`
-  raises :class:`NotImplementedError` on Newton with a message
-  pointing at the upstream gap (Newton's ``ArticulationView`` exposes
-  ``eval_fk`` / ``eval_jacobian`` / ``eval_mass_matrix`` only — no
-  gravity-compensation primitive). Callers should set the controller's
-  ``gravity_compensation=False`` until upstream Newton adds an
-  ``eval_gravity_compensation`` API. The gap is pinned by
-  ``test_get_gravity_compensation_forces_not_implemented_on_newton``,
-  which deliberately fails (with ``DID NOT RAISE``) once upstream
-  Newton ships the primitive and the stub gets replaced with a real
-  implementation.
+* Removed dead state-buffer output parameters from 8 root pose/velocity warp kernels
+  in :mod:`~isaaclab_newton.assets.kernels`, reducing kernel argument marshalling
+  overhead.
+
+Fixed
+^^^^^
+
+* Replaced boolean ``_fk_dirty`` and ``_kamino_needs_fk`` flags with per-world
+  reset masks (``_world_reset_mask`` and ``_fk_reset_mask``). Asset write methods
+  now call :meth:`~isaaclab_newton.physics.NewtonManager.invalidate_fk` with
+  ``env_mask``/``env_ids`` and ``articulation_ids``, so ``eval_fk`` and
+  ``SolverKamino.reset()`` only operate on dirtied environments. Rigid object
+  and rigid object collection write methods now also trigger FK invalidation.
+* Fixed CUDA error 700 (illegal memory access) when calling ``SolverKamino.reset()``
+  after CUDA graph capture. ``StateKamino.from_newton()`` lazily allocates
+  ``body_f_total``, ``joint_q_prev``, and ``joint_lambdas`` via ``wp.clone``/``wp.zeros``
+  during the first ``step()`` inside graph capture. These memory-pool addresses become
+  stale without a warm-up ``wp.capture_launch`` replay to pin them before any eager
+  ``solver.reset()`` call.
 
 
 0.5.24 (2026-04-27)
@@ -244,7 +141,7 @@ Changed
 
 
 0.5.17 (2026-04-20)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
@@ -259,7 +156,6 @@ Changed
 * Changed Newton Warp tiled camera outputs to clear with a light linear gray
   (0xFFEEEEEE, 93% gray, fully opaque) background via ``SensorTiledCamera.ClearData``
   in :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`.
-
 
 0.5.16 (2026-04-17)
 ~~~~~~~~~~~~~~~~~~~

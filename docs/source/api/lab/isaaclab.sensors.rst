@@ -18,8 +18,6 @@
     Camera
     CameraData
     CameraCfg
-    TiledCamera
-    TiledCameraCfg
     ContactSensor
     ContactSensorData
     ContactSensorCfg
@@ -68,19 +66,6 @@ USD Camera
     :show-inheritance:
     :exclude-members: __init__, class_type, OffsetCfg
 
-Tile-Rendered USD Camera
-------------------------
-
-.. autoclass:: TiledCamera
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: TiledCameraCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
 
 Contact Sensor
 --------------

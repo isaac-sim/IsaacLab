@@ -529,6 +529,9 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -543,8 +546,6 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_link_pose_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -555,7 +556,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -586,6 +587,9 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
@@ -599,8 +603,6 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_link_pose_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -611,7 +613,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -643,6 +645,9 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -661,9 +666,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
-                None,  # self.data._root_com_state_w.data,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -676,7 +678,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -708,6 +710,9 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
@@ -722,9 +727,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
-                None,  # self.data._root_com_state_w.data,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -737,7 +739,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -838,8 +840,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -886,8 +886,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -940,9 +938,6 @@ class Articulation(BaseArticulation):
                 self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -994,9 +989,6 @@ class Articulation(BaseArticulation):
                 self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -1007,6 +999,66 @@ class Articulation(BaseArticulation):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
+
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ):
+        """Write joint positions and velocities in a single fused kernel launch.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+        self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data_index,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk()
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_pose_b is not None:
+            self.data._body_com_pose_b.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_joint_state_to_sim_mask(
         self,
@@ -1031,9 +1083,42 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        # set into simulation
-        self.write_joint_position_to_sim_mask(position, env_mask=env_mask, joint_mask=joint_mask)
-        self.write_joint_velocity_to_sim_mask(velocity, env_mask=env_mask, joint_mask=joint_mask)
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
+        self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
+        self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data_mask,
+            dim=(env_mask.shape[0], joint_mask.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_mask,
+                joint_mask,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk()
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_pose_b is not None:
+            self.data._body_com_pose_b.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_joint_position_to_sim_index(
         self,
@@ -1055,6 +1140,9 @@ class Articulation(BaseArticulation):
             position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -1076,7 +1164,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -1112,6 +1200,9 @@ class Articulation(BaseArticulation):
             position: Joint positions. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
@@ -1131,7 +1222,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
-        SimulationManager.invalidate_fk()
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -3797,9 +3888,6 @@ class Articulation(BaseArticulation):
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp array.
 
-        .. note::
-            We need to convert torch tensors to warp arrays since the TensorAPI views only support warp arrays.
-
         Args:
             env_ids: Environment indices. If None, then all indices are used.
 
@@ -3809,7 +3897,6 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
         if isinstance(env_ids, torch.Tensor):
-            # Convert int64 to int32 if needed, as warp expects int32
             if env_ids.dtype == torch.int64:
                 env_ids = env_ids.to(torch.int32)
             return wp.from_torch(env_ids, dtype=wp.int32)
@@ -3819,9 +3906,6 @@ class Articulation(BaseArticulation):
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
-
-        .. note::
-            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
 
         Args:
             joint_ids: Joint indices. If None, then all indices are used.
@@ -3833,6 +3917,10 @@ class Articulation(BaseArticulation):
             return wp.array(joint_ids, dtype=wp.int32, device=self.device)
         if (joint_ids is None) or (joint_ids == slice(None)):
             return self._ALL_JOINT_INDICES
+        if isinstance(joint_ids, torch.Tensor):
+            if joint_ids.dtype == torch.int64:
+                joint_ids = joint_ids.to(torch.int32)
+            return wp.from_torch(joint_ids, dtype=wp.int32)
         return joint_ids
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
@@ -3848,6 +3936,10 @@ class Articulation(BaseArticulation):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
+        if isinstance(body_ids, torch.Tensor):
+            if body_ids.dtype == torch.int64:
+                body_ids = body_ids.to(torch.int32)
+            return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
     def _resolve_fixed_tendon_ids(
@@ -3986,14 +4078,11 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
-        :meth:`write_joint_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_state_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
+            " use 'write_joint_state_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        # set into simulation
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)

@@ -78,13 +78,20 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        # biped yaw control is harder than quadruped — relax the per-episode-mean yaw
+        # threshold to 0.8 rad/s (defaults work for quadrupeds).
+        self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # Scene
         self.scene.robot = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         if self.scene.height_scanner:
             self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
 
-        # H1 uses "torso_link" as base body — disable mass randomization for bipeds
-        self.events.add_base_mass = None
+        # H1 uses "torso_link" as base body; inherits the shared log-uniform mass
+        # randomization scale from EventsCfg (no per-H1 override needed).
+        self.events.add_base_mass.params["asset_cfg"].body_names = "torso_link"
+        # H1 has precise initial pose — don't scale joint defaults randomly on reset
+        self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
         self.events.base_com = None
         self.events.base_external_force_torque.params["asset_cfg"].body_names = ".*torso_link"
 

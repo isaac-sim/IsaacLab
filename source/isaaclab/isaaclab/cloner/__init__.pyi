@@ -8,6 +8,7 @@ __all__ = [
     "random",
     "sequential",
     "clone_from_template",
+    "disabled_fabric_change_notifies",
     "filter_collisions",
     "grid_transforms",
     "make_clone_plan",
@@ -19,6 +20,7 @@ from .cloner_cfg import TemplateCloneCfg
 from .cloner_strategies import random, sequential
 from .cloner_utils import (
     clone_from_template,
+    disabled_fabric_change_notifies,
     filter_collisions,
     grid_transforms,
     make_clone_plan,

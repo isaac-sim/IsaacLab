@@ -12,7 +12,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
@@ -32,9 +32,9 @@ class PhysicsCfg(PresetCfg):
 @configclass
 class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
     @configclass
-    class CartpoleTiledCameraCfg(TiledCameraCfg):
+    class CartpoleTiledCameraCfg(CameraCfg):
         prim_path: str = "/World/envs/env_.*/Camera"
-        offset: TiledCameraCfg.OffsetCfg = TiledCameraCfg.OffsetCfg(
+        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
             pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
         )
         data_types: list[str] = []

@@ -216,7 +216,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
         robot_asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
         pos_threshold: float = 1e-6,
         rot_threshold: float = 1e-6,
-        max_iterations: int = 10,
+        max_iterations: int = 50,
         pos_randomization_range: dict | None = None,
         gear_offsets_grasp: dict | None = None,
         end_effector_body_name: str | None = None,
@@ -340,6 +340,22 @@ class set_robot_to_grasp_pose(ManagerTermBase):
 
             # Update joint positions
             joint_pos = joint_pos + delta_dof_pos
+
+            # Wrap arm joint positions to fall within robot's actual joint limits
+            joint_pos_limits = self.robot_asset.data.joint_pos_limits.torch[env_ids, : self.num_arm_joints, :]
+            joint_min = joint_pos_limits[:, :, 0]
+            joint_max = joint_pos_limits[:, :, 1]
+            joint_range = joint_max - joint_min
+
+            # Wrap only the arm joint positions (not gripper joints)
+            arm_joint_pos = joint_pos[:, : self.num_arm_joints]
+            arm_joint_pos = torch.where(
+                joint_range > 0,
+                joint_min + torch.remainder(arm_joint_pos - joint_min, joint_range),
+                arm_joint_pos,
+            )
+            joint_pos[:, : self.num_arm_joints] = arm_joint_pos
+
             joint_vel = torch.zeros_like(joint_pos)
 
             # Write to sim
@@ -347,6 +363,9 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             self.robot_asset.set_joint_velocity_target_index(target=joint_vel, env_ids=env_ids)
             self.robot_asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
             self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+
+        # Reset joint velocities to zero after IK convergence
+        joint_vel = torch.zeros_like(self.robot_asset.data.joint_vel.torch[env_ids])
 
         # Set gripper to grasp position
         joint_pos = self.robot_asset.data.joint_pos.torch[env_ids].clone()

@@ -76,6 +76,16 @@ def _install_system_deps() -> None:
             ]
             run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
+        # nlopt has no aarch64 manylinux wheel for the version pinned by
+        # isaacteleop[retargeters], so pip falls back to a CMake source build
+        # that needs SWIG. Mirrors the apt step in docker/Dockerfile.base.
+        if not shutil.which("swig"):
+            print_info("Installing swig (required for building nlopt on ARM)...")
+            cmd = ["apt-get", "update"]
+            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+            cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
+            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+
 
 def _torch_first_on_sys_path_is_prebundle(python_exe: str, *, env: dict[str, str]) -> bool:
     """Return True when the first ``torch`` on ``sys.path`` comes from a prebundle directory.
@@ -106,6 +116,25 @@ sys.exit(0)
         text=True,
     )
     return result.returncode == 1
+
+
+def _maybe_preinstall_arm_nlopt(pip_cmd: list[str]) -> None:
+    """Pre-install ``nlopt==2.6.2`` on ARM Linux to skip the source-build fallback.
+
+    There is no aarch64 manylinux wheel for the ``nlopt 2.6.2`` version pinned
+    by ``isaacteleop[retargeters]``, so pip falls back to a CMake source build
+    that hides the host-Python ``numpy`` from its isolated build env. Mirror
+    the docker/Dockerfile.base arm64 step: install ``setuptools wheel numpy``
+    in the host Python first, then ``--no-build-isolation`` install nlopt so
+    later submodule installs see it as already satisfied.
+    """
+    if is_windows() or not is_arm():
+        return
+    print_info("Pre-installing nlopt==2.6.2 on ARM (no-build-isolation)...")
+    print_info("  step 1/2: ensure setuptools/wheel/numpy are importable for the no-build-isolation backend")
+    run_command(pip_cmd + ["install", "setuptools", "wheel", "numpy"])
+    print_info("  step 2/2: install nlopt==2.6.2 with --no-build-isolation")
+    run_command(pip_cmd + ["install", "--no-build-isolation", "nlopt==2.6.2"])
 
 
 def _maybe_uninstall_prebundled_torch(
@@ -681,6 +710,9 @@ def command_install(install_type: str = "all") -> None:
 
         # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
         run_command(pip_cmd + ["install", "setuptools<82.0.0"])
+
+        # On ARM Linux pre-install nlopt to dodge its from-source build fallback.
+        _maybe_preinstall_arm_nlopt(pip_cmd)
 
         # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
         _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)

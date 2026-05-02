@@ -95,6 +95,11 @@ class CartpoleEnv(DirectRLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
             env_ids = self.cartpole._ALL_INDICES
+
+        # Log survival success rate before resetting
+        survived = self.reset_time_outs[env_ids].float()
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
+
         super()._reset_idx(env_ids)
 
         joint_pos = self.cartpole.data.default_joint_pos.torch[env_ids].clone()
