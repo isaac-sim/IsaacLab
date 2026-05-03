@@ -10,6 +10,8 @@ from isaaclab_experimental.managers import ObservationTermCfg as ObsTerm
 from isaaclab_experimental.managers import RewardTermCfg as RewTerm
 from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.managers import TerminationTermCfg as DoneTerm
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -18,7 +20,7 @@ from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensorCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -30,6 +32,42 @@ import isaaclab_tasks_experimental.manager_based.locomotion.velocity.mdp as mdp
 # Pre-defined configs
 ##
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
+
+
+##
+# Physics preset
+##
+
+
+# Mirror of the ``newton`` field from
+# :class:`isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg.RoughPhysicsCfg`.
+# Inlined (instead of imported) because importing the stable preset transitively pulls
+# in :mod:`isaaclab_physx` and ``pxr`` at module load time, and :func:`hydra_task_config`
+# resolves env cfgs *before* :class:`SimulationApp` is initialised — early ``pxr`` loading
+# leaves the USD extension wrappers half-initialised and crashes the Kit startup.
+# Keep the values in sync with stable.
+ROUGH_NEWTON_CFG = NewtonCfg(
+    solver_cfg=MJWarpSolverCfg(
+        njmax=200,
+        nconmax=100,
+        cone="pyramidal",
+        impratio=1.0,
+        integrator="implicitfast",
+        use_mujoco_contacts=False,
+    ),
+    collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+    num_substeps=1,
+    debug_mode=False,
+    # 1 cm shape margin is the single most important Newton setting for rough
+    # terrain — without it, non-Anymal-D robots fail to learn stable contact
+    # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
+    default_shape_cfg=NewtonShapeCfg(margin=0.01),
+)
+
+
+def _rough_contact_sensor_cfg() -> NewtonContactSensorCfg:
+    """Newton contact sensor preset matching stable's ``VelocityEnvContactSensorCfg.newton``."""
+    return NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
 
 
 ##
@@ -64,12 +102,10 @@ class MySceneCfg(InteractiveSceneCfg):
     # robots
     robot: ArticulationCfg = MISSING
     # sensors
-    contact_forces = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*",
-        filter_prim_paths_expr=[],
-        history_length=3,
-        track_air_time=True,
-    )
+    # height_scanner: omitted — RayCaster height-scan observation has no warp
+    # implementation yet. Per-robot rough configs that mirror stable will need a
+    # warp height-scan term once available.
+    contact_forces = _rough_contact_sensor_cfg()
     # lights
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
@@ -111,49 +147,56 @@ class ActionsCfg:
 
 
 @configclass
-class PolicyCfg(ObsGroup):
-    """Observations for policy group."""
-
-    # observation terms (order preserved)
-    base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
-    base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
-    projected_gravity = ObsTerm(
-        func=mdp.projected_gravity,
-        noise=Unoise(n_min=-0.05, n_max=0.05),
-    )
-    velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-    joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
-    joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
-    actions = ObsTerm(func=mdp.last_action)
-
-    def __post_init__(self):
-        self.enable_corruption = True
-        self.concatenate_terms = True
-
-
-@configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
+        # observation terms (order preserved)
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        projected_gravity = ObsTerm(
+            func=mdp.projected_gravity,
+            noise=Unoise(n_min=-0.05, n_max=0.05),
+        )
+        velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
+        actions = ObsTerm(func=mdp.last_action)
+        # height_scan: no warp implementation yet (RayCaster + height_scan
+        # observation are torch-only). Field kept implicit via stable mirror —
+        # robot-level rough configs that mirror stable should set this to None.
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
-class EventCfg:
-    """Configuration for events."""
+class EventsCfg:
+    """Configuration for events.
 
-    # FIXME(warp-migration): COM randomization in exp manager-based locomotion currently causes
-    #  NaNs and is temporarily disabled.
-    # base_com = EventTerm(
-    #     func=mdp.randomize_rigid_body_com,
-    #     mode="startup",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-    #         "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
-    #     },
-    # )
+    Mirrors stable :class:`~isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg.EventsCfg`
+    field-for-field. Events without a warp MDP implementation are kept as
+    ``None`` so per-robot configs can introspect the field for parity with
+    stable, even if the warp manager skips them at runtime.
+    """
+
+    # startup — no warp MDP implementations yet; tracked as gaps.
+    physics_material = None
+    """Friction randomization. No warp ``randomize_rigid_body_material`` yet."""
+
+    add_base_mass = None
+    """Base-mass randomization. No warp ``randomize_rigid_body_mass`` yet."""
+
     base_com = None
+    """COM randomization. ``randomize_rigid_body_com`` exists in warp MDP but
+    currently disabled for locomotion envs (NaN under capture)."""
 
     # reset
     base_external_force_torque = EventTerm(
@@ -263,6 +306,8 @@ class CurriculumCfg:
 class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
+    # Simulation settings — Newton solver matched to stable's RoughPhysicsCfg.newton
+    sim: SimulationCfg = SimulationCfg(physics=ROUGH_NEWTON_CFG)
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=True)
     # Basic settings
@@ -272,7 +317,7 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    events: EventsCfg = EventsCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self):
@@ -281,13 +326,13 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.episode_length_s = 20.0
         # simulation settings
-        self.sim.dt = 1.0 / 200.0
+        self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
         self.sim.physics_material = self.scene.terrain.physics_material
         # update sensor update periods
         if self.scene.contact_forces is not None:
             self.scene.contact_forces.update_period = self.sim.dt
-        # check if terrain levels curriculum is enabled
+        # check if terrain levels curriculum is enabled — if so, enable curriculum for terrain generator
         if getattr(self.curriculum, "terrain_levels", None) is not None:
             if self.scene.terrain.terrain_generator is not None:
                 self.scene.terrain.terrain_generator.curriculum = True

@@ -11,22 +11,18 @@ from isaaclab.utils import configclass
 
 from .rough_env_cfg import G1RoughEnvCfg
 
+# Mirror of stable G1 ``PhysicsCfg.newton``. Inlined to avoid importing the
+# stable preset (which chains into ``isaaclab_physx`` and ``pxr``).
+_FLAT_NEWTON_CFG = NewtonCfg(
+    solver_cfg=MJWarpSolverCfg(njmax=95, nconmax=10, cone="pyramidal", impratio=1, integrator="implicitfast"),
+    num_substeps=1,
+    debug_mode=False,
+)
+
 
 @configclass
 class G1FlatEnvCfg(G1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=95,
-                nconmax=10,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-    )
+    sim: SimulationCfg = SimulationCfg(physics=_FLAT_NEWTON_CFG)
 
     def __post_init__(self):
         super().__post_init__()

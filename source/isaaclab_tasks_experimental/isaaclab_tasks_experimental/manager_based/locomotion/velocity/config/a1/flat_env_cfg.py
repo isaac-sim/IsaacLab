@@ -10,25 +10,20 @@ from isaaclab.utils import configclass
 
 from .rough_env_cfg import UnitreeA1RoughEnvCfg
 
+# Mirror of stable Unitree A1 ``PhysicsCfg.newton``. Inlined to avoid importing
+# the stable preset (which chains into ``isaaclab_physx`` and ``pxr``).
+_FLAT_NEWTON_CFG = NewtonCfg(
+    solver_cfg=MJWarpSolverCfg(njmax=60, nconmax=30, cone="pyramidal", impratio=1, integrator="implicitfast"),
+    num_substeps=1,
+    debug_mode=False,
+)
+
 
 @configclass
 class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=60,
-                nconmax=30,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-    )
+    sim: SimulationCfg = SimulationCfg(physics=_FLAT_NEWTON_CFG)
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
         # override rewards
@@ -38,16 +33,12 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
-        # no height scan
-        # self.scene.height_scanner = None
-        # self.observations.policy.height_scan = None
         # no terrain curriculum
         self.curriculum.terrain_levels = None
 
 
 class UnitreeA1FlatEnvCfg_PLAY(UnitreeA1FlatEnvCfg):
     def __post_init__(self) -> None:
-        # post init of parent
         super().__post_init__()
 
         # make a smaller scene for play

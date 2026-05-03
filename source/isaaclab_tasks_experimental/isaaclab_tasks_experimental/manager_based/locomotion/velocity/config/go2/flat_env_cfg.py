@@ -10,22 +10,18 @@ from isaaclab.utils import configclass
 
 from .rough_env_cfg import UnitreeGo2RoughEnvCfg
 
+# Mirror of stable Unitree Go2 ``PhysicsCfg.newton``. Inlined to avoid importing
+# the stable preset (which chains into ``isaaclab_physx`` and ``pxr``).
+_FLAT_NEWTON_CFG = NewtonCfg(
+    solver_cfg=MJWarpSolverCfg(njmax=65, nconmax=35, cone="pyramidal", impratio=1, integrator="implicitfast"),
+    num_substeps=1,
+    debug_mode=False,
+)
+
 
 @configclass
 class UnitreeGo2FlatEnvCfg(UnitreeGo2RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=65,
-                nconmax=35,
-                cone="pyramidal",
-                impratio=1,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-    )
+    sim: SimulationCfg = SimulationCfg(physics=_FLAT_NEWTON_CFG)
 
     def __post_init__(self):
         super().__post_init__()

@@ -10,25 +10,20 @@ from isaaclab.utils import configclass
 
 from .rough_env_cfg import AnymalCRoughEnvCfg
 
+# Mirror of stable Anymal-C ``PhysicsCfg.newton``. Inlined to avoid importing
+# the stable preset (which chains into ``isaaclab_physx`` and ``pxr``).
+_FLAT_NEWTON_CFG = NewtonCfg(
+    solver_cfg=MJWarpSolverCfg(njmax=120, nconmax=15, cone="elliptic", impratio=100, integrator="implicitfast"),
+    num_substeps=1,
+    debug_mode=False,
+)
+
 
 @configclass
 class AnymalCFlatEnvCfg(AnymalCRoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=120,
-                nconmax=15,
-                cone="elliptic",
-                impratio=100,
-                integrator="implicitfast",
-            ),
-            num_substeps=1,
-            debug_mode=False,
-        )
-    )
+    sim: SimulationCfg = SimulationCfg(physics=_FLAT_NEWTON_CFG)
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
         # override rewards
