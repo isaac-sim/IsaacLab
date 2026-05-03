@@ -547,8 +547,11 @@ class image_features(ManagerTermBase):
         # forward the images through the model
         features = self._inference_fn(self._model, image_data, **(inference_kwargs or {}))
 
+        if self.freeze:
+            features = features.detach()
+
         # move the features back to the image device
-        return features.detach().to(image_device)
+        return features.to(image_device)
 
     """
     Helper functions.

@@ -16,6 +16,20 @@ import torch
 import torch.nn as nn
 
 from isaaclab.envs.mdp.resnet_utils import prepare_resnet_model
+from isaaclab.envs.mdp.observations import image_features
+
+
+def _make_image_features_term(freeze: bool) -> image_features:
+    """Create an image_features term without initializing a full manager env."""
+    term = image_features.__new__(image_features)
+    term.freeze = freeze
+    term._model = nn.Linear(3, 3)
+
+    def _inference(model: nn.Module, images: torch.Tensor) -> torch.Tensor:
+        return model(images.reshape(-1, 3))
+
+    term._inference_fn = _inference
+    return term
 
 
 class TestResNetModelPreparation:
@@ -71,6 +85,28 @@ class TestResNetModelPreparation:
         dummy = torch.rand(1, 224, 224, 3) * 255.0
         features = d["inference"](model, dummy)
         assert features.requires_grad, "Features should require grad when freeze=False"
+
+    def test_image_features_detaches_when_frozen(self, monkeypatch):
+        """Frozen observation term should detach feature tensors."""
+        from isaaclab.envs.mdp import observations
+
+        monkeypatch.setattr(observations, "image", lambda **_: torch.rand(1, 1, 1, 3))
+        term = _make_image_features_term(freeze=True)
+
+        features = term(env=None)
+
+        assert not features.requires_grad, "Features should be detached when freeze=True"
+
+    def test_image_features_preserves_grad_when_unfrozen(self, monkeypatch):
+        """Unfrozen observation term should preserve feature tensor gradients."""
+        from isaaclab.envs.mdp import observations
+
+        monkeypatch.setattr(observations, "image", lambda **_: torch.rand(1, 1, 1, 3))
+        term = _make_image_features_term(freeze=False)
+
+        features = term(env=None)
+
+        assert features.requires_grad, "Features should preserve gradients when freeze=False"
 
     def test_unsupported_model_raises(self):
         """Unsupported model name should raise ValueError."""
