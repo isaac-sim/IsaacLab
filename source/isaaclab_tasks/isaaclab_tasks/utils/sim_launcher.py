@@ -113,6 +113,22 @@ def _set_visualizer_intent_on_launcher_args(
         launcher_args["visualizer_intent"] = visualizer_intent
 
 
+def _needs_fabric_reads(node) -> bool:
+    """True for sensor configs whose pose is read through :class:`FrameView` (Fabric).
+
+    These sensors depend on PhysX writing rigid-body / articulation-link world
+    transforms into Fabric every step. The omni.physx.fabric extension only does
+    those writes when the Fabric Scene Delegate is active *and*
+    ``/physics/fabricUpdateTransformations`` is True. In headless training (no
+    rendering) those are off by default, which silently freezes the sensor pose
+    at spawn time. Detecting these configs lets ``launch_simulation`` flip the
+    settings on at kit boot so the FrameView contract holds.
+    """
+    from isaaclab.sensors.ray_caster import RayCasterCfg
+
+    return isinstance(node, (CameraCfg, RayCasterCfg))
+
+
 def _is_kit_camera(node) -> bool:
     """True for a CameraCfg whose renderer requires Kit (not Newton)."""
     if not isinstance(node, CameraCfg):
@@ -137,7 +153,7 @@ def _is_kit_camera(node) -> bool:
 def compute_kit_requirements(
     env_cfg,
     launcher_args: argparse.Namespace | dict | None = None,
-) -> tuple[bool, bool, set[str]]:
+) -> tuple[bool, bool, set[str], bool]:
     """Compute whether Kit is needed and related flags.
 
     Uses the same logic as :func:`launch_simulation` to decide whether Isaac Sim
@@ -148,14 +164,16 @@ def compute_kit_requirements(
         launcher_args: Optional CLI args; if ``--visualizer`` includes ``kit``, needs_kit is True.
 
     Returns:
-        (needs_kit, has_kit_cameras, visualizer_types)
+        (needs_kit, has_kit_cameras, visualizer_types, needs_fabric_reads)
     """
-    is_kitless, has_kit_cameras = _scan_config(env_cfg, [_is_kitless_physics, _is_kit_camera])
+    is_kitless, has_kit_cameras, needs_fabric_reads = _scan_config(
+        env_cfg, [_is_kitless_physics, _is_kit_camera, _needs_fabric_reads]
+    )
     needs_kit = has_kit_cameras or not is_kitless
     visualizer_types = _get_visualizer_types(launcher_args)
     if "kit" in visualizer_types:
         needs_kit = True
-    return needs_kit, has_kit_cameras, visualizer_types
+    return needs_kit, has_kit_cameras, visualizer_types, needs_fabric_reads
 
 
 def _resolve_distributed_device(
@@ -236,7 +254,7 @@ def launch_simulation(
         with launch_simulation(env_cfg, args_cli):
             main()
     """
-    needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
+    needs_kit, has_kit_cameras, visualizer_types, needs_fabric_reads = compute_kit_requirements(env_cfg, launcher_args)
     visualizer_intent = _compute_visualizer_intent(env_cfg)
     _set_visualizer_intent_on_launcher_args(launcher_args, visualizer_intent)
 
@@ -249,6 +267,24 @@ def launch_simulation(
             if not launcher_args.get("enable_cameras", False):
                 logger.info("Auto-enabling cameras: scene contains camera sensors with a Kit renderer.")
                 launcher_args["enable_cameras"] = True
+
+    # Auto-enable Fabric Scene Delegate + PhysX -> Fabric transform writes when the env
+    # config contains FrameView-based sensors. FSD has to be set at kit boot (carb
+    # setting changes after SimulationContext is created don't take effect — PhysX
+    # registers bodies during warmup), so inject it via kit_args before AppLauncher.
+    if needs_kit and needs_fabric_reads and not has_kit_cameras:
+        fabric_kit_args = "--/app/useFabricSceneDelegate=1 --/physics/fabricUpdateTransformations=1"
+        logger.info(
+            "Auto-enabling Fabric Scene Delegate: scene contains FrameView-based sensors "
+            "(RayCaster / Camera). PhysX rigid-body world transforms will be pushed into "
+            "Fabric every step so the sensor reads stay fresh."
+        )
+        if isinstance(launcher_args, argparse.Namespace):
+            existing = getattr(launcher_args, "kit_args", "") or ""
+            launcher_args.kit_args = (existing + " " + fabric_kit_args).strip()
+        elif isinstance(launcher_args, dict):
+            existing = launcher_args.get("kit_args", "") or ""
+            launcher_args["kit_args"] = (existing + " " + fabric_kit_args).strip()
 
     close_fn: Any = None
 

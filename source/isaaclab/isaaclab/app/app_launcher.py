@@ -1163,8 +1163,14 @@ class AppLauncher:
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)
 
-        # set fabric update flag to disable updating transforms when rendering is disabled
-        settings.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
+        # Enable PhysX -> Fabric rigid-body / articulation-link transform writes when
+        # rendering is enabled. Don't stomp the setting back to False if it was already
+        # turned on by a kit experience or by ``sim_launcher`` after detecting a
+        # FrameView-based sensor (RayCaster / Camera) in the env config — those readers
+        # depend on Fabric being fresh in headless training too. ``settings.get`` may
+        # return ``1``/``0`` from kit_args overrides, so cast through ``bool``.
+        existing = bool(settings.get("/physics/fabricUpdateTransformations"))
+        settings.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled() or existing)
 
         # use fixed time stepping disabled; custom loop runner from Isaac Sim is used instead
         settings.set_bool("/app/player/useFixedTimeStepping", False)

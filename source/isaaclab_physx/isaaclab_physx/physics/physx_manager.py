@@ -175,6 +175,11 @@ class PhysxManager(PhysicsManager):
     _subscriptions: ClassVar[dict[str, Any]] = {}
     _fabric: ClassVar[Any] = None
     _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
+    # Accumulated sim time fed to ``_update_fabric``. ``omni.physx.fabric``'s body-write
+    # path gates on a strictly increasing simulation timestamp; passing ``(0.0, 0.0)``
+    # is a no-op for rigid-body / articulation-link transforms (the legacy ``forward()``
+    # call site predates the FrameView read path that depends on these writes).
+    _fabric_sim_time: ClassVar[float] = 0.0
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
     _callback_exception: ClassVar[Exception | None] = None
 
@@ -263,6 +268,16 @@ class PhysxManager(PhysicsManager):
         cls._physx_sim.simulate(sim.cfg.dt, 0.0)
         cls._physx_sim.fetch_results()
 
+        # Push PhysX rigid-body / articulation-link world transforms into Fabric so any
+        # FrameView reader (RayCaster, Camera) sees the post-step pose. The body-write
+        # path is gated by ``/physics/fabricUpdateTransformations``; when off this call
+        # is internally a no-op for transforms (still cheap for the once-per-step
+        # invocation). ``currentTime`` must monotonically advance — passing ``0.0``
+        # would be skipped by ``DirectGpuHelper::update``.
+        if cls._update_fabric is not None:
+            cls._fabric_sim_time += sim.cfg.dt
+            cls._update_fabric(sim.cfg.dt, cls._fabric_sim_time)
+
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
@@ -333,6 +348,7 @@ class PhysxManager(PhysicsManager):
 
         cls._fabric = None
         cls._update_fabric = None
+        cls._fabric_sim_time = 0.0
         cls._anim_recorder = None
         cls._warmup_needed = True
         cls._view_created = False

@@ -433,7 +433,7 @@ class TestLaunchSimulationDevicePropagation:
         monkeypatch.setattr(
             sim_launcher,
             "compute_kit_requirements",
-            lambda env_cfg, launcher_args: (True, False, set()),
+            lambda env_cfg, launcher_args: (True, False, set(), False),
         )
         # Mock _resolve_distributed_device to avoid torch.cuda calls
         monkeypatch.setattr(
@@ -461,7 +461,7 @@ class TestLaunchSimulationDevicePropagation:
         monkeypatch.setattr(
             sim_launcher,
             "compute_kit_requirements",
-            lambda env_cfg, launcher_args: (False, False, set()),
+            lambda env_cfg, launcher_args: (False, False, set(), False),
         )
         monkeypatch.setattr(
             sim_launcher,

@@ -73,7 +73,7 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
                 captured["disable_all"] = value
 
     monkeypatch.setattr(
-        sim_launcher, "compute_kit_requirements", lambda env_cfg, launcher_args: (False, False, {"none"})
+        sim_launcher, "compute_kit_requirements", lambda env_cfg, launcher_args: (False, False, {"none"}, False)
     )
     # `app_launcher` imports both names from settings_manager; provide a full stub module
     # so `from isaaclab.app import AppLauncher` succeeds in kitless mode.
