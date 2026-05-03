@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+1.5.34 (2026-04-30)
+~~~~~~~~~~~~~~~~~~~
+Added
+^^^^^
+
+* Added Flexiv Rizon 4s gear assembly environment with Grav parallel gripper, including
+  training, ROS inference, and deterministic play/debug configurations.
+* Added EE-grasp keypoint reward terms (``keypoint_ee_grasp_error``, ``keypoint_ee_grasp_error_exp``)
+  for tracking end-effector alignment with the grasp-corrected pose.
+* Added quaternion noise model (``ResetSampledQuaternionNoiseModelCfg``) for Rizon 4s
+  gear shaft orientation observations.
+
+Fixed
+^^^^^
+
+* Fixed quaternion w-component indexing in gear assembly observation functions to match XYZW convention.
+
+
 1.5.33 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 

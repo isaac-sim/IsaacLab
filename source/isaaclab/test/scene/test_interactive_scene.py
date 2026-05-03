@@ -21,6 +21,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils import configclass
@@ -134,6 +135,13 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
     scene = object.__new__(InteractiveScene)
     scene.cfg = SimpleNamespace(replicate_physics=False, num_envs=3)
     scene.stage = object()
+    scene.physics_backend = "physx"
+    scene._sensors = {}
+    scene.sim = SimpleNamespace(
+        get_scene_data_requirements=lambda: SceneDataRequirement(),
+        update_scene_data_requirements=lambda requirements: None,
+        set_scene_data_visualizer_prebuilt_artifact=lambda artifact: None,
+    )
     scene.env_fmt = "/World/envs/env_{}"
     scene._ALL_INDICES = torch.arange(3, dtype=torch.long)
     scene._default_env_origins = torch.zeros((3, 3), dtype=torch.float32)
@@ -187,6 +195,38 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
     assert len(physics_calls) == 0
     assert len(visualizer_calls) == 1
     assert len(usd_calls) == 1
+
+
+def test_refresh_visualizer_clone_fn_uses_registered_requirements(monkeypatch: pytest.MonkeyPatch):
+    """Clone-time prebuild hook should be installed from requirements registered after scene init."""
+    scene = object.__new__(InteractiveScene)
+    scene.physics_backend = "physx"
+    scene.stage = object()
+    scene._sensors = {}
+    scene.cloner_cfg = SimpleNamespace(visualizer_clone_fn=None)
+
+    requirements = SceneDataRequirement(requires_newton_model=True)
+    scene.sim = SimpleNamespace(
+        get_scene_data_requirements=lambda: requirements,
+        update_scene_data_requirements=lambda requirements: None,
+        set_scene_data_visualizer_prebuilt_artifact=lambda artifact: None,
+    )
+
+    captured = {}
+
+    def _resolve_visualizer_clone_fn(**kwargs):
+        captured.update(kwargs)
+        return "visualizer-clone-fn"
+
+    monkeypatch.setattr(
+        "isaaclab.scene.interactive_scene.cloner.resolve_visualizer_clone_fn",
+        _resolve_visualizer_clone_fn,
+    )
+
+    scene._refresh_visualizer_clone_fn_from_requirements()
+
+    assert captured["requirements"].requires_newton_model
+    assert scene.cloner_cfg.visualizer_clone_fn == "visualizer-clone-fn"
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):

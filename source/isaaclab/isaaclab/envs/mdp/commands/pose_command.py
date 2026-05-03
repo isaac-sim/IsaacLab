@@ -15,6 +15,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
@@ -60,7 +61,7 @@ class UniformPoseCommand(CommandTerm):
         self.body_idx = self.robot.find_bodies(cfg.body_name)[0][0]
 
         # create buffers
-        # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
+        # -- commands: (x, y, z, qx, qy, qz, qw) in root frame
         self.pose_command_b = torch.zeros(self.num_envs, 7, device=self.device)
         self.pose_command_b[:, 3] = 1.0
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
@@ -71,6 +72,11 @@ class UniformPoseCommand(CommandTerm):
         self._track_success = cfg.position_success_threshold is not None
         if self._track_success:
             self._succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
+        # adds (optional) cmd kind and element names for leapp export
+        # during export, semantic data about this command will be used to annotate the command input
+        self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
+        self.cfg.element_names = self.cfg.element_names or POSE7_ELEMENT_NAMES
 
     def __str__(self) -> str:
         msg = "UniformPoseCommand:\n"

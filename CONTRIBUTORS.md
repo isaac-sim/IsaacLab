@@ -82,6 +82,7 @@ Guidelines for modifications:
 * Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
+* Frank Lai
 * Gary Lvov
 * Giulio Romualdi
 * Grzegorz Malczyk

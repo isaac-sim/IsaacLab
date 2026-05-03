@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
@@ -1266,6 +1267,7 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_index(
         self,
         *,
@@ -1293,6 +1295,7 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_mask(
         self,
         *,
@@ -1320,6 +1323,7 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
     def set_joint_velocity_target_index(
         self,
         *,
@@ -1347,6 +1351,7 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
     def set_joint_velocity_target_mask(
         self,
         *,
@@ -1374,6 +1379,7 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
     def set_joint_effort_target_index(
         self,
         *,
@@ -1401,6 +1407,7 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @abstractmethod
+    @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
     def set_joint_effort_target_mask(
         self,
         *,

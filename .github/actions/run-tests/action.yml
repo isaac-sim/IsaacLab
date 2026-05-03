@@ -55,6 +55,10 @@ inputs:
     description: 'Host path to bind-mount at /workspace/isaaclab (for deps-cache-hit mode)'
     default: ''
     required: false
+  extra-pip-packages:
+    description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
+    default: ''
+    required: false
 
 runs:
   using: composite
@@ -77,6 +81,7 @@ runs:
           local shard_index="${11}"
           local shard_count="${12}"
           local volume_mount_source="${13}"
+          local extra_pip_packages="${14}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -96,6 +101,9 @@ runs:
           echo "Running tests in: $test_path"
           if [ -n "$pytest_options" ]; then
             echo "With pytest options: $pytest_options"
+          fi
+          if [ -n "$extra_pip_packages" ]; then
+            echo "With extra pip packages: $extra_pip_packages"
           fi
           if [ -n "$filter_pattern" ]; then
             echo "With filter pattern: $filter_pattern"
@@ -167,6 +175,11 @@ runs:
             echo "No filter pattern provided"
           fi
 
+          if [ -n "$extra_pip_packages" ]; then
+            export TEST_EXTRA_PIP_PACKAGES="$extra_pip_packages"
+            docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
+          fi
+
           echo "Docker environment variables: '$docker_env_vars'"
 
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
@@ -201,6 +214,10 @@ runs:
               mkdir -p tests
               rm _isaac_sim || true
               ln -s /isaac-sim _isaac_sim
+              if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
+                echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
+                ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
+              fi
               echo 'Starting pytest with path: $test_path'
               ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py --ignore=source/isaaclab/test/install_ci $test_path $pytest_options -v --junitxml=tests/$result_file
             "
@@ -296,7 +313,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}"
 
     - name: Kill container on cancellation
       if: cancelled()
