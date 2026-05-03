@@ -52,10 +52,11 @@ TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
 
 FOCUS_ARTICULATION_HANG_DEBUG = True
-"""Temporary CI debug focus for the intermittent PhysX articulation hang."""
+"""Temporary CI debug focus for the intermittent articulation hang."""
 
 FOCUS_ARTICULATION_HANG_TEST_PATHS = (
     "source/isaaclab_physx/test/assets/test_articulation.py",
+    "source/isaaclab_newton/test/assets/test_articulation.py",
     "source/isaaclab_physx/test/assets/test_surface_gripper.py",
     "source/isaaclab/test/app/test_non_headless_launch.py",
 )
@@ -369,7 +370,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         if FOCUS_ARTICULATION_HANG_DEBUG and any(
             test_path in normalized_test_file for test_path in FOCUS_ARTICULATION_HANG_TEST_PATHS
         ):
-            cmd.extend(["-vv", "-s"])
             if "test_articulation.py" in normalized_test_file:
                 cmd.extend(["-k", FOCUS_ARTICULATION_HANG_TEST_EXPR])
 
@@ -631,7 +631,10 @@ def _collect_test_files(
 
                 test_files.append(full_path)
 
-    # Apply file-level sharding: sort deterministically, then select every Nth file.
+    # Keep execution order deterministic so reruns compare the same file sequence.
+    test_files.sort()
+
+    # Apply file-level sharding: select every Nth file from the deterministic order.
     # Skip when include_files is set — in that case the test's own conftest handles
     # sharding at the test-item level (e.g. parametrized test cases).
     shard_index = os.environ.get("TEST_SHARD_INDEX", "")
@@ -639,7 +642,6 @@ def _collect_test_files(
     if shard_index and shard_count and not include_files:
         shard_index = int(shard_index)
         shard_count = int(shard_count)
-        test_files.sort()
         test_files = [f for i, f in enumerate(test_files) if i % shard_count == shard_index]
         print(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
 

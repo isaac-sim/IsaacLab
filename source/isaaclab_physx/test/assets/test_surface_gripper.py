@@ -9,10 +9,16 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import sys
+
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
+sys.__stdout__.write("[surface-gripper-hang-debug] before AppLauncher\n")
+sys.__stdout__.flush()
 simulation_app = AppLauncher(headless=True).app
+sys.__stdout__.write("[surface-gripper-hang-debug] after AppLauncher\n")
+sys.__stdout__.flush()
 
 """Rest everything follows."""
 
