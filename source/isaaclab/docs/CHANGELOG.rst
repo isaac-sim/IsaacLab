@@ -13,8 +13,8 @@ Changelog
   supported by :mod:`scripts.reinforcement_learning.leapp.deploy`.
 * Added LEAPP deployment documentation describing the exported-policy validation
   flow and linking the manager-based and Direct workflow export paths.
-  
-  
+
+
 4.6.26 (2026-05-01)
 ~~~~~~~~~~~~~~~~~~~
 
