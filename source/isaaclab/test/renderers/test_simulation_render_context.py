@@ -10,11 +10,17 @@ from __future__ import annotations
 from typing import cast
 
 import pytest
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.sensors.camera.camera_data import CameraData
+
+pytest.importorskip("isaaclab_physx")
+pytest.importorskip("isaaclab_newton")
+pytest.importorskip("isaaclab_ov")
+
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 
 def test_get_renderer_returns_equal_cfg_singleton():
@@ -27,8 +33,6 @@ def test_get_renderer_returns_equal_cfg_singleton():
 
 def test_get_renderer_two_different_concrete_types_coexist():
     """Different renderer_cfg concrete classes register distinct backends (no error)."""
-    pytest.importorskip("isaaclab_newton")
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
     ctx = RenderContext()
     rtx = ctx.get_renderer(IsaacRtxRendererCfg())
@@ -53,8 +57,6 @@ def test_ensure_prepare_stage_num_envs_mismatch():
 
 def test_update_transforms_dedupes_per_physics_step():
     """All backends' update_transforms run once per physics step index."""
-    pytest.importorskip("isaaclab_newton")
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
     ctx = RenderContext()
     calls: list[int] = []
