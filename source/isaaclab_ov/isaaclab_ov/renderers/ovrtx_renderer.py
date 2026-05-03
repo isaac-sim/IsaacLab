@@ -41,10 +41,6 @@ import ovrtx
 from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 from packaging.version import Version
 
-# In previous versions of ovrtx, there was a bug where we would have to set read_gpu_transforms to False.
-# In later versions, we can read transforms from GPU.
-_OVRTX_READ_GPU_TRANSFORMS = Version(ovrtx.__version__) > Version("0.2.0")
-
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
@@ -53,8 +49,10 @@ from .ovrtx_renderer_kernels import (
     DEVICE,
     create_camera_transforms_kernel,
     extract_all_depth_tiles_kernel,
+    extract_all_depth_tiles_kernel_legacy,
     extract_all_rgba_tiles_kernel,
     generate_random_colors_from_ids_kernel,
+    generate_random_colors_from_ids_kernel_legacy,
     sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
@@ -66,6 +64,47 @@ from .ovrtx_usd import (
 if TYPE_CHECKING:
     from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
+
+
+# Shared integration floor for this module; reuse for ovrtx features that share one support floor.
+_OVRTX_VERSION = Version(ovrtx.__version__)
+_IS_OVRTX_0_3_0_OR_NEWER = Version("0.3.0") <= _OVRTX_VERSION
+
+# The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
+_RTX_MINIMAL_MODES = {
+    RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE.value: 1,
+    RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL.value: 2,
+    RenderBufferKind.SIMPLE_SHADING_FULL_MDL.value: 3,
+}
+
+
+def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
+    """Resolve the RTX minimal mode from data types.
+
+    RTX minimal mode is used to control the rendering quality. The higher the mode, the higher the quality.
+
+    If multiple simple shading data types are requested, the first one in the list is used and a warning is logged.
+
+    If no simple shading data types are requested, None is returned.
+
+    Args:
+        data_types: List of data types.
+
+    Returns:
+        The resolved RTX minimal mode if simple shading data types are requested, otherwise None.
+    """
+    filtered_data_types = [data_type for data_type in data_types if data_type in _RTX_MINIMAL_MODES]
+    if not filtered_data_types:
+        return None
+
+    if len(filtered_data_types) > 1:
+        logger.warning(
+            "Multiple simple shading data types requested (%s). Using the first in the list (%s).",
+            filtered_data_types,
+            filtered_data_types[0],
+        )
+
+    return _RTX_MINIMAL_MODES[filtered_data_types[0]]
 
 
 class OVRTXRenderData:
@@ -103,6 +142,9 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, torch.uint8),
             RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, torch.uint8),
             RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
@@ -168,7 +210,7 @@ class OVRTXRenderer(BaseRenderer):
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
             log_level=self.cfg.log_level,
-            read_gpu_transforms=_OVRTX_READ_GPU_TRANSFORMS,
+            read_gpu_transforms=_IS_OVRTX_0_3_0_OR_NEWER,
         )
         self._renderer = Renderer(OVRTX_CONFIG)
         assert self._renderer, "Renderer should be valid after creation"
@@ -176,6 +218,7 @@ class OVRTXRenderer(BaseRenderer):
 
         if usd_scene_path is not None:
             logger.info("Injecting camera definitions...")
+
             combined_usd_path, render_product_path = inject_cameras_into_usd(
                 usd_scene_path,
                 self.cfg,
@@ -183,6 +226,7 @@ class OVRTXRenderer(BaseRenderer):
                 height=height,
                 num_envs=num_envs,
                 data_types=data_types,
+                minimal_mode=_resolve_rtx_minimal_mode(data_types),
                 camera_rel_path=self._camera_rel_path,
             )
             self._render_product_paths.append(render_product_path)
@@ -443,7 +487,11 @@ class OVRTXRenderer(BaseRenderer):
         output_colors = self._output_semantic_color_buffer
 
         wp.launch(
-            kernel=generate_random_colors_from_ids_kernel,
+            kernel=(
+                generate_random_colors_from_ids_kernel
+                if _IS_OVRTX_0_3_0_OR_NEWER
+                else generate_random_colors_from_ids_kernel_legacy
+            ),
             dim=input_ids.shape,
             inputs=[input_ids, output_colors],
             device=DEVICE,
@@ -460,15 +508,21 @@ class OVRTXRenderer(BaseRenderer):
         suffix: str = "",
     ) -> None:
         """Extract per-env RGBA tiles from tiled buffer into output_buffers (single kernel launch)."""
+        output_buffer = output_buffers[buffer_key]
+        num_channels = output_buffer.shape[-1]
+        if num_channels not in (3, 4):
+            raise ValueError(f"Expected RGB (3 channels) or RGBA (4 channels), got {num_channels}")
+
         wp.launch(
             kernel=extract_all_rgba_tiles_kernel,
             dim=(render_data.num_envs, render_data.height, render_data.width),
             inputs=[
                 tiled_data,
-                output_buffers[buffer_key],
+                output_buffer,
                 render_data.num_cols,
                 render_data.width,
                 render_data.height,
+                num_channels,
             ],
             device=DEVICE,
         )
@@ -477,10 +531,12 @@ class OVRTXRenderer(BaseRenderer):
         self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
     ) -> None:
         """Extract per-env depth tiles into output_buffers (single kernel launch)."""
+        kernel = extract_all_depth_tiles_kernel if _IS_OVRTX_0_3_0_OR_NEWER else extract_all_depth_tiles_kernel_legacy
+
         for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
             if depth_type in output_buffers:
                 wp.launch(
-                    kernel=extract_all_depth_tiles_kernel,
+                    kernel=kernel,
                     dim=(render_data.num_envs, render_data.height, render_data.width),
                     inputs=[
                         tiled_depth_data,
@@ -494,17 +550,23 @@ class OVRTXRenderer(BaseRenderer):
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
-        rgb_render_var = (
-            "SimpleShadingSD"
-            if "SimpleShadingSD" in frame.render_vars
-            else "LdrColor"
-            if "LdrColor" in frame.render_vars
-            else None
-        )
-        if rgb_render_var and "rgba" in output_buffers:
-            with frame.render_vars[rgb_render_var].map(device=Device.CUDA) as mapping:
-                tiled_data = wp.from_dlpack(mapping.tensor)
-                self._extract_rgba_tiles(render_data, tiled_data, output_buffers, "rgba", suffix="rgb")
+        if "LdrColor" in frame.render_vars:
+            buffer_key = None
+
+            if "rgba" in output_buffers:
+                buffer_key = "rgba"
+            else:
+                # The output buffers must contain only one simple shading data type at most after resolution of the data
+                # types during creation of the output buffers (OVRTXRenderData._create_warp_buffers).
+                for dt in _RTX_MINIMAL_MODES:
+                    if dt in output_buffers:
+                        buffer_key = dt
+                        break
+
+            if buffer_key is not None:
+                with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
+                    tiled_data = wp.from_dlpack(mapping.tensor)
+                    self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
