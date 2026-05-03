@@ -151,8 +151,8 @@ for each version of the extension.
 
    ``CHANGELOG.rst`` and ``extension.toml`` are compiled by CI from per-PR **fragment
    files** — contributors do not edit them directly. For every package your PR touches
-   in ``source/<package>/`` (outside ``changelog.d/``), add one fragment under
-   ``source/<package>/changelog.d/<slug>.<tier>.rst``:
+   in ``source/<pkg>/`` (outside ``changelog.d/``), add one fragment under
+   ``source/<pkg>/changelog.d/<slug>.<tier>.rst``:
 
    * ``<slug>.rst`` — patch bump
    * ``<slug>.minor.rst`` — minor bump (new public API)
