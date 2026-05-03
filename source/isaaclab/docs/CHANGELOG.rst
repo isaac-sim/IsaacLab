@@ -1,16 +1,6 @@
 Changelog
 ---------
 
-4.6.26 (2026-05-01)
-~~~~~~~~~~~~~~~~~~~
-
-Fixed
-^^^^^
-
-* Reduced USD environment replication startup contention in distributed runs by
-  batching cloner ``Sdf.ChangeBlock`` commits.
-
-
 4.6.25 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
