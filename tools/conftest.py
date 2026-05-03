@@ -48,8 +48,21 @@ without wasting the full hard timeout.
 STARTUP_HANG_RETRIES = 2
 """Number of times to retry a test that hangs during startup before giving up."""
 
-TIMEOUT_RETRIES = 2
+TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
+
+FOCUS_ARTICULATION_HANG_DEBUG = True
+"""Temporary CI debug focus for the intermittent PhysX articulation hang."""
+
+FOCUS_ARTICULATION_HANG_TEST_PATHS = (
+    "source/isaaclab_physx/test/assets/test_articulation.py",
+    "source/isaaclab_physx/test/assets/test_surface_gripper.py",
+    "source/isaaclab/test/app/test_non_headless_launch.py",
+)
+"""Test files to run while investigating intermittent CI timeouts."""
+
+FOCUS_ARTICULATION_HANG_TEST_EXPR = "test_external_force_on_single_body_at_position"
+"""Pytest expression to select the suspected hanging test."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -352,6 +365,13 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             cmd.append("isaacsim_ci")
 
         cmd.append(str(test_file))
+        normalized_test_file = str(test_file).replace(os.sep, "/")
+        if FOCUS_ARTICULATION_HANG_DEBUG and any(
+            test_path in normalized_test_file for test_path in FOCUS_ARTICULATION_HANG_TEST_PATHS
+        ):
+            cmd.extend(["-vv", "-s"])
+            if "test_articulation.py" in normalized_test_file:
+                cmd.extend(["-k", FOCUS_ARTICULATION_HANG_TEST_EXPR])
 
         report_file = f"tests/test-reports-{str(file_name)}.xml"
 
@@ -596,9 +616,12 @@ def _collect_test_files(
 
                 full_path = os.path.join(root, file)
 
-                if filter_pattern and filter_pattern not in full_path:
-                    print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
-                    continue
+                normalized_path = full_path.replace(os.sep, "/")
+                if filter_pattern:
+                    filter_patterns = [pattern.strip() for pattern in filter_pattern.split(",") if pattern.strip()]
+                    if not any(pattern in normalized_path for pattern in filter_patterns):
+                        print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
+                        continue
                 if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):
                     print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
                     continue
@@ -663,6 +686,13 @@ def pytest_sessionstart(session):
         filter_pattern = filter_pattern or getattr(session.config.option, "filter_pattern", "")
     if hasattr(session.config, "option") and hasattr(session.config.option, "exclude_pattern"):
         exclude_pattern = exclude_pattern or getattr(session.config.option, "exclude_pattern", "")
+
+    if FOCUS_ARTICULATION_HANG_DEBUG:
+        filter_pattern = ",".join(FOCUS_ARTICULATION_HANG_TEST_PATHS)
+        print("Temporary timeout debug focus is enabled.")
+        print(f"Only running files containing: {filter_pattern}")
+        print(f"Articulation pytest expression: {FOCUS_ARTICULATION_HANG_TEST_EXPR}")
+        print(f"Timeout retries disabled: {TIMEOUT_RETRIES}")
 
     print("=" * 50)
     print("CONFTEST.PY DEBUG INFO")

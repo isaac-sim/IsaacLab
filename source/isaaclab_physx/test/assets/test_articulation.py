@@ -940,10 +940,17 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
+    debug_prefix = (
+        "[articulation-hang-debug] "
+        f"test_external_force_on_single_body_at_position[{device}-{num_articulations}]"
+    )
+    print(f"{debug_prefix}: generating articulation", flush=True)
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
     # Play the simulator
+    print(f"{debug_prefix}: before sim.reset", flush=True)
     sim.reset()
+    print(f"{debug_prefix}: after sim.reset", flush=True)
 
     # Find bodies to apply the force
     body_ids, _ = articulation.find_bodies("base")
@@ -959,11 +966,13 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
     desired_torque[..., 0] = 1000.0
 
     # Now we are ready!
-    for i in range(5):
+    for outer_i in range(5):
+        print(f"{debug_prefix}: outer loop {outer_i} begin", flush=True)
         # reset root state
         root_pose = articulation.data.default_root_pose.torch.clone()
         root_pose[0, 0] = 2.5  # space them apart by 2.5m
 
+        print(f"{debug_prefix}: outer loop {outer_i} before root state write", flush=True)
         articulation.write_root_pose_to_sim_index(root_pose=root_pose)
         articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
@@ -974,11 +983,13 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
         articulation.write_joint_position_to_sim_index(position=joint_pos)
         articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
         # reset articulation
+        print(f"{debug_prefix}: outer loop {outer_i} before articulation.reset", flush=True)
         articulation.reset()
+        print(f"{debug_prefix}: outer loop {outer_i} after articulation.reset", flush=True)
         # apply force
         is_global = False
 
-        if i % 2 == 0:
+        if outer_i % 2 == 0:
             body_com_pos_w = articulation.data.body_com_pos_w.torch[:, body_ids, :3]
             # is_global = True
             external_wrench_positions_b[..., 0] = 0.0
@@ -990,6 +1001,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             external_wrench_positions_b[..., 1] = 1.0
             external_wrench_positions_b[..., 2] = 0.0
 
+        print(f"{debug_prefix}: outer loop {outer_i} before set/add wrench", flush=True)
         articulation.permanent_wrench_composer.set_forces_and_torques_index(
             forces=external_wrench_b[..., :3],
             torques=external_wrench_b[..., 3:],
@@ -1004,18 +1016,25 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
             body_ids=body_ids,
             is_global=is_global,
         )
+        print(f"{debug_prefix}: outer loop {outer_i} after set/add wrench", flush=True)
         # perform simulation
-        for _ in range(100):
+        for step_i in range(100):
             # apply action to the articulation
             articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
+            print(f"{debug_prefix}: outer loop {outer_i} step {step_i} before write_data_to_sim", flush=True)
             articulation.write_data_to_sim()
             # perform step
+            print(f"{debug_prefix}: outer loop {outer_i} step {step_i} before sim.step", flush=True)
             sim.step()
+            print(f"{debug_prefix}: outer loop {outer_i} step {step_i} after sim.step", flush=True)
             # update buffers
             articulation.update(sim.cfg.dt)
+            print(f"{debug_prefix}: outer loop {outer_i} step {step_i} after articulation.update", flush=True)
         # check condition that the articulations have fallen down
+        print(f"{debug_prefix}: outer loop {outer_i} before assertions", flush=True)
         for i in range(num_articulations):
             assert articulation.data.root_pos_w.torch[i, 2].item() < 0.2
+        print(f"{debug_prefix}: outer loop {outer_i} complete", flush=True)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
