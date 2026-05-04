@@ -191,8 +191,15 @@ Video Recording
 Video recording is enabled with the ``--video`` flag. When combined with ``--visualizer``,
 the visualizer selection also determines which backend captures the video frames:
 
-- ``--visualizer kit`` — frames are captured via the Isaac RTX renderer (Omniverse Replicator).
-- ``--visualizer newton`` — frames are captured via the Newton OpenGL renderer.
+- ``--visualizer kit`` enables ``--video`` capture through the Isaac RTX renderer (Omniverse Replicator).
+- ``--visualizer newton`` enables ``--video`` capture through the Newton OpenGL renderer.
+- ``--visualizer rerun`` does not produce ``--video`` clips; it records Rerun ``.rrd`` data for replay
+  through the Rerun visualizer.
+- ``--visualizer viser`` does not currently provide a ``--video`` recording backend.
+
+When both Kit and Newton visualizers are active, Isaac Lab records a single ``--video`` stream and
+Kit takes precedence. To record from the renderer/physics stack instead of the active visualizer,
+set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. list-table:: ``--video`` compatibility: visualizer × renderer preset
    :header-rows: 1
