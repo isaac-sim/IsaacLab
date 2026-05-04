@@ -120,6 +120,7 @@ class CommandsCfg:
         body_name=MISSING,
         resampling_time_range=(4.0, 4.0),
         debug_vis=True,
+        position_success_threshold=0.05,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.35, 0.65),
             pos_y=(-0.2, 0.2),

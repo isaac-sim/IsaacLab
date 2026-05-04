@@ -7,7 +7,12 @@
 
 from __future__ import annotations
 
-__all__ = ["ResetSampledConstantNoiseModel", "ResetSampledConstantNoiseModelCfg"]
+__all__ = [
+    "ResetSampledConstantNoiseModel",
+    "ResetSampledConstantNoiseModelCfg",
+    "ResetSampledQuaternionNoiseModel",
+    "ResetSampledQuaternionNoiseModelCfg",
+]
 
 from collections.abc import Sequence
 from dataclasses import MISSING
@@ -16,7 +21,8 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.utils import configclass
-from isaaclab.utils.noise import NoiseModel, NoiseModelCfg
+from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
+from isaaclab.utils.noise import ConstantNoiseCfg, NoiseModel, NoiseModelCfg
 
 if TYPE_CHECKING:
     from isaaclab.utils.noise import NoiseCfg
@@ -107,3 +113,77 @@ class ResetSampledConstantNoiseModelCfg(NoiseModelCfg):
 
     Based on this configuration, the noise is sampled at every reset of the noise model.
     """
+
+
+class ResetSampledQuaternionNoiseModel(NoiseModel):
+    """Noise model that applies a rotation perturbation to quaternion observations.
+
+    At each episode reset, small Euler angle perturbations (roll, pitch, yaw) are sampled
+    uniformly from configurable ranges and converted to a perturbation quaternion. This
+    perturbation is then applied via quaternion multiplication at every step, producing a
+    geometrically valid rotated quaternion (unlike additive noise on raw components).
+
+    The perturbation is held constant for the entire episode until the next reset.
+    """
+
+    def __init__(self, noise_model_cfg: NoiseModelCfg, num_envs: int, device: str):
+        super().__init__(noise_model_cfg, num_envs, device)
+        self._roll_range = noise_model_cfg.roll_range
+        self._pitch_range = noise_model_cfg.pitch_range
+        self._yaw_range = noise_model_cfg.yaw_range
+        # Identity quaternion in (x, y, z, w) format
+        self._perturbation_quat = torch.zeros((num_envs, 4), device=device)
+        self._perturbation_quat[:, 3] = 1.0
+
+    def reset(self, env_ids: Sequence[int] | None = None):
+        """Sample new rotation perturbations for the specified environments.
+
+        Args:
+            env_ids: The environment ids to reset. Defaults to None (all environments).
+        """
+        if env_ids is None:
+            env_ids = slice(None)
+
+        num_resets = env_ids.stop - env_ids.start if isinstance(env_ids, slice) else len(env_ids)
+
+        roll = torch.empty(num_resets, device=self._device).uniform_(*self._roll_range)
+        pitch = torch.empty(num_resets, device=self._device).uniform_(*self._pitch_range)
+        yaw = torch.empty(num_resets, device=self._device).uniform_(*self._yaw_range)
+
+        self._perturbation_quat[env_ids] = quat_from_euler_xyz(roll, pitch, yaw)
+
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        """Apply the pre-sampled rotation perturbation to the quaternion data.
+
+        Args:
+            data: Quaternion observations in (x, y, z, w) format. Shape is (num_envs, 4).
+
+        Returns:
+            Perturbed quaternions in (x, y, z, w) format. Shape is (num_envs, 4).
+        """
+        return quat_mul(self._perturbation_quat, data)
+
+
+@configclass
+class ResetSampledQuaternionNoiseModelCfg(NoiseModelCfg):
+    """Configuration for a quaternion noise model that samples rotation perturbations at reset.
+
+    The perturbation is specified as independent uniform ranges for roll, pitch, and yaw
+    (in radians). At each episode reset, Euler angles are sampled and converted to a
+    perturbation quaternion that is multiplied with the observed quaternion.
+    """
+
+    class_type: type = ResetSampledQuaternionNoiseModel
+
+    noise_cfg: ConstantNoiseCfg = ConstantNoiseCfg(bias=0.0)
+    """Unused placeholder inherited from NoiseModelCfg. Quaternion perturbation is
+    controlled by roll_range, pitch_range, and yaw_range instead."""
+
+    roll_range: tuple[float, float] = (-0.01745, 0.01745)
+    """Uniform range for roll perturbation in radians. Default is ±1 degree."""
+
+    pitch_range: tuple[float, float] = (-0.01745, 0.01745)
+    """Uniform range for pitch perturbation in radians. Default is ±1 degree."""
+
+    yaw_range: tuple[float, float] = (-0.01745, 0.01745)
+    """Uniform range for yaw perturbation in radians. Default is ±1 degree."""

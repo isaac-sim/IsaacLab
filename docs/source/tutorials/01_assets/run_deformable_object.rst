@@ -163,7 +163,7 @@ Now that we have gone through the code, let's run the script and see the result:
    ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
 
 
-This should open a stage with a ground plane, lights, and several green cubes. Two of the four cubes must be dropping
+This should open a stage with a ground plane, lights, and several cubes. Two of the four cubes must be dropping
 from a height and settling on to the ground. Meanwhile the other two cubes must be moving along the z-axis. You
 should see a marker showing the kinematic target position for the nodes at the bottom-left corner of the cubes.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal

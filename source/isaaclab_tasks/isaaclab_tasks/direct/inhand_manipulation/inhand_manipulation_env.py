@@ -71,6 +71,7 @@ class InHandManipulationEnv(DirectRLEnv):
         # track successes
         self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.consecutive_successes = torch.zeros(1, dtype=torch.float, device=self.device)
+        self._last_episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
         # unit tensors
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
@@ -219,6 +220,12 @@ class InHandManipulationEnv(DirectRLEnv):
         return out_of_reach, time_out
 
     def _reset_idx(self, env_ids: Sequence[int]):
+        # Episode counts as successful when goals reached >= cfg.success_count_threshold.
+        self._last_episode_success[env_ids] = self.successes[env_ids] >= self.cfg.success_count_threshold
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = (
+            self._last_episode_success[env_ids].float().mean().item()
+        )
+
         super()._reset_idx(env_ids)
 
         # reset goals

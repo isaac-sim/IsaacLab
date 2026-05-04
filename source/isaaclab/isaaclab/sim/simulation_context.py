@@ -28,6 +28,7 @@ from isaaclab.physics.scene_data_requirements import (
     VisualizerPrebuiltArtifacts,
     resolve_scene_data_requirements,
 )
+from isaaclab.renderers.render_context import RenderContext
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
@@ -195,6 +196,9 @@ class SimulationContext:
         # is executed and lets downstream camera freshness logic distinguish
         # render/reset transitions that occur without advancing physics steps.
         self._render_generation: int = 0
+
+        # Shared renderers for all Camera sensors (compatible renderer_cfg only).
+        self._render_context = RenderContext()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -372,6 +376,15 @@ class SimulationContext:
     def get_physics_dt(self) -> float:
         """Returns the physics time step."""
         return self.physics_manager.get_physics_dt()
+
+    def get_physics_step_count(self) -> int:
+        """Return the monotonic physics step counter (incremented each :meth:`step`)."""
+        return self._physics_step_count
+
+    @property
+    def render_context(self) -> RenderContext:
+        """Shared :class:`~isaaclab.renderers.render_context.RenderContext` for camera renderers."""
+        return self._render_context
 
     @property
     def render_generation(self) -> int:

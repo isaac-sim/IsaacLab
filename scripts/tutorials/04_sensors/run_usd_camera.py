@@ -65,6 +65,7 @@ import random
 
 import numpy as np
 import torch
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 import omni.replicator.core as rep
 
@@ -97,9 +98,11 @@ def define_sensor() -> Camera:
             "instance_segmentation_fast",
             "instance_id_segmentation_fast",
         ],
-        colorize_semantic_segmentation=True,
-        colorize_instance_id_segmentation=True,
-        colorize_instance_segmentation=True,
+        renderer_cfg=IsaacRtxRendererCfg(
+            colorize_semantic_segmentation=True,
+            colorize_instance_id_segmentation=True,
+            colorize_instance_segmentation=True,
+        ),
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
         ),
@@ -173,9 +176,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     rep_writer = rep.BasicWriter(
         output_dir=output_dir,
         frame_padding=0,
-        colorize_instance_id_segmentation=camera.cfg.colorize_instance_id_segmentation,
-        colorize_instance_segmentation=camera.cfg.colorize_instance_segmentation,
-        colorize_semantic_segmentation=camera.cfg.colorize_semantic_segmentation,
+        colorize_instance_id_segmentation=camera.cfg.renderer_cfg.colorize_instance_id_segmentation,
+        colorize_instance_segmentation=camera.cfg.renderer_cfg.colorize_instance_segmentation,
+        colorize_semantic_segmentation=camera.cfg.renderer_cfg.colorize_semantic_segmentation,
     )
 
     # Camera positions, targets, orientations
