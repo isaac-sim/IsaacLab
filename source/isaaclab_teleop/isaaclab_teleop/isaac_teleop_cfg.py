@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils import configclass
 
@@ -28,6 +28,22 @@ CLOUDXR_JS_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxrjs-cloudxr.env")
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
     from isaacteleop.teleop_session_manager import PluginConfig
+
+
+try:
+    from isaacteleop.teleop_session_manager import RetargetingExecutionConfig as _RetargetingExecutionConfig
+
+    _RETARGETING_EXECUTION_SUPPORTED = True
+except ImportError:
+    _RetargetingExecutionConfig = None
+    _RETARGETING_EXECUTION_SUPPORTED = False
+
+
+def _default_retargeting_execution_config() -> Any | None:
+    """Build Isaac Lab's default IsaacTeleop retargeting execution config."""
+    if not _RETARGETING_EXECUTION_SUPPORTED:
+        return None
+    return _RetargetingExecutionConfig(mode="pipelined")
 
 
 @configclass
@@ -94,6 +110,16 @@ class IsaacTeleopCfg:
 
     sim_device: str = "cuda:0"
     """Torch device string for placing output action tensors."""
+
+    retargeting_execution: Any | None = field(default_factory=_default_retargeting_execution_config)
+    """IsaacTeleop retargeting execution settings.
+
+    Isaac Lab opts into IsaacTeleop's pipelined execution by default when the
+    installed IsaacTeleop package exposes ``RetargetingExecutionConfig``.
+    Older IsaacTeleop releases leave this as ``None`` and use their historical
+    execution behavior. Set this to ``RetargetingExecutionConfig(mode="sync")``
+    for exact current-frame retargeting while debugging or comparing behavior.
+    """
 
     teleoperation_active_default: bool = False
     """Whether teleoperation should be active by default when the session starts.

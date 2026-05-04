@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from isaacteleop.teleop_session_manager import TeleopSession
 
 from .control_events import _NO_OP_EVENTS, ControlEvents
-from .isaac_teleop_cfg import IsaacTeleopCfg
+from .isaac_teleop_cfg import _RETARGETING_EXECUTION_SUPPORTED, IsaacTeleopCfg
 from .teleop_message_processor import TeleopMessageProcessor
 
 
@@ -495,6 +495,16 @@ class TeleopSessionLifecycle:
                 self._session_start_deferred_logged = True
             return False
 
+        extra_kwargs: dict[str, Any] = {}
+        if self._cfg.retargeting_execution is not None:
+            if _RETARGETING_EXECUTION_SUPPORTED:
+                extra_kwargs["retargeting_execution"] = self._cfg.retargeting_execution
+            else:
+                logger.warning(
+                    "Installed IsaacTeleop does not support retargeting_execution; "
+                    "using its default retargeting behavior."
+                )
+
         session_config = TeleopSessionConfig(
             app_name=self._cfg.app_name,
             trackers=[],
@@ -502,6 +512,7 @@ class TeleopSessionLifecycle:
             teleop_control_pipeline=self._teleop_control_pipeline,
             plugins=self._cfg.plugins,
             oxr_handles=oxr_handles,
+            **extra_kwargs,
         )
 
         # Create and enter the TeleopSession

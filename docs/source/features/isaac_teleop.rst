@@ -685,6 +685,11 @@ Key ``IsaacTeleopCfg`` fields:
 * ``xr_cfg`` -- :class:`~isaaclab_teleop.XrCfg` for anchor configuration (see below).
 * ``plugins`` -- list of Isaac Teleop plugin configurations (e.g. Manus).
 * ``sim_device`` -- torch device string (default ``"cuda:0"``).
+* ``retargeting_execution`` -- IsaacTeleop retargeting execution settings.
+  Defaults to ``RetargetingExecutionConfig(mode="pipelined")`` so retargeting
+  can run on the IsaacTeleop worker instead of blocking the simulation loop
+  when the installed IsaacTeleop version supports that API. Older IsaacTeleop
+  versions ignore this setting and use their historical execution behavior.
 
 .. warning::
 
