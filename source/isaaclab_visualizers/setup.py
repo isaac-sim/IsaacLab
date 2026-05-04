@@ -17,16 +17,13 @@ EXTRAS_REQUIRE = {
     "kit": [],
     "newton": [
         "warp-lang",
-        "newton @ git+https://github.com/jvonmuralt/newton.git@ignore_path",
         "PyOpenGL-accelerate",
         "imgui-bundle>=1.92.5",
     ],
     "rerun": [
-        "newton @ git+https://github.com/jvonmuralt/newton.git@ignore_path",
         "rerun-sdk>=0.29.0",
     ],
     "viser": [
-        "newton @ git+https://github.com/jvonmuralt/newton.git@ignore_path",
         "viser>=1.0.16",
     ],
 }

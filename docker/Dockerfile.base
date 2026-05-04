@@ -112,22 +112,23 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
         ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation nlopt==2.6.2; \
     fi
 
-# installing Isaac Lab dependencies
-# use pip caching to avoid reinstalling large packages
-RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    ${ISAACLAB_PATH}/isaaclab.sh --install
-
-# HACK: Force-install Newton to match the version required by isaaclab_newton.
-# The Docker base image ships an older pre-built copy whose version string
-# collides with the new one (both report 1.2.0.dev0), so pip skips the
-# upgrade during `isaaclab.sh --install`.  --no-deps avoids pulling
-# Newton's warp-lang>=1.13 dep (we keep the bundled Warp 1.12 for Isaac Sim
-# compatibility).
+# HACK: Pre-install Newton before `isaaclab.sh --install`.
+# Newton's own setup.py requires warp-lang>=1.13 but isaaclab pins
+# warp-lang==1.12 (bundled with Isaac Sim).  Installing Newton via pip's
+# dependency resolver would fail, so we force-install it with --no-deps
+# first.  The Docker base image also ships an older pre-built Newton whose
+# version string collides (both report 1.2.0.dev0), so --force-reinstall
+# ensures the correct commit is used.
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --force-reinstall --no-deps \
         "newton @ git+https://github.com/jvonmuralt/newton.git@ignore_path" && \
     ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install \
         "mujoco~=3.8.0" "mujoco-warp>=3.8.0.1,~=3.8.0"
+
+# installing Isaac Lab dependencies
+# use pip caching to avoid reinstalling large packages
+RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
+    ${ISAACLAB_PATH}/isaaclab.sh --install
 
 # HACK: Remove install of quadprog dependency
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
