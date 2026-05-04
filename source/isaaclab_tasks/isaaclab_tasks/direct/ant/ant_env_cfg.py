@@ -26,7 +26,7 @@ from isaaclab_assets.robots.ant import ANT_CFG
 class AntPhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg()
     physx: PhysxCfg = PhysxCfg()
-    newton: NewtonCfg = NewtonCfg(
+    mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=45,
             nconmax=25,

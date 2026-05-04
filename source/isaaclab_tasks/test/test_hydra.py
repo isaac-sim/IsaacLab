@@ -86,7 +86,7 @@ class SampleAgentCfg:
 @configclass
 class SimBackendCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg()
-    newton: NewtonCfg = NewtonCfg()
+    mjwarp: NewtonCfg = NewtonCfg()
 
 
 @configclass
@@ -168,7 +168,7 @@ class NestedPresetEnvCfg:
 @configclass
 class ScalarPresetCfg(PresetCfg):
     default: float = 0.0
-    newton: float = 0.01
+    mjwarp: float = 0.01
 
 
 @configclass
@@ -326,9 +326,16 @@ def test_collect_presets_class_style():
     """PresetCfg fields discovered at correct paths."""
     presets = collect_presets(PresetCfgEnvCfg())
     assert "backend" in presets
-    assert set(presets["backend"].keys()) == {"default", "newton"}
+    assert set(presets["backend"].keys()) == {"default", "mjwarp"}
     assert isinstance(presets["backend"]["default"], PhysxCfg)
-    assert isinstance(presets["backend"]["newton"], NewtonCfg)
+    assert isinstance(presets["backend"]["mjwarp"], NewtonCfg)
+
+
+def test_legacy_newton_attribute_alias_warns():
+    """Python access to the legacy ``newton`` preset aliases to ``mjwarp`` during deprecation."""
+    cfg = SimBackendCfg()
+    with pytest.warns(DeprecationWarning, match="Preset 'newton' is deprecated"):
+        assert cfg.newton is cfg.mjwarp
 
 
 def test_collect_presets_root_level():
@@ -352,12 +359,12 @@ def test_parse_overrides_mixed():
     args = [
         "presets=fast",
         "env.decimation=10",
-        "env.backend=newton",
+        "env.backend=mjwarp",
         "env.backend.dt=0.001",
     ]
     global_p, sel, scalar, glob = parse_overrides(args, presets)
     assert global_p == ["fast"]
-    assert ("env", "backend", "newton") in sel
+    assert ("env", "backend", "mjwarp") in sel
     assert ("env.backend.dt", "0.001") in scalar
     assert "env.decimation=10" in glob
 
@@ -388,7 +395,7 @@ def test_presetcfg_cli_selection(class_presets):
     """Path selection replaces with chosen preset."""
     env_cfg, agent_cfg, presets = class_presets
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "newton")], [], presets)
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "mjwarp")], [], presets)
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert env_cfg.backend.dt == 0.002
 
@@ -406,7 +413,7 @@ def test_presetcfg_path_selection_others_default(class_presets):
     """Path preset on one field, others get auto-default."""
     env_cfg, agent_cfg, presets = class_presets
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "newton")], [], presets)
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "mjwarp")], [], presets)
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert isinstance(env_cfg.observations, NoiselessObservationsCfg)
     assert isinstance(agent_cfg.policy, SmallPolicyCfg)
@@ -501,7 +508,7 @@ class RendererBCfg:
 @configclass
 class RendererPresetCfg(PresetCfg):
     default: RendererACfg = RendererACfg()
-    newton: RendererBCfg = RendererBCfg()
+    newton_renderer: RendererBCfg = RendererBCfg()
 
 
 @configclass
@@ -539,7 +546,7 @@ def test_root_presetcfg_with_nested_preset_collect():
     assert "sensor" in presets
     assert set(presets["sensor"].keys()) == {"default", "depth"}
     assert "sensor.renderer" in presets
-    assert set(presets["sensor.renderer"].keys()) == {"default", "newton"}
+    assert set(presets["sensor.renderer"].keys()) == {"default", "newton_renderer"}
 
 
 def test_root_presetcfg_resolve_defaults():
@@ -603,7 +610,7 @@ def test_root_presetcfg_global_depth_resolves_nested():
 
 
 # =============================================================================
-# Tests: scalar PresetCfg (e.g., armature=PresetCfg(default=0.0, newton=0.01))
+# Tests: scalar PresetCfg (e.g., armature=PresetCfg(default=0.0, mjwarp=0.01))
 # =============================================================================
 
 
@@ -618,7 +625,7 @@ def test_scalar_presetcfg_collect():
     presets = collect_presets(ScalarPresetEnvCfg())
     assert "actuator.armature" in presets
     assert presets["actuator.armature"]["default"] == 0.0
-    assert presets["actuator.armature"]["newton"] == 0.01
+    assert presets["actuator.armature"]["mjwarp"] == 0.01
 
 
 def test_scalar_presetcfg_resolve_default():
@@ -635,15 +642,15 @@ def test_scalar_presetcfg_auto_default():
     assert env_cfg.actuator.armature == 0.0
 
 
-def test_scalar_presetcfg_global_newton():
-    """Global preset=newton replaces scalar PresetCfg with newton value."""
-    env_cfg, _ = _apply(ScalarPresetEnvCfg(), global_presets=["newton"])
+def test_scalar_presetcfg_global_mjwarp():
+    """Global preset=mjwarp replaces scalar PresetCfg with MJWarp value."""
+    env_cfg, _ = _apply(ScalarPresetEnvCfg(), global_presets=["mjwarp"])
     assert env_cfg.actuator.armature == 0.01
 
 
 def test_scalar_presetcfg_path_selection():
     """Path selection replaces scalar PresetCfg with chosen value."""
-    env_cfg, _ = _apply(ScalarPresetEnvCfg(), preset_sel=[("env", "actuator.armature", "newton")])
+    env_cfg, _ = _apply(ScalarPresetEnvCfg(), preset_sel=[("env", "actuator.armature", "mjwarp")])
     assert env_cfg.actuator.armature == 0.01
     assert env_cfg.actuator.stiffness == 40.0
 
@@ -675,7 +682,7 @@ def test_collect_presets_traverses_dict_values():
     presets = collect_presets(cfg)
     assert "robot.actuators.legs.armature" in presets
     assert presets["robot.actuators.legs.armature"]["default"] == 0.0
-    assert presets["robot.actuators.legs.armature"]["newton"] == 0.01
+    assert presets["robot.actuators.legs.armature"]["mjwarp"] == 0.01
 
 
 def test_resolve_presets_traverses_dict_values():
@@ -692,15 +699,15 @@ def test_dict_preset_auto_default():
     assert env_cfg.robot.actuators["legs"].armature == 0.0
 
 
-def test_dict_preset_global_newton():
-    """Global preset=newton replaces dict-held scalar PresetCfg."""
-    env_cfg, _ = _apply(DictPresetEnvCfg(), global_presets=["newton"])
+def test_dict_preset_global_mjwarp():
+    """Global preset=mjwarp replaces dict-held scalar PresetCfg."""
+    env_cfg, _ = _apply(DictPresetEnvCfg(), global_presets=["mjwarp"])
     assert env_cfg.robot.actuators["legs"].armature == 0.01
 
 
 def test_dict_preset_path_selection():
     """Path selection replaces dict-held scalar PresetCfg."""
-    env_cfg, _ = _apply(DictPresetEnvCfg(), preset_sel=[("env", "robot.actuators.legs.armature", "newton")])
+    env_cfg, _ = _apply(DictPresetEnvCfg(), preset_sel=[("env", "robot.actuators.legs.armature", "mjwarp")])
     assert env_cfg.robot.actuators["legs"].armature == 0.01
     assert env_cfg.robot.actuators["legs"].stiffness == 40.0
 
@@ -715,7 +722,7 @@ def test_dict_preset_with_factory():
 
         def __post_init__(self):
             if self.armature is None:
-                self.armature = preset(default=0.0, newton=0.01, physx=0.0)
+                self.armature = preset(default=0.0, mjwarp=0.01, physx=0.0)
 
     @configclass
     class RobotCfgFactory:
@@ -733,7 +740,7 @@ def test_dict_preset_with_factory():
     presets = collect_presets(cfg)
     assert "robot.actuators.legs.armature" in presets
     assert presets["robot.actuators.legs.armature"]["default"] == 0.0
-    assert presets["robot.actuators.legs.armature"]["newton"] == 0.01
+    assert presets["robot.actuators.legs.armature"]["mjwarp"] == 0.01
     assert presets["robot.actuators.legs.armature"]["physx"] == 0.0
 
 
@@ -742,11 +749,11 @@ def test_dict_preset_with_factory():
 # =============================================================================
 
 
-def test_go1_rough_newton_armature_preset():
-    """Go1 rough terrain uses higher Newton armature without changing PhysX."""
+def test_go1_rough_mjwarp_armature_preset():
+    """Go1 rough terrain uses higher MJWarp armature without changing PhysX."""
     from isaaclab_tasks.manager_based.locomotion.velocity.config.go1.rough_env_cfg import UnitreeGo1RoughEnvCfg
 
-    env_cfg, _ = _apply(UnitreeGo1RoughEnvCfg(), global_presets=["newton"])
+    env_cfg, _ = _apply(UnitreeGo1RoughEnvCfg(), global_presets=["mjwarp"])
     assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.02
 
     env_cfg, _ = _apply(UnitreeGo1RoughEnvCfg())
@@ -1053,7 +1060,7 @@ def test_apply_overrides_conflicting_globals_raises():
 def test_apply_overrides_aliased_globals_no_conflict():
     """Two global presets resolving to equal values do not raise.
 
-    Mirrors the dexsuite ObjectCfg pattern where ``newton = cube`` creates
+    Mirrors the dexsuite ObjectCfg pattern where ``mjwarp = cube`` creates
     separate but equal dataclass instances after @configclass processing.
     """
 
@@ -1062,13 +1069,13 @@ def test_apply_overrides_aliased_globals_no_conflict():
         value: int = 42
 
     cube_val = SharedCfg()
-    newton_val = SharedCfg()
+    mjwarp_val = SharedCfg()
 
     @configclass
     class AliasedPresetCfg(PresetCfg):
         default: str = "d"
         cube: SharedCfg = cube_val
-        newton: SharedCfg = newton_val
+        mjwarp: SharedCfg = mjwarp_val
 
     @configclass
     class AliasedEnvCfg:
@@ -1077,10 +1084,10 @@ def test_apply_overrides_aliased_globals_no_conflict():
     env_cfg = AliasedEnvCfg()
     agent_cfg = PresetCfgAgentCfg()
     presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    assert presets["env"]["mode"]["cube"] is not presets["env"]["mode"]["newton"]
-    assert presets["env"]["mode"]["cube"] == presets["env"]["mode"]["newton"]
+    assert presets["env"]["mode"]["cube"] is not presets["env"]["mode"]["mjwarp"]
+    assert presets["env"]["mode"]["cube"] == presets["env"]["mode"]["mjwarp"]
     hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["cube", "newton"], [], [], presets)
+    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["cube", "mjwarp"], [], [], presets)
     assert env_cfg.mode == SharedCfg()
 
 
@@ -1091,9 +1098,20 @@ def test_apply_overrides_aliased_globals_no_conflict():
 
 def test_parse_overrides_multiple_global_presets():
     """Multiple comma-separated global presets are split correctly."""
-    presets = {"env": {"backend": {"default": None, "newton": None}}, "agent": {}}
-    global_p, _, _, _ = parse_overrides(["presets=fast,newton,debug"], presets)
-    assert global_p == ["fast", "newton", "debug"]
+    presets = {"env": {"backend": {"default": None, "mjwarp": None}}, "agent": {}}
+    global_p, _, _, _ = parse_overrides(["presets=fast,mjwarp,debug"], presets)
+    assert global_p == ["fast", "mjwarp", "debug"]
+
+
+def test_parse_overrides_maps_legacy_newton_preset_to_mjwarp():
+    """Legacy ``newton`` preset selections resolve to ``mjwarp`` when available."""
+    presets = {"env": {"backend": {"default": None, "mjwarp": None}}, "agent": {}}
+    legacy_name = "newton"
+
+    global_p, sel, _, _ = parse_overrides(["presets=fast," + legacy_name, f"env.backend={legacy_name}"], presets)
+
+    assert global_p == ["fast", "mjwarp"]
+    assert sel == [("env", "backend", "mjwarp")]
 
 
 def test_parse_overrides_no_equals_treated_as_global_scalar():
@@ -1158,7 +1176,7 @@ def test_scalar_override_within_preset_path(class_presets):
         agent_cfg,
         hydra_cfg,
         [],
-        [("env", "backend", "newton")],
+        [("env", "backend", "mjwarp")],
         [("env.backend.dt", "0.001")],
         presets,
     )
@@ -1192,7 +1210,7 @@ def test_unknown_global_preset_name_detected():
     presets = {"env": collect_presets(cfg), "agent": {}}
     all_known = {name for alts in presets.values() for fields in alts.values() for name in fields if name != "default"}
 
-    assert "newton" in all_known
+    assert "mjwarp" in all_known
     assert "typo_preset" not in all_known
 
 

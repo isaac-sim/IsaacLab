@@ -14,18 +14,19 @@ Presets are declared by subclassing :class:`PresetCfg` (or using the
 presets and their paths automatically, including inside dict-valued fields.
 
 Override categories (applied in order):
-    1. Global presets: ``presets=inference,newton`` -- apply everywhere matching
-    2. Path presets: ``env.backend=newton`` -- REPLACE specific section
+    1. Global presets: ``presets=inference,mjwarp`` -- apply everywhere matching
+    2. Path presets: ``env.backend=mjwarp`` -- REPLACE specific section
     3. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
     4. Global scalars: ``env.decimation=10`` -- handled by Hydra
 
 Example usage::
 
-    presets=newton env.backend.dt=0.001 env.decimation=10
+    presets=mjwarp env.backend.dt=0.001 env.decimation=10
 """
 
 import functools
 import sys
+import warnings
 from collections.abc import Callable, Mapping
 
 import hydra
@@ -36,6 +37,25 @@ from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, repl
 from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
+_LEGACY_PRESET_ALIASES = {"newton": "mjwarp"}
+
+
+def _known_preset_names(presets: dict) -> set[str]:
+    """Return all preset names declared in a collected preset dictionary."""
+    return {name for section in presets.values() for fields in section.values() for name in fields}
+
+
+def _normalize_preset_name(name: str, known_names: set[str]) -> str:
+    """Map deprecated preset names to their replacement when the replacement is available."""
+    replacement = _LEGACY_PRESET_ALIASES.get(name)
+    if replacement is None or replacement not in known_names or name in known_names:
+        return name
+    warnings.warn(
+        f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    return replacement
 
 
 @configclass
@@ -52,10 +72,21 @@ class PresetCfg:
         @configclass
         class PhysicsCfg(PresetCfg):
             default: PhysxCfg = PhysxCfg()
-            newton: NewtonCfg = NewtonCfg()
+            mjwarp: NewtonCfg = NewtonCfg()
     """
 
-    pass
+    def __getattr__(self, name: str):
+        """Return deprecated preset aliases when a replacement field is available."""
+        replacement = _LEGACY_PRESET_ALIASES.get(name)
+        fields = getattr(type(self), "__dataclass_fields__", {})
+        if replacement is not None and replacement in fields and name not in fields:
+            warnings.warn(
+                f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return getattr(self, replacement)
+        raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
 
 
 def preset(**options) -> PresetCfg:
@@ -67,12 +98,12 @@ def preset(**options) -> PresetCfg:
 
     Example::
 
-        armature = preset(default=0.0, newton=0.01)
+        armature = preset(default=0.0, mjwarp=0.01)
         # Equivalent to:
         # @configclass
         # class _Preset(PresetCfg):
         #     default: float = 0.0
-        #     newton: float = 0.01
+        #     mjwarp: float = 0.01
         # armature = _Preset()
 
     Args:
@@ -139,7 +170,7 @@ def collect_presets(cfg, path: str = "") -> dict:
 
     Returns:
         Dict mapping dotted paths to preset dicts, e.g.:
-        ``{"backend": {"default": PhysxCfg(), "newton": NewtonCfg()}}``
+        ``{"backend": {"default": PhysxCfg(), "mjwarp": NewtonCfg()}}``
     """
     result = {}
 
@@ -177,7 +208,9 @@ def _pick_alternative(preset_obj: PresetCfg, selected: set[str], path: str = "")
         ValueError: If no matching name and no ``default`` field exists.
     """
     fields = _preset_fields(preset_obj)
+    field_names = set(fields)
     for name in selected:
+        name = _normalize_preset_name(name, field_names)
         if name in fields:
             return fields[name]
     if "default" in fields:
@@ -364,8 +397,9 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         "agent": collect_presets(agent_cfg) if agent_cfg else {},
     }
 
+    known_names = _known_preset_names(presets)
     selected = {
-        v.strip()
+        _normalize_preset_name(v.strip(), known_names)
         for arg in sys.argv[1:]
         if "=" in arg
         for key, val in [arg.split("=", 1)]
@@ -431,10 +465,12 @@ def parse_overrides(args: list[str], presets: dict) -> tuple:
             continue
         key, val = arg.split("=", 1)
         if key == "presets":
-            global_presets.extend(v.strip() for v in val.split(",") if v.strip())
+            known_names = _known_preset_names(presets)
+            global_presets.extend(_normalize_preset_name(v.strip(), known_names) for v in val.split(",") if v.strip())
         elif key in preset_paths:
             sec, path = key.split(".", 1) if "." in key else (key, "")
-            preset_sel.append((sec, path, val))
+            known_names = set(presets[sec][path])
+            preset_sel.append((sec, path, _normalize_preset_name(val, known_names)))
         elif any(key.startswith(pp + ".") for pp in preset_paths):
             preset_scalar.append((key, val))
         else:
@@ -458,7 +494,7 @@ def apply_overrides(
     Global presets are already applied by :func:`resolve_presets` in
     :func:`register_task`. This function handles:
 
-    1. Path-based selections (``env.backend=newton``)
+    1. Path-based selections (``env.backend=mjwarp``)
     2. Scalar overrides within preset paths (``env.backend.dt=0.001``)
 
     Returns:
@@ -487,6 +523,7 @@ def apply_overrides(
     for sec, path, name in preset_sel:
         if path not in presets.get(sec, {}):
             raise ValueError(f"Unknown preset group: {sec}.{path}")
+        name = _normalize_preset_name(name, set(presets[sec][path]))
         if name not in presets[sec][path]:
             avail = list(presets[sec][path].keys())
             raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}")
@@ -494,7 +531,9 @@ def apply_overrides(
         resolved[full_path] = (sec, path, name)
 
     applied_by: dict[str, str] = {}
+    known_names = _known_preset_names(presets)
     for name in global_presets:
+        name = _normalize_preset_name(name, known_names)
         for sec in ("env", "agent"):
             for path, path_presets in presets.get(sec, {}).items():
                 if name in path_presets:
