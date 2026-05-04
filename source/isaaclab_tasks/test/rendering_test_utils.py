@@ -34,7 +34,7 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
     "shadow_hand": 5.0,
-    # Texture aliasing artifacts on the ground (https://nvbugs/6116767)
+    # Texture aliasing artifacts on the ground (NVBUG#6116767)
     "dexsuite_kuka": 8.0,
 }
 
@@ -47,7 +47,7 @@ _SSIM_THRESHOLD = 0.985
 # Per-env SSIM overrides. Envs not listed fall back to ``_SSIM_THRESHOLD``. Loosened individually
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
-    # Texture aliasing artifacts on the ground (https://nvbugs/6116767)
+    # Texture aliasing artifacts on the ground (NVBUG#6116767)
     "dexsuite_kuka": 0.95,
 }
 
