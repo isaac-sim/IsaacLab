@@ -9,4 +9,5 @@ Changed
   the default in ``ReachPhysicsCfg``. Direct-workflow callers in
   ``automate``, ``factory``, and the deploy MDP events module were
   migrated to the new
-  :class:`~isaaclab.assets.BaseArticulation` accessors.
+  :class:`~isaaclab.assets.BaseArticulationData` properties
+  (:attr:`body_link_jacobian_w`, :attr:`mass_matrix`).

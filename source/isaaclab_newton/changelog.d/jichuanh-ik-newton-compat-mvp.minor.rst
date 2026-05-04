@@ -2,36 +2,39 @@ Added
 ^^^^^
 
 * Added :attr:`~isaaclab_newton.assets.Articulation.joint_to_jacobi_offset`
-  override returning ``0``. Newton's
-  ``ArticulationView.joint_dof_count`` already counts the 6
-  floating-base DoFs on floating-base assets, so a state-space
-  joint index is also the matching Jacobian column index without
-  any shift.
-* Added :meth:`~isaaclab_newton.assets.Articulation.get_jacobians`
-  and :meth:`~isaaclab_newton.assets.Articulation.get_mass_matrix`
-  wrapping ``ArticulationView.eval_jacobian`` and
-  ``ArticulationView.eval_mass_matrix`` and returning view-sized
-  arrays matching the PhysX shape contract. Per-step behavior is
-  allocation-free and safe under CUDA graph capture: source / scratch
-  / output buffers are pre-allocated in ``_create_buffers``, and new
+  override returning ``0``. Newton's ``ArticulationView.joint_dof_count``
+  already counts the 6 floating-base DoFs on floating-base assets, so a
+  state-space joint index is also the matching Jacobian column index
+  without any shift.
+* Added Newton implementations of
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_jacobian_w`, and
+  :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix` on
+  :class:`~isaaclab_newton.assets.ArticulationData`. The properties wrap
+  ``ArticulationView.eval_jacobian`` and ``ArticulationView.eval_mass_matrix``
+  with view-sized output buffers cached via the standard timestamped-buffer
+  pattern. Per-step behavior is allocation-free and safe under CUDA-graph
+  capture: source / scratch / output buffers are pre-allocated in
+  ``_create_buffers``, and
   :func:`~isaaclab_newton.assets.articulation.kernels.gather_jacobian_rows`
   and :func:`~isaaclab_newton.assets.articulation.kernels.gather_mass_matrix_rows`
-  Warp kernels gather just this view's rows from the model-sized
-  buffers Newton populates.
-* Added a new
+  Warp kernels gather just this view's rows from the model-sized buffers
+  Newton populates.
+* Added the
   :func:`~isaaclab_newton.assets.articulation.kernels.shift_jacobian_com_to_origin`
-  Warp kernel that applies the
+  Warp kernel applying the
   ``v_origin = v_com - omega x (R · body_com_pos_b)`` shift to the
-  linear-velocity rows of the gathered, view-sized Jacobian, so the
-  returned Jacobian's linear rows reference the link origin in world
-  frame -- matching the cross-backend
-  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians` contract.
+  linear-velocity rows of the gathered, view-sized Jacobian, so the link-
+  origin form matches the cross-backend
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`
+  contract.
 
 Fixed
 ^^^^^
 
-* Fixed :meth:`~isaaclab_newton.assets.Articulation.get_jacobians` and
-  :meth:`~isaaclab_newton.assets.Articulation.get_mass_matrix` returning
+* Fixed
+  :attr:`~isaaclab_newton.assets.ArticulationData.body_link_jacobian_w`
+  and :attr:`~isaaclab_newton.assets.ArticulationData.mass_matrix` returning
   the wrong DoF columns for floating-base articulations. The IsaacLab
   Newton view is constructed with ``exclude_joint_types=[FREE, FIXED]``
   so its joint count excludes the free-root joint, but Newton's
@@ -47,7 +50,7 @@ Fixed
 Changed
 ^^^^^^^
 
-* :meth:`~isaaclab_newton.assets.Articulation.get_gravity_compensation_forces`
+* :attr:`~isaaclab_newton.assets.ArticulationData.gravity_compensation_forces`
   raises :class:`NotImplementedError` with a message pointing at the
   upstream gap. Newton's ``ArticulationView`` does not expose an
   inverse-dynamics primitive yet (upstream Newton issues

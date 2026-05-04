@@ -1,9 +1,12 @@
-Added
-^^^^^
+Changed
+^^^^^^^
 
-* Added concrete-with-:class:`NotImplementedError` stubs for the new
-  :meth:`~isaaclab.assets.BaseArticulation.get_jacobians`,
-  :meth:`~isaaclab.assets.BaseArticulation.get_mass_matrix`, and
-  :meth:`~isaaclab.assets.BaseArticulation.get_gravity_compensation_forces`
-  abstract methods, so the ovphysx ``Articulation`` class remains
-  instantiable.
+* Inherits the base
+  :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.body_com_jacobian_w`,
+  :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`, and
+  :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+  :class:`NotImplementedError` defaults — ovphysx's OmniGraph-based view
+  does not expose articulation Jacobians, mass matrices, or gravity
+  compensation. Use the PhysX or Newton backends for task-space
+  controllers.
