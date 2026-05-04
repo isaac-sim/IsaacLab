@@ -245,7 +245,7 @@ def _compute_ee_pose_root(robot, ee_frame_idx):
 
 def _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids):
     """Return the EE Jacobian sliced to ``arm_joint_ids`` and rotated to the root frame."""
-    jacobian = wp.to_torch(robot.get_jacobians())[:, ee_jacobi_idx, :, :][:, :, arm_joint_ids]
+    jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, :][:, :, arm_joint_ids]
     base_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_pose_w.torch[:, 3:7]))
     jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
     jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
@@ -2377,7 +2377,7 @@ def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articula
     assert articulation.is_initialized
     assert articulation.is_fixed_base
 
-    J = wp.to_torch(articulation.get_jacobians())
+    J = articulation.data.body_link_jacobian_w.torch
     expected = (num_articulations, articulation.num_bodies - 1, 6, articulation.num_joints)
     assert J.shape == torch.Size(expected), f"expected {expected}, got {tuple(J.shape)}"
 
@@ -2396,7 +2396,7 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    M = wp.to_torch(articulation.get_mass_matrix())
+    M = articulation.data.mass_matrix.torch
     expected = (num_articulations, articulation.num_joints, articulation.num_joints)
     assert M.shape == torch.Size(expected), f"expected {expected}, got {tuple(M.shape)}"
 
@@ -2430,14 +2430,14 @@ def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_g
     assert articulation.is_initialized
     assert not articulation.is_fixed_base
 
-    J = wp.to_torch(articulation.get_jacobians())
+    J = articulation.data.body_link_jacobian_w.torch
     expected = (num_articulations, articulation.num_bodies, 6, articulation.num_joints + 6)
     assert J.shape == torch.Size(expected), f"expected {expected}, got {tuple(J.shape)}"
 
 
 @pytest.mark.parametrize("num_articulations", [4])
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
 def test_get_jacobians_link_origin_contract(sim, num_articulations, device, articulation_type, gravity_enabled):
@@ -2469,7 +2469,11 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    J = wp.to_torch(articulation.get_jacobians())
+    # Slice the Jacobian's joint axis to the actuated columns. On
+    # PhysX-fixed-base ``joint_to_jacobi_offset`` is 0, so this is a no-op;
+    # the test only runs on fixed-base today.
+    J_full = articulation.data.body_link_jacobian_w.torch
+    J = J_full[..., articulation.joint_to_jacobi_offset :]
     qdot_view = articulation.data.joint_vel.torch
     v_pred = torch.einsum("nbij,nj->nbi", J, qdot_view)
 
@@ -2481,6 +2485,128 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
 
     torch.testing.assert_close(v_pred[..., 3:6], body_ang_w, atol=1.5e-1, rtol=5e-2)
     torch.testing.assert_close(v_pred[..., 0:3], body_lin_w, atol=1.5e-1, rtol=5e-2)
+
+
+@pytest.mark.parametrize("num_articulations", [4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulation_type, gravity_enabled):
+    """The joint-space mass matrix ``M(q)`` must be square, symmetric, and positive-definite.
+
+    Mirrors the Newton-side test in
+    ``source/isaaclab_newton/test/assets/test_articulation.py``. Pins
+    three structural properties of
+    :meth:`~isaaclab_physx.assets.Articulation.get_mass_matrix` that
+    every backend must satisfy. PhysX prepends 6 floating-base columns
+    on floating-base assets, so the shape differs from Newton's
+    actuated-only convention; this test cares about square + symmetric
+    + PD, not the absolute column count.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    M = articulation.data.mass_matrix.torch  # (N, J, J)
+    assert M.dim() == 3, f"expected 3-D mass matrix, got shape {tuple(M.shape)}"
+    assert M.shape[0] == num_articulations
+    assert M.shape[1] == M.shape[2], f"mass matrix is not square: {tuple(M.shape)}"
+
+    asym = (M - M.transpose(-1, -2)).abs().max().item()
+    assert asym < 1e-4, f"|M - M^T|_max = {asym:.3e} — mass matrix is not symmetric"
+
+    eye = torch.eye(M.shape[-1], device=M.device, dtype=M.dtype).expand_as(M)
+    torch.linalg.cholesky(M + 1e-6 * eye)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_jacobian_refreshes_after_manual_joint_write(
+    sim, num_articulations, device, articulation_type, gravity_enabled
+):
+    """After ``write_joint_position_to_sim_index`` (no sim step), the Jacobian read
+    must reflect the new joint state — not the previous one.
+
+    PhysX-side counterpart to the Newton test of the same name. PhysX's
+    :attr:`body_link_jacobian_w` triggers FK indirectly through
+    :attr:`body_link_pose_w` (used by the shift kernel); :attr:`body_com_jacobian_w` is
+    a passthrough to ``_root_view.get_jacobians()``. This test confirms that PhysX's
+    tensor view returns up-to-date Jacobians after a manual joint write — i.e., that
+    PhysX internally refreshes FK on ``get_jacobians`` (or that our property does).
+    Failure means we need to add ``update_articulations_kinematic()`` before the
+    passthrough.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    # Read J at the baseline joint state.
+    J_link_0 = articulation.data.body_link_jacobian_w.torch.clone()
+    J_com_0 = articulation.data.body_com_jacobian_w.torch.clone()
+
+    # Manually write a different joint state — large delta to make the change visible.
+    # No sim.step / update — FK becomes stale.
+    q_target = articulation.data.joint_pos.torch.clone() + 0.5
+    env_ids = wp.array([0], dtype=wp.int32, device=device)
+    articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
+
+    # Read J again. With the FK trigger, J reflects q_target and differs from J at baseline.
+    # Without the trigger, body_q stays at baseline, J unchanged.
+    J_link_1 = articulation.data.body_link_jacobian_w.torch.clone()
+    J_com_1 = articulation.data.body_com_jacobian_w.torch.clone()
+
+    assert not torch.allclose(J_link_0, J_link_1, atol=1e-3), (
+        "body_link_jacobian_w did not change after manual joint write — "
+        "FK trigger likely missing (eval_jacobian / shift kernel reading stale state.body_q)."
+    )
+    assert not torch.allclose(J_com_0, J_com_1, atol=1e-3), (
+        "body_com_jacobian_w did not change after manual joint write — "
+        "PhysX get_jacobians may not auto-refresh FK; consider adding update_articulations_kinematic()."
+    )
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.isaacsim_ci
+def test_mass_matrix_refreshes_after_manual_joint_write(
+    sim, num_articulations, device, articulation_type, gravity_enabled
+):
+    """After ``write_joint_position_to_sim_index`` (no sim step), the mass matrix read
+    must reflect the new joint state.
+
+    PhysX-side counterpart. :attr:`mass_matrix` is a passthrough to
+    ``_root_view.get_generalized_mass_matrices()``. Failure means PhysX's tensor view
+    does not auto-refresh FK on this getter, and we need to add
+    ``update_articulations_kinematic()`` before the passthrough.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    M_0 = articulation.data.mass_matrix.torch.clone()
+    q_target = articulation.data.joint_pos.torch.clone() + 0.5
+    env_ids = wp.array([0], dtype=wp.int32, device=device)
+    articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
+    M_1 = articulation.data.mass_matrix.torch.clone()
+
+    assert not torch.allclose(M_0, M_1, atol=1e-3), (
+        "mass_matrix did not change after manual joint write — "
+        "PhysX get_generalized_mass_matrices may not auto-refresh FK."
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [1])
@@ -2548,7 +2674,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
 
     # Step 100 times applying only τ_gc as joint efforts.
     for _ in range(100):
-        tau_gc = wp.to_torch(articulation.get_gravity_compensation_forces())  # (N, J)
+        tau_gc = articulation.data.gravity_compensation_forces.torch  # (N, J)
         # PhysX prepends 6 virtual DoFs in the joint dim for floating-base
         # articulations; Franka is fixed-base so the slice is direct.
         if not articulation.is_fixed_base:
@@ -2665,7 +2791,7 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     rot_history: list[float] = []
     for _ in range(800):
         jacobian_b = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
-        mass_matrix = wp.to_torch(robot.get_mass_matrix())[:, arm_joint_ids, :][:, :, arm_joint_ids]
+        mass_matrix = robot.data.mass_matrix.torch[:, arm_joint_ids, :][:, :, arm_joint_ids]
         ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
         ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
         joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]

@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -127,7 +126,7 @@ class RMPFlowAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
-        return wp.to_torch(self._asset.get_jacobians())[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
+        return self._asset.data.body_link_jacobian_w.torch[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
 
     @property
     def jacobian_b(self) -> torch.Tensor:

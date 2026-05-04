@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from pxr import UsdPhysics
 
@@ -142,7 +141,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
-        return wp.to_torch(self._asset.get_jacobians())[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
+        return self._asset.data.body_link_jacobian_w.torch[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
 
     @property
     def jacobian_b(self) -> torch.Tensor:
@@ -442,7 +441,7 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
-        return wp.to_torch(self._asset.get_jacobians())[:, self._jacobi_ee_body_idx, :, self._jacobi_joint_idx]
+        return self._asset.data.body_link_jacobian_w.torch[:, self._jacobi_ee_body_idx, :, self._jacobi_joint_idx]
 
     @property
     def jacobian_b(self) -> torch.Tensor:
@@ -673,11 +672,11 @@ class OperationalSpaceControllerAction(ActionTerm):
         index into these quantities. For fixed-base robots, the two are identical.
         """
         if self._needs_mass_matrix:
-            self._mass_matrix[:] = wp.to_torch(self._asset.get_mass_matrix())[:, self._jacobi_joint_idx, :][
+            self._mass_matrix[:] = self._asset.data.mass_matrix.torch[:, self._jacobi_joint_idx, :][
                 :, :, self._jacobi_joint_idx
             ]
         if self._needs_gravity:
-            self._gravity[:] = wp.to_torch(self._asset.get_gravity_compensation_forces())[:, self._jacobi_joint_idx]
+            self._gravity[:] = self._asset.data.gravity_compensation_forces.torch[:, self._jacobi_joint_idx]
 
     def _compute_ee_jacobian(self):
         """Computes the geometric Jacobian of the ee body frame in root frame.

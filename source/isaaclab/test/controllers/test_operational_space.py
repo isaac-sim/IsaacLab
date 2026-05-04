@@ -1593,9 +1593,9 @@ def _update_states(
     """
     # obtain dynamics related quantities from simulation
     ee_jacobi_idx = ee_frame_idx - 1
-    jacobian_w = wp.to_torch(robot.get_jacobians())[:, ee_jacobi_idx, :, arm_joint_ids]
-    mass_matrix = wp.to_torch(robot.get_mass_matrix())[:, arm_joint_ids, :][:, :, arm_joint_ids]
-    gravity = wp.to_torch(robot.get_gravity_compensation_forces())[:, arm_joint_ids]
+    jacobian_w = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, arm_joint_ids]
+    mass_matrix = robot.data.mass_matrix.torch[:, arm_joint_ids, :][:, :, arm_joint_ids]
+    gravity = robot.data.gravity_compensation_forces.torch[:, arm_joint_ids]
     # Convert the Jacobian from world to root frame
     jacobian_b = jacobian_w.clone()
     root_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_quat_w.torch))

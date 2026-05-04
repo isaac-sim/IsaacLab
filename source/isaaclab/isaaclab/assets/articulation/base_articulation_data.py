@@ -621,6 +621,101 @@ class BaseArticulationData(ABC):
         raise NotImplementedError
 
     ##
+    # Dynamics quantities (task-space controllers).
+    ##
+
+    @property
+    def body_link_jacobian_w(self) -> ProxyArray:
+        """Per-body geometric Jacobian referenced at each body's link origin in world frame.
+
+        Shape is (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_jacobi_joints).
+        Linear rows ``[0:3]`` [m/s for unit ``q_dot``], angular rows ``[3:6]`` [rad/s for unit
+        ``q_dot``].
+
+        For any joint-velocity vector ``q_dot`` consistent with the asset's DoF ordering, the
+        returned Jacobian ``J`` satisfies:
+
+        .. code-block:: text
+
+            J[:, jacobi_body_idx, 0:3, :] @ q_dot == body_link_lin_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 3:6, :] @ q_dot == body_link_ang_vel_w[:, body_idx]
+
+        Linear rows ``[0:3]`` give the velocity at the link origin (the body's USD prim transform
+        / actor frame) in world frame. Angular rows ``[3:6]`` give the body's angular velocity in
+        world frame. The contract matches :attr:`body_link_pos_w` and :attr:`body_link_lin_vel_w`.
+        For fixed-base articulations, ``jacobi_body_idx`` excludes the fixed root body and is
+        therefore ``body_idx - 1``. For floating-base articulations, ``jacobi_body_idx ==
+        body_idx``.
+
+        Backends whose native Jacobian is expressed at the body center of mass MUST shift the
+        linear rows to the link origin before returning so the contract holds across backends.
+        Backends that prepend floating-base DoFs to the Jacobian columns expose the leading
+        offset via :attr:`~isaaclab.assets.BaseArticulation.joint_to_jacobi_offset`. Callers that
+        index into the joint axis with a state-space joint id should add that offset rather than
+        hard-coding a constant.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement body_link_jacobian_w.")
+
+    @property
+    def body_com_jacobian_w(self) -> ProxyArray:
+        """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
+
+        Shape is (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_jacobi_joints).
+        Linear rows ``[0:3]`` [m/s for unit ``q_dot``], angular rows ``[3:6]`` [rad/s for unit
+        ``q_dot``].
+
+        For any joint-velocity vector ``q_dot`` consistent with the asset's DoF ordering, the
+        returned Jacobian ``J`` satisfies:
+
+        .. code-block:: text
+
+            J[:, jacobi_body_idx, 0:3, :] @ q_dot == body_com_lin_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 3:6, :] @ q_dot == body_com_ang_vel_w[:, body_idx]
+
+        Linear rows ``[0:3]`` give the velocity at the body's center of mass in world frame.
+        Angular rows ``[3:6]`` give the body's angular velocity in world frame (reference-point
+        invariant, identical to the angular rows of :attr:`body_link_jacobian_w`).
+
+        This is the form most physics engines compute natively, since dynamics equations decouple
+        at the COM. Use :attr:`body_link_jacobian_w` for IK / OSC controllers that target the
+        link-origin pose (USD prim frame).
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement body_com_jacobian_w.")
+
+    @property
+    def mass_matrix(self) -> ProxyArray:
+        """Per-env generalized mass matrix in joint space.
+
+        Shape is (num_instances, num_jacobi_joints, num_jacobi_joints), dtype = wp.float32
+        [kg·m² or kg, depending on joint type]. In torch this resolves to
+        (num_instances, num_jacobi_joints, num_jacobi_joints).
+
+        Returns the symmetric positive-definite inertia matrix ``M(q)`` of the articulation in
+        its generalized joint coordinates. ``M[i, j]`` is the coefficient relating joint ``j``'s
+        acceleration to the inertial torque on joint ``i`` in the equation of motion
+        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``. The matrix is reference-point
+        invariant — joint-space dynamics do not depend on whether body velocities are measured
+        at the COM or link origin.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
+
+    @property
+    def gravity_compensation_forces(self) -> ProxyArray:
+        """Per-env gravity compensation torques in joint space.
+
+        Shape is (num_instances, num_jacobi_joints), dtype = wp.float32 [N·m or N, depending on
+        joint type]. In torch this resolves to (num_instances, num_jacobi_joints).
+
+        Returns ``g(q)`` — the joint-space gravity-loading term in the equation of motion
+        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``. Applying ``tau = g(q)`` at
+        ``q_dot = 0`` with no external load yields ``q_ddot = 0`` (static equilibrium under
+        gravity).
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement gravity_compensation_forces.")
+
+    ##
     # Joint state properties.
     ##
 

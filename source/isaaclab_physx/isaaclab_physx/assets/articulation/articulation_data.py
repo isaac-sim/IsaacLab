@@ -878,6 +878,75 @@ class ArticulationData(BaseArticulationData):
         return self._body_incoming_joint_wrench_b_ta
 
     """
+    Dynamics quantities (task-space controllers).
+    """
+
+    @property
+    def body_com_jacobian_w(self) -> ProxyArray:
+        """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
+
+        Shape is (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_jacobi_joints).
+
+        This is the raw Jacobian returned by PhysX's ArticulationView. Linear rows are referenced
+        at the body's center of mass; angular rows are reference-point invariant. Use
+        :attr:`body_link_jacobian_w` for IK / OSC controllers that target the link-origin pose.
+        """
+        # Always passthrough — PhysX returns its current internal buffer; no caching needed.
+        return ProxyArray(self._root_view.get_jacobians())
+
+    @property
+    def body_link_jacobian_w(self) -> ProxyArray:
+        """Per-body geometric Jacobian referenced at each body's link origin in world frame.
+
+        Shape is (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_jacobi_joints).
+
+        Computed by applying the COM→origin shift to :attr:`body_com_jacobian_w`. The shift
+        identity ``v_origin = v_com - omega x (R · body_com_pos_b)`` is applied per-column
+        (each Jacobian column is one DoF's spatial-velocity contribution to a body). Angular
+        rows are unchanged; linear rows are shifted from COM to link origin so the contract
+        ``J · q_dot[body_idx] == body_link_lin_vel_w[body_idx]`` holds.
+        """
+        wp.launch(
+            articulation_kernels.shift_jacobian_com_to_origin,
+            dim=self._body_link_jacobian_w_buf.shape[:2] + (self._body_link_jacobian_w_buf.shape[3],),
+            inputs=[
+                self.body_link_pose_w.warp,
+                self.body_com_pos_b.warp,
+                self._jacobian_link_offset,
+                self.body_com_jacobian_w.warp,
+            ],
+            outputs=[self._body_link_jacobian_w_buf],
+            device=self.device,
+        )
+        return self._body_link_jacobian_w_ta
+
+    @property
+    def mass_matrix(self) -> ProxyArray:
+        """Per-env generalized mass matrix in joint space.
+
+        Shape is (num_instances, num_jacobi_joints, num_jacobi_joints), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_jacobi_joints, num_jacobi_joints).
+
+        Returns the symmetric positive-definite inertia matrix ``M(q)`` of the articulation in
+        its generalized joint coordinates.
+        """
+        return ProxyArray(self._root_view.get_generalized_mass_matrices())
+
+    @property
+    def gravity_compensation_forces(self) -> ProxyArray:
+        """Per-env gravity compensation torques in joint space.
+
+        Shape is (num_instances, num_jacobi_joints), dtype = wp.float32 [N·m or N, depending on
+        joint type]. In torch this resolves to (num_instances, num_jacobi_joints).
+
+        Returns ``g(q)`` — the joint-space gravity-loading term in the equation of motion
+        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
+        """
+        return ProxyArray(self._root_view.get_gravity_compensation_forces())
+
+    """
     Joint state properties.
     """
 
@@ -1393,6 +1462,22 @@ class ArticulationData(BaseArticulationData):
         self._root_com_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
         self._root_com_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
 
+        # -- dynamics quantities for task-space controllers
+        # PhysX's Jacobian rows include the root body for floating-base and exclude only the
+        # fixed root for fixed-base. Joint columns include the 6 base DoFs for floating-base.
+        # ``body_com_jacobian_w`` / ``mass_matrix`` / ``gravity_compensation_forces`` passthrough
+        # the engine's own buffer on every read (no Data-layer caching), so we only own a buffer
+        # for the link-origin Jacobian (output of our shift kernel).
+        is_fixed_base = self._root_view.shared_metatype.fixed_base
+        self._jacobian_link_offset = 1 if is_fixed_base else 0
+        num_jacobi_bodies = self._num_bodies - self._jacobian_link_offset
+        num_jacobi_joints = self._num_joints + (0 if is_fixed_base else 6)
+        self._body_link_jacobian_w_buf = wp.zeros(
+            (self._num_instances, num_jacobi_bodies, 6, num_jacobi_joints),
+            dtype=wp.float32,
+            device=self.device,
+        )
+
         # Default root pose and velocity
         self._default_root_pose = wp.zeros((self._num_instances), dtype=wp.transformf, device=self.device)
         self._default_root_vel = wp.zeros((self._num_instances), dtype=wp.spatial_vectorf, device=self.device)
@@ -1556,6 +1641,11 @@ class ArticulationData(BaseArticulationData):
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
         self._body_incoming_joint_wrench_b_ta: ProxyArray | None = None
+        # Dynamics quantities (task-space controllers).
+        # Only the link-origin Jacobian has a pinned ProxyArray wrapper (we own that buffer).
+        # body_com_jacobian_w / mass_matrix / gravity_compensation_forces wrap the engine's
+        # buffer fresh on every read, so they don't have pinned wrappers.
+        self._body_link_jacobian_w_ta = ProxyArray(self._body_link_jacobian_w_buf)
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None

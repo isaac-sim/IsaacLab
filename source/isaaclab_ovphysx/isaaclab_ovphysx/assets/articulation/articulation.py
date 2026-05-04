@@ -112,15 +112,6 @@ class Articulation(BaseArticulation):
         """Root articulation view (not available for ovphysx backend)."""
         return None
 
-    def get_jacobians(self) -> Any:
-        raise NotImplementedError("ovphysx backend does not expose articulation Jacobians.")
-
-    def get_mass_matrix(self) -> Any:
-        raise NotImplementedError("ovphysx backend does not expose articulation mass matrices.")
-
-    def get_gravity_compensation_forces(self) -> Any:
-        raise NotImplementedError("ovphysx backend does not expose gravity-compensation forces.")
-
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer | None:
         """Wrench composer for forces applied only during the current step."""

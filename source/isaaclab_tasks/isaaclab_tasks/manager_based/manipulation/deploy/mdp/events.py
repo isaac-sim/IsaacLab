@@ -11,7 +11,6 @@ import random
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
@@ -328,7 +327,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
                 break
 
             # Solve IK using jacobian
-            jacobians = wp.to_torch(self.robot_asset.get_jacobians()).clone()
+            jacobians = self.robot_asset.data.body_link_jacobian_w.torch.clone()
             jacobian = jacobians[env_ids, self.jacobi_body_idx, :, :]
 
             delta_dof_pos = fc._get_delta_dof_pos(
