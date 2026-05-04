@@ -343,9 +343,3 @@ def test_lee_att_randomize_params_within_bounds(
     assert torch.all(K_angvel_current <= K_angvel_max), (
         f"K_angvel above maximum: {K_angvel_current.max()} > {K_angvel_max.max()}"
     )
-
-
-# Cleanup after all tests complete
-def teardown_module():
-    """Close simulation app after all tests."""
-    simulation_app.close()
