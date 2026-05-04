@@ -387,11 +387,11 @@ def render_correctness_env(request, shadow_hand_vision_presets):
     # Newton needs a specific solver config, a different robot USD, an articulation-based object,
     # and a stripped-down event cfg (no PhysX-specific material randomization).
     if physics == "newton":
-        cfg.sim.physics = copy.deepcopy(shadow_hand_vision_presets["sim.physics"]["mjwarp"])
-        cfg.robot_cfg = copy.deepcopy(shadow_hand_vision_presets["robot_cfg"]["mjwarp"])
-        cfg.object_cfg = copy.deepcopy(shadow_hand_vision_presets["object_cfg"]["mjwarp"])
+        cfg.sim.physics = copy.deepcopy(shadow_hand_vision_presets["sim.physics"]["newton_mjwarp"])
+        cfg.robot_cfg = copy.deepcopy(shadow_hand_vision_presets["robot_cfg"]["newton_mjwarp"])
+        cfg.object_cfg = copy.deepcopy(shadow_hand_vision_presets["object_cfg"]["newton_mjwarp"])
         if "events" in shadow_hand_vision_presets:
-            cfg.events = copy.deepcopy(shadow_hand_vision_presets["events"]["mjwarp"])
+            cfg.events = copy.deepcopy(shadow_hand_vision_presets["events"]["newton_mjwarp"])
     cfg = resolve_presets(cfg)
     cfg.scene.num_envs = 4
     cfg.feature_extractor.write_image_to_file = False

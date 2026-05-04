@@ -148,7 +148,7 @@ Environments can support multiple backends simultaneously using the :doc:`preset
     class CartpolePhysicsCfg(PresetCfg):
         default: PhysxCfg = PhysxCfg()
         physx: PhysxCfg = PhysxCfg()
-        mjwarp: NewtonCfg = NewtonCfg(
+        newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3)
         )
 
@@ -164,7 +164,7 @@ Users then select the MJWarp Newton preset at the command line:
     python train.py --task Isaac-Cartpole-v0
 
     # MJWarp (Newton backend)
-    python train.py --task Isaac-Cartpole-v0 presets=mjwarp
+    python train.py --task Isaac-Cartpole-v0 presets=newton_mjwarp
 
 The Physics Manager
 -------------------

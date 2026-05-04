@@ -5,7 +5,7 @@
 
 """Tests for preset resolution and Kit decision logic.
 
-These tests verify that given presets (e.g. ``presets=mjwarp,ovrtx_renderer``),
+These tests verify that given presets (e.g. ``presets=newton_mjwarp,ovrtx_renderer``),
 the config-based logic correctly decides whether Isaac Sim Kit is needed.
 No Kit/GPU required — safe for CI and beginners.
 """
@@ -31,14 +31,14 @@ def _resolve_with_presets(presets: str):
 
 def test_preset_mjwarp_ovrtx_does_not_need_kit():
     """Newton + OVRTX renderer is kitless — no AppLauncher required."""
-    env_cfg = _resolve_with_presets("mjwarp,ovrtx_renderer")
+    env_cfg = _resolve_with_presets("newton_mjwarp,ovrtx_renderer")
     needs_kit, _, _ = compute_kit_requirements(env_cfg)
     assert needs_kit is False
 
 
 def test_preset_mjwarp_newton_renderer_does_not_need_kit():
     """Newton + Newton Warp renderer is kitless."""
-    env_cfg = _resolve_with_presets("mjwarp,newton_renderer")
+    env_cfg = _resolve_with_presets("newton_mjwarp,newton_renderer")
     needs_kit, _, _ = compute_kit_requirements(env_cfg)
     assert needs_kit is False
 
@@ -59,6 +59,6 @@ def test_preset_default_needs_kit():
 
 def test_preset_mjwarp_isaac_rtx_needs_kit():
     """Newton + Isaac RTX renderer requires Kit (RTX runs in Kit)."""
-    env_cfg = _resolve_with_presets("mjwarp,isaacsim_rtx_renderer")
+    env_cfg = _resolve_with_presets("newton_mjwarp,isaacsim_rtx_renderer")
     needs_kit, _, _ = compute_kit_requirements(env_cfg)
     assert needs_kit is True

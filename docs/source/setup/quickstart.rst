@@ -198,7 +198,7 @@ Use the ``presets=`` argument to select the physics backend at runtime:
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=mjwarp \
+     presets=newton_mjwarp \
      --visualizer newton
 
    # PhysX (Kit) — requires Isaac Sim installed
@@ -211,7 +211,7 @@ Use the ``presets=`` argument to select the physics backend at runtime:
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=mjwarp \
+     presets=newton_mjwarp \
      --visualizer viser
 
 Kit-less visualizer options are ``newton``, ``rerun``, and ``viser``.

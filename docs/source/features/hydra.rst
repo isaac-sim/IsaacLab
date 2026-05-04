@@ -188,8 +188,8 @@ Override Order
 Overrides are applied in sequence:
 
 1. **Auto-default**: Configs with a ``"default"`` field auto-apply without CLI args
-2. **Global presets**: ``presets=mjwarp,inference`` applies to ALL matching configs
-3. **Path presets**: ``env.backend=mjwarp`` replaces a specific section
+2. **Global presets**: ``presets=newton_mjwarp,inference`` applies to ALL matching configs
+3. **Path presets**: ``env.backend=newton_mjwarp`` replaces a specific section
 4. **Scalar overrides**: ``env.sim.dt=0.001`` modifies individual fields
 
 
@@ -207,7 +207,7 @@ override is given:
     @configclass
     class PhysicsCfg(PresetCfg):
         default: PhysxCfg = PhysxCfg()
-        mjwarp: NewtonCfg = NewtonCfg()
+        newton_mjwarp: NewtonCfg = NewtonCfg()
 
     @configclass
     class MyEnvCfg:
@@ -216,7 +216,7 @@ override is given:
 .. code-block:: bash
 
     # Use Newton physics backend
-    python train.py --task=Isaac-Reach-Franka-v0 env.physics=mjwarp
+    python train.py --task=Isaac-Reach-Franka-v0 env.physics=newton_mjwarp
 
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
@@ -261,11 +261,11 @@ Physics backend selection uses the same preset system. A task can define a
     class CartpolePhysicsCfg(PresetCfg):
         default: PhysxCfg = PhysxCfg()
         physx: PhysxCfg = PhysxCfg()
-        mjwarp: NewtonCfg = NewtonCfg(
+        newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3),
             num_substeps=1,
         )
-        kamino: NewtonCfg = NewtonCfg(
+        newton_kamino: NewtonCfg = NewtonCfg(
             solver_cfg=KaminoSolverCfg(
                 integrator="moreau",
                 use_collision_detector=True,
@@ -277,10 +277,10 @@ Physics backend selection uses the same preset system. A task can define a
             use_cuda_graph=True,
         )
 
-The ``mjwarp`` and ``kamino`` entries both select the Newton physics backend because
+The ``newton_mjwarp`` and ``newton_kamino`` entries both select the Newton physics backend because
 both entries are :class:`~isaaclab_newton.physics.NewtonCfg` objects. The difference
-is the solver configuration: ``mjwarp`` uses
-:class:`~isaaclab_newton.physics.MJWarpSolverCfg`, while ``kamino`` uses
+is the solver configuration: ``newton_mjwarp`` uses
+:class:`~isaaclab_newton.physics.MJWarpSolverCfg`, while ``newton_kamino`` uses
 :class:`~isaaclab_newton.physics.KaminoSolverCfg`.
 
 Kamino is therefore a solver preset, not a separate Isaac Lab backend. The same
@@ -294,19 +294,19 @@ is currently beta.
     Kamino support is experimental and currently depends on the asset being
     structured in a way that Kamino can consume. Assets that work with the
     MuJoCo-Warp or PhysX presets may still require model-structure updates before
-    they work with ``presets=kamino``.
+    they work with ``presets=newton_kamino``.
 
 .. code-block:: bash
 
     # Select the Kamino solver preset everywhere it is defined
-    python train.py --task=Isaac-Cartpole-v0 presets=kamino
+    python train.py --task=Isaac-Cartpole-v0 presets=newton_kamino
 
     # Select the Kamino solver preset for a specific physics config path
-    python train.py --task=Isaac-Cartpole-v0 env.sim.physics=kamino
+    python train.py --task=Isaac-Cartpole-v0 env.sim.physics=newton_kamino
 
-The ``kamino`` preset is currently defined for ``Isaac-Cartpole-Direct-v0``,
+The ``newton_kamino`` preset is currently defined for ``Isaac-Cartpole-Direct-v0``,
 ``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole-v0``, and ``Isaac-Ant-v0``. Passing
-``presets=kamino`` to a task without a ``kamino`` preset does not enable Kamino;
+``presets=newton_kamino`` to a task without a ``newton_kamino`` preset does not enable Kamino;
 add and validate a task-specific preset first.
 
 
@@ -322,7 +322,7 @@ For simple values (scalars, lists) that don't warrant a full subclass, use the
     from isaaclab_tasks.utils.hydra import preset
 
     # Scalar preset -- one line, no boilerplate class
-    self.scene.robot.actuators["legs"].armature = preset(default=0.0, mjwarp=0.01, physx=0.0)
+    self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.01, physx=0.0)
 
 This is equivalent to defining a ``PresetCfg`` subclass with three ``float``
 fields, but without the ceremony. The ``default`` keyword is required.
@@ -352,7 +352,7 @@ including inside dict-valued fields such as ``actuators``:
 .. code-block:: bash
 
     # Select MJWarp preset globally -- sets armature to 0.01
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=mjwarp
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton_mjwarp
 
 
 Using Presets
@@ -363,29 +363,29 @@ Using Presets
 .. code-block:: bash
 
     python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
-        env.events=mjwarp
+        env.events=newton_mjwarp
 
 **Global presets** -- apply the same preset name everywhere it exists:
 
 .. code-block:: bash
 
-    # Apply "mjwarp" preset to all configs that define it
+    # Apply "newton_mjwarp" preset to all configs that define it
     python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
-        presets=mjwarp
+        presets=newton_mjwarp
 
 **Multiple global presets** -- apply several non-conflicting presets:
 
 .. code-block:: bash
 
     python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
-        presets=mjwarp,inference
+        presets=newton_mjwarp,inference
 
 **Combined** -- global presets + scalar overrides:
 
 .. code-block:: bash
 
     python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
-        presets=mjwarp \
+        presets=newton_mjwarp \
         env.sim.dt=0.002
 
 
@@ -411,8 +411,8 @@ working together:
     :language: python
     :lines: 21-42
 
-A single ``presets=mjwarp`` on the command line resolves every ``PresetCfg``
-and ``preset()`` that defines a ``mjwarp`` field: the physics engine is swapped
+A single ``presets=newton_mjwarp`` on the command line resolves every ``PresetCfg``
+and ``preset()`` that defines a ``newton_mjwarp`` field: the physics engine is swapped
 to Newton, ``AnymalCEventsCfg`` selects Newton-compatible events, and the
 actuator armature is set to ``0.01``.
 
@@ -422,7 +422,7 @@ actuator armature is set to ``0.01``.
     python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0
 
     # MJWarp (Newton events, armature=0.01)
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=mjwarp
+    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton_mjwarp
 
 
 Summary
@@ -439,11 +439,11 @@ Summary
      - ``env.sim.dt=0.001``
      - Modify single field
    * - Path preset
-     - ``env.events=mjwarp``
+     - ``env.events=newton_mjwarp``
      - Replace entire section
    * - Global preset
-     - ``presets=mjwarp``
+     - ``presets=newton_mjwarp``
      - Apply everywhere matching
    * - Combined
-     - ``presets=mjwarp env.sim.dt=0.001``
+     - ``presets=newton_mjwarp env.sim.dt=0.001``
      - Global + scalar overrides

@@ -430,17 +430,17 @@ when no CLI override is given. Other fields are named presets selectable with
    class MyPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(...)   # used when no override is given
        physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
-       mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by presets=mjwarp
+       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``presets=mjwarp`` (or ``presets=physx``) on the CLI to swap the entire config section:
+Pass ``presets=newton_mjwarp`` (or ``presets=physx``) on the CLI to swap the entire config section:
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 presets=mjwarp
+   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton_mjwarp
 
    # Run with default (PhysX) backend
    python train.py task=Isaac-Franka-Cabinet-v0
@@ -473,7 +473,7 @@ subclass that carries both a PhysX and a Newton variant.
    class ReachPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
        physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-       mjwarp:  NewtonCfg = NewtonCfg(
+       newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
                cone="pyramidal", ls_parallel=True,
@@ -545,7 +545,7 @@ We can provide a Newton-specific config such as:
    class EnvEventCfg(PresetCfg):
        default: EventCfg = EventCfg()
        physx:   EventCfg = EventCfg()
-       mjwarp:  _EnvNewtonEventCfg = _EnvNewtonEventCfg()
+       newton_mjwarp:  _EnvNewtonEventCfg = _EnvNewtonEventCfg()
 
 Then change the ``events`` field in your env cfg from ``EventCfg`` to ``EnvEventCfg``:
 

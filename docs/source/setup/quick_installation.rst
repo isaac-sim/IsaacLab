@@ -23,7 +23,7 @@ Quick Installation
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task=Isaac-Cartpole-Direct-v0 \
      --num_envs=16 --max_iterations=10 \
-     presets=mjwarp --visualizer newton
+     presets=newton_mjwarp --visualizer newton
 
 
 Running Tasks
@@ -37,7 +37,7 @@ The ``presets=`` Hydra override selects the physics backend and renderer at runt
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=mjwarp \
+     presets=newton_mjwarp \
      --visualizer newton
 
    # PhysX (Kit — requires Isaac Sim)
@@ -50,7 +50,7 @@ The ``presets=`` Hydra override selects the physics backend and renderer at runt
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=mjwarp \
+     presets=newton_mjwarp \
      --visualizer viser
 
 Kit-less visualizer options: ``newton``, ``rerun``, ``viser``. Multiple can be
@@ -66,21 +66,21 @@ combined: ``--visualizer newton,rerun``.
 Available Presets
 ^^^^^^^^^^^^^^^^^
 
-Presets are combined with commas: ``presets=mjwarp,newton_renderer,depth``.
+Presets are combined with commas: ``presets=newton_mjwarp,newton_renderer,depth``.
 
 .. code-block:: bash
 
-   presets=mjwarp,newton_renderer,rgb  # presets=physics,renderer,render mode
-   presets=mjwarp,newton_renderer,depth
+   presets=newton_mjwarp,newton_renderer,rgb  # presets=physics,renderer,render mode
+   presets=newton_mjwarp,newton_renderer,depth
    presets=physx,isaacsim_rtx_renderer,rgb
    presets=physx,isaacsim_rtx_renderer,depth
    presets=physx,isaacsim_rtx_renderer,albedo
    presets=physx,isaacsim_rtx_renderer,simple_shading_constant_diffuse
    presets=physx,isaacsim_rtx_renderer,simple_shading_diffuse_mdl
    presets=physx,isaacsim_rtx_renderer,simple_shading_full_mdl
-   presets=mjwarp,ovrtx_renderer,rgb
-   presets=mjwarp,ovrtx_renderer,depth
-   presets=mjwarp,ovrtx_renderer,albedo
-   presets=mjwarp,ovrtx_renderer,simple_shading_constant_diffuse
-   presets=mjwarp,ovrtx_renderer,simple_shading_diffuse_mdl
-   presets=mjwarp,ovrtx_renderer,simple_shading_full_mdl
+   presets=newton_mjwarp,ovrtx_renderer,rgb
+   presets=newton_mjwarp,ovrtx_renderer,depth
+   presets=newton_mjwarp,ovrtx_renderer,albedo
+   presets=newton_mjwarp,ovrtx_renderer,simple_shading_constant_diffuse
+   presets=newton_mjwarp,ovrtx_renderer,simple_shading_diffuse_mdl
+   presets=newton_mjwarp,ovrtx_renderer,simple_shading_full_mdl

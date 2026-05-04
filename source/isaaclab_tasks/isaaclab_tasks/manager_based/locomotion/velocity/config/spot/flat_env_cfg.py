@@ -29,7 +29,7 @@ from isaaclab_tasks.utils import PresetCfg
 @configclass
 class PhysicsCfg(PresetCfg):
     default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    mjwarp = NewtonCfg(
+    newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=45,
             nconmax=30,
@@ -218,7 +218,7 @@ class SpotPhysxEventCfg(SpotNewtonEventCfg, SpotStartupEventCfg):
 @configclass
 class SpotEventCfg(PresetCfg):
     default = SpotPhysxEventCfg()
-    mjwarp = SpotNewtonEventCfg()
+    newton_mjwarp = SpotNewtonEventCfg()
     physx = default
 
 

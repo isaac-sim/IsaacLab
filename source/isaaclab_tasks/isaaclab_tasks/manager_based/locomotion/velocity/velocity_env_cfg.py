@@ -48,7 +48,7 @@ class RoughPhysicsCfg(PresetCfg):
     """Shared physics preset for all rough-terrain locomotion envs."""
 
     default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    mjwarp = NewtonCfg(
+    newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=200,
             nconmax=100,
@@ -76,7 +76,7 @@ class RoughPhysicsCfg(PresetCfg):
 @configclass
 class VelocityEnvContactSensorCfg(PresetCfg):
     default = PhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
-    mjwarp = NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    newton_mjwarp = NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     physx = default
 
 
@@ -230,7 +230,7 @@ class EventsCfg:
                 "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
             },
         ),
-        mjwarp=None,
+        newton_mjwarp=None,
     )
 
     # reset

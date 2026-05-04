@@ -269,8 +269,11 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
 
 
 def _physics_preset_name(physics_backend: str) -> str:
-    """Map backend labels used by golden images to preset names used by Hydra."""
-    return "mjwarp" if physics_backend == "newton" else physics_backend
+    """Translate the historical ``"newton"`` backend label (still used by golden-image
+    filenames and ``pytest.param`` IDs) to the renamed Hydra preset
+    ``"newton_mjwarp"``. Other labels (``"physx"`` etc.) pass through unchanged.
+    """
+    return "newton_mjwarp" if physics_backend == "newton" else physics_backend
 
 
 def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:

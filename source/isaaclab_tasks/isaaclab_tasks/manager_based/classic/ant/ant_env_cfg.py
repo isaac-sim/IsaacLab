@@ -33,7 +33,7 @@ from isaaclab_assets.robots.ant import ANT_CFG  # isort: skip
 class AntPhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    mjwarp: NewtonCfg = NewtonCfg(
+    newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=38,
             nconmax=15,
@@ -44,7 +44,7 @@ class AntPhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
-    kamino: NewtonCfg = NewtonCfg(
+    newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(
             integrator="moreau",
             use_collision_detector=False,
@@ -154,7 +154,7 @@ class ObservationsCfg:
 class AntObservationsCfg(PresetCfg):
     default: ObservationsCfg = ObservationsCfg()
     physx: ObservationsCfg = ObservationsCfg()
-    mjwarp: ObservationsCfg = ObservationsCfg()
+    newton_mjwarp: ObservationsCfg = ObservationsCfg()
 
 
 @configclass
