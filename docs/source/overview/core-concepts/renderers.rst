@@ -76,7 +76,7 @@ Core concepts
 -------------
 
 - **Use the RenderContext**: Always instantiate renderers via the RenderContext with a renderer-specific config class
-  (e.g. ``RenderContext.get_renderer(IsaacRtxRendererCfg())``). Do not import or instantiate concrete backend classes
+  (e.g. ``sim_ctx.render_context.get_renderer(IsaacRtxRendererCfg())``). Do not import or instantiate concrete backend classes
   (e.g. ``IsaacRtxRenderer``, ``OVRTXRenderer``) directly—their names and package locations are
   implementation details and may change without notice.
 
