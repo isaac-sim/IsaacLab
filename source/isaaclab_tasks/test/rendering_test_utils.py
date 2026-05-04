@@ -28,15 +28,15 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The max percentage of pixels allowed to differ. If the percentage exceeds this value, the test will fail.
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
-_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
+MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "cartpole": 1.0,
     # Shadow-hand renderings (incl. ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 7.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
     "shadow_hand": 7.0,
-    "dexsuite_kuka": 10.0,  # texture aliasing artifacts on the ground (ticket has been filed for OVRTX)
+    # Texture aliasing artifacts on the ground (https://nvbugs/6116767)
+    "dexsuite_kuka": 10.0,
 }
-MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = _MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
 # robust to uniform per-pixel noise that penalises structural changes (geometry shifts, swapped colours, missing
@@ -47,7 +47,7 @@ _SSIM_THRESHOLD = 0.985
 # Per-env SSIM overrides. Envs not listed fall back to ``_SSIM_THRESHOLD``. Loosened individually
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
-    # Texture aliasing artifacts on the ground (ticket has been filed for OVRTX)
+    # Texture aliasing artifacts on the ground (https://nvbugs/6116767)
     "dexsuite_kuka": 0.95,
 }
 
@@ -117,19 +117,6 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "semantic_segmentation",
         id="physx-isaacsim_rtx-semantic_segmentation",
     ),
-    # physx + newton_renderer (warp)
-    pytest.param(
-        "physx",
-        "newton_renderer",
-        "rgb",
-        id="physx-newton_warp-rgb",
-    ),
-    pytest.param(
-        "physx",
-        "newton_renderer",
-        "depth",
-        id="physx-newton_warp-depth",
-    ),
     # newton + isaacsim_rtx_renderer
     pytest.param(
         "newton",
@@ -172,6 +159,19 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "isaacsim_rtx_renderer",
         "semantic_segmentation",
         id="newton-isaacsim_rtx-semantic_segmentation",
+    ),
+    # physx + newton_renderer (warp)
+    pytest.param(
+        "physx",
+        "newton_renderer",
+        "rgb",
+        id="physx-newton_warp-rgb",
+    ),
+    pytest.param(
+        "physx",
+        "newton_renderer",
+        "depth",
+        id="physx-newton_warp-depth",
     ),
 ]
 
