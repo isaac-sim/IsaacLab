@@ -56,26 +56,23 @@ class RenderCfg:
     This is set by the variable: ``/rtx/indirectDiffuse/enabled``.
     """
 
-    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None = "FXAA"
-    """Selects the anti-aliasing mode to use. Defaults to FXAA.
+    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None = None
+    """Selects the anti-aliasing mode to use. Defaults to DLSS.
 
-    - **FXAA**: Fast approximate anti-aliasing. Spatial-only — each frame is rendered independently with no
-      temporal blending. Recommended for RL training to avoid temporal artifacts in observations.
-    - **DLSS**: AI-based upscaling that uses motion vectors and feedback from prior frames. Produces higher
-      quality images but introduces temporal information into single-frame observations, which can cause
-      RL policies to learn from renderer artifacts rather than true visual features.
-    - **DLAA**: Same AI model as DLSS but at native resolution (no upscaling). Also uses temporal blending.
-    - **TAA**: Traditional temporal anti-aliasing with frame-to-frame jitter and blending.
-    - **Off**: No anti-aliasing applied.
+    - **DLSS**: Boosts performance by using AI to output higher resolution frames from a lower resolution input.
+      DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct
+      native quality images.
+    - **DLAA**: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same
+      Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize
+      image quality.
 
-    .. warning::
-        DLSS, DLAA, and TAA use temporal frame blending that encodes motion information into single RGB
-        observations. This can cause camera-based RL training to produce policies that depend on
-        renderer-specific temporal artifacts rather than genuine visual features. Use ``"FXAA"`` or
-        ``"Off"`` for renderer-agnostic training.
+    This is set by the variable: ``/rtx/post/dlss/execMode``.
 
-    This is set via ``omni.replicator.core.settings.set_render_rtx_realtime(antialiasing=...)``,
-    which controls ``/rtx/post/aa/op`` and ``/rtx-transient/post/aa/limitedOps``.
+    .. note::
+        DLSS, DLAA, and TAA blend information from prior frames into the current frame, which encodes
+        implicit temporal information into RGB observations. For camera-based RL with backends that lack
+        implicit physics damping (e.g. Newton), this can substitute for explicit ``frame_stack > 1``;
+        conversely, with non-temporal modes (``"FXAA"``, ``"Off"``) explicit frame stacking is required.
     """
 
     enable_dlssg: bool | None = None

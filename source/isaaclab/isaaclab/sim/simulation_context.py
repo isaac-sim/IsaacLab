@@ -289,8 +289,7 @@ class SimulationContext:
                     path = key
                 self.set_setting(path, value)
 
-        # Anti-aliasing mode via Replicator. This sets both /rtx/post/aa/op and
-        # /rtx-transient/post/aa/limitedOps (which gates non-DLSS modes in the C++ renderer).
+        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
         antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
         if antialiasing_mode is not None:
             try:
@@ -299,16 +298,6 @@ class SimulationContext:
                 rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
             except Exception:
                 pass
-
-            _TEMPORAL_AA_MODES = {"DLSS", "TAA", "DLAA"}
-            if antialiasing_mode.upper() in _TEMPORAL_AA_MODES:
-                logger.warning(
-                    "Anti-aliasing mode '%s' uses temporal frame blending which encodes motion"
-                    " information into single RGB observations. This can cause camera-based RL"
-                    " policies to learn from temporal artifacts rather than genuine visual features."
-                    " For renderer-agnostic training, set antialiasing_mode='FXAA' in RenderCfg.",
-                    antialiasing_mode,
-                )
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
