@@ -9,8 +9,8 @@
 # result back to ``develop``. Keeps the develop branch's changelog current
 # without requiring a maintainer to run ``compile`` by hand.
 #
-# Scheduled workflow — must live on both ``main`` and ``develop``.
-# See ``.github/workflows/README.md``.
+# Scheduled workflow — must live on the default branch (``main``) for the
+# cron to register. See ``.github/workflows/README.md``.
 #
 # The push uses ``CHANGELOG_PAT`` (a personal access token / fine-grained
 # GitHub App token with ``contents:write`` on this repo) when it's
