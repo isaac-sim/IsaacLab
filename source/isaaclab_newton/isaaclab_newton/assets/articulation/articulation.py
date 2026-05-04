@@ -26,7 +26,13 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
-from isaaclab_newton.actuators.newton_actuator_utils import NewtonActuatorAdapter
+try:
+    from isaaclab_newton.actuators.newton_actuator_utils import NewtonActuatorAdapter
+
+    _HAS_NEWTON_ACTUATORS = True
+except ImportError:
+    _HAS_NEWTON_ACTUATORS = False
+
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
@@ -3456,7 +3462,13 @@ class Articulation(BaseArticulation):
 
         _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
 
-        if _use_newton_actuators:
+        if _use_newton_actuators and not _HAS_NEWTON_ACTUATORS:
+            logger.warning(
+                "use_newton_actuators is enabled but 'newton.actuators' is not available. "
+                "Newton-native actuators will be disabled. Upgrade Newton to >= 1.2.0rc1."
+            )
+
+        if _use_newton_actuators and _HAS_NEWTON_ACTUATORS:
             from newton import Model as NewtonModel  # noqa: PLC0415
 
             model = SimulationManager.get_model()
@@ -3511,7 +3523,7 @@ class Articulation(BaseArticulation):
         if self.cfg.actuator_value_resolution_debug_print:
             t = PrettyTable(["Group", "Property", "Name", "ID", "USD Value", "ActutatorCfg Value", "Applied"])
             for actuator_group, actuator in self.actuators.items():
-                if isinstance(actuator, NewtonActuatorAdapter):
+                if _HAS_NEWTON_ACTUATORS and isinstance(actuator, NewtonActuatorAdapter):
                     continue
                 group_count = 0
                 for property, resolution_details in actuator.joint_property_resolution_table.items():
