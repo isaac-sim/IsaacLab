@@ -3819,7 +3819,13 @@ class Articulation(BaseArticulation):
         """
         if isinstance(tendon_ids, list):
             return wp.array(tendon_ids, dtype=wp.int32, device=self.device)
-        if (tendon_ids is None) or (tendon_ids == slice(None)):
+        if tendon_ids is None:
+            return self._ALL_FIXED_TENDON_INDICES
+        if isinstance(tendon_ids, torch.Tensor):
+            if tendon_ids.dtype == torch.int64:
+                tendon_ids = tendon_ids.to(torch.int32)
+            return wp.from_torch(tendon_ids, dtype=wp.int32)
+        if tendon_ids == slice(None):
             return self._ALL_FIXED_TENDON_INDICES
         return tendon_ids
 
@@ -3836,7 +3842,13 @@ class Articulation(BaseArticulation):
         """
         if isinstance(spatial_tendon_ids, list):
             return wp.array(spatial_tendon_ids, dtype=wp.int32, device=self.device)
-        if (spatial_tendon_ids is None) or (spatial_tendon_ids == slice(None)):
+        if spatial_tendon_ids is None:
+            return self._ALL_SPATIAL_TENDON_INDICES
+        if isinstance(spatial_tendon_ids, torch.Tensor):
+            if spatial_tendon_ids.dtype == torch.int64:
+                spatial_tendon_ids = spatial_tendon_ids.to(torch.int32)
+            return wp.from_torch(spatial_tendon_ids, dtype=wp.int32)
+        if spatial_tendon_ids == slice(None):
             return self._ALL_SPATIAL_TENDON_INDICES
         return spatial_tendon_ids
 

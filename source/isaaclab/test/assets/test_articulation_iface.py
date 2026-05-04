@@ -562,6 +562,28 @@ class TestArticulationIndexResolution:
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
 
+    @_index_resolution_backends
+    def test_resolve_fixed_tendon_ids_converts_int64_tensor(self, backend):
+        art, _ = get_articulation(backend, num_fixed_tendons=4, device="cpu")
+
+        fixed_tendon_ids = torch.arange(4, dtype=torch.int64, device="cpu")
+        resolved = art._resolve_fixed_tendon_ids(fixed_tendon_ids[:2])
+
+        assert isinstance(resolved, wp.array)
+        assert resolved.shape[0] == 2
+        assert wp.to_torch(resolved).dtype == torch.int32
+
+    @_index_resolution_backends
+    def test_resolve_spatial_tendon_ids_converts_int64_tensor(self, backend):
+        art, _ = get_articulation(backend, num_spatial_tendons=4, device="cpu")
+
+        spatial_tendon_ids = torch.arange(4, dtype=torch.int64, device="cpu")
+        resolved = art._resolve_spatial_tendon_ids(spatial_tendon_ids[:2])
+
+        assert isinstance(resolved, wp.array)
+        assert resolved.shape[0] == 2
+        assert wp.to_torch(resolved).dtype == torch.int32
+
 
 # ---------------------------------------------------------------------------
 # Tests: Articulation properties
