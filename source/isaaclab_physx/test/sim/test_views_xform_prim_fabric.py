@@ -174,12 +174,62 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
         f"Fabric should have new position, got {pos_torch}"
     )
 
-    # Verify USD still has the ORIGINAL position (no writeback)
+    # Verify USD still has the ORIGINAL position (no writeback). Equality, not
+    # approximate — USD should literally not have moved, so any drift would
+    # indicate a residual writeback path.
     xform_cache_after = UsdGeom.XformCache()
     usd_tf_after = xform_cache_after.GetLocalToWorldTransform(prim)
     usd_t_after = usd_tf_after.ExtractTranslation()
     usd_pos_after = torch.tensor([float(usd_t_after[0]), float(usd_t_after[1]), float(usd_t_after[2])])
-    assert torch.allclose(usd_pos_after, orig_usd_pos, atol=0.1), (
+    assert torch.allclose(usd_pos_after, orig_usd_pos, atol=0.0), (
         f"USD should still have original position {orig_usd_pos}, but got {usd_pos_after}. "
         f"sync_usd_on_fabric_write may not have been fully removed."
     )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch):
+    """Forcing the topology-changed branch on a write triggers
+    :meth:`_rebuild_fabric_arrays` and leaves the view in a state where
+    subsequent writes/reads still produce correct data.
+
+    Real ``PrimSelection.PrepareForReuse`` reports topology change only when
+    Fabric reallocates internally, which is hard to provoke from a unit test.
+    Instead we monkeypatch ``_prepare_for_reuse`` on the instance to always
+    take the rebuild branch and verify the view remains usable.
+    """
+    bundle = view_factory(2, device)
+    view = bundle.view
+
+    # First write — initializes Fabric and binds _fabric_selection.
+    initial = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[initial, 1.0, 2.0, 3.0], device=device)
+    view.set_world_poses(positions=initial)
+
+    rebuild_calls = []
+    real_rebuild = view._rebuild_fabric_arrays
+
+    def spy_rebuild():
+        rebuild_calls.append(True)
+        real_rebuild()
+
+    def force_topology_changed():
+        if view._fabric_selection is not None:
+            view._fabric_selection.PrepareForReuse()
+            spy_rebuild()
+
+    monkeypatch.setattr(view, "_prepare_for_reuse", force_topology_changed)
+
+    # Trigger another write — goes through the forced topology-change branch.
+    new = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[new, 4.0, 5.0, 6.0], device=device)
+    view.set_world_poses(positions=new)
+
+    assert rebuild_calls, "Forced topology-change branch did not invoke _rebuild_fabric_arrays"
+
+    # Read back — proves the rebuilt _view_to_fabric and _fabric_world_matrices
+    # are still consistent.
+    ret_pos, _ = view.get_world_poses()
+    pos_torch = wp.to_torch(ret_pos)
+    expected = torch.tensor([[4.0, 5.0, 6.0], [4.0, 5.0, 6.0]], device=device)
+    assert torch.allclose(pos_torch, expected, atol=1e-7), f"Read after rebuild failed on {device}: {pos_torch}"

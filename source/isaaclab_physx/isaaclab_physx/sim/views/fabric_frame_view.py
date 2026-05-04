@@ -394,24 +394,22 @@ class FabricFrameView(BaseFrameView):
         # The constructor should have taken care of this, but double check here to avoid regressions
         assert self._device in _fabric_supported_devices
 
-        fabric_device = self._device
-
         self._fabric_selection = fabric_stage.SelectPrims(
             require_attrs=[
                 (usdrt.Sdf.ValueTypeNames.UInt, self._view_index_attr, usdrt.Usd.Access.Read),
                 (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
             ],
-            device=fabric_device,
+            device=self._device,
         )
 
-        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=fabric_device)
+        self._view_to_fabric = wp.zeros((self.count,), dtype=wp.uint32, device=self._device)
         self._fabric_to_view = wp.fabricarray(self._fabric_selection, self._view_index_attr)
 
         wp.launch(
             kernel=fabric_utils.set_view_to_fabric_array,
             dim=self._fabric_to_view.shape[0],
             inputs=[self._fabric_to_view, self._view_to_fabric],
-            device=fabric_device,
+            device=self._device,
         )
         wp.synchronize()
 
@@ -423,13 +421,17 @@ class FabricFrameView(BaseFrameView):
         self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
         self._fabric_world_matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
         self._fabric_stage = fabric_stage
-        self._fabric_device = fabric_device
+        self._fabric_device = self._device
 
         self._fabric_initialized = True
         self._fabric_usd_sync_done = False
 
     def _sync_fabric_from_usd_once(self) -> None:
-        """Sync Fabric world matrices from USD once, on the first read."""
+        """Sync Fabric world matrices from USD once, on the first read.
+
+        ``set_world_poses`` and ``set_scales`` each set ``_fabric_usd_sync_done``
+        themselves, so no explicit flag assignment is needed here.
+        """
         if not self._fabric_initialized:
             self._initialize_fabric()
 
@@ -440,8 +442,6 @@ class FabricFrameView(BaseFrameView):
 
         self.set_world_poses(positions_usd, orientations_usd)
         self.set_scales(scales_usd)
-
-        self._fabric_usd_sync_done = True
 
     def _resolve_indices_wp(self, indices: wp.array | None) -> wp.array:
         """Resolve view indices as a Warp uint32 array."""
