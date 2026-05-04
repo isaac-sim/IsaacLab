@@ -13,6 +13,7 @@ import time
 from collections import deque
 from typing import Any
 
+import torch
 import warp as wp
 
 from pxr import UsdGeom, UsdPhysics
@@ -41,7 +42,8 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
     - body poses via PhysX tensor views, with FrameView fallback
     - camera poses & intrinsics
     - USD stage handles
-    - Newton model/state (from the simulation context prebuilt payload when required)
+    - Newton model/state (built locally from the scene's per-group :class:`ClonePlan` map
+      when required)
     """
 
     # ---- Environment discovery / metadata -------------------------------------------------
@@ -122,12 +124,12 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         self._xform_mask_buf = None
         # View index order as device tensors for vectorized scatter in _apply_view_poses.
         self._view_order_tensors: dict[str, Any] = {}
-        # Last load outcome (tests / debug): "prebuilt" | "missing" | "error".
+        # Last load outcome (tests / debug): "built" | "missing" | "error".
         self._last_newton_model_build_source: str | None = None
         self._last_newton_model_build_elapsed_ms: float | None = None
 
         if self._needs_newton_sync:
-            self._load_newton_model_from_prebuilt_artifact()
+            self._build_newton_model_from_clone_plans()
             self._setup_rigid_body_view()
 
     # ---- Newton model + PhysX view setup --------------------------------------------------
@@ -148,87 +150,104 @@ class PhysxSceneDataProvider(BaseSceneDataProvider):
         needs_rebuild = self._newton_model is None or self._newton_state is None
         needs_rebuild = needs_rebuild or (self._num_envs_at_last_newton_build != num_envs)
         if needs_rebuild:
-            self._load_newton_model_from_prebuilt_artifact()
+            self._build_newton_model_from_clone_plans()
             self._setup_rigid_body_view()
 
-    def _model_body_paths(self, model) -> list[str]:
-        """Return body paths/keys from a Newton model.
+    def _build_newton_model_from_clone_plans(self) -> None:
+        """Build Newton model and state from the scene's per-group :class:`ClonePlan` map.
 
-        Args:
-            model: Newton model object.
-
-        Returns:
-            Body paths/keys from the model, or an empty list when unavailable.
+        Reads plans :meth:`InteractiveScene.clone_environments` publishes on
+        :class:`SimulationContext`, derives the flat ``(sources, destinations, mask)`` shape
+        :func:`isaaclab_newton.cloner.newton_visualizer_prebuild` expects, and caches the
+        resulting model/state. Per-prototype source paths recover as
+        ``dest_template.format(<first env using this prototype>)``; per-env positions are
+        read off ``xformOp:translate`` on the env-level prims derived from the same template.
+        Pre-condition violations raise :class:`RuntimeError` (logged as ``"missing"``);
+        ``isaaclab_newton`` being absent (optional dep) maps to ``"missing"`` via the
+        import's own exception types; unexpected failures fall through to ``"error"``.
         """
-        if model is None:
-            return []
-        return list(getattr(model, "body_label", None) or getattr(model, "body_key", []))
-
-    def _load_newton_model_from_prebuilt_artifact(self) -> None:
-        """Load Newton model and state from the simulation context prebuilt artifact."""
         start_t = time.perf_counter()
+        source = "missing"
         try:
-            artifact = self._simulation_context.get_scene_data_visualizer_prebuilt_artifact()
-            if not artifact:
-                self._last_newton_model_build_source = "missing"
-                logger.error(
-                    "[PhysxSceneDataProvider] No visualizer prebuilt artifact on the simulation context "
-                    "(expected VisualizerPrebuiltArtifacts from scene setup)."
-                )
-                self._clear_newton_model_state()
-                return
+            plans = self._simulation_context.get_clone_plans()
+            if not plans:
+                raise RuntimeError("No clone plans on simulation context.")
+            from isaaclab_newton.cloner.newton_replicate import newton_visualizer_prebuild
 
-            model = artifact.model
-            state = artifact.state
+            # Flatten per-group plans into one (sources, destinations, mask) bundle. Source
+            # paths recover via ``dest_template.format(<first env using this prototype>)``;
+            # all-False rows are dropped (possible when ``num_prototypes > num_envs``).
+            plan_list = list(plans.values())
+            num_envs = plan_list[0].clone_mask.size(1)
+            if any(p.clone_mask.size(1) != num_envs for p in plan_list):
+                raise RuntimeError(f"Clone plans disagree on num_envs: {[p.clone_mask.size(1) for p in plan_list]}")
+            sources, destinations, mask_rows = [], [], []
+            for p in plan_list:
+                for i in range(p.clone_mask.size(0)):
+                    nz = p.clone_mask[i].nonzero(as_tuple=False)
+                    if nz.numel() == 0:
+                        continue
+                    sources.append(p.dest_template.format(int(nz[0].item())))
+                    destinations.append(p.dest_template)
+                    mask_rows.append(p.clone_mask[i : i + 1])
+            if not sources:
+                raise RuntimeError("All clone-plan prototype rows are empty.")
+            mask = torch.cat(mask_rows, dim=0)
+
+            # Env-level path template = dest_template up to the first ``{}``. Per-env world
+            # positions: xformOp:translate read off each env prim; missing prims fall through.
+            env_path_template = plan_list[0].dest_template.split("{}")[0] + "{}"
+            positions = torch.zeros((num_envs, 3), dtype=torch.float32, device=self._device)
+            for i in range(num_envs):
+                prim = self._stage.GetPrimAtPath(env_path_template.format(i))
+                if prim.IsValid() and (v := prim.GetAttribute("xformOp:translate").Get()) is not None:
+                    positions[i] = torch.tensor([v[0], v[1], v[2]], device=self._device)
+
+            model, state = newton_visualizer_prebuild(
+                stage=self._stage,
+                sources=sources,
+                destinations=destinations,
+                env_ids=torch.arange(num_envs, dtype=torch.long, device=mask.device),
+                mapping=mask,
+                positions=positions,
+                device=self._device,
+                up_axis=UsdGeom.GetStageUpAxis(self._stage),
+            )
             if model is None or state is None:
-                self._last_newton_model_build_source = "missing"
-                logger.error(
-                    "[PhysxSceneDataProvider] Prebuilt artifact is missing model or state; cannot sync PhysX to Newton."
-                )
-                self._clear_newton_model_state()
-                return
+                raise RuntimeError("newton_visualizer_prebuild returned None.")
 
-            self._newton_model = model
-            self._newton_state = state
-
+            self._newton_model, self._newton_state = model, state
             replace_newton_shape_colors(self._newton_model, self._stage)
-
-            body_paths = list(artifact.rigid_body_paths) or self._model_body_paths(model)
-            self._rigid_body_paths = body_paths
-            view_paths = list(body_paths)
-            if artifact.articulation_paths:
-                seen = set(view_paths)
-                for path in artifact.articulation_paths:
-                    if path not in seen:
-                        view_paths.append(path)
-                        seen.add(path)
-            self._rigid_body_view_paths = view_paths
+            # Newton renamed ``*_key`` → ``*_label`` mid-development; fall back so we work either way.
+            # ``dict.fromkeys`` preserves order while deduping — articulation roots can overlap rigid bodies.
+            label_or_key = lambda kind: list(getattr(model, f"{kind}_label", None) or getattr(model, f"{kind}_key", []))  # noqa: E731
+            self._rigid_body_paths = label_or_key("body")
+            self._rigid_body_view_paths = list(dict.fromkeys(self._rigid_body_paths + label_or_key("articulation")))
+            # Reset cached views/buffers; rebuilt lazily by ``_setup_rigid_body_view``.
             self._xform_views.clear()
-            self._view_body_index_map = {}
             self._view_order_tensors.clear()
+            self._view_body_index_map = {}
             self._pose_buf_num_bodies = 0
-            self._positions_buf = None
-            self._orientations_buf = None
-            self._covered_buf = None
-            self._xform_mask_buf = None
-            self._num_envs_at_last_newton_build = int(artifact.num_envs)
-            self._last_newton_model_build_source = "prebuilt"
+            self._positions_buf = self._orientations_buf = self._covered_buf = self._xform_mask_buf = None
+            self._num_envs_at_last_newton_build = num_envs
+            source = "built"
+        except (ImportError, ModuleNotFoundError) as exc:
+            logger.warning("[PhysxSceneDataProvider] isaaclab_newton not available: %s", exc)
+            self._clear_newton_model_state()
+        except RuntimeError as exc:
+            logger.error("[PhysxSceneDataProvider] %s", exc)
+            self._clear_newton_model_state()
         except Exception as exc:
-            self._last_newton_model_build_source = "error"
-            logger.error("[PhysxSceneDataProvider] Failed to load Newton model from prebuilt artifact: %s", exc)
+            source = "error"
+            logger.error("[PhysxSceneDataProvider] Failed to build Newton model from clone plans: %s", exc)
             self._clear_newton_model_state()
         finally:
-            elapsed_ms = (time.perf_counter() - start_t) * 1000.0
-            self._last_newton_model_build_elapsed_ms = elapsed_ms
-            try:
-                num_envs = self.get_num_envs()
-            except Exception:
-                num_envs = -1
+            self._last_newton_model_build_elapsed_ms = (time.perf_counter() - start_t) * 1000.0
+            self._last_newton_model_build_source = source
             logger.debug(
-                "[PhysxSceneDataProvider] Newton model load source=%s num_envs=%d elapsed_ms=%.2f",
-                self._last_newton_model_build_source,
-                num_envs,
-                elapsed_ms,
+                "[PhysxSceneDataProvider] Newton model build source=%s elapsed_ms=%.2f",
+                source,
+                self._last_newton_model_build_elapsed_ms,
             )
 
     def _clear_newton_model_state(self) -> None:
