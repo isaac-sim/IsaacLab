@@ -41,7 +41,7 @@ EXTRAS_REQUIRE = {
         "mujoco~=3.8.0",
         "mujoco-warp>=3.8.0.1,~=3.8.0",
         "PyOpenGL-accelerate==3.1.10",
-        "newton @ git+https://github.com/newton-physics/newton.git@d89a76bd94542952301e570a3cc36156e165052e",
+        "newton @ git+https://github.com/jvonmuralt/newton.git@ignore_path",
     ],
 }
 
