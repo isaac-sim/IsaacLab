@@ -760,6 +760,12 @@ def rendering_test_dexsuite_kuka(
     if point_cloud_term is not None:
         point_cloud_term.params["visualize"] = False
 
+    # The success and failure markers are placed exactly at the same location. If both markers are
+    # visible, the rendering order will determine which one is visible in the camera output. Hide
+    # both markers to avoid this nondeterministic behavior.
+    for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
+        marker_cfg.visible = False
+
     env = None
 
     try:
