@@ -57,13 +57,11 @@ FOCUS_ARTICULATION_HANG_DEBUG = True
 FOCUS_ARTICULATION_HANG_TEST_PATHS = (
     "source/isaaclab_physx/test/assets/test_articulation.py",
     "source/isaaclab_newton/test/assets/test_articulation.py",
+    "source/isaaclab_ovphysx/test/assets/test_articulation.py",
     "source/isaaclab_physx/test/assets/test_surface_gripper.py",
     "source/isaaclab/test/app/test_non_headless_launch.py",
 )
 """Test files to run while investigating intermittent CI timeouts."""
-
-FOCUS_ARTICULATION_HANG_TEST_EXPR = "test_external_force_on_single_body_at_position"
-"""Pytest expression to select the suspected hanging test."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -366,13 +364,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             cmd.append("isaacsim_ci")
 
         cmd.append(str(test_file))
-        normalized_test_file = str(test_file).replace(os.sep, "/")
-        if FOCUS_ARTICULATION_HANG_DEBUG and any(
-            test_path in normalized_test_file for test_path in FOCUS_ARTICULATION_HANG_TEST_PATHS
-        ):
-            if "test_articulation.py" in normalized_test_file:
-                cmd.extend(["-k", FOCUS_ARTICULATION_HANG_TEST_EXPR])
-
         report_file = f"tests/test-reports-{str(file_name)}.xml"
 
         # -- Run with retry on startup hang or hard timeout -----------------
@@ -693,7 +684,7 @@ def pytest_sessionstart(session):
         filter_pattern = ",".join(FOCUS_ARTICULATION_HANG_TEST_PATHS)
         print("Temporary timeout debug focus is enabled.")
         print(f"Only running files containing: {filter_pattern}")
-        print(f"Articulation pytest expression: {FOCUS_ARTICULATION_HANG_TEST_EXPR}")
+        print("Articulation pytest expression: <all cases>")
         print(f"Timeout retries disabled: {TIMEOUT_RETRIES}")
 
     print("=" * 50)

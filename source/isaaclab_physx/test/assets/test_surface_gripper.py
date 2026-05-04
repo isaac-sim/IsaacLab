@@ -42,6 +42,11 @@ from isaaclab.utils.version import get_isaac_sim_version, has_kit
 # from isaacsim.robot.surface_gripper import GripperView
 
 
+def _debug_log(test_name: str, message: str):
+    sys.__stdout__.write(f"[surface-gripper-hang-debug] {test_name}: {message}\n")
+    sys.__stdout__.flush()
+
+
 def generate_surface_gripper_cfgs(
     kinematic_enabled: bool = False,
     max_grip_distance: float = 0.1,
@@ -179,13 +184,19 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
     """
     if has_kit() and get_isaac_sim_version().major < 5:
         return
+    test_name = f"test_initialization[{device}-{add_ground_plane}-{num_articulations}]"
+    _debug_log(test_name, "generating configs")
     surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
+    _debug_log(test_name, "generating surface gripper")
     surface_gripper, articulation, _ = generate_surface_gripper(
         surface_gripper_cfg, articulation_cfg, num_articulations, device
     )
 
+    _debug_log(test_name, "before sim.reset")
     sim.reset()
+    _debug_log(test_name, "after sim.reset")
 
+    _debug_log(test_name, "before initialization assertions")
     assert articulation.is_initialized
     assert surface_gripper.is_initialized
 
@@ -198,12 +209,16 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
     assert wp.to_torch(surface_gripper.state).item() == -1.0  # Open state after a reset
 
     # Simulate physics
-    for _ in range(10):
+    for step_i in range(10):
         # perform rendering
+        _debug_log(test_name, f"step {step_i} before sim.step")
         sim.step()
+        _debug_log(test_name, f"step {step_i} after sim.step")
         # update articulation
         articulation.update(sim.cfg.dt)
         surface_gripper.update(sim.cfg.dt)
+        _debug_log(test_name, f"step {step_i} after updates")
+    _debug_log(test_name, "complete")
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -213,14 +228,19 @@ def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
     """Test that the SurfaceGripper raises an error if the device is not CPU."""
     if has_kit() and get_isaac_sim_version().major < 5:
         return
+    test_name = f"test_raise_error_if_not_cpu[{device}-{add_ground_plane}]"
     num_articulations = 1
+    _debug_log(test_name, "generating configs")
     surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
+    _debug_log(test_name, "generating surface gripper")
     surface_gripper, articulation, translations = generate_surface_gripper(
         surface_gripper_cfg, articulation_cfg, num_articulations, device
     )
 
+    _debug_log(test_name, "before expected sim.reset exception")
     with pytest.raises(Exception):
         sim.reset()
+    _debug_log(test_name, "complete")
 
 
 if __name__ == "__main__":
