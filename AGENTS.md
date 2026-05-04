@@ -89,23 +89,27 @@ Proper workflow:
 
 ## Changelog
 
-- **Update `CHANGELOG.rst` for every change** targeting the source directory. Each extension has its own changelog at `source/<package>/docs/CHANGELOG.rst` (e.g. `source/isaaclab/docs/CHANGELOG.rst`, `source/isaaclab_physx/docs/CHANGELOG.rst`).
-- **Always create a new version heading.** Never add entries to an existing version — they are released and immutable. Bump the patch version (e.g. `1.5.0` → `1.5.1`) and use today's date.
-- **Bump `config/extension.toml` to match.** When creating a new changelog version, update the `version` field in `source/<package>/config/extension.toml` to the same version string.
-- **Determine which changelog(s) to update** by looking at which `source/<package>/` directories your changes touch. A single PR may require entries in multiple changelogs.
+- **Do not edit `CHANGELOG.rst` or `config/extension.toml` directly.** Each PR adds a fragment file under `source/<package>/changelog.d/`; the changelog and version are compiled by the nightly CI workflow.
+- **Add one fragment per touched package.** Pick any short, unique slug for the filename — your branch name (with `/` replaced by `-`) is a good default. The filename suffix declares the bump tier; within a batch the highest tier wins for the package.
+
+  | Filename | Effect |
+  |---|---|
+  | `source/<pkg>/changelog.d/<slug>.rst` | patch bump |
+  | `source/<pkg>/changelog.d/<slug>.minor.rst` | minor bump |
+  | `source/<pkg>/changelog.d/<slug>.major.rst` | major bump |
+  | `source/<pkg>/changelog.d/<slug>.skip` | no entry, no bump (CI / docs / test-only) |
+
 - Use **past tense** matching the section header: "Added X", "Fixed Y", "Changed Z".
 - Place entries under the correct category: `Added`, `Changed`, `Deprecated`, `Removed`, or `Fixed`.
 - Avoid internal implementation details users wouldn't understand.
 - **For `Deprecated`, `Changed`, and `Removed` entries, include migration guidance.**
   - Example: "Deprecated `Articulation.A` in favor of `Articulation.B`."
+- **Breaking changes** belong in `Changed`, prefixed with `**Breaking:**`.
 - Use Sphinx cross-reference roles for class/method/module names.
 
 ### RST formatting reference
 
 ```
-X.Y.Z (YYYY-MM-DD)
-~~~~~~~~~~~~~~~~~~
-
 Added
 ^^^^^
 
@@ -119,10 +123,10 @@ Fixed
 ```
 
 Key formatting rules:
-- Version heading: underline with `~` (tildes), must be at least as long as the heading text.
-- Category heading: underline with `^` (carets).
+- Category heading: underline with `^` (carets), at least as long as the heading text.
 - Entries: `* ` prefix, continuation lines indented by 2 spaces.
-- Blank line between the last entry and the next version heading.
+
+See `tools/changelog/test/integration/` for worked examples that double as integration-test fixtures.
 
 ## Commit and Pull Request Guidelines
 

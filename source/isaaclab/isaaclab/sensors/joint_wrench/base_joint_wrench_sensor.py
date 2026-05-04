@@ -1,0 +1,76 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+from abc import abstractmethod
+from typing import TYPE_CHECKING
+
+import warp as wp
+
+from ..sensor_base import SensorBase
+from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
+
+if TYPE_CHECKING:
+    from .joint_wrench_sensor_cfg import JointWrenchSensorCfg
+
+
+class BaseJointWrenchSensor(SensorBase):
+    """The joint reaction wrench sensor.
+
+    Reports the incoming joint wrench on each joint of an articulation as a
+    split force [N] / torque [N·m] pair expressed in the
+    ``INCOMING_JOINT_FRAME`` convention (child-side joint frame, child-side
+    joint anchor reference point). Backends convert from their native
+    representation to this convention internally.
+    """
+
+    cfg: JointWrenchSensorCfg
+    """The configuration parameters."""
+
+    __backend_name__: str = "base"
+    """The name of the backend for the joint wrench sensor."""
+
+    def __init__(self, cfg: JointWrenchSensorCfg):
+        """Initialize the joint wrench sensor.
+
+        Args:
+            cfg: The configuration parameters.
+        """
+        super().__init__(cfg)
+
+    """
+    Properties
+    """
+
+    @property
+    @abstractmethod
+    def data(self) -> BaseJointWrenchSensorData:
+        """The sensor data container, populated after simulation initialization."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def body_names(self) -> list[str]:
+        """Ordered names of the bodies whose incoming joint wrench is reported."""
+        raise NotImplementedError
+
+    """
+    Implementation - Abstract methods to be implemented by backend-specific subclasses.
+    """
+
+    @abstractmethod
+    def _initialize_impl(self) -> None:
+        """Initialize the sensor handles and internal buffers.
+
+        Subclasses should call ``super()._initialize_impl()`` first to
+        initialize the common sensor infrastructure from
+        :class:`~isaaclab.sensors.SensorBase`.
+        """
+        super()._initialize_impl()
+
+    @abstractmethod
+    def _update_buffers_impl(self, env_mask: wp.array) -> None:
+        raise NotImplementedError

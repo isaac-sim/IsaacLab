@@ -9,6 +9,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from isaaclab.utils.leapp import (
+    POSE7_ELEMENT_NAMES,
+    QUAT_XYZW_ELEMENT_NAMES,
+    XYZ_ELEMENT_NAMES,
+    InputKindEnum,
+    leapp_tensor_semantics,
+    target_frame_pose_resolver,
+    target_frame_quat_resolver,
+    target_frame_xyz_resolver,
+)
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -30,6 +40,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=target_frame_pose_resolver)
     def target_pose_source(self) -> ProxyArray | None:
         """Pose of the target frame(s) relative to source frame.
 
@@ -40,6 +51,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=target_frame_xyz_resolver)
     def target_pos_source(self) -> ProxyArray:
         """Position of the target frame(s) relative to source frame.
 
@@ -50,6 +62,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=target_frame_quat_resolver)
     def target_quat_source(self) -> ProxyArray:
         """Orientation of the target frame(s) relative to source frame.
 
@@ -60,6 +73,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=target_frame_pose_resolver)
     def target_pose_w(self) -> ProxyArray | None:
         """Pose of the target frame(s) after offset in world frame.
 
@@ -70,6 +84,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=target_frame_xyz_resolver)
     def target_pos_w(self) -> ProxyArray:
         """Position of the target frame(s) after offset in world frame.
 
@@ -80,6 +95,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=target_frame_quat_resolver)
     def target_quat_w(self) -> ProxyArray:
         """Orientation of the target frame(s) after offset in world frame.
 
@@ -90,6 +106,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names=POSE7_ELEMENT_NAMES)
     def source_pose_w(self) -> ProxyArray | None:
         """Pose of the source frame after offset in world frame.
 
@@ -100,6 +117,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names=XYZ_ELEMENT_NAMES)
     def source_pos_w(self) -> ProxyArray:
         """Position of the source frame after offset in world frame.
 
@@ -109,6 +127,7 @@ class BaseFrameTransformerData(ABC):
 
     @property
     @abstractmethod
+    @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names=QUAT_XYZW_ELEMENT_NAMES)
     def source_quat_w(self) -> ProxyArray:
         """Orientation of the source frame after offset in world frame.
 

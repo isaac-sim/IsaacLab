@@ -15,9 +15,11 @@ import warp as wp
 
 from pxr import UsdGeom
 
+import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer, Renderer
+from isaaclab.renderers import BaseRenderer
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.math import (
@@ -106,6 +108,7 @@ class Camera(SensorBase):
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
+        self._register_renderer_scene_data_requirements()
 
         # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
         # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
@@ -132,6 +135,30 @@ class Camera(SensorBase):
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
+
+    def _register_renderer_scene_data_requirements(self) -> None:
+        """Register renderer requirements early enough for clone-time prebuilds."""
+        renderer_type = getattr(getattr(self.cfg, "renderer_cfg", None), "renderer_type", None)
+        if renderer_type is None:
+            return
+
+        from isaaclab.physics.scene_data_requirements import aggregate_requirements, requirement_for_renderer_type
+        from isaaclab.sim import SimulationContext
+
+        sim = SimulationContext.instance()
+        if sim is None:
+            logger.debug("SimulationContext not available; deferring renderer requirements registration.")
+            return
+
+        try:
+            renderer_req = requirement_for_renderer_type(renderer_type)
+        except ValueError:
+            return
+
+        current_req = sim.get_scene_data_requirements()
+        merged_req = aggregate_requirements((current_req, renderer_req))
+        if merged_req != current_req:
+            sim.update_scene_data_requirements(merged_req)
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
@@ -370,7 +397,8 @@ class Camera(SensorBase):
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
-        This function creates a :class:`~isaaclab.renderers.Renderer` from the configured
+        This function obtains the simulation-scoped :class:`~isaaclab.renderers.base_renderer.BaseRenderer`
+        from :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context` using the configured
         :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` and delegates all render-product
         and annotator management to it. It also initializes the internal buffers to store the data.
 
@@ -383,12 +411,15 @@ class Camera(SensorBase):
         # Initialize parent class
         super()._initialize_impl()
 
-        self._renderer = Renderer(self.cfg.renderer_cfg)
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is None:
+            raise RuntimeError("SimulationContext is not initialized.")
+        self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
         logger.info("Using renderer: %s", type(self._renderer).__name__)
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
-        self._renderer.prepare_stage(self.stage, self._num_envs)
+        sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
 
         # Create a view for the sensor with Fabric enabled for fast pose queries.
         # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
@@ -416,7 +447,21 @@ class Camera(SensorBase):
             self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
         # View needs to exist before creating render data
-        self._render_data = self._renderer.create_render_data(self)
+        cam_paths = tuple(cam_prim.GetPath().pathString for cam_prim in self._view.prims)
+        env_0_prefix = "/World/envs/env_0/"
+        rel_under_env0 = (
+            cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
+        )
+        device_str = self._device if isinstance(self._device, str) else str(self._device)
+        render_spec = CameraRenderSpec(
+            cfg=self.cfg,
+            device=device_str,
+            num_instances=self.num_instances,
+            camera_prim_paths=cam_paths,
+            view_count=self._view.count,
+            camera_path_relative_to_env_0=rel_under_env0,
+        )
+        self._render_data = self._renderer.create_render_data(render_spec)
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
@@ -434,10 +479,19 @@ class Camera(SensorBase):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
 
-        self._renderer.update_transforms()
-        self._renderer.render(self._render_data)
-
-        self._renderer.read_output(self._render_data, self._data)
+        sim_ctx = sim_utils.SimulationContext.instance()
+        renderer = self._renderer
+        assert renderer is not None
+        if sim_ctx is not None:
+            sim_ctx.render_context.render_into_camera(
+                renderer,
+                self._render_data,
+                self._data,
+                sim_ctx.get_physics_step_count(),
+            )
+        else:
+            renderer.render(self._render_data)
+            renderer.read_output(self._render_data, self._data)
 
     """
     Private Helpers
@@ -573,6 +627,10 @@ class Camera(SensorBase):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
+        if self._renderer is not None and self._render_data is not None:
+            self._renderer.cleanup(self._render_data)
+        self._render_data = None
+        self._renderer = None
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them
