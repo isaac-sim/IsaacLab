@@ -644,6 +644,9 @@ def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.Mo
         def get_newton_state(self):
             return {"ok": True}
 
+        def get_camera_transforms(self):
+            return {}
+
     def _raise_marker_render(*args, **kwargs):
         raise RuntimeError("marker render failed")
 
