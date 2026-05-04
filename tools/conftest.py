@@ -33,16 +33,16 @@ timeout.  Only the first such test gets the extension — after it runs, the
 on-disk cache is populated.
 """
 
-STARTUP_DEADLINE = 45
+STARTUP_DEADLINE = 120
 """Seconds to wait for AppLauncher init or pytest collection before declaring a
 startup hang.
 
 AppLauncher prints ``[ISAACLAB] AppLauncher initialization complete`` to
 ``sys.__stderr__`` (never suppressed) when Kit finishes initializing, and pytest
 prints ``collected N items`` to stdout after collection.  If neither appears
-within this deadline the process is treated as hung.  45 s is above any
-legitimate Kit startup (typically 30--60 s) while still catching real hangs
-without wasting the full hard timeout.
+within this deadline the process is treated as hung.  Kit startup can exceed
+60 s on cold CI workers, so this catches real startup hangs without killing
+legitimate slow launches.
 """
 
 STARTUP_HANG_RETRIES = 2
@@ -148,7 +148,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 kill_reason = "timeout"
 
             if kill_reason:
-                pre_kill_diag = _capture_system_diagnostics()
+                pre_kill_diag = _capture_system_diagnostics(pgid=pgid)
 
                 # Kill the entire process group (test + any Kit children).
                 try:
@@ -255,12 +255,55 @@ def _get_diagnostics(pre_kill_diag=""):
     return diag
 
 
-def _capture_system_diagnostics():
+def _capture_pytest_current_tests(pgid):
+    """Return pytest's current test env var for processes in the test process group."""
+    if pgid is None:
+        return ""
+
+    lines = []
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+
+        try:
+            with open(f"/proc/{pid}/stat") as f:
+                stat = f.read()
+            stat_tail = stat.rsplit(")", 1)[1].strip().split()
+            process_group = int(stat_tail[2])
+        except Exception:
+            continue
+
+        if process_group != pgid:
+            continue
+
+        try:
+            with open(f"/proc/{pid}/environ", "rb") as f:
+                environ = f.read().split(b"\0")
+            current_test = ""
+            for entry in environ:
+                if entry.startswith(b"PYTEST_CURRENT_TEST="):
+                    current_test = entry.decode("utf-8", errors="replace")
+                    break
+            if current_test:
+                with open(f"/proc/{pid}/cmdline", "rb") as f:
+                    cmdline = f.read().replace(b"\0", b" ").decode("utf-8", errors="replace").strip()
+                lines.append(f"pid {pid}: {current_test}\n  cmdline: {cmdline}")
+        except Exception as e:
+            lines.append(f"pid {pid}: failed to read PYTEST_CURRENT_TEST ({e})")
+
+    return "\n".join(lines)
+
+
+def _capture_system_diagnostics(pgid=None):
     """Capture system diagnostics (GPU, memory, processes) for crash investigation.
 
     All errors are caught and reported inline so this never raises.
     """
     sections = []
+
+    current_tests = _capture_pytest_current_tests(pgid)
+    if current_tests:
+        sections.append(f"--- pytest current test ---\n{current_tests}")
 
     try:
         r = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=10)
@@ -328,6 +371,13 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
+        if FOCUS_ARTICULATION_HANG_DEBUG:
+            tools_path = os.path.join(workspace_root, "tools")
+            env["PYTHONPATH"] = os.pathsep.join([tools_path, env.get("PYTHONPATH", "")]).rstrip(os.pathsep)
+            plugins = [p for p in env.get("PYTEST_PLUGINS", "").split(",") if p]
+            if "pytest_current_test_logger" not in plugins:
+                plugins.append("pytest_current_test_logger")
+            env["PYTEST_PLUGINS"] = ",".join(plugins)
 
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
