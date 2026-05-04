@@ -15,8 +15,10 @@ import pytest
 
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.utils import hydra as hydra_mod
 from isaaclab_tasks.utils.hydra import (
     PresetCfg,
+    _format_unknown_presets_error,
     apply_overrides,
     collect_presets,
     parse_overrides,
@@ -367,6 +369,35 @@ def test_legacy_alias_suppressed_when_legacy_name_is_real_field():
         warnings.simplefilter("error", FutureWarning)
         assert cfg.newton is not cfg.newton_mjwarp
         assert isinstance(cfg.newton, PhysxCfg)
+
+
+def test_presetcfg_attribute_error_for_unknown_attribute():
+    """Plain missing attributes should raise ``AttributeError`` (not warn or alias)."""
+    cfg = SimBackendCfg()
+    assert not hasattr(cfg, "completely_unknown")
+    with pytest.raises(AttributeError, match="completely_unknown"):
+        _ = cfg.completely_unknown
+
+
+def test_format_unknown_presets_error_calls_out_legacy_aliases():
+    """The unknown-preset error should explicitly mention the rename for legacy aliases."""
+    msg = _format_unknown_presets_error({"newton", "typo"}, {"fast": ["env"]})
+    assert "newton' was renamed to 'newton_mjwarp'" in msg
+    assert "typo" in msg
+
+
+def test_user_stacklevel_warning_origin_is_outside_hydra_module():
+    """``_normalize_preset_name`` warnings should not be attributed to hydra.py itself."""
+    presets_arg = {"env": {"backend": {"default": None, "newton_mjwarp": None}}, "agent": {}}
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", FutureWarning)
+        parse_overrides(["presets=newton"], presets_arg)
+    deprecations = [w for w in caught if issubclass(w.category, FutureWarning)]
+    assert deprecations, "expected a FutureWarning from the legacy alias"
+    assert deprecations[0].filename != hydra_mod.__file__, (
+        f"warning was attributed to hydra.py ({deprecations[0].filename}); _user_stacklevel should "
+        f"point outside the module"
+    )
 
 
 def test_collect_presets_root_level():
@@ -789,6 +820,15 @@ def test_go1_rough_newton_mjwarp_armature_preset():
 
     env_cfg, _ = _apply(UnitreeGo1RoughEnvCfg())
     assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.0
+
+
+def test_go1_rough_legacy_newton_alias_resolves_to_newton_mjwarp():
+    """Real-config alias path: ``presets=newton`` against an actual env cfg resolves to newton_mjwarp."""
+    from isaaclab_tasks.manager_based.locomotion.velocity.config.go1.rough_env_cfg import UnitreeGo1RoughEnvCfg
+
+    with pytest.warns(FutureWarning, match="Preset 'newton' is deprecated"):
+        env_cfg, _ = _apply(UnitreeGo1RoughEnvCfg(), global_presets=["newton"])
+    assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.02
 
 
 # =============================================================================

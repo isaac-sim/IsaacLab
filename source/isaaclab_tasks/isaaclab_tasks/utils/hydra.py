@@ -41,8 +41,8 @@ _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 # Map of deprecated preset name -> current name. Newton-backend solver presets are
 # now prefixed with ``newton_`` so they group together in autocomplete and read
 # distinctly from backend/package/visualizer names that also use the word
-# ``newton``. Aliases stay live for one release before removal so legacy CLI
-# invocations and ``PresetCfg`` field accesses keep working with a warning.
+# ``newton``. Aliases keep legacy CLI invocations and ``PresetCfg`` field accesses
+# working with a :class:`FutureWarning`; they will be removed in a future release.
 _LEGACY_PRESET_ALIASES = {"newton": "newton_mjwarp", "kamino": "newton_kamino"}
 
 
@@ -50,12 +50,20 @@ def _user_stacklevel() -> int:
     """Compute a ``warnings.warn`` stacklevel that lands on the first frame
     outside this module, so deprecation messages cite user code rather than
     internal hydra-utility frames.
+
+    Walks at most a small bounded number of frames; if no non-hydra frame is
+    found within the bound (frozen modules, exec'd contexts, or oddly named
+    ``__file__`` globals), falls back to ``stacklevel=2`` so the warning at
+    least jumps out of the helper that called it.
     """
+    max_walk = 16
     level = 1
     frame = sys._getframe(1)
     while frame is not None and frame.f_globals.get("__file__") == __file__:
         level += 1
         frame = frame.f_back
+        if level > max_walk:
+            return 2
     return level
 
 
@@ -574,7 +582,11 @@ def apply_overrides(
         name = _normalize_preset_name(name, set(presets[sec][path]))
         if name not in presets[sec][path]:
             avail = list(presets[sec][path].keys())
-            raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}")
+            hint = ""
+            if name in _LEGACY_PRESET_ALIASES:
+                replacement = _LEGACY_PRESET_ALIASES[name]
+                hint = f" '{name}' was renamed to '{replacement}'; this path does not declare '{replacement}' either."
+            raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}.{hint}")
         full_path = f"{sec}.{path}" if path else sec
         resolved[full_path] = (sec, path, name)
 

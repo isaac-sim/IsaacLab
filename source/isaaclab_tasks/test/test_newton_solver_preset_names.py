@@ -29,11 +29,13 @@ _TEXT_SUFFIXES = {".py", ".rst", ".md"}
 
 # Files that intentionally reference the deprecated names (deprecation tests,
 # the alias map, and this scanner's own pattern strings).
-_SCAN_EXCLUDE_FILES = frozenset({
-    "test_hydra.py",
-    "test_newton_solver_preset_names.py",
-    "hydra.py",
-})
+_SCAN_EXCLUDE_FILES = frozenset(
+    {
+        "test_hydra.py",
+        "test_newton_solver_preset_names.py",
+        "hydra.py",
+    }
+)
 
 # Legacy preset names that must not appear as public preset references in
 # user-facing surfaces. Word-boundary anchors (``\b``) keep ``newton_mjwarp``,
