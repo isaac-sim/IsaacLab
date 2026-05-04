@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
@@ -51,7 +52,6 @@ def distance_to_goal_exp(
     asset: RigidObject = env.scene[asset_cfg.name]
     command = env.command_manager.get_command(command_name)
 
-    target_position_w = command[:, :3].clone()
     current_position = asset.data.root_pos_w.torch - env.scene.env_origins
 
     # compute the error

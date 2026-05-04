@@ -31,8 +31,7 @@ if TYPE_CHECKING:
     from isaaclab_contrib.assets import Multirotor
 
 from isaaclab.envs.utils.io_descriptors import generic_io_descriptor, record_shape
-
-from isaaclab_tasks import ISAACLAB_TASKS_EXT_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
 """
 State.
@@ -152,8 +151,10 @@ class ImageLatentObservation(ManagerTermBase):
             RuntimeError: If the model cannot be loaded (e.g., corrupted file).
         """
         if cls._model is None:
-            model_path = os.path.join(ISAACLAB_TASKS_EXT_DIR, "data", "drone_arl", "vae_model.pt")
-            cls._model = torch.jit.load(model_path, map_location=device)
+            model_path = os.path.join(ISAACLAB_NUCLEUS_DIR, "Contrib/Drone/vae_model.pt")
+            download_dir = os.path.join(".pretrained_checkpoints", "drone_arl", "vae_model.pt")
+            resume_path = retrieve_file_path(model_path, download_dir)
+            cls._model = torch.jit.load(resume_path, map_location=device)
             cls._model.eval()
         return cls._model
 
