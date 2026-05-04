@@ -497,6 +497,11 @@ class InteractiveScene:
         Args:
             dt: The amount of time passed from last :meth:`update` call.
         """
+        # Scene-wide renderer transform sync once per step when all sensors update,
+        # so per-camera fetches do not own this concern (deduped inside RenderContext).
+        if not self.cfg.lazy_sensor_update:
+            self.sim.render_context.update_transforms(self.sim.get_physics_step_count())
+
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)

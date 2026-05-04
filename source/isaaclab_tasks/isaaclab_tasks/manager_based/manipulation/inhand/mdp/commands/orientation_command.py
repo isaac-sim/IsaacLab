@@ -15,6 +15,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
@@ -77,6 +78,11 @@ class InHandReOrientationCommand(CommandTerm):
         # -- per-attempt success accounting: each success-driven resample completes one attempt;
         #    the trailing attempt at episode end counts as one unsuccessful attempt.
         self._completed_attempts = torch.zeros(self.num_envs, device=self.device)
+
+        # adds (optional) cmd kind and element names for leapp export
+        # during export, semantic data about this command will be used to annotate the command input
+        self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
+        self.cfg.element_names = self.cfg.element_names or POSE7_ELEMENT_NAMES
 
     def __str__(self) -> str:
         msg = "InHandManipulationCommandGenerator:\n"

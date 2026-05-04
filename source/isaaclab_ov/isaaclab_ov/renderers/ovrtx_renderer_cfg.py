@@ -17,8 +17,10 @@ class OVRTXRendererCfg(RendererCfg):
     """Configuration for OVRTX Renderer.
 
     The OVRTX renderer uses the ovrtx library for high-fidelity RTX-based rendering.
-    width, height, num_envs, and data_types are obtained from the sensor when
-    create_render_data() is called (same pattern as Isaac RTX).
+    width, height, num_envs, and data_types are obtained from the
+    :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` when
+    :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data` is called
+    (same pattern as Isaac RTX).
     """
 
     renderer_type: str = "ovrtx"

@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import weakref
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +16,7 @@ import torch
 import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
@@ -24,7 +24,6 @@ from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
     from isaaclab.physics import BaseSceneDataProvider
-    from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
 
 logger = logging.getLogger(__name__)
@@ -42,21 +41,16 @@ class RenderData:
         normals_image: wp.array(dtype=wp.vec3f, ndim=4) = None
         instance_segmentation_image: wp.array(dtype=wp.uint32, ndim=4) = None
 
-    def __init__(self, newton_sensor: newton.sensors.SensorTiledCamera, sensor: SensorBase):
+    def __init__(self, newton_sensor: newton.sensors.SensorTiledCamera, spec: CameraRenderSpec):
         self.newton_sensor = newton_sensor
 
-        # Currently camera owns the renderer and render data. By holding full
-        # reference of the sensor, we create a circular reference between the
-        # sensor and the render data. Weak reference ensures proper garbage
-        # collection.
-        self.sensor = weakref.ref(sensor)
         self.num_cameras = 1
 
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         self.outputs = RenderData.CameraOutputs()
-        self.width = getattr(sensor.cfg, "width", 100)
-        self.height = getattr(sensor.cfg, "height", 100)
+        self.width = getattr(spec.cfg, "width", 100)
+        self.height = getattr(spec.cfg, "height", 100)
 
     def set_outputs(self, output_data: dict[str, torch.Tensor]):
         for output_name, tensor_data in output_data.items():
@@ -203,10 +197,10 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
         pass
 
-    def create_render_data(self, sensor: SensorBase) -> RenderData:
+    def create_render_data(self, spec: CameraRenderSpec) -> RenderData:
         """Create render data for the Newton tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
-        return RenderData(self.newton_sensor, sensor)
+        return RenderData(self.newton_sensor, spec)
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
@@ -254,8 +248,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        if render_data:
-            render_data.sensor = None
+        pass
 
     def get_scene_data_provider(self) -> BaseSceneDataProvider:
         return SimulationContext.instance().initialize_scene_data_provider()
