@@ -9,14 +9,8 @@
 # result back to ``develop``. Keeps the develop branch's changelog current
 # without requiring a maintainer to run ``compile`` by hand.
 #
-# IMPORTANT — file location convention:
-# This workflow uses a ``schedule:`` trigger, which GitHub only registers
-# from the repository's default branch (``main``). Keep this file in sync
-# on BOTH ``main`` and ``develop``: changes to triggers, cron cadence, or
-# job orchestration require a PR to ``main`` to take effect; ``develop``
-# carries the same file for parity. The runtime (``tools/changelog/cli.py``
-# and the per-package fragments) lives on ``develop`` and is pulled by the
-# checkout step below.
+# Scheduled workflow — must live on both ``main`` and ``develop``.
+# See ``.github/workflows/README.md``.
 #
 # The push uses ``CHANGELOG_PAT`` (a personal access token / fine-grained
 # GitHub App token with ``contents:write`` on this repo) when it's
