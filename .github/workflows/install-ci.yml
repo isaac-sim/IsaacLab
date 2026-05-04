@@ -24,7 +24,7 @@ on:
         default: ''
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -41,21 +41,94 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
 
-          if [ "${{ github.event_name }}" != "pull_request" ]; then
-            echo "run_install_tests=true" >> "$GITHUB_OUTPUT"
+          # Installation tests run only when paths in the patterns table change.
+          # Otherwise the test job skips via `if:` and reports green to branch
+          # protection, which is why we don't use a workflow-level `paths:`
+          # filter (a not-triggered required check would block the PR forever).
+          patterns=(
+            $'^apps/\tStandalone apps'
+            $'^tools/\tBuild tooling'
+            $'^source/\tLibrary source code'
+            $'^\\.github/actions/run-package-tests/\tTest action'
+            $'^\\.github/workflows/install-ci\\.yml$\tThis workflow file'
+            $'^VERSION$\tVersion file'
+            $'(^|/)pyproject\\.toml$\tPython project metadata'
+            $'(^|/)environment\\.ya?ml$\tConda environment file'
+          )
+          triggered_jobs="Installation Tests"
+
+          render_table() {
+            local files="$1" entry regex desc count sample
+            echo "| Pattern | What it covers | Matched files |"
+            echo "|---|---|---|"
+            for entry in "${patterns[@]}"; do
+              IFS=$'\t' read -r regex desc <<< "$entry"
+              count=$(printf '%s\n' "$files" | grep -cE "$regex" || true)
+              if [ "$count" -gt 0 ]; then
+                sample=$(printf '%s\n' "$files" | grep -E "$regex" | head -3 | paste -sd ', ' -)
+                [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
+                echo "| \`$regex\` | $desc | $sample |"
+              else
+                echo "| \`$regex\` | $desc | - |"
+              fi
+            done
+          }
+
+          any_match() {
+            local files="$1" entry regex
+            for entry in "${patterns[@]}"; do
+              IFS=$'\t' read -r regex _ <<< "$entry"
+              if printf '%s\n' "$files" | grep -qE "$regex"; then
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          decide() {
+            local decision="$1" reason="$2" files="${3:-}"
+            echo "Decision: run_install_tests=$decision ($reason)"
+            echo "run_install_tests=$decision" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Installation test gating"
+              echo ""
+              if [ "$decision" = "true" ]; then
+                echo "Installation tests will **run**: $reason."
+              else
+                echo "Installation tests will be **skipped**: $reason."
+              fi
+              echo ""
+              echo "Triggered jobs: $triggered_jobs."
+              if [ -n "$files" ]; then
+                echo ""
+                render_table "$files"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            decide true "non-PR event ($EVENT_NAME)"
             exit 0
           fi
 
-          changed_files="$(gh api --paginate "repos/${{ github.repository }}/pulls/${PR_NUMBER}/files" --jq '.[].filename')"
+          if ! changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
+            # Fail-safe: a transient API error must not block merge. Default to running.
+            echo "::warning::Could not list changed files; defaulting to running tests"
+            decide true "fail-safe (could not list changed files)"
+            exit 0
+          fi
+
           printf '%s\n' "$changed_files"
 
-          if printf '%s\n' "$changed_files" | grep -qE '^(apps/|tools/|source/|\.github/actions/run-package-tests/|\.github/workflows/install-ci\.yml$|VERSION$)|(^|/)pyproject\.toml$|(^|/)environment\.ya?ml$'; then
-            echo "run_install_tests=true" >> "$GITHUB_OUTPUT"
+          if any_match "$changed_files"; then
+            decide true "relevant paths changed" "$changed_files"
           else
-            echo "run_install_tests=false" >> "$GITHUB_OUTPUT"
+            decide false "no relevant paths changed" "$changed_files"
           fi
 
   install-tests:
@@ -82,34 +155,3 @@ jobs:
           fi
 
           tools/run_install_ci.py docker $RUNNER_ARGS -- --tb=short "${PYTEST_EXTRA_ARGS[@]}"
-
-  installation-tests-gate:
-    name: Installation Tests Gate
-    needs: [changes, install-tests]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check installation test result
-        env:
-          CHANGES_RESULT: ${{ needs.changes.result }}
-          RUN_INSTALL_TESTS: ${{ needs.changes.outputs.run_install_tests }}
-          INSTALL_TESTS_RESULT: ${{ needs.install-tests.result }}
-        run: |
-          set -euo pipefail
-
-          if [ "$CHANGES_RESULT" != "success" ]; then
-            echo "Change detection failed with result: $CHANGES_RESULT"
-            exit 1
-          fi
-
-          if [ "$RUN_INSTALL_TESTS" != "true" ]; then
-            echo "Installation tests are not required for this change."
-            exit 0
-          fi
-
-          if [ "$INSTALL_TESTS_RESULT" != "success" ]; then
-            echo "Installation Tests did not pass: $INSTALL_TESTS_RESULT"
-            exit 1
-          fi
-
-          echo "Installation Tests passed."
