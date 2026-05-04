@@ -31,11 +31,11 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "cartpole": 1.0,
     # Shadow-hand renderings (incl. ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0``) show up to
-    # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 7.0 gives
+    # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
-    "shadow_hand": 7.0,
+    "shadow_hand": 5.0,
     # Texture aliasing artifacts on the ground (https://nvbugs/6116767)
-    "dexsuite_kuka": 10.0,
+    "dexsuite_kuka": 8.0,
 }
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
@@ -48,7 +48,7 @@ _SSIM_THRESHOLD = 0.985
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
     # Texture aliasing artifacts on the ground (https://nvbugs/6116767)
-    "dexsuite_kuka": 0.95,
+    "dexsuite_kuka": 0.97,
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
