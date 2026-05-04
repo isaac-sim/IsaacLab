@@ -1,11 +1,9 @@
 Changelog
 ---------
 
+
 4.6.27 (2026-05-01)
 ~~~~~~~~~~~~~~~~~~~
-
-Added
-^^^^^
 
 * Added :class:`~isaaclab.sensors.JointWrenchSensor`.
 
@@ -558,6 +556,7 @@ Changed
 
 Added
 ^^^^^
+
 
 * Added :class:`~isaaclab.sim.spawners.meshes.MeshSquareCfg` and
   :func:`~isaaclab.sim.spawners.meshes.spawn_mesh_square` for spawning 2D triangle

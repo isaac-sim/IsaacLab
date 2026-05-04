@@ -153,6 +153,7 @@ Guidelines for modifications:
 * Rafael Wiltz
 * Renaud Poncelet
 * René Zurbrügg
+* Richard Schmitt
 * RinZ27
 * Ritvik Singh
 * Rosario Scalise
