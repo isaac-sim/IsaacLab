@@ -2966,12 +2966,9 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    # Slice the Jacobian to the actuated joint axis via ``joint_to_jacobi_offset``
-    # so the einsum operands match across backends. On Newton this is a
-    # no-op (offset = 0); on PhysX-floating-base it drops the 6 prepended
-    # free-root columns.
-    J_full = articulation.data.body_link_jacobian_w.torch  # (N, B_jac, 6, J_jac)
-    J = J_full[..., articulation.joint_to_jacobi_offset :]
+    # body_link_jacobian_w is actuated-only across backends (no base-DoF prefix on the
+    # joint axis). Joint axis matches joint_vel directly.
+    J = articulation.data.body_link_jacobian_w.torch  # (N, B_jac, 6, num_joints)
     qdot_view = articulation.data.joint_vel.torch
     v_pred = torch.einsum("nbij,nj->nbi", J, qdot_view)  # (N, B_jac, 6)
     v_pred_lin = v_pred[..., 0:3]

@@ -78,7 +78,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._jacobi_body_idx = self._body_idx - 1
         else:
             self._jacobi_body_idx = self._body_idx
-        self._jacobi_joint_ids = [i + self._asset.joint_to_jacobi_offset for i in self._joint_ids]
+        self._jacobi_joint_ids = self._joint_ids
 
         # log info for debugging
         logger.info(
@@ -305,7 +305,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._jacobi_ee_body_idx = self._ee_body_idx - 1
         else:
             self._jacobi_ee_body_idx = self._ee_body_idx
-        self._jacobi_joint_idx = [i + self._asset.joint_to_jacobi_offset for i in self._joint_ids]
+        self._jacobi_joint_idx = self._joint_ids
 
         # log info for debugging
         logger.info(

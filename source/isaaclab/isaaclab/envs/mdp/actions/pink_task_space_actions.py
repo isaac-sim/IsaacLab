@@ -59,9 +59,6 @@ class PinkInverseKinematicsAction(ActionTerm):
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
 
-        # PhysX Articulation Floating joint indices offset from IsaacLab Articulation joint indices
-        self._physx_floating_joint_indices_offset = 6
-
         # Pre-allocate tensors for runtime use
         self._initialize_helper_tensors()
 
@@ -333,16 +330,14 @@ class PinkInverseKinematicsAction(ActionTerm):
         ``enable_gravity_compensation=False``.
         """
         if not self._asset.cfg.spawn.rigid_props.disable_gravity:
-            # Get gravity compensation forces using cached tensor
+            # ``gravity_compensation_forces`` is actuated-only across backends; index by
+            # the controller's joint ids directly (no base-DoF prefix to skip).
             if self._asset.is_fixed_base:
                 gravity = torch.zeros_like(
                     self._asset.data.gravity_compensation_forces.torch[:, self._controlled_joint_ids_tensor]
                 )
             else:
-                # If floating base, then need to skip the first 6 joints (base)
-                gravity = self._asset.data.gravity_compensation_forces.torch[
-                    :, self._controlled_joint_ids_tensor + self._physx_floating_joint_indices_offset
-                ]
+                gravity = self._asset.data.gravity_compensation_forces.torch[:, self._controlled_joint_ids_tensor]
 
             # Apply gravity compensation to arm joints
             self._asset.set_joint_effort_target_index(target=gravity, joint_ids=self._controlled_joint_ids)

@@ -138,13 +138,6 @@ class Articulation(BaseArticulation):
         return self.root_view.joint_dof_count
 
     @property
-    def joint_to_jacobi_offset(self) -> int:
-        # Newton's ``ArticulationView.joint_dof_count`` already counts the
-        # 6 floating-base DoFs on floating-base assets, so a state-space
-        # joint id is also the matching Jacobian column id; no offset.
-        return 0
-
-    @property
     def num_fixed_tendons(self) -> int:
         """Number of fixed tendons in articulation."""
         return 0

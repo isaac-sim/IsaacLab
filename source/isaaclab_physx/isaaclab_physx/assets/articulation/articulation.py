@@ -180,13 +180,6 @@ class Articulation(BaseArticulation):
         return self._root_view
 
     @property
-    def joint_to_jacobi_offset(self) -> int:
-        # PhysX's Jacobian prepends 6 floating-base columns for floating-base
-        # articulations; ``num_joints`` does not count them. Fixed-base assets
-        # have no prepended columns.
-        return 0 if self.is_fixed_base else 6
-
-    @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
         """Instantaneous wrench composer.
 

@@ -628,8 +628,8 @@ class BaseArticulationData(ABC):
     def body_link_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's link origin in world frame.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_jacobi_joints).
+        Shape is (num_instances, num_jacobi_bodies, 6, num_joints), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_joints).
         Linear rows ``[0:3]`` [m/s for unit ``q_dot``], angular rows ``[3:6]`` [rad/s for unit
         ``q_dot``].
 
@@ -650,10 +650,9 @@ class BaseArticulationData(ABC):
 
         Backends whose native Jacobian is expressed at the body center of mass MUST shift the
         linear rows to the link origin before returning so the contract holds across backends.
-        Backends that prepend floating-base DoFs to the Jacobian columns expose the leading
-        offset via :attr:`~isaaclab.assets.BaseArticulation.joint_to_jacobi_offset`. Callers that
-        index into the joint axis with a state-space joint id should add that offset rather than
-        hard-coding a constant.
+        The joint axis is actuated-only on every backend — backends whose engine prepends
+        floating-base DoFs (e.g. PhysX floating-base) MUST strip those leading columns at
+        the wrapper so the cross-backend column count is always ``num_joints``.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement body_link_jacobian_w.")
 
@@ -661,8 +660,8 @@ class BaseArticulationData(ABC):
     def body_com_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_jacobi_joints).
+        Shape is (num_instances, num_jacobi_bodies, 6, num_joints), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_joints).
         Linear rows ``[0:3]`` [m/s for unit ``q_dot``], angular rows ``[3:6]`` [rad/s for unit
         ``q_dot``].
 
@@ -688,9 +687,9 @@ class BaseArticulationData(ABC):
     def mass_matrix(self) -> ProxyArray:
         """Per-env generalized mass matrix in joint space.
 
-        Shape is (num_instances, num_jacobi_joints, num_jacobi_joints), dtype = wp.float32
+        Shape is (num_instances, num_joints, num_joints), dtype = wp.float32
         [kg·m² or kg, depending on joint type]. In torch this resolves to
-        (num_instances, num_jacobi_joints, num_jacobi_joints).
+        (num_instances, num_joints, num_joints).
 
         Returns the symmetric positive-definite inertia matrix ``M(q)`` of the articulation in
         its generalized joint coordinates. ``M[i, j]`` is the coefficient relating joint ``j``'s
@@ -705,8 +704,8 @@ class BaseArticulationData(ABC):
     def gravity_compensation_forces(self) -> ProxyArray:
         """Per-env gravity compensation torques in joint space.
 
-        Shape is (num_instances, num_jacobi_joints), dtype = wp.float32 [N·m or N, depending on
-        joint type]. In torch this resolves to (num_instances, num_jacobi_joints).
+        Shape is (num_instances, num_joints), dtype = wp.float32 [N·m or N, depending on
+        joint type]. In torch this resolves to (num_instances, num_joints).
 
         Returns ``g(q)`` — the joint-space gravity-loading term in the equation of motion
         ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``. Applying ``tau = g(q)`` at

@@ -174,22 +174,6 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
-    def joint_to_jacobi_offset(self) -> int:
-        """Offset added to a state-space joint index to get the matching Jacobian column index.
-
-        That is, for ``j`` returned by :meth:`find_joints`, the
-        corresponding Jacobian-column index is
-        ``j + joint_to_jacobi_offset``.
-
-        Zero on backends whose Jacobian counts the same DoFs as joint-
-        state buffers (e.g. Newton, PhysX fixed-base). Backends that
-        prepend the 6 floating-base DoFs to the Jacobian's joint axis
-        without counting them in :attr:`num_joints` (PhysX floating-
-        base) return 6.
-        """
-        raise NotImplementedError(f"{type(self).__name__} does not implement joint_to_jacobi_offset.")
-
-    @property
     @abstractmethod
     def instantaneous_wrench_composer(self) -> WrenchComposer:
         """Instantaneous wrench composer.

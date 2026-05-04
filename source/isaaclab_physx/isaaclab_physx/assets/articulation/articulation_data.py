@@ -885,15 +885,18 @@ class ArticulationData(BaseArticulationData):
     def body_com_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_jacobi_joints).
+        Shape is (num_instances, num_jacobi_bodies, 6, num_joints), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_joints).
 
-        This is the raw Jacobian returned by PhysX's ArticulationView. Linear rows are referenced
-        at the body's center of mass; angular rows are reference-point invariant. Use
-        :attr:`body_link_jacobian_w` for IK / OSC controllers that target the link-origin pose.
+        Linear rows are referenced at the body's center of mass; angular rows are
+        reference-point invariant. Use :attr:`body_link_jacobian_w` for IK / OSC controllers
+        that target the link-origin pose.
+
+        On floating-base PhysX, the engine prepends 6 base-DoF columns; those are stripped
+        here so the cross-backend column count is always ``num_joints`` (actuated joints only).
         """
-        # Always passthrough — PhysX returns its current internal buffer; no caching needed.
-        return ProxyArray(self._root_view.get_jacobians())
+        raw = self._root_view.get_jacobians()
+        return ProxyArray(raw[:, :, :, self._dof_skip :] if self._dof_skip else raw)
 
     @property
     def body_link_jacobian_w(self) -> ProxyArray:
@@ -926,25 +929,29 @@ class ArticulationData(BaseArticulationData):
     def mass_matrix(self) -> ProxyArray:
         """Per-env generalized mass matrix in joint space.
 
-        Shape is (num_instances, num_jacobi_joints, num_jacobi_joints), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_jacobi_joints, num_jacobi_joints).
+        Shape is (num_instances, num_joints, num_joints), dtype = wp.float32.
+        In torch this resolves to (num_instances, num_joints, num_joints).
 
         Returns the symmetric positive-definite inertia matrix ``M(q)`` of the articulation in
-        its generalized joint coordinates.
+        its generalized joint coordinates. On floating-base PhysX, the engine prepends 6 base-
+        DoF rows / cols; those are stripped here for cross-backend consistency.
         """
-        return ProxyArray(self._root_view.get_generalized_mass_matrices())
+        raw = self._root_view.get_generalized_mass_matrices()
+        return ProxyArray(raw[:, self._dof_skip :, self._dof_skip :] if self._dof_skip else raw)
 
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
         """Per-env gravity compensation torques in joint space.
 
-        Shape is (num_instances, num_jacobi_joints), dtype = wp.float32 [N·m or N, depending on
-        joint type]. In torch this resolves to (num_instances, num_jacobi_joints).
+        Shape is (num_instances, num_joints), dtype = wp.float32 [N·m or N, depending on
+        joint type]. In torch this resolves to (num_instances, num_joints).
 
         Returns ``g(q)`` — the joint-space gravity-loading term in the equation of motion
-        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
+        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``. On floating-base PhysX, the engine
+        prepends 6 base-DoF entries; those are stripped here for cross-backend consistency.
         """
-        return ProxyArray(self._root_view.get_gravity_compensation_forces())
+        raw = self._root_view.get_gravity_compensation_forces()
+        return ProxyArray(raw[:, self._dof_skip :] if self._dof_skip else raw)
 
     """
     Joint state properties.
@@ -1464,16 +1471,20 @@ class ArticulationData(BaseArticulationData):
 
         # -- dynamics quantities for task-space controllers
         # PhysX's Jacobian rows include the root body for floating-base and exclude only the
-        # fixed root for fixed-base. Joint columns include the 6 base DoFs for floating-base.
+        # fixed root for fixed-base (``_jacobian_link_offset`` handles the body axis). PhysX's
+        # raw Jacobian / mass matrix / gravity-comp also prepend 6 base-DoF columns on
+        # floating-base (the engine's natural form). ``_dof_skip`` strips those leading 6
+        # columns/rows in the property accessors so the cross-backend contract is actuated-
+        # only — shape ``(N, num_jacobi_bodies, 6, num_joints)`` — matching Newton.
         # ``body_com_jacobian_w`` / ``mass_matrix`` / ``gravity_compensation_forces`` passthrough
-        # the engine's own buffer on every read (no Data-layer caching), so we only own a buffer
-        # for the link-origin Jacobian (output of our shift kernel).
+        # the (sliced) engine buffer on every read; we only own a buffer for the link-origin
+        # Jacobian (output of the shift kernel).
         is_fixed_base = self._root_view.shared_metatype.fixed_base
         self._jacobian_link_offset = 1 if is_fixed_base else 0
+        self._dof_skip = 0 if is_fixed_base else 6
         num_jacobi_bodies = self._num_bodies - self._jacobian_link_offset
-        num_jacobi_joints = self._num_joints + (0 if is_fixed_base else 6)
         self._body_link_jacobian_w_buf = wp.zeros(
-            (self._num_instances, num_jacobi_bodies, 6, num_jacobi_joints),
+            (self._num_instances, num_jacobi_bodies, 6, self._num_joints),
             dtype=wp.float32,
             device=self.device,
         )

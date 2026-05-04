@@ -12,9 +12,10 @@ Added
   :func:`~isaaclab_physx.assets.articulation.kernels.shift_jacobian_com_to_origin`
   Warp kernel to convert the COM-referenced linear-velocity rows to
   link-origin references using each body's pose and COM offset.
-* Added :attr:`~isaaclab_physx.assets.Articulation.joint_to_jacobi_offset`
-  override returning ``6`` for floating-base articulations (PhysX prepends
-  6 floating-base DoFs to the Jacobian's joint axis) and ``0`` for fixed-base.
+* On floating-base assets, all four properties strip the 6 leading
+  base-DoF columns / rows that PhysX's raw tensor view prepends, so the
+  cross-backend joint axis is actuated-only — matching Newton's shape.
+  Stripping is a zero-copy ``wp.array`` view (no kernel launch).
 
 Fixed
 ^^^^^

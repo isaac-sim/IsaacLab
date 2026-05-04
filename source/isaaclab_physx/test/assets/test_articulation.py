@@ -2417,12 +2417,10 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
 def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
     """PhysX reference: floating-base ``get_jacobians``.
 
-    PhysX prepends 6 virtual DoFs in the joint dim for floating-base, so the
-    expected shape is ``(N, num_bodies, 6, num_joints + 6)``. Newton's
-    ``ArticulationView.joint_dof_count`` already counts the floating-base
-    DoFs inline, so its expected shape is ``(N, num_bodies, 6, num_joints)``
-    — the cross-backend joint-dim contract differs by the 6 virtual DoFs;
-    ``num_joints`` itself differs in value between the two.
+    PhysX's raw ArticulationView prepends 6 virtual DoFs in the joint dim for floating-base
+    (``num_joints + 6``), but the IsaacLab data layer strips them at the wrapper so the
+    cross-backend contract is actuated-only ``(N, num_bodies, 6, num_joints)`` — matching
+    Newton.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -2431,7 +2429,7 @@ def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_g
     assert not articulation.is_fixed_base
 
     J = articulation.data.body_link_jacobian_w.torch
-    expected = (num_articulations, articulation.num_bodies, 6, articulation.num_joints + 6)
+    expected = (num_articulations, articulation.num_bodies, 6, articulation.num_joints)
     assert J.shape == torch.Size(expected), f"expected {expected}, got {tuple(J.shape)}"
 
 
@@ -2469,11 +2467,9 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    # Slice the Jacobian's joint axis to the actuated columns. On
-    # PhysX-fixed-base ``joint_to_jacobi_offset`` is 0, so this is a no-op;
-    # the test only runs on fixed-base today.
-    J_full = articulation.data.body_link_jacobian_w.torch
-    J = J_full[..., articulation.joint_to_jacobi_offset :]
+    # body_link_jacobian_w is actuated-only across backends (PhysX strips the 6 base-DoF
+    # prefix on floating-base at the wrapper). Joint axis matches joint_vel directly.
+    J = articulation.data.body_link_jacobian_w.torch
     qdot_view = articulation.data.joint_vel.torch
     v_pred = torch.einsum("nbij,nj->nbi", J, qdot_view)
 
