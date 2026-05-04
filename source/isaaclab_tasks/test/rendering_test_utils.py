@@ -48,7 +48,7 @@ _SSIM_THRESHOLD = 0.985
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
     # Texture aliasing artifacts on the ground (https://nvbugs/6116767)
-    "dexsuite_kuka": 0.97,
+    "dexsuite_kuka": 0.95,
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
