@@ -45,7 +45,7 @@ The renderer system consists of:
 .. code-block:: python
 
    import isaaclab.sim as sim_utils
-   from isaaclab.renderers import BaseRenderer, Renderer
+   from isaaclab.renderers import BaseRenderer
    from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
    # Create a Newton Warp renderer (no Isaac Sim required)
@@ -60,8 +60,8 @@ For the RTX renderer (requires Isaac Sim):
 .. code-block:: python
 
    import isaaclab.sim as sim_utils
-   from isaaclab.renderers import Renderer
-   from isaaclab.renderers import IsaacRtxRendererCfg  # or OVRTXRendererCfg
+   from isaaclab.renderers import BaseRenderer
+   from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
    # Create an RTX renderer
    sim_ctx = sim_utils.SimulationContext.instance()
@@ -87,6 +87,7 @@ Core concepts
   .. code-block:: python
 
      import isaaclab.sim as sim_utils
+     from isaaclab.renderers import BaseRenderer
      # Lightweight: does not import OVRTX backend dependencies
      from isaaclab_ov.renderers import OVRTXRendererCfg
 
