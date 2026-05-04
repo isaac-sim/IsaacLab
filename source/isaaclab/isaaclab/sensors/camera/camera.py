@@ -564,7 +564,7 @@ class Camera(SensorBase):
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:
             self._renderer.update_camera(
-                self._render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
+                self._render_data, self._data.pos_w.view(wp.vec3f), self._data.quat_w_world.view(wp.quatf), self._data.intrinsic_matrices
             )
 
     """
