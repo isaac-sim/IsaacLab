@@ -371,11 +371,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
-        if FOCUS_ARTICULATION_HANG_DEBUG:
-            plugins = [p for p in env.get("PYTEST_PLUGINS", "").split(",") if p]
-            if "pytest_current_test_logger" not in plugins:
-                plugins.append("pytest_current_test_logger")
-            env["PYTEST_PLUGINS"] = ",".join(plugins)
 
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
