@@ -160,30 +160,62 @@ def create_physx_articulation(
     # Set up other required attributes
     object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
-    object.__setattr__(articulation, "_ALL_INDICES", torch.arange(num_instances, dtype=torch.int32, device=device))
-    object.__setattr__(articulation, "_ALL_BODY_INDICES", torch.arange(num_bodies, dtype=torch.int32, device=device))
-    object.__setattr__(articulation, "_ALL_JOINT_INDICES", torch.arange(num_joints, dtype=torch.int32, device=device))
+    object.__setattr__(articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
+    object.__setattr__(
+        articulation, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
+    )
+    object.__setattr__(
+        articulation, "_ALL_JOINT_INDICES", wp.array(np.arange(num_joints, dtype=np.int32), device=device)
+    )
 
     # Tendon index arrays
-    all_fixed_tendon_indices = wp.from_torch(
-        torch.arange(num_fixed_tendons, dtype=torch.int32, device=device), dtype=wp.int32
+    object.__setattr__(
+        articulation,
+        "_ALL_FIXED_TENDON_INDICES",
+        wp.array(np.arange(num_fixed_tendons, dtype=np.int32), device=device),
     )
-    all_spatial_tendon_indices = wp.from_torch(
-        torch.arange(num_spatial_tendons, dtype=torch.int32, device=device), dtype=wp.int32
+    object.__setattr__(
+        articulation,
+        "_ALL_SPATIAL_TENDON_INDICES",
+        wp.array(np.arange(num_spatial_tendons, dtype=np.int32), device=device),
     )
-    object.__setattr__(articulation, "_ALL_FIXED_TENDON_INDICES", all_fixed_tendon_indices)
-    object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_INDICES", all_spatial_tendon_indices)
 
     # Warp arrays for set_external_force_and_torque
-    all_indices = torch.arange(num_instances, dtype=torch.int32, device=device)
-    all_body_indices = torch.arange(num_bodies, dtype=torch.int32, device=device)
-    object.__setattr__(articulation, "_ALL_INDICES_WP", wp.from_torch(all_indices, dtype=wp.int32))
-    object.__setattr__(articulation, "_ALL_BODY_INDICES_WP", wp.from_torch(all_body_indices, dtype=wp.int32))
+    object.__setattr__(
+        articulation, "_ALL_INDICES_WP", wp.array(np.arange(num_instances, dtype=np.int32), device=device)
+    )
+    object.__setattr__(
+        articulation, "_ALL_BODY_INDICES_WP", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
+    )
 
     # Initialize joint targets
     object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
     object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
     object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
+
+    # Cached .view(wp.float32) wrappers
+    object.__setattr__(articulation, "_root_link_pose_w_f32", None)
+    object.__setattr__(articulation, "_root_com_vel_w_f32", None)
+    object.__setattr__(articulation, "_root_link_vel_w_f32", None)
+    object.__setattr__(articulation, "_inst_wrench_force_f32", None)
+    object.__setattr__(articulation, "_inst_wrench_torque_f32", None)
+    object.__setattr__(articulation, "_perm_wrench_force_f32", None)
+    object.__setattr__(articulation, "_perm_wrench_torque_f32", None)
+
+    # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
+    N, J, B = num_instances, num_joints, num_bodies
+    cpu_env_ids = wp.array(np.arange(N, dtype=np.int32), device="cpu")
+    object.__setattr__(articulation, "_cpu_env_ids_all", cpu_env_ids)
+    object.__setattr__(articulation, "_cpu_joint_stiffness", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
+    object.__setattr__(articulation, "_cpu_joint_damping", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
+    object.__setattr__(articulation, "_cpu_joint_pos_limits", wp.zeros((N, J, 2), dtype=wp.float32, device="cpu"))
+    object.__setattr__(articulation, "_cpu_joint_vel_limits", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
+    object.__setattr__(articulation, "_cpu_joint_effort_limits", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
+    object.__setattr__(articulation, "_cpu_joint_armature", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
+    object.__setattr__(articulation, "_cpu_joint_friction_props", wp.zeros((N, J, 3), dtype=wp.float32, device="cpu"))
+    object.__setattr__(articulation, "_cpu_body_mass", wp.zeros((N, B), dtype=wp.float32, device="cpu"))
+    object.__setattr__(articulation, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu"))
+    object.__setattr__(articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu"))
 
     return articulation, mock_view
 
@@ -484,6 +516,52 @@ _default_dims = pytest.mark.parametrize(
 )
 
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+_index_resolution_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
+
+
+# ---------------------------------------------------------------------------
+# Tests: Index resolution helpers
+# ---------------------------------------------------------------------------
+
+
+class TestArticulationIndexResolution:
+    """Test backend-specific index resolution helpers."""
+
+    @_index_resolution_backends
+    def test_resolve_env_ids_handles_tensor_view_shape(self, backend):
+        art, _ = get_articulation(backend, num_instances=4, device="cpu")
+
+        env_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        resolved_full = art._resolve_env_ids(env_ids)
+        resolved_view = art._resolve_env_ids(env_ids[:2])
+
+        assert resolved_full.shape[0] == 4
+        assert resolved_view.shape[0] == 2
+
+    @_index_resolution_backends
+    def test_resolve_joint_ids_handles_tensor_view_shape(self, backend):
+        art, _ = get_articulation(backend, num_joints=4, device="cpu")
+
+        joint_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        resolved_full = art._resolve_joint_ids(joint_ids)
+        resolved_view = art._resolve_joint_ids(joint_ids[:2])
+
+        assert resolved_full.shape[0] == 4
+        assert resolved_view.shape[0] == 2
+
+    @_index_resolution_backends
+    def test_resolve_body_ids_handles_tensor_view_shape(self, backend):
+        art, _ = get_articulation(backend, num_bodies=4, device="cpu")
+
+        body_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        resolved_full = art._resolve_body_ids(body_ids)
+        resolved_view = art._resolve_body_ids(body_ids[:2])
+
+        assert resolved_full.shape[0] == 4
+        assert resolved_view.shape[0] == 2
+
 
 # ---------------------------------------------------------------------------
 # Tests: Articulation properties

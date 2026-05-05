@@ -43,7 +43,7 @@ INSTALL_REQUIRES = [
     "botocore",
     # livestream
     "starlette==0.49.1",
-    "omniverseclient",
+    "omniverseclient==2.71.1.7015",
     # testing
     "pytest",
     "pytest-mock",

@@ -183,6 +183,9 @@ class _DummyViserSceneDataProvider:
         self.state_calls.append(None)
         return {"state_call": len(self.state_calls)}
 
+    def get_camera_transforms(self):
+        return {}
+
 
 class _DummyViserViewer:
     def __init__(self):
@@ -354,6 +357,9 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         def get_newton_state(self):
             return {"ok": True}
 
+        def get_camera_transforms(self):
+            return {}
+
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(
         rerun_visualizer, "_ensure_rerun_server", lambda **kwargs: ("rerun+http://127.0.0.1:9876/proxy", False)
@@ -443,7 +449,7 @@ def _make_context_with_settings(
     ctx._visualizers = []
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
-    ctx._visualizer_prebuilt_artifact = None
+    ctx._clone_plans = {}
     ctx._visualizer_step_counter = 0
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)

@@ -25,7 +25,9 @@ class BaseJointWrenchSensor(SensorBase):
 
     Reports incoming joint wrenches for the bodies selected by the backend as
     split force [N] / torque [N·m] pairs expressed in the
-    ``INCOMING_JOINT_FRAME`` convention. Use :attr:`body_names` or
+    ``INCOMING_JOINT_FRAME`` convention (child-side joint frame, child-side
+    joint anchor reference point). Backends convert from their native
+    representation to this convention internally. Use :attr:`body_names` or
     :meth:`find_bodies` to map entries to articulation bodies.
     """
 

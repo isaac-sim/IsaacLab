@@ -14,6 +14,13 @@ import time
 
 from isaaclab.app import AppLauncher
 
+from scripts.benchmarks.early_stop import (
+    RslRlEarlyStopWrapper,
+    add_success_cli_args,
+    build_success_kwargs,
+    get_success_tracker,
+)
+
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 import scripts.reinforcement_learning.rsl_rl.cli_args as cli_args  # isort: skip
 
@@ -55,6 +62,7 @@ parser.add_argument(
 parser.add_argument(
     "--convergence_config", type=str, default="full", help="Config mode for convergence thresholds (default: full)."
 )
+add_success_cli_args(parser)
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -107,6 +115,7 @@ from scripts.benchmarks.utils import (
     log_runtime_step_times,
     log_scene_creation_time,
     log_simulation_start_time,
+    log_success,
     log_task_start_time,
     log_total_start_time,
     parse_tf_logs,
@@ -156,7 +165,12 @@ def main(
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
-    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    # For distributed training, launch_simulation() already resolved the
+    # correct per-rank device; only apply a CLI --device override for
+    # non-distributed runs (the default "cuda:0" would clobber the
+    # per-rank device otherwise).
+    if not args_cli.distributed:
+        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
     # check for invalid combination of CPU device with distributed training
     if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
         raise ValueError(
@@ -165,11 +179,11 @@ def main(
         )
 
     # multi-gpu training configuration
+    # env_cfg.sim.device is already resolved by launch_simulation().
     world_rank = 0
     world_size = 1
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
-        agent_cfg.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
+        agent_cfg.device = env_cfg.sim.device
 
         # use global rank for seed diversity across all nodes
         world_rank = int(os.getenv("RANK", "0"))
@@ -234,8 +248,13 @@ def main(
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
+    # always track the success metric; early-stop only if --check_success
+    early_stop_ctx = RslRlEarlyStopWrapper(
+        env, runner, num_steps_per_env=agent_cfg.num_steps_per_env, **build_success_kwargs(args_cli)
+    )
+
     # run training with continuous benchmark monitoring
-    with BenchmarkMonitor(benchmark, interval=1.0):
+    with early_stop_ctx, BenchmarkMonitor(benchmark, interval=1.0):
         runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
     if world_rank == 0:
@@ -283,6 +302,9 @@ def main(
             reward_threshold=args_cli.reward_threshold,
             convergence_config=args_cli.convergence_config,
         )
+
+        tracker = get_success_tracker(args_cli, early_stop_ctx.tracker, log_data)
+        log_success(benchmark, tracker, framework_iteration_count=early_stop_ctx.framework_iteration_count)
 
         benchmark._finalize_impl()
 

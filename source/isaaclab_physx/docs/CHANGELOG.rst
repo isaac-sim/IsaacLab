@@ -4,22 +4,16 @@ Changelog
 0.5.29 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
-Added
-^^^^^
-
-* Added :class:`~isaaclab_physx.sensors.JointWrenchSensor` for reading PhysX
-  incoming joint reaction wrenches as split force [N] and torque [N·m] buffers.
-  The sensor accepts asset prim paths whose articulation root is nested below
-  the configured prim and converts PhysX's native body-frame wrench to the
-  shared child-side joint-frame convention.
-
-Removed
+Changed
 ^^^^^^^
 
-* Removed ``ArticulationData.body_incoming_joint_wrench_b``.
-  Add :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene and read
-  :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
-  :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
+* Added fused :meth:`~isaaclab_physx.assets.Articulation.write_joint_state_to_sim_index`
+  that writes joint position and velocity in a single kernel launch instead of two.
+* Cached ``.view(wp.float32)`` results in root pose/velocity writers and wrench
+  composer views in ``write_data_to_sim`` to avoid per-call wrapper allocations.
+* Pre-allocated pinned CPU buffers for all joint property and body property writers,
+  replacing per-call ``wp.clone(device="cpu")`` allocations with ``wp.copy`` into
+  reusable pinned memory.
 
 
 0.5.28 (2026-04-29)
@@ -172,7 +166,7 @@ Changed
 
 
 0.5.19 (2026-04-20)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
