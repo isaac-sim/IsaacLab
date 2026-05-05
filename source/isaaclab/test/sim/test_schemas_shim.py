@@ -44,6 +44,10 @@ FORWARDED_NAMES = [
     "PhysxTriangleMeshPropertiesCfg",
     "PhysxTriangleMeshSimplificationPropertiesCfg",
     "PhysxSDFMeshPropertiesCfg",
+    "FixedTendonPropertiesCfg",
+    "SpatialTendonPropertiesCfg",
+    "PhysxFixedTendonPropertiesCfg",
+    "PhysxSpatialTendonPropertiesCfg",
 ]
 
 DEPRECATED_FORWARDED_NAMES = [
@@ -58,6 +62,8 @@ DEPRECATED_FORWARDED_NAMES = [
     "TriangleMeshPropertiesCfg",
     "TriangleMeshSimplificationPropertiesCfg",
     "SDFMeshPropertiesCfg",
+    "FixedTendonPropertiesCfg",
+    "SpatialTendonPropertiesCfg",
 ]
 
 FORWARDED_MATERIAL_NAMES = [

@@ -61,6 +61,10 @@ _PHYSX_FORWARDS = frozenset({
     "PhysxTriangleMeshPropertiesCfg",
     "PhysxTriangleMeshSimplificationPropertiesCfg",
     "PhysxSDFMeshPropertiesCfg",
+    "FixedTendonPropertiesCfg",
+    "SpatialTendonPropertiesCfg",
+    "PhysxFixedTendonPropertiesCfg",
+    "PhysxSpatialTendonPropertiesCfg",
 })
 
 

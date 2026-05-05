@@ -55,6 +55,10 @@ _PHYSX_FORWARDS_SCHEMAS = frozenset({
     "PhysxTriangleMeshPropertiesCfg",
     "PhysxTriangleMeshSimplificationPropertiesCfg",
     "PhysxSDFMeshPropertiesCfg",
+    "FixedTendonPropertiesCfg",
+    "SpatialTendonPropertiesCfg",
+    "PhysxFixedTendonPropertiesCfg",
+    "PhysxSpatialTendonPropertiesCfg",
 })
 
 # Names that moved out of this package into ``isaaclab_physx.sim.spawners.materials``.

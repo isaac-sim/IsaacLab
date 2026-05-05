@@ -89,6 +89,12 @@ Changed
   The standard :class:`UsdPhysics.MeshCollisionAPI` is always applied; PhysX cooking
   schemas (``PhysxConvexHullCollisionAPI`` etc.) are gated on at least one
   PhysX-namespaced tuning field being set.
+* Relocated :class:`FixedTendonPropertiesCfg` and :class:`SpatialTendonPropertiesCfg` to
+  :mod:`isaaclab_physx.sim.schemas` as :class:`PhysxFixedTendonPropertiesCfg` and
+  :class:`PhysxSpatialTendonPropertiesCfg`. Tendons are a PhysX-only feature; no Newton
+  equivalent exists. A forwarding shim on :mod:`isaaclab.sim.schemas`,
+  :mod:`isaaclab.sim.schemas.schemas_cfg`, and :mod:`isaaclab.sim` preserves existing
+  imports.
 
 Deprecated
 ^^^^^^^^^^

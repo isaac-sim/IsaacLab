@@ -872,7 +872,7 @@ Fixed tendon properties.
 
 @apply_nested
 def modify_fixed_tendon_properties(
-    prim_path: str, cfg: schemas_cfg.FixedTendonPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.PhysxFixedTendonPropertiesCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Modify PhysX parameters for a fixed tendon attachment prim.
 
@@ -936,7 +936,7 @@ Spatial tendon properties.
 
 @apply_nested
 def modify_spatial_tendon_properties(
-    prim_path: str, cfg: schemas_cfg.SpatialTendonPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.PhysxSpatialTendonPropertiesCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Modify PhysX parameters for a spatial tendon attachment prim.
 

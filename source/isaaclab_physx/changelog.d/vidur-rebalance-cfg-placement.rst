@@ -25,6 +25,9 @@ Added
   subclasses. Each declares its own PhysxSchema cooking API via class-level
   ``_usd_applied_schema`` metadata and inherits ``mesh_approximation_name`` from
   :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`.
+* Added :class:`PhysxFixedTendonPropertiesCfg` and :class:`PhysxSpatialTendonPropertiesCfg`,
+  the relocated PhysX-only tendon cfg classes. Same fields as the legacy core-side classes;
+  no field-level split.
 
 Changed
 ^^^^^^^
@@ -66,3 +69,9 @@ Deprecated
   favor of :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` or the new ``Physx*``
   subclasses. Legacy names remain as concrete subclasses that emit ``DeprecationWarning``
   on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`FixedTendonPropertiesCfg` in favor of
+  :class:`PhysxFixedTendonPropertiesCfg`. Legacy name remains as a concrete subclass that
+  emits ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`SpatialTendonPropertiesCfg` in favor of
+  :class:`PhysxSpatialTendonPropertiesCfg`. Legacy name remains as a concrete subclass
+  that emits ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.

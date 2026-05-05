@@ -544,6 +544,74 @@ def test_mesh_collision_deprecation_aliases(setup_simulation, name):
 
 
 @pytest.mark.isaacsim_ci
+def test_physx_fixed_tendon_relocation(setup_simulation):
+    """``PhysxFixedTendonPropertiesCfg`` is importable from
+    :mod:`isaaclab_physx.sim.schemas` and round-trips its fields."""
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonPropertiesCfg
+
+    cfg = PhysxFixedTendonPropertiesCfg(
+        tendon_enabled=True,
+        stiffness=10.0,
+        damping=0.5,
+        limit_stiffness=1.0,
+        offset=0.1,
+        rest_length=0.2,
+    )
+    assert cfg.tendon_enabled is True
+    assert cfg.stiffness == 10.0
+    assert cfg.damping == 0.5
+    assert cfg.limit_stiffness == 1.0
+    assert cfg.offset == 0.1
+    assert cfg.rest_length == 0.2
+
+
+@pytest.mark.isaacsim_ci
+def test_fixed_tendon_deprecation_alias(setup_simulation):
+    """Instantiating the legacy ``FixedTendonPropertiesCfg`` (via the shim) emits exactly
+    one ``DeprecationWarning`` whose message references the 5.0 removal target."""
+    cls = schemas.FixedTendonPropertiesCfg
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cls()
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert len(deprecations) == 1, f"expected one DeprecationWarning, got {len(deprecations)}"
+    assert "5.0" in str(deprecations[0].message)
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_spatial_tendon_relocation(setup_simulation):
+    """``PhysxSpatialTendonPropertiesCfg`` is importable from
+    :mod:`isaaclab_physx.sim.schemas` and round-trips its fields."""
+    from isaaclab_physx.sim.schemas import PhysxSpatialTendonPropertiesCfg
+
+    cfg = PhysxSpatialTendonPropertiesCfg(
+        tendon_enabled=True,
+        stiffness=20.0,
+        damping=0.25,
+        limit_stiffness=2.0,
+        offset=0.05,
+    )
+    assert cfg.tendon_enabled is True
+    assert cfg.stiffness == 20.0
+    assert cfg.damping == 0.25
+    assert cfg.limit_stiffness == 2.0
+    assert cfg.offset == 0.05
+
+
+@pytest.mark.isaacsim_ci
+def test_spatial_tendon_deprecation_alias(setup_simulation):
+    """Instantiating the legacy ``SpatialTendonPropertiesCfg`` (via the shim) emits exactly
+    one ``DeprecationWarning`` whose message references the 5.0 removal target."""
+    cls = schemas.SpatialTendonPropertiesCfg
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cls()
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert len(deprecations) == 1, f"expected one DeprecationWarning, got {len(deprecations)}"
+    assert "5.0" in str(deprecations[0].message)
+
+
+@pytest.mark.isaacsim_ci
 def test_usd_api_physx_api_attrs_deprecated(setup_simulation):
     """Reading ``cfg.usd_api`` and ``cfg.physx_api`` on the new mesh cfgs emits a
     DeprecationWarning and returns the legacy-mapped string value."""

@@ -25,12 +25,10 @@ __all__ = [
     "BoundingCubePropertiesCfg",
     "BoundingSpherePropertiesCfg",
     "CollisionBaseCfg",
-    "FixedTendonPropertiesCfg",
     "JointDriveBaseCfg",
     "MassPropertiesCfg",
     "MeshCollisionBaseCfg",
     "RigidBodyBaseCfg",
-    "SpatialTendonPropertiesCfg",
 ]
 
 from .schemas import (
@@ -57,10 +55,8 @@ from .schemas_cfg import (
     BoundingCubePropertiesCfg,
     BoundingSpherePropertiesCfg,
     CollisionBaseCfg,
-    FixedTendonPropertiesCfg,
     JointDriveBaseCfg,
     MassPropertiesCfg,
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
-    SpatialTendonPropertiesCfg,
 )
