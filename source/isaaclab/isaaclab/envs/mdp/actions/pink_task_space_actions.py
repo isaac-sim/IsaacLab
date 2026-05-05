@@ -322,7 +322,7 @@ class PinkInverseKinematicsAction(ActionTerm):
     def _apply_gravity_compensation(self) -> None:
         """Apply gravity compensation to arm joints if not disabled in props.
 
-        This calls :meth:`~isaaclab.assets.BaseArticulation.get_gravity_compensation_forces`,
+        Reads :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`,
         which raises :class:`NotImplementedError` on the Newton backend (no upstream
         primitive). That is intentional — if a user opts into gravity compensation on
         Newton via ``enable_gravity_compensation=True``, they should see a loud failure

@@ -2370,7 +2370,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.isaacsim_ci
 def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articulation_type):
-    """PhysX reference: fixed-base ``get_jacobians`` is ``(N, num_bodies-1, 6, num_joints)``."""
+    """PhysX reference: fixed-base ``body_link_jacobian_w`` is ``(N, num_bodies-1, 6, num_joints)``."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
@@ -2387,7 +2387,7 @@ def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articula
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.isaacsim_ci
 def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations, device, articulation_type):
-    """PhysX reference: fixed-base ``get_mass_matrix`` shape + non-singular."""
+    """PhysX reference: fixed-base ``mass_matrix`` shape + non-singular."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
@@ -2415,7 +2415,7 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.isaacsim_ci
 def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """PhysX reference: floating-base ``get_jacobians``.
+    """PhysX reference: floating-base ``body_link_jacobian_w``.
 
     Floating-base articulations include the 6 floating-base spatial-velocity columns
     at the front of the DoF axis, so the shape is
@@ -2616,10 +2616,11 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
 
     The contract is the EOM identity ``M(q) q̈ + C(q,q̇) q̇ + g(q) = τ_input``.
     Setting ``τ_input = g(q)`` at ``q̇ = 0`` gives ``q̈ = 0`` — the arm should
-    not move. This pins :meth:`get_gravity_compensation_forces` in isolation:
-    sign errors, frame errors, and DoF-ordering errors all surface as joint
-    drift, while a controller-level test would have those bugs averaged out
-    by PD damping.
+    not move. This pins
+    :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+    in isolation: sign errors, frame errors, and DoF-ordering errors all
+    surface as joint drift, while a controller-level test would have those
+    bugs averaged out by PD damping.
 
     Newton-side equivalent is deliberately omitted in this PR (see the
     ``xfail`` test pinning the upstream gap). Newton's inverse-dynamics
@@ -2672,11 +2673,11 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
 
     # Step 100 times applying only τ_gc as joint efforts.
     for _ in range(100):
-        tau_gc = articulation.data.gravity_compensation_forces.torch  # (N, J)
-        # PhysX prepends 6 virtual DoFs in the joint dim for floating-base
-        # articulations; Franka is fixed-base so the slice is direct.
-        if not articulation.is_fixed_base:
-            tau_gc = tau_gc[:, 6:]
+        # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``
+        # — leading ``num_base_dofs`` floating-base entries (0 on fixed-base) followed
+        # by the actuated-joint entries. Slice past the floating-base entries so the
+        # remaining tensor aligns with ``set_joint_effort_target`` (actuated only).
+        tau_gc = articulation.data.gravity_compensation_forces.torch[:, articulation.num_base_dofs :]
         articulation.set_joint_effort_target(tau_gc)
         articulation.write_data_to_sim()
         sim.step()
@@ -2691,7 +2692,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     assert drift < 5e-3, (
         f"max joint drift {drift:.5f} rad after 100 gravity-comp-only steps —"
         " τ_gc did not hold static equilibrium. Check sign, DoF ordering, and"
-        " whether get_gravity_compensation_forces returns g(q) (positive) or"
+        " whether gravity_compensation_forces returns g(q) (positive) or"
         " its negation."
     )
 

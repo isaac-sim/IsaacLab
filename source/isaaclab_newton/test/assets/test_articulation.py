@@ -2700,7 +2700,7 @@ def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, a
         " this PR — Newton's eventual primitive is going through RNEA via"
         " MuJoCo Warp and may differ at corner cases we wouldn't catch."
         " Once the wrapper at"
-        " isaaclab_newton.assets.Articulation.get_gravity_compensation_forces"
+        " isaaclab_newton.assets.ArticulationData.gravity_compensation_forces"
         " switches from a NotImplementedError stub to a real implementation"
         " (likely calling the new Newton primitive), this XFAIL will turn"
         " into XPASS and fail under strict=True. The maintainer should"
@@ -2736,7 +2736,7 @@ def test_get_gravity_compensation_forces_not_implemented_on_newton(sim, num_arti
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.isaacsim_ci
 def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articulation_type):
-    """Fixed-base ``get_jacobians`` must drop the fixed-root row.
+    """Fixed-base ``body_link_jacobian_w`` must drop the fixed-root row.
 
     Contract: shape ``(N, num_bodies - 1, 6, num_joints)``. Catches
     regressions of (a) the link_offset fix that drops Newton's row 0 for
@@ -2762,7 +2762,7 @@ def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articula
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.isaacsim_ci
 def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations, device, articulation_type):
-    """Fixed-base ``get_mass_matrix`` shape + non-singularity.
+    """Fixed-base ``mass_matrix`` shape + non-singularity.
 
     Contract: shape ``(N, num_joints, num_joints)`` and the matrix must be
     non-singular. The non-singularity check catches the heterogeneous
@@ -2864,7 +2864,7 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     (9 DoFs) and Anymal-C (18 DoFs) co-resident in the model,
     ``model.max_dofs_per_articulation == 18`` and
     ``model.max_joints_per_articulation == anymal.num_bodies``. The Franka
-    view's ``get_jacobians`` / ``get_mass_matrix`` outputs must use
+    view's ``body_link_jacobian_w`` / ``mass_matrix`` outputs must use
     Franka's per-asset counts, NOT the model-wide maxima — otherwise
     Franka's mass matrix would carry zero-padded rows/cols and be
     singular.
@@ -2949,11 +2949,11 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
     """``J · q_dot`` must encode the link-origin twist (after the COM->origin shift).
 
     The IsaacLab task-space controllers (IK / OSC / RMPFlow) silently
-    rely on ``get_jacobians()`` returning a Jacobian whose linear rows
-    reference each link's origin (the body's USD prim transform), not its
-    COM. Newton's ``eval_jacobian`` natively produces COM-referenced
-    rows; the wrapper applies a per-column shift
-    ``v_origin = v_com - omega x (R · body_com_pos_b)`` to honor the
+    rely on :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`
+    returning a Jacobian whose linear rows reference each link's origin
+    (the body's USD prim transform), not its COM. Newton's ``eval_jacobian``
+    natively produces COM-referenced rows; the wrapper applies a per-column
+    shift ``v_origin = v_com - omega x (R · body_com_pos_b)`` to honor the
     contract. This test asserts the identity by computing both sides
     independently:
 
@@ -3243,14 +3243,16 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     :mod:`isaaclab.test.controllers.test_operational_space`, scoped to
     Franka pose-abs tracking on Newton. Like the IK sentinel above, this
     test exercises the full controller-bridge pipeline
-    (``get_jacobians`` + ``get_mass_matrix``) end-to-end and asserts a
-    loose regression bound rather than a tight correctness oracle.
+    (:attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` +
+    :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`) end-to-end
+    and asserts a loose regression bound rather than a tight correctness
+    oracle.
 
     Newton lacks a gravity-comp primitive (see ``xfail`` test below;
     upstream Newton issues #2497, #2529, #2625), so OSC runs with
     ``gravity_compensation=False`` and the test isolates from gravity by
     disabling scene gravity. ``inertial_dynamics_decoupling=True``
-    exercises ``get_mass_matrix`` and the Newton COM-referenced J →
+    exercises ``mass_matrix`` and the Newton COM-referenced J →
     M_b → J product. The actuator PD is zeroed at cfg time so OSC's
     joint-effort output is not opposed by ``kp·(target − q)``.
     """
