@@ -1,3 +1,13 @@
+Added
+^^^^^
+
+* Added :class:`PhysxRigidBodyMaterialCfg`, a subclass of
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` carrying the
+  ``PhysxMaterialAPI`` schema fields (``compliant_contact_stiffness``,
+  ``compliant_contact_damping``, ``friction_combine_mode``, ``restitution_combine_mode``).
+  Use this when authoring PhysX-specific material knobs; use the base class when only the
+  UsdPhysics-standard friction/restitution fields are needed.
+
 Changed
 ^^^^^^^
 
@@ -10,3 +20,12 @@ Changed
   The field moved to :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`;
   ``PhysxRigidBodyPropertiesCfg`` inherits it. Existing instantiations continue
   to work unchanged.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`RigidBodyMaterialCfg` in favor of
+  :class:`PhysxRigidBodyMaterialCfg` (PhysX-specific) or
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (solver-common).
+  The legacy name remains as a concrete subclass of :class:`PhysxRigidBodyMaterialCfg`
+  that emits ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.

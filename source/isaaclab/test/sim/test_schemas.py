@@ -13,15 +13,18 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+import warnings
 
 import pytest
 from isaaclab_physx.sim.schemas import PhysxJointDrivePropertiesCfg, PhysxRigidBodyPropertiesCfg
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg, RigidBodyMaterialCfg
 
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg, spawn_rigid_body_material
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
 
@@ -208,6 +211,59 @@ def test_physx_rigid_body_no_physx_schema_when_all_physx_fields_none(setup_simul
     assert "PhysxRigidBodyAPI" not in applied, (
         f"PhysxRigidBodyAPI should not be applied when no PhysX fields are set; got {list(applied)}"
     )
+
+
+@pytest.mark.isaacsim_ci
+def test_rigid_body_material_base_cfg(setup_simulation):
+    """Setting only UsdPhysics fields on RigidBodyMaterialBaseCfg must author the
+    three friction/restitution attrs and must NOT apply PhysxMaterialAPI."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    cfg = RigidBodyMaterialBaseCfg(static_friction=0.7, dynamic_friction=0.6, restitution=0.1)
+    prim_path = "/World/Looks/BaseMaterial"
+    spawn_rigid_body_material.__wrapped__(prim_path, cfg)
+
+    prim = stage.GetPrimAtPath(prim_path)
+    assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.7)
+    assert prim.GetAttribute("physics:dynamicFriction").Get() == pytest.approx(0.6)
+    assert prim.GetAttribute("physics:restitution").Get() == pytest.approx(0.1)
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxMaterialAPI" not in applied, (
+        f"PhysxMaterialAPI must not be applied for the base cfg; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_rigid_body_material_cfg(setup_simulation):
+    """Setting a PhysX-namespaced field on PhysxRigidBodyMaterialCfg must author the
+    namespaced attribute AND apply PhysxMaterialAPI."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    cfg = PhysxRigidBodyMaterialCfg(static_friction=0.7, compliant_contact_stiffness=100.0)
+    prim_path = "/World/Looks/PhysxMaterial"
+    spawn_rigid_body_material.__wrapped__(prim_path, cfg)
+
+    prim = stage.GetPrimAtPath(prim_path)
+    assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.7)
+    assert prim.GetAttribute("physxMaterial:compliantContactStiffness").Get() == pytest.approx(100.0)
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxMaterialAPI" in applied, (
+        f"PhysxMaterialAPI must be applied when a PhysX field is set; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_rigid_body_material_deprecation_alias(setup_simulation):
+    """Instantiating the legacy ``RigidBodyMaterialCfg`` name emits exactly one
+    ``DeprecationWarning`` whose message references the 5.0 removal target."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        RigidBodyMaterialCfg()
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
+    assert "5.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci

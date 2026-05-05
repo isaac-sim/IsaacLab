@@ -7,9 +7,29 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Literal
 
 from isaaclab.utils import configclass
+
+# Names that moved out of this submodule into ``isaaclab_physx.sim.spawners.materials.physics_materials_cfg``.
+# Resolved lazily so callers using ``from isaaclab.sim.spawners.materials.physics_materials_cfg
+# import RigidBodyMaterialCfg`` continue to work without importing ``isaaclab_physx`` at module
+# load time.
+_PHYSX_FORWARDS = frozenset({"RigidBodyMaterialCfg", "PhysxRigidBodyMaterialCfg"})
+
+
+def __getattr__(name):
+    if name in _PHYSX_FORWARDS:
+        try:
+            from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as _physx_mat_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.spawners.materials.physics_materials_cfg.{name}' has moved to"
+                " 'isaaclab_physx.sim.spawners.materials.physics_materials_cfg'. Install the"
+                " isaaclab_physx extension or update your import. This forwarding shim is scheduled"
+                " for removal in 5.0."
+            ) from e
+        return getattr(_physx_mat_cfg, name)
+    raise AttributeError(f"module 'isaaclab.sim.spawners.materials.physics_materials_cfg' has no attribute {name!r}")
 
 
 @configclass
@@ -27,10 +47,16 @@ class PhysicsMaterialCfg:
 
 
 @configclass
-class RigidBodyMaterialCfg(PhysicsMaterialCfg):
-    """Physics material parameters for rigid bodies.
+class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
+    """Solver-common physics-material parameters for rigid bodies.
+
+    Contains the friction and restitution fields from the `UsdPhysics.MaterialAPI`_ that are common
+    across all simulation backends. For PhysX-only material properties (compliant-contact spring,
+    combine modes), use :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
 
     See :meth:`spawn_rigid_body_material` for more information.
+
+    .. _UsdPhysics.MaterialAPI: https://openusd.org/dev/api/class_usd_physics_material_a_p_i.html
     """
 
     func: Callable | str = "{DIR}.physics_materials:spawn_rigid_body_material"
@@ -43,37 +69,3 @@ class RigidBodyMaterialCfg(PhysicsMaterialCfg):
 
     restitution: float = 0.0
     """The restitution coefficient. Defaults to 0.0."""
-
-    friction_combine_mode: Literal["average", "min", "multiply", "max"] = "average"
-    """Determines the way friction will be combined during collisions. Defaults to `"average"`.
-
-    .. attention::
-
-        When two physics materials with different combine modes collide, the combine mode with the higher
-        priority will be used. The priority order is provided `here
-        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
-    """
-
-    restitution_combine_mode: Literal["average", "min", "multiply", "max"] = "average"
-    """Determines the way restitution coefficient will be combined during collisions. Defaults to `"average"`.
-
-    .. attention::
-
-        When two physics materials with different combine modes collide, the combine mode with the higher
-        priority will be used. The priority order is provided `here
-        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
-    """
-
-    compliant_contact_stiffness: float = 0.0
-    """Spring stiffness for a compliant contact model using implicit springs. Defaults to 0.0.
-
-    A higher stiffness results in behavior closer to a rigid contact. The compliant contact model is only enabled
-    if the stiffness is larger than 0.
-    """
-
-    compliant_contact_damping: float = 0.0
-    """Damping coefficient for a compliant contact model using implicit springs. Defaults to 0.0.
-
-    Irrelevant if compliant contacts are disabled when :obj:`compliant_contact_stiffness` is set to zero and
-    rigid contacts are active.
-    """
