@@ -1022,12 +1022,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``physx``
     * - Isaac-Navigation-3DObstacles-ARL-Robot-1-v0
       - Isaac-Navigation-3DObstacles-ARL-Robot-1-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``physx``
     * - Isaac-Open-Drawer-Franka-IK-Abs-v0
       -
       - Manager Based
