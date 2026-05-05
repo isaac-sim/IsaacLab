@@ -204,12 +204,16 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        self.end_effector_body_name = "link7"
+        # Target the flange body (not link7) to match IsaacLab_UR's
+        # eef_frame='flange'.  This avoids guessing the unknown
+        # link7-to-fingertip distance and uses the calibrated
+        # flange-to-fingertip value from gripper_eef_pos_local instead.
+        self.end_effector_body_name = "flange"
         self.num_arm_joints = 7
-        # grasp_offset: position of link7 in the plug's local frame when
-        # properly grasped.  z = -0.35 matches the gear assembly's
-        # link7-to-fingertip calibration; x/y from GB300Plug.grasp_pos.
-        self.grasp_offset = [0.03, 0.002, -0.35]
+        # grasp_offset: flange position in the plug's local frame.
+        # Derived from IsaacLab_UR: grasp_pos[z]=-0.014 minus
+        # gripper_eef_pos_local[z]=0.1925 → -0.2065 ≈ -0.207.
+        self.grasp_offset = [0.03, 0.002, -0.207]
         # Identity: the target EEF orientation equals the plug orientation.
         self.grasp_rot_offset = [0.0, 0.0, 0.0, 1.0]
         self.gripper_joint_setter_func = set_finger_joint_pos_grav
@@ -323,18 +327,22 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
             pos=_SOCKET_ROOT,
             rot=_SOCKET_ROT,
         )
-        # Plug ~5 cm above the socket so the policy has room to descend during
-        # insertion. With grasp_offset = (0, 0, -0.13) and identity plug rotation,
-        # link7 ends up at plug_pos + (0, 0, 0.13) and the fingertips at plug_pos.
+        # Plug ~0.068 m above the socket insertion point (matching gear z-offset).
         self.scene.gb300_plug.init_state = RigidObjectCfg.InitialStateCfg(
             pos=_PLUG_ROOT,
             rot=_PLUG_ROT,
         )
 
         # Grasp widths for the Grav gripper (matching IsaacLab_UR defaults).
-        # ``hand_grasp_width`` opens fingers for the plug (0.3 rad ≈ 17°),
-        # ``hand_close_width`` fully closes to hold it (-0.155 rad ≈ -8.9°).
+        # ``hand_grasp_width`` opens fingers wide for approaching.
+        # ``hand_hold_width`` is the angle where fingers just touch the plug
+        #     surface (no mesh overlap).  Computed from plug grasp_width=0.006 m
+        #     via the Grav linear mapping:
+        #     -0.155 + (0.7854+0.155)*0.006/0.075 ≈ -0.08
+        # ``hand_close_width`` is the fully-closed target that the actuator
+        #     drives toward, creating a squeeze via collision.
         self.hand_grasp_width = 0.3
+        self.hand_hold_width = -0.08
         self.hand_close_width = -0.155
 
         self.events.set_robot_to_grasp_pose.params["end_effector_body_name"] = self.end_effector_body_name

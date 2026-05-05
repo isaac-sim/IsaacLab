@@ -567,6 +567,10 @@ class set_robot_to_object_grasp_pose(ManagerTermBase):
 
         self.hand_grasp_width = env.cfg.hand_grasp_width
         self.hand_close_width = env.cfg.hand_close_width
+        # hand_hold_width: joint angle where fingers just touch the held object
+        # surface.  Written as the physical STATE so there is no mesh overlap.
+        # Falls back to hand_close_width when not set (original behaviour).
+        self.hand_hold_width = getattr(env.cfg, "hand_hold_width", self.hand_close_width)
 
         eef_indices, _ = self.robot_asset.find_bodies([self.end_effector_body_name])
         if len(eef_indices) == 0:
@@ -757,19 +761,18 @@ class set_robot_to_object_grasp_pose(ManagerTermBase):
         joint_vel = torch.zeros_like(wp.to_torch(self.robot_asset.data.joint_vel)[env_ids])
         joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
 
+        # Write the gripper STATE at ``hand_hold_width`` (fingers just touching the
+        # object surface, no mesh overlap) and set the TARGET to
+        # ``hand_close_width`` (fully closed) so the actuator drive squeezes.
+        # This two-level approach mirrors IsaacLab_UR which writes
+        # ``gripper_close_joint_pos`` (from plug diameter) as state and
+        # ``gripper_close_joint_pos_target`` (from close_gripper_width) as target.
         self.gripper_joint_setter_func(
-            joint_pos, list(range(num_reset_envs)), self.finger_joints, self.hand_grasp_width
+            joint_pos, list(range(num_reset_envs)), self.finger_joints, self.hand_hold_width
         )
-
-        self.robot_asset.set_joint_position_target_index(target=joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
         self.robot_asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
         self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
-        # Drive the fingers toward ``hand_close_width`` but DO NOT write the joint state.
-        # The drive applies a closing torque; the held object stops the fingers via
-        # collision, producing a steady squeeze. Writing the joint state here would
-        # snap the fingers through the object and eject it on the next physics step
-        # (matches the gear-assembly :class:`set_robot_to_grasp_pose` pattern).
         self.gripper_joint_setter_func(
             joint_pos, list(range(num_reset_envs)), self.finger_joints, self.hand_close_width
         )
