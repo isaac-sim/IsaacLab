@@ -88,7 +88,7 @@ def setup_simulation():
     )
     mass_cfg = schemas.MassPropertiesCfg(mass=1.0, density=100.0)
     joint_cfg = PhysxJointDrivePropertiesCfg(
-        drive_type="acceleration", max_effort=80.0, max_joint_velocity=10.0, stiffness=10.0, damping=0.1
+        drive_type="acceleration", max_force=80.0, max_joint_velocity=10.0, stiffness=10.0, damping=0.1
     )
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg
     # Teardown
@@ -106,7 +106,7 @@ def test_valid_properties_cfg(setup_simulation):
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
     # deprecation aliases are nulled by __post_init__ after forwarding to the canonical
     # field; exclude them from the all-non-None check.
-    deprecation_aliases = {"max_velocity"}
+    deprecation_aliases = {"max_velocity", "max_effort"}
     for cfg in [arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg]:
         for k, v in cfg.__dict__.items():
             if k in deprecation_aliases:
@@ -128,7 +128,7 @@ def test_max_joint_velocity_on_base_cfg(setup_simulation):
 
     base_cfg = schemas.JointDriveBaseCfg(
         drive_type="acceleration",
-        max_effort=80.0,
+        max_force=80.0,
         max_joint_velocity=10.0,
         stiffness=10.0,
         damping=0.1,
@@ -162,7 +162,7 @@ def test_max_velocity_deprecation_alias(setup_simulation):
     with pytest.warns(DeprecationWarning, match="max_velocity"):
         base_cfg = schemas.JointDriveBaseCfg(
             drive_type="acceleration",
-            max_effort=80.0,
+            max_force=80.0,
             max_velocity=10.0,
             stiffness=10.0,
             damping=0.1,
@@ -184,6 +184,37 @@ def test_max_velocity_deprecation_alias(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
+def test_max_effort_deprecation_alias(setup_simulation):
+    """Legacy ``max_effort`` kwarg must forward to ``max_force`` and emit
+    a ``DeprecationWarning``. Behavior must match setting ``max_force`` directly.
+    """
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    with pytest.warns(DeprecationWarning, match="max_effort"):
+        base_cfg = schemas.JointDriveBaseCfg(
+            drive_type="acceleration",
+            max_effort=42.0,
+            stiffness=10.0,
+            damping=0.1,
+        )
+
+    assert base_cfg.max_force == 42.0
+    assert base_cfg.max_effort is None
+
+    sim_utils.create_prim("/World/Articulation_eff", prim_type="Xform")
+    sim_utils.create_prim("/World/Articulation_eff/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/Articulation_eff/body1", prim_type="Cube")
+    UsdPhysics.PrismaticJoint.Define(stage, "/World/Articulation_eff/joint_0")
+    prim_path = "/World/Articulation_eff/joint_0"
+    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+
+    attr = stage.GetPrimAtPath(prim_path).GetAttribute("drive:linear:physics:maxForce")
+    assert attr.IsValid()
+    assert attr.Get() == pytest.approx(42.0, rel=1e-6)
+
+
+@pytest.mark.isaacsim_ci
 def test_joint_drive_base_no_physx_schema_when_max_joint_velocity_unset(setup_simulation):
     """Regression: setting only UsdPhysics drive fields on JointDriveBaseCfg
     must NOT cause PhysxJointAPI to be applied to the prim. Without this,
@@ -193,7 +224,7 @@ def test_joint_drive_base_no_physx_schema_when_max_joint_velocity_unset(setup_si
 
     base_cfg = schemas.JointDriveBaseCfg(
         drive_type="acceleration",
-        max_effort=80.0,
+        max_force=80.0,
         stiffness=10.0,
         damping=0.1,
         # max_joint_velocity intentionally left None
@@ -1019,8 +1050,6 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                     # non-string attributes
                     if attr_name == "max_joint_velocity":
                         prim_attr_name = "physxJoint:maxJointVelocity"
-                    elif attr_name == "max_effort":
-                        prim_attr_name = f"drive:{drive_model}:physics:maxForce"
                     else:
                         prim_attr_name = f"drive:{drive_model}:physics:{to_camel_case(attr_name, to='cC')}"
 

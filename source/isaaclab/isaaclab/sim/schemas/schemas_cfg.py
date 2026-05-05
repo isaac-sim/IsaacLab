@@ -330,10 +330,11 @@ class JointDriveBaseCfg:
     }
 
     def __post_init__(self):
-        # Deprecation alias: ``max_velocity`` -> ``max_joint_velocity`` (project convention
-        # that python ``snake_case`` field names map identity-style to USD ``camelCase``
-        # attrs; the legacy short name diverged into ``physxJoint:maxJointVelocity``).
+        # Deprecation aliases: project convention is that python ``snake_case`` cfg field
+        # names map identity-style to USD ``camelCase`` attrs. Legacy short names that
+        # diverged are forwarded here.
         _deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
+        _deprecate_field_alias(self, "max_effort", "max_force")
 
     drive_type: Literal["force", "acceleration"] | None = None
     """Joint drive type to apply.
@@ -342,8 +343,21 @@ class JointDriveBaseCfg:
     then the joint is driven by an acceleration (usually used for kinematic joints).
     """
 
+    max_force: float | None = None
+    """Maximum force/torque that can be applied to the joint [N for linear joints, N-m for angular joints].
+
+    Writes ``drive:<linear|angular>:physics:maxForce`` via :class:`UsdPhysics.DriveAPI`.
+    """
+
     max_effort: float | None = None
-    """Maximum effort that can be applied to the joint (in kg-m^2/s^2)."""
+    """Deprecated alias for :attr:`max_force`.
+
+    .. deprecated:: 4.6.25
+        Use :attr:`max_force` instead. The cfg field is renamed so its
+        snake_case name maps identity-style to the USD camelCase attribute
+        (``maxForce`` on ``UsdPhysics.DriveAPI``). The alias is forwarded to
+        :attr:`max_force` in :meth:`__post_init__` and will be removed in 5.0.
+    """
 
     stiffness: float | None = None
     """Stiffness of the joint drive.

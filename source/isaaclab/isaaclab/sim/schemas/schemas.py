@@ -772,11 +772,9 @@ def modify_joint_drive_properties(
     if not usd_drive_api:
         usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
 
-    # mapping from configuration name to USD attribute name (for solver-common fields)
-    cfg_to_usd_map = {
-        "max_effort": "max_force",
-        "drive_type": "type",
-    }
+    # ``drive_type`` is a permanent inline carve-out: the USD attribute is named ``type``
+    # (a Python keyword-like name we cannot use as a cfg field). All other solver-common
+    # joint-drive fields follow the snake_case = camelCase convention.
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
     cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
 
@@ -806,11 +804,11 @@ def modify_joint_drive_properties(
 
     # set into USD API (solver-common properties; UsdPhysics.DriveAPI fields). Pop only
     # the solver-common fields here; the helper handles the PhysX-namespaced remainder.
-    for attr_name in ["drive_type", "max_effort", "stiffness", "damping"]:
+    for attr_name in ["drive_type", "max_force", "stiffness", "damping"]:
         if attr_name not in cfg_dict:
             continue
         attr_value = cfg_dict.pop(attr_name)
-        usd_attr_name = cfg_to_usd_map.get(attr_name, attr_name)
+        usd_attr_name = "type" if attr_name == "drive_type" else attr_name
         safe_set_attribute_on_usd_schema(usd_drive_api, usd_attr_name, attr_value, camel_case=True)
 
     # apply per-field exceptions (max_velocity -> physxJoint:maxJointVelocity) + any

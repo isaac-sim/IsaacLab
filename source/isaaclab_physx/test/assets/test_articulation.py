@@ -92,7 +92,7 @@ def generate_articulation_cfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_joint_velocity=5.0),
+                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -116,7 +116,7 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_joint_velocity=5.0),
+                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -1466,7 +1466,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
 
     # decide the limit based on what is set
     if effort_limit_sim is None and effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_effort
+        limit = articulation_cfg.spawn.joint_drive_props.max_force
     elif effort_limit_sim is not None and effort_limit is None:
         limit = effort_limit_sim
     elif effort_limit_sim is None and effort_limit is not None:
