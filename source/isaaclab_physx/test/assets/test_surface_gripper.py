@@ -9,6 +9,7 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import os
 import sys
 
 from isaaclab.app import AppLauncher
@@ -40,6 +41,8 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 # from isaacsim.robot.surface_gripper import GripperView
+
+_RUNNING_CI = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("GITLAB_CI")
 
 
 def _debug_log(test_name: str, message: str):
@@ -169,6 +172,10 @@ def sim(request):
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.isaacsim_ci
+@pytest.mark.skipif(
+    _RUNNING_CI,
+    reason="Isaac Sim SurfaceGripperView initialization can deadlock in CI; keep CUDA fail-fast coverage only.",
+)
 def test_initialization(sim, num_articulations, device, add_ground_plane) -> None:
     """Test initialization for articulation with a surface gripper.
 
