@@ -42,6 +42,8 @@ _PHYSX_FORWARDS_SCHEMAS = frozenset({
     "PhysxCollisionPropertiesCfg",
     "PhysXCollisionPropertiesCfg",
     "PhysxDeformableCollisionPropertiesCfg",
+    "ArticulationRootPropertiesCfg",
+    "PhysxArticulationRootPropertiesCfg",
 })
 
 # Names that moved out of this package into ``isaaclab_physx.sim.spawners.materials``.

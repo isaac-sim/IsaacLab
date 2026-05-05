@@ -11,6 +11,8 @@ Added
   :attr:`contact_offset` and :attr:`rest_offset` whose USD attributes are PhysX-namespaced
   but are consumed by Newton's importer via the PhysX bridge resolver
   (``import_usd.py:2104, 2111``).
+* Added :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`, the solver-common base class
+  for articulation root properties (``fix_root_link``, ``articulation_enabled``).
 
 Changed
 ^^^^^^^
@@ -57,6 +59,19 @@ Changed
   PhysX-namespaced field with a non-``None`` value. Previously, the writer applied
   ``PhysxCollisionAPI`` unconditionally on every collision prim, stamping the schema onto
   Newton-targeted prims that only set ``collision_enabled``.
+* Relocated :class:`ArticulationRootPropertiesCfg` to :mod:`isaaclab_physx.sim.schemas` and
+  split its fields between the new :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`
+  (solver-common ``fix_root_link`` plus the PhysX-namespaced ``articulation_enabled`` which
+  is consumed by the IL Newton wrapper as a spawn-time guard) and
+  :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`
+  (``enabled_self_collisions`` and PhysX TGS solver iter / sleep / stabilization thresholds).
+  A forwarding shim on :mod:`isaaclab.sim.schemas`,
+  :mod:`isaaclab.sim.schemas.schemas_cfg`, and :mod:`isaaclab.sim` preserves existing imports.
+* Refactored :func:`~isaaclab.sim.schemas.modify_articulation_root_properties` to be
+  metadata-driven and to gate ``PhysxArticulationAPI`` application on whether the user
+  authored at least one PhysX-namespaced field with a non-``None`` value. Previously, the
+  writer applied ``PhysxArticulationAPI`` unconditionally on every articulation root,
+  stamping the schema onto Newton-targeted prims that only set ``fix_root_link``.
 
 Fixed
 ^^^^^

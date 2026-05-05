@@ -14,6 +14,10 @@ Added
 * Added :class:`PhysxDeformableCollisionPropertiesCfg`, renaming the previous
   ``PhysXCollisionPropertiesCfg`` (capital X) for clarity. Used internally by
   :class:`DeformableBodyPropertiesCfg`.
+* Added :class:`PhysxArticulationRootPropertiesCfg`, a subclass of
+  :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` carrying the PhysX-specific
+  ``enabled_self_collisions``, ``solver_position_iteration_count``,
+  ``solver_velocity_iteration_count``, ``sleep_threshold``, ``stabilization_threshold``.
 
 Changed
 ^^^^^^^
@@ -44,3 +48,8 @@ Deprecated
 * Deprecated :class:`PhysXCollisionPropertiesCfg` (capital X, deformable-body) in favor of
   :class:`PhysxDeformableCollisionPropertiesCfg`. The capital-X name is preserved as a
   deprecation alias (concrete subclass) and is scheduled for removal in 5.0.
+* Deprecated :class:`ArticulationRootPropertiesCfg` in favor of
+  :class:`PhysxArticulationRootPropertiesCfg` (PhysX-specific) or
+  :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` (solver-common). The legacy name
+  remains as a concrete subclass of :class:`PhysxArticulationRootPropertiesCfg` that emits
+  ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.

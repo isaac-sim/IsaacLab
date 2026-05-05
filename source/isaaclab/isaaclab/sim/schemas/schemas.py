@@ -69,7 +69,7 @@ Articulation root properties.
 
 
 def define_articulation_root_properties(
-    prim_path: str, cfg: schemas_cfg.ArticulationRootPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.ArticulationRootBaseCfg, stage: Usd.Stage | None = None
 ):
     """Apply the articulation root schema on the input prim and set its properties.
 
@@ -103,7 +103,7 @@ def define_articulation_root_properties(
 
 @apply_nested
 def modify_articulation_root_properties(
-    prim_path: str, cfg: schemas_cfg.ArticulationRootPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.ArticulationRootBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Modify PhysX parameters for an articulation root prim.
 
@@ -153,21 +153,47 @@ def modify_articulation_root_properties(
     # check if prim has articulation applied on it
     if not UsdPhysics.ArticulationRootAPI(articulation_prim):
         return False
-    # ensure PhysX articulation API is applied
-    applied_schemas = articulation_prim.GetAppliedSchemas()
-    if "PhysxArticulationAPI" not in applied_schemas:
-        articulation_prim.AddAppliedSchema("PhysxArticulationAPI")
 
-    # convert to dict
-    cfg = cfg.to_dict()
-    # extract non-USD properties
-    fix_root_link = cfg.pop("fix_root_link", None)
+    # read solver-specific metadata from the cfg instance
+    namespace = getattr(cfg, "_usd_namespace", None)
+    applied_schema = getattr(cfg, "_usd_applied_schema", None)
+    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
 
-    # set into physx api (prim attributes under physxArticulation:*)
-    for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(
-            articulation_prim, f"physxArticulation:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-        )
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+    # extract writer-side (non-USD) properties
+    fix_root_link = cfg_dict.pop("fix_root_link", None)
+
+    # Build namespaced_writes: a non-empty list means at least one PhysX-namespaced field
+    # is being authored, which gates ``AddAppliedSchema`` below. Without this gate,
+    # ``PhysxArticulationAPI`` would be stamped onto Newton-targeted prims that only set
+    # ``fix_root_link``.
+    namespaced_writes: list[tuple[str, object]] = []
+    for cfg_field in list(attr_name_map):
+        value = cfg_dict.pop(cfg_field, None)
+        if value is not None:
+            namespaced_writes.append((attr_name_map[cfg_field], value))
+    # Remaining ``cfg_dict`` entries are PhysX-namespaced fields not in ``attr_name_map``
+    # (e.g. ``enabled_self_collisions`` and the TGS / sleep / stabilization knobs on
+    # ``PhysxArticulationRootPropertiesCfg``); USD attribute name is auto-derived via
+    # snake -> camelCase conversion.
+    for cfg_field, value in list(cfg_dict.items()):
+        if value is not None:
+            namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
+
+    # gate schema application AND attribute authoring on instance-level non-None set
+    if namespaced_writes:
+        if namespace is None:
+            raise ValueError(
+                f"{type(cfg).__name__} has solver-specific fields"
+                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
+                " Subclasses of ArticulationRootBaseCfg that add fields must set '_usd_namespace'"
+                " (and optionally '_usd_applied_schema')."
+            )
+        if applied_schema and applied_schema not in articulation_prim.GetAppliedSchemas():
+            articulation_prim.AddAppliedSchema(applied_schema)
+        for usd_attr, value in namespaced_writes:
+            safe_set_attribute_on_usd_prim(articulation_prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
     # fix root link based on input
     # we do the fixed joint processing later to not interfere with setting other properties

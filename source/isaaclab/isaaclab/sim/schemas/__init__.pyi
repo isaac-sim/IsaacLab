@@ -21,7 +21,7 @@ __all__ = [
     "modify_mesh_collision_properties",
     "modify_rigid_body_properties",
     "modify_spatial_tendon_properties",
-    "ArticulationRootPropertiesCfg",
+    "ArticulationRootBaseCfg",
     "BoundingCubePropertiesCfg",
     "BoundingSpherePropertiesCfg",
     "CollisionBaseCfg",
@@ -58,7 +58,7 @@ from .schemas import (
     modify_spatial_tendon_properties,
 )
 from .schemas_cfg import (
-    ArticulationRootPropertiesCfg,
+    ArticulationRootBaseCfg,
     BoundingCubePropertiesCfg,
     BoundingSpherePropertiesCfg,
     CollisionBaseCfg,

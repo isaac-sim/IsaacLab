@@ -31,6 +31,8 @@ FORWARDED_NAMES = [
     "PhysxCollisionPropertiesCfg",
     "PhysxDeformableCollisionPropertiesCfg",
     "PhysXCollisionPropertiesCfg",
+    "ArticulationRootPropertiesCfg",
+    "PhysxArticulationRootPropertiesCfg",
 ]
 
 DEPRECATED_FORWARDED_NAMES = [
@@ -38,6 +40,7 @@ DEPRECATED_FORWARDED_NAMES = [
     "JointDrivePropertiesCfg",
     "CollisionPropertiesCfg",
     "PhysXCollisionPropertiesCfg",
+    "ArticulationRootPropertiesCfg",
 ]
 
 FORWARDED_MATERIAL_NAMES = [

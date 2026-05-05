@@ -17,15 +17,19 @@ import warnings
 
 import pytest
 from isaaclab_physx.sim.schemas import (
+    ArticulationRootPropertiesCfg as ArticulationRootDeprecatedAliasCfg,
+)
+from isaaclab_physx.sim.schemas import (
     CollisionPropertiesCfg as PhysxCollisionPropertiesCfgAlias,
 )
 from isaaclab_physx.sim.schemas import (
-    PhysXCollisionPropertiesCfg as PhysxDeformableCollisionAliasCfg,
-)
-from isaaclab_physx.sim.schemas import (
+    PhysxArticulationRootPropertiesCfg,
     PhysxCollisionPropertiesCfg,
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
+)
+from isaaclab_physx.sim.schemas import (
+    PhysXCollisionPropertiesCfg as PhysxDeformableCollisionAliasCfg,
 )
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg, RigidBodyMaterialCfg
 
@@ -360,6 +364,77 @@ def test_physx_capitalx_collision_deprecation_alias(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
+def test_articulation_root_base_cfg_writes_articulation_enabled(setup_simulation):
+    """Setting ``articulation_enabled`` on the base ``ArticulationRootBaseCfg`` must author
+    ``physxArticulation:articulationEnabled`` AND apply ``PhysxArticulationAPI``. The
+    PhysX namespace is honored at sim time by PhysX and as a spawn-time guard by the IL
+    Newton wrapper."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    base_cfg = schemas.ArticulationRootBaseCfg(articulation_enabled=False)
+    sim_utils.create_prim("/World/arti_ae", prim_type="Xform")
+    schemas.define_articulation_root_properties("/World/arti_ae", base_cfg)
+
+    prim = stage.GetPrimAtPath("/World/arti_ae")
+    assert prim.GetAttribute("physxArticulation:articulationEnabled").Get() is False
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxArticulationAPI" in applied, (
+        f"PhysxArticulationAPI must be applied when articulation_enabled is set; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_articulation_root_base_no_physx_schema_when_only_fix_root_link_set(setup_simulation):
+    """Regression: setting only ``fix_root_link`` on ``ArticulationRootBaseCfg`` must NOT
+    cause ``PhysxArticulationAPI`` to be applied. ``fix_root_link`` is a writer-side flag
+    materializing ``UsdPhysics.FixedJoint``; it does not author any PhysX-namespaced
+    attribute. Newton-targeted prims that only set ``fix_root_link`` should not receive
+    ``PhysxArticulationAPI`` stamping."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    base_cfg = schemas.ArticulationRootBaseCfg(fix_root_link=False)
+    sim_utils.create_prim("/World/arti_frl", prim_type="Xform")
+    schemas.define_articulation_root_properties("/World/arti_frl", base_cfg)
+
+    prim = stage.GetPrimAtPath("/World/arti_frl")
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxArticulationAPI" not in applied, (
+        f"PhysxArticulationAPI should not be applied when only fix_root_link is set; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_articulation_root_writes_self_collisions(setup_simulation):
+    """Setting ``enabled_self_collisions`` on ``PhysxArticulationRootPropertiesCfg`` must
+    author ``physxArticulation:enabledSelfCollisions`` AND apply ``PhysxArticulationAPI``."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    cfg = PhysxArticulationRootPropertiesCfg(enabled_self_collisions=True)
+    sim_utils.create_prim("/World/arti_sc", prim_type="Xform")
+    schemas.define_articulation_root_properties("/World/arti_sc", cfg)
+
+    prim = stage.GetPrimAtPath("/World/arti_sc")
+    assert prim.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxArticulationAPI" in applied
+
+
+@pytest.mark.isaacsim_ci
+def test_articulation_root_deprecation_alias(setup_simulation):
+    """Instantiating the legacy ``ArticulationRootPropertiesCfg`` name emits exactly one
+    ``DeprecationWarning`` whose message references the 5.0 removal target."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ArticulationRootDeprecatedAliasCfg()
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
+    assert "5.0" in str(deprecations[0].message)
+
+
+@pytest.mark.isaacsim_ci
 def test_modify_properties_on_invalid_prim(setup_simulation):
     """Test modifying properties on a prim that does not exist."""
     sim, _, rigid_cfg, _, _, _ = setup_simulation
@@ -557,8 +632,8 @@ def _validate_articulation_properties_on_prim(
     root_prim = stage.GetPrimAtPath(prim_path)
     # check articulation properties are set correctly
     for attr_name, attr_value in arti_cfg.__dict__.items():
-        # skip names we know are not present
-        if attr_name == "func":
+        # skip class metadata and names we know are not present
+        if attr_name.startswith("_") or attr_name == "func":
             continue
         # handle fixed root link
         if attr_name == "fix_root_link" and attr_value is not None:

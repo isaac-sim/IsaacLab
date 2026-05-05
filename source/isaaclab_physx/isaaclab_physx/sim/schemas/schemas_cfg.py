@@ -8,7 +8,12 @@ from __future__ import annotations
 import dataclasses
 import warnings
 
-from isaaclab.sim.schemas.schemas_cfg import CollisionBaseCfg, JointDriveBaseCfg, RigidBodyBaseCfg
+from isaaclab.sim.schemas.schemas_cfg import (
+    ArticulationRootBaseCfg,
+    CollisionBaseCfg,
+    JointDriveBaseCfg,
+    RigidBodyBaseCfg,
+)
 from isaaclab.utils import configclass
 
 
@@ -345,6 +350,90 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
 
     min_torsional_patch_radius: float | None = None
     """Minimum radius of the contact patch for applying torsional friction [m]."""
+
+
+@configclass
+class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
+    """PhysX-specific articulation-root properties.
+
+    Extends :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` with the
+    `PhysxArticulationAPI`_ schema fields that are PhysX-only or dual-namespace
+    (Rule 2 — the conceptual quantity also has a ``newton:*`` attribute, and a
+    future ``NewtonArticulationRootPropertiesCfg`` would carry it on the Newton
+    side). Use this class when authoring PhysX-specific articulation knobs;
+    use :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` when only the
+    solver-common ``fix_root_link`` / ``articulation_enabled`` fields are needed.
+
+    See :meth:`~isaaclab.sim.schemas.modify_articulation_root_properties` for more information.
+
+    .. note::
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
+        the properties and leave the rest as-is.
+
+    .. _PhysxArticulationAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html
+    """
+
+    # USD metadata (``_usd_applied_schema = "PhysxArticulationAPI"``,
+    # ``_usd_namespace = "physxArticulation"``) is inherited from
+    # :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`.
+
+    enabled_self_collisions: bool | None = None
+    """Whether self-collisions between bodies in the same articulation are enabled.
+
+    The conceptual quantity exists in two USD namespaces simultaneously:
+
+    * ``physxArticulation:enabledSelfCollisions`` (PhysX, ``PhysxArticulationAPI``)
+    * ``newton:selfCollisionEnabled`` (Newton-native, on a future ``NewtonArticulationRootAPI``)
+
+    Newton's resolver checks the native ``newton:*`` attribute first and falls back
+    to the PhysX namespace. Both backends honor the field end-to-end.
+
+    Because the conceptual quantity has a dedicated USD attribute in each backend's
+    namespace, this field is placed on the **PhysX subclass** (one cfg per namespace).
+    A future ``NewtonArticulationRootPropertiesCfg`` will carry the same field over the
+    ``newton:*`` namespace.
+    """
+
+    solver_position_iteration_count: int | None = None
+    """Solver position iteration counts for the body."""
+
+    solver_velocity_iteration_count: int | None = None
+    """Solver velocity iteration counts for the body."""
+
+    sleep_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
+
+    stabilization_threshold: float | None = None
+    """The mass-normalized kinetic energy threshold below which an articulation may participate in stabilization."""
+
+
+@configclass
+class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
+    """Deprecated: use :class:`PhysxArticulationRootPropertiesCfg` or the solver-common base class.
+
+    Use :class:`PhysxArticulationRootPropertiesCfg` for PhysX-specific properties or
+    :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` for solver-common properties only.
+
+    .. deprecated:: 4.6.24
+        ``ArticulationRootPropertiesCfg`` has been split into
+        :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` (solver-common
+        ``fix_root_link`` and the PhysX-namespaced but IL-Newton-consumed
+        ``articulation_enabled``) and
+        :class:`PhysxArticulationRootPropertiesCfg` (PhysX-specific
+        self-collisions, TGS solver iter / sleep / stabilization thresholds)
+        and relocated to :mod:`isaaclab_physx.sim.schemas`. This alias preserves
+        backwards compatibility and is scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'ArticulationRootPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg' for PhysX properties, or"
+            " 'isaaclab.sim.schemas.ArticulationRootBaseCfg' for solver-common properties only.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
 
 
 @configclass

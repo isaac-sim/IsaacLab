@@ -23,6 +23,8 @@ _PHYSX_FORWARDS = frozenset(
         "PhysxCollisionPropertiesCfg",
         "PhysXCollisionPropertiesCfg",
         "PhysxDeformableCollisionPropertiesCfg",
+        "ArticulationRootPropertiesCfg",
+        "PhysxArticulationRootPropertiesCfg",
     }
 )
 
@@ -43,8 +45,17 @@ def __getattr__(name):
 
 
 @configclass
-class ArticulationRootPropertiesCfg:
-    """Properties to apply to the root of an articulation.
+class ArticulationRootBaseCfg:
+    """Solver-common properties to apply to the root of an articulation.
+
+    Carries :attr:`fix_root_link` (writer-side; materializes a
+    :class:`UsdPhysics.FixedJoint` between the world frame and the root link) and
+    :attr:`articulation_enabled` whose USD attribute today is PhysX-namespaced
+    (``physxArticulation:articulationEnabled``) but is consumed by the IsaacLab
+    Newton wrapper as a spawn-time guard. For PhysX-only articulation-root
+    properties (self-collisions, TGS solver iterations, sleep / stabilization
+    thresholds), use
+    :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`.
 
     See :meth:`modify_articulation_root_properties` for more information.
 
@@ -52,6 +63,20 @@ class ArticulationRootPropertiesCfg:
         If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
     """
+
+    # Documented exception: this base class carries PhysX namespace metadata because
+    # ``articulation_enabled`` writes to ``physxArticulation:articulationEnabled``.
+    # The IL Newton wrapper consumes the same PhysX attribute as a spawn-time guard;
+    # PhysX honors it at sim time. See docs/superpowers/schema-cfg-placement-path2.md.
+    # -- Class metadata (not dataclass fields) --
+    # USD applied schema written when at least one solver-specific field is set.
+    _usd_applied_schema = "PhysxArticulationAPI"
+    # Prim attribute namespace for solver-specific fields.
+    _usd_namespace = "physxArticulation"
+    # Mapping from cfg field names to USD attribute names (already in camelCase).
+    # ``articulation_enabled`` -> ``articulationEnabled`` is the auto-conversion result;
+    # listed here explicitly for clarity.
+    _usd_attr_name_map = {"articulation_enabled": "articulationEnabled"}
 
     articulation_enabled: bool | None = None
     """Whether to enable or disable the articulation.
@@ -68,42 +93,8 @@ class ArticulationRootPropertiesCfg:
 
     Placed on the solver-common class because the user-facing intent is
     universal and both PhysX (sim-time) and the IL Newton wrapper (spawn-time)
-    honor it. When :class:`ArticulationRootPropertiesCfg` is split into
-    ``ArticulationRootBaseCfg`` and ``PhysxArticulationRootPropertiesCfg``
-    in a follow-up PR, this field stays on the base.
+    honor it.
     """
-
-    enabled_self_collisions: bool | None = None
-    """Whether self-collisions between bodies in the same articulation are enabled.
-
-    The conceptual quantity exists in two USD namespaces simultaneously:
-
-    * ``physxArticulation:enabledSelfCollisions`` (PhysX, ``PhysxArticulationAPI``)
-    * ``newton:selfCollisionEnabled`` (Newton-native, on a future ``NewtonArticulationRootAPI``)
-
-    Newton's resolver checks the native ``newton:*`` attribute first and falls back
-    to the PhysX namespace. Both backends honor the field end-to-end.
-
-    Because the conceptual quantity has a dedicated USD attribute in each backend's
-    namespace, this field is placed on the **PhysX subclass** (one cfg per namespace).
-    When :class:`ArticulationRootPropertiesCfg` is split into
-    ``ArticulationRootBaseCfg`` and ``PhysxArticulationRootPropertiesCfg``, this
-    field stays with ``PhysxArticulationRootPropertiesCfg``. A future
-    ``NewtonArticulationRootPropertiesCfg`` will carry the same field over the
-    ``newton:*`` namespace.
-    """
-
-    solver_position_iteration_count: int | None = None
-    """Solver position iteration counts for the body."""
-
-    solver_velocity_iteration_count: int | None = None
-    """Solver velocity iteration counts for the body."""
-
-    sleep_threshold: float | None = None
-    """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
-
-    stabilization_threshold: float | None = None
-    """The mass-normalized kinetic energy threshold below which an articulation may participate in stabilization."""
 
     fix_root_link: bool | None = None
     """Whether to fix the root link of the articulation.
