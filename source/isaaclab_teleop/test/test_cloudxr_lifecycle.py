@@ -75,10 +75,16 @@ def _install_stubs():
             sys.modules[name] = _stubs_installed[name]
 
     @dataclass
+    class DeadlinePacingConfig:
+        safety_margin_s: float = 0.025
+
+    @dataclass
     class RetargetingExecutionConfig:
         mode: str = "sync"
+        pacing: DeadlinePacingConfig | None = None
 
     tsm = sys.modules["isaacteleop.teleop_session_manager"]
+    tsm.DeadlinePacingConfig = DeadlinePacingConfig  # type: ignore[attr-defined]
     tsm.RetargetingExecutionConfig = RetargetingExecutionConfig  # type: ignore[attr-defined]
 
 
@@ -155,11 +161,12 @@ class TestEnvProfilePaths:
 class TestRetargetingExecutionConfig:
     """Tests for Isaac Lab's IsaacTeleop retargeting execution defaults."""
 
-    def test_cfg_defaults_to_pipelined_retargeting(self):
-        """Isaac Lab opts into IsaacTeleop pipelined retargeting by default."""
+    def test_cfg_defaults_to_deadline_paced_pipelined_retargeting(self):
+        """Isaac Lab defaults to deadline-paced pipelined retargeting."""
         cfg = _make_cfg()
 
         assert cfg.retargeting_execution.mode == "pipelined"
+        assert cfg.retargeting_execution.pacing.safety_margin_s == 0.025
 
     def test_cfg_defaults_to_none_with_legacy_isaacteleop(self):
         """Older IsaacTeleop releases can still construct IsaacTeleopCfg."""

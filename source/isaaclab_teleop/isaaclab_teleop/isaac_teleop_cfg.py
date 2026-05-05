@@ -31,11 +31,11 @@ if TYPE_CHECKING:
 
 
 try:
-    from isaacteleop.teleop_session_manager import RetargetingExecutionConfig as _RetargetingExecutionConfig
+    import isaacteleop.teleop_session_manager as _tsm
 
     _RETARGETING_EXECUTION_SUPPORTED = True
 except ImportError:
-    _RetargetingExecutionConfig = None
+    _tsm = None
     _RETARGETING_EXECUTION_SUPPORTED = False
 
 
@@ -43,7 +43,10 @@ def _default_retargeting_execution_config() -> Any | None:
     """Build Isaac Lab's default IsaacTeleop retargeting execution config."""
     if not _RETARGETING_EXECUTION_SUPPORTED:
         return None
-    return _RetargetingExecutionConfig(mode="pipelined")
+    return _tsm.RetargetingExecutionConfig(
+        mode="pipelined",
+        pacing=_tsm.DeadlinePacingConfig(safety_margin_s=0.025),
+    )
 
 
 @configclass

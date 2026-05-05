@@ -120,7 +120,7 @@ rendering without blocking.
 | `retargeters_to_tune` | `Callable[[], list[BaseRetargeter]] \| None` | `None` | Retargeters to expose in the tuning UI |
 | `plugins` | `list[PluginConfig]` | `[]` | IsaacTeleop plugin configurations |
 | `sim_device` | `str` | `"cuda:0"` | Torch device for output action tensors |
-| `retargeting_execution` | `RetargetingExecutionConfig \| None` | `mode="pipelined"` when supported | IsaacTeleop retargeting execution settings |
+| `retargeting_execution` | `RetargetingExecutionConfig \| None` | `mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025)` when supported | IsaacTeleop retargeting execution settings |
 | `teleoperation_active_default` | `bool` | `False` | Whether teleoperation is active on session start |
 | `app_name` | `str` | `"IsaacLabTeleop"` | Application name for the IsaacTeleop session |
 
