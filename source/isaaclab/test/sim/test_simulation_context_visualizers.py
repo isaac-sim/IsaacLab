@@ -449,7 +449,7 @@ def _make_context_with_settings(
     ctx._visualizers = []
     ctx._scene_data_provider = _FakeProvider()
     ctx._scene_data_requirements = None
-    ctx._visualizer_prebuilt_artifact = None
+    ctx._clone_plans = {}
     ctx._visualizer_step_counter = 0
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)
