@@ -53,9 +53,9 @@ package manager. To begin, create a virtual environment:
 
             .. code-block:: batch
 
-               # create a virtual environment named env_isaaclab with python3.12
+               :: create a virtual environment named env_isaaclab with python3.12
                uv venv --python 3.12 --seed env_isaaclab
-               # activate the virtual environment
+               :: activate the virtual environment
                env_isaaclab\Scripts\activate
 
    .. tab-item:: conda
@@ -151,9 +151,10 @@ Installation is now as easy as navigating to the repo and then calling the root 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code:: bash
+      .. code:: batch
 
-         isaaclab.bat --install :: or "isaaclab.bat -i"
+         isaaclab.bat --install
+         :: or use "isaaclab.bat -i"
 
 
 Quick Start Using Isaac Launchable

@@ -11,7 +11,7 @@ import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import toml
 import torch
@@ -25,7 +25,6 @@ from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visual
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
-    VisualizerPrebuiltArtifacts,
     resolve_scene_data_requirements,
 )
 from isaaclab.renderers.render_context import RenderContext
@@ -33,6 +32,9 @@ from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+if TYPE_CHECKING:
+    from isaaclab.cloner.clone_plan import ClonePlan
 
 from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -173,7 +175,11 @@ class SimulationContext:
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
         self._scene_data_requirements = SceneDataRequirement()
-        self._visualizer_prebuilt_artifact: VisualizerPrebuiltArtifacts | None = None
+        # Per-group clone plans published by InteractiveScene after cloning. Providers (e.g.
+        # the Newton visualizer model rebuilder on a PhysX backend) consume these to derive
+        # their own backend args. Empty dict until :meth:`InteractiveScene.clone_environments`
+        # runs.
+        self._clone_plans: dict[str, ClonePlan] = {}
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -627,21 +633,18 @@ class SimulationContext:
         """Update scene-data requirements."""
         self._scene_data_requirements = requirements
 
-    def get_scene_data_visualizer_prebuilt_artifact(self) -> VisualizerPrebuiltArtifacts | None:
-        """Return optional prebuilt visualizer artifact."""
-        return self._visualizer_prebuilt_artifact
+    def get_clone_plans(self) -> dict[str, ClonePlan]:
+        """Return per-group clone plans published by the scene, keyed by destination template.
 
-    def set_scene_data_visualizer_prebuilt_artifact(self, artifact: VisualizerPrebuiltArtifacts | None) -> None:
-        """Set or clear the optional visualizer prebuilt artifact.
-
-        The scene (clone flow) writes this once, and providers can read it
-        during initialization as a fast path.
+        Set by :meth:`InteractiveScene.clone_environments` after replication. Consumed by
+        scene data providers that build backend models (e.g. Newton visualizer model on a
+        PhysX backend) from the same plan the cloner used. Empty dict until the scene clones.
         """
-        self._visualizer_prebuilt_artifact = artifact
+        return self._clone_plans
 
-    def clear_scene_data_visualizer_prebuilt_artifact(self) -> None:
-        """Clear optional prebuilt artifact in provider context."""
-        self.set_scene_data_visualizer_prebuilt_artifact(None)
+    def set_clone_plans(self, plans: dict[str, ClonePlan]) -> None:
+        """Set the cloner's per-group clone-plan map."""
+        self._clone_plans = plans
 
     @property
     def visualizers(self) -> list[BaseVisualizer]:

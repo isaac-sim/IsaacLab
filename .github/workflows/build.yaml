@@ -71,7 +71,7 @@ env:
 
 jobs:
   changes:
-    name: Detect Docker Test Changes
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
@@ -80,22 +80,96 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
+        EVENT_NAME: ${{ github.event_name }}
+        REPO: ${{ github.repository }}
       run: |
         set -euo pipefail
 
-        if [ "${{ github.event_name }}" != "pull_request" ]; then
-          echo "run_docker_tests=true" >> "$GITHUB_OUTPUT"
+        # Docker test jobs run only when paths in the patterns table change.
+        # Otherwise they skip via `if:` and report green to branch protection,
+        # which is why we don't use a workflow-level `paths:` filter (a
+        # not-triggered required check would block the PR forever).
+        # config.yaml is included because it controls the base image names and
+        # tags consumed by the Docker build jobs.
+        patterns=(
+          $'^source/\tLibrary source code'
+          $'^docker/\tContainer build inputs'
+          $'^tools/\tBuild tooling'
+          $'^apps/\tStandalone apps'
+          $'^scripts/\tStandalone scripts'
+          $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
+          $'^\\.github/workflows/config\\.yaml$\tBase image config'
+          $'^\\.github/actions/\tCI actions'
+        )
+        triggered_jobs="Docker build + all test-* matrix jobs"
+
+        render_table() {
+          local files="$1" entry regex desc count sample
+          echo "| Pattern | What it covers | Matched files |"
+          echo "|---|---|---|"
+          for entry in "${patterns[@]}"; do
+            IFS=$'\t' read -r regex desc <<< "$entry"
+            count=$(printf '%s\n' "$files" | grep -cE "$regex" || true)
+            if [ "$count" -gt 0 ]; then
+              sample=$(printf '%s\n' "$files" | grep -E "$regex" | head -3 | paste -sd ', ' -)
+              [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
+              echo "| \`$regex\` | $desc | $sample |"
+            else
+              echo "| \`$regex\` | $desc | - |"
+            fi
+          done
+        }
+
+        any_match() {
+          local files="$1" entry regex
+          for entry in "${patterns[@]}"; do
+            IFS=$'\t' read -r regex _ <<< "$entry"
+            if printf '%s\n' "$files" | grep -qE "$regex"; then
+              return 0
+            fi
+          done
+          return 1
+        }
+
+        decide() {
+          local decision="$1" reason="$2" files="${3:-}"
+          echo "Decision: run_docker_tests=$decision ($reason)"
+          echo "run_docker_tests=$decision" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Docker test gating"
+            echo ""
+            if [ "$decision" = "true" ]; then
+              echo "Docker tests will **run**: $reason."
+            else
+              echo "Docker tests will be **skipped**: $reason."
+            fi
+            echo ""
+            echo "Triggered jobs: $triggered_jobs."
+            if [ -n "$files" ]; then
+              echo ""
+              render_table "$files"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+        }
+
+        if [ "$EVENT_NAME" != "pull_request" ]; then
+          decide true "non-PR event ($EVENT_NAME)"
           exit 0
         fi
 
-        changed_files="$(gh api --paginate "repos/${{ github.repository }}/pulls/${PR_NUMBER}/files" --jq '.[].filename')"
+        if ! changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
+          # Fail-safe: a transient API error must not block merge. Default to running.
+          echo "::warning::Could not list changed files; defaulting to running tests"
+          decide true "fail-safe (could not list changed files)"
+          exit 0
+        fi
+
         printf '%s\n' "$changed_files"
 
-        # config.yaml controls the base image names and tags consumed by the Docker build jobs.
-        if printf '%s\n' "$changed_files" | grep -qE '^(source/|docker/|tools/|apps/|scripts/|\.github/workflows/build\.yaml$|\.github/workflows/config\.yaml$|\.github/actions/)'; then
-          echo "run_docker_tests=true" >> "$GITHUB_OUTPUT"
+        if any_match "$changed_files"; then
+          decide true "relevant paths changed" "$changed_files"
         else
-          echo "run_docker_tests=false" >> "$GITHUB_OUTPUT"
+          decide false "no relevant paths changed" "$changed_files"
         fi
 
   config:
@@ -530,100 +604,6 @@ jobs:
         include-files: "test_environments_training.py"
         container-name: isaac-lab-environments-training-test
   #endregion
-
-  docker-tests-gate:
-    name: Docker Tests Gate
-    runs-on: ubuntu-latest
-    needs:
-      - changes
-      - build
-      - build-curobo
-      - test-isaaclab-tasks
-      - test-isaaclab-tasks-2
-      - test-isaaclab-tasks-3
-      - test-isaaclab-core
-      - test-isaaclab-core-2
-      - test-isaaclab-core-3
-      - test-isaaclab-rl
-      - test-isaaclab-mimic
-      - test-isaaclab-assets
-      - test-isaaclab-contrib
-      - test-isaaclab-teleop
-      - test-isaaclab-visualizers
-      - test-isaaclab-newton
-      - test-isaaclab-physx
-      - test-isaaclab-ov
-      - test-curobo
-      - test-skillgen
-      - test-environments-training
-    if: always()
-    steps:
-    - name: Check Docker test results
-      env:
-        CHANGES_RESULT: ${{ needs.changes.result }}
-        RUN_DOCKER_TESTS: ${{ needs.changes.outputs.run_docker_tests }}
-        BUILD_RESULT: ${{ needs.build.result }}
-        BUILD_CUROBO_RESULT: ${{ needs.build-curobo.result }}
-        TASKS_1_RESULT: ${{ needs.test-isaaclab-tasks.result }}
-        TASKS_2_RESULT: ${{ needs.test-isaaclab-tasks-2.result }}
-        TASKS_3_RESULT: ${{ needs.test-isaaclab-tasks-3.result }}
-        CORE_1_RESULT: ${{ needs.test-isaaclab-core.result }}
-        CORE_2_RESULT: ${{ needs.test-isaaclab-core-2.result }}
-        CORE_3_RESULT: ${{ needs.test-isaaclab-core-3.result }}
-        RL_RESULT: ${{ needs.test-isaaclab-rl.result }}
-        MIMIC_RESULT: ${{ needs.test-isaaclab-mimic.result }}
-        ASSETS_RESULT: ${{ needs.test-isaaclab-assets.result }}
-        CONTRIB_RESULT: ${{ needs.test-isaaclab-contrib.result }}
-        TELEOP_RESULT: ${{ needs.test-isaaclab-teleop.result }}
-        VISUALIZERS_RESULT: ${{ needs.test-isaaclab-visualizers.result }}
-        NEWTON_RESULT: ${{ needs.test-isaaclab-newton.result }}
-        PHYSX_RESULT: ${{ needs.test-isaaclab-physx.result }}
-        OV_RESULT: ${{ needs.test-isaaclab-ov.result }}
-        CUROBO_RESULT: ${{ needs.test-curobo.result }}
-        SKILLGEN_RESULT: ${{ needs.test-skillgen.result }}
-        ENVIRONMENTS_TRAINING_RESULT: ${{ needs.test-environments-training.result }}
-      run: |
-        set -euo pipefail
-
-        if [ "$CHANGES_RESULT" != "success" ]; then
-          echo "Change detection failed with result: $CHANGES_RESULT"
-          exit 1
-        fi
-
-        if [ "$RUN_DOCKER_TESTS" != "true" ]; then
-          echo "Docker tests are not required for this change."
-          exit 0
-        fi
-
-        failures=()
-        [ "$BUILD_RESULT" = "success" ] || failures+=("Build Base Docker Image: $BUILD_RESULT")
-        [ "$BUILD_CUROBO_RESULT" = "success" ] || failures+=("Build cuRobo Docker Image: $BUILD_CUROBO_RESULT")
-        [ "$TASKS_1_RESULT" = "success" ] || failures+=("isaaclab_tasks [1/3]: $TASKS_1_RESULT")
-        [ "$TASKS_2_RESULT" = "success" ] || failures+=("isaaclab_tasks [2/3]: $TASKS_2_RESULT")
-        [ "$TASKS_3_RESULT" = "success" ] || failures+=("isaaclab_tasks [3/3]: $TASKS_3_RESULT")
-        [ "$CORE_1_RESULT" = "success" ] || failures+=("isaaclab (core) [1/3]: $CORE_1_RESULT")
-        [ "$CORE_2_RESULT" = "success" ] || failures+=("isaaclab (core) [2/3]: $CORE_2_RESULT")
-        [ "$CORE_3_RESULT" = "success" ] || failures+=("isaaclab (core) [3/3]: $CORE_3_RESULT")
-        [ "$RL_RESULT" = "success" ] || failures+=("isaaclab_rl: $RL_RESULT")
-        [ "$MIMIC_RESULT" = "success" ] || failures+=("isaaclab_mimic: $MIMIC_RESULT")
-        [ "$ASSETS_RESULT" = "success" ] || failures+=("isaaclab_assets: $ASSETS_RESULT")
-        [ "$CONTRIB_RESULT" = "success" ] || failures+=("isaaclab_contrib: $CONTRIB_RESULT")
-        [ "$TELEOP_RESULT" = "success" ] || failures+=("isaaclab_teleop: $TELEOP_RESULT")
-        [ "$VISUALIZERS_RESULT" = "success" ] || failures+=("isaaclab_visualizers: $VISUALIZERS_RESULT")
-        [ "$NEWTON_RESULT" = "success" ] || failures+=("isaaclab_newton: $NEWTON_RESULT")
-        [ "$PHYSX_RESULT" = "success" ] || failures+=("isaaclab_physx: $PHYSX_RESULT")
-        [ "$OV_RESULT" = "success" ] || failures+=("isaaclab_ov: $OV_RESULT")
-        [ "$CUROBO_RESULT" = "success" ] || failures+=("test-curobo: $CUROBO_RESULT")
-        [ "$SKILLGEN_RESULT" = "success" ] || failures+=("test-skillgen: $SKILLGEN_RESULT")
-        [ "$ENVIRONMENTS_TRAINING_RESULT" = "success" ] || failures+=("environments_training: $ENVIRONMENTS_TRAINING_RESULT")
-
-        if [ "${#failures[@]}" -gt 0 ]; then
-          printf 'Docker checks did not pass:\n'
-          printf ' - %s\n' "${failures[@]}"
-          exit 1
-        fi
-
-        echo "Docker checks passed."
 
 #region disabled quarantined tests
 # test-quarantined:

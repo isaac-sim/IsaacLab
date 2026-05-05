@@ -176,8 +176,8 @@ class DirectMARLEnv(gym.Env):
         if self.cfg.video_recorder is not None:
             self.cfg.video_recorder.env_render_mode = render_mode
             vr = self.cfg.video_recorder
-            vr.camera_position = tuple(float(x) for x in self.cfg.viewer.eye)
-            vr.camera_target = tuple(float(x) for x in self.cfg.viewer.lookat)
+            vr.eye = tuple(float(x) for x in self.cfg.viewer.eye)
+            vr.lookat = tuple(float(x) for x in self.cfg.viewer.lookat)
             self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
         else:
             self.video_recorder = None
