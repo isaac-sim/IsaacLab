@@ -60,6 +60,26 @@ def __getattr__(name):
     raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
 
 
+def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
+    """Forward a deprecated cfg field to its canonical replacement.
+
+    If ``alias`` is set on the cfg instance, emit a ``DeprecationWarning`` and copy the
+    value to ``canonical`` (when ``canonical`` is unset). The alias is then nulled so
+    downstream metadata-driven writers see only the canonical name.
+    """
+    value = getattr(cfg, alias, None)
+    if value is None:
+        return
+    warnings.warn(
+        f"'{alias}' is deprecated; use '{canonical}' instead. The alias is scheduled for removal in 5.0.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    if getattr(cfg, canonical, None) is None:
+        setattr(cfg, canonical, value)
+    setattr(cfg, alias, None)
+
+
 @configclass
 class ArticulationRootBaseCfg:
     """Solver-common properties to apply to the root of an articulation.
@@ -87,13 +107,12 @@ class ArticulationRootBaseCfg:
     # UsdPhysics API) or routed through ``_usd_field_exceptions``.
     _usd_namespace = None
     _usd_applied_schema = None
-    _usd_attr_name_map: dict[str, str] = {}
-    # Per-field exceptions: applied_schema -> (namespace, {cfg_field: usd_attr}).
-    # When any listed field is non-None at write time, the writer applies the schema
-    # and writes the attribute under the exception namespace -- without affecting the
-    # cfg's main namespace logic.
-    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {
-        "PhysxArticulationAPI": ("physxArticulation", {"articulation_enabled": "articulationEnabled"}),
+    # Per-field exceptions: applied_schema -> (namespace, [cfg_field, ...]). The USD
+    # attribute name is the auto snake -> camelCase of the cfg field name (project
+    # convention). When any listed field is non-None at write time, the writer applies
+    # the schema and writes the attribute under the exception namespace.
+    _usd_field_exceptions: dict[str, tuple[str, list[str]]] = {
+        "PhysxArticulationAPI": ("physxArticulation", ["articulation_enabled"]),
     }
 
     articulation_enabled: bool | None = None
@@ -154,9 +173,8 @@ class RigidBodyBaseCfg:
     # routed through ``_usd_field_exceptions`` to ``physxRigidBody:disableGravity``.
     _usd_namespace = None
     _usd_applied_schema = None
-    _usd_attr_name_map: dict[str, str] = {}
-    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {
-        "PhysxRigidBodyAPI": ("physxRigidBody", {"disable_gravity": "disableGravity"}),
+    _usd_field_exceptions: dict[str, tuple[str, list[str]]] = {
+        "PhysxRigidBodyAPI": ("physxRigidBody", ["disable_gravity"]),
     }
 
     rigid_body_enabled: bool | None = None
@@ -221,12 +239,8 @@ class CollisionBaseCfg:
     # through ``_usd_field_exceptions`` to ``physxCollision:*``.
     _usd_namespace = None
     _usd_applied_schema = None
-    _usd_attr_name_map: dict[str, str] = {}
-    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {
-        "PhysxCollisionAPI": (
-            "physxCollision",
-            {"contact_offset": "contactOffset", "rest_offset": "restOffset"},
-        ),
+    _usd_field_exceptions: dict[str, tuple[str, list[str]]] = {
+        "PhysxCollisionAPI": ("physxCollision", ["contact_offset", "rest_offset"]),
     }
 
     collision_enabled: bool | None = None
@@ -289,7 +303,7 @@ class JointDriveBaseCfg:
     """Solver-common properties to define the drive mechanism of a joint.
 
     Contains properties from the `UsdPhysics.DriveAPI`_ that are common across all
-    simulation backends, plus :attr:`max_velocity` whose USD attribute today is
+    simulation backends, plus :attr:`max_joint_velocity` whose USD attribute today is
     PhysX-namespaced but whose semantics (per-DOF velocity limit) are universal:
     Newton's importer consumes ``physxJoint:maxJointVelocity`` and populates
     ``Model.joint_velocity_limit``; PhysX consumes it natively. For PhysX-only
@@ -306,15 +320,20 @@ class JointDriveBaseCfg:
 
     # -- Class metadata (not dataclass fields) --
     # No base-native namespace today: drive-type / max-effort / stiffness / damping are
-    # written via the typed ``UsdPhysics.DriveAPI``; ``max_velocity`` is routed through
-    # ``_usd_field_exceptions`` to ``physxJoint:maxJointVelocity`` (the only USD path
-    # to ``Model.joint_velocity_limit`` today).
+    # written via the typed ``UsdPhysics.DriveAPI``; ``max_joint_velocity`` is routed
+    # through ``_usd_field_exceptions`` to ``physxJoint:maxJointVelocity`` (the only
+    # USD path to ``Model.joint_velocity_limit`` today).
     _usd_namespace = None
     _usd_applied_schema = None
-    _usd_attr_name_map: dict[str, str] = {}
-    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {
-        "PhysxJointAPI": ("physxJoint", {"max_velocity": "maxJointVelocity"}),
+    _usd_field_exceptions: dict[str, tuple[str, list[str]]] = {
+        "PhysxJointAPI": ("physxJoint", ["max_joint_velocity"]),
     }
+
+    def __post_init__(self):
+        # Deprecation alias: ``max_velocity`` -> ``max_joint_velocity`` (project convention
+        # that python ``snake_case`` field names map identity-style to USD ``camelCase``
+        # attrs; the legacy short name diverged into ``physxJoint:maxJointVelocity``).
+        _deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
 
     drive_type: Literal["force", "acceleration"] | None = None
     """Joint drive type to apply.
@@ -356,7 +375,7 @@ class JointDriveBaseCfg:
     overridden later by the actuator model.
     """
 
-    max_velocity: float | None = None
+    max_joint_velocity: float | None = None
     """Maximum velocity of the joint [m/s for linear joints, rad/s for angular joints].
 
     Notes:
@@ -368,6 +387,16 @@ class JointDriveBaseCfg:
         the MuJoCo (MJC) solver explicitly drops it. When Newton ships ``newton:maxJointVelocity``
         as a registered applied API, the writer namespace will switch transparently and this
         docstring caveat will be removed.
+    """
+
+    max_velocity: float | None = None
+    """Deprecated alias for :attr:`max_joint_velocity`.
+
+    .. deprecated:: 4.6.25
+        Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its
+        snake_case name maps identity-style to the USD camelCase attribute
+        (``physxJoint:maxJointVelocity``). The alias is forwarded to
+        :attr:`max_joint_velocity` in :meth:`__post_init__` and will be removed in 5.0.
     """
 
 

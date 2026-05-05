@@ -88,7 +88,7 @@ def setup_simulation():
     )
     mass_cfg = schemas.MassPropertiesCfg(mass=1.0, density=100.0)
     joint_cfg = PhysxJointDrivePropertiesCfg(
-        drive_type="acceleration", max_effort=80.0, max_velocity=10.0, stiffness=10.0, damping=0.1
+        drive_type="acceleration", max_effort=80.0, max_joint_velocity=10.0, stiffness=10.0, damping=0.1
     )
     yield sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg
     # Teardown
@@ -104,19 +104,23 @@ def test_valid_properties_cfg(setup_simulation):
     This is to ensure that we check that all the properties of the schema are set.
     """
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
+    # deprecation aliases are nulled by __post_init__ after forwarding to the canonical
+    # field; exclude them from the all-non-None check.
+    deprecation_aliases = {"max_velocity"}
     for cfg in [arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg]:
-        # check nothing is none
         for k, v in cfg.__dict__.items():
+            if k in deprecation_aliases:
+                continue
             assert v is not None, f"{cfg.__class__.__name__}:{k} is None. Please make sure schemas are valid."
 
 
 @pytest.mark.isaacsim_ci
-def test_max_velocity_on_base_cfg(setup_simulation):
-    """Setting ``max_velocity`` on the base ``JointDriveBaseCfg`` must author
+def test_max_joint_velocity_on_base_cfg(setup_simulation):
+    """Setting ``max_joint_velocity`` on the base ``JointDriveBaseCfg`` must author
     ``physxJoint:maxJointVelocity`` on the prim, identical to setting it on
     the deprecated PhysX subclass.
 
-    Regression test for the Path 2 placement rule: ``max_velocity`` is the
+    Regression test for the Path 2 placement rule: ``max_joint_velocity`` is the
     only USD path to ``Model.joint_velocity_limit`` and lives on the base.
     """
     sim, _, _, _, _, _ = setup_simulation
@@ -125,7 +129,7 @@ def test_max_velocity_on_base_cfg(setup_simulation):
     base_cfg = schemas.JointDriveBaseCfg(
         drive_type="acceleration",
         max_effort=80.0,
-        max_velocity=10.0,
+        max_joint_velocity=10.0,
         stiffness=10.0,
         damping=0.1,
     )
@@ -148,7 +152,39 @@ def test_max_velocity_on_base_cfg(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
-def test_joint_drive_base_no_physx_schema_when_max_velocity_unset(setup_simulation):
+def test_max_velocity_deprecation_alias(setup_simulation):
+    """Legacy ``max_velocity`` kwarg must forward to ``max_joint_velocity`` and emit
+    a ``DeprecationWarning``. Behavior must match setting ``max_joint_velocity`` directly.
+    """
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    with pytest.warns(DeprecationWarning, match="max_velocity"):
+        base_cfg = schemas.JointDriveBaseCfg(
+            drive_type="acceleration",
+            max_effort=80.0,
+            max_velocity=10.0,
+            stiffness=10.0,
+            damping=0.1,
+        )
+
+    assert base_cfg.max_joint_velocity == 10.0
+    assert base_cfg.max_velocity is None
+
+    sim_utils.create_prim("/World/Articulation_dep", prim_type="Xform")
+    sim_utils.create_prim("/World/Articulation_dep/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/Articulation_dep/body1", prim_type="Cube")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/Articulation_dep/joint_0")
+    prim_path = "/World/Articulation_dep/joint_0"
+    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+
+    attr = stage.GetPrimAtPath(prim_path).GetAttribute("physxJoint:maxJointVelocity")
+    assert attr.IsValid()
+    assert attr.Get() == pytest.approx(10.0 * 180.0 / math.pi, rel=1e-6)
+
+
+@pytest.mark.isaacsim_ci
+def test_joint_drive_base_no_physx_schema_when_max_joint_velocity_unset(setup_simulation):
     """Regression: setting only UsdPhysics drive fields on JointDriveBaseCfg
     must NOT cause PhysxJointAPI to be applied to the prim. Without this,
     Newton-targeted users get PhysX schemas stamped on every joint."""
@@ -160,7 +196,7 @@ def test_joint_drive_base_no_physx_schema_when_max_velocity_unset(setup_simulati
         max_effort=80.0,
         stiffness=10.0,
         damping=0.1,
-        # max_velocity intentionally left None
+        # max_joint_velocity intentionally left None
     )
     sim_utils.create_prim("/World/Articulation", prim_type="Xform")
     sim_utils.create_prim("/World/Articulation/body0", prim_type="Cube")
@@ -981,7 +1017,7 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                         continue
 
                     # non-string attributes
-                    if attr_name == "max_velocity":
+                    if attr_name == "max_joint_velocity":
                         prim_attr_name = "physxJoint:maxJointVelocity"
                     elif attr_name == "max_effort":
                         prim_attr_name = f"drive:{drive_model}:physics:maxForce"
@@ -994,7 +1030,7 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                     # for angular drives, we expect user to set in radians
                     # the values reported by USD are in degrees
                     if drive_model == "angular":
-                        if attr_name == "max_velocity":
+                        if attr_name == "max_joint_velocity":
                             # deg / s --> rad / s
                             prim_attr_value = prim_attr_value * math.pi / 180.0
                         elif attr_name in ["stiffness", "damping"]:

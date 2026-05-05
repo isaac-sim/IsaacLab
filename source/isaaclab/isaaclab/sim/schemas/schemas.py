@@ -122,16 +122,20 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
     writing standard ``UsdPhysics`` fields via the typed API and popping them out of
     ``cfg_dict`` first.
 
+    USD attribute names are derived by snake_case -> camelCase conversion of cfg field
+    names. The codebase enforces this as a convention: any cfg field whose
+    snake_case name does not produce the correct USD camelCase attr is renamed (with a
+    deprecation alias forwarded in ``__post_init__``) rather than mapped via metadata.
+
     Two passes:
 
     1. **Per-field exceptions** -- ``cfg._usd_field_exceptions`` is a mapping
-       ``applied_schema -> (namespace, {cfg_field: usd_attr})``. For each schema, if any
+       ``applied_schema -> (namespace, [cfg_field, ...])``. For each schema, if any
        listed field is non-None, the schema is applied (once) and each non-None field is
        written under that schema's namespace. Fields are popped from ``cfg_dict``.
     2. **Main namespace** -- the remaining non-None entries in ``cfg_dict`` are written
        under ``cfg._usd_namespace``; ``cfg._usd_applied_schema`` is applied if any write
-       fired. ``cfg._usd_attr_name_map`` provides hand-mapped USD attr names; remaining
-       fields auto-derive snake_case -> camelCase.
+       fired.
 
     Args:
         prim: The USD prim to author on.
@@ -143,13 +147,13 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
     """
     # 1. Per-field exceptions
     field_exceptions = getattr(cfg, "_usd_field_exceptions", {}) or {}
-    for applied_schema, (exc_ns, field_map) in field_exceptions.items():
+    for applied_schema, (exc_ns, fields) in field_exceptions.items():
         triggered: list[tuple[str, object]] = []
-        for cfg_field, usd_attr in field_map.items():
+        for cfg_field in fields:
             if cfg_field in cfg_dict:
                 value = cfg_dict.pop(cfg_field)
                 if value is not None:
-                    triggered.append((usd_attr, value))
+                    triggered.append((to_camel_case(cfg_field, "cC"), value))
         if not triggered:
             continue
         if applied_schema and applied_schema not in prim.GetAppliedSchemas():
@@ -160,17 +164,10 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
     # 2. Main cfg namespace
     namespace = getattr(cfg, "_usd_namespace", None)
     applied_schema = getattr(cfg, "_usd_applied_schema", None)
-    attr_name_map = getattr(cfg, "_usd_attr_name_map", {}) or {}
 
-    writes: list[tuple[str, object]] = []
-    for cfg_field, usd_attr in attr_name_map.items():
-        value = cfg_dict.pop(cfg_field, None)
-        if value is not None:
-            writes.append((usd_attr, value))
-    for cfg_field, value in list(cfg_dict.items()):
-        if value is not None:
-            writes.append((to_camel_case(cfg_field, "cC"), value))
-
+    writes: list[tuple[str, object]] = [
+        (to_camel_case(cfg_field, "cC"), value) for cfg_field, value in cfg_dict.items() if value is not None
+    ]
     if not writes:
         return
     if namespace is None:
@@ -797,9 +794,9 @@ def modify_joint_drive_properties(
     is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)
     # convert values for angular drives from radians to degrees units
     if not is_linear_drive:
-        if cfg_dict.get("max_velocity") is not None:
+        if cfg_dict.get("max_joint_velocity") is not None:
             # rad / s --> deg / s (PhysX angular convention is degrees)
-            cfg_dict["max_velocity"] = cfg_dict["max_velocity"] * 180.0 / math.pi
+            cfg_dict["max_joint_velocity"] = cfg_dict["max_joint_velocity"] * 180.0 / math.pi
         if cfg_dict["stiffness"] is not None:
             # N-m/rad --> N-m/deg
             cfg_dict["stiffness"] = cfg_dict["stiffness"] * math.pi / 180.0

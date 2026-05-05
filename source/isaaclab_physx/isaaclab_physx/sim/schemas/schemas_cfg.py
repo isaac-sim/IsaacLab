@@ -284,7 +284,7 @@ class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
 class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     """PhysX-specific joint drive properties.
 
-    Currently empty after the consumption-gated split moved :attr:`max_velocity`
+    Currently empty after the consumption-gated split moved :attr:`max_joint_velocity`
     to :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`. This class is retained
     as the deprecation-alias target for the legacy :class:`JointDrivePropertiesCfg`
     name and as the home for any future PhysX-only joint-drive fields (e.g.
@@ -298,7 +298,7 @@ class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     .. _PhysxJointAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_joint_a_p_i.html
     """
 
-    # ``max_velocity`` on the base remains routed via ``_usd_field_exceptions``
+    # ``max_joint_velocity`` on the base remains routed via ``_usd_field_exceptions``
     # (inherited). Future PhysX-only joint-drive fields would be written under this
     # namespace.
     _usd_applied_schema = "PhysxJointAPI"
