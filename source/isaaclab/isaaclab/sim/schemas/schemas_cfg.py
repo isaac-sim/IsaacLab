@@ -135,6 +135,10 @@ class RigidBodyBaseCfg:
     .. _UsdPhysics.RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
 
+    # Documented exception: this base class carries PhysX namespace metadata because
+    # ``disable_gravity`` writes to ``physxRigidBody:disableGravity`` -- Newton consumes
+    # the same PhysX attribute via its bridge resolver. See
+    # ``docs/superpowers/schema-cfg-placement-path2.md`` for the placement rule.
     # -- Class metadata (not dataclass fields) --
     # USD applied schema written when at least one solver-specific field is set.
     _usd_applied_schema = "PhysxRigidBodyAPI"
@@ -261,6 +265,11 @@ class JointDriveBaseCfg:
     .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html
     """
 
+    # Documented exception: this base class carries PhysX namespace metadata because
+    # ``max_velocity`` writes to ``physxJoint:maxJointVelocity`` -- the only USD path to
+    # ``Model.joint_velocity_limit`` (no ``newton:*`` equivalent today). Newton consumes
+    # the PhysX attribute via its bridge resolver. See
+    # ``docs/superpowers/schema-cfg-placement-path2.md`` for the placement rule.
     # -- Class metadata (not dataclass fields) --
     # USD applied schema written when at least one solver-specific field is set.
     _usd_applied_schema = "PhysxJointAPI"

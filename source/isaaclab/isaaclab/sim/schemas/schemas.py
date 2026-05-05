@@ -329,12 +329,18 @@ def modify_rigid_body_properties(
         value = cfg_dict.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value, camel_case=True)
 
-    # collect instance-level namespaced writes, excluding None values
+    # Build namespaced_writes: a non-empty list means at least one PhysX-namespaced field
+    # is being authored, which gates ``AddAppliedSchema`` below. Without this gate, base
+    # classes that carry PhysX namespace metadata would stamp ``PhysxRigidBodyAPI`` onto
+    # Newton-targeted prims even when only base ``UsdPhysics`` fields are set.
     namespaced_writes: list[tuple[str, object]] = []
     for cfg_field in list(attr_name_map):
         value = cfg_dict.pop(cfg_field, None)
         if value is not None:
             namespaced_writes.append((attr_name_map[cfg_field], value))
+    # Remaining ``cfg_dict`` entries are PhysX-namespaced fields not in ``attr_name_map``
+    # (e.g. ``linear_damping``, ``angular_damping`` on ``PhysxRigidBodyPropertiesCfg``);
+    # USD attribute name is auto-derived via snake -> camelCase conversion.
     for cfg_field, value in list(cfg_dict.items()):
         if value is not None:
             namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
@@ -727,7 +733,11 @@ def modify_joint_drive_properties(
             # N-m-s/rad --> N-m-s/deg
             cfg_dict["damping"] = cfg_dict["damping"] * math.pi / 180.0
 
-    # collect instance-level namespaced writes, excluding None values
+    # Build namespaced_writes: a non-empty list means at least one PhysX-namespaced field
+    # is being authored, which gates ``AddAppliedSchema`` below. Every PhysX-namespaced
+    # joint-drive field has a hand-mapped USD attribute name in ``attr_name_map``, so a
+    # single loop suffices here (no auto-camelCase fallback needed unlike the rigid-body
+    # writer).
     namespaced_writes: list[tuple[str, object]] = []
     for cfg_field in list(attr_name_map):
         value = cfg_dict.pop(cfg_field, None)
