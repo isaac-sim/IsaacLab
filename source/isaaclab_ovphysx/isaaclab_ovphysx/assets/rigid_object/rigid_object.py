@@ -1064,7 +1064,7 @@ class RigidObject(BaseRigidObject):
             self._body_names = ["base_link"]
 
         # Step 6: Create the data container (mirrors PhysX: takes bindings + device).
-        self._data = RigidObjectData(self._bindings, self._device)
+        self._data = RigidObjectData(self._bindings, self._device, check_shapes=self._check_shapes)
 
         # Allocate asset-side buffers and apply the initial state from the configuration.
         self._create_buffers()

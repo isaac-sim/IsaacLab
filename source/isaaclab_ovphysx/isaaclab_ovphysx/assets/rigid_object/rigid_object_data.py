@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 import warnings
 
 import torch
@@ -60,19 +61,24 @@ class RigidObjectData(BaseRigidObjectData):
         self,
         bindings: dict,
         device: str,
+        check_shapes: bool = True,
     ):
         """Initializes the rigid object data.
 
         Args:
             bindings: The OVPhysX tensor bindings dict keyed by tensor-type constant.
-            num_instances: Number of rigid-body instances.
-            num_bodies: Number of bodies per instance (always 1 for ``RigidObject``).
-            body_names: Body names in the order parsed by the simulation view.
+                ``num_instances`` is read from ``bindings[RIGID_BODY_POSE].count`` and
+                ``num_bodies`` is fixed at 1; ``body_names`` is set by
+                :meth:`~isaaclab_ovphysx.assets.RigidObject._initialize_impl`.
             device: The device used for processing.
+            check_shapes: Whether to enforce internal shape/dtype invariants on
+                lazy reads. Defaults to ``True``; production callers thread this
+                from :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks`.
         """
         super().__init__(bindings, device)
         # Set the bindings (equivalent to the view in PhysX)
         self._bindings = bindings
+        self._check_shapes = check_shapes
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
@@ -284,7 +290,7 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_mass(self) -> ProxyArray:
-        """Mass of all bodies in the simulation world frame [kg].
+        """Mass of all bodies [kg].
 
         Shape is (num_instances, 1), dtype = wp.float32.
         In torch this resolves to (num_instances, 1).
@@ -295,9 +301,10 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Inertia of all bodies in the simulation world frame [kg*m^2].
+        """Inertia tensor of all bodies, expressed at the center of mass [kg·m²].
 
-        Shape is (num_instances, 1, 9), dtype = wp.float32.
+        Shape is (num_instances, 1, 9), dtype = wp.float32. The 9 components are the row-major
+        flatten of the 3×3 inertia matrix ``(Ixx, Ixy, Ixz, Iyx, Iyy, Iyz, Izx, Izy, Izz)``.
         In torch this resolves to (num_instances, 1, 9).
         """
         if self._body_inertia_ta is None:
@@ -322,8 +329,8 @@ class RigidObjectData(BaseRigidObjectData):
         """Body link velocity ``[lin_vel, ang_vel]`` in simulation world frame [m/s, rad/s].
 
         Shape is (num_instances, 1), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 1, 6).
-        This quantity contains the linear and angular velocities of the actor frame of the root
-        rigid body relative to the world.
+        This quantity contains the linear and angular velocities of the body's link (actor) frame
+        relative to the world.
         """
         parent = self.root_link_vel_w
         if self._body_link_vel_w_ta is None:
@@ -345,10 +352,10 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def body_com_vel_w(self) -> ProxyArray:
-        """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame.
+        """Body center of mass velocity ``[lin_vel, ang_vel]`` in simulation world frame [m/s, rad/s].
 
         Shape is (num_instances, 1), dtype = wp.spatial_vectorf. In torch this resolves to (num_instances, 1, 6).
-        This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
+        This quantity contains the linear and angular velocities of the body's center of mass frame
         relative to the world.
         """
         parent = self.root_com_vel_w
@@ -449,11 +456,11 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_lin_vel_b(self) -> ProxyArray:
-        """Root link linear velocity in base frame.
+        """Root link linear velocity in base frame [m/s].
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
-        This quantity is the linear velocity of the actor frame of the root rigid body frame with respect to the
-        rigid body's actor frame.
+        This quantity is the linear velocity of the root link frame relative to the world,
+        expressed in the root link's actor frame.
         """
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
@@ -470,11 +477,11 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_link_ang_vel_b(self) -> ProxyArray:
-        """Root link angular velocity in base frame.
+        """Root link angular velocity in base frame [rad/s].
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
-        This quantity is the angular velocity of the actor frame of the root rigid body frame with respect to the
-        rigid body's actor frame.
+        This quantity is the angular velocity of the root link frame relative to the world,
+        expressed in the root link's actor frame.
         """
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
@@ -491,11 +498,11 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_lin_vel_b(self) -> ProxyArray:
-        """Root center of mass linear velocity in base frame.
+        """Root center of mass linear velocity in base frame [m/s].
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
-        This quantity is the linear velocity of the root rigid body's center of mass frame with respect to the
-        rigid body's actor frame.
+        This quantity is the linear velocity of the root center of mass frame relative to the world,
+        expressed in the root link's actor frame.
         """
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
@@ -512,11 +519,11 @@ class RigidObjectData(BaseRigidObjectData):
 
     @property
     def root_com_ang_vel_b(self) -> ProxyArray:
-        """Root center of mass angular velocity in base frame.
+        """Root center of mass angular velocity in base frame [rad/s].
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
-        This quantity is the angular velocity of the root rigid body's center of mass frame with respect to the
-        rigid body's actor frame.
+        This quantity is the angular velocity of the root center of mass frame relative to the world,
+        expressed in the root link's actor frame.
         """
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             wp.launch(
@@ -917,6 +924,14 @@ class RigidObjectData(BaseRigidObjectData):
         satisfy the wheel's device match.
         """
         binding = self._bindings[tensor_type]
+        if self._check_shapes:
+            dst_bytes = dst.size * wp.types.type_size_in_bytes(dst.dtype)
+            binding_bytes = 4 * math.prod(binding.shape)
+            assert dst_bytes >= binding_bytes, (
+                f"_read_binding_into: dst buffer too small for binding {tensor_type!r} "
+                f"({dst_bytes} B < {binding_bytes} B). Caller allocated dst with "
+                f"shape={tuple(dst.shape)}, dtype={dst.dtype}; binding shape={tuple(binding.shape)}."
+            )
         # Build a flat float32 view of dst matching the binding's shape.
         if dst.dtype == wp.float32:
             view = dst
