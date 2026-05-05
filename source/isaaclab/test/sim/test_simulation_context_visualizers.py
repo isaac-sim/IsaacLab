@@ -7,14 +7,17 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any, cast
 
+import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
 import isaaclab_visualizers.newton.newton_visualization_markers as newton_markers
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import numpy as np
 import pytest
 import torch
+from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
@@ -664,6 +667,66 @@ def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.Mo
         visualizer.step(0.25)
 
     assert [call[0] for call in viewer.calls] == ["begin_frame", "log_state", "end_frame"]
+
+
+def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch: pytest.MonkeyPatch):
+    """Default ``--viz kit`` should work for envs without a camera prim."""
+
+    class _FakeViewportApi:
+        def __init__(self):
+            self.set_active_camera_calls = []
+
+        def get_active_camera(self):
+            return "/OmniverseKit_Persp"
+
+        def set_active_camera(self, camera_path):
+            self.set_active_camera_calls.append(camera_path)
+
+    class _FakeViewportWindow:
+        def __init__(self):
+            self.viewport_api = _FakeViewportApi()
+
+    class _FakeStage:
+        def GetPrimAtPath(self, path):
+            raise AssertionError(f"default Kit visualizer should not look up camera prims: {path}")
+
+    class _FakeProvider:
+        def get_usd_stage(self):
+            return _FakeStage()
+
+    viewport_window = _FakeViewportWindow()
+    viewport_utility = type(
+        "ViewportUtility",
+        (),
+        {
+            "create_viewport_window": staticmethod(lambda **kwargs: viewport_window),
+            "get_active_viewport_window": staticmethod(lambda: viewport_window),
+        },
+    )
+    monkeypatch.setitem(sys.modules, "omni", type(sys)("omni"))
+    monkeypatch.setitem(sys.modules, "omni.kit", type(sys)("omni.kit"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport", type(sys)("omni.kit.viewport"))
+    monkeypatch.setitem(sys.modules, "omni.kit.viewport.utility", viewport_utility)
+    monkeypatch.setitem(sys.modules, "omni.ui", type("OmniUi", (), {"DockPosition": object})())
+
+    applied_camera_poses = []
+    monkeypatch.setattr(
+        kit_visualizer.KitVisualizer,
+        "_set_viewport_camera",
+        lambda self, eye, target: applied_camera_poses.append((tuple(eye), tuple(target))),
+    )
+
+    cfg = KitVisualizerCfg()
+    visualizer = kit_visualizer.KitVisualizer(cfg)
+    visualizer._scene_data_provider = _FakeProvider()
+    visualizer._runtime_headless = False
+
+    visualizer._setup_viewport()
+
+    assert cfg.cam_source == "cfg"
+    assert applied_camera_poses == [(cfg.eye, cfg.lookat)]
+    assert viewport_window.viewport_api.set_active_camera_calls == []
+    assert visualizer._controlled_camera_path == "/OmniverseKit_Persp"
 
 
 def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():
