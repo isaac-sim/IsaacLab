@@ -128,7 +128,7 @@ setup(
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     license="BSD-3-Clause",
     include_package_data=True,
-    package_data={"": ["*.pyi"]},
+    package_data={"": ["*.pyi", "renderers/ppisp_spg/*"]},
     python_requires=">=3.12",
     install_requires=INSTALL_REQUIRES,
     extras_require=EXTRAS_REQUIRE,

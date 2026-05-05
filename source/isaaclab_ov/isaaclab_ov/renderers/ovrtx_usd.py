@@ -24,8 +24,11 @@ def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
     use_depth = any(dt in ["depth", "distance_to_image_plane", "distance_to_camera"] for dt in data_types)
     use_albedo = "albedo" in data_types
     use_semantic = "semantic_segmentation" in data_types
+    use_hdr = "rgb_hdr" in data_types
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
 
+    if use_hdr:
+        return "/Render/Vars/HdrColor", "HdrColor", "HdrColor"
     if use_depth and not (use_rgb or use_albedo or use_semantic):
         return "/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"
     if use_albedo and not (use_rgb or use_semantic):

@@ -109,6 +109,7 @@ class IsaacRtxRenderer(BaseRenderer):
             # ``Camera`` aliases ``rgb`` as a view into ``rgba`` storage.
             RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, torch.float32),
             RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
@@ -211,8 +212,15 @@ class IsaacRtxRenderer(BaseRenderer):
         annotators = {}
         for annotator_type in spec.cfg.data_types:
             if annotator_type == "rgba" or annotator_type == "rgb":
-                annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=spec.device, do_array_copy=False)
-                annotators["rgba"] = annotator
+                if spec.cfg.ppisp is not None:
+                    annotator = rep.AnnotatorRegistry.get_annotator("HdrColor", device=spec.device, do_array_copy=False)
+                    annotators[str(RenderBufferKind.RGB_HDR)] = annotator
+                else:
+                    annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=spec.device, do_array_copy=False)
+                    annotators["rgba"] = annotator
+            elif annotator_type == str(RenderBufferKind.RGB_HDR):
+                annotator = rep.AnnotatorRegistry.get_annotator("HdrColor", device=spec.device, do_array_copy=False)
+                annotators[str(RenderBufferKind.RGB_HDR)] = annotator
             elif annotator_type == "albedo":
                 # TODO: this is a temporary solution because replicator has not exposed the annotator yet
                 # once it's exposed, we can remove this
@@ -362,6 +370,8 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type == "normals":
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
             if data_type in SIMPLE_SHADING_MODES:
+                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            if data_type == RenderBufferKind.RGB_HDR:
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
             wp.launch(

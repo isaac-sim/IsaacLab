@@ -29,6 +29,46 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _newton_sensor_render_context(newton_sensor: newton.sensors.SensorTiledCamera) -> Any:
+    """Return the internal render context across Newton API versions."""
+    return getattr(newton_sensor, "render_context", None)
+
+
+def _newton_sensor_render_config(newton_sensor: newton.sensors.SensorTiledCamera) -> Any:
+    """Return the low-level render config across Newton API versions."""
+    render_config = getattr(newton_sensor, "render_config", None)
+    if render_config is not None:
+        return render_config
+
+    render_context = _newton_sensor_render_context(newton_sensor)
+    return getattr(render_context, "config", None)
+
+
+def _newton_sensor_utils(newton_sensor: newton.sensors.SensorTiledCamera) -> Any:
+    """Return tiled-camera utility helpers across Newton API versions."""
+    utils = getattr(newton_sensor, "utils", None)
+    if utils is not None:
+        return utils
+
+    render_context = _newton_sensor_render_context(newton_sensor)
+    return getattr(render_context, "utils", None)
+
+
+def _set_newton_render_config_value(render_config: Any, name: str, value: Any) -> None:
+    """Set a render config field only when the installed Newton version exposes it."""
+    if render_config is not None and hasattr(render_config, name):
+        setattr(render_config, name, value)
+
+
+def _newton_clear_data(clear_color: int):
+    """Create clear data across Newton API versions."""
+    clear_data_cls = getattr(newton.sensors.SensorTiledCamera, "ClearData", None)
+    if clear_data_cls is None:
+        from newton._src.sensors.warp_raytrace import ClearData as clear_data_cls
+
+    return clear_data_cls(clear_color=clear_color)
+
+
 class RenderData:
     # Back-compat alias for callers of ``RenderData.OutputNames``.
     OutputNames = RenderBufferKind
@@ -36,6 +76,7 @@ class RenderData:
     @dataclass
     class CameraOutputs:
         color_image: wp.array(dtype=wp.uint32, ndim=4) = None
+        hdr_color_image: wp.array(dtype=wp.vec3f, ndim=4) = None
         albedo_image: wp.array(dtype=wp.uint32, ndim=4) = None
         depth_image: wp.array(dtype=wp.float32, ndim=4) = None
         normals_image: wp.array(dtype=wp.vec3f, ndim=4) = None
@@ -56,6 +97,8 @@ class RenderData:
         for output_name, tensor_data in output_data.items():
             if output_name == RenderBufferKind.RGBA:
                 self.outputs.color_image = self._from_torch(tensor_data, dtype=wp.uint32)
+            elif output_name == RenderBufferKind.RGB_HDR:
+                self.outputs.hdr_color_image = self._from_torch(tensor_data, dtype=wp.vec3f)
             elif output_name == RenderBufferKind.ALBEDO:
                 self.outputs.albedo_image = self._from_torch(tensor_data, dtype=wp.uint32)
             elif output_name == RenderBufferKind.DEPTH:
@@ -72,6 +115,8 @@ class RenderData:
     def get_output(self, output_name: str) -> wp.array:
         if output_name == RenderBufferKind.RGBA:
             return self.outputs.color_image
+        elif output_name == RenderBufferKind.RGB_HDR:
+            return self.outputs.hdr_color_image
         elif output_name == RenderBufferKind.ALBEDO:
             return self.outputs.albedo_image
         elif output_name == RenderBufferKind.DEPTH:
@@ -101,7 +146,10 @@ class RenderData:
             first_focal_length = intrinsics[:, 1, 1][0:1]
             fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
-            self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
+            newton_utils = _newton_sensor_utils(self.newton_sensor)
+            if newton_utils is None:
+                raise AttributeError("Could not resolve Newton SensorTiledCamera utility helpers.")
+            self.camera_rays = newton_utils.compute_pinhole_camera_rays(
                 self.width, self.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
             )
 
@@ -161,19 +209,19 @@ class NewtonWarpRenderer(BaseRenderer):
                 "Check the log for earlier Newton model build errors."
             )
 
-        self.newton_sensor = newton.sensors.SensorTiledCamera(
-            newton_model,
-            config=newton.sensors.SensorTiledCamera.RenderConfig(
-                enable_textures=cfg.enable_textures,
-                enable_shadows=cfg.enable_shadows,
-                enable_ambient_lighting=cfg.enable_ambient_lighting,
-                enable_backface_culling=cfg.enable_backface_culling,
-                max_distance=cfg.max_distance,
-            ),
-        )
+        self.newton_sensor = newton.sensors.SensorTiledCamera(newton_model, config=None)
+        render_config = _newton_sensor_render_config(self.newton_sensor)
+        _set_newton_render_config_value(render_config, "enable_textures", cfg.enable_textures)
+        _set_newton_render_config_value(render_config, "enable_shadows", cfg.enable_shadows)
+        _set_newton_render_config_value(render_config, "enable_ambient_lighting", cfg.enable_ambient_lighting)
+        _set_newton_render_config_value(render_config, "enable_backface_culling", cfg.enable_backface_culling)
+        _set_newton_render_config_value(render_config, "max_distance", cfg.max_distance)
 
         if cfg.create_default_light:
-            self.newton_sensor.utils.create_default_light(enable_shadows=cfg.enable_shadows)
+            newton_utils = _newton_sensor_utils(self.newton_sensor)
+            if newton_utils is None:
+                raise AttributeError("Could not resolve Newton SensorTiledCamera utility helpers.")
+            newton_utils.create_default_light(enable_shadows=cfg.enable_shadows)
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
@@ -186,6 +234,7 @@ class NewtonWarpRenderer(BaseRenderer):
         return {
             RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, torch.float32),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
             RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
             RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
@@ -225,12 +274,13 @@ class NewtonWarpRenderer(BaseRenderer):
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
+            hdr_color_image=render_data.outputs.hdr_color_image,
             albedo_image=render_data.outputs.albedo_image,
             depth_image=render_data.outputs.depth_image,
             normal_image=render_data.outputs.normals_image,
             shape_index_image=render_data.outputs.instance_segmentation_image,
             # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
-            clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
+            clear_data=_newton_clear_data(clear_color=0xFFEEEEEE),
         )
 
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:

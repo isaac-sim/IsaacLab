@@ -20,6 +20,8 @@ import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers.ppisp import normalize_ppisp_cfg
+from isaaclab.renderers.ppisp_warp import apply_ppisp_to_rgba
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.math import (
@@ -134,6 +136,7 @@ class Camera(SensorBase):
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
+        self._renderer_output_data: dict[str, torch.Tensor] | None = None
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
@@ -448,6 +451,7 @@ class Camera(SensorBase):
         else:
             renderer.render(self._render_data)
             renderer.read_output(self._render_data, self._data)
+        self._apply_ppisp_if_needed()
 
     """
     Private Helpers
@@ -472,6 +476,14 @@ class Camera(SensorBase):
                 "\n\tHint: If you need to work with these sensor types, we recommend using their fast counterparts."
                 f"\n\t\tFast counterparts: {fast_common_elements}"
             )
+        stage = None
+        if cfg.ppisp is not None:
+            from isaaclab.sim import get_current_stage
+
+            stage = get_current_stage()
+        cfg.ppisp = normalize_ppisp_cfg(cfg.ppisp, stage=stage)
+        if cfg.ppisp is not None and not any(data_type in ("rgb", "rgba") for data_type in cfg.data_types):
+            raise ValueError("PPISP requires at least one color output data type: 'rgb' or 'rgba'.")
 
     def _create_buffers(self):
         """Create buffers for storing data."""
@@ -508,7 +520,31 @@ class Camera(SensorBase):
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         self._update_poses(self._ALL_INDICES)
-        self._renderer.set_outputs(self._render_data, self._data.output)
+        self._renderer_output_data = dict(self._data.output)
+        if self.cfg.ppisp is not None:
+            hdr_kind = RenderBufferKind.RGB_HDR
+            hdr_spec = specs.get(hdr_kind)
+            if hdr_spec is None:
+                raise RuntimeError(f"Renderer {type(self._renderer).__name__} does not support PPISP RGB HDR input.")
+            if str(hdr_kind) not in self._renderer_output_data:
+                self._renderer_output_data[str(hdr_kind)] = torch.zeros(
+                    (self._view.count, self.cfg.height, self.cfg.width, hdr_spec.channels),
+                    dtype=hdr_spec.dtype,
+                    device=self._device,
+                ).contiguous()
+        self._renderer.set_outputs(self._render_data, self._renderer_output_data)
+
+    def _apply_ppisp_if_needed(self) -> None:
+        """Apply PPISP once at the IsaacLab camera wrapper boundary."""
+        if self.cfg.ppisp is None or self._renderer_output_data is None:
+            return
+        hdr_color = self._renderer_output_data.get(str(RenderBufferKind.RGB_HDR))
+        rgba = self._data.output.get("rgba")
+        if hdr_color is None or rgba is None:
+            return
+        apply_ppisp_to_rgba(hdr_color[..., :3], rgba, self.cfg.ppisp)
+        if "rgb" in self._data.output:
+            self._data.output["rgb"] = rgba[..., :3]
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
         """Compute camera's matrix of intrinsic parameters.

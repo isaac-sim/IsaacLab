@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Literal
 
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-from isaaclab.renderers import RendererCfg
+from isaaclab.renderers import PPISPCfg, RendererCfg
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
 from isaaclab.utils import configclass
 
@@ -193,6 +193,13 @@ class CameraCfg(SensorBaseCfg):
 
     renderer_cfg: RendererCfg = field(default_factory=IsaacRtxRendererCfg)
     """Renderer configuration for camera sensor."""
+
+    ppisp: PPISPCfg | dict | None = None
+    """Optional PPISP post-processing effect for color outputs.
+
+    PPISP is applied before LDR conversion. If imported from animated USD shader
+    inputs, exposure and color inputs are collapsed to their first authored value.
+    """
 
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.

@@ -49,6 +49,7 @@ from .ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
     extract_all_depth_tiles_kernel,
     extract_all_depth_tiles_kernel_legacy,
+    extract_all_rgb_float_tiles_kernel,
     extract_all_rgba_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     generate_random_colors_from_ids_kernel_legacy,
@@ -135,6 +136,7 @@ class OVRTXRenderer(BaseRenderer):
         return {
             RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, torch.float32),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
             RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, torch.uint8),
             RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, torch.uint8),
@@ -186,6 +188,8 @@ class OVRTXRenderer(BaseRenderer):
         height = spec.cfg.height
         num_envs = spec.num_instances
         data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
+        if spec.cfg.ppisp is not None and "rgb_hdr" not in data_types:
+            data_types = [*data_types, "rgb_hdr"]
 
         env_0_prefix = "/World/envs/env_0/"
         first_cam_path = spec.camera_prim_paths[0]
@@ -541,6 +545,25 @@ class OVRTXRenderer(BaseRenderer):
                     device=DEVICE,
                 )
 
+    def _extract_hdr_color_tiles(
+        self, render_data: OVRTXRenderData, tiled_data: wp.array, output_buffers: dict
+    ) -> None:
+        """Extract per-env HdrColor tiles into output_buffers."""
+        if "rgb_hdr" not in output_buffers:
+            return
+        wp.launch(
+            kernel=extract_all_rgb_float_tiles_kernel,
+            dim=(render_data.num_envs, render_data.height, render_data.width),
+            inputs=[
+                tiled_data,
+                output_buffers["rgb_hdr"],
+                render_data.num_cols,
+                render_data.width,
+                render_data.height,
+            ],
+            device=DEVICE,
+        )
+
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
         if "LdrColor" in frame.render_vars:
@@ -577,6 +600,11 @@ class OVRTXRenderer(BaseRenderer):
             with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
+
+        if "HdrColor" in frame.render_vars and "rgb_hdr" in output_buffers:
+            with frame.render_vars["HdrColor"].map(device=Device.CUDA) as mapping:
+                tiled_hdr_data = wp.from_dlpack(mapping.tensor)
+                self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
         if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
             with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
