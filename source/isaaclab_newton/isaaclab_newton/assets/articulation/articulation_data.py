@@ -460,7 +460,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        return self._fixed_tendon_stiffness_ta
 
     @property
     def fixed_tendon_damping(self) -> ProxyArray:
@@ -469,7 +469,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        return self._fixed_tendon_damping_ta
 
     @property
     def fixed_tendon_limit_stiffness(self) -> ProxyArray:
@@ -487,7 +487,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        return self._fixed_tendon_rest_length_ta
 
     @property
     def fixed_tendon_offset(self) -> ProxyArray:
@@ -505,7 +505,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons, 2), dtype = wp.vec2f. In torch this resolves to
         (num_instances, num_fixed_tendons, 2).
         """
-        raise NotImplementedError
+        return self._fixed_tendon_pos_limits_ta
 
     """
     Spatial tendon properties.
@@ -1422,24 +1422,24 @@ class ArticulationData(BaseArticulationData):
             self._pin_proxy_arrays()
 
         if self._root_view.tendon_count > 0:
-            self._sim_bind_tendon_stiffness = self._root_view.get_attribute(
+            self._sim_bind_fixed_tendon_stiffness = self._root_view.get_attribute(
                 "mujoco.tendon_stiffness", SimulationManager.get_model()
             )
-            self._sim_bind_tendon_damping =self._root_view.get_attribute(
+            self._sim_bind_fixed_tendon_damping =self._root_view.get_attribute(
                 "mujoco.tendon_damping", SimulationManager.get_model(),
             )
-            self._sim_bind_tendon_rest_length = self._root_view.get_attribute(
+            self._sim_bind_fixed_tendon_rest_length = self._root_view.get_attribute(
                 "mujoco.tendon_springlength", SimulationManager.get_model()
             )
-            self._sim_bind_tendon_pos_limits = self._root_view.get_attribute(
+            self._sim_bind_fixed_tendon_pos_limits = self._root_view.get_attribute(
                 "mujoco.tendon_range", SimulationManager.get_model()
             )
 
         else:
-            self._sim_bind_tendon_stiffness = None
-            self._sim_bind_tendon_damping = None
-            self._sim_bind_tendon_rest_length = None
-            self._sim_bind_tendon_pos_limits = None
+            self._sim_bind_fixed_tendon_stiffness = None
+            self._sim_bind_fixed_tendon_damping = None
+            self._sim_bind_fixed_tendon_rest_length = None
+            self._sim_bind_fixed_tendon_pos_limits = None
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
@@ -1548,18 +1548,18 @@ class ArticulationData(BaseArticulationData):
 
         # staging buffers for processing tendons
         if self._root_view.tendon_count > 0:
-            self._tendon_stiffness = wp.clone(self._sim_bind_tendon_stiffness)
+            self._fixed_tendon_stiffness = wp.clone(self._sim_bind_fixed_tendon_stiffness)
 
-            self._tendon_damping = wp.clone(self._sim_bind_tendon_damping)
-            self._tendon_rest_length = wp.clone(self._sim_bind_tendon_rest_length)
+            self._fixed_tendon_damping = wp.clone(self._sim_bind_fixed_tendon_damping)
+            self._fixed_tendon_rest_length = wp.clone(self._sim_bind_fixed_tendon_rest_length)
 
-            self._tendon_pos_limits = wp.clone(self._sim_bind_tendon_pos_limits)
+            self._fixed_tendon_pos_limits = wp.clone(self._sim_bind_fixed_tendon_pos_limits)
 
         else:
-            self._tendon_stiffness = None
-            self._tendon_damping = None
-            self._tendon_rest_length = None
-            self._tendon_pos_limits = None
+            self._fixed_tendon_stiffness = None
+            self._fixed_tendon_damping = None
+            self._fixed_tendon_rest_length = None
+            self._fixed_tendon_pos_limits = None
 
         # Empty memory pre-allocations
         self._body_incoming_joint_wrench_b = None
@@ -1661,6 +1661,17 @@ class ArticulationData(BaseArticulationData):
             self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
             self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
 
+            if self._root_view.tendon_count > 0:
+                self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
+                self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
+                self._fixed_tendon_rest_length_ta = ProxyArray(self._sim_bind_fixed_tendon_rest_length)
+                self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
+            else:
+                self._fixed_tendon_damping_ta = None
+                self._fixed_tendon_stiffness_ta = None
+                self._fixed_tendon_rest_length_ta = None
+                self._fixed_tendon_pos_limits_ta = None
+
             # Category 2: TimestampedBuffer properties
             self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)
             self._body_link_vel_w_ta = ProxyArray(self._body_link_vel_w.data)
@@ -1734,6 +1745,8 @@ class ArticulationData(BaseArticulationData):
         self._root_com_lin_vel_b = None
         self._root_com_ang_vel_b_ta: ProxyArray | None = None
         self._root_com_ang_vel_b = None
+
+
 
     """
     Internal helpers.

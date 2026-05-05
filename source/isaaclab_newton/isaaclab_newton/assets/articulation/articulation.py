@@ -140,7 +140,7 @@ class Articulation(BaseArticulation):
     @property
     def num_fixed_tendons(self) -> int:
         """Number of fixed tendons in articulation."""
-        return self._num_fixed_tendons
+        return self.root_view.tendon_count
 
     @property
     def num_spatial_tendons(self) -> int:
@@ -177,12 +177,12 @@ class Articulation(BaseArticulation):
     @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
-        return self._fixed_tendon_names
+        return self.root_view.model.mujoco.tendon_label
 
     @property
     def spatial_tendon_names(self) -> list[str]:
         """Ordered names of spatial tendons in articulation."""
-        return self._spatial_tendon_names
+        return []
 
     @property
     def body_names(self) -> list[str]:
@@ -2528,29 +2528,35 @@ class Articulation(BaseArticulation):
             limit: float | torch.Tensor | wp.array,
             fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
             env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            full_data: bool = False,
     ) -> None:
         """Set fixed tendon position limit into internal buffers using indices.
 
-       This function does not apply the tendon position limit to the simulation. It only fills the buffers with
-       the desired values. To apply the tendon position limit, call the
-       :meth:`write_fixed_tendon_properties_to_sim_index` method.
+        This function does not apply the tendon position limit to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon position limit, call the
+        :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
-       .. note::
-           This method expects partial data or full data.
+        .. note::
+            This method expects partial data or full data.
 
-       .. tip::
-           For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
-           is only supporting indexing, hence masks need to be converted to indices.
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
-       Args:
-           limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-               (num_instances, num_fixed_tendons) if full_data.
-           fixed_tendon_ids: The tendon indices to set the position limit for. Defaults to None (all fixed tendons).
-           env_ids: Environment indices. If None, then all indices are used.
-       """
+        Args:
+            limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
+            fixed_tendon_ids: The tendon indices to set the position limit for. Defaults to None (all fixed tendons).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        self.assert_shape_and_dtype(limit, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "damping")
+        if full_data:
+            self.assert_shape_and_dtype(limit, (self.num_instances, self.num_fixed_tendons), wp.float32, "limit")
+        else:
+            self.assert_shape_and_dtype(limit, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "limit")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limit, float):
             wp.launch(
@@ -2562,7 +2568,7 @@ class Articulation(BaseArticulation):
                     fixed_tendon_ids,
                 ],
                 outputs=[
-                    self.data.fixed_tendon_limit,
+                    self.data._fixed_tendon_pos_limits,
                 ],
                 device=self.device,
             )
@@ -2574,24 +2580,26 @@ class Articulation(BaseArticulation):
                     limit,
                     env_ids,
                     fixed_tendon_ids,
+                    full_data,
                 ],
                 outputs=[
-                    self.data.fixed_tendon_limit,
+                    self.data._fixed_tendon_pos_limits,
                 ],
                 device=self.device,
             )
+        # Only updates internal buffers, does not apply the position limit to the simulation.
 
     def set_fixed_tendon_position_limit_mask(
             self,
             *,
-            limit_stiffness: float | torch.Tensor | wp.array,
+            limit: float | torch.Tensor | wp.array,
             fixed_tendon_mask: wp.array | None = None,
             env_mask: wp.array | None = None,
     ) -> None:
-        """Set fixed tendon limit stiffness into internal buffers using masks.
+        """Set fixed tendon position limit into internal buffers using masks.
 
-        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the
+        This function does not apply the tendon position limit to the simulation. It only fills the buffers with
+        the desired values. To apply the tendon position limit, call the
         :meth:`write_fixed_tendon_properties_to_sim_mask` method.
 
         .. note::
@@ -2602,23 +2610,25 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
+            limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_ids = self._resolve_mask(env_mask)
+        # Resolve masks.
+        env_ids = self._resolve_env_mask(env_mask)
         fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
-        self.set_fixed_tendon_limit_stiffness_index(
-            limit_stiffness=limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
+        self.set_fixed_tendon_position_limit_index(
+            limit=limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_fixed_tendon_stiffness_index(
-        self,
-        *,
-        stiffness: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            self,
+            *,
+            stiffness: float | torch.Tensor | wp.array,
+            fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            full_data: bool = False,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers using indices.
 
@@ -2627,20 +2637,30 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data.
+            This method expects partial data or full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            stiffness: Fixed tendon stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
+        # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "damping")
+        if full_data:
+            self.assert_shape_and_dtype(
+                stiffness, (self.num_instances, self.num_fixed_tendons), wp.float32, "stiffness"
+            )
+        else:
+            self.assert_shape_and_dtype(
+                stiffness, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "stiffness"
+            )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(stiffness, float):
             wp.launch(
@@ -2652,7 +2672,7 @@ class Articulation(BaseArticulation):
                     fixed_tendon_ids,
                 ],
                 outputs=[
-                    self.data.fixed_tendon_stiffness,
+                    self.data._fixed_tendon_stiffness,
                 ],
                 device=self.device,
             )
@@ -2664,19 +2684,21 @@ class Articulation(BaseArticulation):
                     stiffness,
                     env_ids,
                     fixed_tendon_ids,
+                    full_data,
                 ],
                 outputs=[
-                    self.data.fixed_tendon_stiffness,
+                    self.data._fixed_tendon_stiffness,
                 ],
                 device=self.device,
             )
+        # Only updates internal buffers, does not apply the stiffness to the simulation.
 
     def set_fixed_tendon_stiffness_mask(
-        self,
-        *,
-        stiffness: float | torch.Tensor | wp.array,
-        fixed_tendon_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+            self,
+            *,
+            stiffness: float | torch.Tensor | wp.array,
+            fixed_tendon_mask: wp.array | None = None,
+            env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon stiffness into internal buffers using masks.
 
@@ -2688,27 +2710,29 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             stiffness: Fixed tendon stiffness. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-                Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_ids = self._resolve_mask(env_mask)
+        # Resolve masks.
+        env_ids = self._resolve_env_mask(env_mask)
         fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
+        # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_stiffness_index(
-            stiffness=stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
+            stiffness=stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_fixed_tendon_damping_index(
-        self,
-        *,
-        damping: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            self,
+            *,
+            damping: float | torch.Tensor | wp.array,
+            fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            full_data: bool = False,
     ) -> None:
         """Set fixed tendon damping into internal buffers using indices.
 
@@ -2717,21 +2741,26 @@ class Articulation(BaseArticulation):
         function.
 
         .. note::
-            This method expects partial data.
+            This method expects partial data or full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            damping: Fixed tendon damping. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the damping for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        self.assert_shape_and_dtype(damping, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "damping")
+        if full_data:
+            self.assert_shape_and_dtype(damping, (self.num_instances, self.num_fixed_tendons), wp.float32, "damping")
+        else:
+            self.assert_shape_and_dtype(damping, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "damping")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(damping, float):
             wp.launch(
@@ -2743,7 +2772,7 @@ class Articulation(BaseArticulation):
                     fixed_tendon_ids,
                 ],
                 outputs=[
-                    self.data.fixed_tendon_damping,
+                    self.data._fixed_tendon_damping,
                 ],
                 device=self.device,
             )
@@ -2755,20 +2784,21 @@ class Articulation(BaseArticulation):
                     damping,
                     env_ids,
                     fixed_tendon_ids,
+                    full_data,
                 ],
                 outputs=[
-                    self.data.fixed_tendon_damping,
+                    self.data._fixed_tendon_damping,
                 ],
                 device=self.device,
             )
         # Only updates internal buffers, does not apply the damping to the simulation.
 
     def set_fixed_tendon_damping_mask(
-        self,
-        *,
-        damping: float | torch.Tensor | wp.array,
-        fixed_tendon_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+            self,
+            *,
+            damping: float | torch.Tensor | wp.array,
+            fixed_tendon_mask: wp.array | None = None,
+            env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon damping into internal buffers using masks.
 
@@ -2780,20 +2810,20 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             damping: Fixed tendon damping. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-                Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_ids = self._resolve_mask(env_mask)
+        # Resolve masks.
+        env_ids = self._resolve_env_mask(env_mask)
         fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_damping_index(
-            damping=damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
+            damping=damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
         )
 
     def set_fixed_tendon_limit_stiffness_index(
@@ -2851,13 +2881,13 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
-
     def set_fixed_tendon_rest_length_index(
-        self,
-        *,
-        rest_length: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            self,
+            *,
+            rest_length: float | torch.Tensor | wp.array,
+            fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+            full_data: bool = False,
     ) -> None:
         """Set fixed tendon rest length into internal buffers using indices.
 
@@ -2866,21 +2896,30 @@ class Articulation(BaseArticulation):
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
 
         .. note::
-            This method expects partial data.
+            This method expects partial data or full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
+            rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)) or
+                (num_instances, num_fixed_tendons) if full_data.
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        self.assert_shape_and_dtype(rest_length, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "damping")
+        if full_data:
+            self.assert_shape_and_dtype(
+                rest_length, (self.num_instances, self.num_fixed_tendons), wp.float32, "rest_length"
+            )
+        else:
+            self.assert_shape_and_dtype(
+                rest_length, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "rest_length"
+            )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(rest_length, float):
             wp.launch(
@@ -2892,7 +2931,7 @@ class Articulation(BaseArticulation):
                     fixed_tendon_ids,
                 ],
                 outputs=[
-                    self.data._tendon_rest_length,
+                    self.data._fixed_tendon_rest_length,
                 ],
                 device=self.device,
             )
@@ -2904,20 +2943,21 @@ class Articulation(BaseArticulation):
                     rest_length,
                     env_ids,
                     fixed_tendon_ids,
+                    full_data,
                 ],
                 outputs=[
-                    self.data._tendon_rest_length,
+                    self.data._fixed_tendon_rest_length,
                 ],
                 device=self.device,
             )
-        # Only updates internal buffers, does not apply the damping to the simulation.
+        # Only updates internal buffers, does not apply the rest length to the simulation.
 
     def set_fixed_tendon_rest_length_mask(
-        self,
-        *,
-        rest_length: float | torch.Tensor | wp.array,
-        fixed_tendon_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+            self,
+            *,
+            rest_length: float | torch.Tensor | wp.array,
+            fixed_tendon_mask: wp.array | None = None,
+            env_mask: wp.array | None = None,
     ) -> None:
         """Set fixed tendon rest length into internal buffers using masks.
 
@@ -2929,17 +2969,16 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-                Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # Resolve masks.
-        env_ids = self._resolve_mask(env_mask)
+        env_ids = self._resolve_env_mask(env_mask)
         fixed_tendon_ids = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_fixed_tendon_rest_length_index(
@@ -3001,73 +3040,6 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
-
-    def _write_tendon_properties_to_sim_mask(
-        self,
-        *,
-        tendon_mask : wp.array | None = None,
-        env_mask:  wp.array | None = None,
-    ) -> None:
-        """Write tendon properties into the simulation using mask.
-
-        Args:
-            tendon_mask: The tendon mask to write the properties for. Defaults to None
-                (all tendons). Shape is (num_tendons,)
-            env_mask: Environment indices. If None, then all indices are used. Shape is (num_instances,)
-        """
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(env_mask.shape[0], tendon_mask.shape[0]),
-            inputs=[
-                self.data._tendon_damping,
-                env_mask,
-                tendon_mask,
-            ],
-            outputs=[
-                self.data._sim_bind_tendon_damping,
-            ],
-            device=self.device,
-        )
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(env_mask.shape[0], tendon_mask.shape[0]),
-            inputs=[
-                self.data._tendon_stiffness,
-                env_mask,
-                tendon_mask,
-            ],
-            outputs=[
-                self.data._sim_bind_tendon_stiffness,
-            ],
-            device=self.device,
-        )
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(env_mask.shape[0], tendon_mask.shape[0]),
-            inputs=[
-                self.data._tendon_rest_length,
-                env_mask,
-                tendon_mask,
-            ],
-            outputs=[
-                self.data._sim_bind_tendon_rest_length,
-            ],
-            device=self.device,
-        )
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(env_mask.shape[0], tendon_mask.shape[0]),
-            inputs=[
-                self.data._tendon_pos_limits,
-                env_mask,
-                tendon_mask,
-            ],
-            outputs=[
-                self.data._sim_bind_tendon_pos_limits
-            ],
-            device=self.device,
-        )
-
     def write_fixed_tendon_properties_to_sim_index(
             self,
             *,
@@ -3084,7 +3056,58 @@ class Articulation(BaseArticulation):
                 (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError()
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], self._ALL_FIXED_TENDON_INDICES.shape[0]),
+            inputs=[
+                self.data._fixed_tendon_damping,
+                env_ids,
+                self._ALL_FIXED_TENDON_INDICES,
+            ],
+            outputs=[
+                self.data._sim_bind_fixed_tendon_damping,
+            ],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], self._ALL_FIXED_TENDON_INDICES.shape[0]),
+            inputs=[
+                self.data._fixed_tendon_stiffness,
+                env_ids,
+                self._ALL_FIXED_TENDON_INDICES,
+            ],
+            outputs=[
+                self.data._sim_bind_fixed_tendon_stiffness,
+            ],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], self._ALL_FIXED_TENDON_INDICES.shape[0]),
+            inputs=[
+                self.data._fixed_tendon_rest_length,
+                env_ids,
+                self._ALL_FIXED_TENDON_INDICES,
+            ],
+            outputs=[
+                self.data._sim_bind_fixed_tendon_rest_length,
+            ],
+            device=self.device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], self._ALL_FIXED_TENDON_INDICES.shape[0]),
+            inputs=[
+                self.data._fixed_tendon_pos_limits,
+                env_ids,
+                self._ALL_FIXED_TENDON_INDICES,
+            ],
+            outputs=[
+                self.data._sim_bind_fixed_tendon_pos_limits
+            ],
+            device=self.device,
+        )
 
     def write_fixed_tendon_properties_to_sim_mask(
         self,
@@ -3423,13 +3446,14 @@ class Articulation(BaseArticulation):
             name=f"articulation_rebind_{self.cfg.prim_path}",
         )
 
-        self._process_tendons()
+
         # create buffers
         self._create_buffers()
 
         # process configuration
         self._process_cfg()
         self._process_actuators_cfg()
+        self._process_tendons()
 
         # validate configuration
         self._validate_cfg()
@@ -3454,6 +3478,12 @@ class Articulation(BaseArticulation):
         self._ALL_JOINT_MASK = wp.ones((self.num_joints,), dtype=wp.bool, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_BODY_MASK = wp.ones((self.num_bodies,), dtype=wp.bool, device=self.device)
+        self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(self.num_fixed_tendons, dtype=np.int32), device=self.device)
+        self._ALL_FIXED_TENDON_MASK = wp.ones((self.num_fixed_tendons,), dtype=wp.bool, device=self.device)
+        self._ALL_SPATIAL_TENDON_INDICES = wp.array(
+            np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
+        )
+        self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -3462,7 +3492,6 @@ class Articulation(BaseArticulation):
         # asset named data
         self.data.joint_names = self.joint_names
         self.data.body_names = self.body_names
-        # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
         self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
@@ -3686,30 +3715,13 @@ class Articulation(BaseArticulation):
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
         if self._root_view.tendon_count > 0:
-            self._spatial_tendon_type_mask = wp.to_torch(
+            tendon_types = wp.to_torch(
                 self._root_view.get_attribute("mujoco.tendon_type", SimulationManager.get_model())
             )
-            self._fixed_tendon_type_mask = self._spatial_tendon_type_mask ^ 1
-            self._tendon_names = np.array(self._root_view.model.mujoco.tendon_label)
+            if tendon_types.sum() > 0:
+                raise NotImplementedError("Spatial tendons are not supported.")
 
-            self._fixed_tendon_names = list(self._tendon_names[self._fixed_tendon_type_mask.cpu()])
-            self._num_fixed_tendons = self._fixed_tendon_type_mask.sum()
-            self._spatial_tendon_names = list(self._tendon_names[self._spatial_tendon_type_mask.cpu()])
-            self._num_spatial_tendons = self._spatial_tendon_type_mask.sum()
-        else:
-            self._fixed_tendon_names = []
-            self._num_fixed_tendons = 0
-            self._spatial_tendon_names = []
-            self._num_spatial_tendons = 0
-            self._fixed_tendon_ids = None
-            self._spatial_tendon_ids = None
 
-        self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(self.num_fixed_tendons, dtype=np.int32), device=self.device)
-        self._ALL_FIXED_TENDON_MASK = wp.ones((self.num_fixed_tendons,), dtype=wp.bool, device=self.device)
-        self._ALL_SPATIAL_TENDON_INDICES = wp.array(
-            np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
-        )
-        self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
 
     def _apply_actuator_model(self):
         """Processes joint commands for the articulation by forwarding them to the actuators.
@@ -3927,6 +3939,25 @@ class Articulation(BaseArticulation):
             return wp.from_torch(env_ids, dtype=wp.int32)
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
+        return env_ids
+
+    def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
+        """
+        Resolve environment mask to a torch tensor.
+
+        Args:
+            env_mask: Environment mask. If None, then all indices are used.
+
+        Returns:
+            A torch tensor of environment indices.
+        """
+        # resolve masks
+        if env_mask is not None:
+            if isinstance(env_mask, wp.array):
+                env_mask = wp.to_torch(env_mask)
+            env_ids = torch.nonzero(env_mask)[:, 0].to(torch.int32)
+        else:
+            env_ids = self._ALL_INDICES
         return env_ids
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:

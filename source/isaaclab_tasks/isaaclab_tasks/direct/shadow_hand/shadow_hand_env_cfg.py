@@ -35,7 +35,7 @@ class NewtonEventCfg:
     per-body friction-material buckets or fixed-tendon APIs.
     """
     robot_tendon_properties = EventTerm(
-        func=mdp.randomize_fixed_tendon_parameters,
+        func=mdp.randomize_fixed_tendon_newton_parameters,
         min_step_count_between_reset=720,
         mode="reset",
         params={
@@ -102,7 +102,7 @@ class PhysxEventCfg:
         },
     )
     robot_tendon_properties = EventTerm(
-        func=mdp.randomize_fixed_tendon_parameters,
+        func=mdp.randomize_fixed_tendon_physx_parameters,
         min_step_count_between_reset=720,
         mode="reset",
         params={

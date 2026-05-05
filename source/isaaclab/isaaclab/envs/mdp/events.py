@@ -1425,7 +1425,7 @@ class randomize_joint_parameters(ManagerTermBase):
             )
 
 
-class randomize_fixed_tendon_parameters(ManagerTermBase):
+class randomize_fixed_tendon_physx_parameters(ManagerTermBase):
     """Randomize the simulated fixed tendon parameters of an articulation by adding, scaling, or setting random values.
 
     This function allows randomizing the fixed tendon parameters of the asset.
@@ -1601,6 +1601,141 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             )
             self.asset.set_fixed_tendon_offset_index(
                 offset=offset[env_ids[:, None], tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
+            )
+
+        # write the fixed tendon properties into the simulation
+        self.asset.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
+
+class randomize_fixed_tendon_newton_parameters(ManagerTermBase):
+    """Randomize the simulated fixed tendon parameters of an articulation by adding, scaling, or setting random values.
+
+    This function allows randomizing the fixed tendon parameters of the asset.
+    These correspond to the physics engine tendon properties that affect the joint behavior.
+
+    The function samples random values from the given distribution parameters and applies the operation to
+    the tendon properties. It then sets the values into the physics simulation. If the distribution parameters
+    are not provided for a particular property, the function does not modify the property.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        """Initialize the term.
+
+        Args:
+            cfg: The configuration of the event term.
+            env: The environment instance.
+
+        Raises:
+            TypeError: If `params` is not a tuple of two numbers.
+            ValueError: If the operation is not supported.
+            ValueError: If the lower bound is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound.
+        """
+        super().__init__(cfg, env)
+
+        # extract the used quantities (to enable type-hinting)
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
+        # check for valid operation
+        if cfg.params["operation"] == "scale":
+            if "stiffness_distribution_params" in cfg.params:
+                _validate_scale_range(
+                    cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
+                )
+            if "damping_distribution_params" in cfg.params:
+                _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
+        elif cfg.params["operation"] not in ("abs", "add"):
+            raise ValueError(
+                "Randomization term 'randomize_fixed_tendon_parameters' does not support operation:"
+                f" '{cfg.params['operation']}'."
+            )
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        asset_cfg: SceneEntityCfg,
+        stiffness_distribution_params: tuple[float, float] | None = None,
+        damping_distribution_params: tuple[float, float] | None = None,
+        limit_stiffness_distribution_params: tuple[float, float] | None = None,
+        lower_limit_distribution_params: tuple[float, float] | None = None,
+        upper_limit_distribution_params: tuple[float, float] | None = None,
+        rest_length_distribution_params: tuple[float, float] | None = None,
+        offset_distribution_params: tuple[float, float] | None = None,
+        operation: Literal["add", "scale", "abs"] = "abs",
+        distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
+    ):
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device=self.asset.device)
+
+        # resolve joint indices
+        if self.asset_cfg.fixed_tendon_ids == slice(None):
+            tendon_ids = slice(None)  # for optimization purposes
+        else:
+            tendon_ids = torch.tensor(self.asset_cfg.fixed_tendon_ids, dtype=torch.int, device=self.asset.device)
+
+        # sample tendon properties from the given ranges and set into the physics simulation
+        # stiffness
+        if stiffness_distribution_params is not None:
+            stiffness = _randomize_prop_by_op(
+                self.asset.data.fixed_tendon_stiffness.torch.clone(),
+                stiffness_distribution_params,
+                env_ids,
+                tendon_ids,
+                operation=operation,
+                distribution=distribution,
+            )
+            self.asset.set_fixed_tendon_stiffness_index(
+                stiffness=stiffness[env_ids[:, None], tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
+            )
+
+        # damping
+        if damping_distribution_params is not None:
+            damping = _randomize_prop_by_op(
+                self.asset.data.fixed_tendon_damping.torch.clone(),
+                damping_distribution_params,
+                env_ids,
+                tendon_ids,
+                operation=operation,
+                distribution=distribution,
+            )
+            self.asset.set_fixed_tendon_damping_index(
+                damping=damping[env_ids[:, None], tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
+            )
+
+        # position limits
+        if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
+            limit = self.asset.data.fixed_tendon_pos_limits.torch.clone()
+            # -- lower limit
+            if lower_limit_distribution_params is not None:
+                limit[..., 0] = _randomize_prop_by_op(
+                    limit[..., 0],
+                    lower_limit_distribution_params,
+                    env_ids,
+                    tendon_ids,
+                    operation=operation,
+                    distribution=distribution,
+                )
+            # -- upper limit
+            if upper_limit_distribution_params is not None:
+                limit[..., 1] = _randomize_prop_by_op(
+                    limit[..., 1],
+                    upper_limit_distribution_params,
+                    env_ids,
+                    tendon_ids,
+                    operation=operation,
+                    distribution=distribution,
+                )
+
+            # check if the limits are valid
+            tendon_limits = limit[env_ids[:, None], tendon_ids]
+            if (tendon_limits[..., 0] > tendon_limits[..., 1]).any():
+                raise ValueError(
+                    "Randomization term 'randomize_fixed_tendon_parameters' is setting lower tendon limits that are"
+                    " greater than upper tendon limits."
+                )
+            self.asset.set_fixed_tendon_position_limit_index(
+                limit=tendon_limits, fixed_tendon_ids=tendon_ids, env_ids=env_ids
             )
 
         # write the fixed tendon properties into the simulation
