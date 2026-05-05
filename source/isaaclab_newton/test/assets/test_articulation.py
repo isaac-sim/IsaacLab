@@ -3315,8 +3315,8 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     # precision -- same ballpark as the IK test. The 5 mm bound is a
     # bridge regression sentinel: a wrong J, wrong mass matrix, or
     # DoF mis-ordering pushes the steady-state error well past it
-    # because OSC consumes both ``get_jacobians`` and
-    # ``get_mass_matrix`` per step.
+    # because OSC consumes both ``body_link_jacobian_w`` and
+    # ``mass_matrix`` per step.
     assert pos_mean < 5e-3, f"OSC pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
     assert rot_mean < 5e-2, f"OSC rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
 
