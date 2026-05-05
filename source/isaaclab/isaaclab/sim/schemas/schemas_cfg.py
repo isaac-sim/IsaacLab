@@ -50,10 +50,44 @@ class ArticulationRootPropertiesCfg:
     """
 
     articulation_enabled: bool | None = None
-    """Whether to enable or disable articulation."""
+    """Whether to enable or disable the articulation.
+
+    PhysX honors this per-articulation at sim time via
+    ``physxArticulation:articulationEnabled``: setting False makes PhysX skip
+    the articulation in its solver passes.
+
+    On Newton, the field is read by the IsaacLab Newton wrapper at spawn time
+    (``isaaclab_newton/assets/rigid_object/rigid_object.py:1035``) as a guard
+    against accidentally spawning a ``RigidObject`` over a prim that still has
+    ``ArticulationRootAPI`` applied; setting False suppresses the guard error.
+    The Newton solver itself does not consult the flag at sim time.
+
+    Placed on the solver-common class because the user-facing intent is
+    universal and both PhysX (sim-time) and the IL Newton wrapper (spawn-time)
+    honor it. When :class:`ArticulationRootPropertiesCfg` is split into
+    ``ArticulationRootBaseCfg`` and ``PhysxArticulationRootPropertiesCfg``
+    in a follow-up PR, this field stays on the base.
+    """
 
     enabled_self_collisions: bool | None = None
-    """Whether to enable or disable self-collisions."""
+    """Whether self-collisions between bodies in the same articulation are enabled.
+
+    The conceptual quantity exists in two USD namespaces simultaneously:
+
+    * ``physxArticulation:enabledSelfCollisions`` (PhysX, ``PhysxArticulationAPI``)
+    * ``newton:selfCollisionEnabled`` (Newton-native, on a future ``NewtonArticulationRootAPI``)
+
+    Newton's resolver checks the native ``newton:*`` attribute first and falls back
+    to the PhysX namespace. Both backends honor the field end-to-end.
+
+    Because the conceptual quantity has a dedicated USD attribute in each backend's
+    namespace, this field is placed on the **PhysX subclass** (one cfg per namespace).
+    When :class:`ArticulationRootPropertiesCfg` is split into
+    ``ArticulationRootBaseCfg`` and ``PhysxArticulationRootPropertiesCfg``, this
+    field stays with ``PhysxArticulationRootPropertiesCfg``. A future
+    ``NewtonArticulationRootPropertiesCfg`` will carry the same field over the
+    ``newton:*`` namespace.
+    """
 
     solver_position_iteration_count: int | None = None
     """Solver position iteration counts for the body."""
@@ -85,8 +119,12 @@ class ArticulationRootPropertiesCfg:
 class RigidBodyBaseCfg:
     """Solver-common properties to apply to a rigid body.
 
-    Contains only properties from the `UsdPhysics.RigidBodyAPI`_ that are common across all
-    simulation backends. For PhysX-specific properties, use :class:`PhysxRigidBodyPropertiesCfg`.
+    Contains properties from the `UsdPhysics.RigidBodyAPI`_ that are common across all
+    simulation backends, plus :attr:`disable_gravity` whose USD attribute today is
+    PhysX-namespaced but whose semantics (per-body gravity exclusion) are universal:
+    PhysX honors it per-body; Newton's importer consumes it at the scene level
+    (partial honor, documented on the field). For PhysX-only rigid-body properties,
+    use :class:`PhysxRigidBodyPropertiesCfg`.
 
     See :meth:`modify_rigid_body_properties` for more information.
 
@@ -96,6 +134,12 @@ class RigidBodyBaseCfg:
 
     .. _UsdPhysics.RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
+
+    # -- Class metadata (not dataclass fields) --
+    # USD applied schema written when at least one solver-specific field is set.
+    _usd_applied_schema = "PhysxRigidBodyAPI"
+    # Prim attribute namespace for solver-specific fields.
+    _usd_namespace = "physxRigidBody"
 
     rigid_body_enabled: bool | None = None
     """Whether to enable or disable the rigid body."""
@@ -107,6 +151,26 @@ class RigidBodyBaseCfg:
     still derives velocities for the kinematic body based on the external motion.
 
     For more information on kinematic bodies, please refer to the `documentation <https://openusd.org/release/wp_rigid_body_physics.html#kinematic-bodies>`_.
+    """
+
+    disable_gravity: bool | None = None
+    """Disable gravity for the body.
+
+    PhysX honors this per-body via ``physxRigidBody:disableGravity``: setting True
+    excludes the body from world gravity integration.
+
+    Newton currently consumes the same USD attribute at the **scene level** --
+    Newton's importer reads ``physxRigidBody:disableGravity`` on the scene prim
+    and uses it to drive the scene-wide ``builder.gravity`` flag (``import_usd.py:1212``).
+    Per-body intent is therefore partially honored on Newton: whichever rigid body
+    has the attribute authored ends up controlling scene-wide gravity, and other
+    bodies cannot be selectively excluded.
+
+    The field is placed on the base because the user-facing intent (per-body
+    gravity exclusion for markers, sensors, kinematic targets) is universal physics
+    and PhysX honors it fully. Closing the Newton gap is a kernel-level fix
+    (introduce ``Model.body_disable_gravity`` boolean array consumed by the
+    integrator) that does not require a cfg-API change.
     """
 
 
@@ -181,8 +245,12 @@ class MassPropertiesCfg:
 class JointDriveBaseCfg:
     """Solver-common properties to define the drive mechanism of a joint.
 
-    Contains only properties from the `UsdPhysics.DriveAPI`_ that are common across all
-    simulation backends. For PhysX-specific properties, use :class:`PhysxJointDrivePropertiesCfg`.
+    Contains properties from the `UsdPhysics.DriveAPI`_ that are common across all
+    simulation backends, plus :attr:`max_velocity` whose USD attribute today is
+    PhysX-namespaced but whose semantics (per-DOF velocity limit) are universal:
+    Newton's importer consumes ``physxJoint:maxJointVelocity`` and populates
+    ``Model.joint_velocity_limit``; PhysX consumes it natively. For PhysX-only
+    drive properties, use :class:`PhysxJointDrivePropertiesCfg`.
 
     See :meth:`modify_joint_drive_properties` for more information.
 
@@ -192,6 +260,14 @@ class JointDriveBaseCfg:
 
     .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html
     """
+
+    # -- Class metadata (not dataclass fields) --
+    # USD applied schema written when at least one solver-specific field is set.
+    _usd_applied_schema = "PhysxJointAPI"
+    # Prim attribute namespace for solver-specific fields.
+    _usd_namespace = "physxJoint"
+    # Mapping from cfg field names to USD attribute names (already in camelCase).
+    _usd_attr_name_map = {"max_velocity": "maxJointVelocity"}
 
     drive_type: Literal["force", "acceleration"] | None = None
     """Joint drive type to apply.
@@ -231,6 +307,20 @@ class JointDriveBaseCfg:
     stiffness *and* damping are both zero, guaranteeing that the backend
     recognises the drive as active.  The actual gains are expected to be
     overridden later by the actuator model.
+    """
+
+    max_velocity: float | None = None
+    """Maximum velocity of the joint [m/s for linear joints, rad/s for angular joints].
+
+    Notes:
+        Today this writes ``physxJoint:maxJointVelocity`` (a PhysX add-on schema attribute).
+        Newton's USD importer consumes the same attribute via its PhysX-bridge resolver and
+        populates ``Model.joint_velocity_limit``; the PhysX engine consumes it natively. The
+        Kamino solver honors the limit at the simulation step. The XPBD, Featherstone, and
+        Semi-implicit Newton solvers import the value but do not consume it in their kernels;
+        the MuJoCo (MJC) solver explicitly drops it. When Newton ships ``newton:maxJointVelocity``
+        as a registered applied API, the writer namespace will switch transparently and this
+        docstring caveat will be removed.
     """
 
 

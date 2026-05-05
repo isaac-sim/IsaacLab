@@ -319,31 +319,39 @@ def modify_rigid_body_properties(
     # read solver-specific metadata from the cfg instance
     namespace = getattr(cfg, "_usd_namespace", None)
     applied_schema = getattr(cfg, "_usd_applied_schema", None)
+    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
 
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
     cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
 
-    # set into USD API (solver-common properties)
+    # set into USD API (solver-common properties; UsdPhysics.RigidBodyAPI fields)
     for attr_name in ["rigid_body_enabled", "kinematic_enabled"]:
         value = cfg_dict.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value, camel_case=True)
 
-    # set solver-specific properties using class metadata (namespace + applied schema)
-    if cfg_dict:
+    # collect instance-level namespaced writes, excluding None values
+    namespaced_writes: list[tuple[str, object]] = []
+    for cfg_field in list(attr_name_map):
+        value = cfg_dict.pop(cfg_field, None)
+        if value is not None:
+            namespaced_writes.append((attr_name_map[cfg_field], value))
+    for cfg_field, value in list(cfg_dict.items()):
+        if value is not None:
+            namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
+
+    # gate schema application AND attribute authoring on instance-level non-None set
+    if namespaced_writes:
         if namespace is None:
             raise ValueError(
-                f"{type(cfg).__name__} has solver-specific fields {list(cfg_dict)} but does not define"
-                " '_usd_namespace'. Subclasses of RigidBodyBaseCfg that add fields must set"
-                " '_usd_namespace' (and optionally '_usd_applied_schema')."
+                f"{type(cfg).__name__} has solver-specific fields"
+                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
+                " Subclasses of RigidBodyBaseCfg that add fields must set '_usd_namespace'"
+                " (and optionally '_usd_applied_schema')."
             )
-        if applied_schema:
-            if applied_schema not in rigid_body_prim.GetAppliedSchemas():
-                rigid_body_prim.AddAppliedSchema(applied_schema)
-        for attr_name, value in cfg_dict.items():
-            safe_set_attribute_on_usd_prim(
-                rigid_body_prim, f"{namespace}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-            )
-    # success
+        if applied_schema and applied_schema not in rigid_body_prim.GetAppliedSchemas():
+            rigid_body_prim.AddAppliedSchema(applied_schema)
+        for usd_attr, value in namespaced_writes:
+            safe_set_attribute_on_usd_prim(rigid_body_prim, f"{namespace}:{usd_attr}", value, camel_case=False)
     return True
 
 
@@ -709,10 +717,8 @@ def modify_joint_drive_properties(
     is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)
     # convert values for angular drives from radians to degrees units
     if not is_linear_drive:
-        # note: max_velocity uses .get() because it only exists on PhysxJointDrivePropertiesCfg,
-        # not the base JointDriveBaseCfg. stiffness/damping always exist on the base.
         if cfg_dict.get("max_velocity") is not None:
-            # rad / s --> deg / s
+            # rad / s --> deg / s (PhysX angular convention is degrees)
             cfg_dict["max_velocity"] = cfg_dict["max_velocity"] * 180.0 / math.pi
         if cfg_dict["stiffness"] is not None:
             # N-m/rad --> N-m/deg
@@ -721,25 +727,30 @@ def modify_joint_drive_properties(
             # N-m-s/rad --> N-m-s/deg
             cfg_dict["damping"] = cfg_dict["damping"] * math.pi / 180.0
 
-    # set solver-specific properties using class metadata (namespace + applied schema + attr name map)
-    if attr_name_map:
-        if namespace is None:
-            raise ValueError(
-                f"{type(cfg).__name__} has '_usd_attr_name_map' but does not define '_usd_namespace'."
-                " Subclasses of JointDriveBaseCfg that add fields must set '_usd_namespace'."
-            )
-        if applied_schema:
-            if applied_schema not in applied_schemas_str:
-                prim.AddAppliedSchema(applied_schema)
-        for attr_name in list(attr_name_map):
-            value = cfg_dict.pop(attr_name, None)
-            usd_attr_name = attr_name_map[attr_name]
-            safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr_name}", value, camel_case=False)
+    # collect instance-level namespaced writes, excluding None values
+    namespaced_writes: list[tuple[str, object]] = []
+    for cfg_field in list(attr_name_map):
+        value = cfg_dict.pop(cfg_field, None)
+        if value is not None:
+            namespaced_writes.append((attr_name_map[cfg_field], value))
 
-    # set into USD API (solver-common properties)
+    # set into USD API (solver-common properties; UsdPhysics.DriveAPI fields)
     for attr_name, attr_value in cfg_dict.items():
         attr_name = cfg_to_usd_map.get(attr_name, attr_name)
         safe_set_attribute_on_usd_schema(usd_drive_api, attr_name, attr_value, camel_case=True)
+
+    # gate schema application AND attribute authoring on instance-level non-None set
+    if namespaced_writes:
+        if namespace is None:
+            raise ValueError(
+                f"{type(cfg).__name__} has solver-specific fields"
+                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
+                " Subclasses of JointDriveBaseCfg that add fields must set '_usd_namespace'."
+            )
+        if applied_schema and applied_schema not in applied_schemas_str:
+            prim.AddAppliedSchema(applied_schema)
+        for usd_attr, value in namespaced_writes:
+            safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
     return True
 

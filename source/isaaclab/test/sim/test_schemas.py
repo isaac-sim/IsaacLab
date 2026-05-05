@@ -94,6 +94,123 @@ def test_valid_properties_cfg(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
+def test_max_velocity_on_base_cfg(setup_simulation):
+    """Setting ``max_velocity`` on the base ``JointDriveBaseCfg`` must author
+    ``physxJoint:maxJointVelocity`` on the prim, identical to setting it on
+    the deprecated PhysX subclass.
+
+    Regression test for the Path 2 placement rule: ``max_velocity`` is the
+    only USD path to ``Model.joint_velocity_limit`` and lives on the base.
+    """
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    base_cfg = schemas.JointDriveBaseCfg(
+        drive_type="acceleration",
+        max_effort=80.0,
+        max_velocity=10.0,
+        stiffness=10.0,
+        damping=0.1,
+    )
+
+    # spawn a minimal articulation with a revolute joint, then write properties.
+    sim_utils.create_prim("/World/Articulation", prim_type="Xform")
+    sim_utils.create_prim("/World/Articulation/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/Articulation/body1", prim_type="Cube")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/Articulation/joint_0")
+
+    prim_path = "/World/Articulation/joint_0"
+    # use unwrapped function (no parent traversal) so this returns the inner bool
+    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+
+    # Revolute drives convert rad/s -> deg/s; check the authored value.
+    attr = stage.GetPrimAtPath(prim_path).GetAttribute("physxJoint:maxJointVelocity")
+    assert attr.IsValid(), "physxJoint:maxJointVelocity was not authored on the prim"
+    expected_deg_per_sec = 10.0 * 180.0 / math.pi
+    assert attr.Get() == pytest.approx(expected_deg_per_sec, rel=1e-6)
+
+
+@pytest.mark.isaacsim_ci
+def test_joint_drive_base_no_physx_schema_when_max_velocity_unset(setup_simulation):
+    """Regression: setting only UsdPhysics drive fields on JointDriveBaseCfg
+    must NOT cause PhysxJointAPI to be applied to the prim. Without this,
+    Newton-targeted users get PhysX schemas stamped on every joint."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    base_cfg = schemas.JointDriveBaseCfg(
+        drive_type="acceleration",
+        max_effort=80.0,
+        stiffness=10.0,
+        damping=0.1,
+        # max_velocity intentionally left None
+    )
+    sim_utils.create_prim("/World/Articulation", prim_type="Xform")
+    sim_utils.create_prim("/World/Articulation/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/Articulation/body1", prim_type="Cube")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/Articulation/joint_0")
+
+    prim_path = "/World/Articulation/joint_0"
+    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+
+    applied = stage.GetPrimAtPath(prim_path).GetAppliedSchemas()
+    assert "PhysxJointAPI" not in applied, (
+        f"PhysxJointAPI should not be applied when max_velocity is None; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_disable_gravity_on_base_cfg(setup_simulation):
+    """Setting disable_gravity on the base RigidBodyBaseCfg must author
+    physxRigidBody:disableGravity on the prim. PhysX honors per-body;
+    Newton currently honors at scene level (partial), documented in field
+    docstring. Regression test for the consumption-gated placement rule."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    base_cfg = schemas.RigidBodyBaseCfg(
+        rigid_body_enabled=True,
+        kinematic_enabled=False,
+        disable_gravity=True,
+    )
+    sim_utils.create_prim("/World/cube_dg", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+    schemas.define_rigid_body_properties("/World/cube_dg", base_cfg)
+
+    prim_path = "/World/cube_dg"
+    attr = stage.GetPrimAtPath(prim_path).GetAttribute("physxRigidBody:disableGravity")
+    assert attr.IsValid(), "physxRigidBody:disableGravity was not authored on the prim"
+    assert attr.Get() is True
+    applied = stage.GetPrimAtPath(prim_path).GetAppliedSchemas()
+    assert "PhysxRigidBodyAPI" in applied, (
+        f"PhysxRigidBodyAPI must be applied when disable_gravity is set; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_rigid_body_no_physx_schema_when_all_physx_fields_none(setup_simulation):
+    """Regression: PhysxRigidBodyPropertiesCfg with all PhysX-specific fields
+    left as None must NOT cause PhysxRigidBodyAPI to be applied to the prim.
+    The user only authored UsdPhysics-standard fields; the PhysX schema
+    should not be stamped onto a Newton-targeted asset."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    cfg = PhysxRigidBodyPropertiesCfg(
+        rigid_body_enabled=True,
+        kinematic_enabled=False,
+        # every PhysX field intentionally left None
+    )
+    sim_utils.create_prim("/World/cube_no_physx", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+    schemas.define_rigid_body_properties("/World/cube_no_physx", cfg)
+
+    prim_path = "/World/cube_no_physx"
+    applied = stage.GetPrimAtPath(prim_path).GetAppliedSchemas()
+    assert "PhysxRigidBodyAPI" not in applied, (
+        f"PhysxRigidBodyAPI should not be applied when no PhysX fields are set; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
 def test_modify_properties_on_invalid_prim(setup_simulation):
     """Test modifying properties on a prim that does not exist."""
     sim, _, rigid_cfg, _, _, _ = setup_simulation

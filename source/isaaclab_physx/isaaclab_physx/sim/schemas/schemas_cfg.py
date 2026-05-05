@@ -180,14 +180,9 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
     """
 
-    # -- Class metadata (not dataclass fields) --
-    # USD schema to apply on the prim before writing solver-specific attributes.
-    _usd_applied_schema = "PhysxRigidBodyAPI"
-    # Prim attribute namespace for solver-specific fields.
-    _usd_namespace = "physxRigidBody"
-
-    disable_gravity: bool | None = None
-    """Disable gravity for the actor."""
+    # USD metadata (``_usd_applied_schema = "PhysxRigidBodyAPI"``,
+    # ``_usd_namespace = "physxRigidBody"``) is inherited from
+    # :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`.
 
     linear_damping: float | None = None
     """Linear damping for the body."""
@@ -253,32 +248,18 @@ class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
 class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     """PhysX-specific joint drive properties.
 
-    Extends :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` with properties from the `PhysxJointAPI`_ schema.
+    Currently empty after the consumption-gated split moved :attr:`max_velocity`
+    to :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`. This class is retained
+    as the deprecation-alias target for the legacy :class:`JointDrivePropertiesCfg`
+    name and as the home for any future PhysX-only joint-drive fields (e.g.
+    PhysX-specific drive force-limit modes).
+
+    Inherits all fields and USD metadata from
+    :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`.
 
     See :meth:`~isaaclab.sim.schemas.modify_joint_drive_properties` for more information.
 
-    .. note::
-        If the values are None, they are not modified. This is useful when you want to set only a subset of
-        the properties and leave the rest as-is.
-
     .. _PhysxJointAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_joint_a_p_i.html
-    """
-
-    # -- Class metadata (not dataclass fields) --
-    # USD schema to apply on the prim before writing solver-specific attributes.
-    _usd_applied_schema = "PhysxJointAPI"
-    # Prim attribute namespace for solver-specific fields.
-    _usd_namespace = "physxJoint"
-    # Mapping from cfg field names to USD attribute names (already in camelCase).
-    _usd_attr_name_map = {"max_velocity": "maxJointVelocity"}
-
-    max_velocity: float | None = None
-    """Maximum velocity of the joint.
-
-    The unit depends on the joint model:
-
-    * For linear joints, the unit is m/s.
-    * For angular joints, the unit is rad/s.
     """
 
 
