@@ -45,34 +45,34 @@ Classic environments that are based on IsaacGymEnvs implementation of MuJoCo-sty
 .. table::
     :widths: 25 30 25 20
 
-    +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
-    | World            | Environment ID              | Description                                                             | Presets               |
-    +==================+=============================+=========================================================================+=======================+
+    +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
+    | World            | Environment ID              | Description                                                             | Presets                      |
+    +==================+=============================+=========================================================================+==============================+
     | |humanoid|       | |humanoid-link|             | Move towards a direction with the MuJoCo humanoid robot                 | ``newton_mjwarp``, ``physx`` |
-    |                  |                             |                                                                         | ``ovphysx``           |
-    |                  | |humanoid-direct-link|      |                                                                         |                       |
-    +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
+    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  | |humanoid-direct-link|      |                                                                         |                              |
+    +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |ant|            | |ant-link|                  | Move towards a direction with the MuJoCo ant robot                      | ``newton_mjwarp``, ``physx`` |
-    |                  |                             |                                                                         | ``ovphysx``           |
-    |                  | |ant-direct-link|           |                                                                         |                       |
-    +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
+    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  | |ant-direct-link|           |                                                                         |                              |
+    +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-link|             | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton_mjwarp``, ``physx`` |
-    |                  |                             |                                                                         | ``ovphysx``           |
-    |                  | |cartpole-direct-link|      |                                                                         |                       |
-    +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
+    |                  |                             |                                                                         | ``ovphysx``                  |
+    |                  | |cartpole-direct-link|      |                                                                         |                              |
+    +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-camera-presets|   | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton_mjwarp``, ``physx`` |
-    |                  |                             | and perceptive inputs. Select data type via ``presets=``. Requires      | ``newton_renderer``,  |
-    |                  |                             | running with ``--enable_cameras``.                                      | ``ovrtx_renderer``,   |
-    |                  |                             |                                                                         | ``rgb``, ``depth``,   |
-    |                  |                             |                                                                         | ``albedo``,           |
-    |                  |                             |                                                                         | ``semantic_``         |
-    |                  |                             |                                                                         | ``segmentation``,     |
-    |                  |                             |                                                                         | ``simple_shading_*``  |
-    +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
+    |                  |                             | and perceptive inputs. Select data type via ``presets=``. Requires      | ``newton_renderer``,         |
+    |                  |                             | running with ``--enable_cameras``.                                      | ``ovrtx_renderer``,          |
+    |                  |                             |                                                                         | ``rgb``, ``depth``,          |
+    |                  |                             |                                                                         | ``albedo``,                  |
+    |                  |                             |                                                                         | ``semantic_``                |
+    |                  |                             |                                                                         | ``segmentation``,            |
+    |                  |                             |                                                                         | ``simple_shading_*``         |
+    +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
     | |cartpole|       | |cartpole-resnet-link|      | Move the cart to keep the pole upwards in the classic cartpole control  | ``newton_mjwarp``, ``physx`` |
-    |                  |                             | based off of features extracted from perceptive inputs with pre-trained |                       |
-    |                  | |cartpole-theia-link|       | frozen vision encoders. Requires running with ``--enable_cameras``.     |                       |
-    +------------------+-----------------------------+-------------------------------------------------------------------------+-----------------------+
+    |                  |                             | based off of features extracted from perceptive inputs with pre-trained |                              |
+    |                  | |cartpole-theia-link|       | frozen vision encoders. Requires running with ``--enable_cameras``.     |                              |
+    +------------------+-----------------------------+-------------------------------------------------------------------------+------------------------------+
 
 .. |humanoid| image:: ../_static/tasks/classic/humanoid.jpg
 .. |ant| image:: ../_static/tasks/classic/ant.jpg
@@ -105,105 +105,105 @@ for the lift-cube environment:
 .. table::
     :widths: 25 30 25 20
 
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | World                   | Environment ID               | Description                                                                 | Presets               |
-    +=========================+==============================+=============================================================================+=======================+
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | World                   | Environment ID               | Description                                                                 | Presets                      |
+    +=========================+==============================+=============================================================================+==============================+
     | |reach-franka|          | |reach-franka-link|          | Move the end-effector to a sampled target pose with the Franka robot        | ``newton_mjwarp``, ``physx`` |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |reach-ur10|            | |reach-ur10-link|            | Move the end-effector to a sampled target pose with the UR10 robot          | ``newton_mjwarp``, ``physx`` |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |deploy-reach-ur10e|    | |deploy-reach-ur10e-link|    | Move the end-effector to a sampled target pose with the UR10e robot         |                       |
-    |                         |                              | This policy has been deployed to a real robot                               |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |lift-cube|             | |lift-cube-link|             | Pick a cube and bring it to a sampled target position with the Franka robot |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |stack-cube|            | |stack-cube-link|            | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  |                       |
-    |                         |                              | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |                       |
-    |                         | |stack-cube-bp-link|         | manipulation motion generation                                              |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |surface-gripper|       | |long-suction-link|          | Stack three cubes (bottom to top: blue, red, green)                         |                       |
-    |                         |                              | with the UR10 arm and long surface gripper                                  |                       |
-    |                         | |short-suction-link|         | or short surface gripper.                                                   |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |deploy-reach-ur10e|    | |deploy-reach-ur10e-link|    | Move the end-effector to a sampled target pose with the UR10e robot         |                              |
+    |                         |                              | This policy has been deployed to a real robot                               |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |lift-cube|             | |lift-cube-link|             | Pick a cube and bring it to a sampled target position with the Franka robot |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |stack-cube|            | |stack-cube-link|            | Stack three cubes (bottom to top: blue, red, green) with the Franka robot.  |                              |
+    |                         |                              | Blueprint env used for the NVIDIA Isaac GR00T blueprint for synthetic       |                              |
+    |                         | |stack-cube-bp-link|         | manipulation motion generation                                              |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |surface-gripper|       | |long-suction-link|          | Stack three cubes (bottom to top: blue, red, green)                         |                              |
+    |                         |                              | with the UR10 arm and long surface gripper                                  |                              |
+    |                         | |short-suction-link|         | or short surface gripper.                                                   |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | ``newton_mjwarp``, ``physx`` |
-    |                         |                              |                                                                             |                       |
-    |                         | |franka-direct-link|         |                                                                             |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
+    |                         |                              |                                                                             |                              |
+    |                         | |franka-direct-link|         |                                                                             |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          | ``newton_mjwarp``, ``physx`` |
-    |                         |                              |                                                                             |                       |
-    |                         | |allegro-direct-link|        |                                                                             |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
+    |                         |                              |                                                                             |                              |
+    |                         | |allegro-direct-link|        |                                                                             |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cube-shadow|           | |cube-shadow-link|           | In-hand reorientation of a cube using Shadow hand                           | ``newton_mjwarp``, ``physx`` |
-    |                         |                              |                                                                             |                       |
-    |                         | |cube-shadow-ff-link|        |                                                                             |                       |
-    |                         |                              |                                                                             |                       |
-    |                         | |cube-shadow-lstm-link|      |                                                                             |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
+    |                         |                              |                                                                             |                              |
+    |                         | |cube-shadow-ff-link|        |                                                                             |                              |
+    |                         |                              |                                                                             |                              |
+    |                         | |cube-shadow-lstm-link|      |                                                                             |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |cube-shadow|           | |cube-shadow-vis-link|       | In-hand reorientation of a cube using Shadow hand using perceptive inputs.  | ``newton_mjwarp``, ``physx`` |
-    |                         |                              | Requires running with ``--enable_cameras``.                                 | ``newton_renderer``,  |
-    |                         |                              |                                                                             | ``ovrtx_renderer``,   |
-    |                         |                              |                                                                             | ``rgb``, ``depth``,   |
-    |                         |                              |                                                                             | ``albedo``, ``full``, |
-    |                         |                              |                                                                             | ``semantic_``         |
-    |                         |                              |                                                                             | ``segmentation``,     |
-    |                         |                              |                                                                             | ``simple_shading_*``  |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          |                       |
-    |                         |                              | with waist degrees-of-freedom enables that provides a wider reach space.    |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |g1_pick_place|         | |g1_pick_place-link|         | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |g1_pick_place_fixed|   | |g1_pick_place_fixed-link|   | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                       |
-    |                         |                              | with three-fingered hands. Robot is set up with the base fixed in place.    |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                       |
-    |                         |                              | with three-fingered hands and in-place locomanipulation capabilities        |                       |
-    |                         |                              | enabled (i.e. Robot lower body balances in-place while upper body is        |                       |
-    |                         |                              | controlled via Inverse Kinematics).                                         |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
+    |                         |                              | Requires running with ``--enable_cameras``.                                 | ``newton_renderer``,         |
+    |                         |                              |                                                                             | ``ovrtx_renderer``,          |
+    |                         |                              |                                                                             | ``rgb``, ``depth``,          |
+    |                         |                              |                                                                             | ``albedo``, ``full``,        |
+    |                         |                              |                                                                             | ``semantic_``                |
+    |                         |                              |                                                                             | ``segmentation``,            |
+    |                         |                              |                                                                             | ``simple_shading_*``         |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          |                              |
+    |                         |                              | with waist degrees-of-freedom enables that provides a wider reach space.    |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |g1_pick_place|         | |g1_pick_place-link|         | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |g1_pick_place_fixed|   | |g1_pick_place_fixed-link|   | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                              |
+    |                         |                              | with three-fingered hands. Robot is set up with the base fixed in place.    |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                              |
+    |                         |                              | with three-fingered hands and in-place locomanipulation capabilities        |                              |
+    |                         |                              | enabled (i.e. Robot lower body balances in-place while upper body is        |                              |
+    |                         |                              | controlled via Inverse Kinematics).                                         |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |kuka-allegro-lift|     | |kuka-allegro-lift-link|     | Pick up a primitive shape on the table and lift it to target position.      | ``newton_mjwarp``, ``physx`` |
-    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        | ``single_camera``,    |
-    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    | ``duo_camera``,       |
-    |                         |                              |                                                                             | ``newton_renderer``,  |
-    |                         |                              |                                                                             | ``ovrtx_renderer``,   |
-    |                         |                              |                                                                             | ``rgb{64,128,256}``,  |
-    |                         |                              |                                                                             | ``depth{..}``,        |
-    |                         |                              |                                                                             | ``albedo{..}``,       |
-    |                         |                              |                                                                             | ``semantic_``         |
-    |                         |                              |                                                                             | ``segmentation{..}``, |
-    |                         |                              |                                                                             | ``simple_shading_*``  |
-    |                         |                              |                                                                             | ``{64,128,256}``      |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
+    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        | ``single_camera``,           |
+    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    | ``duo_camera``,              |
+    |                         |                              |                                                                             | ``newton_renderer``,         |
+    |                         |                              |                                                                             | ``ovrtx_renderer``,          |
+    |                         |                              |                                                                             | ``rgb{64,128,256}``,         |
+    |                         |                              |                                                                             | ``depth{..}``,               |
+    |                         |                              |                                                                             | ``albedo{..}``,              |
+    |                         |                              |                                                                             | ``semantic_``                |
+    |                         |                              |                                                                             | ``segmentation{..}``,        |
+    |                         |                              |                                                                             | ``simple_shading_*``         |
+    |                         |                              |                                                                             | ``{64,128,256}``             |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |kuka-allegro-reorient| | |kuka-allegro-reorient-link| | Pick up a primitive shape on the table and orient it to target pose.        | ``newton_mjwarp``, ``physx`` |
-    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        | ``single_camera``,    |
-    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    | ``duo_camera``,       |
-    |                         |                              |                                                                             | ``newton_renderer``,  |
-    |                         |                              |                                                                             | ``ovrtx_renderer``,   |
-    |                         |                              |                                                                             | ``rgb{64,128,256}``,  |
-    |                         |                              |                                                                             | ``depth{..}``,        |
-    |                         |                              |                                                                             | ``albedo{..}``,       |
-    |                         |                              |                                                                             | ``semantic_``         |
-    |                         |                              |                                                                             | ``segmentation{..}``, |
-    |                         |                              |                                                                             | ``simple_shading_*``  |
-    |                         |                              |                                                                             | ``{64,128,256}``      |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |                       |
-    |                         |                              | a Galbot humanoid robot                                                     |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with a Agibot A2D humanoid robot            |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |agibot_place_toy|      | |agibot_place_toy-link|      | Pick up and place an object in a box with a Agibot A2D humanoid robot       |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |reach_openarm_bi|      | |reach_openarm_bi-link|      | Move the end-effector to sampled target poses with the OpenArm robot        |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |reach_openarm_uni|     | |reach_openarm_uni-link|     | Move the end-effector to a sampled target pose with the OpenArm robot       |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |lift_openarm_uni|      | |lift_openarm_uni-link|      | Pick a cube and bring it to a sampled target position with the OpenArm robot|                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |cabi_openarm_uni|      | |cabi_openarm_uni-link|      | Grasp the handle of a cabinet's drawer and open it with the OpenArm robot   |                       |
-    +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------+
+    |                         |                              | Supports state, single-camera, and dual-camera observation modes via        | ``single_camera``,           |
+    |                         |                              | ``presets=single_camera`` / ``presets=duo_camera`` (see RL table below).    | ``duo_camera``,              |
+    |                         |                              |                                                                             | ``newton_renderer``,         |
+    |                         |                              |                                                                             | ``ovrtx_renderer``,          |
+    |                         |                              |                                                                             | ``rgb{64,128,256}``,         |
+    |                         |                              |                                                                             | ``depth{..}``,               |
+    |                         |                              |                                                                             | ``albedo{..}``,              |
+    |                         |                              |                                                                             | ``semantic_``                |
+    |                         |                              |                                                                             | ``segmentation{..}``,        |
+    |                         |                              |                                                                             | ``simple_shading_*``         |
+    |                         |                              |                                                                             | ``{64,128,256}``             |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |                              |
+    |                         |                              | a Galbot humanoid robot                                                     |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with a Agibot A2D humanoid robot            |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |agibot_place_toy|      | |agibot_place_toy-link|      | Pick up and place an object in a box with a Agibot A2D humanoid robot       |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |reach_openarm_bi|      | |reach_openarm_bi-link|      | Move the end-effector to sampled target poses with the OpenArm robot        |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |reach_openarm_uni|     | |reach_openarm_uni-link|     | Move the end-effector to a sampled target pose with the OpenArm robot       |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |lift_openarm_uni|      | |lift_openarm_uni-link|      | Pick a cube and bring it to a sampled target position with the OpenArm robot|                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |cabi_openarm_uni|      | |cabi_openarm_uni-link|      | Grasp the handle of a cabinet's drawer and open it with the OpenArm robot   |                              |
+    +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
 
 .. |reach-franka| image:: ../_static/tasks/manipulation/franka_reach.jpg
 .. |reach-ur10| image:: ../_static/tasks/manipulation/ur10_reach.jpg
@@ -278,15 +278,15 @@ For example:
 .. table::
     :widths: 25 30 25 20
 
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | World              | Environment ID          | Description                                                                 | Presets               |
-    +====================+=========================+=============================================================================+=======================+
-    | |factory-peg|      | |factory-peg-link|      | Insert peg into the socket with the Franka robot                            |                       |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |factory-gear|     | |factory-gear-link|     | Insert and mesh gear into the base with other gears, using the Franka robot |                       |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |factory-nut|      | |factory-nut-link|      | Thread the nut onto the first 2 threads of the bolt, using the Franka robot |                       |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | World              | Environment ID          | Description                                                                 | Presets                      |
+    +====================+=========================+=============================================================================+==============================+
+    | |factory-peg|      | |factory-peg-link|      | Insert peg into the socket with the Franka robot                            |                              |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |factory-gear|     | |factory-gear-link|     | Insert and mesh gear into the base with other gears, using the Franka robot |                              |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |factory-nut|      | |factory-nut-link|      | Thread the nut onto the first 2 threads of the bolt, using the Franka robot |                              |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
 
 .. |factory-peg| image:: ../_static/tasks/factory/peg_insert.jpg
 .. |factory-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
@@ -340,13 +340,13 @@ We provide environments for both disassembly and assembly.
 .. table::
     :widths: 25 30 25 20
 
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | World              | Environment ID          | Description                                                                 | Presets               |
-    +====================+=========================+=============================================================================+=======================+
-    | |disassembly|      | |disassembly-link|      | Lift a plug out of the socket with the Franka robot                         |                       |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |assembly|         | |assembly-link|         | Insert a plug into its corresponding socket with the Franka robot           |                       |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | World              | Environment ID          | Description                                                                 | Presets                      |
+    +====================+=========================+=============================================================================+==============================+
+    | |disassembly|      | |disassembly-link|      | Lift a plug out of the socket with the Franka robot                         |                              |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |assembly|         | |assembly-link|         | Insert a plug into its corresponding socket with the Franka robot           |                              |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
 
 .. |assembly| image:: ../_static/tasks/automate/00004.jpg
 .. |disassembly| image:: ../_static/tasks/automate/01053_disassembly.jpg
@@ -373,15 +373,15 @@ These tasks share the same task configurations and control options. You can swit
 .. table::
     :widths: 25 30 25 20
 
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | World              | Environment ID          | Description                                                                 | Presets               |
-    +====================+=========================+=============================================================================+=======================+
-    | |forge-peg|        | |forge-peg-link|        | Insert peg into the socket with the Franka robot                            |                       |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |forge-gear|       | |forge-gear-link|       | Insert and mesh gear into the base with other gears, using the Franka robot |                       |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |forge-nut|        | |forge-nut-link|        | Thread the nut onto the first 2 threads of the bolt, using the Franka robot |                       |
-    +--------------------+-------------------------+-----------------------------------------------------------------------------+-----------------------+
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | World              | Environment ID          | Description                                                                 | Presets                      |
+    +====================+=========================+=============================================================================+==============================+
+    | |forge-peg|        | |forge-peg-link|        | Insert peg into the socket with the Franka robot                            |                              |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |forge-gear|       | |forge-gear-link|       | Insert and mesh gear into the base with other gears, using the Franka robot |                              |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |forge-nut|        | |forge-nut-link|        | Thread the nut onto the first 2 threads of the bolt, using the Franka robot |                              |
+    +--------------------+-------------------------+-----------------------------------------------------------------------------+------------------------------+
 
 .. |forge-peg| image:: ../_static/tasks/factory/peg_insert.jpg
 .. |forge-gear| image:: ../_static/tasks/factory/gear_mesh.jpg
@@ -400,53 +400,53 @@ Environments based on legged locomotion tasks.
 .. table::
     :widths: 25 30 25 20
 
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
-    | World                        | Environment ID                               | Description                                                                  | Presets               |
-    +==============================+==============================================+==============================================================================+=======================+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
+    | World                        | Environment ID                               | Description                                                                  | Presets                      |
+    +==============================+==============================================+==============================================================================+==============================+
     | |velocity-flat-anymal-b|     | |velocity-flat-anymal-b-link|                | Track a velocity command on flat terrain with the Anymal B robot             | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-b|    | |velocity-rough-anymal-b-link|               | Track a velocity command on rough terrain with the Anymal B robot            | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-c|     | |velocity-flat-anymal-c-link|                | Track a velocity command on flat terrain with the Anymal C robot             | ``newton_mjwarp``, ``physx`` |
-    |                              |                                              |                                                                              |                       |
-    |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |                       |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    |                              |                                              |                                                                              |                              |
+    |                              | |velocity-flat-anymal-c-direct-link|         |                                                                              |                              |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-c|    | |velocity-rough-anymal-c-link|               | Track a velocity command on rough terrain with the Anymal C robot            | ``newton_mjwarp``, ``physx`` |
-    |                              |                                              |                                                                              |                       |
-    |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |                       |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    |                              |                                              |                                                                              |                              |
+    |                              | |velocity-rough-anymal-c-direct-link|        |                                                                              |                              |
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-anymal-d|     | |velocity-flat-anymal-d-link|                | Track a velocity command on flat terrain with the Anymal D robot             | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-anymal-d|    | |velocity-rough-anymal-d-link|               | Track a velocity command on rough terrain with the Anymal D robot            | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-unitree-a1|   | |velocity-flat-unitree-a1-link|              | Track a velocity command on flat terrain with the Unitree A1 robot           | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-unitree-a1|  | |velocity-rough-unitree-a1-link|             | Track a velocity command on rough terrain with the Unitree A1 robot          | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-unitree-go1|  | |velocity-flat-unitree-go1-link|             | Track a velocity command on flat terrain with the Unitree Go1 robot          | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-unitree-go1| | |velocity-rough-unitree-go1-link|            | Track a velocity command on rough terrain with the Unitree Go1 robot         | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-unitree-go2|  | |velocity-flat-unitree-go2-link|             | Track a velocity command on flat terrain with the Unitree Go2 robot          | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-unitree-go2| | |velocity-rough-unitree-go2-link|            | Track a velocity command on rough terrain with the Unitree Go2 robot         | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-spot|         | |velocity-flat-spot-link|                    | Track a velocity command on flat terrain with the Boston Dynamics Spot robot | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-h1|           | |velocity-flat-h1-link|                      | Track a velocity command on flat terrain with the Unitree H1 robot           | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-h1|          | |velocity-rough-h1-link|                     | Track a velocity command on rough terrain with the Unitree H1 robot          | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-g1|           | |velocity-flat-g1-link|                      | Track a velocity command on flat terrain with the Unitree G1 robot           | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-g1|          | |velocity-rough-g1-link|                     | Track a velocity command on rough terrain with the Unitree G1 robot          | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-digit|        | |velocity-flat-digit-link|                   | Track a velocity command on flat terrain with the Agility Digit robot        | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-rough-digit|       | |velocity-rough-digit-link|                  | Track a velocity command on rough terrain with the Agility Digit robot       | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |tracking-loco-manip-digit|  | |tracking-loco-manip-digit-link|             | Track a root velocity and hand pose command with the Agility Digit robot     | ``newton_mjwarp``, ``physx`` |
-    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+-----------------------+
+    +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
 
 .. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-Anymal-B-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-Anymal-B-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/anymal_b/rough_env_cfg.py>`__
@@ -508,11 +508,11 @@ Navigation
 .. table::
     :widths: 25 30 25 20
 
-    +----------------+---------------------+-----------------------------------------------------------------------------+-----------------------+
-    | World          | Environment ID      | Description                                                                 | Presets               |
-    +================+=====================+=============================================================================+=======================+
+    +----------------+---------------------+-----------------------------------------------------------------------------+------------------------------+
+    | World          | Environment ID      | Description                                                                 | Presets                      |
+    +================+=====================+=============================================================================+==============================+
     | |anymal_c_nav| | |anymal_c_nav-link| | Navigate towards a target x-y position and heading with the ANYmal C robot. | ``newton_mjwarp``, ``physx`` |
-    +----------------+---------------------+-----------------------------------------------------------------------------+-----------------------+
+    +----------------+---------------------+-----------------------------------------------------------------------------+------------------------------+
 
 .. |anymal_c_nav-link| replace:: `Isaac-Navigation-Flat-Anymal-C-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/navigation/config/anymal_c/navigation_env_cfg.py>`__
 
@@ -534,11 +534,11 @@ Multirotor
 .. table::
     :widths: 25 30 25 20
 
-    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+-----------------------+
-    | World                                  | Environment ID                              | Description                                                                            | Presets               |
-    +========================================+=============================================+========================================================================================+=======================+
-    | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |                       |
-    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+-----------------------+
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+------------------------------+
+    | World                                  | Environment ID                              | Description                                                                            | Presets                      |
+    +========================================+=============================================+========================================================================================+==============================+
+    | |arl_robot_track_position_state_based| | |arl_robot_track_position_state_based-link| | Setpoint position control for the ARL robot using the track_position_state_based task. |                              |
+    +----------------------------------------+---------------------------------------------+----------------------------------------------------------------------------------------+------------------------------+
 
 
 Others
@@ -556,17 +556,17 @@ Others
 .. table::
     :widths: 25 30 25 20
 
-    +----------------+---------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | World          | Environment ID            | Description                                                                 | Presets               |
-    +================+===========================+=============================================================================+=======================+
-    | |quadcopter|   | |quadcopter-link|         | Fly and hover the Crazyflie copter at a goal point by applying thrust.      |                       |
-    +----------------+---------------------------+-----------------------------------------------------------------------------+-----------------------+
-    | |humanoid_amp| | |humanoid_amp_dance-link| | Move a humanoid robot by imitating different pre-recorded human animations  |                       |
-    |                |                           | (Adversarial Motion Priors).                                                |                       |
-    |                | |humanoid_amp_run-link|   |                                                                             |                       |
-    |                |                           |                                                                             |                       |
-    |                | |humanoid_amp_walk-link|  |                                                                             |                       |
-    +----------------+---------------------------+-----------------------------------------------------------------------------+-----------------------+
+    +----------------+---------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | World          | Environment ID            | Description                                                                 | Presets                      |
+    +================+===========================+=============================================================================+==============================+
+    | |quadcopter|   | |quadcopter-link|         | Fly and hover the Crazyflie copter at a goal point by applying thrust.      |                              |
+    +----------------+---------------------------+-----------------------------------------------------------------------------+------------------------------+
+    | |humanoid_amp| | |humanoid_amp_dance-link| | Move a humanoid robot by imitating different pre-recorded human animations  |                              |
+    |                |                           | (Adversarial Motion Priors).                                                |                              |
+    |                | |humanoid_amp_run-link|   |                                                                             |                              |
+    |                |                           |                                                                             |                              |
+    |                | |humanoid_amp_walk-link|  |                                                                             |                              |
+    +----------------+---------------------------+-----------------------------------------------------------------------------+------------------------------+
 
 .. |quadcopter-link| replace:: `Isaac-Quadcopter-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/direct/quadcopter/quadcopter_env.py>`__
 .. |humanoid_amp_dance-link| replace:: `Isaac-Humanoid-AMP-Dance-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/humanoid_amp_env_cfg.py>`__
@@ -708,11 +708,11 @@ Classic
 .. table::
     :widths: 25 30 25 20
 
-    +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+-----------------------+
-    | World                  | Environment ID                     | Description                                                                                                           | Presets               |
-    +========================+====================================+=======================================================================================================================+=======================+
-    | |cart-double-pendulum| | |cart-double-pendulum-direct-link| | Move the cart and the pendulum to keep the last one upwards in the classic inverted double pendulum on a cart control |                       |
-    +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+-----------------------+
+    +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
+    | World                  | Environment ID                     | Description                                                                                                           | Presets                      |
+    +========================+====================================+=======================================================================================================================+==============================+
+    | |cart-double-pendulum| | |cart-double-pendulum-direct-link| | Move the cart and the pendulum to keep the last one upwards in the classic inverted double pendulum on a cart control |                              |
+    +------------------------+------------------------------------+-----------------------------------------------------------------------------------------------------------------------+------------------------------+
 
 .. |cart-double-pendulum| image:: ../_static/tasks/classic/cart_double_pendulum.jpg
 
@@ -726,11 +726,11 @@ Environments based on fixed-arm manipulation tasks.
 .. table::
     :widths: 25 30 25 20
 
-    +----------------------+--------------------------------+--------------------------------------------------------+-----------------------+
-    | World                | Environment ID                 | Description                                            | Presets               |
-    +======================+================================+========================================================+=======================+
-    | |shadow-hand-over|   | |shadow-hand-over-direct-link| | Passing an object from one hand over to the other hand |                       |
-    +----------------------+--------------------------------+--------------------------------------------------------+-----------------------+
+    +----------------------+--------------------------------+--------------------------------------------------------+------------------------------+
+    | World                | Environment ID                 | Description                                            | Presets                      |
+    +======================+================================+========================================================+==============================+
+    | |shadow-hand-over|   | |shadow-hand-over-direct-link| | Passing an object from one hand over to the other hand |                              |
+    +----------------------+--------------------------------+--------------------------------------------------------+------------------------------+
 
 .. |shadow-hand-over| image:: ../_static/tasks/manipulation/shadow_hand_over.jpg
 
