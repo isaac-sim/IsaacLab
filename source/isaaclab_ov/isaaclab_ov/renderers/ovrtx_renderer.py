@@ -22,7 +22,6 @@ from __future__ import annotations
 import logging
 import math
 import os
-import weakref
 from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
@@ -62,9 +61,9 @@ from .ovrtx_usd import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
 
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
 # Shared integration floor for this module; reuse for ovrtx features that share one support floor.
 _OVRTX_VERSION = Version(ovrtx.__version__)
@@ -108,19 +107,14 @@ def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
 
 
 class OVRTXRenderData:
-    """OVRTX-specific RenderData. Holds warp output buffers and a weakref to the sensor.
+    """OVRTX-specific RenderData. Holds warp output buffers sized from :class:`CameraRenderSpec`."""
 
-    The sensor is stored as a weakref to avoid a Sensor ↔ RenderData reference cycle
-    (the sensor already owns this object).
-    """
-
-    def __init__(self, sensor: SensorBase, device):
-        """Create render data from sensor. Holds weak ref to avoid circular reference."""
-        self.sensor: weakref.ref[object] | None = weakref.ref(sensor)
-        self.width = sensor.cfg.width
-        self.height = sensor.cfg.height
-        self.num_envs = sensor.num_instances
-        self.data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
+    def __init__(self, spec: CameraRenderSpec, device):
+        """Create render data from a camera render specification."""
+        self.width = spec.cfg.width
+        self.height = spec.cfg.height
+        self.num_envs = spec.num_instances
+        self.data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
@@ -159,7 +153,6 @@ class OVRTXRenderer(BaseRenderer):
         self._object_binding = None
         self._object_newton_indices: wp.array | None = None
         self._initialized_scene = False
-        self._sensor_ref: weakref.ref[object] | None = None
         self._exported_usd_path: str | None = None
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
@@ -183,25 +176,22 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_path = export_path
         logger.info("Exported to %s", export_path)
 
-    def initialize(self, sensor: SensorBase):
+    def initialize(self, spec: CameraRenderSpec):
         """Initialize the OVRTX renderer with internal environment cloning.
 
-
         Args:
-            sensor: The Camera sensor. width, height, num_envs, data_types are
-                obtained from sensor when needed. Weak ref stored to avoid circular ref.
+            spec: Tiled camera description (resolution, paths, data types).
         """
-        self._sensor_ref = weakref.ref(sensor)
-        width = sensor.cfg.width
-        height = sensor.cfg.height
-        num_envs = sensor.num_instances
-        data_types = sensor.cfg.data_types if sensor.cfg.data_types else ["rgb"]
+        width = spec.cfg.width
+        height = spec.cfg.height
+        num_envs = spec.num_instances
+        data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
 
         env_0_prefix = "/World/envs/env_0/"
-        first_cam_path = sensor._view.prims[0].GetPath().pathString
+        first_cam_path = spec.camera_prim_paths[0]
         if not first_cam_path.startswith(env_0_prefix):
             raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
-        self._camera_rel_path = first_cam_path.removeprefix(env_0_prefix)
+        self._camera_rel_path = spec.camera_path_relative_to_env_0
 
         usd_scene_path = self._exported_usd_path
         use_cloning = self.cfg.use_cloning
@@ -363,16 +353,15 @@ class OVRTXRenderer(BaseRenderer):
         except Exception as e:
             logger.warning("Error setting up object bindings: %s", e)
 
-    def create_render_data(self, sensor: SensorBase) -> OVRTXRenderData:
+    def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
 
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
-        RenderData holds weak ref to sensor (Newton pattern) to avoid circular reference.
         """
         if not self._initialized_scene:
-            self.initialize(sensor)
-        return OVRTXRenderData(sensor, DEVICE)
+            self.initialize(spec)
+        return OVRTXRenderData(spec, DEVICE)
 
     # Map torch dtypes to their warp counterparts for zero-copy wrapping.
     _TORCH_TO_WP_DTYPE: dict[torch.dtype, Any] = {
@@ -632,9 +621,6 @@ class OVRTXRenderer(BaseRenderer):
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
         """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        if render_data is not None:
-            render_data.sensor = None  # Break weak ref (Newton pattern)
-        self._sensor_ref = None
 
         # Unbind before tearing down renderer
         def _safe_unbind(binding, name: str) -> None:

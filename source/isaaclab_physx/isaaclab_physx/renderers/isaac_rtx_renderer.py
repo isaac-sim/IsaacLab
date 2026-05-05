@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import weakref
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -23,6 +22,7 @@ from pxr import Sdf
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 
@@ -31,10 +31,9 @@ from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update, ensure_rtx
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
 
-    from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
 # RTX simple-shading constants.
 #
@@ -74,7 +73,7 @@ class IsaacRtxRenderData:
     annotators: dict[str, Any]
     render_product_paths: list[str]
     output_data: dict[str, torch.Tensor] | None = None
-    sensor: SensorBase | None = None
+    spec: CameraRenderSpec | None = None
     renderer_info: dict[str, Any] = field(default_factory=dict)
 
 
@@ -137,28 +136,30 @@ class IsaacRtxRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
         pass
 
-    def create_render_data(self, sensor: SensorBase) -> IsaacRtxRenderData:
+    def create_render_data(self, spec: CameraRenderSpec) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         import omni.replicator.core as rep
         from omni.syntheticdata import SyntheticData
         from pxr import UsdGeom
 
+        from isaaclab.sim.utils.stage import get_current_stage
+
         settings = get_settings_manager()
         isaac_sim_version = get_isaac_sim_version()
 
         if isaac_sim_version.major >= 6:
-            needs_color_render = "rgb" in sensor.cfg.data_types or "rgba" in sensor.cfg.data_types
+            needs_color_render = "rgb" in spec.cfg.data_types or "rgba" in spec.cfg.data_types
             if not needs_color_render:
                 settings.set_bool("/rtx/sdg/force/disableColorRender", True)
             if settings.get("/isaaclab/has_gui"):
                 settings.set_bool("/rtx/sdg/force/disableColorRender", False)
         else:
-            if "albedo" in sensor.cfg.data_types:
+            if "albedo" in spec.cfg.data_types:
                 logger.warning(
                     "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
                 )
-            if any(dt in SIMPLE_SHADING_MODES for dt in sensor.cfg.data_types):
+            if any(dt in SIMPLE_SHADING_MODES for dt in spec.cfg.data_types):
                 logger.warning(
                     "Simple shading annotators are only supported in Isaac Sim 6.0+."
                     " The simple shading data types will be ignored."
@@ -166,8 +167,9 @@ class IsaacRtxRenderer(BaseRenderer):
 
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation
         # outputs for instanceable assets. Disable instancing as a workaround.
+        stage = get_current_stage()
         if isaac_sim_version == version.parse("4.5") and (
-            "semantic_segmentation" in sensor.cfg.data_types or "instance_segmentation_fast" in sensor.cfg.data_types
+            "semantic_segmentation" in spec.cfg.data_types or "instance_segmentation_fast" in spec.cfg.data_types
         ):
             logger.warning(
                 "Isaac Sim 4.5 introduced a bug in Camera when outputting instance and semantic"
@@ -176,22 +178,18 @@ class IsaacRtxRenderer(BaseRenderer):
                 " usage."
             )
             with Sdf.ChangeBlock():
-                for prim in sensor.stage.Traverse():
+                for prim in stage.Traverse():
                     prim.SetInstanceable(False)
 
         # Get camera prim paths from sensor view
-        view = sensor._view
-        cam_prim_paths = []
-        for cam_prim in view.prims:
-            cam_prim_path = cam_prim.GetPath().pathString
+        cam_prim_paths = list(spec.camera_prim_paths)
+        for cam_prim_path in cam_prim_paths:
+            cam_prim = stage.GetPrimAtPath(cam_prim_path)
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
-            cam_prim_paths.append(cam_prim_path)
 
         # Create replicator tiled render product
-        rp = rep.create.render_product_tiled(
-            cameras=cam_prim_paths, tile_resolution=(sensor.cfg.width, sensor.cfg.height)
-        )
+        rp = rep.create.render_product_tiled(cameras=cam_prim_paths, tile_resolution=(spec.cfg.width, spec.cfg.height))
         render_product_paths = [rp.path]
 
         # Synthetic-data instance mapping filter for segmentation; before annotator attach.
@@ -200,20 +198,20 @@ class IsaacRtxRenderer(BaseRenderer):
         )
 
         # Register simple shading if needed
-        if any(data_type in SIMPLE_SHADING_MODES for data_type in sensor.cfg.data_types):
+        if any(data_type in SIMPLE_SHADING_MODES for data_type in spec.cfg.data_types):
             rep.AnnotatorRegistry.register_annotator_from_aov(
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
             # Set simple shading mode (if requested) before rendering
-            simple_shading_mode = self._resolve_simple_shading_mode(sensor)
+            simple_shading_mode = self._resolve_simple_shading_mode(spec)
             if simple_shading_mode is not None:
                 get_settings_manager().set_int(SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
 
         # Define annotators based on requested data types
         annotators = {}
-        for annotator_type in sensor.cfg.data_types:
+        for annotator_type in spec.cfg.data_types:
             if annotator_type == "rgba" or annotator_type == "rgb":
-                annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=sensor.device, do_array_copy=False)
+                annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=spec.device, do_array_copy=False)
                 annotators["rgba"] = annotator
             elif annotator_type == "albedo":
                 # TODO: this is a temporary solution because replicator has not exposed the annotator yet
@@ -222,18 +220,18 @@ class IsaacRtxRenderer(BaseRenderer):
                     aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
                 )
                 annotator = rep.AnnotatorRegistry.get_annotator(
-                    "DiffuseAlbedoSD", device=sensor.device, do_array_copy=False
+                    "DiffuseAlbedoSD", device=spec.device, do_array_copy=False
                 )
                 annotators["albedo"] = annotator
             elif annotator_type in SIMPLE_SHADING_MODES:
                 annotator = rep.AnnotatorRegistry.get_annotator(
-                    SIMPLE_SHADING_AOV, device=sensor.device, do_array_copy=False
+                    SIMPLE_SHADING_AOV, device=spec.device, do_array_copy=False
                 )
                 annotators[annotator_type] = annotator
             elif annotator_type == "depth" or annotator_type == "distance_to_image_plane":
                 # keep depth for backwards compatibility
                 annotator = rep.AnnotatorRegistry.get_annotator(
-                    "distance_to_image_plane", device=sensor.device, do_array_copy=False
+                    "distance_to_image_plane", device=spec.device, do_array_copy=False
                 )
                 annotators[annotator_type] = annotator
             # note: we are verbose here to make it easier to understand the code.
@@ -252,7 +250,7 @@ class IsaacRtxRenderer(BaseRenderer):
                     init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
 
                 annotator = rep.AnnotatorRegistry.get_annotator(
-                    annotator_type, init_params, device=sensor.device, do_array_copy=False
+                    annotator_type, init_params, device=spec.device, do_array_copy=False
                 )
                 annotators[annotator_type] = annotator
 
@@ -260,19 +258,15 @@ class IsaacRtxRenderer(BaseRenderer):
         for annotator in annotators.values():
             annotator.attach(render_product_paths)
 
-        # Currently camera owns the renderer and render data. By holding full
-        # reference of the sensor, we create a circular reference between the
-        # sensor and the render data. Weak reference ensures proper garbage
-        # collection.
         return IsaacRtxRenderData(
             annotators=annotators,
             render_product_paths=render_product_paths,
-            sensor=weakref.ref(sensor),
+            spec=spec,
         )
 
-    def _resolve_simple_shading_mode(self, sensor: SensorBase) -> int | None:
+    def _resolve_simple_shading_mode(self, spec: CameraRenderSpec) -> int | None:
         """Resolve the requested simple shading mode from data types."""
-        requested = [dt for dt in sensor.cfg.data_types if dt in SIMPLE_SHADING_MODES]
+        requested = [dt for dt in spec.cfg.data_types if dt in SIMPLE_SHADING_MODES]
         if not requested:
             return None
         if len(requested) > 1:
@@ -307,9 +301,9 @@ class IsaacRtxRenderer(BaseRenderer):
     def render(self, render_data: IsaacRtxRenderData):
         """Extract data from annotators and write to output buffers.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        sensor = render_data.sensor() if render_data.sensor else None
+        spec = render_data.spec
         output_data = render_data.output_data
-        if output_data is None or sensor is None:
+        if output_data is None or spec is None:
             return
 
         # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
@@ -317,8 +311,9 @@ class IsaacRtxRenderer(BaseRenderer):
         # for the current physics step, or if a visualizer already pumped it.
         ensure_isaac_rtx_render_update()
 
-        view_count = sensor._view.count
-        cfg = sensor.cfg
+        view_count = spec.view_count
+        cfg = spec.cfg
+        device = spec.device
 
         def tiling_grid_shape():
             cols = math.ceil(math.sqrt(view_count))
@@ -341,9 +336,9 @@ class IsaacRtxRenderer(BaseRenderer):
             if isinstance(tiled_data_buffer, np.ndarray):
                 # Let warp infer the dtype from numpy array instead of hardcoding uint8
                 # Different annotators return different dtypes: RGB(uint8), depth(float32), segmentation(uint32)
-                tiled_data_buffer = wp.array(tiled_data_buffer, device=sensor.device)
+                tiled_data_buffer = wp.array(tiled_data_buffer, device=device)
             else:
-                tiled_data_buffer = tiled_data_buffer.to(device=sensor.device)
+                tiled_data_buffer = tiled_data_buffer.to(device=device)
 
             # process data for different segmentation types
             # Note: Replicator returns raw buffers of dtype uint32 for segmentation types
@@ -354,7 +349,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 or (data_type == "instance_id_segmentation_fast" and self.cfg.colorize_instance_id_segmentation)
             ):
                 tiled_data_buffer = wp.array(
-                    ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=sensor.device
+                    ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=device
                 )
 
             # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
@@ -378,7 +373,7 @@ class IsaacRtxRenderer(BaseRenderer):
                     *list(output_data[data_type].shape[1:]),
                     num_tiles_x,
                 ],
-                device=sensor.device,
+                device=device,
             )
 
             # alias rgb as first 3 channels of rgba
@@ -414,4 +409,4 @@ class IsaacRtxRenderer(BaseRenderer):
         if render_data:
             for annotator in render_data.annotators.values():
                 annotator.detach(render_data.render_product_paths)
-            render_data.sensor = None
+            render_data.spec = None
