@@ -1,0 +1,119 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Nightly auto-compile: rolls accumulated fragments under
+# ``source/<pkg>/changelog.d/`` into per-package ``CHANGELOG.rst`` entries,
+# bumps each ``extension.toml``, deletes consumed fragments, and pushes the
+# result back to ``develop``. Keeps the develop branch's changelog current
+# without requiring a maintainer to run ``compile`` by hand.
+#
+# The push uses ``CHANGELOG_PAT`` (a personal access token / fine-grained
+# GitHub App token with ``contents:write`` on this repo) when it's
+# available so downstream CI runs on the auto-commit. Falls back to
+# ``GITHUB_TOKEN`` — sufficient for the push itself, but pushes signed
+# with ``GITHUB_TOKEN`` do not trigger workflow runs on the resulting
+# commit, which is by design (avoids infinite loops) but means the
+# Docker / docs rebuild won't re-trigger off the nightly's auto-commit.
+
+name: Nightly Changelog Compilation
+
+on:
+  schedule:
+    # Run nightly at 5 AM UTC (one hour after daily-compatibility, so we
+    # don't compete for runner capacity).
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview only — do not commit / push'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  # Only one nightly compile may be in flight at a time. ``cancel-in-progress``
+  # is intentionally false: if a previous run is still finishing its push, we
+  # queue rather than abort it mid-commit.
+  group: nightly-changelog
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  compile-changelog:
+    name: Compile changelog fragments
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          # Operate on develop, not the repo's default branch. Scheduled
+          # workflows fire from the default branch's workflow file by
+          # default, but we want the *checkout* to be develop so the
+          # compile sees develop's accumulated fragments and the push
+          # writes back to develop.
+          ref: develop
+          # Use a PAT so the auto-commit triggers downstream CI; falls back
+          # to GITHUB_TOKEN which is sufficient for the push itself.
+          token: ${{ secrets.CHANGELOG_PAT || secrets.GITHUB_TOKEN }}
+          # Full history so the compiler can resolve each fragment's merge
+          # time via ``git log --diff-filter=A --first-parent``.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile fragments
+        run: |
+          ARGS="--all"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          echo "Running: python3 tools/changelog/cli.py compile $ARGS"
+          python3 tools/changelog/cli.py compile $ARGS
+
+      - name: Commit and push if fragments were compiled
+        if: inputs.dry_run != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source/*/changelog.d/ \
+                  source/*/docs/CHANGELOG.rst \
+                  source/*/config/extension.toml
+          if git diff --staged --quiet; then
+            echo "No changelog fragments found — nothing to commit."
+          else
+            # Convention for CI-driven auto-commits on this repo:
+            #   [CI][<Specific Action>] <one-line summary>
+            # The leading ``[CI]`` tag groups every machine-driven commit
+            # (so future automations — auto image rebuilds, auto publish,
+            # etc. — all share the prefix and are easy to find/filter in
+            # ``git log --grep``). The second tag names the specific
+            # action. The trigger event suffix (``schedule`` vs
+            # ``workflow_dispatch``) is preserved for traceability.
+            #
+            # The body lists every package that bumped, derived from the
+            # staged ``extension.toml`` diff so the entries are accurate
+            # regardless of which packages happen to have pending
+            # fragments this run.
+            MSG_FILE=$(mktemp)
+            {
+              echo "[CI][Auto Version Bump] Compile changelog fragments (${{ github.event_name }})"
+              echo
+              echo "Bumped packages:"
+              for tom in $(git diff --staged --name-only -- 'source/*/config/extension.toml'); do
+                pkg=$(echo "$tom" | sed -E 's|source/([^/]+)/config/extension.toml|\1|')
+                old=$(git diff --staged "$tom" | awk -F'"' '/^-version/{print $2; exit}')
+                new=$(git diff --staged "$tom" | awk -F'"' '/^\+version/{print $2; exit}')
+                echo "- $pkg: $old → $new"
+              done
+            } > "$MSG_FILE"
+            git commit -F "$MSG_FILE"
+            # Push explicitly to develop so we don't accidentally write
+            # to the source ref of a workflow_dispatch run.
+            git push origin HEAD:develop
+          fi

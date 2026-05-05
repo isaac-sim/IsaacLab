@@ -22,7 +22,7 @@ on:
     - cron: '0 0 * * 0'  # Every Sunday at midnight UTC
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 2
         filter: tree:0
@@ -42,7 +42,7 @@ jobs:
       run: |
         # Get the files changed by this PR/commit.
         # For PRs: HEAD is the merge commit, HEAD^1 is the base branch tip.
-        # Diffing HEAD^1..HEAD shows exactly what the PR introduces — files only
+        # Diffing HEAD^1..HEAD shows exactly what the PR introduces - files only
         # changed on the base branch (not by the PR) are identical in both and
         # won't appear. Works for push events too (last commit vs its parent).
         CHANGED=$(git diff --name-only HEAD^1 HEAD || true)
@@ -100,6 +100,7 @@ jobs:
           --exclude 'huggingface\.co/nvidia/COMPASS'
           --exclude 'huggingface\.co/nvidia/X-Mobility'
           --exclude 'openusd\.org'
+          --exclude 'ubuntu\.com/server/docs'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20

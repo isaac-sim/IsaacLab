@@ -11,9 +11,12 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from pxr import UsdGeom
+from pxr import Gf, Usd, UsdGeom, Vt
 
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .kit_visualizer_cfg import KitVisualizerCfg
 
@@ -21,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaaclab.physics import BaseSceneDataProvider
+
+_DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
 
 
 class KitVisualizer(BaseVisualizer):
@@ -42,10 +47,11 @@ class KitVisualizer(BaseVisualizer):
         self._sim_time = 0.0
         self._step_counter = 0
         self._hidden_env_visibilities: dict[str, str] = {}
-        # Camera prim path that set_camera_view() writes to. Pinned at initialization so that
-        # user-switching the GUI viewport to a sensor camera does not corrupt the sensor's prim.
-        self._controlled_camera_path: str | None = None
+        # PointInstancer prim path -> (had authored invisibleIds, previous value) for partial viz restore.
+        self._point_instancer_invisible_ids_backup: dict[str, tuple[bool, object]] = {}
         self._runtime_headless = bool(cfg.headless)
+        # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
+        self._controlled_camera_path: str | None = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -68,22 +74,29 @@ class KitVisualizer(BaseVisualizer):
         metadata = scene_data_provider.get_metadata()
 
         self._ensure_simulation_app()
-        self._setup_viewport(usd_stage)
+        self._setup_viewport()
 
         self._env_ids = self._compute_visualized_env_ids()
-        if self._env_ids:
+        num_envs_meta = int(metadata.get("num_envs", 0))
+        self._resolved_visible_env_ids = resolve_visible_env_indices(
+            self._env_ids, self.cfg.max_visible_envs, num_envs_meta
+        )
+        if self._resolved_visible_env_ids is not None:
             logger.warning(
-                "[KitVisualizer] env_filter_ids filtering is cosmetic only (no perf gain) in OV; hiding other envs."
+                "[KitVisualizer] Partial visualization in Kit uses visibility only; unselected env prims are hidden."
             )
-            self._apply_env_visibility(usd_stage, metadata)
-        num_visualized_envs = len(self._env_ids) if self._env_ids is not None else int(metadata.get("num_envs", 0))
+            self._apply_env_visibility(usd_stage, metadata, self._resolved_visible_env_ids)
+        num_visualized_envs = (
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs_meta
+        )
         self._log_initialization_table(
             logger=logger,
             title="KitVisualizer Configuration",
             rows=[
-                ("camera_position", self.cfg.camera_position),
-                ("camera_target", self.cfg.camera_target),
-                ("camera_source", self.cfg.camera_source),
+                ("eye", self.cfg.eye),
+                ("lookat", self.cfg.lookat),
+                ("cam_source", self.cfg.cam_source),
+                ("max_visible_envs", self.cfg.max_visible_envs),
                 ("num_visualized_envs", num_visualized_envs),
                 ("create_viewport", self.cfg.create_viewport),
                 ("headless", self._runtime_headless),
@@ -105,18 +118,19 @@ class KitVisualizer(BaseVisualizer):
         try:
             import omni.kit.app
 
-            from isaaclab.app.settings_manager import get_settings_manager
-
             app = omni.kit.app.get_app()
             if app is not None and app.is_running():
-                # Keep app pumping for viewport/UI updates only.
-                # Simulation stepping is owned by SimulationContext.
+                # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
+                # Disable playSimulations around app.update() so Kit does not advance its own physics here.
                 settings = get_settings_manager()
                 settings.set_bool("/app/player/playSimulations", False)
                 app.update()
                 settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
+        # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
+        # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
+        self._refresh_partial_viz_point_instancers_if_needed()
 
     def close(self) -> None:
         """Close viewport resources and restore temporary state."""
@@ -150,8 +164,6 @@ class KitVisualizer(BaseVisualizer):
     def is_training_paused(self) -> bool:
         """Return whether simulation play flag is paused in Kit settings."""
         try:
-            from isaaclab.app.settings_manager import get_settings_manager
-
             settings = get_settings_manager()
             play_flag = settings.get("/app/player/playSimulations")
             return play_flag is False
@@ -179,10 +191,17 @@ class KitVisualizer(BaseVisualizer):
     ) -> None:
         """Set active viewport camera eye/target.
 
+        When :attr:`self.cfg.cam_source` is ``"cfg"``, this is a no-op: the pose comes only from
+        :attr:`self.cfg.eye` / :attr:`self.cfg.lookat` (applied in :meth:`_setup_viewport`). Otherwise
+        :class:`~isaaclab.sim.simulation_context.SimulationContext` and :class:`ViewportCameraController`
+        would overwrite that pose with :class:`~isaaclab.envs.common.ViewerCfg`-driven views.
+
         Args:
             eye: Camera eye position.
             target: Camera look-at target.
         """
+        if self.cfg.cam_source == "cfg":
+            return
         if not self._is_initialized:
             logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
@@ -215,22 +234,33 @@ class KitVisualizer(BaseVisualizer):
         except ImportError:
             pass
 
-    def _setup_viewport(self, usd_stage) -> None:
-        """Create/resolve viewport and configure initial camera.
-
-        Args:
-            usd_stage: USD stage used for camera prim setup.
-        """
+    def _setup_viewport(self) -> None:
+        """Create/resolve viewport and configure initial camera."""
         import omni.kit.viewport.utility as vp_utils
         from omni.ui import DockPosition
 
         if self._runtime_headless:
-            # In headless mode we keep the visualizer active but skip viewport/window setup.
+            # Headless: no viewport window; apply cfg pose to the default perspective camera path.
             self._viewport_window = None
             self._viewport_api = None
+            if self.cfg.cam_source == "prim_path":
+                logger.warning(
+                    "[KitVisualizer] cam_source='prim_path' has limited support in headless mode; "
+                    "using eye/lookat from cfg instead."
+                )
+            self._apply_cfg_camera_pose_if_configured()
+            self._refresh_controlled_camera_path()
             return
 
-        if self.cfg.create_viewport and self.cfg.viewport_name:
+        effective_viewport_name = (
+            self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
+        )
+
+        if self.cfg.create_viewport:
+            if not str(effective_viewport_name).strip():
+                raise RuntimeError(
+                    "[KitVisualizer] viewport_name must be a non-empty string when create_viewport=True."
+                )
             dock_position_name = self.cfg.dock_position.upper()
             dock_position_map = {
                 "LEFT": DockPosition.LEFT,
@@ -241,7 +271,7 @@ class KitVisualizer(BaseVisualizer):
             dock_pos = dock_position_map.get(dock_position_name, DockPosition.SAME)
 
             self._viewport_window = vp_utils.create_viewport_window(
-                name=self.cfg.viewport_name,
+                name=effective_viewport_name,
                 width=self.cfg.window_width,
                 height=self.cfg.window_height,
                 position_x=50,
@@ -249,28 +279,33 @@ class KitVisualizer(BaseVisualizer):
                 docked=True,
             )
 
-            asyncio.ensure_future(self._dock_viewport_async(self.cfg.viewport_name, dock_pos))
-            self._create_and_assign_camera(usd_stage)
+            asyncio.ensure_future(self._dock_viewport_async(effective_viewport_name, dock_pos))
         else:
             self._viewport_window = vp_utils.get_active_viewport_window()
 
         if self._viewport_window is None:
             logger.warning("[KitVisualizer] No active viewport window found.")
             self._viewport_api = None
+            self._refresh_controlled_camera_path()
             return
         self._viewport_api = self._viewport_window.viewport_api
-        # Pin the camera path we will write to, using the active camera at init time.
-        # This must happen before any _set_viewport_camera() call so the path is known.
-        self._controlled_camera_path = self._viewport_api.get_active_camera() or "/OmniverseKit_Persp"
-        if self.cfg.camera_source == "usd_path":
-            if not self._set_active_camera_path(self.cfg.camera_usd_path):
-                logger.warning(
-                    "[KitVisualizer] camera_usd_path '%s' not found; using configured camera.",
-                    self.cfg.camera_usd_path,
+        if self.cfg.cam_source == "prim_path":
+            if not self._set_active_camera_path(self.cfg.cam_prim_path):
+                raise RuntimeError(
+                    "[KitVisualizer] cam_source='prim_path' requires a valid cam_prim_path. "
+                    f"Camera prim not found: '{self.cfg.cam_prim_path}'."
                 )
-                self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
         else:
-            self._set_viewport_camera(self.cfg.camera_position, self.cfg.camera_target)
+            self._apply_cfg_camera_pose_if_configured()
+        self._refresh_controlled_camera_path()
+
+    def _refresh_controlled_camera_path(self) -> None:
+        """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""
+        if self._viewport_api is not None:
+            path = self._viewport_api.get_active_camera()
+            self._controlled_camera_path = path if path else "/OmniverseKit_Persp"
+        else:
+            self._controlled_camera_path = "/OmniverseKit_Persp"
 
     async def _dock_viewport_async(self, viewport_name: str, dock_position) -> None:
         """Dock a created viewport window relative to main viewport."""
@@ -303,35 +338,28 @@ class KitVisualizer(BaseVisualizer):
             await omni.kit.app.get_app().next_update_async()
             viewport_window.focus()
 
-    def _create_and_assign_camera(self, usd_stage) -> None:
-        """Create viewport camera prim (if needed) and set it active."""
-        camera_path = f"/World/Cameras/{self.cfg.viewport_name}_Camera".replace(" ", "_")
-
-        camera_prim = usd_stage.GetPrimAtPath(camera_path)
-        if not camera_prim.IsValid():
-            UsdGeom.Camera.Define(usd_stage, camera_path)
-
-        if self._viewport_api:
-            self._viewport_api.set_active_camera(camera_path)
-            self._controlled_camera_path = camera_path
-
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Apply eye/target camera view to the active viewport."""
-        import isaacsim.core.utils.viewports as isaacsim_viewports
-
         if self._viewport_api is None:
             return
-        # Use the camera path pinned at initialization. This prevents user-switching the GUI
-        # viewport to a sensor camera from corrupting the sensor's USD prim transform.
-        camera_path = self._controlled_camera_path
-        if not camera_path:
-            camera_path = self._viewport_api.get_active_camera() if self._viewport_api else None
+
+        try:
+            from omni.kit.viewport.utility.camera_state import ViewportCameraState
+        except ImportError as exc:
+            logger.warning("[KitVisualizer] Viewport camera update skipped: %s", exc)
+            return
+
+        camera_path = self._viewport_api.get_active_camera()
         if not camera_path:
             camera_path = "/OmniverseKit_Persp"
 
-        isaacsim_viewports.set_camera_view(
-            eye=list(position), target=list(target), camera_prim_path=camera_path, viewport_api=self._viewport_api
-        )
+        camera_state = ViewportCameraState(camera_path, self._viewport_api)
+        camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), True)
+        camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
+
+    def _apply_cfg_camera_pose_if_configured(self) -> None:
+        """Apply configured camera pose from eye/lookat."""
+        self._set_viewport_camera(self.cfg.eye, self.cfg.lookat)
 
     def _set_active_camera_path(self, camera_path: str) -> bool:
         """Set active camera path for viewport if the prim exists.
@@ -348,17 +376,14 @@ class KitVisualizer(BaseVisualizer):
         if not camera_prim.IsValid():
             return False
         self._viewport_api.set_active_camera(camera_path)
-        self._controlled_camera_path = camera_path
         return True
 
-    def _apply_env_visibility(self, usd_stage, metadata: dict) -> None:
-        """Hide non-selected environments for cosmetic env filtering."""
-        if not self._env_ids:
-            return
+    def _apply_env_visibility(self, usd_stage, metadata: dict, visible_env_ids: list[int]) -> None:
+        """Hide environments not listed in ``visible_env_ids`` (cosmetic partial visualization)."""
         num_envs = int(metadata.get("num_envs", 0))
         if num_envs <= 0:
             return
-        visible = set(self._env_ids)
+        visible = set(visible_env_ids)
         for env_id in range(num_envs):
             if env_id in visible:
                 continue
@@ -375,10 +400,63 @@ class KitVisualizer(BaseVisualizer):
                 self._hidden_env_visibilities[env_path] = prev
             attr.Set(UsdGeom.Tokens.invisible)
 
-    def _restore_env_visibility(self) -> None:
-        """Restore environment visibilities modified by env filtering."""
-        if not self._hidden_env_visibilities:
+        self._apply_visual_point_instancer_visibility(usd_stage, num_envs, visible)
+
+    def _refresh_partial_viz_point_instancers_if_needed(self) -> None:
+        """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
+        if self._resolved_visible_env_ids is None or self._scene_data_provider is None:
             return
+        usd_stage = self._scene_data_provider.get_usd_stage()
+        if usd_stage is None:
+            return
+        num_envs = int(self._scene_data_provider.get_metadata().get("num_envs", 0))
+        if num_envs <= 0:
+            return
+        self._apply_visual_point_instancer_visibility(usd_stage, num_envs, set(self._resolved_visible_env_ids))
+
+    def _apply_visual_point_instancer_visibility(self, usd_stage, num_envs: int, visible_env_ids: set[int]) -> None:
+        """Set ``PointInstancer.invisibleIds`` for per-env `/Visuals` markers (e.g. velocity arrows)."""
+        hidden = [i for i in range(num_envs) if i not in visible_env_ids]
+        vt_hidden = Vt.Int64Array([int(i) for i in hidden])
+        for root_path in ("/Visuals", "/World/Visuals"):
+            root_prim = usd_stage.GetPrimAtPath(root_path)
+            if not root_prim.IsValid():
+                continue
+            for prim in Usd.PrimRange(root_prim):
+                if not prim.IsA(UsdGeom.PointInstancer):
+                    continue
+                pi = UsdGeom.PointInstancer(prim)
+                n = self._point_instancer_instance_count(pi)
+                if n is None or n != num_envs:
+                    continue
+                path_str = prim.GetPath().pathString
+                inv_attr = pi.GetInvisibleIdsAttr()
+                # Record original authorship/value once per instancer for :meth:`_restore_env_visibility`.
+                if path_str not in self._point_instancer_invisible_ids_backup:
+                    was_authored = inv_attr.HasAuthoredValue()
+                    prev = inv_attr.Get() if was_authored else None
+                    self._point_instancer_invisible_ids_backup[path_str] = (was_authored, prev)
+                inv_attr.Set(vt_hidden)
+
+    @staticmethod
+    def _point_instancer_instance_count(pi: UsdGeom.PointInstancer) -> int | None:
+        """Return instance count from the first authored per-instance array, if any."""
+        for attr in (
+            pi.GetPositionsAttr(),
+            pi.GetScalesAttr(),
+            pi.GetOrientationsAttr(),
+            pi.GetProtoIndicesAttr(),
+        ):
+            if not attr.HasAuthoredValue():
+                continue
+            val = attr.Get()
+            if val is None:
+                continue
+            return len(val)
+        return None
+
+    def _restore_env_visibility(self) -> None:
+        """Restore environment visibilities and PointInstancer ``invisibleIds`` from partial viz."""
         usd_stage = self._scene_data_provider.get_usd_stage() if self._scene_data_provider else None
         if usd_stage is None:
             return
@@ -391,3 +469,14 @@ class KitVisualizer(BaseVisualizer):
                 continue
             imageable.GetVisibilityAttr().Set(prev)
         self._hidden_env_visibilities.clear()
+
+        for path_str, (was_authored, prev) in self._point_instancer_invisible_ids_backup.items():
+            prim = usd_stage.GetPrimAtPath(path_str)
+            if not prim.IsValid() or not prim.IsA(UsdGeom.PointInstancer):
+                continue
+            inv_attr = UsdGeom.PointInstancer(prim).GetInvisibleIdsAttr()
+            if not was_authored:
+                inv_attr.Clear()
+            else:
+                inv_attr.Set(prev)
+        self._point_instancer_invisible_ids_backup.clear()

@@ -256,40 +256,23 @@ class Articulation(BaseArticulation):
         # write external wrench
         if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
             if self._instantaneous_wrench_composer.active:
-                # Compose instantaneous wrench with permanent wrench
-                self._instantaneous_wrench_composer.add_forces_and_torques_index(
-                    forces=self._permanent_wrench_composer.composed_force,
-                    torques=self._permanent_wrench_composer.composed_torque,
-                    body_ids=self._ALL_BODY_INDICES,
-                    env_ids=self._ALL_INDICES,
-                )
-                # Apply both instantaneous and permanent wrench to the simulation
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._instantaneous_wrench_composer.composed_force,
-                        self._instantaneous_wrench_composer.composed_torque,
-                        self._data._sim_bind_body_external_wrench,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._instantaneous_wrench_composer
+                composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
-                # Apply permanent wrench to the simulation
-                wp.launch(
-                    shared_kernels.update_wrench_array_with_force_and_torque,
-                    dim=(self.num_instances, self.num_bodies),
-                    device=self.device,
-                    inputs=[
-                        self._permanent_wrench_composer.composed_force,
-                        self._permanent_wrench_composer.composed_torque,
-                        self._data._sim_bind_body_external_wrench,
-                        self._ALL_ENV_MASK,
-                        self._ALL_BODY_MASK,
-                    ],
-                )
+                composer = self._permanent_wrench_composer
+            composer.compose_to_body_frame()
+            wp.launch(
+                shared_kernels.update_wrench_array_with_force_and_torque,
+                dim=(self.num_instances, self.num_bodies),
+                device=self.device,
+                inputs=[
+                    composer.out_force_b,
+                    composer.out_torque_b,
+                    self._data._sim_bind_body_external_wrench,
+                    self._ALL_ENV_MASK,
+                    self._ALL_BODY_MASK,
+                ],
+            )
         self._instantaneous_wrench_composer.reset()
 
         # apply actuator models
@@ -469,6 +452,9 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -483,8 +469,6 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_link_pose_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -495,6 +479,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -525,6 +510,9 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
@@ -538,8 +526,6 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_link_pose_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -550,6 +536,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -581,6 +568,9 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -599,9 +589,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
-                None,  # self.data._root_com_state_w.data,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -614,6 +601,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -645,6 +633,9 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         self.assert_shape_and_dtype_mask(root_pose, (env_mask,), wp.transformf, "root_pose")
@@ -659,9 +650,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
-                None,  # self.data._root_com_state_w.data,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -674,6 +662,7 @@ class Articulation(BaseArticulation):
         if self.data._root_state_w is not None:
             self.data._root_state_w.timestamp = -1.0
         self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
         if self.data._body_com_pose_w is not None:
             self.data._body_com_pose_w.timestamp = -1.0
         if self.data._body_state_w is not None:
@@ -774,8 +763,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -822,8 +809,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -876,9 +861,6 @@ class Articulation(BaseArticulation):
                 self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -930,9 +912,6 @@ class Articulation(BaseArticulation):
                 self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -943,6 +922,66 @@ class Articulation(BaseArticulation):
             self.data._root_state_w.timestamp = -1.0
         if self.data._root_com_state_w is not None:
             self.data._root_com_state_w.timestamp = -1.0
+
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ):
+        """Write joint positions and velocities in a single fused kernel launch.
+
+        .. note::
+            This method expects partial data.
+
+        .. tip::
+            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
+            However, to allow graphed pipelines, the mask method must be used.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+        self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data_index,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk()
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_pose_b is not None:
+            self.data._body_com_pose_b.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_joint_state_to_sim_mask(
         self,
@@ -967,9 +1006,42 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        # set into simulation
-        self.write_joint_position_to_sim_mask(position, env_mask=env_mask, joint_mask=joint_mask)
-        self.write_joint_velocity_to_sim_mask(velocity, env_mask=env_mask, joint_mask=joint_mask)
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
+        self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
+        self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data_mask,
+            dim=(env_mask.shape[0], joint_mask.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_mask,
+                joint_mask,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate FK timestamp so body poses are recomputed on next access.
+        self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk()
+        if self.data._body_link_vel_w is not None:
+            self.data._body_link_vel_w.timestamp = -1.0
+        if self.data._body_com_pose_b is not None:
+            self.data._body_com_pose_b.timestamp = -1.0
+        if self.data._body_com_pose_w is not None:
+            self.data._body_com_pose_w.timestamp = -1.0
+        if self.data._body_state_w is not None:
+            self.data._body_state_w.timestamp = -1.0
+        if self.data._body_link_state_w is not None:
+            self.data._body_link_state_w.timestamp = -1.0
+        if self.data._body_com_state_w is not None:
+            self.data._body_com_state_w.timestamp = -1.0
 
     def write_joint_position_to_sim_index(
         self,
@@ -991,6 +1063,9 @@ class Articulation(BaseArticulation):
             position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -1012,6 +1087,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -1047,6 +1123,9 @@ class Articulation(BaseArticulation):
             position: Joint positions. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Note:
+            Triggers per-environment FK recomputation and solver reset (Kamino) for the affected environments.
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
@@ -1066,6 +1145,7 @@ class Articulation(BaseArticulation):
         )
         # Invalidate FK timestamp so body poses are recomputed on next access.
         self.data._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk(env_mask=env_mask, articulation_ids=self._root_view.articulation_ids)
         # Need to invalidate the buffer to trigger the update with the new root pose.
         # Only invalidate if the buffer has been accessed (not None).
         if self.data._body_link_vel_w is not None:
@@ -3245,9 +3325,9 @@ class Articulation(BaseArticulation):
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
-        self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
-        self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
-        self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
+        self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
+        self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
+        self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target.warp, device=self.device)
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(
@@ -3351,12 +3431,12 @@ class Articulation(BaseArticulation):
                 joint_ids=joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
-                stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
-                damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
-                armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
-                friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
-                effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
-                velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
+                stiffness=self._data.joint_stiffness.torch[:, joint_ids],
+                damping=self._data.joint_damping.torch[:, joint_ids],
+                armature=self._data.joint_armature.torch[:, joint_ids],
+                friction=self._data.joint_friction_coeff.torch[:, joint_ids],
+                effort_limit=self._data.joint_effort_limits.torch[:, joint_ids].clone(),
+                velocity_limit=self._data.joint_vel_limits.torch[:, joint_ids],
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
@@ -3483,16 +3563,16 @@ class Articulation(BaseArticulation):
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
-                joint_positions=wp.to_torch(self._data.joint_pos_target)[:, actuator.joint_indices],
-                joint_velocities=wp.to_torch(self._data.joint_vel_target)[:, actuator.joint_indices],
-                joint_efforts=wp.to_torch(self._data.joint_effort_target)[:, actuator.joint_indices],
+                joint_positions=self._data.joint_pos_target.torch[:, actuator.joint_indices],
+                joint_velocities=self._data.joint_vel_target.torch[:, actuator.joint_indices],
+                joint_efforts=self._data.joint_effort_target.torch[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
             # compute joint command from the actuator model
             control_action = actuator.compute(
                 control_action,
-                joint_pos=wp.to_torch(self._data.joint_pos)[:, actuator.joint_indices],
-                joint_vel=wp.to_torch(self._data.joint_vel)[:, actuator.joint_indices],
+                joint_pos=self._data.joint_pos.torch[:, actuator.joint_indices],
+                joint_vel=self._data.joint_vel.torch[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
             joint_indices = actuator.joint_indices
@@ -3555,9 +3635,9 @@ class Articulation(BaseArticulation):
             return
 
         # check that the default values are within the limits
-        joint_pos_limits_lower = wp.to_torch(self._data.joint_pos_limits_lower)[0]
-        joint_pos_limits_upper = wp.to_torch(self._data.joint_pos_limits_upper)[0]
-        default_joint_pos = wp.to_torch(self._data.default_joint_pos)[0]
+        joint_pos_limits_lower = self._data.joint_pos_limits_lower.torch[0]
+        joint_pos_limits_upper = self._data.joint_pos_limits_upper.torch[0]
+        default_joint_pos = self._data.default_joint_pos.torch[0]
         out_of_range = default_joint_pos < joint_pos_limits_lower
         out_of_range |= default_joint_pos > joint_pos_limits_upper
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
@@ -3574,8 +3654,8 @@ class Articulation(BaseArticulation):
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
-        joint_max_vel = wp.to_torch(self._data.joint_vel_limits)[0]
-        default_joint_vel = wp.to_torch(self._data.default_joint_vel)[0]
+        joint_max_vel = self._data.joint_vel_limits.torch[0]
+        default_joint_vel = self._data.default_joint_vel.torch[0]
         out_of_range = torch.abs(default_joint_vel) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:
@@ -3615,19 +3695,19 @@ class Articulation(BaseArticulation):
         # -- gains
         # Use data properties which have already been cloned and stored during initialization
         # This avoids issues with indexedarray or empty arrays from root_view
-        stiffnesses = wp.to_torch(self.data.joint_stiffness)[0].cpu().tolist()
-        dampings = wp.to_torch(self.data.joint_damping)[0].cpu().tolist()
+        stiffnesses = self.data.joint_stiffness.torch[0].cpu().tolist()
+        dampings = self.data.joint_damping.torch[0].cpu().tolist()
         # -- properties
-        armatures = wp.to_torch(self.data.joint_armature)[0].cpu().tolist()
+        armatures = self.data.joint_armature.torch[0].cpu().tolist()
         # For friction, use the individual components from data
-        friction_coeff = wp.to_torch(self.data.joint_friction_coeff)[0].cpu()
+        friction_coeff = self.data.joint_friction_coeff.torch[0].cpu()
         static_frictions = friction_coeff.tolist()
         # -- limits
         # joint_pos_limits is vec2f array, convert to torch and extract [lower, upper] pairs
-        position_limits_torch = wp.to_torch(self.data.joint_pos_limits)[0].cpu()  # shape: (num_joints, 2)
+        position_limits_torch = self.data.joint_pos_limits.torch[0].cpu()  # shape: (num_joints, 2)
         position_limits = [tuple(pos_limit.tolist()) for pos_limit in position_limits_torch]
-        velocity_limits = wp.to_torch(self.data.joint_vel_limits)[0].cpu().tolist()
-        effort_limits = wp.to_torch(self.data.joint_effort_limits)[0].cpu().tolist()
+        velocity_limits = self.data.joint_vel_limits.torch[0].cpu().tolist()
+        effort_limits = self.data.joint_effort_limits.torch[0].cpu().tolist()
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
@@ -3672,9 +3752,6 @@ class Articulation(BaseArticulation):
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp array.
 
-        .. note::
-            We need to convert torch tensors to warp arrays since the TensorAPI views only support warp arrays.
-
         Args:
             env_ids: Environment indices. If None, then all indices are used.
 
@@ -3684,7 +3761,6 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
         if isinstance(env_ids, torch.Tensor):
-            # Convert int64 to int32 if needed, as warp expects int32
             if env_ids.dtype == torch.int64:
                 env_ids = env_ids.to(torch.int32)
             return wp.from_torch(env_ids, dtype=wp.int32)
@@ -3694,9 +3770,6 @@ class Articulation(BaseArticulation):
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
-
-        .. note::
-            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
 
         Args:
             joint_ids: Joint indices. If None, then all indices are used.
@@ -3708,6 +3781,10 @@ class Articulation(BaseArticulation):
             return wp.array(joint_ids, dtype=wp.int32, device=self.device)
         if (joint_ids is None) or (joint_ids == slice(None)):
             return self._ALL_JOINT_INDICES
+        if isinstance(joint_ids, torch.Tensor):
+            if joint_ids.dtype == torch.int64:
+                joint_ids = joint_ids.to(torch.int32)
+            return wp.from_torch(joint_ids, dtype=wp.int32)
         return joint_ids
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
@@ -3723,6 +3800,10 @@ class Articulation(BaseArticulation):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
+        if isinstance(body_ids, torch.Tensor):
+            if body_ids.dtype == torch.int64:
+                body_ids = body_ids.to(torch.int32)
+            return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
     def _resolve_fixed_tendon_ids(
@@ -3861,14 +3942,11 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
-        :meth:`write_joint_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_state_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
+            " use 'write_joint_state_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        # set into simulation
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)

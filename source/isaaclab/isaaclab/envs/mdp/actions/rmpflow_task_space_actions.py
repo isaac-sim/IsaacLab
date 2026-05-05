@@ -133,7 +133,7 @@ class RMPFlowAction(ActionTerm):
     @property
     def jacobian_b(self) -> torch.Tensor:
         jacobian = self.jacobian_w
-        base_rot = wp.to_torch(self._asset.data.root_quat_w)
+        base_rot = self._asset.data.root_quat_w.torch
         base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
         jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
         jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
@@ -178,11 +178,11 @@ class RMPFlowAction(ActionTerm):
     def apply_actions(self):
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
-        joint_pos = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
+        joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
             joint_pos_des, joint_vel_des = self._rmpflow_controller.compute(
-                wp.to_torch(self._asset.data.joint_pos), wp.to_torch(self._asset.data.joint_vel)
+                self._asset.data.joint_pos.torch, self._asset.data.joint_vel.torch
             )
         else:
             joint_pos_des = joint_pos.clone()
@@ -206,10 +206,10 @@ class RMPFlowAction(ActionTerm):
             A tuple of the body's position and orientation in the root frame.
         """
         # obtain quantities from simulation
-        ee_pos_w = wp.to_torch(self._asset.data.body_pos_w)[:, self._body_idx]
-        ee_quat_w = wp.to_torch(self._asset.data.body_quat_w)[:, self._body_idx]
-        root_pos_w = wp.to_torch(self._asset.data.root_pos_w)
-        root_quat_w = wp.to_torch(self._asset.data.root_quat_w)
+        ee_pos_w = self._asset.data.body_pos_w.torch[:, self._body_idx]
+        ee_quat_w = self._asset.data.body_quat_w.torch[:, self._body_idx]
+        root_pos_w = self._asset.data.root_pos_w.torch
+        root_quat_w = self._asset.data.root_quat_w.torch
         # compute the pose of the body in the root frame
         ee_pose_b, ee_quat_b = math_utils.subtract_frame_transforms(root_pos_w, root_quat_w, ee_pos_w, ee_quat_w)
         # account for the offset

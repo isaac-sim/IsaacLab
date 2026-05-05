@@ -14,10 +14,10 @@ top of the repository:
 
          # Option 1: Using the isaaclab.sh executable
          # note: this works for both the bundled python and the virtual environment
-         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py
+         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
 
          # Option 2: Using python in your virtual environment
-         python scripts/tutorials/00_sim/create_empty.py
+         python scripts/tutorials/00_sim/create_empty.py --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -26,10 +26,10 @@ top of the repository:
 
          :: Option 1: Using the isaaclab.bat executable
          :: note: this works for both the bundled python and the virtual environment
-         isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py
+         isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py --viz kit
 
          :: Option 2: Using python in your virtual environment
-         python scripts\tutorials\00_sim\create_empty.py
+         python scripts\tutorials\00_sim\create_empty.py --viz kit
 
 
 The above command should launch the simulator and display a window with a black

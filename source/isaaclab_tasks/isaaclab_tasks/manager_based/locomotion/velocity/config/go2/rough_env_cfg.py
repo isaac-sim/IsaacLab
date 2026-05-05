@@ -3,24 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import (
-    EventsCfg,
-    LocomotionVelocityRoughEnvCfg,
-    StartupEventsCfg,
-)
-from isaaclab_tasks.utils import PresetCfg
-
-
-@configclass
-class PhysicsCfg(PresetCfg):
-    default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = default
-
+from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -29,51 +16,13 @@ from isaaclab_assets.robots.unitree import UNITREE_GO2_CFG  # isort: skip
 
 
 @configclass
-class Go2NewtonEventsCfg(EventsCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.push_robot = None
-        self.base_external_force_torque.params["asset_cfg"].body_names = "base"
-        self.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.reset_base.params = {
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
-            "velocity_range": {
-                "x": (0.0, 0.0),
-                "y": (0.0, 0.0),
-                "z": (0.0, 0.0),
-                "roll": (0.0, 0.0),
-                "pitch": (0.0, 0.0),
-                "yaw": (0.0, 0.0),
-            },
-        }
-
-
-@configclass
-class Go2PhysxEventsCfg(Go2NewtonEventsCfg, StartupEventsCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_base_mass.params["mass_distribution_params"] = (-1.0, 3.0)
-        self.add_base_mass.params["asset_cfg"].body_names = "base"
-        self.base_com = None
-
-
-@configclass
-class Go2EventsCfg(PresetCfg):
-    default = Go2PhysxEventsCfg()
-    newton = Go2NewtonEventsCfg()
-    physx = default
-
-
-@configclass
 class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
-    events: Go2EventsCfg = Go2EventsCfg()
-
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
         self.scene.robot = UNITREE_GO2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.actuators["base_legs"].armature = preset(default=0.0, newton=0.02)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/base"
         # scale down the terrains because the robot is small
         self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)

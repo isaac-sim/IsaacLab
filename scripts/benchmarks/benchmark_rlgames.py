@@ -14,6 +14,13 @@ import time
 
 from isaaclab.app import AppLauncher
 
+from scripts.benchmarks.early_stop import (
+    RlGamesEarlyStopObserver,
+    add_success_cli_args,
+    build_success_kwargs,
+    get_success_tracker,
+)
+
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
@@ -52,6 +59,7 @@ parser.add_argument(
 parser.add_argument(
     "--convergence_config", type=str, default="full", help="Config mode for convergence thresholds (default: full)."
 )
+add_success_cli_args(parser)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -95,14 +103,17 @@ from isaaclab.utils.timer import Timer
 from scripts.benchmarks.utils import (
     get_backend_type,
     get_preset_string,
+    get_success_rate_log,
     log_app_start_time,
     log_convergence,
     log_python_imports_time,
     log_rl_policy_episode_lengths,
     log_rl_policy_rewards,
+    log_rl_policy_success_rates,
     log_runtime_step_times,
     log_scene_creation_time,
     log_simulation_start_time,
+    log_success,
     log_task_start_time,
     log_total_start_time,
     parse_tf_logs,
@@ -145,7 +156,12 @@ def main(
 
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    # For distributed training, launch_simulation() already resolved the
+    # correct per-rank device; only apply a CLI --device override for
+    # non-distributed runs (the default "cuda:0" would clobber the
+    # per-rank device otherwise).
+    if not args_cli.distributed:
+        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
     # check for invalid combination of CPU device with distributed training
     if args_cli.distributed and args_cli.device is not None and "cpu" in args_cli.device:
         raise ValueError(
@@ -153,8 +169,9 @@ def main(
             "Please use GPU device (e.g., --device cuda) for distributed training."
         )
 
-    # update agent device to match simulation device
-    if args_cli.device is not None:
+    # update agent device to match simulation device (skip for distributed —
+    # the per-rank device is resolved by launch_simulation)
+    if args_cli.device is not None and not args_cli.distributed:
         agent_cfg["params"]["config"]["device"] = args_cli.device
         agent_cfg["params"]["config"]["device_name"] = args_cli.device
 
@@ -164,10 +181,10 @@ def main(
     agent_cfg["params"]["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["params"]["seed"]
 
     # process distributed
+    # env_cfg.sim.device is already resolved by launch_simulation().
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
-        agent_cfg["params"]["config"]["device"] = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
+        agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
         world_rank = int(os.getenv("RANK", "0"))
 
     # specify directory for logging experiments
@@ -184,11 +201,9 @@ def main(
     # multi-gpu training config
     if args_cli.distributed:
         agent_cfg["params"]["seed"] += int(os.getenv("RANK", "0"))
-        agent_cfg["params"]["config"]["device"] = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
-        agent_cfg["params"]["config"]["device_name"] = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
+        agent_cfg["params"]["config"]["device"] = env_cfg.sim.device
+        agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
         agent_cfg["params"]["config"]["multi_gpu"] = True
-        # update env config device
-        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
 
     # max iterations
     if args_cli.max_iterations:
@@ -233,8 +248,9 @@ def main(
 
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-    # create runner from rl-games
-    runner = Runner(IsaacAlgoObserver())
+    # always track the success metric; early-stop only if --check_success
+    observer = RlGamesEarlyStopObserver(IsaacAlgoObserver(), **build_success_kwargs(args_cli))
+    runner = Runner(observer)
     runner.load(agent_cfg)
 
     # set seed of the env
@@ -274,6 +290,9 @@ def main(
         log_runtime_step_times(benchmark, rl_training_times, compute_stats=True)
         log_rl_policy_rewards(benchmark, log_data["rewards/iter"])
         log_rl_policy_episode_lengths(benchmark, log_data["episode_lengths/iter"])
+        success_rates = get_success_rate_log(log_data)
+        if success_rates is not None:
+            log_rl_policy_success_rates(benchmark, success_rates)
         log_convergence(
             benchmark,
             log_data["rewards/iter"],
@@ -283,6 +302,9 @@ def main(
             reward_threshold=args_cli.reward_threshold,
             convergence_config=args_cli.convergence_config,
         )
+
+        tracker = get_success_tracker(args_cli, observer.tracker, log_data)
+        log_success(benchmark, tracker, framework_iteration_count=observer.framework_iteration_count)
 
         benchmark._finalize_impl()
 

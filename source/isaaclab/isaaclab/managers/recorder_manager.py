@@ -55,6 +55,9 @@ class RecorderManagerBaseCfg:
     export_in_close: bool = False
     """Whether to export episodes in the close call."""
 
+    dataset_compression: bool = True
+    """Enable dataset compression."""
+
 
 class RecorderTerm(ManagerTermBase):
     """Base class for recorder terms.
@@ -335,13 +338,14 @@ class RecorderManager(ManagerBase):
                 self.add_to_episodes(f"{key}/{sub_key}", sub_value, env_ids)
             return
 
+        if isinstance(value, wp.array):
+            value = wp.to_torch(value)
+        value = value.clone()  # Clone once for all envs
         for value_index, env_id in enumerate(env_ids):
             if env_id not in self._episodes:
                 self._episodes[env_id] = EpisodeData()
                 self._episodes[env_id].env_id = env_id
-            if isinstance(value, wp.array):
-                value = wp.to_torch(value)
-            self._episodes[env_id].add(key, value[value_index])
+            self._episodes[env_id].add(key, value[value_index], clone=False)
 
     def set_success_to_episodes(self, env_ids: Sequence[int] | None, success_values: torch.Tensor):
         """Sets the task success values to the episodes for the given environment ids.
@@ -513,7 +517,9 @@ class RecorderManager(ManagerBase):
                 if target_dataset_file_handler is not None:
                     # Use corresponding demo_id if provided, otherwise None
                     current_demo_id = demo_ids[i] if demo_ids is not None else None
-                    target_dataset_file_handler.write_episode(self._episodes[env_id], current_demo_id)
+                    target_dataset_file_handler.write_episode(
+                        self._episodes[env_id], current_demo_id, self.cfg.dataset_compression
+                    )
                     need_to_flush = True
                 # Update episode count
                 if episode_succeeded:
@@ -567,6 +573,7 @@ class RecorderManager(ManagerBase):
                 "dataset_export_mode",
                 "export_in_record_pre_reset",
                 "export_in_close",
+                "dataset_compression",
             ]:
                 continue
             # check if term config is None

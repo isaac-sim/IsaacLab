@@ -5,33 +5,31 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import torch
 import warp as wp
-from packaging import version
 
-from pxr import Sdf, UsdGeom
+from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.sim.views import XformPrimView
-from isaaclab.utils import has_kit, to_camel_case
-from isaaclab.utils.array import convert_to_torch
+from isaaclab.renderers import BaseRenderer
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.sim.views import FrameView
+from isaaclab.utils import to_camel_case
 from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.version import get_isaac_sim_version
 
 from ..sensor_base import SensorBase
-from .camera_data import CameraData
+from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
@@ -96,14 +94,6 @@ class Camera(SensorBase):
     }
     """The set of sensor types that are not supported by the camera class."""
 
-    SIMPLE_SHADING_MODES: dict[str, int] = {
-        "simple_shading_constant_diffuse": 0,
-        "simple_shading_diffuse_mdl": 1,
-        "simple_shading_full_mdl": 2,
-    }
-    SIMPLE_SHADING_AOV: str = "SimpleShadingSD"
-    SIMPLE_SHADING_MODE_SETTING: str = "/rtx/sdg/simpleShading/mode"
-
     def __init__(self, cfg: CameraCfg):
         """Initializes the camera sensor.
 
@@ -118,101 +108,65 @@ class Camera(SensorBase):
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
+        self._register_renderer_scene_data_requirements()
 
-        # toggle rendering of rtx sensors as True
-        # this flag is read by SimulationContext to determine if rtx sensors should be rendered
-        settings = get_settings_manager()
-        settings.set_bool("/isaaclab/render/rtx_sensors", True)
+        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
+        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
+        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
+        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
+        # and several env classes read it before the renderer's __init__ runs.
+        if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
+            get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
-        # This is only introduced in isaac sim 6.0
-        if has_kit():
-            isaac_sim_version = get_isaac_sim_version()
-            if isaac_sim_version.major >= 6:
-                # Set RTX flag to enable fast path when no regular RGB/RGBA annotators are requested
-                needs_color_render = "rgb" in self.cfg.data_types or "rgba" in self.cfg.data_types
-                if not needs_color_render:
-                    settings.set_bool("/rtx/sdg/force/disableColorRender", True)
-
-                # If we have GUI / viewport enabled, we turn off fast path so that the viewport is not black
-                if settings.get("/isaaclab/has_gui"):
-                    settings.set_bool("/rtx/sdg/force/disableColorRender", False)
-            else:
-                if "albedo" in self.cfg.data_types:
-                    logger.warning(
-                        "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
-                    )
-                if any(data_type in self.SIMPLE_SHADING_MODES for data_type in self.cfg.data_types):
-                    logger.warning(
-                        "Simple shading annotators are only supported in Isaac Sim 6.0+. The simple shading data types"
-                        " will be ignored."
-                    )
-
-        # Set simple shading mode (if requested) before rendering
-        simple_shading_mode = self._resolve_simple_shading_mode()
-        if simple_shading_mode is not None:
-            settings.set_int(self.SIMPLE_SHADING_MODE_SETTING, simple_shading_mode)
-
-        # spawn the asset
-        if self.cfg.spawn is not None:
-            # Use spawn_path when set (points to template location for scene-cloned sensors).
-            # This allows the camera to be spawned inside the asset template (e.g. inside
-            # proto_asset_0) before clone_environments replicates it to all env paths.
-            spawn_target = (
-                self.cfg.spawn.spawn_path
-                if getattr(self.cfg.spawn, "spawn_path", None) is not None
-                else self.cfg.prim_path
-            )
-            # compute the rotation offset
-            rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
-            rot_offset = convert_camera_frame_orientation_convention(
-                rot, origin=self.cfg.offset.convention, target="opengl"
-            )
-            rot_offset = rot_offset.squeeze(0).cpu().numpy()
-            # ensure vertical aperture is set, otherwise replace with default for squared pixels
-            if self.cfg.spawn.vertical_aperture is None:
-                self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
-            self.cfg.spawn.func(spawn_target, self.cfg.spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
-        # check that spawn was successful; use spawn_path if set (template location) since env
-        # paths are not yet populated at init time — they are filled in by clone_environments.
-        check_path = (
-            self.cfg.spawn.spawn_path
-            if self.cfg.spawn is not None and getattr(self.cfg.spawn, "spawn_path", None) is not None
-            else self.cfg.prim_path
+        # Compute camera orientation (convention conversion) and spawn
+        rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
+        rot_offset = convert_camera_frame_orientation_convention(
+            rot, origin=self.cfg.offset.convention, target="opengl"
         )
-        matching_prims = sim_utils.find_matching_prims(check_path)
-        if len(matching_prims) == 0:
-            raise RuntimeError(f"Could not find prim with path {check_path}.")
+        rot_offset = rot_offset.squeeze(0).cpu().numpy()
+        if self.cfg.spawn is not None and self.cfg.spawn.vertical_aperture is None:
+            self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
+        self._resolve_and_spawn("camera", translation=self.cfg.offset.pos, orientation=rot_offset)
 
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
-        # Create empty variables for storing output data
-        self._data = CameraData()
+        # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
+        self._data: CameraData | None = None
+        # Renderer and render data — assigned in _initialize_impl.
+        self._renderer: BaseRenderer | None = None
+        self._render_data = None
 
-        if not has_kit():
+    def _register_renderer_scene_data_requirements(self) -> None:
+        """Register renderer requirements early enough for clone-time prebuilds."""
+        renderer_type = getattr(getattr(self.cfg, "renderer_cfg", None), "renderer_type", None)
+        if renderer_type is None:
             return
-        # HACK: We need to disable instancing for semantic_segmentation and instance_segmentation_fast to work
-        # checks for Isaac Sim v4.5 as this issue exists there
-        if get_isaac_sim_version() == version.parse("4.5"):
-            if "semantic_segmentation" in self.cfg.data_types or "instance_segmentation_fast" in self.cfg.data_types:
-                logger.warning(
-                    "Isaac Sim 4.5 introduced a bug in Camera and TiledCamera when outputting instance and semantic"
-                    " segmentation outputs for instanceable assets. As a workaround, the instanceable flag on assets"
-                    " will be disabled in the current workflow and may lead to longer load times and increased memory"
-                    " usage."
-                )
-                with Sdf.ChangeBlock():
-                    for prim in self.stage.Traverse():
-                        prim.SetInstanceable(False)
+
+        from isaaclab.physics.scene_data_requirements import aggregate_requirements, requirement_for_renderer_type
+        from isaaclab.sim import SimulationContext
+
+        sim = SimulationContext.instance()
+        if sim is None:
+            logger.debug("SimulationContext not available; deferring renderer requirements registration.")
+            return
+
+        try:
+            renderer_req = requirement_for_renderer_type(renderer_type)
+        except ValueError:
+            return
+
+        current_req = sim.get_scene_data_requirements()
+        merged_req = aggregate_requirements((current_req, renderer_req))
+        if merged_req != current_req:
+            sim.update_scene_data_requirements(merged_req)
 
     def __del__(self):
-        """Unsubscribes from callbacks and detach from the replicator registry."""
+        """Unsubscribes from callbacks and cleans up renderer resources."""
         # unsubscribe callbacks
         super().__del__()
-        # delete from replicator registry
-        for _, annotators in self._rep_registry.items():
-            for annotator, render_product_path in zip(annotators, self._render_product_paths):
-                annotator.detach([render_product_path])
-                annotator = None
+        # cleanup render resources (renderer may be None if never initialized)
+        if self._renderer is not None:
+            self._renderer.cleanup(self._render_data)
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -220,10 +174,6 @@ class Camera(SensorBase):
         return (
             f"Camera @ '{self.cfg.prim_path}': \n"
             f"\tdata types   : {list(self.data.output.keys())} \n"
-            f"\tsemantic filter : {self.cfg.semantic_filter}\n"
-            f"\tcolorize semantic segm.   : {self.cfg.colorize_semantic_segmentation}\n"
-            f"\tcolorize instance segm.   : {self.cfg.colorize_instance_segmentation}\n"
-            f"\tcolorize instance id segm.: {self.cfg.colorize_instance_id_segmentation}\n"
             f"\tupdate period (s): {self.cfg.update_period}\n"
             f"\tshape        : {self.image_shape}\n"
             f"\tnumber of sensors : {self._view.count}"
@@ -248,14 +198,6 @@ class Camera(SensorBase):
     def frame(self) -> torch.tensor:
         """Frame number when the measurement took place."""
         return self._frame
-
-    @property
-    def render_product_paths(self) -> list[str]:
-        """The path of the render products for the cameras.
-
-        This can be used via replicator interfaces to attach to writes or external annotator registry.
-        """
-        return self._render_product_paths
 
     @property
     def image_shape(self) -> tuple[int, int]:
@@ -373,8 +315,16 @@ class Camera(SensorBase):
             elif not isinstance(orientations, torch.Tensor):
                 orientations = torch.tensor(orientations, device=self._device)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
-        # set the pose
-        self._view.set_world_poses(positions, orientations, env_ids)
+        # convert torch tensors to warp arrays for the view
+        pos_wp = wp.from_torch(positions.contiguous()) if positions is not None else None
+        ori_wp = wp.from_torch(orientations.contiguous()) if orientations is not None else None
+        if env_ids is not None:
+            if not isinstance(env_ids, torch.Tensor):
+                env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+            idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
+        else:
+            idx_wp = None
+        self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
 
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
@@ -397,7 +347,10 @@ class Camera(SensorBase):
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view
         orientations = quat_from_matrix(create_rotation_matrix_from_view(eyes, targets, up_axis, device=self._device))
-        self._view.set_world_poses(eyes, orientations, env_ids)
+        if not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+        idx_wp = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
+        self._view.set_world_poses(wp.from_torch(eyes.contiguous()), wp.from_torch(orientations.contiguous()), idx_wp)
 
     """
     Operations
@@ -428,30 +381,33 @@ class Camera(SensorBase):
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
-        This function creates handles and registers the provided data types with the replicator registry to
-        be able to access the data from the sensor. It also initializes the internal buffers to store the data.
+        This function obtains the simulation-scoped :class:`~isaaclab.renderers.base_renderer.BaseRenderer`
+        from :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context` using the configured
+        :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` and delegates all render-product
+        and annotator management to it. It also initializes the internal buffers to store the data.
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
-            RuntimeError: If replicator was not found.
+            RuntimeError: Propagated from the renderer constructor when the active backend's
+                runtime requirements are not satisfied (e.g. the RTX backend requires the
+                simulation app to be launched with ``--enable_cameras``).
         """
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", "default")
-        needs_kit_cameras = renderer_type in ("default", "isaac_rtx")
-        if needs_kit_cameras and not get_settings_manager().get("/isaaclab/cameras_enabled"):
-            raise RuntimeError(
-                "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
-                " rendering."
-            )
-
-        import omni.replicator.core as rep
-        from omni.syntheticdata.scripts.SyntheticData import SyntheticData
-
         # Initialize parent class
         super()._initialize_impl()
-        # Create a view for the sensor with Fabric enabled for fast pose queries, otherwise position will be stale.
-        self._view = XformPrimView(
-            self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True
-        )
+
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is None:
+            raise RuntimeError("SimulationContext is not initialized.")
+        self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
+        logger.info("Using renderer: %s", type(self._renderer).__name__)
+
+        # Stage preprocessing must happen before creating the view because the view keeps
+        # references to prims located in the stage.
+        sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
+
+        # Create a view for the sensor with Fabric enabled for fast pose queries.
+        # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
+        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
@@ -464,10 +420,6 @@ class Camera(SensorBase):
         # Create frame count buffer
         self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
-        # Attach the sensor data types to render node
-        self._render_product_paths: list[str] = list()
-        self._rep_registry: dict[str, list[rep.annotators.Annotator]] = {name: list() for name in self.cfg.data_types}
-
         # Convert all encapsulated prims to Camera
         for cam_prim in self._view.prims:
             # Obtain the prim path
@@ -476,84 +428,27 @@ class Camera(SensorBase):
             if not cam_prim.IsA(UsdGeom.Camera):
                 raise RuntimeError(f"Prim at path '{cam_prim_path}' is not a Camera.")
             # Add to list
-            sensor_prim = UsdGeom.Camera(cam_prim)
-            self._sensor_prims.append(sensor_prim)
+            self._sensor_prims.append(UsdGeom.Camera(cam_prim))
 
-            # Get render product
-            # From Isaac Sim 2023.1 onwards, render product is a HydraTexture so we need to extract the path
-            render_prod_path = rep.create.render_product(cam_prim_path, resolution=(self.cfg.width, self.cfg.height))
-            if not isinstance(render_prod_path, str):
-                render_prod_path = render_prod_path.path
-            self._render_product_paths.append(render_prod_path)
+        # View needs to exist before creating render data
+        cam_paths = tuple(cam_prim.GetPath().pathString for cam_prim in self._view.prims)
+        env_0_prefix = "/World/envs/env_0/"
+        rel_under_env0 = (
+            cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
+        )
+        device_str = self._device if isinstance(self._device, str) else str(self._device)
+        render_spec = CameraRenderSpec(
+            cfg=self.cfg,
+            device=device_str,
+            num_instances=self.num_instances,
+            camera_prim_paths=cam_paths,
+            view_count=self._view.count,
+            camera_path_relative_to_env_0=rel_under_env0,
+        )
+        self._render_data = self._renderer.create_render_data(render_spec)
 
-            # Check if semantic types or semantic filter predicate is provided
-            if isinstance(self.cfg.semantic_filter, list):
-                semantic_filter_predicate = ":*; ".join(self.cfg.semantic_filter) + ":*"
-            elif isinstance(self.cfg.semantic_filter, str):
-                semantic_filter_predicate = self.cfg.semantic_filter
-            else:
-                raise ValueError(f"Semantic types must be a list or a string. Received: {self.cfg.semantic_filter}.")
-            # set the semantic filter predicate
-            # copied from rep.scripts.writes_default.basic_writer.py
-            SyntheticData.Get().set_instance_mapping_semantic_filter(semantic_filter_predicate)
-
-            # Iterate over each data type and create annotator
-            # TODO: This will move out of the loop once Replicator supports multiple render products within a single
-            #  annotator, i.e.: rep_annotator.attach(self._render_product_paths)
-            for name in self.cfg.data_types:
-                # note: we are verbose here to make it easier to understand the code.
-                #   if colorize is true, the data is mapped to colors and a uint8 4 channel image is returned.
-                #   if colorize is false, the data is returned as a uint32 image with ids as values.
-                if name == "semantic_segmentation":
-                    init_params = {
-                        "colorize": self.cfg.colorize_semantic_segmentation,
-                        "mapping": json.dumps(self.cfg.semantic_segmentation_mapping),
-                    }
-                elif name == "instance_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_segmentation}
-                elif name == "instance_id_segmentation_fast":
-                    init_params = {"colorize": self.cfg.colorize_instance_id_segmentation}
-                else:
-                    init_params = None
-
-                # Resolve device name
-                if "cuda" in self._device:
-                    device_name = self._device.split(":")[0]
-                else:
-                    device_name = "cpu"
-
-                # TODO: this is a temporary solution because replicator has not exposed the annotator yet
-                # once it's exposed, we can remove this
-                if name == "albedo":
-                    rep.AnnotatorRegistry.register_annotator_from_aov(
-                        aov="DiffuseAlbedoSD", output_data_type=np.uint8, output_channels=4
-                    )
-                if name in self.SIMPLE_SHADING_MODES:
-                    rep.AnnotatorRegistry.register_annotator_from_aov(
-                        aov=self.SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
-                    )
-
-                # Map special cases to their corresponding annotator names
-                simple_shading_cases = {key: self.SIMPLE_SHADING_AOV for key in self.SIMPLE_SHADING_MODES}
-                special_cases = {
-                    "rgba": "rgb",
-                    "depth": "distance_to_image_plane",
-                    "albedo": "DiffuseAlbedoSD",
-                    **simple_shading_cases,
-                }
-                # Get the annotator name, falling back to the original name if not a special case
-                annotator_name = special_cases.get(name, name)
-                # Create the annotator node
-                rep_annotator = rep.AnnotatorRegistry.get_annotator(annotator_name, init_params, device=device_name)
-
-                # attach annotator to render product
-                rep_annotator.attach(render_prod_path)
-                # add to registry
-                self._rep_registry[name].append(rep_annotator)
-
-        # Create internal buffers
+        # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
-        self._update_intrinsic_matrices(self._ALL_INDICES)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
@@ -561,50 +456,23 @@ class Camera(SensorBase):
             return
         # Increment frame count
         self._frame[env_ids] += 1
-        # -- pose
+        # update latest camera pose if requested
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
-        # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
-        # Lazy import Isaac RTX Renderer dependency.
-        # For now the Camera implementation works only with Isaac RTX Renderer.
-        # Future consideration should be to move Renderer from TiledCamera up the hierarchy to Camera
-        # to make the Camera backend-agnostic.
-        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update
 
-        ensure_isaac_rtx_render_update()
-
-        # -- read the data from annotator registry
-        # check if buffer is called for the first time. If so then, allocate the memory
-        if len(self._data.output) == 0:
-            # this is the first time buffer is called
-            # it allocates memory for all the sensors
-            self._create_annotator_data()
+        sim_ctx = sim_utils.SimulationContext.instance()
+        renderer = self._renderer
+        assert renderer is not None
+        if sim_ctx is not None:
+            sim_ctx.render_context.render_into_camera(
+                renderer,
+                self._render_data,
+                self._data,
+                sim_ctx.get_physics_step_count(),
+            )
         else:
-            # iterate over all the data types
-            for name, annotators in self._rep_registry.items():
-                # iterate over all the annotators
-                for index in env_ids:
-                    # get the output
-                    output = annotators[index].get_data()
-                    # process the output
-                    data, info = self._process_annotator_output(name, output)
-                    # add data to output
-                    self._data.output[name][index] = data
-                    # add info to output
-                    self._data.info[index][name] = info
-                # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center. However,
-                #       the replicator depth clipping is applied w.r.t. to the image plane which may result in values
-                #       larger than the clipping range in the output. We apply an additional clipping to ensure values
-                #       are within the clipping range for all the annotators.
-                if name == "distance_to_camera":
-                    self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
-                # apply defined clipping behavior
-                if (
-                    name == "distance_to_camera" or name == "distance_to_image_plane"
-                ) and self.cfg.depth_clipping_behavior != "none":
-                    self._data.output[name][torch.isinf(self._data.output[name])] = (
-                        0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
-                    )
+            renderer.render(self._render_data)
+            renderer.read_output(self._render_data, self._data)
 
     """
     Private Helpers
@@ -632,19 +500,40 @@ class Camera(SensorBase):
 
     def _create_buffers(self):
         """Create buffers for storing data."""
-        # create the data object
-        # -- pose of the cameras
+        specs = self._renderer.supported_output_types()
+        # Split requested names into known/unsupported; warn once for any the renderer can't produce.
+        known: list[str] = []
+        unsupported: list[str] = []
+        for name in self.cfg.data_types:
+            try:
+                if RenderBufferKind(name) in specs:
+                    known.append(name)
+                else:
+                    unsupported.append(name)
+            except ValueError:
+                unsupported.append(name)
+        if unsupported:
+            logger.warning(
+                "Renderer %s does not support the following requested data types and will not produce them: %s",
+                type(self._renderer).__name__,
+                unsupported,
+            )
+        self._data = CameraData.allocate(
+            data_types=known,
+            height=self.cfg.height,
+            width=self.cfg.width,
+            num_views=self._view.count,
+            device=self._device,
+            supported_specs=specs,
+        )
+        # Camera-frame state (pose / intrinsics) is owned by the camera, not
+        # the renderer: populate it on the freshly constructed ``CameraData``.
+        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        self._update_intrinsic_matrices(self._ALL_INDICES)
         self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
         self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
-        # -- intrinsic matrix
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
-        self._data.image_shape = self.image_shape
-        # -- output data
-        # lazy allocation of data dictionary
-        # since the size of the output data is not known in advance, we leave it as None
-        # the memory will be allocated when the buffer() function is called for the first time.
-        self._data.output = {}
-        self._data.info = [{name: None for name in self.cfg.data_types} for _ in range(self._view.count)]
+        self._update_poses(self._ALL_INDICES)
+        self._renderer.set_outputs(self._render_data, self._data.output)
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
         """Compute camera's matrix of intrinsic parameters.
@@ -691,113 +580,20 @@ class Camera(SensorBase):
         if len(self._sensor_prims) == 0:
             raise RuntimeError("Camera prim is None. Please call 'sim.play()' first.")
 
-        # get the poses from the view
-        poses, quat = self._view.get_world_poses(env_ids)
-        self._data.pos_w[env_ids] = poses
+        # get the poses from the view (returns ProxyArray, use .torch for tensor access)
+        if env_ids is not None and not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
+        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+        pos_w, quat_w = self._view.get_world_poses(indices)
+        self._data.pos_w[env_ids] = pos_w.torch
         self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
-            quat, origin="opengl", target="world"
+            quat_w.torch, origin="opengl", target="world"
         )
-
-    def _create_annotator_data(self):
-        """Create the buffers to store the annotator data.
-
-        We create a buffer for each annotator and store the data in a dictionary. Since the data
-        shape is not known beforehand, we create a list of buffers and concatenate them later.
-
-        This is an expensive operation and should be called only once.
-        """
-        # add data from the annotators
-        for name, annotators in self._rep_registry.items():
-            # create a list to store the data for each annotator
-            data_all_cameras = list()
-            # iterate over all the annotators
-            for index in self._ALL_INDICES:
-                # get the output
-                output = annotators[index].get_data()
-                # process the output
-                data, info = self._process_annotator_output(name, output)
-                # append the data
-                data_all_cameras.append(data)
-                # store the info
-                self._data.info[index][name] = info
-            # concatenate the data along the batch dimension
-            self._data.output[name] = torch.stack(data_all_cameras, dim=0)
-            # NOTE: `distance_to_camera` and `distance_to_image_plane` are not both clipped to the maximum defined
-            #       in the clipping range. The clipping is applied only to `distance_to_image_plane` and then both
-            #       outputs are only clipped where the values in `distance_to_image_plane` exceed the threshold. To
-            #       have a unified behavior between all cameras, we clip both outputs to the maximum value defined.
-            if name == "distance_to_camera":
-                self._data.output[name][self._data.output[name] > self.cfg.spawn.clipping_range[1]] = torch.inf
-            # clip the data if needed
-            if (
-                name == "distance_to_camera" or name == "distance_to_image_plane"
-            ) and self.cfg.depth_clipping_behavior != "none":
-                self._data.output[name][torch.isinf(self._data.output[name])] = (
-                    0.0 if self.cfg.depth_clipping_behavior == "zero" else self.cfg.spawn.clipping_range[1]
-                )
-
-    def _process_annotator_output(self, name: str, output: Any) -> tuple[torch.tensor, dict | None]:
-        """Process the annotator output.
-
-        This function is called after the data has been collected from all the cameras.
-        """
-        # extract info and data from the output
-        if isinstance(output, dict):
-            data = output["data"]
-            info = output["info"]
-        else:
-            data = output
-            info = None
-        # convert data into torch tensor
-        data = convert_to_torch(data, device=self.device)
-
-        # process data for different segmentation types
-        # Note: Replicator returns raw buffers of dtype int32 for segmentation types
-        #   so we need to convert them to uint8 4 channel images for colorized types
-        height, width = self.image_shape
-        if name == "semantic_segmentation":
-            if self.cfg.colorize_semantic_segmentation:
-                data = data.view(torch.uint8).reshape(height, width, -1)
-            else:
-                data = data.view(height, width, 1)
-        elif name == "instance_segmentation_fast":
-            if self.cfg.colorize_instance_segmentation:
-                data = data.view(torch.uint8).reshape(height, width, -1)
-            else:
-                data = data.view(height, width, 1)
-        elif name == "instance_id_segmentation_fast":
-            if self.cfg.colorize_instance_id_segmentation:
-                data = data.view(torch.uint8).reshape(height, width, -1)
-            else:
-                data = data.view(height, width, 1)
-        # make sure buffer dimensions are consistent as (H, W, C)
-        elif name == "distance_to_camera" or name == "distance_to_image_plane" or name == "depth":
-            data = data.view(height, width, 1)
-        # we only return the RGB channels from the RGBA output if rgb is required
-        # normals return (x, y, z) in first 3 channels, 4th channel is unused
-        elif name == "rgb" or name == "normals":
-            data = data[..., :3]
-        # motion vectors return (x, y) in first 2 channels, 3rd and 4th channels are unused
-        elif name == "motion_vectors":
-            data = data[..., :2]
-        elif name in self.SIMPLE_SHADING_MODES:
-            data = data[..., :3]
-
-        # return the data and info
-        return data, info
-
-    def _resolve_simple_shading_mode(self) -> int | None:
-        """Resolve the requested simple shading mode from data types."""
-        requested = [data_type for data_type in self.cfg.data_types if data_type in self.SIMPLE_SHADING_MODES]
-        if not requested:
-            return None
-        if len(requested) > 1:
-            logger.warning(
-                "Multiple simple shading modes requested (%s). Using '%s' only.",
-                requested,
-                requested[0],
+        # notify renderer of updated poses (guarded in case called before initialization completes)
+        if self._render_data is not None:
+            self._renderer.update_camera(
+                self._render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
             )
-        return self.SIMPLE_SHADING_MODES[requested[0]]
 
     """
     Internal simulation callbacks.
@@ -805,6 +601,10 @@ class Camera(SensorBase):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
+        if self._renderer is not None and self._render_data is not None:
+            self._renderer.cleanup(self._render_data)
+        self._render_data = None
+        self._renderer = None
         # call parent
         super()._invalidate_initialize_callback(event)
         # set all existing views to None to invalidate them

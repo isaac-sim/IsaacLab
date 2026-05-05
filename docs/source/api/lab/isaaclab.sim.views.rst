@@ -7,11 +7,27 @@
 
   .. autosummary::
 
-    XformPrimView
+    BaseFrameView
+    UsdFrameView
+    FrameView
 
-XForm Prim View
+Base Frame View
 ---------------
 
-.. autoclass:: XformPrimView
+.. autoclass:: BaseFrameView
+    :members:
+    :show-inheritance:
+
+USD Frame View
+--------------
+
+.. autoclass:: UsdFrameView
+    :members:
+    :show-inheritance:
+
+Frame View
+----------
+
+.. autoclass:: FrameView
     :members:
     :show-inheritance:

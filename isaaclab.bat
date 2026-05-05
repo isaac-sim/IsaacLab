@@ -26,6 +26,13 @@ if defined VIRTUAL_ENV (
 rem Add source/isaaclab to PYTHONPATH so we can import isaaclab.cli.
 set "PYTHONPATH=%ISAACLAB_PATH%\source\isaaclab;%PYTHONPATH%"
 
+rem If a local Isaac Sim binary is present, source its env setup so that
+rem PYTHONPATH/PATH/EXP_PATH are correct without depending on a conda
+rem activate.d hook (those don't fire under e.g. `conda run` on Windows).
+if exist "%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat" (
+    call "%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat" >NUL
+)
+
 rem Execute CLI.
 "%python_exe%" -c "from isaaclab.cli import cli; cli()" %*
 

@@ -350,26 +350,26 @@ def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data
         root_velocity=torch.zeros((1, 6), device=env.device), env_ids=[0]
     )
     # Update default root pose and velocity for correct state on reset
-    default_pose = wp.to_torch(env.scene["robot"].data.default_root_pose).clone()
+    default_pose = env.scene["robot"].data.default_root_pose.torch.clone()
     default_pose[0] = new_robot_pose[0]
-    env.scene["robot"].data.default_root_pose.assign(
+    env.scene["robot"].data.default_root_pose.warp.assign(
         wp.from_torch(default_pose.to(env.device).contiguous()).view(wp.transformf)
     )
-    default_vel = wp.to_torch(env.scene["robot"].data.default_root_vel).clone()
+    default_vel = env.scene["robot"].data.default_root_vel.torch.clone()
     default_vel[0] = torch.zeros(6, device=env.device)
-    env.scene["robot"].data.default_root_vel.assign(wp.from_torch(default_vel.to(env.device).contiguous()))
+    env.scene["robot"].data.default_root_vel.warp.assign(wp.from_torch(default_vel.to(env.device).contiguous()))
 
     robot_state = recording_initial_state["articulation"]["robot"]
     joint_position = robot_state["joint_position"][0].to(env.device)
     joint_velocity = robot_state["joint_velocity"][0].to(env.device)
 
     # Update default joint positions and velocities for correct state on reset
-    default_joint_pos = wp.to_torch(env.scene["robot"].data.default_joint_pos).clone()
+    default_joint_pos = env.scene["robot"].data.default_joint_pos.torch.clone()
     default_joint_pos[0] = joint_position
-    env.scene["robot"].data.default_joint_pos.assign(wp.from_torch(default_joint_pos.to(env.device).contiguous()))
-    default_joint_vel = wp.to_torch(env.scene["robot"].data.default_joint_vel).clone()
+    env.scene["robot"].data.default_joint_pos.warp.assign(wp.from_torch(default_joint_pos.to(env.device).contiguous()))
+    default_joint_vel = env.scene["robot"].data.default_joint_vel.torch.clone()
     default_joint_vel[0] = joint_velocity
-    env.scene["robot"].data.default_joint_vel.assign(wp.from_torch(default_joint_vel.to(env.device).contiguous()))
+    env.scene["robot"].data.default_joint_vel.warp.assign(wp.from_torch(default_joint_vel.to(env.device).contiguous()))
     env.scene["robot"].write_joint_position_to_sim_index(position=joint_position[None, :], env_ids=[0])
     env.scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_velocity[None, :], env_ids=[0])
 
@@ -401,14 +401,14 @@ def project_object_state_into_env(env: LocomanipulationSDGEnv, input_episode_dat
         root_velocity=torch.zeros((1, 6), device=env.device), env_ids=[0]
     )
     # Update default root pose and velocity for correct state on reset
-    default_pose = wp.to_torch(env.scene["object"].data.default_root_pose).clone()
+    default_pose = env.scene["object"].data.default_root_pose.torch.clone()
     default_pose[0] = new_object_pose[0]
-    env.scene["object"].data.default_root_pose.assign(
+    env.scene["object"].data.default_root_pose.warp.assign(
         wp.from_torch(default_pose.to(env.device).contiguous()).view(wp.transformf)
     )
-    default_vel = wp.to_torch(env.scene["object"].data.default_root_vel).clone()
+    default_vel = env.scene["object"].data.default_root_vel.torch.clone()
     default_vel[0] = torch.zeros(6, device=env.device)
-    env.scene["object"].data.default_root_vel.assign(wp.from_torch(default_vel.to(env.device).contiguous()))
+    env.scene["object"].data.default_root_vel.warp.assign(wp.from_torch(default_vel.to(env.device).contiguous()))
 
     return new_object_pose
 

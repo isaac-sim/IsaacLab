@@ -12,15 +12,16 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import contextlib
 from types import SimpleNamespace
 
 import pytest
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils import configclass
@@ -84,8 +85,8 @@ def test_relative_flag(device, setup_scene):
     # test is relative == False
     prev_state = scene.get_state(is_relative=False)
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
-        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        position=torch.rand_like(scene["robot"].data.joint_pos.torch),
+        velocity=torch.rand_like(scene["robot"].data.joint_pos.torch),
     )
     next_state = scene.get_state(is_relative=False)
     assert_state_different(prev_state, next_state)
@@ -95,8 +96,8 @@ def test_relative_flag(device, setup_scene):
     # test is relative == True
     prev_state = scene.get_state(is_relative=True)
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
-        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        position=torch.rand_like(scene["robot"].data.joint_pos.torch),
+        velocity=torch.rand_like(scene["robot"].data.joint_pos.torch),
     )
     next_state = scene.get_state(is_relative=True)
     assert_state_different(prev_state, next_state)
@@ -114,16 +115,16 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     # test env_ids = None
     prev_state = scene.get_state()
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
-        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        position=torch.rand_like(scene["robot"].data.joint_pos.torch),
+        velocity=torch.rand_like(scene["robot"].data.joint_pos.torch),
     )
     scene.reset_to(prev_state, env_ids=None)
     assert_state_equal(prev_state, scene.get_state())
 
     # test env_ids = torch tensor
     scene["robot"].write_joint_state_to_sim(
-        position=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
-        velocity=torch.rand_like(wp.to_torch(scene["robot"].data.joint_pos)),
+        position=torch.rand_like(scene["robot"].data.joint_pos.torch),
+        velocity=torch.rand_like(scene["robot"].data.joint_pos.torch),
     )
     scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32))
     assert_state_equal(prev_state, scene.get_state())
@@ -134,6 +135,13 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
     scene = object.__new__(InteractiveScene)
     scene.cfg = SimpleNamespace(replicate_physics=False, num_envs=3)
     scene.stage = object()
+    scene.physics_backend = "physx"
+    scene._sensors = {}
+    scene.sim = SimpleNamespace(
+        get_scene_data_requirements=lambda: SceneDataRequirement(),
+        update_scene_data_requirements=lambda requirements: None,
+        set_scene_data_visualizer_prebuilt_artifact=lambda artifact: None,
+    )
     scene.env_fmt = "/World/envs/env_{}"
     scene._ALL_INDICES = torch.arange(3, dtype=torch.long)
     scene._default_env_origins = torch.zeros((3, 3), dtype=torch.float32)
@@ -141,6 +149,15 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
 
     # Avoid binding this unit test to global SimulationContext singleton state.
     monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
+
+    # ``disabled_fabric_change_notifies`` resolves the stage via UsdUtils.StageCache and would
+    # crash on the bare ``object()`` mocked above. This unit test exercises clone-dispatch
+    # logic only; the fabric notice path has its own coverage in ``test_cloner.py``.
+    @contextlib.contextmanager
+    def _noop_fabric_notices(stage, *, restore=True):
+        yield
+
+    monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.disabled_fabric_change_notifies", _noop_fabric_notices)
 
     physics_calls = []
     visualizer_calls = []
@@ -159,6 +176,7 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
         device="cpu",
         physics_clone_fn=_physics_clone_fn,
         visualizer_clone_fn=_visualizer_clone_fn,
+        clone_usd=True,
     )
     monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.usd_replicate", _usd_replicate)
 
@@ -177,6 +195,38 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
     assert len(physics_calls) == 0
     assert len(visualizer_calls) == 1
     assert len(usd_calls) == 1
+
+
+def test_refresh_visualizer_clone_fn_uses_registered_requirements(monkeypatch: pytest.MonkeyPatch):
+    """Clone-time prebuild hook should be installed from requirements registered after scene init."""
+    scene = object.__new__(InteractiveScene)
+    scene.physics_backend = "physx"
+    scene.stage = object()
+    scene._sensors = {}
+    scene.cloner_cfg = SimpleNamespace(visualizer_clone_fn=None)
+
+    requirements = SceneDataRequirement(requires_newton_model=True)
+    scene.sim = SimpleNamespace(
+        get_scene_data_requirements=lambda: requirements,
+        update_scene_data_requirements=lambda requirements: None,
+        set_scene_data_visualizer_prebuilt_artifact=lambda artifact: None,
+    )
+
+    captured = {}
+
+    def _resolve_visualizer_clone_fn(**kwargs):
+        captured.update(kwargs)
+        return "visualizer-clone-fn"
+
+    monkeypatch.setattr(
+        "isaaclab.scene.interactive_scene.cloner.resolve_visualizer_clone_fn",
+        _resolve_visualizer_clone_fn,
+    )
+
+    scene._refresh_visualizer_clone_fn_from_requirements()
+
+    assert captured["requirements"].requires_newton_model
+    assert scene.cloner_cfg.visualizer_clone_fn == "visualizer-clone-fn"
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):

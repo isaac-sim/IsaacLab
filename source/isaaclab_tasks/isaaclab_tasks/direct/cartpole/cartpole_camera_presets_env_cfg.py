@@ -12,7 +12,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
@@ -32,9 +32,9 @@ class PhysicsCfg(PresetCfg):
 @configclass
 class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
     @configclass
-    class CartpoleTiledCameraCfg(TiledCameraCfg):
+    class CartpoleTiledCameraCfg(CameraCfg):
         prim_path: str = "/World/envs/env_.*/Camera"
-        offset: TiledCameraCfg.OffsetCfg = TiledCameraCfg.OffsetCfg(
+        offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
             pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
         )
         data_types: list[str] = []
@@ -48,6 +48,7 @@ class MultiDataTypeCartpoleTiledCameraCfg(PresetCfg):
     default = CartpoleTiledCameraCfg(data_types=["rgb"])
     depth = CartpoleTiledCameraCfg(data_types=["depth"])
     albedo = CartpoleTiledCameraCfg(data_types=["albedo"])
+    semantic_segmentation = CartpoleTiledCameraCfg(data_types=["semantic_segmentation"])
     simple_shading_constant_diffuse = CartpoleTiledCameraCfg(data_types=["simple_shading_constant_diffuse"])
     simple_shading_diffuse_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_diffuse_mdl"])
     simple_shading_full_mdl = CartpoleTiledCameraCfg(data_types=["simple_shading_full_mdl"])
@@ -100,6 +101,7 @@ class CartpoleCameraPresetsEnvCfg(PresetCfg):
     default = BaseCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 1])
     albedo = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 3])
+    semantic_segmentation = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 4])
     simple_shading_constant_diffuse = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 3])
     simple_shading_diffuse_mdl = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 3])
     simple_shading_full_mdl = BaseCartpoleCameraEnvCfg(observation_space=[100, 100, 3])

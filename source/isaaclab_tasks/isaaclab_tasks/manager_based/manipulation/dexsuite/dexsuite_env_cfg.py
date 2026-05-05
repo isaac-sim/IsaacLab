@@ -77,6 +77,7 @@ class ObjectCfg(PresetCfg):
         collision_props=sim_utils.CollisionPropertiesCfg(),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     )
+    newton = cube  # newton does not support multi-asset spawning yet
     default = shapes
 
 
@@ -105,7 +106,7 @@ class SceneCfg(InteractiveSceneCfg):
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(),
-        spawn=sim_utils.GroundPlaneCfg(),
+        spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0)),
         collision_group=-1,
     )
 
