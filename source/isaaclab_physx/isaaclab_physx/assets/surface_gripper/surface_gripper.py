@@ -443,15 +443,18 @@ class SurfaceGripper(AssetBase):
             Use `--device cpu` to run the simulation on CPU.
         """
 
-        enable_extension("isaacsim.robot.surface_gripper")
-        from isaacsim.robot.surface_gripper import GripperView
-
-        # Check that we are using the CPU backend.
+        # Check that we are using the CPU backend before loading the upstream extension.
+        # Loading ``isaacsim.robot.surface_gripper`` and constructing ``GripperView`` on a
+        # CUDA backend can deadlock during init in CI; failing fast here keeps the cuda
+        # error path stable.
         if self._device != "cpu":
             raise Exception(
                 "SurfaceGripper is only supported on CPU for now. Please set the simulation backend to run on CPU. Use"
                 " `--device cpu` to run the simulation on CPU."
             )
+
+        enable_extension("isaacsim.robot.surface_gripper")
+        from isaacsim.robot.surface_gripper import GripperView
 
         # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
         template_prim = sim_utils.find_first_matching_prim(self._cfg.prim_path)

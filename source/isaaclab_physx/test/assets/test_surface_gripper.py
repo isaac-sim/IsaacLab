@@ -9,6 +9,8 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import os
+
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -34,6 +36,10 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 # from isaacsim.robot.surface_gripper import GripperView
+
+_RUNNING_CI = bool(
+    os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("GITLAB_CI")
+)
 
 
 def generate_surface_gripper_cfgs(
@@ -158,6 +164,14 @@ def sim(request):
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.isaacsim_ci
+@pytest.mark.skipif(
+    _RUNNING_CI,
+    reason=(
+        "Isaac Sim ``SurfaceGripperView`` initialization can deadlock on the CI Docker"
+        " image (issue #5402). Skipping until upstream is fixed; the cuda fail-fast path"
+        " in ``test_raise_error_if_not_cpu`` keeps coverage of our device guard."
+    ),
+)
 def test_initialization(sim, num_articulations, device, add_ground_plane) -> None:
     """Test initialization for articulation with a surface gripper.
 
