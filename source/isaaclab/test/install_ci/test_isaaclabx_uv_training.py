@@ -49,7 +49,7 @@ class Test_UV_Env_Heavy(UV_Mixin):
                     "Isaac-Cartpole-Direct-v0",
                     "--num_envs",
                     "4096",
-                    "presets=newton",
+                    "presets=newton_mjwarp",
                     "--max_iterations",
                     "5",
                 ],

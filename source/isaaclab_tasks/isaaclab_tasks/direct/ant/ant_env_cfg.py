@@ -26,7 +26,7 @@ from isaaclab_assets.robots.ant import ANT_CFG
 class AntPhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg()
     physx: PhysxCfg = PhysxCfg()
-    newton: NewtonCfg = NewtonCfg(
+    newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=45,
             nconmax=25,
@@ -37,7 +37,7 @@ class AntPhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
-    kamino: NewtonCfg = NewtonCfg(
+    newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(
             integrator="moreau",
             use_collision_detector=False,

@@ -120,7 +120,7 @@ class PhysxEventCfg:
 @configclass
 class ShadowHandEventCfg(PresetCfg):
     physx = PhysxEventCfg()
-    newton = NewtonEventCfg()
+    newton_mjwarp = NewtonEventCfg()
     default = physx
 
 
@@ -133,7 +133,7 @@ class ShadowHandRobotCfg(PresetCfg):
             joint_pos={".*": 0.0},
         )
     )
-    newton = ArticulationCfg(
+    newton_mjwarp = ArticulationCfg(
         prim_path="/World/envs/env_.*/Robot",
         spawn=sim_utils.UsdFileCfg(
             # newton requires implicitactuators be specified in usd and there's a bug with physx tendons
@@ -217,7 +217,7 @@ class ObjectCfg(PresetCfg):
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.6), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
-    newton = ArticulationCfg(
+    newton_mjwarp = ArticulationCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
@@ -245,7 +245,7 @@ class ShadowHandSceneCfg(PresetCfg):
     physx: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
     )
-    newton: InteractiveSceneCfg = InteractiveSceneCfg(
+    newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
     default: InteractiveSceneCfg = physx
@@ -258,7 +258,7 @@ class PhysicsCfg(PresetCfg):
         gpu_max_rigid_contact_count=2**23,
         gpu_max_rigid_patch_count=2**23,
     )
-    newton = NewtonCfg(
+    newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
             integrator="implicitfast",
@@ -337,7 +337,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
             )
         },
     )
-    # scene — use ShadowHandSceneCfg so that presets=newton disables clone_in_fabric automatically
+    # scene — use ShadowHandSceneCfg so that presets=newton_mjwarp disables clone_in_fabric automatically
     scene: ShadowHandSceneCfg = ShadowHandSceneCfg()
 
     # reset
