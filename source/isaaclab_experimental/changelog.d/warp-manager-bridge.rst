@@ -3,18 +3,24 @@ Added
 
 * Added :class:`~isaaclab_experimental.envs.warp_frontend.WarpFrontend`, a
   runtime adapter that lets any stable manager-based RL task config run on the
-  experimental warp manager runtime (:class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp`)
-  without a parallel ``-Warp-v0`` registration. The adapter resolves
-  :class:`~isaaclab_physx.preset.PresetCfg` to its ``newton`` field, swaps
-  ``term.func`` references to same-named warp twins discovered in the warp
-  ``mdp`` modules (skipping stable re-exports), promotes ``SceneEntityCfg``
-  instances in-place to the warp variant, and reports any missing twins
-  before the env is built.
+  experimental warp runtime (:class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp`)
+  without a parallel ``-Warp-v0`` registration. The adapter is built on a
+  pluggable :class:`~isaaclab_experimental.envs.warp_frontend.CompatRule`
+  pipeline; new incompatibilities (sensor types, term-cfg fields, action
+  classes) are added by writing a small rule subclass instead of editing the
+  dispatcher. The default rules cover physics-preset resolution, dropping
+  unsupported sensors, in-place :class:`SceneEntityCfg` promotion, mdp
+  function swaps, and action-class swaps. The frontend also dispatches
+  direct envs by verifying their registered entry-point class lives under
+  ``isaaclab_experimental`` / ``isaaclab_tasks_experimental`` and routing
+  through :func:`gym.make` unchanged.
 
-* Added a ``--manager={stable,warp}`` flag to ``rsl_rl/train.py``. When set
+* Added a ``--frontend={stable,warp}`` flag to ``rsl_rl/train.py``. When set
   to ``warp`` the script auto-injects ``presets=newton`` (so Hydra picks the
-  Newton physics preset before the adapter runs) and dispatches the env
-  through ``WarpFrontend`` instead of ``gym.make``.
+  Newton physics preset before the adapter runs), warns on conflicting
+  ``presets=`` overrides, and dispatches the env through ``WarpFrontend``
+  instead of :func:`gym.make`. ``render_mode`` is forwarded so ``--video``
+  keeps working under the warp frontend.
 
 Fixed
 ^^^^^

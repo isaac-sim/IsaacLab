@@ -68,14 +68,15 @@ parser.add_argument(
 )
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 parser.add_argument(
-    "--manager",
+    "--frontend",
     type=str,
     default="stable",
     choices=["stable", "warp"],
     help=(
-        "Manager-based env runtime. 'stable' uses isaaclab.envs.ManagerBasedRLEnv (torch);"
-        " 'warp' adapts the same task cfg via isaaclab_experimental.envs.warp_frontend.WarpFrontend"
-        " and runs on isaaclab_experimental.envs.ManagerBasedRLEnvWarp."
+        "Runtime backend for the env. 'stable' uses isaaclab.envs.* (torch);"
+        " 'warp' routes through isaaclab_experimental.envs.warp_frontend.WarpFrontend,"
+        " which adapts a manager-based stable cfg onto ManagerBasedRLEnvWarp or dispatches"
+        " a direct task to its registered warp env class."
     ),
 )
 cli_args.add_rsl_rl_args(parser)
@@ -98,12 +99,29 @@ if args_cli.external_callback:
 # argparser and (optionally) the external callback function.
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
 
-# When the warp manager runtime is selected, the env cfg must resolve any
-# PresetCfg wrappers to their `newton` field (Hydra preset resolution runs
-# *before* the WarpFrontend adapter, so we inject the override here unless
-# the user already passed one explicitly).
-if args_cli.manager == "warp" and not any(a.startswith("presets=") for a in remaining_args):
-    remaining_args.append("presets=newton")
+# When the warp frontend is selected on a stable manager-based task, the cfg
+# must resolve any PresetCfg wrappers to their ``newton`` field. Hydra
+# resolves presets *before* the WarpFrontend runs, so we inject
+# ``presets=newton`` here. We only inject for tasks registered under
+# ``isaaclab_tasks.manager_based`` — direct tasks and pre-warp registrations
+# don't carry a preset system, and injecting ``presets=newton`` against them
+# causes Hydra to error before the frontend can produce its own diagnostic.
+if args_cli.frontend == "warp" and args_cli.task is not None:
+    try:
+        _spec = gym.spec(args_cli.task)
+    except gym.error.NameNotFound:
+        _spec = None
+    _entry = _spec.entry_point if _spec is not None else None
+    _is_stable_manager = isinstance(_entry, str) and _entry.startswith("isaaclab_tasks.manager_based")
+    _explicit_preset = next((a for a in remaining_args if a.startswith("presets=")), None)
+    if _is_stable_manager and _explicit_preset is None:
+        remaining_args.append("presets=newton")
+    elif _is_stable_manager and _explicit_preset != "presets=newton":
+        logger.warning(
+            "--frontend=warp on %r expects presets=newton; got %r — adapter may fail to find a Newton physics cfg.",
+            args_cli.task,
+            _explicit_preset,
+        )
 
 sys.argv = [sys.argv[0]] + remaining_args
 
@@ -190,14 +208,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.log_dir = log_dir
 
         # create isaac environment
-        if args_cli.manager == "warp":
-            # Lazy: this is the first warp-side import. Calling it after
-            # SimulationApp is already alive avoids racing pxr extension init.
+        render_mode = "rgb_array" if args_cli.video else None
+        if args_cli.frontend == "warp":
+            # Lazy: first warp-side import. Calling this after SimulationApp
+            # is already alive avoids racing pxr extension init.
             from isaaclab_experimental.envs.warp_frontend import WarpFrontend
 
-            env = WarpFrontend().build(env_cfg, task_id=args_cli.task)
+            env = WarpFrontend().build(env_cfg, task_id=args_cli.task, render_mode=render_mode)
         else:
-            env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+            env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
