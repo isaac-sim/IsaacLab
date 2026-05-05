@@ -26,7 +26,7 @@ You are running a script that requires Isaac Sim, but it is not installed.
 Either:
 
 - Install Isaac Sim: ``./isaaclab.sh -i isaacsim``, or
-- Use a Newton-based task with ``presets=newton --visualizer newton`` (Kit-less path)
+- Use a Newton-based task with ``presets=newton_mjwarp --visualizer newton`` (Kit-less path)
 
 ``ModuleNotFoundError: No module named 'isaaclab_physx'`` or ``'isaaclab_ov'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

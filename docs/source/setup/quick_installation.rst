@@ -19,11 +19,11 @@ Quick Installation
    source env_isaaclab/bin/activate
    ./isaaclab.sh -i
 
-   # Run training (Newton backend, 16 envs)
+   # Run training (MJWarp on the Newton backend, 16 envs)
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task=Isaac-Cartpole-Direct-v0 \
      --num_envs=16 --max_iterations=10 \
-     presets=newton --visualizer newton
+     presets=newton_mjwarp --visualizer newton
 
 
 Running Tasks
@@ -33,11 +33,11 @@ The ``presets=`` Hydra override selects the physics backend and renderer at runt
 
 .. code-block:: bash
 
-   # Newton (Kit-less)
+   # MJWarp (Newton backend, Kit-less)
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=newton \
+     presets=newton_mjwarp \
      --visualizer newton
 
    # PhysX (Kit — requires Isaac Sim)
@@ -46,11 +46,11 @@ The ``presets=`` Hydra override selects the physics backend and renderer at runt
      --num_envs 4096 \
      presets=physx
 
-   # Newton with a specific visualizer
+   # MJWarp with a specific visualizer
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=newton \
+     presets=newton_mjwarp \
      --visualizer viser
 
 Kit-less visualizer options: ``newton``, ``rerun``, ``viser``. Multiple can be
@@ -66,21 +66,21 @@ combined: ``--visualizer newton,rerun``.
 Available Presets
 ^^^^^^^^^^^^^^^^^
 
-Presets are combined with commas: ``presets=newton,newton_renderer,depth``.
+Presets are combined with commas: ``presets=newton_mjwarp,newton_renderer,depth``.
 
 .. code-block:: bash
 
-   presets=newton,newton_renderer,rgb  # presets=physics,renderer,render mode
-   presets=newton,newton_renderer,depth
+   presets=newton_mjwarp,newton_renderer,rgb  # presets=physics,renderer,render mode
+   presets=newton_mjwarp,newton_renderer,depth
    presets=physx,isaacsim_rtx_renderer,rgb
    presets=physx,isaacsim_rtx_renderer,depth
    presets=physx,isaacsim_rtx_renderer,albedo
    presets=physx,isaacsim_rtx_renderer,simple_shading_constant_diffuse
    presets=physx,isaacsim_rtx_renderer,simple_shading_diffuse_mdl
    presets=physx,isaacsim_rtx_renderer,simple_shading_full_mdl
-   presets=newton,ovrtx_renderer,rgb
-   presets=newton,ovrtx_renderer,depth
-   presets=newton,ovrtx_renderer,albedo
-   presets=newton,ovrtx_renderer,simple_shading_constant_diffuse
-   presets=newton,ovrtx_renderer,simple_shading_diffuse_mdl
-   presets=newton,ovrtx_renderer,simple_shading_full_mdl
+   presets=newton_mjwarp,ovrtx_renderer,rgb
+   presets=newton_mjwarp,ovrtx_renderer,depth
+   presets=newton_mjwarp,ovrtx_renderer,albedo
+   presets=newton_mjwarp,ovrtx_renderer,simple_shading_constant_diffuse
+   presets=newton_mjwarp,ovrtx_renderer,simple_shading_diffuse_mdl
+   presets=newton_mjwarp,ovrtx_renderer,simple_shading_full_mdl

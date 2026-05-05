@@ -66,7 +66,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # Cassie Newton-only armature for biped stability on rough terrain; PhysX unchanged
-        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton=0.02)
+        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.02)
 
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
 

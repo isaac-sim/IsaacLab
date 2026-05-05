@@ -43,7 +43,7 @@ we can finally run training!  Let's see what happens!
 
 .. code-block:: bash
 
-    python scripts/skrl/train.py --task=Template-Isaac-Lab-Tutorial-Direct-v0
+    python scripts/reinforcement_learning/skrl/train.py --task=Template-Isaac-Lab-Tutorial-Direct-v0
 
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/walkthrough_naive_webp.webp
