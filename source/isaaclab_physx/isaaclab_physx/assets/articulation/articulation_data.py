@@ -883,41 +883,19 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_com_jacobian_w(self) -> ProxyArray:
-        """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
-        dtype = wp.float32. In torch this resolves to
-        (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
-
-        Linear rows are referenced at the body's center of mass; angular rows are
-        reference-point invariant. Use :attr:`body_link_jacobian_w` for IK / OSC controllers
-        that target the link-origin pose.
-
-        For floating-base articulations the leading 6 columns correspond to the floating-base
-        spatial velocity in world frame (``[lin_x, lin_y, lin_z, ang_x, ang_y, ang_z]``); for
-        fixed-base articulations there are 0 base columns. Consumers that index by actuated-
-        joint id should add :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` to the
-        joint id.
+        PhysX implementation: passthrough of ``_root_view.get_jacobians()``, which is
+        natively COM-referenced.
         """
         return ProxyArray(self._root_view.get_jacobians())
 
     @property
     def body_link_jacobian_w(self) -> ProxyArray:
-        """Per-body geometric Jacobian referenced at each body's link origin in world frame.
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_link_jacobian_w`.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
-        dtype = wp.float32. In torch this resolves to
-        (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
-
-        Computed by applying the COM→origin shift to :attr:`body_com_jacobian_w`. The shift
-        identity ``v_origin = v_com - omega x (R · body_com_pos_b)`` is applied per-column
-        (each Jacobian column is one DoF's spatial-velocity contribution to a body). Angular
-        rows are unchanged; linear rows are shifted from COM to link origin so the contract
-        ``J · q_dot[body_idx] == body_link_lin_vel_w[body_idx]`` holds.
-
-        Column layout matches :attr:`body_com_jacobian_w`: leading
-        :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` columns hold the floating-
-        base spatial velocity (0 for fixed-base), followed by per-actuated-joint columns.
+        PhysX implementation: applies the COM→origin shift kernel to
+        :attr:`body_com_jacobian_w` (PhysX's engine output is COM-referenced).
         """
         wp.launch(
             articulation_kernels.shift_jacobian_com_to_origin,
@@ -935,31 +913,17 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def mass_matrix(self) -> ProxyArray:
-        """Per-env generalized mass matrix in joint space.
+        """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`.
 
-        Shape is (num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs),
-        dtype = wp.float32. In torch this resolves to
-        (num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs).
-
-        Returns the symmetric positive-definite inertia matrix ``M(q)`` of the articulation in
-        its generalized joint coordinates. For floating-base articulations the leading 6 rows
-        and columns correspond to the floating-base spatial velocity in world frame; for
-        fixed-base articulations there are 0 such rows/cols.
+        PhysX implementation: passthrough of ``_root_view.get_generalized_mass_matrices()``.
         """
         return ProxyArray(self._root_view.get_generalized_mass_matrices())
 
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
-        """Per-env gravity compensation torques in joint space.
+        """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
 
-        Shape is (num_instances, num_joints + num_base_dofs), dtype = wp.float32
-        [N·m or N, depending on joint type]. In torch this resolves to
-        (num_instances, num_joints + num_base_dofs).
-
-        Returns ``g(q)`` — the joint-space gravity-loading term in the equation of motion
-        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``. For floating-base articulations the
-        leading 6 entries correspond to the floating-base spatial velocity in world frame; for
-        fixed-base articulations there are 0 such entries.
+        PhysX implementation: passthrough of ``_root_view.get_gravity_compensation_forces()``.
         """
         return ProxyArray(self._root_view.get_gravity_compensation_forces())
 

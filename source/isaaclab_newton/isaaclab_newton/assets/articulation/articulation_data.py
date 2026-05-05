@@ -838,22 +838,11 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_com_jacobian_w(self) -> ProxyArray:
-        """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
-        dtype = wp.float32. In torch this resolves to
-        (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
-
-        Computed by ``eval_jacobian`` followed by a gather kernel that extracts this view's
-        rows / columns from the model-sized scratch buffer. Linear rows are referenced at the
-        body's center of mass; angular rows are reference-point invariant. Use
-        :attr:`body_link_jacobian_w` for IK / OSC controllers that target the link-origin pose.
-
-        For floating-base articulations the leading 6 columns correspond to the floating-base
-        spatial velocity in world frame (``[lin_x, lin_y, lin_z, ang_x, ang_y, ang_z]``); for
-        fixed-base articulations there are 0 base columns. Consumers that index by actuated-
-        joint id should add :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` to the
-        joint id.
+        Newton implementation: ``eval_jacobian`` (writes the model-wide buffer) then a
+        gather kernel extracts this view's rows. ``link_offset`` drops Newton's fixed-
+        root row for fixed-base; the DoF axis is preserved in full.
         """
         # Newton's eval_jacobian reads ``state.body_q`` (link poses); refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
@@ -882,21 +871,10 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_link_jacobian_w(self) -> ProxyArray:
-        """Per-body geometric Jacobian referenced at each body's link origin in world frame.
+        """See :attr:`isaaclab.assets.BaseArticulationData.body_link_jacobian_w`.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
-        dtype = wp.float32. In torch this resolves to
-        (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
-
-        Computed by applying the COM→origin shift to :attr:`body_com_jacobian_w`. The shift
-        identity ``v_origin = v_com - omega x (R · body_com_pos_b)`` is applied per-column
-        (each Jacobian column is one DoF's spatial-velocity contribution to a body). Angular
-        rows are unchanged; linear rows are shifted so the contract
-        ``J · q_dot[body_idx] == body_link_lin_vel_w[body_idx]`` holds.
-
-        Column layout matches :attr:`body_com_jacobian_w`: leading
-        :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` columns hold the floating-
-        base spatial velocity (0 for fixed-base), followed by per-actuated-joint columns.
+        Newton implementation: applies the COM→origin shift kernel to
+        :attr:`body_com_jacobian_w` (Newton's ``eval_jacobian`` is COM-referenced).
         """
         # ``body_link_pose_w`` accessor triggers ``SimulationManager.forward()`` if FK is
         # stale (after a manual joint / root write that bypassed the sim step). Reading the
@@ -920,16 +898,10 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def mass_matrix(self) -> ProxyArray:
-        """Per-env generalized mass matrix in joint space.
+        """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`.
 
-        Shape is (num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs),
-        dtype = wp.float32. In torch this resolves to
-        (num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs).
-
-        Returns the symmetric positive-definite inertia matrix ``M(q)`` of the articulation in
-        its generalized joint coordinates. For floating-base articulations the leading 6 rows
-        and columns correspond to the floating-base spatial velocity in world frame; for
-        fixed-base articulations there are 0 such rows/cols.
+        Newton implementation: ``eval_mass_matrix`` (writes the model-wide buffer) then a
+        gather kernel extracts this view's rows.
         """
         # eval_jacobian / eval_mass_matrix read ``state.body_q``; refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
@@ -965,12 +937,12 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
-        """Per-env gravity compensation torques in joint space.
+        """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
 
-        Newton's ArticulationView has no ``eval_gravity_compensation`` primitive (only
-        ``eval_fk`` / ``eval_jacobian`` / ``eval_mass_matrix``). Callers that need gravity
-        compensation must run on PhysX, or set the controller's ``gravity_compensation`` flag
-        to ``False`` until upstream Newton adds the missing API.
+        Newton implementation: raises :class:`NotImplementedError` — Newton's
+        ``ArticulationView`` exposes only ``eval_fk`` / ``eval_jacobian`` /
+        ``eval_mass_matrix``. Use PhysX, or set the controller's
+        ``gravity_compensation=False`` until upstream Newton adds the primitive.
         """
         raise NotImplementedError(
             "Newton has no gravity-compensation primitive. Use PhysX, or set the controller's"
