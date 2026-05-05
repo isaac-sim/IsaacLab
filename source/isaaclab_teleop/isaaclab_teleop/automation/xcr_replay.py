@@ -38,18 +38,12 @@ class XcrReplayConfig:
         quit_on_complete: When ``True``, call
             :meth:`omni.kit.app.IApp.post_quit` once replay finishes so the
             host CI process exits cleanly.
-        max_replay_duration_s: Upper bound on how long the coroutine will
-            wait for ``xcr_player`` to clear its playback subscription. If
-            replay never finishes (e.g. Kit-side bug, captured session
-            never emits a stop event), the coroutine returns after this
-            many seconds so CI does not hang indefinitely.
     """
 
     replay_file: str
     profile_name: str = "ar"
     start_delay_s: float = 120.0
     quit_on_complete: bool = True
-    max_replay_duration_s: float = 3600.0
 
 
 async def start_xcr_replay(cfg: XcrReplayConfig) -> None:
@@ -92,10 +86,8 @@ async def start_xcr_replay(cfg: XcrReplayConfig) -> None:
     XRCore.get_singleton().get_profile(cfg.profile_name)
 
     # Construct the replay API so the runtime registers the replay backend
-    # before start_replay_if_enabled() is called. Bind to a local so the
-    # object stays alive for the lifetime of the coroutine in case any
-    # internal subscription is tied to the instance lifetime.
-    _replay_api = XCRReplayAPI()  # noqa: F841
+    # before start_replay_if_enabled() is called.
+    XCRReplayAPI()
 
     logger.info("XCR replay: waiting %.1f seconds before starting replay", cfg.start_delay_s)
     await asyncio.sleep(cfg.start_delay_s)
@@ -114,21 +106,9 @@ async def start_xcr_replay(cfg: XcrReplayConfig) -> None:
 
         # The xcr_player module clears its playback subscription when replay
         # finishes; that is the public-ish signal we have for completion.
-        # Polling a private attribute is fragile (it may be renamed or
-        # removed in future Kit versions); the bounded wait below keeps a
-        # stuck poll from hanging the CI job if that ever happens.
-        poll_interval_s = 5.0
-        elapsed_s = 0.0
         while xcr_player._xcr_playback_subscription is not None:
-            if elapsed_s >= cfg.max_replay_duration_s:
-                logger.warning(
-                    "XCR replay: timed out after %.1fs waiting for playback to complete; aborting wait.",
-                    cfg.max_replay_duration_s,
-                )
-                break
             logger.debug("XCR replay: waiting for playback subscription to clear")
-            await asyncio.sleep(poll_interval_s)
-            elapsed_s += poll_interval_s
+            await asyncio.sleep(5)
 
     await omni.kit.app.get_app().next_update_async()
 
