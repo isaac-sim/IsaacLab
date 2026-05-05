@@ -36,3 +36,7 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     colorize_instance_segmentation: bool = True
     """Expose ``instance_segmentation_fast`` as ``(N, H, W, 4) uint8`` if True, else ``(N, H, W, 1) int32``."""
+
+    def provides_temporal_camera_data(self, sim_render_cfg) -> bool:
+        """Pure rasterization, no temporal blending across frames."""
+        return False

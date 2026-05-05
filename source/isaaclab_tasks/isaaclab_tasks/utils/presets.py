@@ -11,7 +11,6 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.hydra import preset
 
 
 @configclass
@@ -23,16 +22,34 @@ class MultiBackendRendererCfg(PresetCfg):
 
 
 @configclass
-class MultiBackendCameraCfg(CameraCfg):
-    """CameraCfg with multi-backend renderer and automatic Newton frame stacking.
+class _FrameStackPolicyByRenderer(PresetCfg):
+    """Renderer-keyed inner preset; ``default=0`` is the sentinel ``Camera`` reads via ``max(1, ...)``."""
 
-    When ``presets=newton`` is used, ``frame_stack`` is automatically set to 2.
-    Newton's energy-conserving (symplectic) integrator produces dynamics that
-    require velocity information for effective camera-based control. Frame stacking
-    provides this temporal information by concatenating consecutive frames along
-    the channel dimension, enabling the policy to infer velocity from pixel
-    differences between frames.
-    """
+    default: int = 0
+    newton_renderer: int = 2
+
+
+@configclass
+class _FrameStackPolicyBranch:
+    """Intermediate regular configclass between the two PresetCfg layers: forces ``collect_presets``
+    to extend the path with ``.by_renderer`` so the global broadcast doesn't clobber and over-fire."""
+
+    by_renderer: _FrameStackPolicyByRenderer = _FrameStackPolicyByRenderer()
+
+
+@configclass
+class FrameStackPolicyCfg(PresetCfg):
+    """``frame_stack`` policy keyed on physics + renderer; resolves to 2 only for Newton + Warp."""
+
+    default: int = 0
+    newton: _FrameStackPolicyBranch = _FrameStackPolicyBranch()
+
+
+@configclass
+class MultiBackendCameraCfg(CameraCfg):
+    """``frame_stack`` defaults to 0 (sentinel); ``launch_simulation`` auto-applies the policy.
+    Any user-set value (including 1) is respected."""
 
     renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
-    frame_stack = preset(default=1, newton=2)
+    frame_stack: int = 0
+    frame_stack_policy: FrameStackPolicyCfg = FrameStackPolicyCfg()

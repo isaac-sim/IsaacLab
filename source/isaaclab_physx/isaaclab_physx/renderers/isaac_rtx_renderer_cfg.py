@@ -90,3 +90,11 @@ class IsaacRtxRendererCfg(RendererCfg):
     - ``"zero"``: Values are clipped to zero.
     - ``"none"``: No clipping is applied. Values will be returned as ``inf``.
     """
+
+    _TEMPORAL_AA_MODES = ("DLSS", "DLAA", "TAA")
+
+    def provides_temporal_camera_data(self, sim_render_cfg) -> bool:
+        """RTX provides temporal data when the active AA mode blends prior-frame information.
+        ``antialiasing_mode=None`` falls back to DLSS (temporal); ``"FXAA"`` and ``"Off"`` are spatial-only."""
+        mode = getattr(sim_render_cfg, "antialiasing_mode", None)
+        return mode is None or mode in self._TEMPORAL_AA_MODES

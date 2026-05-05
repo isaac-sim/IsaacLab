@@ -72,20 +72,60 @@ def _is_kitless_physics(node) -> bool:
 
 
 def _physics_needs_temporal_camera_data(node) -> bool:
-    """True when the node is a physics config whose integrator needs explicit temporal data.
-
-    Backends without implicit damping (e.g. Newton's symplectic integrator) declare this
-    via :attr:`PhysicsCfg.requires_temporal_camera_data`. Used to warn when such backends
-    are paired with cameras whose ``frame_stack`` is too low.
-    """
+    """True for physics configs that lack implicit damping and need explicit temporal camera data."""
     return isinstance(node, PhysicsCfg) and getattr(node, "requires_temporal_camera_data", False)
 
 
+def _renderer_provides_temporal_camera_data(node, sim_render_cfg) -> bool:
+    """True when the renderer's pipeline supplies temporal data under the active ``sim_render_cfg``."""
+    return isinstance(node, RendererCfg) and node.provides_temporal_camera_data(sim_render_cfg)
+
+
 def _has_camera_without_frame_stack(node) -> bool:
-    """True when the node is a camera config with frame_stack <= 1."""
+    """True when the node is a camera config with ``frame_stack <= 1``."""
     if not isinstance(node, CameraCfg):
         return False
     return node.frame_stack <= 1
+
+
+def _resolve_frame_stack_policy(policy) -> int | None:
+    """Unwrap a resolved policy: int passthrough, or recurse into ``.by_renderer``. ``None`` if neither."""
+    if isinstance(policy, int):
+        return policy
+    inner = getattr(policy, "by_renderer", None)
+    if inner is not None:
+        return _resolve_frame_stack_policy(inner)
+    return None
+
+
+def _apply_frame_stack_policies(env_cfg) -> None:
+    """Bump ``frame_stack`` from the sentinel 0 to its policy value where applicable.
+    User-supplied values (``frame_stack > 0``) are left alone. Recurses through dataclass
+    fields and dict values (mirrors ``hydra._walk_cfg``)."""
+    visited: set[int] = set()
+
+    def _visit(node):
+        if id(node) in visited:
+            return
+        visited.add(id(node))
+        if hasattr(node, "__dataclass_fields__"):
+            policy = getattr(node, "frame_stack_policy", None)
+            current = getattr(node, "frame_stack", None)
+            if policy is not None and isinstance(current, int) and current == 0:
+                resolved = _resolve_frame_stack_policy(policy)
+                if resolved is not None and resolved > 0:
+                    node.frame_stack = resolved
+            children = (getattr(node, fn, None) for fn in node.__dataclass_fields__)
+        elif isinstance(node, dict):
+            children = node.values()
+        else:
+            return
+        for child in children:
+            if child is None or isinstance(child, (int, float, str, bool)):
+                continue
+            _visit(child)
+
+    _visit(env_cfg)
 
 
 def _get_visualizer_types(launcher_args: argparse.Namespace | dict | None) -> set[str]:
@@ -275,17 +315,26 @@ def launch_simulation(
     visualizer_intent = _compute_visualizer_intent(env_cfg)
     _set_visualizer_intent_on_launcher_args(launcher_args, visualizer_intent)
 
-    # Warn when a physics backend that needs temporal data is paired with an unstacked camera.
-    needs_temporal, has_unstacked_camera = _scan_config(
-        env_cfg, [_physics_needs_temporal_camera_data, _has_camera_without_frame_stack]
+    # Apply policies first so the warning reflects post-policy state.
+    _apply_frame_stack_policies(env_cfg)
+
+    sim_render_cfg = getattr(getattr(env_cfg, "sim", None), "render", None)
+    needs_temporal, provides_temporal, has_unstacked_camera = _scan_config(
+        env_cfg,
+        [
+            _physics_needs_temporal_camera_data,
+            lambda n: _renderer_provides_temporal_camera_data(n, sim_render_cfg),
+            _has_camera_without_frame_stack,
+        ],
     )
-    if needs_temporal and has_unstacked_camera:
+    if needs_temporal and not provides_temporal and has_unstacked_camera:
         logger.warning(
-            "Physics backend reports requires_temporal_camera_data=True but a camera with"
-            " frame_stack <= 1 was detected. Backends without implicit damping (e.g. Newton's"
-            " symplectic integrator) need temporal information for effective camera-based control."
+            "Physics backend reports requires_temporal_camera_data=True and the active renderer"
+            " does not provide temporal data, but a camera with frame_stack <= 1 was detected."
+            " Backends without implicit damping (e.g. Newton's symplectic integrator) need"
+            " temporal information for effective camera-based control."
             " Set frame_stack >= 2 on CameraCfg (or use MultiBackendCameraCfg which enables"
-            " frame_stack=2 automatically with presets=newton)."
+            " frame_stack=2 automatically with presets=newton,newton_renderer)."
         )
 
     if needs_kit and has_kit_cameras:
