@@ -23,8 +23,10 @@ from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
 
-# TODO: Currently we don't support multiple GPUs for Fabric-accelerated views
-# because USDRT SelectPrims only supported cuda:0 at the time of writing.
+# TODO: extend this to ``cuda:N`` once we wire up multi-GPU support for the view.
+# Recent Kit / USDRT releases do support multi-GPU ``SelectPrims``, but the
+# rest of the FabricFrameView wiring (selections, indexed arrays, etc.) still
+# assumes a single device — to be tackled in a follow-up.
 _fabric_supported_devices = ("cpu", "cuda", "cuda:0")
 
 
@@ -57,10 +59,9 @@ class FabricFrameView(BaseFrameView):
 
     After every Fabric write (``set_world_poses``, ``set_scales``),
     :meth:`PrepareForReuse` is called on the ``PrimSelection`` to notify
-    the renderer (FSD/Storm) that Fabric data has changed and to detect
-    topology changes that require rebuilding internal mappings.  Read
-    operations do not call PrepareForReuse to avoid unnecessary renderer
-    invalidation.
+    the FSD renderer that Fabric data has changed and to detect topology
+    changes that require rebuilding internal mappings.  Read operations
+    do not call PrepareForReuse to avoid unnecessary renderer invalidation.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
     """
@@ -73,6 +74,18 @@ class FabricFrameView(BaseFrameView):
         stage: Usd.Stage | None = None,
         **kwargs,
     ):
+        """Initialize the view.
+
+        Args:
+            prim_path: USD prim-path pattern to match.
+            device: Device for Warp arrays (``"cpu"`` or ``"cuda:0"``).
+            validate_xform_ops: Whether to validate prim xform-ops.
+            stage: USD stage; defaults to the current sim context's stage.
+            **kwargs: Additional keyword arguments (ignored). Matches the signature of
+                :class:`~isaaclab.sim.views.UsdFrameView` so that the top-level
+                :class:`~isaaclab.sim.views.FrameView` factory can forward backend-agnostic
+                kwargs without each backend having to know about every option.
+        """
         self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
 
