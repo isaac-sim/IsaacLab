@@ -191,11 +191,12 @@ BODY_INV_INERTIA = _TT.ARTICULATION_BODY_INV_INERTIA
 Shape is ``[N, L, 9]``, dtype ``float32``.
 """
 
-# ---------------------------------------------------------------------------
-# Rigid-body TensorTypes
-# ---------------------------------------------------------------------------
-# Shapes assume N = number of rigid actor instances matched by the binding
-# pattern. Components and units are stated per alias below.
+"""
+Rigid-body TensorTypes
+
+Shapes assume N = number of rigid actor instances matched by the binding
+pattern. Components and units are stated per alias below.
+"""
 
 RIGID_BODY_POSE = _TT.RIGID_BODY_POSE
 """Rigid actor root transform — read/write, GPU. Shape ``(N, 7)``,

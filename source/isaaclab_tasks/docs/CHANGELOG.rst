@@ -1,20 +1,6 @@
 Changelog
 ---------
 
-1.5.30 (2026-04-27)
-~~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Added an ``ovphysx`` preset variant to the in-hand object and physics
-  configs in
-  ``isaaclab_tasks.direct.allegro_hand.allegro_hand_env_cfg``, mirroring
-  the existing Cartpole/Ant pattern. Enables running
-  ``Isaac-Repose-Cube-Allegro-Direct-v0`` against the OVPhysX backend via
-  ``./scripts/run_ovphysx.sh``.
-
-
 1.5.29 (2026-04-27)
 ~~~~~~~~~~~~~~~~~~~
 

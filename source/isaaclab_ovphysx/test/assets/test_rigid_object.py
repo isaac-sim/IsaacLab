@@ -9,42 +9,15 @@
 
 """Real-backend tests for the OVPhysX RigidObject.
 
-Mirrors :mod:`isaaclab_physx.test.assets.test_rigid_object` 1-to-1: same set
-of test functions, names, parametrizations, and assertions.
-
-OVPhysX runs kitless under ``./scripts/run_ovphysx.sh`` so there is no
-``AppLauncher`` boot — :class:`~isaaclab.sim.SimulationContext` is driven
-directly via ``build_simulation_context(sim_cfg=SimulationCfg(physics=OvPhysxCfg(), ...))``
-which works because :func:`isaaclab.app.has_kit` returns False in this
-environment.
-
-PhysX-specific ``cube_object.root_view.set_X(...)`` / ``get_X(...)`` calls are
-adapted to OVPhysX by going through the backend's per-tensor-type binding
-dictionary (``cube_object._bindings`` / :meth:`~isaaclab_ovphysx.assets.RigidObject._get_binding`)
-and the public setters (:meth:`set_masses_index`, :meth:`set_coms_index`,
-:meth:`set_inertias_index`).  Reads use the data-class properties
-(``cube_object.data.body_mass``, ``body_inertia``, ``body_com_pose_b``).
-
-Process-global device lock
---------------------------
+Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 
 ``ovphysx<=0.3.7`` binds device mode (CPU vs GPU) at the C++ layer on the
-first ``ovphysx.PhysX(device=...)`` call and cannot release/swap it without a
-process restart.  :class:`~isaaclab_ovphysx.physics.OvPhysxManager` tracks
-this on ``_locked_device`` and raises :exc:`RuntimeError` if a later
-:class:`SimulationContext` requests a different device.  The
-``_ovphysx_skip_other_device`` autouse fixture below preempts that error in
-parametrized tests by ``pytest.skip``-ing on the unlocked device, so the
-session finishes cleanly when only one device is exercised.
-
-CI note
--------
-Because the lock is process-global, full coverage requires **two separate
-``./scripts/run_ovphysx.sh -m pytest`` invocations** -- once with ``-k 'cpu'``
-and once with ``-k 'cuda:0'``.  Tracked as gap G5 in
-``docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md``; until
-the wheel exposes a way to reset Carbonite device state, this is the supported
-pattern.
+first ``ovphysx.PhysX(device=...)`` construction and cannot swap it without a
+process restart.  Full coverage therefore requires two separate pytest
+invocations -- once with ``-k 'cpu'`` and once with ``-k 'cuda:0'``.  The
+``_ovphysx_skip_other_device`` autouse fixture below preempts the manager's
+:exc:`RuntimeError` by ``pytest.skip``-ing on the unlocked device so
+single-device runs finish cleanly.
 """
 
 from __future__ import annotations
@@ -80,23 +53,15 @@ wp.init()
 _logger = logging.getLogger(__name__)
 
 
-# Session-locked device.  Set on the first parametrized test that runs and
-# never reassigned -- ovphysx's process-global device lock means subsequent
-# tests on the other device must skip.
 _LOCKED_DEVICE: list[str | None] = [None]
+"""Device the session pins to on the first parametrized test that runs."""
 
 
 @pytest.fixture(autouse=True)
 def _ovphysx_skip_other_device(request):
-    """Skip tests whose ``device`` parameter mismatches the session-locked device.
+    """Skip parametrized tests on the device the session is not pinned to.
 
-    ``ovphysx<=0.3.7`` binds the process-global device mode on the first
-    ``ovphysx.PhysX(device=...)`` call.
-    :class:`~isaaclab_ovphysx.physics.OvPhysxManager._warmup_and_load` raises
-    :exc:`RuntimeError` if a later context requests a different device.  We
-    detect the locked device on the first encounter and skip subsequent tests
-    on the other device with a clear message, so the run finishes cleanly
-    rather than failing on the second-device test.
+    See the module docstring for the wheel's process-global device-mode lock.
     """
     callspec = getattr(request.node, "callspec", None)
     device = callspec.params.get("device") if callspec is not None else None
