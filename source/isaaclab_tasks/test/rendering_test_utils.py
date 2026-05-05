@@ -268,6 +268,14 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     return env_cfg
 
 
+def _physics_preset_name(physics_backend: str) -> str:
+    """Translate the historical ``"newton"`` backend label (still used by golden-image
+    filenames and ``pytest.param`` IDs) to the renamed Hydra preset
+    ``"newton_mjwarp"``. Other labels (``"physx"`` etc.) pass through unchanged.
+    """
+    return "newton_mjwarp" if physics_backend == "newton" else physics_backend
+
+
 def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
     """Convert camera output tensor to [0, 1] float32 for conversion to image."""
     normalized = tensor.float()
@@ -662,7 +670,7 @@ def rendering_test_shadow_hand(
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
-    override_args = [f"presets={physics_backend},{renderer},{data_type}"]
+    override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
 
     env_cfg = ShadowHandVisionEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
@@ -706,7 +714,9 @@ def rendering_test_cartpole(
     from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
     env_cfg = CartpoleCameraPresetsEnvCfg()
-    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_backend},{renderer},{data_type}"])
+    env_cfg = _apply_overrides_to_env_cfg(
+        env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
+    )
 
     env_cfg.scene.num_envs = 4
 
@@ -744,7 +754,7 @@ def rendering_test_dexsuite_kuka(
         DexsuiteKukaAllegroLiftEnvCfg,
     )
 
-    override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
+    override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}64,single_camera,cube"]
 
     env_cfg = DexsuiteKukaAllegroLiftEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)

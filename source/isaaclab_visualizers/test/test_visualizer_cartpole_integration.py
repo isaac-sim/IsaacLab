@@ -216,7 +216,7 @@ def _get_physics_cfg(backend_kind: str):
         __import__("newton")
         __import__("isaaclab_newton")
         preset = CartpolePhysicsCfg()
-        physics_cfg = getattr(preset, "newton", None)
+        physics_cfg = getattr(preset, "newton_mjwarp", None)
         if physics_cfg is None:
             from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
@@ -470,7 +470,7 @@ def _make_cartpole_camera_env(visualizer_kind: str, backend_kind: str) -> Cartpo
                 reason=(
                     "TODO: Kit visualizer + Newton physics + Isaac RTX tiled camera can hit CUDA illegal access "
                     "or bad GPU state. Repro: rl_games train Isaac-Cartpole-Camera-Presets-Direct-v0 "
-                    "--enable_cameras presets=newton --viz kit. Re-enable when fixed."
+                    "--enable_cameras presets=newton_mjwarp --viz kit. Re-enable when fixed."
                 )
             ),
         ),

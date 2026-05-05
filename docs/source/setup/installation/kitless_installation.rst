@@ -15,11 +15,11 @@ fastest way to get started and is ideal for users who only need the Newton physi
    # Install Isaac Lab (Newton backend, no Isaac Sim required)
    ./isaaclab.sh --install   # or ./isaaclab.sh -i
 
-   # Kickoff training with Newton physics and Newton visualizer
+   # Kickoff training with MJWarp physics and Newton visualizer
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
    --task=Isaac-Cartpole-Direct-v0 \
    --num_envs=16 --max_iterations=10 \
-   presets=newton --visualizer newton
+   presets=newton_mjwarp --visualizer newton
 
 
 **Features available in kit-less mode (Newton backend, no Isaac Sim):**
@@ -110,7 +110,7 @@ OVRTX provides GPU-accelerated rendering for vision tasks without Kit.
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
      --task Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
      --headless --enable_cameras --num_envs 16 --max_iterations 10 \
-     presets=newton,ovrtx_renderer,simple_shading_diffuse_mdl
+     presets=newton_mjwarp,ovrtx_renderer,simple_shading_diffuse_mdl
 
 
 Running Installation Tests

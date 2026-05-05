@@ -240,7 +240,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --max_iterations=5 \
      --num_envs=1024 \
      --benchmark_backend=summary \
-     "presets=newton,ovrtx_renderer,rgb"
+     "presets=newton_mjwarp,ovrtx_renderer,rgb"
 
 **Record video with the Isaac RTX renderer preset using the Newton video backend**
 

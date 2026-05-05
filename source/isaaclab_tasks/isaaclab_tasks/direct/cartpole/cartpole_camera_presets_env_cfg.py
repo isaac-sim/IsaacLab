@@ -26,7 +26,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 class PhysicsCfg(PresetCfg):
     default = PhysxCfg()
     physx = PhysxCfg()
-    newton = NewtonCfg()
+    newton_mjwarp = NewtonCfg()
 
 
 @configclass

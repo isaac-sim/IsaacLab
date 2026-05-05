@@ -38,7 +38,7 @@ class KukaAllegroPhysicsCfg(PresetCfg):
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
         gpu_found_lost_pairs_capacity=2**26,
     )
-    newton = NewtonCfg(
+    newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
             integrator="implicitfast",
@@ -139,7 +139,7 @@ class KukaAllegroEventCfg(PresetCfg):
         pass
 
     default = KukaAllegroPhysxEventCfg()
-    newton = dexsuite.EventCfg()
+    newton_mjwarp = dexsuite.EventCfg()
     physx = default
 
 
