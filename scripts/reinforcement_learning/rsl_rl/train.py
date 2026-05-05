@@ -102,17 +102,20 @@ remaining_args = list_intersection(remaining_args, remaining_args_env_registrati
 # When the warp frontend is selected on a stable manager-based task, the cfg
 # must resolve any PresetCfg wrappers to their ``newton`` field. Hydra
 # resolves presets *before* the WarpFrontend runs, so we inject
-# ``presets=newton`` here. We only inject for tasks registered under
-# ``isaaclab_tasks.manager_based`` — direct tasks and pre-warp registrations
-# don't carry a preset system, and injecting ``presets=newton`` against them
-# causes Hydra to error before the frontend can produce its own diagnostic.
+# ``presets=newton`` here. We only inject for tasks whose env_cfg_entry_point
+# is under ``isaaclab_tasks.manager_based``; direct tasks and the pre-warp
+# ``*-Warp-v0`` registrations don't carry the preset system, and injecting
+# ``presets=newton`` against them causes Hydra to error before the frontend
+# can produce its own diagnostic. Note: ``spec.entry_point`` is the env
+# *class* path (e.g. ``isaaclab.envs:ManagerBasedRLEnv``) — we check the
+# *cfg* entry point in ``spec.kwargs``.
 if args_cli.frontend == "warp" and args_cli.task is not None:
     try:
         _spec = gym.spec(args_cli.task)
     except gym.error.NameNotFound:
         _spec = None
-    _entry = _spec.entry_point if _spec is not None else None
-    _is_stable_manager = isinstance(_entry, str) and _entry.startswith("isaaclab_tasks.manager_based")
+    _cfg_entry = _spec.kwargs.get("env_cfg_entry_point") if _spec is not None else None
+    _is_stable_manager = isinstance(_cfg_entry, str) and _cfg_entry.startswith("isaaclab_tasks.manager_based")
     _explicit_preset = next((a for a in remaining_args if a.startswith("presets=")), None)
     if _is_stable_manager and _explicit_preset is None:
         remaining_args.append("presets=newton")
