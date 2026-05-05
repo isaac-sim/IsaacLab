@@ -372,8 +372,6 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
         if FOCUS_ARTICULATION_HANG_DEBUG:
-            tools_path = os.path.join(workspace_root, "tools")
-            env["PYTHONPATH"] = os.pathsep.join([tools_path, env.get("PYTHONPATH", "")]).rstrip(os.pathsep)
             plugins = [p for p in env.get("PYTEST_PLUGINS", "").split(",") if p]
             if "pytest_current_test_logger" not in plugins:
                 plugins.append("pytest_current_test_logger")
