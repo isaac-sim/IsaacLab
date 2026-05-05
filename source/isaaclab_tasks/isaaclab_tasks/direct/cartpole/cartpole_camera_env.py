@@ -14,7 +14,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sensors import TiledCamera, save_images_to_file
+from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class CartpoleCameraEnv(DirectRLEnv):
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera."""
         self._cartpole = Articulation(self.cfg.robot_cfg)
-        self._tiled_camera = TiledCamera(self.cfg.tiled_camera)
+        self._tiled_camera = Camera(self.cfg.tiled_camera)
 
         # clone and replicate
         self.scene.clone_environments(copy_from_source=False)
@@ -151,6 +151,11 @@ class CartpoleCameraEnv(DirectRLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
             env_ids = self._cartpole._ALL_INDICES
+
+        # Log survival success rate before resetting.
+        survived = self.reset_time_outs[env_ids].float()
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
+
         super()._reset_idx(env_ids)
 
         joint_pos = self._cartpole.data.default_joint_pos.torch[env_ids]

@@ -267,7 +267,7 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_pos_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_simulation_nodal_positions(self._data._nodal_pos_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_positions(self._get_nodal_pos_w_f32(), indices=env_ids)
 
     def write_nodal_pos_to_sim_mask(
         self,
@@ -335,7 +335,7 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_vel_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_simulation_nodal_velocities(self._data._nodal_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_velocities(self._get_nodal_vel_w_f32(), indices=env_ids)
 
     def write_nodal_velocity_to_sim_mask(
         self,
@@ -527,14 +527,45 @@ class DeformableObject(AssetBase):
     Internal helper.
     """
 
+    def _get_nodal_pos_w_f32(self) -> wp.array:
+        """Get a cached float32 view of nodal_pos_w for PhysX TensorAPI.
+
+        Safe because ``DeformableObjectData`` copies into a stable pre-allocated
+        buffer via ``wp.copy`` (the pointer never changes).
+        Invalidated in ``_create_buffers``.
+        """
+        if self._nodal_pos_w_f32 is None:
+            self._nodal_pos_w_f32 = self._data._nodal_pos_w.data.view(wp.float32)
+        return self._nodal_pos_w_f32
+
+    def _get_nodal_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of nodal_vel_w for PhysX TensorAPI.
+
+        Safe because ``DeformableObjectData`` copies into a stable pre-allocated
+        buffer via ``wp.copy`` (the pointer never changes).
+        Invalidated in ``_create_buffers``.
+        """
+        if self._nodal_vel_w_f32 is None:
+            self._nodal_vel_w_f32 = self._data._nodal_vel_w.data.view(wp.float32)
+        return self._nodal_vel_w_f32
+
     def _resolve_env_ids(self, env_ids):
-        """Resolve environment indices to a warp int32 array."""
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
+        """Resolve environment indices to a warp array.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of environment indices.
+        """
+        if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
-        elif isinstance(env_ids, list):
+        if isinstance(env_ids, torch.Tensor):
+            if env_ids.dtype == torch.int64:
+                env_ids = env_ids.to(torch.int32)
+            return wp.from_torch(env_ids, dtype=wp.int32)
+        if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        elif isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
         return env_ids
 
     def _initialize_impl(self):
@@ -689,6 +720,11 @@ class DeformableObject(AssetBase):
         """Create buffers for storing data."""
         # constants
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
+
+        # Cached .view(wp.float32) wrappers for structured warp arrays.
+        # Safe because DeformableObjectData uses wp.copy into stable buffers.
+        self._nodal_pos_w_f32: wp.array | None = None
+        self._nodal_vel_w_f32: wp.array | None = None
 
         # default state
         # we use the initial nodal positions at spawn time as the default state

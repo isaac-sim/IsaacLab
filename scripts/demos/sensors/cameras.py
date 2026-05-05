@@ -48,7 +48,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg, RayCasterCameraCfg, TiledCameraCfg
+from isaaclab.sensors import CameraCfg, RayCasterCameraCfg
 from isaaclab.sensors.ray_caster import patterns
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
@@ -94,14 +94,14 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         ),
         offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
-    tiled_camera = TiledCameraCfg(
+    tiled_camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
         update_period=0.1,
         height=480,
         width=640,
         data_types=["rgb", "distance_to_image_plane"],
         spawn=None,  # the camera is already spawned in the scene
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
+        offset=CameraCfg.OffsetCfg(pos=(0.510, 0.0, 0.015), rot=(0.5, -0.5, 0.5, -0.5), convention="ros"),
     )
     raycast_camera = RayCasterCameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
@@ -243,7 +243,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             rgb_images = [scene["camera"].data.output["rgb"][0, ..., :3], scene["tiled_camera"].data.output["rgb"][0]]
             save_images_grid(
                 rgb_images,
-                subtitles=["Camera", "TiledCamera"],
+                subtitles=["Camera"],
                 title="RGB Image: Cam0",
                 filename=os.path.join(output_dir, "rgb", f"{count:04d}.jpg"),
             )
@@ -257,7 +257,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             save_images_grid(
                 depth_images,
                 cmap="turbo",
-                subtitles=["Camera", "TiledCamera", "RaycasterCamera"],
+                subtitles=["Camera", "RaycasterCamera"],
                 title="Depth Image: Cam0",
                 filename=os.path.join(output_dir, "distance_to_camera", f"{count:04d}.jpg"),
             )

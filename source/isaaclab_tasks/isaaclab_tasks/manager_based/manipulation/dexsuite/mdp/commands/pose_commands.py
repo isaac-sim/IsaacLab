@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import CommandTerm
+from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ class ObjectUniformPoseCommand(CommandTerm):
     This command term samples target object poses by:
       • Drawing (x, y, z) uniformly within configured Cartesian bounds, and
       • Drawing roll-pitch-yaw uniformly within configured ranges, then converting
-        to a quaternion (w, x, y, z). Optionally makes quaternions unique by enforcing
+        to a quaternion (x, y, z, w). Optionally makes quaternions unique by enforcing
         a positive real part.
 
     Frames:
@@ -37,7 +38,7 @@ class ObjectUniformPoseCommand(CommandTerm):
         targets are transformed into the *world frame* using the robot root pose.
 
     Outputs:
-        The command buffer has shape (num_envs, 7): `(x, y, z, qw, qx, qy, qz)`.
+        The command buffer has shape (num_envs, 7): ``(x, y, z, qx, qy, qz, qw)``.
 
     Metrics:
         `position_error` and `orientation_error` are computed between the commanded
@@ -70,7 +71,7 @@ class ObjectUniformPoseCommand(CommandTerm):
             self.success_vis_asset = None
 
         # create buffers
-        # -- commands: (x, y, z, qw, qx, qy, qz) in root frame
+        # -- commands: (x, y, z, qx, qy, qz, qw) in root frame
         self.pose_command_b = torch.zeros(self.num_envs, 7, device=self.device)
         self.pose_command_b[:, 3] = 1.0
         self.pose_command_w = torch.zeros_like(self.pose_command_b)
@@ -81,6 +82,11 @@ class ObjectUniformPoseCommand(CommandTerm):
 
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
         self.success_visualizer.set_visibility(True)
+
+        # adds (optional) cmd kind and element names for leapp export
+        # during export, semantic data about this command will be used to annotate the command input
+        self.cfg.cmd_kind = self.cfg.cmd_kind or "command/body/pose"
+        self.cfg.element_names = self.cfg.element_names or POSE7_ELEMENT_NAMES
 
     def __str__(self) -> str:
         msg = "UniformPoseCommand:\n"
@@ -96,7 +102,7 @@ class ObjectUniformPoseCommand(CommandTerm):
     def command(self) -> torch.Tensor:
         """The desired pose command. Shape is (num_envs, 7).
 
-        The first three elements correspond to the position, followed by the quaternion orientation in (w, x, y, z).
+        The first three elements correspond to the position, followed by the quaternion orientation in (x, y, z, w).
         """
         return self.pose_command_b
 

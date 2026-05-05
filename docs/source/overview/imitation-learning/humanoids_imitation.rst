@@ -83,7 +83,6 @@ Collect five demonstrations by running the following command:
    --visualizer kit \
    --xr \
    --device cpu \
-   --xr \
    --num_demos 5 \
    --dataset_file ./datasets/dataset_gr1.hdf5
 
@@ -194,7 +193,7 @@ The normalization parameters are saved in the model directory under ``PATH_TO_MO
 Record the normalization parameters for later use in the visualization step.
 
 .. note::
-   By default the trained models and logs will be saved to ``IssacLab/logs/robomimic``.
+   By default the trained models and logs will be saved to ``IsaacLab/logs/robomimic``.
 
 Visualize the results
 ^^^^^^^^^^^^^^^^^^^^^

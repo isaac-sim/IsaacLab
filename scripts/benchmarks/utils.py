@@ -19,6 +19,7 @@ _BENCHMARKING_DIR = os.path.join(
     os.path.dirname(__file__), "..", "..", "source", "isaaclab_tasks", "test", "benchmarking"
 )
 _CONFIGS_YAML = os.path.join(_BENCHMARKING_DIR, "configs.yaml")
+SUCCESS_RATE_LOG_TAGS = ("Metrics/success_rate", "Episode/Metrics/success_rate")
 
 
 def get_backend_type(cli_backend: str) -> str:
@@ -151,6 +152,23 @@ def log_rl_policy_episode_lengths(benchmark: BaseIsaacLabBenchmark, value: list)
     benchmark.add_measurement("train", measurement=measurement)
 
 
+def log_rl_policy_success_rates(benchmark: BaseIsaacLabBenchmark, value: list):
+    if not value:
+        return
+    measurement = ListMeasurement(name="Success Rates", value=value)
+    benchmark.add_measurement("train", measurement=measurement)
+    # Log the best observed success rate as a scalar for benchmark JSON backends.
+    measurement = SingleMeasurement(name="success_rate", value=max(value), unit="float")
+    benchmark.add_measurement("train", measurement=measurement)
+
+
+def get_success_rate_log(log_data: dict) -> list | None:
+    for tag in SUCCESS_RATE_LOG_TAGS:
+        if tag in log_data:
+            return log_data[tag]
+    return None
+
+
 def check_convergence(
     rewards: list[float],
     threshold: float,
@@ -236,6 +254,45 @@ def log_convergence(
     benchmark.add_measurement(
         "train", SingleMeasurement(name="Convergence Passed", value=int(result["passed"]), unit="bool")
     )
+
+
+def log_success(benchmark, tracker, framework_iteration_count: int | None = None):
+    """Log success-metric results to the benchmark backend.
+
+    Always logs the tag, tail mean, converged-at-iter, and pass/fail whenever the tracker holds
+    data (useful for historical comparison across runs). No-op when the tracker is ``None`` or
+    never recorded anything.
+
+    Args:
+        benchmark: Benchmark instance.
+        tracker: :class:`SuccessRateTracker` from early_stop (or ``None`` if no tracker ran).
+        framework_iteration_count: Iterations the RL framework actually ran. When provided, emits a warning
+            if the tracker's count exceeds the framework's by more than 1.
+    """
+    if tracker is None or not tracker.history:
+        return
+
+    converged = tracker.converged
+    benchmark.add_measurement(
+        "train", SingleMeasurement(name="Success Rate (tail mean)", value=round(tracker.tail_mean, 4), unit="float")
+    )
+    benchmark.add_measurement(
+        "train",
+        SingleMeasurement(
+            name="Success Converged At Iter",
+            value=tracker.current_iteration if converged else -1,
+            unit="int",
+        ),
+    )
+    benchmark.add_measurement("train", SingleMeasurement(name="Success Passed", value=int(converged), unit="bool"))
+
+    # +1 slack handles counters that lag behind during early-stop.
+    # Anything larger signals a broken record_step cadence (see SuccessRateTracker.at_iteration_boundary).
+    if framework_iteration_count is not None and tracker.current_iteration > framework_iteration_count + 1:
+        print(
+            f"[WARN] Success tracker logged {tracker.current_iteration} iterations vs framework's "
+            f"{framework_iteration_count}; check record_step cadence assumption."
+        )
 
 
 def parse_cprofile_stats(

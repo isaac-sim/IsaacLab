@@ -18,8 +18,6 @@
     Camera
     CameraData
     CameraCfg
-    TiledCamera
-    TiledCameraCfg
     ContactSensor
     ContactSensorData
     ContactSensorCfg
@@ -38,6 +36,9 @@
     MultiMeshRayCasterCameraCfg
     Imu
     ImuCfg
+    JointWrenchSensor
+    JointWrenchSensorData
+    JointWrenchSensorCfg
 
 Sensor Base
 -----------
@@ -68,19 +69,6 @@ USD Camera
     :show-inheritance:
     :exclude-members: __init__, class_type, OffsetCfg
 
-Tile-Rendered USD Camera
-------------------------
-
-.. autoclass:: TiledCamera
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: TiledCameraCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
 
 Contact Sensor
 --------------
@@ -200,6 +188,25 @@ Inertia Measurement Unit
     :show-inheritance:
 
 .. autoclass:: ImuCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+Joint Wrench Sensor
+-------------------
+
+.. autoclass:: JointWrenchSensor
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: JointWrenchSensorData
+    :members:
+    :inherited-members:
+    :exclude-members: __init__
+
+.. autoclass:: JointWrenchSensorCfg
     :members:
     :inherited-members:
     :show-inheritance:

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
@@ -18,8 +18,8 @@ from .shadow_hand_env_cfg import ShadowHandEnvCfg
 
 
 @configclass
-class _ShadowHandBaseTiledCameraCfg(TiledCameraCfg):
-    """Base tiled camera configuration for the shadow hand vision environment.
+class _ShadowHandBaseTiledCameraCfg(CameraCfg):
+    """Base camera configuration for the shadow hand vision environment.
 
     This is an internal config used by :class:`ShadowHandVisionTiledCameraCfg` presets and
     by derived env configs that hard-code a specific data type. It embeds
@@ -28,7 +28,7 @@ class _ShadowHandBaseTiledCameraCfg(TiledCameraCfg):
     """
 
     prim_path: str = "/World/envs/env_.*/Camera"
-    offset: TiledCameraCfg.OffsetCfg = TiledCameraCfg.OffsetCfg(
+    offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
         pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"
     )
     data_types: list[str] = []
