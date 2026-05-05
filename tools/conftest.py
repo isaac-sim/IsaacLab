@@ -48,20 +48,8 @@ legitimate slow launches.
 STARTUP_HANG_RETRIES = 2
 """Number of times to retry a test that hangs during startup before giving up."""
 
-TIMEOUT_RETRIES = 0
+TIMEOUT_RETRIES = 2
 """Number of times to retry a test that reaches its hard timeout before giving up."""
-
-FOCUS_ARTICULATION_HANG_DEBUG = True
-"""Temporary CI debug focus for the intermittent articulation hang."""
-
-FOCUS_ARTICULATION_HANG_TEST_PATHS = (
-    "source/isaaclab_physx/test/assets/test_articulation.py",
-    "source/isaaclab_newton/test/assets/test_articulation.py",
-    "source/isaaclab_ovphysx/test/assets/test_articulation.py",
-    "source/isaaclab_physx/test/assets/test_surface_gripper.py",
-    "source/isaaclab/test/app/test_non_headless_launch.py",
-)
-"""Test files to run while investigating intermittent CI timeouts."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -148,7 +136,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 kill_reason = "timeout"
 
             if kill_reason:
-                pre_kill_diag = _capture_system_diagnostics(pgid=pgid)
+                pre_kill_diag = _capture_system_diagnostics()
 
                 # Kill the entire process group (test + any Kit children).
                 try:
@@ -255,55 +243,12 @@ def _get_diagnostics(pre_kill_diag=""):
     return diag
 
 
-def _capture_pytest_current_tests(pgid):
-    """Return pytest's current test env var for processes in the test process group."""
-    if pgid is None:
-        return ""
-
-    lines = []
-    for pid in os.listdir("/proc"):
-        if not pid.isdigit():
-            continue
-
-        try:
-            with open(f"/proc/{pid}/stat") as f:
-                stat = f.read()
-            stat_tail = stat.rsplit(")", 1)[1].strip().split()
-            process_group = int(stat_tail[2])
-        except Exception:
-            continue
-
-        if process_group != pgid:
-            continue
-
-        try:
-            with open(f"/proc/{pid}/environ", "rb") as f:
-                environ = f.read().split(b"\0")
-            current_test = ""
-            for entry in environ:
-                if entry.startswith(b"PYTEST_CURRENT_TEST="):
-                    current_test = entry.decode("utf-8", errors="replace")
-                    break
-            if current_test:
-                with open(f"/proc/{pid}/cmdline", "rb") as f:
-                    cmdline = f.read().replace(b"\0", b" ").decode("utf-8", errors="replace").strip()
-                lines.append(f"pid {pid}: {current_test}\n  cmdline: {cmdline}")
-        except Exception as e:
-            lines.append(f"pid {pid}: failed to read PYTEST_CURRENT_TEST ({e})")
-
-    return "\n".join(lines)
-
-
-def _capture_system_diagnostics(pgid=None):
+def _capture_system_diagnostics():
     """Capture system diagnostics (GPU, memory, processes) for crash investigation.
 
     All errors are caught and reported inline so this never raises.
     """
     sections = []
-
-    current_tests = _capture_pytest_current_tests(pgid)
-    if current_tests:
-        sections.append(f"--- pytest current test ---\n{current_tests}")
 
     try:
         r = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=10)
@@ -407,6 +352,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
             cmd.append("isaacsim_ci")
 
         cmd.append(str(test_file))
+
         report_file = f"tests/test-reports-{str(file_name)}.xml"
 
         # -- Run with retry on startup hang or hard timeout -----------------
@@ -650,12 +596,9 @@ def _collect_test_files(
 
                 full_path = os.path.join(root, file)
 
-                normalized_path = full_path.replace(os.sep, "/")
-                if filter_pattern:
-                    filter_patterns = [pattern.strip() for pattern in filter_pattern.split(",") if pattern.strip()]
-                    if not any(pattern in normalized_path for pattern in filter_patterns):
-                        print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
-                        continue
+                if filter_pattern and filter_pattern not in full_path:
+                    print(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
+                    continue
                 if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):
                     print(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
                     continue
@@ -665,10 +608,7 @@ def _collect_test_files(
 
                 test_files.append(full_path)
 
-    # Keep execution order deterministic so reruns compare the same file sequence.
-    test_files.sort()
-
-    # Apply file-level sharding: select every Nth file from the deterministic order.
+    # Apply file-level sharding: sort deterministically, then select every Nth file.
     # Skip when include_files is set — in that case the test's own conftest handles
     # sharding at the test-item level (e.g. parametrized test cases).
     shard_index = os.environ.get("TEST_SHARD_INDEX", "")
@@ -676,6 +616,7 @@ def _collect_test_files(
     if shard_index and shard_count and not include_files:
         shard_index = int(shard_index)
         shard_count = int(shard_count)
+        test_files.sort()
         test_files = [f for i, f in enumerate(test_files) if i % shard_count == shard_index]
         print(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
 
@@ -722,13 +663,6 @@ def pytest_sessionstart(session):
         filter_pattern = filter_pattern or getattr(session.config.option, "filter_pattern", "")
     if hasattr(session.config, "option") and hasattr(session.config.option, "exclude_pattern"):
         exclude_pattern = exclude_pattern or getattr(session.config.option, "exclude_pattern", "")
-
-    if FOCUS_ARTICULATION_HANG_DEBUG:
-        filter_pattern = ",".join(FOCUS_ARTICULATION_HANG_TEST_PATHS)
-        print("Temporary timeout debug focus is enabled.")
-        print(f"Only running files containing: {filter_pattern}")
-        print("Articulation pytest expression: <all cases>")
-        print(f"Timeout retries disabled: {TIMEOUT_RETRIES}")
 
     print("=" * 50)
     print("CONFTEST.PY DEBUG INFO")

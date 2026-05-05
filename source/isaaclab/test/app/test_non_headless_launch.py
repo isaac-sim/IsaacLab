@@ -10,19 +10,13 @@ This script checks if the app can be launched with non-headless app and start th
 """Launch Isaac Sim Simulator first."""
 
 
-import sys
-
 import pytest
 
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
-sys.__stdout__.write("[non-headless-launch-debug] before AppLauncher\n")
-sys.__stdout__.flush()
 app_launcher = AppLauncher(experience="isaaclab.python.kit", headless=True)
 simulation_app = app_launcher.app
-sys.__stdout__.write("[non-headless-launch-debug] after AppLauncher\n")
-sys.__stdout__.flush()
 
 """Rest everything follows."""
 
