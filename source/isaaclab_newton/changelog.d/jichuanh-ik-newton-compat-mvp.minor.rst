@@ -14,7 +14,9 @@ Added
   :func:`~isaaclab_newton.assets.articulation.kernels.gather_jacobian_rows`
   and :func:`~isaaclab_newton.assets.articulation.kernels.gather_mass_matrix_rows`
   Warp kernels gather just this view's rows from the model-sized buffers
-  Newton populates.
+  Newton populates. The DoF axis preserves the leading 6 floating-base
+  columns Newton fills for floating-base articulations (matching the
+  cross-library industry convention and PhysX's layout).
 * Added the
   :func:`~isaaclab_newton.assets.articulation.kernels.shift_jacobian_com_to_origin`
   Warp kernel applying the
@@ -23,24 +25,6 @@ Added
   origin form matches the cross-backend
   :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w`
   contract.
-
-Fixed
-^^^^^
-
-* Fixed
-  :attr:`~isaaclab_newton.assets.ArticulationData.body_link_jacobian_w`
-  and :attr:`~isaaclab_newton.assets.ArticulationData.mass_matrix` returning
-  the wrong DoF columns for floating-base articulations. The IsaacLab
-  Newton view is constructed with ``exclude_joint_types=[FREE, FIXED]``
-  so its joint count excludes the free-root joint, but Newton's
-  :func:`newton.eval_jacobian` and :func:`newton.eval_mass_matrix`
-  write the full articulation buffer with the free-root's 6 DoF columns
-  at the start. The view-sized gather kernels now apply a matching
-  ``dof_offset`` (0 fixed-base, 6 floating-base) so the returned
-  buffers contain only the actuated joints' columns. Fixed-base assets
-  (e.g. the Franka tracking-accuracy tests) are unaffected; floating-
-  base assets (e.g. quadrupeds) previously returned root columns where
-  the action terms expected actuated columns.
 
 Changed
 ^^^^^^^

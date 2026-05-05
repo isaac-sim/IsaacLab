@@ -2799,12 +2799,14 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.isaacsim_ci
 def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """Floating-base ``get_jacobians`` keeps every body row (no offset).
+    """Floating-base ``body_link_jacobian_w`` keeps every body row and prepends 6 base-DoF columns.
 
-    Contract for floating-base: shape ``(N, num_bodies, 6, num_joints)`` —
-    no fixed-root row to drop, and Newton's joint dim equals
-    ``num_joints`` for the view (the floating-base joint's 6 DoFs are
-    counted inside ``joint_dof_count`` already).
+    Contract for floating-base: shape
+    ``(N, num_bodies, 6, num_joints + num_base_dofs)`` — no fixed-root row
+    to drop, and the leading 6 DoF columns are the floating-base spatial-
+    velocity columns Newton's ``eval_jacobian`` writes for the free root
+    joint. Matches the cross-library industry convention (Pinocchio, Drake,
+    MuJoCo, RBDL, OCS2, iDynTree).
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -2814,7 +2816,12 @@ def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_g
 
     J = articulation.data.body_link_jacobian_w.torch
 
-    expected_shape = (num_articulations, articulation.num_bodies, 6, articulation.num_joints)
+    expected_shape = (
+        num_articulations,
+        articulation.num_bodies,
+        6,
+        articulation.num_joints + articulation.num_base_dofs,
+    )
     assert J.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(J.shape)}"
     assert J.dtype == torch.float32
 
@@ -2825,7 +2832,11 @@ def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_g
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.isaacsim_ci
 def test_get_mass_matrix_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """Floating-base ``get_mass_matrix`` shape ``(N, num_joints, num_joints)``."""
+    """Floating-base ``mass_matrix`` shape ``(N, num_joints + 6, num_joints + 6)``.
+
+    Includes the 6 floating-base rows/cols on the DoF axis, matching the
+    cross-library industry convention.
+    """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
@@ -2836,7 +2847,8 @@ def test_get_mass_matrix_shape_floating_base(sim, num_articulations, device, add
 
     M = articulation.data.mass_matrix.torch
 
-    expected_shape = (num_articulations, articulation.num_joints, articulation.num_joints)
+    expected_dofs = articulation.num_joints + articulation.num_base_dofs
+    expected_shape = (num_articulations, expected_dofs, expected_dofs)
     assert M.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(M.shape)}"
     assert M.dtype == torch.float32
 
@@ -2895,10 +2907,14 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     anymal_J = anymal.data.body_link_jacobian_w.torch
 
     # Each view's output uses its OWN per-asset count, not the model-wide max.
-    assert franka_J.shape == torch.Size((num_per_type, franka.num_bodies - 1, 6, franka.num_joints)), (
+    # Floating-base assets prepend ``num_base_dofs`` floating-base columns; fixed-base
+    # assets have ``num_base_dofs == 0``.
+    franka_dofs = franka.num_joints + franka.num_base_dofs
+    anymal_dofs = anymal.num_joints + anymal.num_base_dofs
+    assert franka_J.shape == torch.Size((num_per_type, franka.num_bodies - 1, 6, franka_dofs)), (
         f"Franka jacobian leaked model-wide shape: got {tuple(franka_J.shape)}"
     )
-    assert anymal_J.shape == torch.Size((num_per_type, anymal.num_bodies, 6, anymal.num_joints)), (
+    assert anymal_J.shape == torch.Size((num_per_type, anymal.num_bodies, 6, anymal_dofs)), (
         f"Anymal jacobian leaked model-wide shape: got {tuple(anymal_J.shape)}"
     )
 
@@ -2909,8 +2925,8 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     franka_M = franka.data.mass_matrix.torch
     anymal_M = anymal.data.mass_matrix.torch
 
-    assert franka_M.shape == torch.Size((num_per_type, franka.num_joints, franka.num_joints))
-    assert anymal_M.shape == torch.Size((num_per_type, anymal.num_joints, anymal.num_joints))
+    assert franka_M.shape == torch.Size((num_per_type, franka_dofs, franka_dofs))
+    assert anymal_M.shape == torch.Size((num_per_type, anymal_dofs, anymal_dofs))
 
     # Each view's mass matrix must have positive diagonals — padded zero
     # rows/cols (the round-2 bug) would surface as zero diagonals on the
@@ -2966,9 +2982,9 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    # body_link_jacobian_w is actuated-only across backends (no base-DoF prefix on the
-    # joint axis). Joint axis matches joint_vel directly.
-    J = articulation.data.body_link_jacobian_w.torch  # (N, B_jac, 6, num_joints)
+    # body_link_jacobian_w prepends ``num_base_dofs`` floating-base columns; slice past
+    # them so the joint axis aligns with joint_vel (actuated-only).
+    J = articulation.data.body_link_jacobian_w.torch[..., articulation.num_base_dofs :]
     qdot_view = articulation.data.joint_vel.torch
     v_pred = torch.einsum("nbij,nj->nbi", J, qdot_view)  # (N, B_jac, 6)
     v_pred_lin = v_pred[..., 0:3]
@@ -3012,10 +3028,10 @@ def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulatio
     """The joint-space mass matrix ``M(q)`` must be square, symmetric, and positive-definite.
 
     This pins three structural properties of
-    :meth:`~isaaclab_newton.assets.Articulation.get_mass_matrix`:
+    :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`:
 
-    * **Square**: shape ``(N, num_jacobi_joints, num_jacobi_joints)``. A
-      transposed gather or a non-square scratch buffer would be caught
+    * **Square**: shape ``(N, num_joints + num_base_dofs, num_joints + num_base_dofs)``.
+      A transposed gather or a non-square scratch buffer would be caught
       here before downstream OSC inversion silently propagates garbage.
     * **Symmetric**: ``M == M.T`` to numerical precision. The joint-
       space inertia tensor is symmetric by construction; an asymmetric
@@ -3026,11 +3042,9 @@ def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulatio
       step. A non-PD M would fail downstream as ``LinAlgError``; this
       test catches it earlier and pinpoints the source.
 
-    Parameterized on both fixed-base (panda) and floating-base (anymal)
-    articulations because the column convention differs between the two
-    on Newton (the wrapper's gather kernel applies a free-root DoF
-    offset for floating-base; this test would catch any column-shift
-    bug analogous to the Jacobian one).
+    Parameterized on both fixed-base (panda) and floating-base (anymal).
+    Both backends include the floating-base DoF rows/cols on the front of
+    the DoF axis for floating-base assets.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)

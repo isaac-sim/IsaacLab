@@ -526,7 +526,7 @@ def shift_jacobian_com_to_origin(
         link_offset: Offset added to the jacobian-row body index to reach the full body index.
             ``1`` for fixed-base, ``0`` for floating-base.
         src: COM-referenced Jacobian (read-only). Shape is (num_instances, num_jacobi_bodies, 6,
-            num_jacobi_joints).
+            num_joints + num_base_dofs).
         dst: Output buffer for the link-origin Jacobian. Same shape as ``src``. Linear rows
             ``[0:3]`` are written with the shifted velocity; angular rows ``[3:6]`` are copied
             unchanged (angular velocity is reference-point invariant).

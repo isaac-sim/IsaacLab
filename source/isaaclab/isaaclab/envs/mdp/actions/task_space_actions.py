@@ -78,7 +78,11 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._jacobi_body_idx = self._body_idx - 1
         else:
             self._jacobi_body_idx = self._body_idx
-        self._jacobi_joint_ids = self._joint_ids
+        # Jacobian / mass-matrix DoF axis prepends ``num_base_dofs`` floating-base columns
+        # (0 for fixed-base, 6 for floating-base), so actuated-joint id ``j`` maps to
+        # Jacobian column ``j + num_base_dofs``.
+        offset = self._asset.num_base_dofs
+        self._jacobi_joint_ids = [j + offset for j in self._joint_ids]
 
         # log info for debugging
         logger.info(
@@ -305,7 +309,11 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._jacobi_ee_body_idx = self._ee_body_idx - 1
         else:
             self._jacobi_ee_body_idx = self._ee_body_idx
-        self._jacobi_joint_idx = self._joint_ids
+        # Jacobian / mass-matrix DoF axis prepends ``num_base_dofs`` floating-base columns
+        # (0 for fixed-base, 6 for floating-base), so actuated-joint id ``j`` maps to
+        # Jacobian column ``j + num_base_dofs``.
+        offset = self._asset.num_base_dofs
+        self._jacobi_joint_idx = [j + offset for j in self._joint_ids]
 
         # log info for debugging
         logger.info(
@@ -666,10 +674,10 @@ class OperationalSpaceControllerAction(ActionTerm):
         that don't expose the corresponding primitive (Newton has no
         gravity-compensation API).
 
-        Note: For floating-base robots, PhysX prepends 6 virtual DOFs (base position and orientation)
-        to the generalized mass matrix and gravity compensation forces. We use ``self._jacobi_joint_idx``
-        (which applies the +6 offset for floating-base robots) instead of ``self._joint_ids`` to correctly
-        index into these quantities. For fixed-base robots, the two are identical.
+        Note: For floating-base robots the Jacobian / mass-matrix / gravity-compensation
+        DoF axis prepends 6 floating-base columns. We use ``self._jacobi_joint_idx``
+        (which applies the ``+ num_base_dofs`` shift) instead of ``self._joint_ids`` to
+        correctly index into these quantities. For fixed-base robots the two are identical.
         """
         if self._needs_mass_matrix:
             self._mass_matrix[:] = self._asset.data.mass_matrix.torch[:, self._jacobi_joint_idx, :][

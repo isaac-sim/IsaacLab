@@ -330,14 +330,14 @@ class PinkInverseKinematicsAction(ActionTerm):
         ``enable_gravity_compensation=False``.
         """
         if not self._asset.cfg.spawn.rigid_props.disable_gravity:
-            # ``gravity_compensation_forces`` is actuated-only across backends; index by
-            # the controller's joint ids directly (no base-DoF prefix to skip).
+            # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``.
+            # Shift actuated-joint ids by ``num_base_dofs`` to skip the leading floating-
+            # base columns (0 for fixed-base, 6 for floating-base).
+            jacobi_ids = self._controlled_joint_ids_tensor + self._asset.num_base_dofs
             if self._asset.is_fixed_base:
-                gravity = torch.zeros_like(
-                    self._asset.data.gravity_compensation_forces.torch[:, self._controlled_joint_ids_tensor]
-                )
+                gravity = torch.zeros_like(self._asset.data.gravity_compensation_forces.torch[:, jacobi_ids])
             else:
-                gravity = self._asset.data.gravity_compensation_forces.torch[:, self._controlled_joint_ids_tensor]
+                gravity = self._asset.data.gravity_compensation_forces.torch[:, jacobi_ids]
 
             # Apply gravity compensation to arm joints
             self._asset.set_joint_effort_target_index(target=gravity, joint_ids=self._controlled_joint_ids)

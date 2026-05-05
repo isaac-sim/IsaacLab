@@ -2417,10 +2417,11 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
 def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
     """PhysX reference: floating-base ``get_jacobians``.
 
-    PhysX's raw ArticulationView prepends 6 virtual DoFs in the joint dim for floating-base
-    (``num_joints + 6``), but the IsaacLab data layer strips them at the wrapper so the
-    cross-backend contract is actuated-only ``(N, num_bodies, 6, num_joints)`` — matching
-    Newton.
+    Floating-base articulations include the 6 floating-base spatial-velocity columns
+    at the front of the DoF axis, so the shape is
+    ``(N, num_bodies, 6, num_joints + num_base_dofs)`` — matching Newton and the
+    cross-library industry convention (Pinocchio, Drake, MuJoCo, RBDL, OCS2,
+    iDynTree).
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -2429,7 +2430,7 @@ def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_g
     assert not articulation.is_fixed_base
 
     J = articulation.data.body_link_jacobian_w.torch
-    expected = (num_articulations, articulation.num_bodies, 6, articulation.num_joints)
+    expected = (num_articulations, articulation.num_bodies, 6, articulation.num_joints + articulation.num_base_dofs)
     assert J.shape == torch.Size(expected), f"expected {expected}, got {tuple(J.shape)}"
 
 
@@ -2441,11 +2442,13 @@ def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_g
 def test_get_jacobians_link_origin_contract(sim, num_articulations, device, articulation_type, gravity_enabled):
     """PhysX reference: ``J · q_dot`` matches ``[body_link_lin_vel_w; body_link_ang_vel_w]``.
 
-    The IsaacLab task-space-controller contract (documented on
-    :meth:`~isaaclab.assets.BaseArticulation.get_jacobians`) says the
-    Jacobian's linear rows reference the link origin. PhysX returns this
-    natively — this test pins the contract from the PhysX side so the
-    Newton-side wrapper can be diffed against the same expectation.
+    The cross-backend contract on
+    :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` says
+    the Jacobian's linear rows reference each body's link origin. PhysX's
+    raw ``_root_view.get_jacobians()`` returns COM-referenced linear rows;
+    the IsaacLab wrapper applies the COM→origin shift kernel so the contract
+    holds. This test pins the identity from the PhysX side and parametrizes
+    on Anymal so the (non-trivial) shift surfaces if it ever regresses.
 
     Scene gravity is disabled (``gravity_enabled=False``) so the only source
     of a J · q_dot ↔ body_*_w mismatch is the reference-point contract (or a
@@ -2467,9 +2470,9 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    # body_link_jacobian_w is actuated-only across backends (PhysX strips the 6 base-DoF
-    # prefix on floating-base at the wrapper). Joint axis matches joint_vel directly.
-    J = articulation.data.body_link_jacobian_w.torch
+    # body_link_jacobian_w prepends ``num_base_dofs`` floating-base columns; slice past
+    # them so the joint axis aligns with joint_vel (actuated-only).
+    J = articulation.data.body_link_jacobian_w.torch[..., articulation.num_base_dofs :]
     qdot_view = articulation.data.joint_vel.torch
     v_pred = torch.einsum("nbij,nj->nbi", J, qdot_view)
 
@@ -2493,12 +2496,11 @@ def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulatio
 
     Mirrors the Newton-side test in
     ``source/isaaclab_newton/test/assets/test_articulation.py``. Pins
-    three structural properties of
-    :meth:`~isaaclab_physx.assets.Articulation.get_mass_matrix` that
-    every backend must satisfy. PhysX prepends 6 floating-base columns
-    on floating-base assets, so the shape differs from Newton's
-    actuated-only convention; this test cares about square + symmetric
-    + PD, not the absolute column count.
+    three structural properties of :attr:`~isaaclab.assets.BaseArticulationData.mass_matrix`
+    that every backend must satisfy. Both backends include the 6 floating-base
+    rows/cols on floating-base assets (matching the cross-library industry
+    convention); this test cares about square + symmetric + PD across both
+    fixed- and floating-base, not the absolute column count.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)

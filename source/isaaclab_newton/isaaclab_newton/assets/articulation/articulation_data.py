@@ -840,20 +840,28 @@ class ArticulationData(BaseArticulationData):
     def body_com_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_jacobi_joints).
+        Shape is (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
+        dtype = wp.float32. In torch this resolves to
+        (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
 
         Computed by ``eval_jacobian`` followed by a gather kernel that extracts this view's
         rows / columns from the model-sized scratch buffer. Linear rows are referenced at the
         body's center of mass; angular rows are reference-point invariant. Use
         :attr:`body_link_jacobian_w` for IK / OSC controllers that target the link-origin pose.
+
+        For floating-base articulations the leading 6 columns correspond to the floating-base
+        spatial velocity in world frame (``[lin_x, lin_y, lin_z, ang_x, ang_y, ang_z]``); for
+        fixed-base articulations there are 0 base columns. Consumers that index by actuated-
+        joint id should add :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` to the
+        joint id.
         """
         # Newton's eval_jacobian reads ``state.body_q`` (link poses); refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
         self._ensure_fk_fresh()
-        # eval_jacobian writes every articulation in the model; gather kernel
-        # extracts this view's rows (skipping the fixed-root row for fixed-base
-        # articulations and the free-root cols for floating-base).
+        # eval_jacobian writes every articulation in the model; gather kernel extracts this
+        # view's rows. ``link_offset`` skips Newton's fixed-root row for fixed-base; the DoF
+        # axis is preserved in full (free-root joint's 6 columns up front for floating-base),
+        # matching the PhysX layout and the cross-library industry convention.
         self._root_view.eval_jacobian(
             SimulationManager.get_state_0(),
             J=self._jacobian_buf_flat,
@@ -866,7 +874,6 @@ class ArticulationData(BaseArticulationData):
                 self._jacobian_buf,
                 self._jacobian_view_art_ids,
                 self._jacobian_link_offset,
-                self._jacobian_dof_offset,
             ],
             outputs=[self._body_com_jacobian_w_buf],
             device=self.device,
@@ -877,14 +884,19 @@ class ArticulationData(BaseArticulationData):
     def body_link_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's link origin in world frame.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_jacobi_joints), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_jacobi_joints).
+        Shape is (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
+        dtype = wp.float32. In torch this resolves to
+        (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
 
         Computed by applying the COM→origin shift to :attr:`body_com_jacobian_w`. The shift
         identity ``v_origin = v_com - omega x (R · body_com_pos_b)`` is applied per-column
         (each Jacobian column is one DoF's spatial-velocity contribution to a body). Angular
         rows are unchanged; linear rows are shifted so the contract
         ``J · q_dot[body_idx] == body_link_lin_vel_w[body_idx]`` holds.
+
+        Column layout matches :attr:`body_com_jacobian_w`: leading
+        :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` columns hold the floating-
+        base spatial velocity (0 for fixed-base), followed by per-actuated-joint columns.
         """
         # ``body_link_pose_w`` accessor triggers ``SimulationManager.forward()`` if FK is
         # stale (after a manual joint / root write that bypassed the sim step). Reading the
@@ -910,11 +922,14 @@ class ArticulationData(BaseArticulationData):
     def mass_matrix(self) -> ProxyArray:
         """Per-env generalized mass matrix in joint space.
 
-        Shape is (num_instances, num_jacobi_joints, num_jacobi_joints), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_jacobi_joints, num_jacobi_joints).
+        Shape is (num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs),
+        dtype = wp.float32. In torch this resolves to
+        (num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs).
 
         Returns the symmetric positive-definite inertia matrix ``M(q)`` of the articulation in
-        its generalized joint coordinates.
+        its generalized joint coordinates. For floating-base articulations the leading 6 rows
+        and columns correspond to the floating-base spatial velocity in world frame; for
+        fixed-base articulations there are 0 such rows/cols.
         """
         # eval_jacobian / eval_mass_matrix read ``state.body_q``; refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
@@ -942,7 +957,6 @@ class ArticulationData(BaseArticulationData):
             inputs=[
                 self._mass_matrix_buf,
                 self._jacobian_view_art_ids,
-                self._jacobian_dof_offset,
             ],
             outputs=[self._mass_matrix_buf_view],
             device=self.device,
@@ -1673,7 +1687,10 @@ class ArticulationData(BaseArticulationData):
         # spanning every articulation in the model; the gather kernels below extract the rows
         # belonging to this view. The output buffers are sized using THIS articulation's body /
         # DoF counts (not the model-wide ``max_*``) so heterogeneous scenes do not leak
-        # zero-padded rows / cols into the returned tensor.
+        # zero-padded rows / cols into the returned tensor. The DoF axis includes
+        # ``num_base_dofs`` floating-base columns up front (0 for fixed-base, 6 for floating-
+        # base), matching the cross-library industry convention used by PhysX, Pinocchio,
+        # Drake, MuJoCo, RBDL, OCS2, and iDynTree.
         model = SimulationManager.get_model()
         max_links = model.max_joints_per_articulation
         max_dofs = model.max_dofs_per_articulation
@@ -1684,22 +1701,23 @@ class ArticulationData(BaseArticulationData):
         self._jacobian_buf = self._jacobian_buf_flat.reshape((model.articulation_count, max_links, 6, max_dofs))
         # Motion-subspace scratch (Featherstone ``S``, spatial frame).
         self._jacobian_joint_S_s_buf = wp.zeros(model.joint_dof_count, dtype=wp.spatial_vector, device=self.device)
-        # Link-row / DoF-column offsets distinguish fixed-base (skip the 1 fixed-root row;
-        # keep all DoF cols) from floating-base (keep the root row; skip the 6 free-root DoF
-        # cols), matching Newton's per-articulation eval_jacobian layout.
+        # Link-row offset distinguishes fixed-base (skip the 1 fixed-root row) from floating-
+        # base (keep the root row), matching Newton's per-articulation eval_jacobian layout.
         self._jacobian_link_offset = 1 if self._root_view.is_fixed_base else 0
-        self._jacobian_dof_offset = 0 if self._root_view.is_fixed_base else 6
         num_jacobi_bodies = self._num_bodies - self._jacobian_link_offset
+        # ``num_base_dofs`` matches the leading free-root DoF columns Newton fills for
+        # floating-base articulations. For fixed-base it's 0 (all cols are actuated).
+        num_base_dofs = 0 if self._root_view.is_fixed_base else 6
         # COM-referenced view-sized Jacobian (output of the gather kernel). Pre-allocated
         # for CUDA-graph capture safety; overwritten on every read (no caching).
         self._body_com_jacobian_w_buf = wp.zeros(
-            (self._num_instances, num_jacobi_bodies, 6, self._num_joints),
+            (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
             dtype=wp.float32,
             device=self.device,
         )
         # Link-origin Jacobian (output of the shift kernel applied to body_com_jacobian_w).
         self._body_link_jacobian_w_buf = wp.zeros(
-            (self._num_instances, num_jacobi_bodies, 6, self._num_joints),
+            (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
             dtype=wp.float32,
             device=self.device,
         )
@@ -1711,7 +1729,7 @@ class ArticulationData(BaseArticulationData):
         )
         self._mass_matrix_body_I_s_buf = wp.zeros(model.body_count, dtype=wp.spatial_matrix, device=self.device)
         self._mass_matrix_buf_view = wp.zeros(
-            (self._num_instances, self._num_joints, self._num_joints),
+            (self._num_instances, self._num_joints + num_base_dofs, self._num_joints + num_base_dofs),
             dtype=wp.float32,
             device=self.device,
         )

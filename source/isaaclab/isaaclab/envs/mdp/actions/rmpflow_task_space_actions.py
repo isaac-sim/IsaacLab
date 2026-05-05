@@ -62,7 +62,11 @@ class RMPFlowAction(ActionTerm):
             self._jacobi_body_idx = self._body_idx - 1
         else:
             self._jacobi_body_idx = self._body_idx
-        self._jacobi_joint_ids = self._joint_ids
+        # Jacobian / mass-matrix DoF axis prepends ``num_base_dofs`` floating-base columns
+        # (0 for fixed-base, 6 for floating-base), so actuated-joint id ``j`` maps to
+        # Jacobian column ``j + num_base_dofs``.
+        offset = self._asset.num_base_dofs
+        self._jacobi_joint_ids = [j + offset for j in self._joint_ids]
 
         # log info for debugging
         logger.info(

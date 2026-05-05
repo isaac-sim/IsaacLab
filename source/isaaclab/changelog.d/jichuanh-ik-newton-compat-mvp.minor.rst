@@ -14,12 +14,20 @@ Added
   exposing the joint-space generalized mass matrix ``M(q)``.
 * Added :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
   property, exposing the joint-space gravity-loading torque vector ``g(q)``.
+* Added :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` — number of
+  free DoFs of the floating base (``0`` for fixed-base, ``6`` for floating-
+  base). Use it to map an actuated-joint index ``j`` to its column in the
+  Jacobian / mass matrix / gravity vector via ``j + num_base_dofs``.
 
-The Jacobian / mass-matrix / gravity-comp joint axis is **actuated-only on
-every backend** — shape ``(N, num_jacobi_bodies, 6, num_joints)`` for the
-Jacobian and ``(N, num_joints, num_joints)`` for the mass matrix. PhysX
-floating-base previously prepended 6 base-DoF columns; the data-layer
-accessors strip them so consumers don't need to bridge the asymmetry.
+The Jacobian / mass-matrix / gravity-comp DoF axis includes the floating-
+base DoFs at the front: shape ``(N, num_jacobi_bodies, 6, num_joints +
+num_base_dofs)`` for the Jacobian and ``(N, num_joints + num_base_dofs,
+num_joints + num_base_dofs)`` for the mass matrix. This matches the
+cross-library industry convention (Pinocchio's ``nv = 6 + n_actuated``,
+Drake's ephemeral floating joint, MuJoCo's ``<freejoint/>``, RBDL's
+``JointTypeFloatingBase``, OCS2's ``generalizedCoordinatesNum =
+6 + actuatedJointsNum``, iDynTree's ``getFreeFloatingMassMatrix``
+returning ``(6 + dofs, 6 + dofs)``).
 
 Changed
 ^^^^^^^
@@ -35,10 +43,12 @@ Changed
   :attr:`nullspace_control`, and :attr:`gravity_compensation` flags
   so backends without a native primitive are not invoked when the
   controller does not consume the result.
-* Removed the hard-coded ``+6`` floating-base Jacobian column offset
-  in the three task-space action terms. Action-term joint-id arithmetic
-  (``[i + offset for i in joint_ids]``) is gone; consumers index by the
-  state-space joint id directly.
+* Action terms (DiffIK / OSC / RMPFlow / Pink) compute their Jacobian
+  joint-axis indices via
+  ``[j + asset.num_base_dofs for j in joint_ids]``, which is ``0`` for
+  fixed-base and ``+6`` for floating-base. Pink IK previously hardcoded
+  a private ``_physx_floating_joint_indices_offset = 6``; that was
+  removed in favor of the cross-backend property.
 * PhysX backend's :attr:`body_link_jacobian_w` applies the COM→origin shift to
   PhysX's natively COM-referenced Jacobian. The previously-exposed
   ``Articulation.get_jacobians()`` was a passthrough that returned the raw

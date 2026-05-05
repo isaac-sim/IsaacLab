@@ -11,11 +11,12 @@ Added
   the link-origin variant applies a new
   :func:`~isaaclab_physx.assets.articulation.kernels.shift_jacobian_com_to_origin`
   Warp kernel to convert the COM-referenced linear-velocity rows to
-  link-origin references using each body's pose and COM offset.
-* On floating-base assets, all four properties strip the 6 leading
-  base-DoF columns / rows that PhysX's raw tensor view prepends, so the
-  cross-backend joint axis is actuated-only — matching Newton's shape.
-  Stripping is a zero-copy ``wp.array`` view (no kernel launch).
+  link-origin references using each body's pose and COM offset. All
+  four properties preserve the full DoF axis, including the 6 leading
+  floating-base columns/rows PhysX's raw tensor view prepends on
+  floating-base assets — matching the cross-library industry convention
+  (Pinocchio, Drake, MuJoCo, RBDL, OCS2, iDynTree) and Newton's
+  ``ArticulationView`` layout.
 
 Fixed
 ^^^^^

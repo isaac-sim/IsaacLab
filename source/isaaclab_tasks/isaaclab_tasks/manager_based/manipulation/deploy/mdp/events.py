@@ -326,9 +326,11 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             if torch.all(pos_error_norm < pos_threshold) and torch.all(rot_error_norm < rot_threshold):
                 break
 
-            # Solve IK using jacobian
+            # Solve IK using jacobian. ``body_link_jacobian_w`` prepends ``num_base_dofs``
+            # floating-base columns on the DoF axis (0 for fixed-base, 6 for floating-base);
+            # slice past them so the column axis aligns with the actuated-joint state.
             jacobians = self.robot_asset.data.body_link_jacobian_w.torch.clone()
-            jacobian = jacobians[env_ids, self.jacobi_body_idx, :, :]
+            jacobian = jacobians[env_ids, self.jacobi_body_idx, :, self.robot_asset.num_base_dofs :]
 
             delta_dof_pos = fc._get_delta_dof_pos(
                 delta_pose=delta_hand_pose,

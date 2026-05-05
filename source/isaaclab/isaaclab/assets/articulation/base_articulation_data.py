@@ -628,18 +628,19 @@ class BaseArticulationData(ABC):
     def body_link_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's link origin in world frame.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_joints), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_joints).
+        Shape is (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
+        dtype = wp.float32. In torch this resolves to
+        (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
         Linear rows ``[0:3]`` [m/s for unit ``q_dot``], angular rows ``[3:6]`` [rad/s for unit
         ``q_dot``].
 
-        For any joint-velocity vector ``q_dot`` consistent with the asset's DoF ordering, the
-        returned Jacobian ``J`` satisfies:
+        For any generalized-velocity vector ``v`` of length ``num_joints + num_base_dofs``,
+        the returned Jacobian ``J`` satisfies:
 
         .. code-block:: text
 
-            J[:, jacobi_body_idx, 0:3, :] @ q_dot == body_link_lin_vel_w[:, body_idx]
-            J[:, jacobi_body_idx, 3:6, :] @ q_dot == body_link_ang_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 0:3, :] @ v == body_link_lin_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 3:6, :] @ v == body_link_ang_vel_w[:, body_idx]
 
         Linear rows ``[0:3]`` give the velocity at the link origin (the body's USD prim transform
         / actor frame) in world frame. Angular rows ``[3:6]`` give the body's angular velocity in
@@ -650,9 +651,13 @@ class BaseArticulationData(ABC):
 
         Backends whose native Jacobian is expressed at the body center of mass MUST shift the
         linear rows to the link origin before returning so the contract holds across backends.
-        The joint axis is actuated-only on every backend — backends whose engine prepends
-        floating-base DoFs (e.g. PhysX floating-base) MUST strip those leading columns at
-        the wrapper so the cross-backend column count is always ``num_joints``.
+
+        The DoF axis prepends :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs`
+        floating-base columns ([lin_x, lin_y, lin_z, ang_x, ang_y, ang_z] in world frame —
+        0 cols for fixed-base, 6 for floating-base), followed by the actuated-joint columns
+        in :attr:`joint_names` order. This matches the cross-library industry convention
+        (Pinocchio, Drake, MuJoCo, RBDL, OCS2, iDynTree). Consumers that index by actuated-
+        joint id should add ``num_base_dofs`` to the joint id.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement body_link_jacobian_w.")
 
@@ -660,18 +665,19 @@ class BaseArticulationData(ABC):
     def body_com_jacobian_w(self) -> ProxyArray:
         """Per-body geometric Jacobian referenced at each body's center of mass in world frame.
 
-        Shape is (num_instances, num_jacobi_bodies, 6, num_joints), dtype = wp.float32.
-        In torch this resolves to (num_instances, num_jacobi_bodies, 6, num_joints).
+        Shape is (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
+        dtype = wp.float32. In torch this resolves to
+        (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs).
         Linear rows ``[0:3]`` [m/s for unit ``q_dot``], angular rows ``[3:6]`` [rad/s for unit
         ``q_dot``].
 
-        For any joint-velocity vector ``q_dot`` consistent with the asset's DoF ordering, the
-        returned Jacobian ``J`` satisfies:
+        For any generalized-velocity vector ``v`` of length ``num_joints + num_base_dofs``,
+        the returned Jacobian ``J`` satisfies:
 
         .. code-block:: text
 
-            J[:, jacobi_body_idx, 0:3, :] @ q_dot == body_com_lin_vel_w[:, body_idx]
-            J[:, jacobi_body_idx, 3:6, :] @ q_dot == body_com_ang_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 0:3, :] @ v == body_com_lin_vel_w[:, body_idx]
+            J[:, jacobi_body_idx, 3:6, :] @ v == body_com_ang_vel_w[:, body_idx]
 
         Linear rows ``[0:3]`` give the velocity at the body's center of mass in world frame.
         Angular rows ``[3:6]`` give the body's angular velocity in world frame (reference-point
@@ -680,6 +686,10 @@ class BaseArticulationData(ABC):
         This is the form most physics engines compute natively, since dynamics equations decouple
         at the COM. Use :attr:`body_link_jacobian_w` for IK / OSC controllers that target the
         link-origin pose (USD prim frame).
+
+        DoF axis layout matches :attr:`body_link_jacobian_w`: leading
+        :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` floating-base columns,
+        followed by per-actuated-joint columns.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement body_com_jacobian_w.")
 
@@ -687,16 +697,20 @@ class BaseArticulationData(ABC):
     def mass_matrix(self) -> ProxyArray:
         """Per-env generalized mass matrix in joint space.
 
-        Shape is (num_instances, num_joints, num_joints), dtype = wp.float32
-        [kg·m² or kg, depending on joint type]. In torch this resolves to
-        (num_instances, num_joints, num_joints).
+        Shape is (num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs),
+        dtype = wp.float32 [kg·m² or kg, depending on joint type]. In torch this resolves to
+        (num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs).
 
         Returns the symmetric positive-definite inertia matrix ``M(q)`` of the articulation in
-        its generalized joint coordinates. ``M[i, j]`` is the coefficient relating joint ``j``'s
-        acceleration to the inertial torque on joint ``i`` in the equation of motion
+        its generalized joint coordinates. ``M[i, j]`` is the coefficient relating DoF ``j``'s
+        acceleration to the inertial torque on DoF ``i`` in the equation of motion
         ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``. The matrix is reference-point
         invariant — joint-space dynamics do not depend on whether body velocities are measured
         at the COM or link origin.
+
+        The DoF axis matches :attr:`body_link_jacobian_w`: leading
+        :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` floating-base rows/cols,
+        followed by per-actuated-joint rows/cols.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
 
@@ -704,13 +718,18 @@ class BaseArticulationData(ABC):
     def gravity_compensation_forces(self) -> ProxyArray:
         """Per-env gravity compensation torques in joint space.
 
-        Shape is (num_instances, num_joints), dtype = wp.float32 [N·m or N, depending on
-        joint type]. In torch this resolves to (num_instances, num_joints).
+        Shape is (num_instances, num_joints + num_base_dofs), dtype = wp.float32
+        [N·m or N, depending on joint type]. In torch this resolves to
+        (num_instances, num_joints + num_base_dofs).
 
         Returns ``g(q)`` — the joint-space gravity-loading term in the equation of motion
         ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``. Applying ``tau = g(q)`` at
         ``q_dot = 0`` with no external load yields ``q_ddot = 0`` (static equilibrium under
         gravity).
+
+        The DoF axis matches :attr:`body_link_jacobian_w`: leading
+        :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` floating-base entries,
+        followed by per-actuated-joint entries.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement gravity_compensation_forces.")
 
