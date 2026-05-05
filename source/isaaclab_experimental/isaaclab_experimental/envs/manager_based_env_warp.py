@@ -33,6 +33,7 @@ from isaaclab.sim.utils import use_stage
 from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
+from isaaclab.utils.version import has_kit
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
@@ -154,13 +155,11 @@ class ManagerBasedEnvWarp:
         # Persistent scalar buffer for global env step count (stable pointer for capture).
         self._global_env_step_count_wp = wp.zeros((1,), dtype=wp.int32, device=self.device)
 
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        viz_str = self.sim.get_setting("/isaaclab/visualizer") or ""
-        available_visualizers = [v.strip() for v in viz_str.split(",") if v.strip()]
-        if "kit" in available_visualizers and bool(viz_str):
+        # set up camera viewport controller — mirror stable env (PR #5297 changed
+        # the visualizer API; this branch was missed). ViewportCameraController
+        # uses omni.kit; skip it in kitless Newton-only runs.
+        has_visualizers = self.sim.has_active_visualizers()
+        if (self.sim.has_gui or has_visualizers) and has_kit():
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
