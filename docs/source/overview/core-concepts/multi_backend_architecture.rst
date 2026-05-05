@@ -148,7 +148,7 @@ Environments can support multiple backends simultaneously using the :doc:`preset
     class CartpolePhysicsCfg(PresetCfg):
         default: PhysxCfg = PhysxCfg()
         physx: PhysxCfg = PhysxCfg()
-        newton: NewtonCfg = NewtonCfg(
+        newton_mjwarp: NewtonCfg = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3)
         )
 
@@ -156,15 +156,15 @@ Environments can support multiple backends simultaneously using the :doc:`preset
     class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
         sim: SimulationCfg = SimulationCfg(physics=CartpolePhysicsCfg())
 
-Users then select a backend at the command line:
+Users then select the MJWarp Newton preset at the command line:
 
 .. code-block:: bash
 
     # Default (PhysX)
     python train.py --task Isaac-Cartpole-v0
 
-    # Newton
-    python train.py --task Isaac-Cartpole-v0 presets=newton
+    # MJWarp (Newton backend)
+    python train.py --task Isaac-Cartpole-v0 presets=newton_mjwarp
 
 The Physics Manager
 -------------------
