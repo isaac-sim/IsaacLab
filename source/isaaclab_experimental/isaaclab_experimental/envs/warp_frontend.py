@@ -230,7 +230,9 @@ class WarpFrontend:
                 continue  # actions don't have ``func`` — handled below
             group = self._walk(cfg, path)
             label = ".".join(path)
-            swap = _NameSwap(warp_mdp_modules, "func", drop_if_missing=not self._strict, report=report, group_label=label)
+            swap = _NameSwap(
+                warp_mdp_modules, "func", drop_if_missing=not self._strict, report=report, group_label=label
+            )
             swap.apply_to(group)
 
         # 5. Swap action class_type. An action with no warp class_type can't
@@ -275,6 +277,7 @@ class WarpFrontend:
         after :meth:`resolve`.
         """
         from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as _StableSE
+
         from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as _WarpSE
 
         def upgrade(obj: Any) -> None:
