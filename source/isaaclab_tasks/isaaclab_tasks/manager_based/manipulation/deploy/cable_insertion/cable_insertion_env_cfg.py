@@ -36,7 +36,7 @@ CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 # origin (as in the un-flattened source USDs), the fingertips end up beside the
 # plug rather than around it, the gripper closes on empty space, and the plug
 # slides out (which is what we observed in the un-flattened smoke tests).
-ASSETS_DIR = os.path.join(CONFIG_DIR, "cable_insertion_assets", "flattened")
+ASSETS_DIR = os.path.join(CONFIG_DIR, "cable_insertion_assets")
 
 # ---------------------------------------------------------------------------
 # USD body-frame offsets (from IsaacLab_UR GB300AssetConfig)
@@ -291,6 +291,6 @@ class CableInsertionEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         self.episode_length_s = 6.66
         self.viewer.eye = (3.5, 3.5, 3.5)
-        self.decimation = 33
+        self.decimation = 8
         self.sim.render_interval = self.decimation
-        self.sim.dt = 1.0 / 1000.0
+        self.sim.dt = 1.0 / 240.0
