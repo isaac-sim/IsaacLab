@@ -82,7 +82,7 @@ the Rerun visualizer rather than producing ``--video`` clips, and Viser does not
 
 Set ``VideoRecorderCfg.backend_source = "renderer"`` to ignore active visualizers and choose from the
 physics/renderer stack instead. In that mode, PhysX physics (``presets=physx,...``) or Isaac RTX
-(``presets=isaac_rtx_renderer,...``) selects the Kit path. Newton physics (``presets=newton,...``) or
+(``presets=isaac_rtx_renderer,...``) selects the Kit path. Newton physics (``presets=newton_mjwarp,...``) or
 the Newton Warp renderer (``presets=newton_renderer,...``) selects the Newton GL path when no Kit
 signal is present. OVRTX (``presets=ovrtx_renderer,...`` from ``isaaclab_ov``) can pair with IsaacSim
 or Newton physics; in that case the video backend is selected via the physics preset. If both Kit and
@@ -149,10 +149,10 @@ Summary
    * - ``physx,...`` or ``isaac_rtx_renderer,...``
      - Kit (``"kit"``)
      - ``/OmniverseKit_Persp`` + Replicator RGB
-   * - ``newton,...`` or ``newton_renderer,...`` (no Kit signals)
+   * - ``newton_mjwarp,...`` or ``newton_renderer,...`` (no Kit signals)
      - Newton GL (``"newton_gl"``)
      - ``newton.viewer.ViewerGL`` on the SDP Newton model
-   * - ``newton,...,ovrtx_renderer,...`` (OVRTX + Newton physics)
+   * - ``newton_mjwarp,...,ovrtx_renderer,...`` (OVRTX + Newton physics)
      - Newton GL (``"newton_gl"``)
      - ``newton.viewer.ViewerGL`` on the SDP Newton model
    * - ``--visualizer kit`` with default ``backend_source``

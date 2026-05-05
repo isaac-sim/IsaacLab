@@ -37,6 +37,7 @@
     Imu
     ImuCfg
     JointWrenchSensor
+    JointWrenchSensorData
     JointWrenchSensorCfg
 
 Sensor Base
@@ -199,6 +200,11 @@ Joint Wrench Sensor
     :members:
     :inherited-members:
     :show-inheritance:
+
+.. autoclass:: JointWrenchSensorData
+    :members:
+    :inherited-members:
+    :exclude-members: __init__
 
 .. autoclass:: JointWrenchSensorCfg
     :members:

@@ -58,7 +58,7 @@ class CabinetSimCfg(PresetCfg):
         render_interval=1,
         physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
     )
-    newton: SimulationCfg = SimulationCfg(
+    newton_mjwarp: SimulationCfg = SimulationCfg(
         dt=1 / 600,
         render_interval=1,
         physics=NewtonCfg(
@@ -260,7 +260,7 @@ class _CabinetNewtonEventCfg:
 class CabinetEventCfg(PresetCfg):
     default: EventCfg = EventCfg()
     physx: EventCfg = EventCfg()
-    newton: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
+    newton_mjwarp: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
 
 
 @configclass

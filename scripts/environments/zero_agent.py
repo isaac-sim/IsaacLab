@@ -38,7 +38,7 @@ def main():
 
     torch.manual_seed(42)
 
-    # parse configuration via Hydra (supports preset selection, e.g. env.sim.physics=newton)
+    # parse configuration via Hydra (supports preset selection, e.g. env.sim.physics=newton_mjwarp)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
 
     with launch_simulation(env_cfg, args_cli):
