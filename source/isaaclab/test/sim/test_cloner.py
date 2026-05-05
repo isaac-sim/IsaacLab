@@ -20,9 +20,7 @@ import torch
 from pxr import UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import usd_replicate
-from isaaclab.cloner.cloner_utils import resolve_visualizer_clone_fn
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement, VisualizerPrebuiltArtifacts
+from isaaclab.cloner import ClonePlan, TemplateCloneCfg, clone_from_template, sequential, usd_replicate
 from isaaclab.sim import build_simulation_context
 
 pytestmark = pytest.mark.isaacsim_ci
@@ -223,79 +221,56 @@ def test_clone_decorator_wildcard_patterns(
     )
 
 
-def test_resolve_visualizer_clone_fn_returns_none_when_not_physx_backend():
-    """Resolver should ignore non-PhysX backends."""
-    hook = resolve_visualizer_clone_fn(
-        physics_backend="newton",
-        requirements=SceneDataRequirement(requires_newton_model=True),
-        stage=object(),
-        set_visualizer_artifact=lambda artifact: artifact,
-    )
-    assert hook is None
+def test_clone_from_template_returns_clone_plan(sim):
+    """clone_from_template exposes per-group ClonePlan dicts with prototype-to-env masks.
+
+    Builds two USD prototypes under one group, clones across four envs with the deterministic
+    sequential strategy, and asserts the returned dict has one entry keyed by the group's
+    destination template, with a ``[2, 4]`` boolean mask whose columns sum to one.
+    """
+    num_clones = 4
+    cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential, clone_physics=False)
+
+    sim_utils.create_prim(cfg.template_root, "Xform")
+    sim_utils.create_prim(f"{cfg.template_root}/Object", "Xform")
+    sim_utils.create_prim(f"{cfg.template_root}/Object/proto_asset_0", "Xform")
+    sim_utils.create_prim(f"{cfg.template_root}/Object/proto_asset_1", "Xform")
+    sim_utils.create_prim("/World/envs", "Xform")
+    for i in range(num_clones):
+        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
+
+    stage = sim_utils.get_current_stage()
+    plans = clone_from_template(stage, num_clones=num_clones, template_clone_cfg=cfg)
+
+    assert isinstance(plans, dict)
+    assert list(plans.keys()) == ["/World/envs/env_{}/Object"]
+    plan = plans["/World/envs/env_{}/Object"]
+    assert isinstance(plan, ClonePlan)
+    assert plan.dest_template == "/World/envs/env_{}/Object"
+    assert sorted(plan.prototype_paths) == [
+        "/World/template/Object/proto_asset_0",
+        "/World/template/Object/proto_asset_1",
+    ]
+    assert plan.clone_mask.shape == (2, num_clones)
+    assert plan.clone_mask.dtype == torch.bool
+    # Each env gets exactly one prototype (column-sum invariant)
+    assert torch.all(plan.clone_mask.sum(dim=0) == 1)
+    # Sequential strategy assigns env i → prototype (i % num_protos)
+    actual_proto_idx = plan.clone_mask.to(torch.int).argmax(dim=0).cpu()
+    assert torch.equal(actual_proto_idx, torch.tensor([0, 1, 0, 1]))
 
 
-def test_resolve_visualizer_clone_fn_returns_none_when_newton_model_not_required():
-    """Resolver should not load optional hook when requirement is not requested."""
-    hook = resolve_visualizer_clone_fn(
-        physics_backend="physx",
-        requirements=SceneDataRequirement(requires_newton_model=False),
-        stage=object(),
-        set_visualizer_artifact=lambda artifact: artifact,
-    )
-    assert hook is None
+def test_clone_from_template_returns_empty_dict_when_no_prototypes(sim):
+    """clone_from_template returns an empty dict when no prototypes match the identifier."""
+    num_clones = 2
+    cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential, clone_physics=False)
 
+    sim_utils.create_prim(cfg.template_root, "Xform")
+    sim_utils.create_prim("/World/envs", "Xform")
+    for i in range(num_clones):
+        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
 
-def test_resolve_visualizer_clone_fn_returns_callable_when_available(sim):
-    """Resolver should return a callable hook when backend helper is available."""
-    pytest.importorskip("isaaclab_newton.cloner.newton_replicate")
-    hook = resolve_visualizer_clone_fn(
-        physics_backend="physx",
-        requirements=SceneDataRequirement(requires_newton_model=True),
-        stage=sim_utils.get_current_stage(),
-        set_visualizer_artifact=lambda artifact: artifact,
-    )
-    assert callable(hook)
+    stage = sim_utils.get_current_stage()
+    plans = clone_from_template(stage, num_clones=num_clones, template_clone_cfg=cfg)
 
-
-def test_physx_newton_requirement_hook_populates_prebuilt_artifact(sim, monkeypatch: pytest.MonkeyPatch):
-    """PhysX + Newton requirement path should populate prebuilt visualizer artifact."""
-    newton_replicate = pytest.importorskip("isaaclab_newton.cloner.newton_replicate")
-
-    class _FakeModel:
-        body_label = ["/World/envs/env_0/A", "/World/envs/env_1/A"]
-        articulation_label = ["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"]
-
-    fake_model = _FakeModel()
-    fake_state = object()
-
-    def _fake_prebuild(*args, **kwargs):
-        return fake_model, fake_state
-
-    monkeypatch.setattr(newton_replicate, "newton_visualizer_prebuild", _fake_prebuild)
-
-    captured: list[VisualizerPrebuiltArtifacts] = []
-    hook = resolve_visualizer_clone_fn(
-        physics_backend="physx",
-        requirements=SceneDataRequirement(requires_newton_model=True),
-        stage=sim_utils.get_current_stage(),
-        set_visualizer_artifact=lambda artifact: captured.append(artifact),
-    )
-
-    assert callable(hook)
-    hook(
-        stage=sim_utils.get_current_stage(),
-        sources=["/World/template/A"],
-        destinations=["/World/envs/env_{}/A"],
-        env_ids=torch.tensor([0, 1], dtype=torch.long),
-        mapping=torch.ones((1, 2), dtype=torch.bool),
-        device="cpu",
-    )
-
-    assert len(captured) == 1
-    artifact = captured[0]
-    assert isinstance(artifact, VisualizerPrebuiltArtifacts)
-    assert artifact.model is fake_model
-    assert artifact.state is fake_state
-    assert artifact.rigid_body_paths == fake_model.body_label
-    assert artifact.articulation_paths == fake_model.articulation_label
-    assert artifact.num_envs == 2
+    assert plans == {}

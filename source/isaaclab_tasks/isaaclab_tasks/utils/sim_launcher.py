@@ -236,6 +236,24 @@ def launch_simulation(
         with launch_simulation(env_cfg, args_cli):
             main()
     """
+    # When --visualizer kit is explicitly requested alongside an ovrtx preset, fail early.
+    # ovrtx and Kit ship the same RTX hydra libraries under conflicting USD namespaces;
+    # loading both in the same process causes a dynamic-linker crash.  Use
+    # --visualizer newton instead, which is compatible with ovrtx presets.
+    early_visualizer_types = _get_visualizer_types(launcher_args)
+    if "kit" in early_visualizer_types:
+        has_ovrtx = _scan_config(
+            env_cfg, [lambda node: isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"]
+        )[0]
+        if has_ovrtx:
+            raise ValueError(
+                "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx_renderer'. "
+                "Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries "
+                "(librtx.hydra.so, liblegacy.hydra.so) compiled against different USD namespaces, "
+                "which causes a dynamic-linker crash when loaded into the same process. "
+                "Use '--visualizer newton' instead, which is fully compatible with ovrtx presets."
+            )
+
     needs_kit, has_kit_cameras, visualizer_types = compute_kit_requirements(env_cfg, launcher_args)
     visualizer_intent = _compute_visualizer_intent(env_cfg)
     _set_visualizer_intent_on_launcher_args(launcher_args, visualizer_intent)
