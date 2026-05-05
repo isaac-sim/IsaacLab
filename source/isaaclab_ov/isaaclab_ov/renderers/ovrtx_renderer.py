@@ -223,7 +223,7 @@ class OVRTXRenderer(BaseRenderer):
 
             logger.info("Loading USD into OvRTX...")
             try:
-                handle = self._renderer.add_usd(combined_usd_path, path_prefix=None)
+                handle = self._renderer.open_usd(combined_usd_path)
                 self._usd_handles.append(handle)
                 logger.info("USD loaded (path: %s, handle: %s)", combined_usd_path, handle)
             except Exception as e:
