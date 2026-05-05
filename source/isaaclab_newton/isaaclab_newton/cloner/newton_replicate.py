@@ -5,16 +5,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 import torch
 import warp as wp
 from newton import ModelBuilder, solvers
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
-from pxr import Usd, UsdGeom
-
-from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
+from pxr import Usd
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -243,55 +239,3 @@ def newton_visualizer_prebuild(
     model = builder.finalize(device=device)
     state = model.state()
     return model, state
-
-
-def create_newton_visualizer_prebuild_clone_fn(
-    stage,
-    set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
-):
-    """Create a cloner callback that prebuilds Newton visualizer artifacts.
-
-    Args:
-        stage: USD stage used by the clone callback.
-        set_visualizer_artifact: Callback used to store the produced prebuilt artifact.
-
-    Returns:
-        Clone callback that builds and stores visualizer prebuilt artifacts.
-    """
-    up_axis = UsdGeom.GetStageUpAxis(stage)
-
-    def _visualizer_clone_fn(
-        stage,
-        sources,
-        destinations,
-        env_ids,
-        mapping,
-        positions=None,
-        quaternions=None,
-        device="cpu",
-    ):
-        """Prebuild Newton model/state and store visualizer artifacts for clone consumers."""
-        model, state = newton_visualizer_prebuild(
-            stage=stage,
-            sources=sources,
-            destinations=destinations,
-            env_ids=env_ids,
-            mapping=mapping,
-            positions=positions,
-            quaternions=quaternions,
-            device=device,
-            up_axis=up_axis,
-        )
-        set_visualizer_artifact(
-            VisualizerPrebuiltArtifacts(
-                model=model,
-                state=state,
-                rigid_body_paths=list(getattr(model, "body_label", None) or getattr(model, "body_key", [])),
-                articulation_paths=list(
-                    getattr(model, "articulation_label", None) or getattr(model, "articulation_key", [])
-                ),
-                num_envs=int(mapping.size(1)),
-            )
-        )
-
-    return _visualizer_clone_fn

@@ -83,7 +83,6 @@ Collect five demonstrations by running the following command:
    --visualizer kit \
    --xr \
    --device cpu \
-   --xr \
    --num_demos 5 \
    --dataset_file ./datasets/dataset_gr1.hdf5
 

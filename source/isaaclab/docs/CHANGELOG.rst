@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+4.6.27 (2026-05-01)
+~~~~~~~~~~~~~~~~~~~
+
+* Added :class:`~isaaclab.sensors.JointWrenchSensor`.
+
+
+4.6.26 (2026-05-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Metrics/success_rate`` tracking to benchmark scripts. The result is always logged
+  to the benchmark artifact; ``--check_success`` additionally early-stops training on convergence.
+
+
 4.6.25 (2026-04-28)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -539,6 +555,7 @@ Changed
 
 Added
 ^^^^^
+
 
 * Added :class:`~isaaclab.sim.spawners.meshes.MeshSquareCfg` and
   :func:`~isaaclab.sim.spawners.meshes.spawn_mesh_square` for spawning 2D triangle

@@ -6,7 +6,8 @@ Camera
 ======
 
 Camera sensors in Isaac Lab are renderer-backed sensors: each :class:`~sensors.Camera` instance
-is coupled to a **renderer** that produces the image data. The renderer and camera are intentionally
+is coupled to a **renderer** that produces the image data. If multiple cameras use the same renderer
+type, only one renderer is instantiated and shared between them. The renderer and camera are intentionally
 isolated from each other — the camera defines *what* to capture (pose, resolution, field of view,
 data types), while the renderer defines *how* to render it (RTX ray-tracing, Newton Warp rasterizer,
 etc.). This separation allows the same camera configuration to run across different physics and

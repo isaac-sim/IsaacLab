@@ -14,6 +14,13 @@ import time
 
 from isaaclab.app import AppLauncher
 
+from scripts.benchmarks.early_stop import (
+    RlGamesEarlyStopObserver,
+    add_success_cli_args,
+    build_success_kwargs,
+    get_success_tracker,
+)
+
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
@@ -52,6 +59,7 @@ parser.add_argument(
 parser.add_argument(
     "--convergence_config", type=str, default="full", help="Config mode for convergence thresholds (default: full)."
 )
+add_success_cli_args(parser)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -105,6 +113,7 @@ from scripts.benchmarks.utils import (
     log_runtime_step_times,
     log_scene_creation_time,
     log_simulation_start_time,
+    log_success,
     log_task_start_time,
     log_total_start_time,
     parse_tf_logs,
@@ -239,8 +248,9 @@ def main(
 
     # set number of actors into agent config
     agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-    # create runner from rl-games
-    runner = Runner(IsaacAlgoObserver())
+    # always track the success metric; early-stop only if --check_success
+    observer = RlGamesEarlyStopObserver(IsaacAlgoObserver(), **build_success_kwargs(args_cli))
+    runner = Runner(observer)
     runner.load(agent_cfg)
 
     # set seed of the env
@@ -292,6 +302,9 @@ def main(
             reward_threshold=args_cli.reward_threshold,
             convergence_config=args_cli.convergence_config,
         )
+
+        tracker = get_success_tracker(args_cli, observer.tracker, log_data)
+        log_success(benchmark, tracker, framework_iteration_count=observer.framework_iteration_count)
 
         benchmark._finalize_impl()
 
