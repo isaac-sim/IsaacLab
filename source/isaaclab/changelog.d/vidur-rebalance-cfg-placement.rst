@@ -13,6 +13,11 @@ Added
   (``import_usd.py:2104, 2111``).
 * Added :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`, the solver-common base class
   for articulation root properties (``fix_root_link``, ``articulation_enabled``).
+* Added :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`, the solver-common base class for
+  mesh collision properties carrying ``mesh_approximation_name`` (writes
+  ``physics:approximation`` via :class:`UsdPhysics.MeshCollisionAPI`). The class-level
+  ``_usd_applied_schema`` metadata replaces the deprecated ``usd_api`` / ``physx_api``
+  instance-field dispatch.
 
 Changed
 ^^^^^^^
@@ -72,6 +77,26 @@ Changed
   authored at least one PhysX-namespaced field with a non-``None`` value. Previously, the
   writer applied ``PhysxArticulationAPI`` unconditionally on every articulation root,
   stamping the schema onto Newton-targeted prims that only set ``fix_root_link``.
+* Relocated :class:`MeshCollisionPropertiesCfg`, :class:`ConvexHullPropertiesCfg`,
+  :class:`ConvexDecompositionPropertiesCfg`, :class:`TriangleMeshPropertiesCfg`,
+  :class:`TriangleMeshSimplificationPropertiesCfg`, and :class:`SDFMeshPropertiesCfg` to
+  :mod:`isaaclab_physx.sim.schemas`. :class:`BoundingCubePropertiesCfg` and
+  :class:`BoundingSpherePropertiesCfg` stay in core because they author no PhysX schema.
+  A forwarding shim preserves existing imports.
+* Refactored :func:`~isaaclab.sim.schemas.modify_mesh_collision_properties` to be
+  metadata-driven. The writer now reads ``_usd_applied_schema`` and ``_usd_namespace`` from
+  the cfg class instead of consulting instance-level ``usd_api`` / ``physx_api`` fields.
+  The standard :class:`UsdPhysics.MeshCollisionAPI` is always applied; PhysX cooking
+  schemas (``PhysxConvexHullCollisionAPI`` etc.) are gated on at least one
+  PhysX-namespaced tuning field being set.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``usd_api`` and ``physx_api`` instance attributes on the mesh-collision
+  cfg classes in favor of class-level ``_usd_applied_schema`` metadata. Reading these
+  attributes still works through one minor version but emits a ``DeprecationWarning``.
+  Scheduled for removal in 5.0.
 
 Fixed
 ^^^^^

@@ -33,6 +33,17 @@ FORWARDED_NAMES = [
     "PhysXCollisionPropertiesCfg",
     "ArticulationRootPropertiesCfg",
     "PhysxArticulationRootPropertiesCfg",
+    "MeshCollisionPropertiesCfg",
+    "ConvexHullPropertiesCfg",
+    "ConvexDecompositionPropertiesCfg",
+    "TriangleMeshPropertiesCfg",
+    "TriangleMeshSimplificationPropertiesCfg",
+    "SDFMeshPropertiesCfg",
+    "PhysxConvexHullPropertiesCfg",
+    "PhysxConvexDecompositionPropertiesCfg",
+    "PhysxTriangleMeshPropertiesCfg",
+    "PhysxTriangleMeshSimplificationPropertiesCfg",
+    "PhysxSDFMeshPropertiesCfg",
 ]
 
 DEPRECATED_FORWARDED_NAMES = [
@@ -41,6 +52,12 @@ DEPRECATED_FORWARDED_NAMES = [
     "CollisionPropertiesCfg",
     "PhysXCollisionPropertiesCfg",
     "ArticulationRootPropertiesCfg",
+    "MeshCollisionPropertiesCfg",
+    "ConvexHullPropertiesCfg",
+    "ConvexDecompositionPropertiesCfg",
+    "TriangleMeshPropertiesCfg",
+    "TriangleMeshSimplificationPropertiesCfg",
+    "SDFMeshPropertiesCfg",
 ]
 
 FORWARDED_MATERIAL_NAMES = [

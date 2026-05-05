@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Literal
 
 from isaaclab.utils import configclass
@@ -25,6 +26,17 @@ _PHYSX_FORWARDS = frozenset(
         "PhysxDeformableCollisionPropertiesCfg",
         "ArticulationRootPropertiesCfg",
         "PhysxArticulationRootPropertiesCfg",
+        "MeshCollisionPropertiesCfg",
+        "ConvexHullPropertiesCfg",
+        "ConvexDecompositionPropertiesCfg",
+        "TriangleMeshPropertiesCfg",
+        "TriangleMeshSimplificationPropertiesCfg",
+        "SDFMeshPropertiesCfg",
+        "PhysxConvexHullPropertiesCfg",
+        "PhysxConvexDecompositionPropertiesCfg",
+        "PhysxTriangleMeshPropertiesCfg",
+        "PhysxTriangleMeshSimplificationPropertiesCfg",
+        "PhysxSDFMeshPropertiesCfg",
     }
 )
 
@@ -415,240 +427,94 @@ class SpatialTendonPropertiesCfg:
 
 
 @configclass
-class MeshCollisionPropertiesCfg:
-    """Properties to apply to a mesh in regards to collision.
-    See :meth:`set_mesh_collision_properties` for more information.
+class MeshCollisionBaseCfg:
+    """Solver-common properties to apply to a mesh in regards to collision.
+
+    Carries only the standard ``UsdPhysics:MeshCollisionAPI`` token
+    (:attr:`mesh_approximation_name` -> ``physics:approximation``). For PhysX-cooking
+    tunables (convex hull / decomposition / triangle mesh / SDF), use the
+    ``Physx*PropertiesCfg`` subclasses in :mod:`isaaclab_physx.sim.schemas`.
+
+    See :meth:`modify_mesh_collision_properties` for more information.
 
     .. note::
-        If the values are None, they are not modified. This is useful when you want to set only a subset of
-        the properties and leave the rest as-is.
+        If the values are None, they are not modified. This is useful when you want to
+        set only a subset of the properties and leave the rest as-is.
     """
 
-    usd_api: str | None = None
-    """USD API name for mesh collision (e.g. 'MeshCollisionAPI')."""
-
-    physx_api: str | None = None
-    """PhysX schema name for mesh collision (e.g. 'PhysxConvexDecompositionCollisionAPI')."""
+    # -- Class metadata (not dataclass fields) --
+    # The standard ``UsdPhysics.MeshCollisionAPI`` is always applied by the writer when a
+    # mesh-collision cfg is supplied; ``_usd_applied_schema`` here records the standard
+    # API name so subclasses that author no PhysX namespace can rely on the writer's
+    # standard-vs-PhysX gating logic. PhysX-cooking subclasses override this.
+    _usd_applied_schema = "MeshCollisionAPI"
+    # Base class authors no PhysX-namespaced fields, so no namespace is defined.
+    _usd_namespace = None
 
     mesh_approximation_name: str = "none"
     """Name of mesh collision approximation method. Default: "none".
+
+    Writes ``physics:approximation`` via :class:`UsdPhysics.MeshCollisionAPI`.
     Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
     """
 
+    def __getattr__(self, name: str):
+        """Deprecated read-only access to the legacy ``usd_api`` / ``physx_api`` instance attrs.
+
+        Falls back here only when the attribute is not found on the dataclass instance.
+        Returns the legacy-mapped string value derived from the class-level
+        ``_usd_applied_schema`` metadata and emits a ``DeprecationWarning``.
+        """
+        if name == "usd_api":
+            warnings.warn(
+                "'usd_api' attribute is deprecated and will be removed in 5.0. Use class-level"
+                " metadata via getattr(cfg, '_usd_applied_schema').",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            schema = self.__dict__.get("_usd_applied_schema", None)
+            # Every PhysX cooking subclass legacy-mapped to ``"MeshCollisionAPI"``; the base
+            # class also wrote that token. Return ``None`` only when no schema is declared.
+            return "MeshCollisionAPI" if schema is not None else None
+        if name == "physx_api":
+            warnings.warn(
+                "'physx_api' attribute is deprecated and will be removed in 5.0. Use class-level"
+                " metadata via getattr(cfg, '_usd_applied_schema').",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            schema = self.__dict__.get("_usd_applied_schema", None)
+            if schema and schema.startswith("Physx"):
+                return schema
+            return None
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
 
 @configclass
-class BoundingCubePropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
+class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
+    """Bounding-cube mesh collision approximation. USD-only; authors no PhysX schema.
+
+    Writes the ``boundingCube`` token to ``physics:approximation`` via
+    :class:`UsdPhysics.MeshCollisionAPI`.
+
+    Original USD Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
     """
 
     mesh_approximation_name: str = "boundingCube"
-    """Name of mesh collision approximation method. Default: "boundingCube".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
+    """Name of mesh collision approximation method. Default: "boundingCube"."""
 
 
 @configclass
-class BoundingSpherePropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
+class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
+    """Bounding-sphere mesh collision approximation. USD-only; authors no PhysX schema.
+
+    Writes the ``boundingSphere`` token to ``physics:approximation`` via
+    :class:`UsdPhysics.MeshCollisionAPI`.
+
+    Original USD Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
     """
 
     mesh_approximation_name: str = "boundingSphere"
-    """Name of mesh collision approximation method. Default: "boundingSphere".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-
-@configclass
-class ConvexDecompositionPropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
-    """
-
-    physx_api: str = "PhysxConvexDecompositionCollisionAPI"
-    """Original PhysX Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
-    """
-
-    mesh_approximation_name: str = "convexDecomposition"
-    """Name of mesh collision approximation method. Default: "convexDecomposition".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    hull_vertex_limit: int | None = None
-    """Convex hull vertex limit used for convex hull cooking.
-
-    Defaults to 64.
-    """
-    max_convex_hulls: int | None = None
-    """Maximum of convex hulls created during convex decomposition.
-    Default value is 32.
-    """
-    min_thickness: float | None = None
-    """Convex hull min thickness.
-
-    Range: [0, inf). Units are distance. Default value is 0.001.
-    """
-    voxel_resolution: int | None = None
-    """Voxel resolution used for convex decomposition.
-
-    Defaults to 500,000 voxels.
-    """
-    error_percentage: float | None = None
-    """Convex decomposition error percentage parameter.
-
-    Defaults to 10 percent. Units are percent.
-    """
-    shrink_wrap: bool | None = None
-    """Attempts to adjust the convex hull points so that they are projected onto the surface of the original graphics
-    mesh.
-
-    Defaults to False.
-    """
-
-
-@configclass
-class ConvexHullPropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
-    """
-
-    physx_api: str = "PhysxConvexHullCollisionAPI"
-    """Original PhysX Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
-    """
-
-    mesh_approximation_name: str = "convexHull"
-    """Name of mesh collision approximation method. Default: "convexHull".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    hull_vertex_limit: int | None = None
-    """Convex hull vertex limit used for convex hull cooking.
-
-    Defaults to 64.
-    """
-    min_thickness: float | None = None
-    """Convex hull min thickness.
-
-    Range: [0, inf). Units are distance. Default value is 0.001.
-    """
-
-
-@configclass
-class TriangleMeshPropertiesCfg(MeshCollisionPropertiesCfg):
-    physx_api: str = "PhysxTriangleMeshCollisionAPI"
-    """Triangle mesh is only supported by PhysX API.
-
-    Original PhysX Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
-    """
-
-    mesh_approximation_name: str = "none"
-    """Name of mesh collision approximation method. Default: "none" (uses triangle mesh).
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    weld_tolerance: float | None = None
-    """Mesh weld tolerance, controls the distance at which vertices are welded.
-
-    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
-    Range: [0, inf) Units: distance
-    """
-
-
-@configclass
-class TriangleMeshSimplificationPropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
-    """
-
-    physx_api: str = "PhysxTriangleMeshSimplificationCollisionAPI"
-    """Original PhysX Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
-    """
-
-    mesh_approximation_name: str = "meshSimplification"
-    """Name of mesh collision approximation method. Default: "meshSimplification".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    simplification_metric: float | None = None
-    """Mesh simplification accuracy.
-
-    Defaults to 0.55.
-    """
-    weld_tolerance: float | None = None
-    """Mesh weld tolerance, controls the distance at which vertices are welded.
-
-    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
-    Range: [0, inf) Units: distance
-    """
-
-
-@configclass
-class SDFMeshPropertiesCfg(MeshCollisionPropertiesCfg):
-    physx_api: str = "PhysxSDFMeshCollisionAPI"
-    """SDF mesh is only supported by PhysX API.
-
-    Original PhysX documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_s_d_f_mesh_collision_a_p_i.html
-
-    More details and steps for optimizing SDF results can be found here:
-    https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyCollision.html#dynamic-triangle-meshes-with-sdfs
-    """
-
-    mesh_approximation_name: str = "sdf"
-    """Name of mesh collision approximation method. Default: "sdf".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    sdf_margin: float | None = None
-    """Margin to increase the size of the SDF relative to the bounding box diagonal length of the mesh.
-
-
-    A sdf margin value of 0.01 means the sdf boundary will be enlarged in any direction by 1% of the mesh's bounding
-    box diagonal length. Representing the margin relative to the bounding box diagonal length ensures that it is scale
-    independent. Margins allow for precise distance queries in a region slightly outside of the mesh's bounding box.
-
-    Default value is 0.01.
-    Range: [0, inf) Units: dimensionless
-    """
-    sdf_narrow_band_thickness: float | None = None
-    """Size of the narrow band around the mesh surface where high resolution SDF samples are available.
-
-    Outside of the narrow band, only low resolution samples are stored. Representing the narrow band thickness as a
-    fraction of the mesh's bounding box diagonal length ensures that it is scale independent. A value of 0.01 is
-    usually large enough. The smaller the narrow band thickness, the smaller the memory consumption of the sparse SDF.
-
-    Default value is 0.01.
-    Range: [0, 1] Units: dimensionless
-    """
-    sdf_resolution: int | None = None
-    """The spacing of the uniformly sampled SDF is equal to the largest AABB extent of the mesh,
-    divided by the resolution.
-
-    Choose the lowest possible resolution that provides acceptable performance; very high resolution results in large
-    memory consumption, and slower cooking and simulation performance.
-
-    Default value is 256.
-    Range: (1, inf)
-    """
-    sdf_subgrid_resolution: int | None = None
-    """A positive subgrid resolution enables sparsity on signed-distance-fields (SDF) while a value of 0 leads to the
-    usage of a dense SDF.
-
-    A value in the range of 4 to 8 is a reasonable compromise between block size and the overhead introduced by block
-    addressing. The smaller a block, the more memory is spent on the address table. The bigger a block, the less
-    precisely the sparse SDF can adapt to the mesh's surface. In most cases sparsity reduces the memory consumption of
-    a SDF significantly.
-
-    Default value is 6.
-    Range: [0, inf)
-    """
+    """Name of mesh collision approximation method. Default: "boundingSphere"."""

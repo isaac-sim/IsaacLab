@@ -32,7 +32,7 @@ class MeshConverterCfg(AssetConverterBaseCfg):
     Note:
         If None, then no collision properties will be added.
     """
-    mesh_collision_props: schemas_cfg.MeshCollisionPropertiesCfg = None
+    mesh_collision_props: schemas_cfg.MeshCollisionBaseCfg = None
     """Mesh approximation properties to apply to all collision meshes in the USD.
     Note:
         If None, then no mesh approximation properties will be added.

@@ -50,6 +50,17 @@ _PHYSX_FORWARDS = frozenset({
     "PhysxDeformableCollisionPropertiesCfg",
     "ArticulationRootPropertiesCfg",
     "PhysxArticulationRootPropertiesCfg",
+    "MeshCollisionPropertiesCfg",
+    "ConvexHullPropertiesCfg",
+    "ConvexDecompositionPropertiesCfg",
+    "TriangleMeshPropertiesCfg",
+    "TriangleMeshSimplificationPropertiesCfg",
+    "SDFMeshPropertiesCfg",
+    "PhysxConvexHullPropertiesCfg",
+    "PhysxConvexDecompositionPropertiesCfg",
+    "PhysxTriangleMeshPropertiesCfg",
+    "PhysxTriangleMeshSimplificationPropertiesCfg",
+    "PhysxSDFMeshPropertiesCfg",
 })
 
 

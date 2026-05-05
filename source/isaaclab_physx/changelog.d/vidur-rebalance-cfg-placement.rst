@@ -18,6 +18,13 @@ Added
   :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` carrying the PhysX-specific
   ``enabled_self_collisions``, ``solver_position_iteration_count``,
   ``solver_velocity_iteration_count``, ``sleep_threshold``, ``stabilization_threshold``.
+* Added :class:`PhysxConvexHullPropertiesCfg`, :class:`PhysxConvexDecompositionPropertiesCfg`,
+  :class:`PhysxTriangleMeshPropertiesCfg`,
+  :class:`PhysxTriangleMeshSimplificationPropertiesCfg`, and
+  :class:`PhysxSDFMeshPropertiesCfg` -- the PhysX-cooking-specific mesh collision
+  subclasses. Each declares its own PhysxSchema cooking API via class-level
+  ``_usd_applied_schema`` metadata and inherits ``mesh_approximation_name`` from
+  :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`.
 
 Changed
 ^^^^^^^
@@ -53,3 +60,9 @@ Deprecated
   :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` (solver-common). The legacy name
   remains as a concrete subclass of :class:`PhysxArticulationRootPropertiesCfg` that emits
   ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`MeshCollisionPropertiesCfg`, :class:`ConvexHullPropertiesCfg`,
+  :class:`ConvexDecompositionPropertiesCfg`, :class:`TriangleMeshPropertiesCfg`,
+  :class:`TriangleMeshSimplificationPropertiesCfg`, and :class:`SDFMeshPropertiesCfg` in
+  favor of :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` or the new ``Physx*``
+  subclasses. Legacy names remain as concrete subclasses that emit ``DeprecationWarning``
+  on instantiation. Scheduled for removal in 5.0.

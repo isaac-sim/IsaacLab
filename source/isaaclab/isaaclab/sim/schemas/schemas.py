@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any
 
 from pxr import Usd, UsdPhysics
 
@@ -46,21 +45,67 @@ MESH_APPROXIMATION_TOKENS = {
 }
 
 
-PHYSX_MESH_COLLISION_CFGS = [
-    schemas_cfg.ConvexDecompositionPropertiesCfg,
-    schemas_cfg.ConvexHullPropertiesCfg,
-    schemas_cfg.TriangleMeshPropertiesCfg,
-    schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
-    schemas_cfg.SDFMeshPropertiesCfg,
-]
+# Lazy accessors. These lists were used by the legacy ``usd_api`` / ``physx_api`` instance-
+# field dispatch in ``modify_mesh_collision_properties``. The new metadata-driven writer
+# does not consult them, but they are preserved as a public API so external code that
+# imported them keeps working. The PhysX leaves now live in ``isaaclab_physx``; we resolve
+# them lazily so this module does not import ``isaaclab_physx`` at load time.
+def _get_physx_mesh_collision_cfgs() -> list:
+    from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
 
-USD_MESH_COLLISION_CFGS = [
-    schemas_cfg.BoundingCubePropertiesCfg,
-    schemas_cfg.BoundingSpherePropertiesCfg,
-    schemas_cfg.ConvexDecompositionPropertiesCfg,
-    schemas_cfg.ConvexHullPropertiesCfg,
-    schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
-]
+    return [
+        _physx_cfg.PhysxConvexHullPropertiesCfg,
+        _physx_cfg.PhysxConvexDecompositionPropertiesCfg,
+        _physx_cfg.PhysxTriangleMeshPropertiesCfg,
+        _physx_cfg.PhysxTriangleMeshSimplificationPropertiesCfg,
+        _physx_cfg.PhysxSDFMeshPropertiesCfg,
+        # legacy deprecation aliases
+        _physx_cfg.ConvexHullPropertiesCfg,
+        _physx_cfg.ConvexDecompositionPropertiesCfg,
+        _physx_cfg.TriangleMeshPropertiesCfg,
+        _physx_cfg.TriangleMeshSimplificationPropertiesCfg,
+        _physx_cfg.SDFMeshPropertiesCfg,
+    ]
+
+
+class _LazyList:
+    """Lazy list whose contents are produced on first access.
+
+    Used to keep the public ``PHYSX_MESH_COLLISION_CFGS`` / ``USD_MESH_COLLISION_CFGS`` symbols
+    resolvable for callers that imported them, without triggering an ``isaaclab_physx`` import
+    at this module's load time.
+    """
+
+    def __init__(self, factory):
+        self._factory = factory
+        self._cache = None
+
+    def _resolved(self):
+        if self._cache is None:
+            self._cache = list(self._factory())
+        return self._cache
+
+    def __iter__(self):
+        return iter(self._resolved())
+
+    def __contains__(self, item):
+        return item in self._resolved()
+
+    def __len__(self):
+        return len(self._resolved())
+
+    def __getitem__(self, index):
+        return self._resolved()[index]
+
+
+PHYSX_MESH_COLLISION_CFGS = _LazyList(_get_physx_mesh_collision_cfgs)
+
+USD_MESH_COLLISION_CFGS = _LazyList(
+    lambda: [
+        schemas_cfg.BoundingCubePropertiesCfg,
+        schemas_cfg.BoundingSpherePropertiesCfg,
+    ]
+)
 
 
 """
@@ -955,75 +1000,19 @@ Collision mesh properties.
 """
 
 
-def _get_physx_collision_namespace(schema_name: str) -> str:
-    """Convert PhysX schema name to attribute namespace used on the prim."""
-    if not schema_name:
-        raise ValueError("PhysX schema name must be provided for mesh collision properties.")
-    schema_name = schema_name.removesuffix("API")
-    return schema_name[0].lower() + schema_name[1:]
-
-
-def _get_usd_mesh_collision_api(api_name: str):
-    """Resolve the USD mesh collision API from a string name."""
-    if not api_name:
-        raise ValueError("USD schema name must be provided for mesh collision properties.")
-    usd_api = getattr(UsdPhysics, api_name, None)
-    if usd_api is None:
-        raise ValueError(f"USD schema '{api_name}' not found in UsdPhysics.")
-    return usd_api
-
-
-def extract_mesh_collision_api_and_attrs(
-    cfg: schemas_cfg.MeshCollisionPropertiesCfg,
-) -> tuple[tuple[str, Any], dict[str, Any]]:
-    """Extract the mesh collision API type/value and custom attributes from the configuration.
-
-    Args:
-        cfg: The configuration for the mesh collision properties.
-
-    Returns:
-        A tuple of ((api_type, api_value), custom_attrs). api_type is "usd" or "physx";
-        api_value is the USD API class (callable) or PhysX schema name string.
-
-    Raises:
-        ValueError: When neither USD nor PhysX API can be determined to be used.
-    """
-    custom_attrs = {
-        key: value
-        for key, value in cfg.to_dict().items()
-        if value is not None and key not in ["usd_api", "physx_api", "mesh_approximation_name"]
-    }
-
-    use_usd_api = False
-    use_physx_api = False
-
-    if len(custom_attrs) > 0 and type(cfg) in PHYSX_MESH_COLLISION_CFGS:
-        use_physx_api = True
-    elif len(custom_attrs) == 0:
-        if type(cfg) in USD_MESH_COLLISION_CFGS:
-            use_usd_api = True
-        else:
-            use_physx_api = True
-    elif len(custom_attrs) > 0 and type(cfg) in USD_MESH_COLLISION_CFGS:
-        raise ValueError("Args are specified but the USD Mesh API doesn't support them!")
-
-    if use_usd_api and getattr(cfg, "usd_api", None):
-        return ("usd", cfg.usd_api), custom_attrs
-    if use_physx_api and getattr(cfg, "physx_api", None):
-        return ("physx", cfg.physx_api), custom_attrs
-    raise ValueError("Either USD or PhysX API should be used for modifying mesh collision attributes!")
-
-
 def define_mesh_collision_properties(
-    prim_path: str, cfg: schemas_cfg.MeshCollisionPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.MeshCollisionBaseCfg, stage: Usd.Stage | None = None
 ):
     """Apply the mesh collision schema on the input prim and set its properties.
-    See :func:`modify_collision_mesh_properties` for more details on how the properties are set.
+
+    See :func:`modify_mesh_collision_properties` for more details on how the properties are set.
+
     Args:
-        prim_path : The prim path where to apply the mesh collision schema.
-        cfg : The configuration for the mesh collision properties.
-        stage : The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path where to apply the mesh collision schema.
+        cfg: The configuration for the mesh collision properties.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
+
     Raises:
         ValueError: When the prim path is not valid.
     """
@@ -1036,36 +1025,43 @@ def define_mesh_collision_properties(
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
 
-    (api_type, api_value), _ = extract_mesh_collision_api_and_attrs(cfg=cfg)
-
-    if api_type == "usd":
-        usd_api_class = _get_usd_mesh_collision_api(api_value)
-        if not usd_api_class(prim):
-            usd_api_class.Apply(prim)
-    else:
-        if api_value not in prim.GetAppliedSchemas():
-            prim.AddAppliedSchema(api_value)
+    # Always apply the standard ``UsdPhysics.MeshCollisionAPI`` so the approximation token is
+    # writable. The PhysX cooking schema (if any) is applied lazily by the writer below
+    # only when the user authored at least one PhysX-namespaced tuning field.
+    if not UsdPhysics.MeshCollisionAPI(prim):
+        UsdPhysics.MeshCollisionAPI.Apply(prim)
 
     modify_mesh_collision_properties(prim_path=prim_path, cfg=cfg, stage=stage)
 
 
 @apply_nested
 def modify_mesh_collision_properties(
-    prim_path: str, cfg: schemas_cfg.MeshCollisionPropertiesCfg, stage: Usd.Stage | None = None
+    prim_path: str, cfg: schemas_cfg.MeshCollisionBaseCfg, stage: Usd.Stage | None = None
 ) -> bool:
     """Set properties for the mesh collision of a prim.
-    These properties are based on either the `Phsyx the `UsdPhysics.MeshCollisionAPI` schema.
+
+    Metadata-driven writer. The standard ``UsdPhysics.MeshCollisionAPI`` is applied
+    unconditionally (it is the carrier of the ``physics:approximation`` token). The
+    PhysX cooking schema declared by ``_usd_applied_schema`` (e.g.
+    ``PhysxConvexHullCollisionAPI``) is gated on the user authoring at least one
+    non-``None`` namespaced tuning field, mirroring the gating used by the other
+    consumption-gated writers (rigid body, joint drive, collision, articulation root).
+
     .. note::
-        This function is decorated with :func:`apply_nested` that sets the properties to all the prims
-        (that have the schema applied on them) under the input prim path.
-    .. UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html
+        This function is decorated with :func:`apply_nested` that sets the properties to
+        all the prims (that have the schema applied on them) under the input prim path.
+
+    .. _UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html
+
     Args:
-        prim_path : The prim path of the rigid body. This prim should be a Mesh prim.
-        cfg : The configuration for the mesh collision properties.
-        stage : The stage where to find the prim. Defaults to None, in which case the
+        prim_path: The prim path of the rigid body. This prim should be a Mesh prim.
+        cfg: The configuration for the mesh collision properties.
+        stage: The stage where to find the prim. Defaults to None, in which case the
             current stage is used.
+
     Returns:
         True if the properties were successfully set, False otherwise.
+
     Raises:
         ValueError: When the mesh approximation name is invalid.
     """
@@ -1078,8 +1074,17 @@ def modify_mesh_collision_properties(
     # we need MeshCollisionAPI to set mesh collision approximation attribute
     if not UsdPhysics.MeshCollisionAPI(prim):
         UsdPhysics.MeshCollisionAPI.Apply(prim)
-    # convert mesh approximation string to token
-    approximation_name = cfg.mesh_approximation_name
+
+    # read class-level metadata
+    namespace = getattr(cfg, "_usd_namespace", None)
+    applied_schema = getattr(cfg, "_usd_applied_schema", None)
+    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
+
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+
+    # write the standard ``physics:approximation`` token via UsdPhysics.MeshCollisionAPI
+    approximation_name = cfg_dict.pop("mesh_approximation_name", "none")
     if approximation_name not in MESH_APPROXIMATION_TOKENS:
         raise ValueError(
             f"Invalid mesh approximation name: '{approximation_name}'. "
@@ -1090,23 +1095,36 @@ def modify_mesh_collision_properties(
         UsdPhysics.MeshCollisionAPI(prim), "Approximation", approximation_token, camel_case=False
     )
 
-    (api_type, api_value), custom_attrs = extract_mesh_collision_api_and_attrs(cfg=cfg)
+    # Build namespaced_writes from the remaining cfg fields. PhysX cooking subclasses author
+    # only namespaced tuning fields here (e.g. ``hull_vertex_limit``); the base class and the
+    # USD-only ``BoundingCube``/``BoundingSphere`` subclasses have nothing left to write.
+    namespaced_writes: list[tuple[str, object]] = []
+    for cfg_field in list(attr_name_map):
+        value = cfg_dict.pop(cfg_field, None)
+        if value is not None:
+            namespaced_writes.append((attr_name_map[cfg_field], value))
+    for cfg_field, value in list(cfg_dict.items()):
+        if value is not None:
+            namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
 
-    if api_type == "usd":
-        usd_api_class = _get_usd_mesh_collision_api(api_value)
-        mesh_collision_api = usd_api_class(prim)
-        if not mesh_collision_api:
-            return False
-        for attr_name, value in custom_attrs.items():
-            camel_case = attr_name != "Attribute"
-            safe_set_attribute_on_usd_schema(mesh_collision_api, attr_name, value, camel_case=camel_case)
-    else:
-        if api_value not in prim.GetAppliedSchemas():
-            return False
-        attr_namespace = _get_physx_collision_namespace(api_value)
-        for attr_name, value in custom_attrs.items():
-            attr_token = attr_name if attr_name == "Attribute" else to_camel_case(attr_name, "cC")
-            safe_set_attribute_on_usd_prim(prim, f"{attr_namespace}:{attr_token}", value, camel_case=False)
+    # Gate the PhysX cooking schema application on at least one non-None tuning field. The
+    # standard ``UsdPhysics.MeshCollisionAPI`` is already applied above; the ``Physx*CollisionAPI``
+    # cooking schemas are applied here only if the user wrote tuning fields. This matches the
+    # other consumption-gated writers and keeps Newton-targeted prims free of PhysX cooking
+    # schemas they did not opt in to.
+    if namespaced_writes:
+        if namespace is None:
+            raise ValueError(
+                f"{type(cfg).__name__} has solver-specific fields"
+                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
+                " Subclasses of MeshCollisionBaseCfg that add fields must set '_usd_namespace'"
+                " (and '_usd_applied_schema')."
+            )
+        if applied_schema and applied_schema != "MeshCollisionAPI":
+            if applied_schema not in prim.GetAppliedSchemas():
+                prim.AddAppliedSchema(applied_schema)
+        for usd_attr, value in namespaced_writes:
+            safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
     # success
     return True

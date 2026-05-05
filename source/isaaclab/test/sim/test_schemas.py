@@ -435,6 +435,136 @@ def test_articulation_root_deprecation_alias(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
+def test_mesh_collision_base_cfg_writes_approximation_token(setup_simulation):
+    """``MeshCollisionBaseCfg(mesh_approximation_name="boundingCube")`` authors
+    ``physics:approximation`` via ``UsdPhysics.MeshCollisionAPI``. No PhysX cooking schema is
+    applied because the base class declares no PhysX namespace."""
+    from pxr import UsdGeom
+
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    UsdGeom.Mesh.Define(stage, "/World/mesh_base")
+    cfg = schemas.MeshCollisionBaseCfg(mesh_approximation_name="boundingCube")
+    schemas.define_mesh_collision_properties("/World/mesh_base", cfg)
+
+    prim = stage.GetPrimAtPath("/World/mesh_base")
+    assert prim.GetAttribute("physics:approximation").Get() == "boundingCube"
+    applied = prim.GetAppliedSchemas()
+    # The standard UsdPhysics.MeshCollisionAPI is registered under
+    # ``PhysicsMeshCollisionAPI`` in the prim's applied-schema list.
+    assert any("MeshCollisionAPI" in s for s in applied), (
+        f"a MeshCollisionAPI schema must be applied; got {list(applied)}"
+    )
+    # no PhysX cooking schema applied for the base class
+    assert not any(s.startswith("Physx") and "Mesh" in s for s in applied), (
+        f"no PhysX mesh schema should be applied for the base class; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_convex_hull_writes_tuning_attrs(setup_simulation):
+    """Setting tuning fields on ``PhysxConvexHullPropertiesCfg`` authors the
+    ``physxConvexHullCollision:*`` namespaced attributes AND applies
+    ``PhysxConvexHullCollisionAPI``."""
+    from isaaclab_physx.sim.schemas import PhysxConvexHullPropertiesCfg
+
+    from pxr import UsdGeom
+
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    UsdGeom.Mesh.Define(stage, "/World/mesh_ch")
+    cfg = PhysxConvexHullPropertiesCfg(hull_vertex_limit=64, min_thickness=0.001)
+    schemas.define_mesh_collision_properties("/World/mesh_ch", cfg)
+
+    prim = stage.GetPrimAtPath("/World/mesh_ch")
+    assert prim.GetAttribute("physics:approximation").Get() == "convexHull"
+    assert prim.GetAttribute("physxConvexHullCollision:hullVertexLimit").Get() == 64
+    assert prim.GetAttribute("physxConvexHullCollision:minThickness").Get() == pytest.approx(0.001)
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxConvexHullCollisionAPI" in applied
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_convex_hull_no_physx_schema_when_no_tuning_fields_set(setup_simulation):
+    """Regression: ``PhysxConvexHullPropertiesCfg()`` with all tuning fields None must NOT
+    apply ``PhysxConvexHullCollisionAPI``. The approximation token is still authored on the
+    standard ``UsdPhysics.MeshCollisionAPI``."""
+    from isaaclab_physx.sim.schemas import PhysxConvexHullPropertiesCfg
+
+    from pxr import UsdGeom
+
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    UsdGeom.Mesh.Define(stage, "/World/mesh_ch_default")
+    cfg = PhysxConvexHullPropertiesCfg()
+    schemas.define_mesh_collision_properties("/World/mesh_ch_default", cfg)
+
+    prim = stage.GetPrimAtPath("/World/mesh_ch_default")
+    assert prim.GetAttribute("physics:approximation").Get() == "convexHull"
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxConvexHullCollisionAPI" not in applied, (
+        f"PhysxConvexHullCollisionAPI should not be applied without tuning fields; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_bounding_cube_default_token(setup_simulation):
+    """``BoundingCubePropertiesCfg()`` defaults to the ``boundingCube`` token."""
+    cfg = schemas.BoundingCubePropertiesCfg()
+    assert cfg.mesh_approximation_name == "boundingCube"
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize(
+    "name",
+    [
+        "MeshCollisionPropertiesCfg",
+        "ConvexHullPropertiesCfg",
+        "ConvexDecompositionPropertiesCfg",
+        "TriangleMeshPropertiesCfg",
+        "TriangleMeshSimplificationPropertiesCfg",
+        "SDFMeshPropertiesCfg",
+    ],
+)
+def test_mesh_collision_deprecation_aliases(setup_simulation, name):
+    """Each legacy mesh-collision class name emits exactly one DeprecationWarning on
+    instantiation and the warning message references the 5.0 removal target."""
+    from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
+
+    cls = getattr(physx_cfg, name)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cls()
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
+    assert "5.0" in str(deprecations[0].message)
+
+
+@pytest.mark.isaacsim_ci
+def test_usd_api_physx_api_attrs_deprecated(setup_simulation):
+    """Reading ``cfg.usd_api`` and ``cfg.physx_api`` on the new mesh cfgs emits a
+    DeprecationWarning and returns the legacy-mapped string value."""
+    from isaaclab_physx.sim.schemas import PhysxConvexHullPropertiesCfg
+
+    cfg = PhysxConvexHullPropertiesCfg()
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        usd_api_value = cfg.usd_api
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+    assert usd_api_value == "MeshCollisionAPI"
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        physx_api_value = cfg.physx_api
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+    assert physx_api_value == "PhysxConvexHullCollisionAPI"
+
+
+@pytest.mark.isaacsim_ci
 def test_modify_properties_on_invalid_prim(setup_simulation):
     """Test modifying properties on a prim that does not exist."""
     sim, _, rigid_cfg, _, _, _ = setup_simulation

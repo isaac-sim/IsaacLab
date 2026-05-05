@@ -12,6 +12,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
     CollisionBaseCfg,
     JointDriveBaseCfg,
+    MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
 )
 from isaaclab.utils import configclass
@@ -453,6 +454,324 @@ class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
             "'CollisionPropertiesCfg' is deprecated and will be removed in 5.0. Use"
             " 'isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg' for PhysX properties, or"
             " 'isaaclab.sim.schemas.CollisionBaseCfg' for solver-common properties only.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
+
+
+@configclass
+class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
+    """PhysX convex-hull cooking properties for a mesh collider.
+
+    Extends :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` with the
+    ``PhysxConvexHullCollisionAPI`` schema's tuning fields. The ``convexHull`` token is
+    written to ``physics:approximation``; the cooking schema is applied only when at
+    least one tuning field is set (consistent with the other consumption-gated writers).
+
+    See :meth:`~isaaclab.sim.schemas.modify_mesh_collision_properties` for more information.
+
+    Original PhysX Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
+    """
+
+    _usd_applied_schema = "PhysxConvexHullCollisionAPI"
+    _usd_namespace = "physxConvexHullCollision"
+
+    mesh_approximation_name: str = "convexHull"
+    """Name of mesh collision approximation method. Default: "convexHull"."""
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking.
+
+    Defaults to 64.
+    """
+    min_thickness: float | None = None
+    """Convex hull min thickness.
+
+    Range: [0, inf). Units are distance. Default value is 0.001.
+    """
+
+
+@configclass
+class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
+    """PhysX convex-decomposition cooking properties for a mesh collider.
+
+    See :meth:`~isaaclab.sim.schemas.modify_mesh_collision_properties` for more information.
+
+    Original PhysX Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
+    """
+
+    _usd_applied_schema = "PhysxConvexDecompositionCollisionAPI"
+    _usd_namespace = "physxConvexDecompositionCollision"
+
+    mesh_approximation_name: str = "convexDecomposition"
+    """Name of mesh collision approximation method. Default: "convexDecomposition"."""
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking.
+
+    Defaults to 64.
+    """
+    max_convex_hulls: int | None = None
+    """Maximum of convex hulls created during convex decomposition.
+    Default value is 32.
+    """
+    min_thickness: float | None = None
+    """Convex hull min thickness.
+
+    Range: [0, inf). Units are distance. Default value is 0.001.
+    """
+    voxel_resolution: int | None = None
+    """Voxel resolution used for convex decomposition.
+
+    Defaults to 500,000 voxels.
+    """
+    error_percentage: float | None = None
+    """Convex decomposition error percentage parameter.
+
+    Defaults to 10 percent. Units are percent.
+    """
+    shrink_wrap: bool | None = None
+    """Attempts to adjust the convex hull points so that they are projected onto the surface of the original graphics
+    mesh.
+
+    Defaults to False.
+    """
+
+
+@configclass
+class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
+    """PhysX triangle-mesh cooking properties for a mesh collider.
+
+    Triangle-mesh colliders are PhysX-only.
+
+    See :meth:`~isaaclab.sim.schemas.modify_mesh_collision_properties` for more information.
+
+    Original PhysX Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
+    """
+
+    _usd_applied_schema = "PhysxTriangleMeshCollisionAPI"
+    _usd_namespace = "physxTriangleMeshCollision"
+
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none" (uses triangle mesh)."""
+
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance, controls the distance at which vertices are welded.
+
+    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
+    Range: [0, inf) Units: distance
+    """
+
+
+@configclass
+class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
+    """PhysX triangle-mesh-simplification cooking properties for a mesh collider.
+
+    See :meth:`~isaaclab.sim.schemas.modify_mesh_collision_properties` for more information.
+
+    Original PhysX Documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
+    """
+
+    _usd_applied_schema = "PhysxTriangleMeshSimplificationCollisionAPI"
+    _usd_namespace = "physxTriangleMeshSimplificationCollision"
+
+    mesh_approximation_name: str = "meshSimplification"
+    """Name of mesh collision approximation method. Default: "meshSimplification"."""
+
+    simplification_metric: float | None = None
+    """Mesh simplification accuracy.
+
+    Defaults to 0.55.
+    """
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance, controls the distance at which vertices are welded.
+
+    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
+    Range: [0, inf) Units: distance
+    """
+
+
+@configclass
+class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
+    """PhysX SDF-mesh cooking properties for a mesh collider.
+
+    SDF-mesh colliders are PhysX-only.
+
+    See :meth:`~isaaclab.sim.schemas.modify_mesh_collision_properties` for more information.
+
+    Original PhysX documentation:
+    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_s_d_f_mesh_collision_a_p_i.html
+
+    More details and steps for optimizing SDF results can be found here:
+    https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyCollision.html#dynamic-triangle-meshes-with-sdfs
+    """
+
+    _usd_applied_schema = "PhysxSDFMeshCollisionAPI"
+    _usd_namespace = "physxSDFMeshCollision"
+
+    mesh_approximation_name: str = "sdf"
+    """Name of mesh collision approximation method. Default: "sdf"."""
+
+    sdf_margin: float | None = None
+    """Margin to increase the size of the SDF relative to the bounding box diagonal length of the mesh.
+
+    A sdf margin value of 0.01 means the sdf boundary will be enlarged in any direction by 1% of the mesh's bounding
+    box diagonal length. Representing the margin relative to the bounding box diagonal length ensures that it is scale
+    independent. Margins allow for precise distance queries in a region slightly outside of the mesh's bounding box.
+
+    Default value is 0.01.
+    Range: [0, inf) Units: dimensionless
+    """
+    sdf_narrow_band_thickness: float | None = None
+    """Size of the narrow band around the mesh surface where high resolution SDF samples are available.
+
+    Outside of the narrow band, only low resolution samples are stored. Representing the narrow band thickness as a
+    fraction of the mesh's bounding box diagonal length ensures that it is scale independent. A value of 0.01 is
+    usually large enough. The smaller the narrow band thickness, the smaller the memory consumption of the sparse SDF.
+
+    Default value is 0.01.
+    Range: [0, 1] Units: dimensionless
+    """
+    sdf_resolution: int | None = None
+    """The spacing of the uniformly sampled SDF is equal to the largest AABB extent of the mesh,
+    divided by the resolution.
+
+    Choose the lowest possible resolution that provides acceptable performance; very high resolution results in large
+    memory consumption, and slower cooking and simulation performance.
+
+    Default value is 256.
+    Range: (1, inf)
+    """
+    sdf_subgrid_resolution: int | None = None
+    """A positive subgrid resolution enables sparsity on signed-distance-fields (SDF) while a value of 0 leads to the
+    usage of a dense SDF.
+
+    A value in the range of 4 to 8 is a reasonable compromise between block size and the overhead introduced by block
+    addressing. The smaller a block, the more memory is spent on the address table. The bigger a block, the less
+    precisely the sparse SDF can adapt to the mesh's surface. In most cases sparsity reduces the memory consumption of
+    a SDF significantly.
+
+    Default value is 6.
+    Range: [0, inf)
+    """
+
+
+@configclass
+class MeshCollisionPropertiesCfg(MeshCollisionBaseCfg):
+    """Deprecated: use :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`.
+
+    .. deprecated:: 4.6.25
+        ``MeshCollisionPropertiesCfg`` was the flat (non-leaf) base of the legacy
+        mesh-collision cfg family. It has been renamed to
+        :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` to match the rest of the
+        consumption-gated split. This alias preserves backwards compatibility and is
+        scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'MeshCollisionPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab.sim.schemas.MeshCollisionBaseCfg' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
+
+
+@configclass
+class ConvexHullPropertiesCfg(PhysxConvexHullPropertiesCfg):
+    """Deprecated: use :class:`PhysxConvexHullPropertiesCfg`.
+
+    .. deprecated:: 4.6.25
+        Renamed and relocated. This alias preserves backwards compatibility and is
+        scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'ConvexHullPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.schemas.PhysxConvexHullPropertiesCfg' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
+
+
+@configclass
+class ConvexDecompositionPropertiesCfg(PhysxConvexDecompositionPropertiesCfg):
+    """Deprecated: use :class:`PhysxConvexDecompositionPropertiesCfg`.
+
+    .. deprecated:: 4.6.25
+        Renamed and relocated. This alias preserves backwards compatibility and is
+        scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'ConvexDecompositionPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.schemas.PhysxConvexDecompositionPropertiesCfg' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
+
+
+@configclass
+class TriangleMeshPropertiesCfg(PhysxTriangleMeshPropertiesCfg):
+    """Deprecated: use :class:`PhysxTriangleMeshPropertiesCfg`.
+
+    .. deprecated:: 4.6.25
+        Renamed and relocated. This alias preserves backwards compatibility and is
+        scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'TriangleMeshPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.schemas.PhysxTriangleMeshPropertiesCfg' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
+
+
+@configclass
+class TriangleMeshSimplificationPropertiesCfg(PhysxTriangleMeshSimplificationPropertiesCfg):
+    """Deprecated: use :class:`PhysxTriangleMeshSimplificationPropertiesCfg`.
+
+    .. deprecated:: 4.6.25
+        Renamed and relocated. This alias preserves backwards compatibility and is
+        scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'TriangleMeshSimplificationPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationPropertiesCfg' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
+
+
+@configclass
+class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
+    """Deprecated: use :class:`PhysxSDFMeshPropertiesCfg`.
+
+    .. deprecated:: 4.6.25
+        Renamed and relocated. This alias preserves backwards compatibility and is
+        scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'SDFMeshPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.schemas.PhysxSDFMeshPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
