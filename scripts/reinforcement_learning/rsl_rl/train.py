@@ -67,6 +67,17 @@ parser.add_argument(
     "--ray-proc-id", "-rid", type=int, default=None, help="Automatically configured by Ray integration, otherwise None."
 )
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
+parser.add_argument(
+    "--manager",
+    type=str,
+    default="stable",
+    choices=["stable", "warp"],
+    help=(
+        "Manager-based env runtime. 'stable' uses isaaclab.envs.ManagerBasedRLEnv (torch);"
+        " 'warp' adapts the same task cfg via isaaclab_experimental.envs.warp_frontend.WarpFrontend"
+        " and runs on isaaclab_experimental.envs.ManagerBasedRLEnvWarp."
+    ),
+)
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
 args_cli, remaining_args = parser.parse_known_args()
@@ -86,6 +97,14 @@ if args_cli.external_callback:
 # The remaining arguments are the arguments that were not consumed by both this scripts
 # argparser and (optionally) the external callback function.
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
+
+# When the warp manager runtime is selected, the env cfg must resolve any
+# PresetCfg wrappers to their `newton` field (Hydra preset resolution runs
+# *before* the WarpFrontend adapter, so we inject the override here unless
+# the user already passed one explicitly).
+if args_cli.manager == "warp" and not any(a.startswith("presets=") for a in remaining_args):
+    remaining_args.append("presets=newton")
+
 sys.argv = [sys.argv[0]] + remaining_args
 
 # -- check RSL-RL version ----------------------------------------------------
@@ -171,7 +190,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.log_dir = log_dir
 
         # create isaac environment
-        env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+        if args_cli.manager == "warp":
+            # Lazy: this is the first warp-side import. Calling it after
+            # SimulationApp is already alive avoids racing pxr extension init.
+            from isaaclab_experimental.envs.warp_frontend import WarpFrontend
+
+            env = WarpFrontend().build(env_cfg, task_id=args_cli.task)
+        else:
+            env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
