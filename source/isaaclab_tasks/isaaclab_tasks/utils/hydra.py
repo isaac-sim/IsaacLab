@@ -14,18 +14,19 @@ Presets are declared by subclassing :class:`PresetCfg` (or using the
 presets and their paths automatically, including inside dict-valued fields.
 
 Override categories (applied in order):
-    1. Global presets: ``presets=inference,newton`` -- apply everywhere matching
-    2. Path presets: ``env.backend=newton`` -- REPLACE specific section
+    1. Global presets: ``presets=inference,newton_mjwarp`` -- apply everywhere matching
+    2. Path presets: ``env.backend=newton_mjwarp`` -- REPLACE specific section
     3. Preset-path scalars: ``env.backend.dt=0.001`` -- handled by us
     4. Global scalars: ``env.decimation=10`` -- handled by Hydra
 
 Example usage::
 
-    presets=newton env.backend.dt=0.001 env.decimation=10
+    presets=newton_mjwarp env.backend.dt=0.001 env.decimation=10
 """
 
 import functools
 import sys
+import warnings
 from collections.abc import Callable, Mapping
 
 import hydra
@@ -36,6 +37,61 @@ from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, repl
 from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
+
+# Map of deprecated preset name -> current name. Newton-backend solver presets are
+# now prefixed with ``newton_`` so they group together in autocomplete and read
+# distinctly from backend/package/visualizer names that also use the word
+# ``newton``. Aliases keep legacy CLI invocations and ``PresetCfg`` field accesses
+# working with a :class:`FutureWarning`; they will be removed in a future release.
+_LEGACY_PRESET_ALIASES = {"newton": "newton_mjwarp", "kamino": "newton_kamino"}
+
+
+def _user_stacklevel() -> int:
+    """Compute a ``warnings.warn`` stacklevel that lands on the first frame
+    outside this module, so deprecation messages cite user code rather than
+    internal hydra-utility frames.
+
+    Walks at most a small bounded number of frames; if no non-hydra frame is
+    found within the bound (frozen modules, exec'd contexts, or oddly named
+    ``__file__`` globals), falls back to ``stacklevel=2`` so the warning at
+    least jumps out of the helper that called it.
+    """
+    max_walk = 16
+    level = 1
+    frame = sys._getframe(1)
+    while frame is not None and frame.f_globals.get("__file__") == __file__:
+        level += 1
+        frame = frame.f_back
+        if level > max_walk:
+            return 2
+    return level
+
+
+def _known_preset_names(presets: dict) -> set[str]:
+    """Return all preset names declared in a collected preset dictionary."""
+    return {name for section in presets.values() for fields in section.values() for name in fields}
+
+
+def _normalize_preset_name(name: str, known_names: set[str]) -> str:
+    """Map a deprecated preset name to its replacement and emit a warning.
+
+    Returns ``name`` unchanged when:
+        * ``name`` is not a deprecated alias, or
+        * the replacement is not declared in ``known_names`` (so the user-supplied
+          value can flow into the standard "unknown preset" error path, where
+          :func:`_format_unknown_presets_error` will surface the rename), or
+        * ``name`` is itself a real field in ``known_names`` (a user-defined preset
+          legitimately reusing the deprecated spelling shadows the alias).
+    """
+    replacement = _LEGACY_PRESET_ALIASES.get(name)
+    if replacement is None or replacement not in known_names or name in known_names:
+        return name
+    warnings.warn(
+        f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+        FutureWarning,
+        stacklevel=_user_stacklevel(),
+    )
+    return replacement
 
 
 @configclass
@@ -52,10 +108,32 @@ class PresetCfg:
         @configclass
         class PhysicsCfg(PresetCfg):
             default: PhysxCfg = PhysxCfg()
-            newton: NewtonCfg = NewtonCfg()
+            newton_mjwarp: NewtonCfg = NewtonCfg()
+
+    The preset *name* (``newton_mjwarp``) is decoupled from the config class
+    (``NewtonCfg``): the class describes the Newton backend, while the field
+    name labels which solver variant this entry selects.
     """
 
-    pass
+    def __getattr__(self, name: str):
+        """Alias a deprecated preset name to its replacement field.
+
+        Raises ``AttributeError`` for any other missing attribute so that
+        ``hasattr`` and standard introspection keep working unchanged. The
+        replacement is only returned when the deprecated name is *not* itself a
+        real field on the subclass, so a user redefining the deprecated name
+        shadows the alias.
+        """
+        replacement = _LEGACY_PRESET_ALIASES.get(name)
+        fields = getattr(type(self), "__dataclass_fields__", {})
+        if replacement is not None and replacement in fields and name not in fields:
+            warnings.warn(
+                f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
+                FutureWarning,
+                stacklevel=_user_stacklevel(),
+            )
+            return getattr(self, replacement)
+        raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
 
 
 def preset(**options) -> PresetCfg:
@@ -67,12 +145,12 @@ def preset(**options) -> PresetCfg:
 
     Example::
 
-        armature = preset(default=0.0, newton=0.01)
+        armature = preset(default=0.0, newton_mjwarp=0.01)
         # Equivalent to:
         # @configclass
         # class _Preset(PresetCfg):
         #     default: float = 0.0
-        #     newton: float = 0.01
+        #     newton_mjwarp: float = 0.01
         # armature = _Preset()
 
     Args:
@@ -139,7 +217,7 @@ def collect_presets(cfg, path: str = "") -> dict:
 
     Returns:
         Dict mapping dotted paths to preset dicts, e.g.:
-        ``{"backend": {"default": PhysxCfg(), "newton": NewtonCfg()}}``
+        ``{"backend": {"default": PhysxCfg(), "newton_mjwarp": NewtonCfg()}}``
     """
     result = {}
 
@@ -177,7 +255,9 @@ def _pick_alternative(preset_obj: PresetCfg, selected: set[str], path: str = "")
         ValueError: If no matching name and no ``default`` field exists.
     """
     fields = _preset_fields(preset_obj)
+    field_names = set(fields)
     for name in selected:
+        name = _normalize_preset_name(name, field_names)
         if name in fields:
             return fields[name]
     if "default" in fields:
@@ -315,14 +395,23 @@ def hydra_task_config(task_name: str, agent_cfg_entry_point: str) -> Callable:
 
 
 def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, list[str]], max_paths: int = 5) -> str:
-    """Build a readable error message grouping presets by identical path fingerprints."""
+    """Build a readable error message grouping presets by identical path fingerprints.
+
+    When an unknown name matches a deprecated alias (e.g. ``newton``), the
+    message explicitly calls out the rename so users updating from older
+    tutorials or scripts get an actionable hint instead of a bare "unknown".
+    """
     fingerprint_to_names: dict[tuple[str, ...], list[str]] = {}
     for name, paths in name_to_paths.items():
         key = tuple(sorted(paths))
         fingerprint_to_names.setdefault(key, []).append(name)
 
-    lines = [
-        f"Unknown preset(s): {', '.join(sorted(unknown))}",
+    lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
+    deprecated_hits = sorted(name for name in unknown if name in _LEGACY_PRESET_ALIASES)
+    for legacy in deprecated_hits:
+        replacement = _LEGACY_PRESET_ALIASES[legacy]
+        lines.append(f"  '{legacy}' was renamed to '{replacement}'; this task does not declare '{replacement}' either.")
+    lines += [
         "",
         "Available presets (grouped by affected paths):",
         "",
@@ -364,8 +453,9 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
         "agent": collect_presets(agent_cfg) if agent_cfg else {},
     }
 
+    known_names = _known_preset_names(presets)
     selected = {
-        v.strip()
+        _normalize_preset_name(v.strip(), known_names)
         for arg in sys.argv[1:]
         if "=" in arg
         for key, val in [arg.split("=", 1)]
@@ -431,10 +521,12 @@ def parse_overrides(args: list[str], presets: dict) -> tuple:
             continue
         key, val = arg.split("=", 1)
         if key == "presets":
-            global_presets.extend(v.strip() for v in val.split(",") if v.strip())
+            known_names = _known_preset_names(presets)
+            global_presets.extend(_normalize_preset_name(v.strip(), known_names) for v in val.split(",") if v.strip())
         elif key in preset_paths:
             sec, path = key.split(".", 1) if "." in key else (key, "")
-            preset_sel.append((sec, path, val))
+            known_names = set(presets[sec][path])
+            preset_sel.append((sec, path, _normalize_preset_name(val, known_names)))
         elif any(key.startswith(pp + ".") for pp in preset_paths):
             preset_scalar.append((key, val))
         else:
@@ -458,7 +550,7 @@ def apply_overrides(
     Global presets are already applied by :func:`resolve_presets` in
     :func:`register_task`. This function handles:
 
-    1. Path-based selections (``env.backend=newton``)
+    1. Path-based selections (``env.backend=newton_mjwarp``)
     2. Scalar overrides within preset paths (``env.backend.dt=0.001``)
 
     Returns:
@@ -487,14 +579,21 @@ def apply_overrides(
     for sec, path, name in preset_sel:
         if path not in presets.get(sec, {}):
             raise ValueError(f"Unknown preset group: {sec}.{path}")
+        name = _normalize_preset_name(name, set(presets[sec][path]))
         if name not in presets[sec][path]:
             avail = list(presets[sec][path].keys())
-            raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}")
+            hint = ""
+            if name in _LEGACY_PRESET_ALIASES:
+                replacement = _LEGACY_PRESET_ALIASES[name]
+                hint = f" '{name}' was renamed to '{replacement}'; this path does not declare '{replacement}' either."
+            raise ValueError(f"Unknown preset '{name}' for {sec}.{path}. Available: {avail}.{hint}")
         full_path = f"{sec}.{path}" if path else sec
         resolved[full_path] = (sec, path, name)
 
     applied_by: dict[str, str] = {}
+    known_names = _known_preset_names(presets)
     for name in global_presets:
+        name = _normalize_preset_name(name, known_names)
         for sec in ("env", "agent"):
             for path, path_presets in presets.get(sec, {}).items():
                 if name in path_presets:

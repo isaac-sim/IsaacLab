@@ -16,6 +16,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
 
@@ -49,6 +50,12 @@ class InHandManipulationEnv(DirectRLEnv):
             self.finger_bodies.append(self.hand.body_names.index(body_name))
         self.finger_bodies.sort()
         self.num_fingertips = len(self.finger_bodies)
+
+        self.finger_wrench_bodies = []
+        if getattr(self, "_joint_wrench_sensor", None) is not None:
+            for body_name in self.cfg.fingertip_body_names:
+                self.finger_wrench_bodies.append(self._joint_wrench_sensor.body_names.index(body_name))
+            self.finger_wrench_bodies.sort()
 
         # joint limits
         joint_pos_limits = self.hand.data.joint_limits.torch.to(self.device)
@@ -97,6 +104,9 @@ class InHandManipulationEnv(DirectRLEnv):
         # add hand, in-hand object, and goal object
         self.hand = Articulation(self.cfg.robot_cfg)
         self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
+        self._joint_wrench_sensor = None
+        if self.cfg.asymmetric_obs:
+            self._joint_wrench_sensor = self._create_joint_wrench_sensor()
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # clone and replicate (no need to filter for this environment)
@@ -104,9 +114,15 @@ class InHandManipulationEnv(DirectRLEnv):
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
+        if self._joint_wrench_sensor is not None:
+            self.scene.sensors["joint_wrench"] = self._joint_wrench_sensor
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
+
+    def _create_joint_wrench_sensor(self) -> JointWrenchSensor:
+        """Create the joint-wrench sensor used for fingertip force/torque observations."""
+        return JointWrenchSensor(JointWrenchSensorCfg(prim_path=self.cfg.robot_cfg.prim_path))
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
@@ -135,13 +151,7 @@ class InHandManipulationEnv(DirectRLEnv):
 
     def _get_observations(self) -> dict:
         if self.cfg.asymmetric_obs:
-            # Newton does not implement body_incoming_joint_wrench_b; fall back to zeros.
-            try:
-                self.fingertip_force_sensors = self.hand.data.body_incoming_joint_wrench_b.torch[:, self.finger_bodies]
-            except NotImplementedError:
-                self.fingertip_force_sensors = torch.zeros(
-                    self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device
-                )
+            self._update_fingertip_force_sensors()
 
         if self.cfg.obs_type == "openai":
             obs = self.compute_reduced_observations()
@@ -157,6 +167,27 @@ class InHandManipulationEnv(DirectRLEnv):
         if self.cfg.asymmetric_obs:
             observations = {"policy": obs, "critic": states}
         return observations
+
+    def _update_fingertip_force_sensors(self) -> None:
+        """Update fingertip force/torque observations from the joint-wrench sensor."""
+        if getattr(self, "_joint_wrench_sensor", None) is None:
+            self.fingertip_force_sensors = torch.zeros(
+                self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device
+            )
+            return
+
+        sensor_data = self._joint_wrench_sensor.data
+        force_data = sensor_data.force
+        torque_data = sensor_data.torque
+        if force_data is None or torque_data is None:
+            self.fingertip_force_sensors = torch.zeros(
+                self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device
+            )
+            return
+
+        force = force_data.torch[:, self.finger_wrench_bodies]
+        torque = torque_data.torch[:, self.finger_wrench_bodies]
+        self.fingertip_force_sensors = torch.cat((force, torque), dim=-1)
 
     def _get_rewards(self) -> torch.Tensor:
         (

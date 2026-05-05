@@ -1099,23 +1099,6 @@ class TestArticulationDataBodyState:
     @_backends
     @_default_dims
     @_default_devices
-    def test_body_incoming_joint_wrench_b(
-        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
-    ):
-        if backend == "newton":
-            pytest.xfail("Newton does not support joint wrench reporting")
-        art, _ = articulation_iface
-        art.data.update(dt=0.01)
-        _check_proxy_array(
-            art.data.body_incoming_joint_wrench_b,
-            expected_shape=(num_instances, num_bodies),
-            expected_dtype=wp.spatial_vectorf,
-            name="body_incoming_joint_wrench_b",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
     def test_body_link_pos_w(self, backend, num_instances, num_joints, num_bodies, device, articulation_iface):
         art, _ = articulation_iface
         art.data.update(dt=0.01)
