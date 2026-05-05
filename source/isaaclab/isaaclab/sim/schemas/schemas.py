@@ -109,6 +109,82 @@ USD_MESH_COLLISION_CFGS = _LazyList(
 
 
 """
+Schema-application helper.
+"""
+
+
+def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
+    """Apply per-field exception schemas, then the cfg's main namespaced schema.
+
+    The helper handles the common ``AddAppliedSchema`` + namespaced-attribute write
+    logic shared by every metadata-driven writer (rigid body, collision, joint drive,
+    articulation root, mesh collision, rigid-body material). Caller is responsible for
+    writing standard ``UsdPhysics`` fields via the typed API and popping them out of
+    ``cfg_dict`` first.
+
+    Two passes:
+
+    1. **Per-field exceptions** -- ``cfg._usd_field_exceptions`` is a mapping
+       ``applied_schema -> (namespace, {cfg_field: usd_attr})``. For each schema, if any
+       listed field is non-None, the schema is applied (once) and each non-None field is
+       written under that schema's namespace. Fields are popped from ``cfg_dict``.
+    2. **Main namespace** -- the remaining non-None entries in ``cfg_dict`` are written
+       under ``cfg._usd_namespace``; ``cfg._usd_applied_schema`` is applied if any write
+       fired. ``cfg._usd_attr_name_map`` provides hand-mapped USD attr names; remaining
+       fields auto-derive snake_case -> camelCase.
+
+    Args:
+        prim: The USD prim to author on.
+        cfg: The cfg instance carrying the metadata.
+        cfg_dict: A mutable dict view of the cfg's non-metadata fields. Modified in place.
+
+    Raises:
+        ValueError: If main-namespace writes are queued but ``_usd_namespace`` is None.
+    """
+    # 1. Per-field exceptions
+    field_exceptions = getattr(cfg, "_usd_field_exceptions", {}) or {}
+    for applied_schema, (exc_ns, field_map) in field_exceptions.items():
+        triggered: list[tuple[str, object]] = []
+        for cfg_field, usd_attr in field_map.items():
+            if cfg_field in cfg_dict:
+                value = cfg_dict.pop(cfg_field)
+                if value is not None:
+                    triggered.append((usd_attr, value))
+        if not triggered:
+            continue
+        if applied_schema and applied_schema not in prim.GetAppliedSchemas():
+            prim.AddAppliedSchema(applied_schema)
+        for usd_attr, value in triggered:
+            safe_set_attribute_on_usd_prim(prim, f"{exc_ns}:{usd_attr}", value, camel_case=False)
+
+    # 2. Main cfg namespace
+    namespace = getattr(cfg, "_usd_namespace", None)
+    applied_schema = getattr(cfg, "_usd_applied_schema", None)
+    attr_name_map = getattr(cfg, "_usd_attr_name_map", {}) or {}
+
+    writes: list[tuple[str, object]] = []
+    for cfg_field, usd_attr in attr_name_map.items():
+        value = cfg_dict.pop(cfg_field, None)
+        if value is not None:
+            writes.append((usd_attr, value))
+    for cfg_field, value in list(cfg_dict.items()):
+        if value is not None:
+            writes.append((to_camel_case(cfg_field, "cC"), value))
+
+    if not writes:
+        return
+    if namespace is None:
+        raise ValueError(
+            f"{type(cfg).__name__} has solver-specific fields {[a for a, _ in writes]}"
+            " but does not define '_usd_namespace'."
+        )
+    if applied_schema and applied_schema not in prim.GetAppliedSchemas():
+        prim.AddAppliedSchema(applied_schema)
+    for usd_attr, value in writes:
+        safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
+
+
+"""
 Articulation root properties.
 """
 
@@ -199,46 +275,13 @@ def modify_articulation_root_properties(
     if not UsdPhysics.ArticulationRootAPI(articulation_prim):
         return False
 
-    # read solver-specific metadata from the cfg instance
-    namespace = getattr(cfg, "_usd_namespace", None)
-    applied_schema = getattr(cfg, "_usd_applied_schema", None)
-    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
-
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
     cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
     # extract writer-side (non-USD) properties
     fix_root_link = cfg_dict.pop("fix_root_link", None)
 
-    # Build namespaced_writes: a non-empty list means at least one PhysX-namespaced field
-    # is being authored, which gates ``AddAppliedSchema`` below. Without this gate,
-    # ``PhysxArticulationAPI`` would be stamped onto Newton-targeted prims that only set
-    # ``fix_root_link``.
-    namespaced_writes: list[tuple[str, object]] = []
-    for cfg_field in list(attr_name_map):
-        value = cfg_dict.pop(cfg_field, None)
-        if value is not None:
-            namespaced_writes.append((attr_name_map[cfg_field], value))
-    # Remaining ``cfg_dict`` entries are PhysX-namespaced fields not in ``attr_name_map``
-    # (e.g. ``enabled_self_collisions`` and the TGS / sleep / stabilization knobs on
-    # ``PhysxArticulationRootPropertiesCfg``); USD attribute name is auto-derived via
-    # snake -> camelCase conversion.
-    for cfg_field, value in list(cfg_dict.items()):
-        if value is not None:
-            namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
-
-    # gate schema application AND attribute authoring on instance-level non-None set
-    if namespaced_writes:
-        if namespace is None:
-            raise ValueError(
-                f"{type(cfg).__name__} has solver-specific fields"
-                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
-                " Subclasses of ArticulationRootBaseCfg that add fields must set '_usd_namespace'"
-                " (and optionally '_usd_applied_schema')."
-            )
-        if applied_schema and applied_schema not in articulation_prim.GetAppliedSchemas():
-            articulation_prim.AddAppliedSchema(applied_schema)
-        for usd_attr, value in namespaced_writes:
-            safe_set_attribute_on_usd_prim(articulation_prim, f"{namespace}:{usd_attr}", value, camel_case=False)
+    # apply per-field exceptions + main-namespace writes
+    _apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
 
     # fix root link based on input
     # we do the fixed joint processing later to not interfere with setting other properties
@@ -387,11 +430,6 @@ def modify_rigid_body_properties(
     # retrieve the USD rigid-body api
     usd_rigid_body_api = UsdPhysics.RigidBodyAPI(rigid_body_prim)
 
-    # read solver-specific metadata from the cfg instance
-    namespace = getattr(cfg, "_usd_namespace", None)
-    applied_schema = getattr(cfg, "_usd_applied_schema", None)
-    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
-
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
     cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
 
@@ -400,35 +438,8 @@ def modify_rigid_body_properties(
         value = cfg_dict.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value, camel_case=True)
 
-    # Build namespaced_writes: a non-empty list means at least one PhysX-namespaced field
-    # is being authored, which gates ``AddAppliedSchema`` below. Without this gate, base
-    # classes that carry PhysX namespace metadata would stamp ``PhysxRigidBodyAPI`` onto
-    # Newton-targeted prims even when only base ``UsdPhysics`` fields are set.
-    namespaced_writes: list[tuple[str, object]] = []
-    for cfg_field in list(attr_name_map):
-        value = cfg_dict.pop(cfg_field, None)
-        if value is not None:
-            namespaced_writes.append((attr_name_map[cfg_field], value))
-    # Remaining ``cfg_dict`` entries are PhysX-namespaced fields not in ``attr_name_map``
-    # (e.g. ``linear_damping``, ``angular_damping`` on ``PhysxRigidBodyPropertiesCfg``);
-    # USD attribute name is auto-derived via snake -> camelCase conversion.
-    for cfg_field, value in list(cfg_dict.items()):
-        if value is not None:
-            namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
-
-    # gate schema application AND attribute authoring on instance-level non-None set
-    if namespaced_writes:
-        if namespace is None:
-            raise ValueError(
-                f"{type(cfg).__name__} has solver-specific fields"
-                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
-                " Subclasses of RigidBodyBaseCfg that add fields must set '_usd_namespace'"
-                " (and optionally '_usd_applied_schema')."
-            )
-        if applied_schema and applied_schema not in rigid_body_prim.GetAppliedSchemas():
-            rigid_body_prim.AddAppliedSchema(applied_schema)
-        for usd_attr, value in namespaced_writes:
-            safe_set_attribute_on_usd_prim(rigid_body_prim, f"{namespace}:{usd_attr}", value, camel_case=False)
+    # apply per-field exceptions + main-namespace writes
+    _apply_namespaced_schemas(rigid_body_prim, cfg, cfg_dict)
     return True
 
 
@@ -510,11 +521,6 @@ def modify_collision_properties(
     # retrieve the USD collision api
     usd_collision_api = UsdPhysics.CollisionAPI(collider_prim)
 
-    # read solver-specific metadata from the cfg instance
-    namespace = getattr(cfg, "_usd_namespace", None)
-    applied_schema = getattr(cfg, "_usd_applied_schema", None)
-    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
-
     # dispatch nested mesh-collision cfg if present (preserve legacy behavior)
     mesh_collision_cfg = getattr(cfg, "mesh_collision_property", None)
     if mesh_collision_cfg is not None:
@@ -530,35 +536,8 @@ def modify_collision_properties(
         value = cfg_dict.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_collision_api, attr_name, value, camel_case=True)
 
-    # Build namespaced_writes: a non-empty list means at least one PhysX-namespaced field
-    # is being authored, which gates ``AddAppliedSchema`` below. Without this gate, base
-    # classes that carry PhysX namespace metadata would stamp ``PhysxCollisionAPI`` onto
-    # Newton-targeted prims even when only base ``UsdPhysics`` fields are set.
-    namespaced_writes: list[tuple[str, object]] = []
-    for cfg_field in list(attr_name_map):
-        value = cfg_dict.pop(cfg_field, None)
-        if value is not None:
-            namespaced_writes.append((attr_name_map[cfg_field], value))
-    # Remaining ``cfg_dict`` entries are PhysX-namespaced fields not in ``attr_name_map``
-    # (e.g. ``contact_offset``, ``rest_offset`` on ``CollisionBaseCfg``); USD attribute
-    # name is auto-derived via snake -> camelCase conversion.
-    for cfg_field, value in list(cfg_dict.items()):
-        if value is not None:
-            namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
-
-    # gate schema application AND attribute authoring on instance-level non-None set
-    if namespaced_writes:
-        if namespace is None:
-            raise ValueError(
-                f"{type(cfg).__name__} has solver-specific fields"
-                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
-                " Subclasses of CollisionBaseCfg that add fields must set '_usd_namespace'"
-                " (and optionally '_usd_applied_schema')."
-            )
-        if applied_schema and applied_schema not in collider_prim.GetAppliedSchemas():
-            collider_prim.AddAppliedSchema(applied_schema)
-        for usd_attr, value in namespaced_writes:
-            safe_set_attribute_on_usd_prim(collider_prim, f"{namespace}:{usd_attr}", value, camel_case=False)
+    # apply per-field exceptions + main-namespace writes
+    _apply_namespaced_schemas(collider_prim, cfg, cfg_dict)
     # success
     return True
 
@@ -796,11 +775,6 @@ def modify_joint_drive_properties(
     if not usd_drive_api:
         usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
 
-    # read solver-specific metadata from the cfg instance
-    namespace = getattr(cfg, "_usd_namespace", None)
-    applied_schema = getattr(cfg, "_usd_applied_schema", None)
-    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
-
     # mapping from configuration name to USD attribute name (for solver-common fields)
     cfg_to_usd_map = {
         "max_effort": "max_force",
@@ -833,34 +807,18 @@ def modify_joint_drive_properties(
             # N-m-s/rad --> N-m-s/deg
             cfg_dict["damping"] = cfg_dict["damping"] * math.pi / 180.0
 
-    # Build namespaced_writes: a non-empty list means at least one PhysX-namespaced field
-    # is being authored, which gates ``AddAppliedSchema`` below. Every PhysX-namespaced
-    # joint-drive field has a hand-mapped USD attribute name in ``attr_name_map``, so a
-    # single loop suffices here (no auto-camelCase fallback needed unlike the rigid-body
-    # writer).
-    namespaced_writes: list[tuple[str, object]] = []
-    for cfg_field in list(attr_name_map):
-        value = cfg_dict.pop(cfg_field, None)
-        if value is not None:
-            namespaced_writes.append((attr_name_map[cfg_field], value))
+    # set into USD API (solver-common properties; UsdPhysics.DriveAPI fields). Pop only
+    # the solver-common fields here; the helper handles the PhysX-namespaced remainder.
+    for attr_name in ["drive_type", "max_effort", "stiffness", "damping"]:
+        if attr_name not in cfg_dict:
+            continue
+        attr_value = cfg_dict.pop(attr_name)
+        usd_attr_name = cfg_to_usd_map.get(attr_name, attr_name)
+        safe_set_attribute_on_usd_schema(usd_drive_api, usd_attr_name, attr_value, camel_case=True)
 
-    # set into USD API (solver-common properties; UsdPhysics.DriveAPI fields)
-    for attr_name, attr_value in cfg_dict.items():
-        attr_name = cfg_to_usd_map.get(attr_name, attr_name)
-        safe_set_attribute_on_usd_schema(usd_drive_api, attr_name, attr_value, camel_case=True)
-
-    # gate schema application AND attribute authoring on instance-level non-None set
-    if namespaced_writes:
-        if namespace is None:
-            raise ValueError(
-                f"{type(cfg).__name__} has solver-specific fields"
-                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
-                " Subclasses of JointDriveBaseCfg that add fields must set '_usd_namespace'."
-            )
-        if applied_schema and applied_schema not in applied_schemas_str:
-            prim.AddAppliedSchema(applied_schema)
-        for usd_attr, value in namespaced_writes:
-            safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
+    # apply per-field exceptions (max_velocity -> physxJoint:maxJointVelocity) + any
+    # PhysX-subclass main-namespace writes
+    _apply_namespaced_schemas(prim, cfg, cfg_dict)
 
     return True
 
@@ -1075,11 +1033,6 @@ def modify_mesh_collision_properties(
     if not UsdPhysics.MeshCollisionAPI(prim):
         UsdPhysics.MeshCollisionAPI.Apply(prim)
 
-    # read class-level metadata
-    namespace = getattr(cfg, "_usd_namespace", None)
-    applied_schema = getattr(cfg, "_usd_applied_schema", None)
-    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
-
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
     cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
 
@@ -1095,36 +1048,14 @@ def modify_mesh_collision_properties(
         UsdPhysics.MeshCollisionAPI(prim), "Approximation", approximation_token, camel_case=False
     )
 
-    # Build namespaced_writes from the remaining cfg fields. PhysX cooking subclasses author
-    # only namespaced tuning fields here (e.g. ``hull_vertex_limit``); the base class and the
-    # USD-only ``BoundingCube``/``BoundingSphere`` subclasses have nothing left to write.
-    namespaced_writes: list[tuple[str, object]] = []
-    for cfg_field in list(attr_name_map):
-        value = cfg_dict.pop(cfg_field, None)
-        if value is not None:
-            namespaced_writes.append((attr_name_map[cfg_field], value))
-    for cfg_field, value in list(cfg_dict.items()):
-        if value is not None:
-            namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
-
-    # Gate the PhysX cooking schema application on at least one non-None tuning field. The
-    # standard ``UsdPhysics.MeshCollisionAPI`` is already applied above; the ``Physx*CollisionAPI``
-    # cooking schemas are applied here only if the user wrote tuning fields. This matches the
-    # other consumption-gated writers and keeps Newton-targeted prims free of PhysX cooking
-    # schemas they did not opt in to.
-    if namespaced_writes:
-        if namespace is None:
-            raise ValueError(
-                f"{type(cfg).__name__} has solver-specific fields"
-                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
-                " Subclasses of MeshCollisionBaseCfg that add fields must set '_usd_namespace'"
-                " (and '_usd_applied_schema')."
-            )
-        if applied_schema and applied_schema != "MeshCollisionAPI":
-            if applied_schema not in prim.GetAppliedSchemas():
-                prim.AddAppliedSchema(applied_schema)
-        for usd_attr, value in namespaced_writes:
-            safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
+    # The standard ``UsdPhysics.MeshCollisionAPI`` is already applied above. The base
+    # ``MeshCollisionBaseCfg`` declares ``_usd_applied_schema = "MeshCollisionAPI"`` so the
+    # helper would re-apply (idempotent) if any base-namespace write fired. PhysX cooking
+    # subclasses (ConvexHull / TriangleMesh / SDF / ...) override the schema and namespace
+    # to author their tuning fields under e.g. ``physxConvexHullCollision:*``; the helper
+    # gates ``Physx*CollisionAPI`` application on at least one non-None tuning field, so
+    # Newton-targeted prims stay free of PhysX cooking schemas they did not opt in to.
+    _apply_namespaced_schemas(prim, cfg, cfg_dict)
 
     # success
     return True

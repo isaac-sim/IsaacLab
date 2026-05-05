@@ -66,11 +66,13 @@ class ArticulationRootBaseCfg:
 
     Carries :attr:`fix_root_link` (writer-side; materializes a
     :class:`UsdPhysics.FixedJoint` between the world frame and the root link) and
-    :attr:`articulation_enabled` whose USD attribute today is PhysX-namespaced
-    (``physxArticulation:articulationEnabled``) but is consumed by the IsaacLab
-    Newton wrapper as a spawn-time guard. For PhysX-only articulation-root
-    properties (self-collisions, TGS solver iterations, sleep / stabilization
-    thresholds), use
+    :attr:`articulation_enabled` whose only USD path today is the PhysX-namespaced
+    ``physxArticulation:articulationEnabled`` attribute. The base class itself
+    declares no USD namespace; the writer consults :attr:`_usd_field_exceptions`
+    to route ``articulation_enabled`` to its non-base namespace and apply
+    ``PhysxArticulationAPI`` only when the user authored that one field.
+    For PhysX-only articulation-root properties (self-collisions, TGS solver
+    iterations, sleep / stabilization thresholds), use
     :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`.
 
     See :meth:`modify_articulation_root_properties` for more information.
@@ -80,19 +82,19 @@ class ArticulationRootBaseCfg:
         the properties and leave the rest as-is.
     """
 
-    # Documented exception: this base class carries PhysX namespace metadata because
-    # ``articulation_enabled`` writes to ``physxArticulation:articulationEnabled``.
-    # The IL Newton wrapper consumes the same PhysX attribute as a spawn-time guard;
-    # PhysX honors it at sim time. See docs/superpowers/schema-cfg-placement-path2.md.
     # -- Class metadata (not dataclass fields) --
-    # USD applied schema written when at least one solver-specific field is set.
-    _usd_applied_schema = "PhysxArticulationAPI"
-    # Prim attribute namespace for solver-specific fields.
-    _usd_namespace = "physxArticulation"
-    # Mapping from cfg field names to USD attribute names (already in camelCase).
-    # ``articulation_enabled`` -> ``articulationEnabled`` is the auto-conversion result;
-    # listed here explicitly for clarity.
-    _usd_attr_name_map = {"articulation_enabled": "articulationEnabled"}
+    # No base-native namespace today: every field is either solver-common (typed
+    # UsdPhysics API) or routed through ``_usd_field_exceptions``.
+    _usd_namespace = None
+    _usd_applied_schema = None
+    _usd_attr_name_map: dict[str, str] = {}
+    # Per-field exceptions: applied_schema -> (namespace, {cfg_field: usd_attr}).
+    # When any listed field is non-None at write time, the writer applies the schema
+    # and writes the attribute under the exception namespace -- without affecting the
+    # cfg's main namespace logic.
+    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {
+        "PhysxArticulationAPI": ("physxArticulation", {"articulation_enabled": "articulationEnabled"}),
+    }
 
     articulation_enabled: bool | None = None
     """Whether to enable or disable the articulation.
@@ -146,15 +148,16 @@ class RigidBodyBaseCfg:
     .. _UsdPhysics.RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
 
-    # Documented exception: this base class carries PhysX namespace metadata because
-    # ``disable_gravity`` writes to ``physxRigidBody:disableGravity`` -- Newton consumes
-    # the same PhysX attribute via its bridge resolver. See
-    # ``docs/superpowers/schema-cfg-placement-path2.md`` for the placement rule.
     # -- Class metadata (not dataclass fields) --
-    # USD applied schema written when at least one solver-specific field is set.
-    _usd_applied_schema = "PhysxRigidBodyAPI"
-    # Prim attribute namespace for solver-specific fields.
-    _usd_namespace = "physxRigidBody"
+    # No base-native namespace today: ``rigid_body_enabled`` and ``kinematic_enabled``
+    # are written via the typed ``UsdPhysics.RigidBodyAPI``; ``disable_gravity`` is
+    # routed through ``_usd_field_exceptions`` to ``physxRigidBody:disableGravity``.
+    _usd_namespace = None
+    _usd_applied_schema = None
+    _usd_attr_name_map: dict[str, str] = {}
+    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {
+        "PhysxRigidBodyAPI": ("physxRigidBody", {"disable_gravity": "disableGravity"}),
+    }
 
     rigid_body_enabled: bool | None = None
     """Whether to enable or disable the rigid body."""
@@ -212,15 +215,19 @@ class CollisionBaseCfg:
     .. _UsdPhysics.CollisionAPI: https://openusd.org/dev/api/class_usd_physics_collision_a_p_i.html
     """
 
-    # Documented exception: this base class carries PhysX namespace metadata because
-    # ``contact_offset`` and ``rest_offset`` write to ``physxCollision:*`` -- Newton
-    # consumes them via the bridge resolver (gap = contactOffset - restOffset,
-    # margin = restOffset). See docs/superpowers/schema-cfg-placement-path2.md.
     # -- Class metadata (not dataclass fields) --
-    # USD applied schema written when at least one solver-specific field is set.
-    _usd_applied_schema = "PhysxCollisionAPI"
-    # Prim attribute namespace for solver-specific fields.
-    _usd_namespace = "physxCollision"
+    # No base-native namespace today: ``collision_enabled`` is written via the typed
+    # ``UsdPhysics.CollisionAPI``; ``contact_offset`` / ``rest_offset`` are routed
+    # through ``_usd_field_exceptions`` to ``physxCollision:*``.
+    _usd_namespace = None
+    _usd_applied_schema = None
+    _usd_attr_name_map: dict[str, str] = {}
+    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {
+        "PhysxCollisionAPI": (
+            "physxCollision",
+            {"contact_offset": "contactOffset", "rest_offset": "restOffset"},
+        ),
+    }
 
     collision_enabled: bool | None = None
     """Whether to enable or disable collisions.
@@ -297,18 +304,17 @@ class JointDriveBaseCfg:
     .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html
     """
 
-    # Documented exception: this base class carries PhysX namespace metadata because
-    # ``max_velocity`` writes to ``physxJoint:maxJointVelocity`` -- the only USD path to
-    # ``Model.joint_velocity_limit`` (no ``newton:*`` equivalent today). Newton consumes
-    # the PhysX attribute via its bridge resolver. See
-    # ``docs/superpowers/schema-cfg-placement-path2.md`` for the placement rule.
     # -- Class metadata (not dataclass fields) --
-    # USD applied schema written when at least one solver-specific field is set.
-    _usd_applied_schema = "PhysxJointAPI"
-    # Prim attribute namespace for solver-specific fields.
-    _usd_namespace = "physxJoint"
-    # Mapping from cfg field names to USD attribute names (already in camelCase).
-    _usd_attr_name_map = {"max_velocity": "maxJointVelocity"}
+    # No base-native namespace today: drive-type / max-effort / stiffness / damping are
+    # written via the typed ``UsdPhysics.DriveAPI``; ``max_velocity`` is routed through
+    # ``_usd_field_exceptions`` to ``physxJoint:maxJointVelocity`` (the only USD path
+    # to ``Model.joint_velocity_limit`` today).
+    _usd_namespace = None
+    _usd_applied_schema = None
+    _usd_attr_name_map: dict[str, str] = {}
+    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {
+        "PhysxJointAPI": ("physxJoint", {"max_velocity": "maxJointVelocity"}),
+    }
 
     drive_type: Literal["force", "acceleration"] | None = None
     """Joint drive type to apply.
@@ -389,6 +395,8 @@ class MeshCollisionBaseCfg:
     _usd_applied_schema = "MeshCollisionAPI"
     # Base class authors no PhysX-namespaced fields, so no namespace is defined.
     _usd_namespace = None
+    _usd_attr_name_map: dict[str, str] = {}
+    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {}
 
     mesh_approximation_name: str = "none"
     """Name of mesh collision approximation method. Default: "none".

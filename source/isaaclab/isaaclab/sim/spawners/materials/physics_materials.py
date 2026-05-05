@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdPhysics, UsdShade
 
-from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim, safe_set_attribute_on_usd_schema
+from isaaclab.sim.schemas.schemas import _apply_namespaced_schemas
+from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_schema
 from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from . import physics_materials_cfg
@@ -67,11 +67,6 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     if not usd_physics_material_api:
         usd_physics_material_api = UsdPhysics.MaterialAPI.Apply(prim)
 
-    # read class metadata for the namespaced (solver-specific) write phase
-    namespace = getattr(cfg, "_usd_namespace", None)
-    applied_schema = getattr(cfg, "_usd_applied_schema", None)
-    attr_name_map = getattr(cfg, "_usd_attr_name_map", {}) or {}
-
     # build cfg dict, dropping underscore-prefixed metadata keys and the spawner ``func`` field
     cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_") and k != "func"}
 
@@ -80,29 +75,8 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
         value = cfg_dict.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_physics_material_api, attr_name, value, camel_case=True)
 
-    # collect instance-level namespaced writes; exclude None values
-    namespaced_writes: list[tuple[str, object]] = []
-    # 2a. fields with explicit USD-attribute-name overrides
-    for cfg_field in list(attr_name_map):
-        value = cfg_dict.pop(cfg_field, None)
-        if value is not None:
-            namespaced_writes.append((attr_name_map[cfg_field], value))
-    # 2b. remaining fields use snake -> camelCase auto-conversion
-    for cfg_field, value in list(cfg_dict.items()):
-        if value is not None:
-            namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
-
-    # gate schema application AND attribute authoring on the instance-level set
-    if namespaced_writes:
-        if namespace is None:
-            raise ValueError(
-                f"{type(cfg).__name__} has solver-specific fields"
-                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
-            )
-        if applied_schema and applied_schema not in prim.GetAppliedSchemas():
-            prim.AddAppliedSchema(applied_schema)
-        for usd_attr, value in namespaced_writes:
-            safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
+    # apply per-field exceptions + main-namespace writes
+    _apply_namespaced_schemas(prim, cfg, cfg_dict)
 
     # return the prim
     return prim

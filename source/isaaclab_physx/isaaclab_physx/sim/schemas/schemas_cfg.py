@@ -214,9 +214,11 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
     """
 
-    # USD metadata (``_usd_applied_schema = "PhysxRigidBodyAPI"``,
-    # ``_usd_namespace = "physxRigidBody"``) is inherited from
-    # :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`.
+    # PhysX-specific fields below all live under the ``PhysxRigidBodyAPI`` schema's
+    # ``physxRigidBody:*`` namespace. The ``disable_gravity`` field on the base remains
+    # routed via ``_usd_field_exceptions`` (inherited).
+    _usd_applied_schema = "PhysxRigidBodyAPI"
+    _usd_namespace = "physxRigidBody"
 
     linear_damping: float | None = None
     """Linear damping for the body."""
@@ -296,6 +298,12 @@ class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     .. _PhysxJointAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_joint_a_p_i.html
     """
 
+    # ``max_velocity`` on the base remains routed via ``_usd_field_exceptions``
+    # (inherited). Future PhysX-only joint-drive fields would be written under this
+    # namespace.
+    _usd_applied_schema = "PhysxJointAPI"
+    _usd_namespace = "physxJoint"
+
 
 @configclass
 class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
@@ -338,9 +346,11 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     .. _PhysxCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_collision_a_p_i.html
     """
 
-    # USD metadata (``_usd_applied_schema = "PhysxCollisionAPI"``,
-    # ``_usd_namespace = "physxCollision"``) is inherited from
-    # :class:`~isaaclab.sim.schemas.CollisionBaseCfg`.
+    # PhysX torsional-friction fields below live under the ``PhysxCollisionAPI`` schema's
+    # ``physxCollision:*`` namespace. Base ``contact_offset`` / ``rest_offset`` remain
+    # routed via ``_usd_field_exceptions`` (inherited).
+    _usd_applied_schema = "PhysxCollisionAPI"
+    _usd_namespace = "physxCollision"
 
     torsional_patch_radius: float | None = None
     """Radius of the contact patch for applying torsional friction [m].
@@ -374,9 +384,11 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     .. _PhysxArticulationAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html
     """
 
-    # USD metadata (``_usd_applied_schema = "PhysxArticulationAPI"``,
-    # ``_usd_namespace = "physxArticulation"``) is inherited from
-    # :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`.
+    # PhysX articulation-root fields below live under the ``PhysxArticulationAPI`` schema's
+    # ``physxArticulation:*`` namespace. Base ``articulation_enabled`` remains routed via
+    # ``_usd_field_exceptions`` (inherited).
+    _usd_applied_schema = "PhysxArticulationAPI"
+    _usd_namespace = "physxArticulation"
 
     enabled_self_collisions: bool | None = None
     """Whether self-collisions between bodies in the same articulation are enabled.
