@@ -338,8 +338,8 @@ class OpenXRDevice(DeviceBase):
                     quati = quat.GetImaginary()
                     quatw = quat.GetReal()
                 else:
-                    quatw = previous_joint_poses[joint_name][3]
-                    quati = previous_joint_poses[joint_name][4:]
+                    quati = previous_joint_poses[joint_name][3:6]
+                    quatw = previous_joint_poses[joint_name][6]
 
                 # Directly update the dictionary with new data
                 previous_joint_poses[joint_name] = np.array(

@@ -185,6 +185,96 @@ Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.m
      - any
      - Run headless; ``--headless`` takes precedence.
 
+Video Recording
+---------------
+
+Video recording is enabled with the ``--video`` flag. When combined with ``--visualizer``,
+the visualizer selection also determines which backend captures the video frames:
+
+- ``--visualizer kit`` enables ``--video`` capture through the Isaac RTX renderer (Omniverse Replicator).
+- ``--visualizer newton`` enables ``--video`` capture through the Newton OpenGL renderer.
+- ``--visualizer rerun`` does not produce ``--video`` clips; it records Rerun ``.rrd`` data for replay
+  through the Rerun visualizer.
+- ``--visualizer viser`` does not currently provide a ``--video`` recording backend.
+
+When both Kit and Newton visualizers are active, Isaac Lab records a single ``--video`` stream and
+Kit takes precedence. To record from the renderer/physics stack instead of the active visualizer,
+set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
+
+.. list-table:: ``--video`` compatibility: visualizer × renderer preset
+   :header-rows: 1
+   :widths: 28 36 36
+
+   * - Renderer preset
+     - ``--visualizer kit --video``
+     - ``--visualizer newton --video``
+   * - ``isaacsim_rtx_renderer``
+     - ✅ Kit RTX captures video *(default, no change)*
+     - ✅ Newton GL captures video *(overrides RTX backend)*
+   * - ``newton_renderer``
+     - ✅ Kit RTX captures video *(overrides Newton backend)*
+     - ✅ Newton GL captures video *(default, no change)*
+   * - ``ovrtx_renderer``
+     - ❌ **Raises an error** — see note below
+     - ✅ Newton GL captures video; ovrtx provides camera sensor data
+
+.. note::
+
+   ``--visualizer kit`` combined with ``ovrtx_renderer`` raises a ``ValueError`` at startup.
+   Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries compiled against
+   different USD namespaces (``pxrInternal_v0_25_11`` vs ``ovInternal_v0_25_11``), which
+   causes a dynamic-linker crash when loaded into the same process.
+   Use ``--visualizer newton`` instead — it is compatible with all renderer presets.
+
+**Record video with the ovrtx renderer preset**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --enable_cameras \
+     --visualizer newton \
+     --video \
+     --video_length=300 \
+     --video_interval=2000 \
+     --max_iterations=5 \
+     --num_envs=1024 \
+     --benchmark_backend=summary \
+     "presets=newton,ovrtx_renderer,rgb"
+
+**Record video with the Isaac RTX renderer preset using the Newton video backend**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --enable_cameras \
+     --visualizer newton \
+     --video \
+     --video_length=300 \
+     --video_interval=2000 \
+     --max_iterations=5 \
+     --num_envs=1024 \
+     --benchmark_backend=summary \
+     "presets=physx,isaacsim_rtx_renderer,rgb"
+
+**Record video with the Isaac RTX renderer preset using the Kit video backend**
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --enable_cameras \
+     --visualizer kit \
+     --video \
+     --video_length=300 \
+     --video_interval=2000 \
+     --max_iterations=5 \
+     --num_envs=1024 \
+     --benchmark_backend=summary \
+     "presets=physx,isaacsim_rtx_renderer,rgb"
+
+
 Visualizer Backends
 -------------------
 

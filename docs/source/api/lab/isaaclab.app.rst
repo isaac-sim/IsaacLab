@@ -77,7 +77,7 @@ The following snippet shows how use the :class:`AppLauncher` in different ways:
 
 .. code:: python
 
-   import argparser
+   import argparse
 
    from isaaclab.app import AppLauncher
 
