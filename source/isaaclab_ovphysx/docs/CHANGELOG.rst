@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+0.2.17 (2026-05-05)
+~~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made :meth:`~isaaclab_ovphysx.physics.OvPhysxManager._release_physx` a
+  soft reset that calls ``physx.reset()`` and keeps the cached
+  :class:`ovphysx.PhysX` reference alive, instead of dropping it to ``None``
+  (which triggered a dual-Carbonite destructor race on refcount drop).
+  :meth:`~isaaclab_ovphysx.physics.OvPhysxManager._warmup_and_load` now
+  reuses the cached instance on subsequent calls, re-running ``add_usd``,
+  pending clones, and (on GPU) ``warmup_gpu`` per stage swap.  This makes
+  back-to-back :class:`SimulationContext` lifetimes work natively without
+  the test-side monkey patches the previous iteration of the rigid-object
+  tests required.
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ovphysx.physics.OvPhysxManager._locked_device` so
+  the manager raises a clear :exc:`RuntimeError` when a later
+  :class:`SimulationContext` requests a different device, surfacing the
+  wheel's process-global device-mode lock as a Python error before
+  :exc:`ovphysx.types.PhysXDeviceError` would fire.
+
 0.2.16 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~~
 
