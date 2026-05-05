@@ -288,19 +288,26 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "_num_spatial_tendons", num_spatial_tendons)
 
     # Create ArticulationData
-    data = OvPhysxArticulationData(mock_bindings.bindings, device)
-    data._num_instances = num_instances
-    data._num_joints = num_joints
-    data._num_bodies = num_bodies
-    data._num_fixed_tendons = num_fixed_tendons
-    data._num_spatial_tendons = num_spatial_tendons
+    data = OvPhysxArticulationData(
+        mock_bindings.bindings,
+        device,
+        num_instances=num_instances,
+        num_bodies=num_bodies,
+        num_joints=num_joints,
+        num_fixed_tendons=num_fixed_tendons,
+        num_spatial_tendons=num_spatial_tendons,
+        body_names=body_names,
+        joint_names=joint_names,
+        fixed_tendon_names=fixed_tendon_names,
+        spatial_tendon_names=spatial_tendon_names,
+    )
     data._is_fixed_base = False
-    data.body_names = body_names
-    data.joint_names = joint_names
-    data.fixed_tendon_names = fixed_tendon_names
-    data.spatial_tendon_names = spatial_tendon_names
-    data._create_buffers()
     object.__setattr__(articulation, "_data", data)
+
+    # Allocate the articulation-side index/mask caches and wrench buffer that
+    # _initialize_impl would normally populate.  Wrench composers created here
+    # are immediately overwritten by the mocks below.
+    articulation._create_buffers()
 
     # Wrench composers
     mock_inst_wrench = MockWrenchComposer(articulation)
