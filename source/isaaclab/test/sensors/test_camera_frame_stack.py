@@ -118,6 +118,9 @@ def test_frame_stack_ring_buffer_shifts_correctly(setup_scene):
     sim = setup_scene
     camera = Camera(_make_camera_cfg(frame_stack=2))
     sim.reset()
+    # Pump one ``sim.step()`` before the first ``camera.update()`` so RTX has fully primed
+    # its tiled annotators (mirrors the canonical pattern from ``test_first_frame_textured_rendering``).
+    sim.step()
     camera.update(dt=0.01)
 
     # Capture the pre-move newest frame (channels 3:6)
@@ -136,14 +139,22 @@ def test_frame_stack_ring_buffer_shifts_correctly(setup_scene):
     rgb_after = camera.data.output["rgb"]
     post_move_oldest = rgb_after[..., :3]
     post_move_newest = rgb_after[..., 3:6]
+    # Snapshot the renderer's single-frame buffer for the second update so we can verify
+    # the ring buffer copied it verbatim into the newest slot (independent of pixel content,
+    # which can be a zero buffer on rare RTX cold-start iterations).
+    latest_single = camera._single_frame_output["rgb"].clone()
 
-    # The pre-move newest frame should now be the post-move oldest frame
+    # Ring-buffer invariant 1: the pre-move newest frame becomes the post-move oldest.
     assert torch.equal(pre_move_newest, post_move_oldest), (
         "Ring buffer should shift: previous newest frame becomes the new oldest"
     )
-    # The new newest frame should differ (camera moved)
-    assert not torch.equal(post_move_oldest, post_move_newest), (
-        "After moving the camera, the newest frame should differ from the oldest"
+    # Ring-buffer invariant 2: the newest slot post-update equals the latest single-frame
+    # renderer output (catches the case where ``history[idx].copy_(single)`` doesn't land
+    # or where ``_stacked_output`` isn't refreshed). We compare against the single buffer
+    # rather than asserting visual difference, because that conflates ring-buffer correctness
+    # with renderer behavior.
+    assert torch.equal(post_move_newest, latest_single), (
+        "Ring buffer's newest slot should contain the latest renderer output"
     )
 
 
