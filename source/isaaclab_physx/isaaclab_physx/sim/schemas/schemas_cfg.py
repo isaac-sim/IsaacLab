@@ -8,7 +8,7 @@ from __future__ import annotations
 import dataclasses
 import warnings
 
-from isaaclab.sim.schemas.schemas_cfg import JointDriveBaseCfg, RigidBodyBaseCfg
+from isaaclab.sim.schemas.schemas_cfg import CollisionBaseCfg, JointDriveBaseCfg, RigidBodyBaseCfg
 from isaaclab.utils import configclass
 
 
@@ -112,12 +112,19 @@ class PhysXDeformableBodyPropertiesCfg:
 
 
 @configclass
-class PhysXCollisionPropertiesCfg:
+class PhysxDeformableCollisionPropertiesCfg:
     """PhysX-specific collision properties for a deformable body.
 
     These properties are set with the prefix ``physxCollision:<property_name>``.
 
     See the PhysX documentation for more information on the available properties.
+
+    .. note::
+        This class is distinct from
+        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg` (lowercase x),
+        which is the rigid-body collision cfg layered on
+        :class:`~isaaclab.sim.schemas.CollisionBaseCfg`. This class is used internally
+        as a base of :class:`DeformableBodyPropertiesCfg`.
     """
 
     contact_offset: float | None = None
@@ -138,8 +145,29 @@ class PhysXCollisionPropertiesCfg:
 
 
 @configclass
+class PhysXCollisionPropertiesCfg(PhysxDeformableCollisionPropertiesCfg):
+    """Deprecated: use :class:`PhysxDeformableCollisionPropertiesCfg`.
+
+    .. deprecated:: 4.6.23
+        ``PhysXCollisionPropertiesCfg`` (capital X) was renamed to
+        :class:`PhysxDeformableCollisionPropertiesCfg` to clear the namespace for the
+        new rigid-body :class:`PhysxCollisionPropertiesCfg` (lowercase x). The capital-X
+        name is preserved as a deprecation alias and is scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'PhysXCollisionPropertiesCfg' (capital X) is deprecated and will be removed in 5.0."
+            " Use 'isaaclab_physx.sim.schemas.PhysxDeformableCollisionPropertiesCfg' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
+
+
+@configclass
 class DeformableBodyPropertiesCfg(
-    OmniPhysicsPropertiesCfg, PhysXDeformableBodyPropertiesCfg, PhysXCollisionPropertiesCfg
+    OmniPhysicsPropertiesCfg, PhysXDeformableBodyPropertiesCfg, PhysxDeformableCollisionPropertiesCfg
 ):
     """Properties to apply to a deformable body.
 
@@ -160,7 +188,7 @@ class DeformableBodyPropertiesCfg(
     _property_prefix: dict[str, list[str]] = {
         "omniphysics": [field.name for field in dataclasses.fields(OmniPhysicsPropertiesCfg)],
         "physxDeformableBody": [field.name for field in dataclasses.fields(PhysXDeformableBodyPropertiesCfg)],
-        "physxCollision": [field.name for field in dataclasses.fields(PhysXCollisionPropertiesCfg)],
+        "physxCollision": [field.name for field in dataclasses.fields(PhysxDeformableCollisionPropertiesCfg)],
     }
     """Mapping between the property prefixes and the properties that fall under each prefix."""
 
@@ -280,6 +308,62 @@ class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
             "'JointDrivePropertiesCfg' is deprecated and will be removed in 5.0. Use"
             " 'isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg' for PhysX properties, or"
             " 'isaaclab.sim.schemas.JointDriveBaseCfg' for solver-common properties only.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
+
+
+@configclass
+class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
+    """PhysX-specific rigid-body collision properties.
+
+    Extends :class:`~isaaclab.sim.schemas.CollisionBaseCfg` with the PhysX-only torsional
+    patch friction approximations (:attr:`torsional_patch_radius`,
+    :attr:`min_torsional_patch_radius`). These fields have no Newton equivalent and are
+    consumed only by the PhysX solver.
+
+    See :meth:`~isaaclab.sim.schemas.modify_collision_properties` for more information.
+
+    .. note::
+        If the values are None, they are not modified. This is useful when you want to set only a subset of
+        the properties and leave the rest as-is.
+
+    .. _PhysxCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_collision_a_p_i.html
+    """
+
+    # USD metadata (``_usd_applied_schema = "PhysxCollisionAPI"``,
+    # ``_usd_namespace = "physxCollision"``) is inherited from
+    # :class:`~isaaclab.sim.schemas.CollisionBaseCfg`.
+
+    torsional_patch_radius: float | None = None
+    """Radius of the contact patch for applying torsional friction [m].
+
+    It is used to approximate rotational friction introduced by the compression of contacting surfaces.
+    If the radius is zero, no torsional friction is applied.
+    """
+
+    min_torsional_patch_radius: float | None = None
+    """Minimum radius of the contact patch for applying torsional friction [m]."""
+
+
+@configclass
+class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
+    """Deprecated: use :class:`PhysxCollisionPropertiesCfg` or :class:`~isaaclab.sim.schemas.CollisionBaseCfg`.
+
+    .. deprecated:: 4.6.23
+        ``CollisionPropertiesCfg`` has been split into
+        :class:`~isaaclab.sim.schemas.CollisionBaseCfg` (solver-common) and
+        :class:`PhysxCollisionPropertiesCfg` (PhysX-specific) and relocated to
+        :mod:`isaaclab_physx.sim.schemas`. This alias preserves backwards compatibility and is
+        scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'CollisionPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg' for PhysX properties, or"
+            " 'isaaclab.sim.schemas.CollisionBaseCfg' for solver-common properties only.",
             DeprecationWarning,
             stacklevel=2,
         )

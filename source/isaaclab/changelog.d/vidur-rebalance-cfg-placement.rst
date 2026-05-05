@@ -6,6 +6,11 @@ Added
   fields (``static_friction``, ``dynamic_friction``, ``restitution``). The PhysX-specific
   compliant-contact and combine-mode fields moved to
   :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+* Added :class:`~isaaclab.sim.schemas.CollisionBaseCfg`, the solver-common base class for
+  collision properties. Carries :attr:`collision_enabled` (``UsdPhysics.CollisionAPI``) plus
+  :attr:`contact_offset` and :attr:`rest_offset` whose USD attributes are PhysX-namespaced
+  but are consumed by Newton's importer via the PhysX bridge resolver
+  (``import_usd.py:2104, 2111``).
 
 Changed
 ^^^^^^^
@@ -39,6 +44,19 @@ Changed
   ``_usd_attr_name_map`` from the cfg class and gates ``PhysxMaterialAPI`` application on
   whether the user authored at least one PhysX-namespaced field with a non-``None`` value.
   Previously, the writer applied ``PhysxMaterialAPI`` unconditionally on every material spawn.
+* Relocated :class:`CollisionPropertiesCfg` to :mod:`isaaclab_physx.sim.schemas` and split
+  its fields between the new :class:`~isaaclab.sim.schemas.CollisionBaseCfg` (solver-common
+  ``collision_enabled`` plus the PhysX-namespaced but Newton-consumed
+  ``contact_offset`` / ``rest_offset``) and
+  :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg` (PhysX-only
+  ``torsional_patch_radius`` / ``min_torsional_patch_radius``). A forwarding shim on
+  :mod:`isaaclab.sim.schemas`, :mod:`isaaclab.sim.schemas.schemas_cfg`, and
+  :mod:`isaaclab.sim` preserves existing imports.
+* Refactored :func:`~isaaclab.sim.schemas.modify_collision_properties` to be metadata-driven
+  and to gate ``PhysxCollisionAPI`` application on whether the user authored at least one
+  PhysX-namespaced field with a non-``None`` value. Previously, the writer applied
+  ``PhysxCollisionAPI`` unconditionally on every collision prim, stamping the schema onto
+  Newton-targeted prims that only set ``collision_enabled``.
 
 Fixed
 ^^^^^

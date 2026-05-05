@@ -7,6 +7,13 @@ Added
   ``compliant_contact_damping``, ``friction_combine_mode``, ``restitution_combine_mode``).
   Use this when authoring PhysX-specific material knobs; use the base class when only the
   UsdPhysics-standard friction/restitution fields are needed.
+* Added :class:`PhysxCollisionPropertiesCfg`, a subclass of
+  :class:`~isaaclab.sim.schemas.CollisionBaseCfg` carrying the PhysX-specific
+  ``torsional_patch_radius`` / ``min_torsional_patch_radius`` friction approximations.
+  These fields have no Newton equivalent.
+* Added :class:`PhysxDeformableCollisionPropertiesCfg`, renaming the previous
+  ``PhysXCollisionPropertiesCfg`` (capital X) for clarity. Used internally by
+  :class:`DeformableBodyPropertiesCfg`.
 
 Changed
 ^^^^^^^
@@ -29,3 +36,11 @@ Deprecated
   :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (solver-common).
   The legacy name remains as a concrete subclass of :class:`PhysxRigidBodyMaterialCfg`
   that emits ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`CollisionPropertiesCfg` in favor of
+  :class:`PhysxCollisionPropertiesCfg` (PhysX-specific) or
+  :class:`~isaaclab.sim.schemas.CollisionBaseCfg` (solver-common). The legacy name remains
+  as a concrete subclass of :class:`PhysxCollisionPropertiesCfg` that emits
+  ``DeprecationWarning`` on instantiation. Scheduled for removal in 5.0.
+* Deprecated :class:`PhysXCollisionPropertiesCfg` (capital X, deformable-body) in favor of
+  :class:`PhysxDeformableCollisionPropertiesCfg`. The capital-X name is preserved as a
+  deprecation alias (concrete subclass) and is scheduled for removal in 5.0.

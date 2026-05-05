@@ -27,6 +27,17 @@ FORWARDED_NAMES = [
     "JointDrivePropertiesCfg",
     "PhysxRigidBodyPropertiesCfg",
     "PhysxJointDrivePropertiesCfg",
+    "CollisionPropertiesCfg",
+    "PhysxCollisionPropertiesCfg",
+    "PhysxDeformableCollisionPropertiesCfg",
+    "PhysXCollisionPropertiesCfg",
+]
+
+DEPRECATED_FORWARDED_NAMES = [
+    "RigidBodyPropertiesCfg",
+    "JointDrivePropertiesCfg",
+    "CollisionPropertiesCfg",
+    "PhysXCollisionPropertiesCfg",
 ]
 
 FORWARDED_MATERIAL_NAMES = [
@@ -81,6 +92,18 @@ def test_deprecated_alias_emits_deprecation_warning():
         warnings.simplefilter("always")
         schemas.RigidBodyPropertiesCfg()
     assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+
+
+@pytest.mark.parametrize("name", DEPRECATED_FORWARDED_NAMES)
+def test_deprecated_aliases_emit_deprecation_warning(name):
+    """Instantiating each deprecated forwarded alias via the shim emits exactly one
+    ``DeprecationWarning``."""
+    cls = getattr(schemas, name)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cls()
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
 
 
 def test_deprecated_material_alias_emits_deprecation_warning():

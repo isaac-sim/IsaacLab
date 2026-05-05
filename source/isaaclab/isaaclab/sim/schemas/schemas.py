@@ -438,27 +438,56 @@ def modify_collision_properties(
         return False
     # retrieve the USD collision api
     usd_collision_api = UsdPhysics.CollisionAPI(collider_prim)
-    # ensure PhysX collision API is applied
-    applied_schemas = collider_prim.GetAppliedSchemas()
-    if "PhysxCollisionAPI" not in applied_schemas:
-        collider_prim.AddAppliedSchema("PhysxCollisionAPI")
 
+    # read solver-specific metadata from the cfg instance
+    namespace = getattr(cfg, "_usd_namespace", None)
+    applied_schema = getattr(cfg, "_usd_applied_schema", None)
+    attr_name_map = getattr(cfg, "_usd_attr_name_map", {})
+
+    # dispatch nested mesh-collision cfg if present (preserve legacy behavior)
     mesh_collision_cfg = getattr(cfg, "mesh_collision_property", None)
     if mesh_collision_cfg is not None:
         modify_mesh_collision_properties(prim_path, mesh_collision_cfg, stage)
-    # convert to dict
-    cfg = cfg.to_dict()
-    # pop the mesh_collision_property since it is already set
-    cfg.pop("mesh_collision_property", None)
-    # set into USD API
+
+    # convert to dict, filtering out class metadata (underscore-prefixed keys)
+    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+    # pop the mesh_collision_property since it is already dispatched above
+    cfg_dict.pop("mesh_collision_property", None)
+
+    # set into USD API (solver-common ``UsdPhysics.CollisionAPI`` fields)
     for attr_name in ["collision_enabled"]:
-        value = cfg.pop(attr_name, None)
+        value = cfg_dict.pop(attr_name, None)
         safe_set_attribute_on_usd_schema(usd_collision_api, attr_name, value, camel_case=True)
-    # set into PhysX API (prim attributes under physxCollision:*)
-    for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(
-            collider_prim, f"physxCollision:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-        )
+
+    # Build namespaced_writes: a non-empty list means at least one PhysX-namespaced field
+    # is being authored, which gates ``AddAppliedSchema`` below. Without this gate, base
+    # classes that carry PhysX namespace metadata would stamp ``PhysxCollisionAPI`` onto
+    # Newton-targeted prims even when only base ``UsdPhysics`` fields are set.
+    namespaced_writes: list[tuple[str, object]] = []
+    for cfg_field in list(attr_name_map):
+        value = cfg_dict.pop(cfg_field, None)
+        if value is not None:
+            namespaced_writes.append((attr_name_map[cfg_field], value))
+    # Remaining ``cfg_dict`` entries are PhysX-namespaced fields not in ``attr_name_map``
+    # (e.g. ``contact_offset``, ``rest_offset`` on ``CollisionBaseCfg``); USD attribute
+    # name is auto-derived via snake -> camelCase conversion.
+    for cfg_field, value in list(cfg_dict.items()):
+        if value is not None:
+            namespaced_writes.append((to_camel_case(cfg_field, "cC"), value))
+
+    # gate schema application AND attribute authoring on instance-level non-None set
+    if namespaced_writes:
+        if namespace is None:
+            raise ValueError(
+                f"{type(cfg).__name__} has solver-specific fields"
+                f" {[k for k, _ in namespaced_writes]} but does not define '_usd_namespace'."
+                " Subclasses of CollisionBaseCfg that add fields must set '_usd_namespace'"
+                " (and optionally '_usd_applied_schema')."
+            )
+        if applied_schema and applied_schema not in collider_prim.GetAppliedSchemas():
+            collider_prim.AddAppliedSchema(applied_schema)
+        for usd_attr, value in namespaced_writes:
+            safe_set_attribute_on_usd_prim(collider_prim, f"{namespace}:{usd_attr}", value, camel_case=False)
     # success
     return True
 

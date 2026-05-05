@@ -44,6 +44,10 @@ _PHYSX_FORWARDS = frozenset({
     "JointDrivePropertiesCfg",
     "PhysxRigidBodyPropertiesCfg",
     "PhysxJointDrivePropertiesCfg",
+    "CollisionPropertiesCfg",
+    "PhysxCollisionPropertiesCfg",
+    "PhysXCollisionPropertiesCfg",
+    "PhysxDeformableCollisionPropertiesCfg",
 })
 
 

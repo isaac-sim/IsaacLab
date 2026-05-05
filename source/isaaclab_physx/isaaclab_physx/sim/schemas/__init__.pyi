@@ -6,8 +6,12 @@
 __all__ = [
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
+    "CollisionPropertiesCfg",
     "DeformableBodyPropertiesCfg",
     "JointDrivePropertiesCfg",
+    "PhysxCollisionPropertiesCfg",
+    "PhysXCollisionPropertiesCfg",
+    "PhysxDeformableCollisionPropertiesCfg",
     "PhysxJointDrivePropertiesCfg",
     "PhysxRigidBodyPropertiesCfg",
     "RigidBodyPropertiesCfg",
@@ -18,8 +22,12 @@ from .schemas import (
     modify_deformable_body_properties,
 )
 from .schemas_cfg import (
+    CollisionPropertiesCfg,
     DeformableBodyPropertiesCfg,
     JointDrivePropertiesCfg,
+    PhysxCollisionPropertiesCfg,
+    PhysXCollisionPropertiesCfg,
+    PhysxDeformableCollisionPropertiesCfg,
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
     RigidBodyPropertiesCfg,

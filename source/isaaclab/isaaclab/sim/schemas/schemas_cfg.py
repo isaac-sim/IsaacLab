@@ -19,6 +19,10 @@ _PHYSX_FORWARDS = frozenset(
         "JointDrivePropertiesCfg",
         "PhysxRigidBodyPropertiesCfg",
         "PhysxJointDrivePropertiesCfg",
+        "CollisionPropertiesCfg",
+        "PhysxCollisionPropertiesCfg",
+        "PhysXCollisionPropertiesCfg",
+        "PhysxDeformableCollisionPropertiesCfg",
     }
 )
 
@@ -179,44 +183,65 @@ class RigidBodyBaseCfg:
 
 
 @configclass
-class CollisionPropertiesCfg:
-    """Properties to apply to colliders in a rigid body.
+class CollisionBaseCfg:
+    """Solver-common properties to apply to colliders.
+
+    Contains :attr:`collision_enabled` from the `UsdPhysics.CollisionAPI`_ and the
+    :attr:`contact_offset` / :attr:`rest_offset` knobs whose USD attributes today are
+    PhysX-namespaced (``physxCollision:contactOffset``, ``physxCollision:restOffset``)
+    but whose semantics (collision-pair generation distance, rest separation gap) are
+    universal physics: PhysX consumes them natively, Newton's importer consumes them
+    via the PhysX bridge resolver and populates ``Model.shape_collision_radius`` /
+    ``Model.shape_collision_thickness`` from the ``gap`` and ``margin`` keys (see
+    ``import_usd.py:2104, 2111``). For PhysX-only collision properties (e.g. torsional
+    patch friction), use :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg`.
 
     See :meth:`modify_collision_properties` for more information.
 
     .. note::
         If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
+
+    .. _UsdPhysics.CollisionAPI: https://openusd.org/dev/api/class_usd_physics_collision_a_p_i.html
     """
 
+    # Documented exception: this base class carries PhysX namespace metadata because
+    # ``contact_offset`` and ``rest_offset`` write to ``physxCollision:*`` -- Newton
+    # consumes them via the bridge resolver (gap = contactOffset - restOffset,
+    # margin = restOffset). See docs/superpowers/schema-cfg-placement-path2.md.
+    # -- Class metadata (not dataclass fields) --
+    # USD applied schema written when at least one solver-specific field is set.
+    _usd_applied_schema = "PhysxCollisionAPI"
+    # Prim attribute namespace for solver-specific fields.
+    _usd_namespace = "physxCollision"
+
     collision_enabled: bool | None = None
-    """Whether to enable or disable collisions."""
+    """Whether to enable or disable collisions.
+
+    Writes ``physics:collisionEnabled`` via :class:`UsdPhysics.CollisionAPI`.
+    """
 
     contact_offset: float | None = None
-    """Contact offset for the collision shape (in m).
+    """Contact offset for the collision shape [m].
 
     The collision detector generates contact points as soon as two shapes get closer than the sum of their
     contact offsets. This quantity should be non-negative which means that contact generation can potentially start
     before the shapes actually penetrate.
+
+    Writes ``physxCollision:contactOffset``. Newton's USD importer consumes the same
+    attribute via its PhysX-bridge resolver.
     """
 
     rest_offset: float | None = None
-    """Rest offset for the collision shape (in m).
+    """Rest offset for the collision shape [m].
 
     The rest offset quantifies how close a shape gets to others at rest, At rest, the distance between two
     vertically stacked objects is the sum of their rest offsets. If a pair of shapes have a positive rest
     offset, the shapes will be separated at rest by an air gap.
+
+    Writes ``physxCollision:restOffset``. Newton's USD importer consumes the same
+    attribute via its PhysX-bridge resolver.
     """
-
-    torsional_patch_radius: float | None = None
-    """Radius of the contact patch for applying torsional friction (in m).
-
-    It is used to approximate rotational friction introduced by the compression of contacting surfaces.
-    If the radius is zero, no torsional friction is applied.
-    """
-
-    min_torsional_patch_radius: float | None = None
-    """Minimum radius of the contact patch for applying torsional friction (in m)."""
 
 
 @configclass

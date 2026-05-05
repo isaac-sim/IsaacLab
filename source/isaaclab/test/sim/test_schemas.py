@@ -16,7 +16,17 @@ import math
 import warnings
 
 import pytest
-from isaaclab_physx.sim.schemas import PhysxJointDrivePropertiesCfg, PhysxRigidBodyPropertiesCfg
+from isaaclab_physx.sim.schemas import (
+    CollisionPropertiesCfg as PhysxCollisionPropertiesCfgAlias,
+)
+from isaaclab_physx.sim.schemas import (
+    PhysXCollisionPropertiesCfg as PhysxDeformableCollisionAliasCfg,
+)
+from isaaclab_physx.sim.schemas import (
+    PhysxCollisionPropertiesCfg,
+    PhysxJointDrivePropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+)
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg, RigidBodyMaterialCfg
 
 from pxr import UsdPhysics
@@ -264,6 +274,89 @@ def test_rigid_body_material_deprecation_alias(setup_simulation):
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
     assert "5.0" in str(deprecations[0].message)
+
+
+@pytest.mark.isaacsim_ci
+def test_collision_base_cfg_writes_physx_namespaced_attrs(setup_simulation):
+    """Setting ``contact_offset`` / ``rest_offset`` on the base ``CollisionBaseCfg`` must
+    author the ``physxCollision:*`` attributes AND apply ``PhysxCollisionAPI``. Newton's
+    importer consumes them via the PhysX bridge resolver."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    base_cfg = schemas.CollisionBaseCfg(collision_enabled=True, contact_offset=0.05, rest_offset=0.001)
+    sim_utils.create_prim("/World/cube_co", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+    schemas.define_collision_properties("/World/cube_co", base_cfg)
+
+    prim = stage.GetPrimAtPath("/World/cube_co")
+    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.05)
+    assert prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.001)
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxCollisionAPI" in applied, (
+        f"PhysxCollisionAPI must be applied when contact_offset/rest_offset are set; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_collision_base_cfg_no_physx_schema_when_only_usd_field_set(setup_simulation):
+    """Regression: setting only ``collision_enabled`` on ``CollisionBaseCfg`` must NOT
+    cause ``PhysxCollisionAPI`` to be applied. The user only authored a UsdPhysics-standard
+    field; the PhysX schema should not be stamped onto a Newton-targeted prim."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    base_cfg = schemas.CollisionBaseCfg(collision_enabled=True)
+    sim_utils.create_prim("/World/cube_co_only", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+    schemas.define_collision_properties("/World/cube_co_only", base_cfg)
+
+    prim = stage.GetPrimAtPath("/World/cube_co_only")
+    assert prim.GetAttribute("physics:collisionEnabled").Get() is True
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxCollisionAPI" not in applied, (
+        f"PhysxCollisionAPI should not be applied when only collision_enabled is set; got {list(applied)}"
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_collision_cfg_writes_torsional_patch(setup_simulation):
+    """Setting ``torsional_patch_radius`` on ``PhysxCollisionPropertiesCfg`` must author
+    the ``physxCollision:torsionalPatchRadius`` attribute AND apply ``PhysxCollisionAPI``."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    cfg = PhysxCollisionPropertiesCfg(torsional_patch_radius=1.0)
+    sim_utils.create_prim("/World/cube_tpr", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+    schemas.define_collision_properties("/World/cube_tpr", cfg)
+
+    prim = stage.GetPrimAtPath("/World/cube_tpr")
+    assert prim.GetAttribute("physxCollision:torsionalPatchRadius").Get() == pytest.approx(1.0)
+    applied = prim.GetAppliedSchemas()
+    assert "PhysxCollisionAPI" in applied
+
+
+@pytest.mark.isaacsim_ci
+def test_collision_deprecation_alias(setup_simulation):
+    """Instantiating the legacy ``CollisionPropertiesCfg`` name emits exactly one
+    ``DeprecationWarning`` whose message references the 5.0 removal target."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        PhysxCollisionPropertiesCfgAlias()
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
+    assert "5.0" in str(deprecations[0].message)
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_capitalx_collision_deprecation_alias(setup_simulation):
+    """Instantiating the legacy ``PhysXCollisionPropertiesCfg`` (capital X, deformable)
+    name emits exactly one ``DeprecationWarning`` pointing to
+    ``PhysxDeformableCollisionPropertiesCfg``."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        PhysxDeformableCollisionAliasCfg()
+    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
+    assert "PhysxDeformableCollisionPropertiesCfg" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci
