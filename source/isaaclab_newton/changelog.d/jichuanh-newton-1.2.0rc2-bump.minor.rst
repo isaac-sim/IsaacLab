@@ -12,9 +12,11 @@ Changed
   (`newton-physics/newton#2710
   <https://github.com/newton-physics/newton/pull/2710>`_).
 * Newton ``v1.2.0rc2`` requires ``warp-lang==1.13.0``, ``mujoco==3.8.0``,
-  and ``mujoco-warp==3.8.0.1``. Pins updated in :mod:`isaaclab`,
-  :mod:`isaaclab_newton`, :mod:`isaaclab_visualizers`, and
-  ``tools/wheel_builder/res/python_packages.toml``.
+  and ``mujoco-warp==3.8.0.1``. ``warp-lang``/``mujoco``/``mujoco-warp``
+  pins live in :mod:`isaaclab` and ``tools/wheel_builder/res/python_packages.toml``;
+  the Newton pin is mirrored across :mod:`isaaclab_newton`,
+  :mod:`isaaclab_visualizers` (3×), :mod:`isaaclab_physx` (``[newton]``
+  extra), and the wheel-builder TOML.
 * Updated ``wp.math.transform_to_matrix`` to ``wp.transform_to_matrix`` in
   :mod:`~isaaclab_newton.physics.newton_manager` and
   :mod:`~isaaclab_ov.renderers.ovrtx_renderer_kernels` to match the
