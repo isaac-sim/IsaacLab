@@ -777,9 +777,7 @@ def _test_sensor_contact(
         duration = durations[idx]
         while current_test_time < duration:
             # set object states to contact the ground plane
-            shape.write_root_pose_to_sim_index(
-                root_pose=torch.tensor(test_pose, device=shape.device).unsqueeze(0)
-            )
+            shape.write_root_pose_to_sim_index(root_pose=torch.tensor(test_pose, device=shape.device).unsqueeze(0))
             # perform simulation step
             _perform_sim_step(sim, scene, sim_dt)
             # increment contact time
@@ -807,9 +805,7 @@ def _test_sensor_contact(
             )
 
         # switch the contact mode for 1 dt step before the next contact test begins.
-        shape.write_root_pose_to_sim_index(
-            root_pose=torch.tensor(reset_pose, device=shape.device).unsqueeze(0)
-        )
+        shape.write_root_pose_to_sim_index(root_pose=torch.tensor(reset_pose, device=shape.device).unsqueeze(0))
         # perform simulation step
         _perform_sim_step(sim, scene, sim_dt)
         # set the last air time to 2 sim_dt steps, because last_air_time and last_contact_time
@@ -882,9 +878,7 @@ def _test_contact_position(shape: RigidObject, sensor: ContactSensor, mode: Cont
     # check contact positions
     if mode == ContactTestMode.IN_CONTACT:
         pos_w_torch = sensor._data.pos_w.torch
-        contact_position = pos_w_torch + torch.tensor(
-            [[0.0, 0.0, -shape.cfg.spawn.radius]], device=pos_w_torch.device
-        )
+        contact_position = pos_w_torch + torch.tensor([[0.0, 0.0, -shape.cfg.spawn.radius]], device=pos_w_torch.device)
         assert torch.all(
             torch.abs(torch.linalg.norm(contact_pos_torch - contact_position.unsqueeze(1), ord=2, dim=-1)) < 1e-2
         ).item()
