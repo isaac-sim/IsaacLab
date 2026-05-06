@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
+import re
+import subprocess
+import sys
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
@@ -18,6 +22,135 @@ from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
 
 logger = logging.getLogger(__name__)
+
+
+def _try_setup_isaacsim_env_windows(local_sim: str) -> bool:
+    """Attempt to activate Isaac Sim's environment in the current process on Windows.
+
+    When Isaac Lab is invoked via ``conda run`` (e.g. from CI automation), the
+    ``activate.d`` hooks that normally source ``setup_conda_env.bat`` are **not**
+    fired.  PR #5343 added a ``call setup_conda_env.bat`` to ``isaaclab.bat``,
+    but that call only affects ``isaaclab.bat``'s own cmd.exe session — it does
+    **not** help if the bat file uses ``setlocal``/``endlocal`` internally, and it
+    cannot call Python APIs such as ``os.add_dll_directory`` (required on Python
+    3.8+ Windows to find extension-module DLLs).
+
+    This function applies ``setup_conda_env.bat``'s environment changes directly
+    inside the running training-script process so that ``omni.kit`` becomes
+    importable.  It uses two strategies (tried in order):
+
+    1. **Subprocess capture**: run ``cmd.exe /c "call setup.bat && set"`` in a
+       fresh subprocess and collect the resulting ``set`` output.  This captures
+       env vars even when ``isaaclab.bat``'s ``call`` did not propagate them,
+       **provided** ``setup_conda_env.bat`` does not use ``setlocal``/``endlocal``
+       itself (which would discard the changes before ``set`` runs).
+
+    2. **Text parsing fallback**: read ``setup_conda_env.bat`` as plain text and
+       extract ``SET VAR=VALUE`` lines.  This always works regardless of
+       ``setlocal`` but only handles simple ``set`` commands (no ``call`` to
+       sub-scripts, no ``for`` loops, etc.).  Sufficient for Isaac Sim's
+       standard ``setup_conda_env.bat``.
+
+    After updating ``os.environ`` and ``sys.path``, DLL search directories are
+    registered via ``os.add_dll_directory`` for all directories added to ``PATH``
+    (necessary on Python 3.8+ where PATH is no longer used for extension DLL
+    loading).
+
+    Args:
+        local_sim: Absolute path to the ``_isaac_sim`` directory.
+
+    Returns:
+        ``True`` if ``omni.kit`` became importable after applying the env changes,
+        ``False`` otherwise.
+    """
+    import importlib.util
+
+    setup_bat = os.path.join(local_sim, "setup_conda_env.bat")
+    if not os.path.isfile(setup_bat):
+        return False
+
+    def _apply_env_dict(new_env: dict[str, str]) -> None:
+        """Apply new_env changes to os.environ, sys.path, and DLL directories."""
+        old_pythonpath = set(os.environ.get("PYTHONPATH", "").split(os.pathsep))
+        old_path = set(os.environ.get("PATH", "").split(os.pathsep))
+
+        for key, value in new_env.items():
+            os.environ[key] = value
+
+        # Add new PYTHONPATH entries to sys.path.
+        new_pythonpath = os.environ.get("PYTHONPATH", "")
+        for p in new_pythonpath.split(os.pathsep):
+            if p and p not in old_pythonpath and p not in sys.path:
+                sys.path.insert(0, p)
+
+        # Register new PATH entries as DLL directories (Python 3.8+ requirement).
+        add_dll_dir = getattr(os, "add_dll_directory", None)
+        if add_dll_dir is not None:
+            new_path = os.environ.get("PATH", "")
+            for p in new_path.split(os.pathsep):
+                if p and p not in old_path and os.path.isdir(p):
+                    try:
+                        add_dll_dir(p)
+                    except OSError:
+                        pass
+
+        import importlib as _il
+
+        _il.invalidate_caches()
+
+    # --- Strategy 1: subprocess capture ---
+    try:
+        result = subprocess.run(
+            ["cmd.exe", "/c", f'call "{setup_bat}" >nul 2>&1 && set'],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            captured: dict[str, str] = {}
+            for line in result.stdout.splitlines():
+                if "=" in line:
+                    k, _, v = line.partition("=")
+                    k = k.strip()
+                    if k:
+                        captured[k] = v
+            # Only apply if the bat produced meaningful Isaac Sim env vars.
+            if captured.get("ISAAC_PATH") or captured.get("EXP_PATH") or captured.get("CARB_APP_PATH"):
+                logger.debug("sim_launcher: applying Isaac Sim env from subprocess capture of %s", setup_bat)
+                _apply_env_dict(captured)
+                if importlib.util.find_spec("omni.kit") is not None:
+                    return True
+    except Exception:
+        pass
+
+    # --- Strategy 2: text-parsing fallback ---
+    # Read setup_conda_env.bat as plain text and extract SET commands.
+    # This works even when the bat uses setlocal internally.
+    try:
+        with open(setup_bat, encoding="utf-8", errors="ignore") as fh:
+            content = fh.read()
+    except OSError:
+        return False
+
+    set_pattern = re.compile(r'(?im)^\s*set\s+"?([^"=\s]+)=([^"\n]*?)"?\s*$')
+    parsed: dict[str, str] = {}
+    for match in set_pattern.finditer(content):
+        var_name = match.group(1).strip()
+        raw_value = match.group(2).strip()
+        # Expand %VAR% references using the current (possibly updated) env.
+        expanded = re.sub(
+            r"%([^%]+)%",
+            lambda m, _env=os.environ: _env.get(m.group(1), _env.get(m.group(1).upper(), m.group(0))),
+            raw_value,
+        )
+        parsed[var_name] = expanded
+
+    if parsed:
+        logger.debug("sim_launcher: applying Isaac Sim env from text-parsing of %s", setup_bat)
+        _apply_env_dict(parsed)
+
+    return importlib.util.find_spec("omni.kit") is not None
 
 
 def add_launcher_args(parser: argparse.ArgumentParser) -> None:
@@ -278,12 +411,19 @@ def launch_simulation(
         import importlib.util
 
         if importlib.util.find_spec("omni.kit") is None:
-            # Print a more obvious hint when a local _isaac_sim symlink
-            # exists but its env wasn't sourced (typical on Win11 + conda
-            # when activate.d hooks didn't fire, e.g. under `conda run`).
-            import os
-            import sys
+            # On Windows with a local _isaac_sim binary, `conda run` does not
+            # fire activate.d hooks, so setup_conda_env.bat may not have been
+            # sourced into this process.  Try to activate it here directly —
+            # this handles both the PYTHONPATH and the os.add_dll_directory
+            # requirements for Python 3.8+ extension-module DLL loading.
+            isaaclab_path = os.environ.get("ISAACLAB_PATH")
+            local_sim = os.path.join(isaaclab_path, "_isaac_sim") if isaaclab_path else None
+            if local_sim and os.path.isdir(local_sim) and sys.platform == "win32":
+                logger.debug("sim_launcher: omni.kit not found; attempting env setup from %s", local_sim)
+                _try_setup_isaacsim_env_windows(local_sim)
 
+        if importlib.util.find_spec("omni.kit") is None:
+            # Print a diagnostic hint pointing at the root cause.
             isaaclab_path = os.environ.get("ISAACLAB_PATH")
             local_sim = os.path.join(isaaclab_path, "_isaac_sim") if isaaclab_path else None
             extra_hint = ""
@@ -291,14 +431,16 @@ def launch_simulation(
                 if sys.platform == "win32":
                     extra_hint = (
                         f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
-                        f"  Either run via `isaaclab.bat ...` (which now sources setup_conda_env.bat\n"
-                        f"  automatically), or in your current shell run:\n"
+                        f"  If running via `conda run`, activate.d hooks are skipped on Windows.\n"
+                        f"  As a workaround, manually source the env in your shell before running:\n"
                         f'    call "{local_sim}\\setup_conda_env.bat"\n'
+                        f"  Or run the script directly without conda run:\n"
+                        f'    conda activate <env> && isaaclab.bat -p -u <script> ...\n'
                     )
                 else:
                     extra_hint = (
                         f"  Found a local Isaac Sim at {local_sim} but its environment is not active.\n"
-                        f"  Either run via `./isaaclab.sh ...` (which now sources setup_conda_env.sh\n"
+                        f"  Either run via `./isaaclab.sh ...` (which sources setup_conda_env.sh\n"
                         f"  automatically), or in your current shell run:\n"
                         f'    source "{local_sim}/setup_conda_env.sh"\n'
                     )
