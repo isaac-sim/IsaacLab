@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.backend_utils import get_default_renderer_cfg
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -191,11 +190,7 @@ class CameraCfg(SensorBaseCfg):
     """
 
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
-    """Renderer configuration for camera sensor.
-
-    If ``None``, :meth:`__post_init__` assigns :func:`~isaaclab.utils.backend_utils.get_default_render_cfg`
-    (lazy import of ``isaaclab_physx.renderers``; requires ``isaaclab_physx``).
-    """
+    """Renderer configuration for camera sensor."""
 
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
@@ -208,6 +203,8 @@ class CameraCfg(SensorBaseCfg):
         # the default renderer config instantiation can be moved into the render factory
         # and get_default_render_cfg method can be removed from backend_utils
         if self.renderer_cfg.renderer_type == "default":
+            from isaaclab.utils.backend_utils import get_default_renderer_cfg
+
             self.renderer_cfg = get_default_renderer_cfg()
         # Forwarded by name: any same-named field on ``renderer_cfg`` will receive the value.
         for field_name, default in _DEPRECATED_RENDERER_FIELD_DEFAULTS.items():
