@@ -30,7 +30,14 @@ rem If a local Isaac Sim binary is present, source its env setup so that
 rem PYTHONPATH/PATH/EXP_PATH are correct without depending on a conda
 rem activate.d hook (those don't fire under e.g. `conda run` on Windows).
 if exist "%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat" (
-    call "%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat" >NUL
+    rem Primary: direct call (works when setup_conda_env.bat does not use setlocal).
+    call "%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat" >NUL 2>&1
+    rem Belt-and-suspenders: re-capture env vars via a fresh cmd subprocess.
+    rem This handles cases where setup_conda_env.bat uses setlocal internally,
+    rem which would cause the direct `call` above to discard its env changes.
+    set "_IL_ISIM_SETUP=%ISAACLAB_PATH%\_isaac_sim\setup_conda_env.bat"
+    for /f "usebackq delims=" %%E in (`cmd.exe /c "call ""%_IL_ISIM_SETUP%"" >nul 2>&1 ^&^& set"`) do set "%%E"
+    set "_IL_ISIM_SETUP="
 )
 
 rem Execute CLI.
