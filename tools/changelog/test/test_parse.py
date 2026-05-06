@@ -66,10 +66,10 @@ def test_parse_fragment_no_section_headings(tmp_path):
 
 
 def test_fragment_batch_flags_invalid_filenames_from_fixture():
-    """Files with dotted slugs or unknown bump tiers go in ``invalid``."""
+    """Files violating git-refname slug rules go in ``invalid``."""
     batch = cli.FragmentBatch.from_dir(FIXTURES / "invalid_filenames")
     assert batch.valid == []
-    assert {p.name for p in batch.invalid} == {"multi.dot.slug.rst", "1234.notabump.rst"}
+    assert {p.name for p in batch.invalid} == {"-leading-dash.rst", "has..consecutive-dots.rst"}
 
 
 def test_fragment_batch_missing_directory(tmp_path):

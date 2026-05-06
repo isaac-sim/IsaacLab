@@ -94,6 +94,7 @@ def test_aggregate_bump_logic(bumps, expected):
 @pytest.mark.parametrize(
     "name,is_fragment,is_skip",
     [
+        # Plain slugs and the three tier suffixes.
         ("1234.rst", True, False),
         ("1234.minor.rst", True, False),
         ("1234.major.rst", True, False),
@@ -102,17 +103,39 @@ def test_aggregate_bump_logic(bumps, expected):
         ("jdoe-add-feature.minor.rst", True, False),
         ("jdoe-rename-api.major.rst", True, False),
         ("jdoe-ci-only.skip", False, True),
+        # Dotted slugs (version-bearing branch names) — accepted; the longest
+        # matching tier suffix wins, so the slug keeps its embedded dots.
+        ("bump-newton-1.2.0rc2.minor.rst", True, False),
+        ("foo.bar.rst", True, False),  # slug = ``foo.bar``, tier = patch
+        ("1234.patch.rst", True, False),  # slug = ``1234.patch``, tier = patch
+        # Files that are not fragments at all.
         (".gitkeep", False, False),
         ("README.md", False, False),
-        ("1234.patch.rst", False, False),  # only minor/major are recognised tiers
-        ("foo.bar.rst", False, False),  # extra dots in slug are reserved for tier suffix
         ("1234.minor", False, False),  # missing .rst extension
         ("1234.rst.bak", False, False),
+        # Slugs that violate git-refname-style rules: leading ``.`` / ``-``,
+        # consecutive dots, ``.lock`` ending, forbidden chars, ``/``.
+        (".leading-dot.rst", False, False),
+        ("-leading-dash.rst", False, False),
+        ("trailing-dot..rst", False, False),  # `..` not allowed
+        ("ends-in.lock.rst", False, False),
+        ("has space.rst", False, False),
+        ("has~tilde.rst", False, False),
+        ("has^caret.rst", False, False),
+        ("nested/path.rst", False, False),
     ],
 )
-def test_fragment_filename_regexes(name, is_fragment, is_skip):
-    assert bool(cli.FRAGMENT_RE.match(name)) is is_fragment
-    assert bool(cli.SKIP_RE.match(name)) is is_skip
+def test_fragment_filename_classifies(name, is_fragment, is_skip):
+    fn = cli.FragmentFilename(name)
+    assert fn.is_fragment is is_fragment
+    assert fn.is_skip is is_skip
+
+
+def test_fragment_filename_extracts_dotted_slug_and_tier():
+    """Slugs with dots round-trip when paired with a tier suffix."""
+    fn = cli.FragmentFilename("bump-newton-1.2.0rc2.minor.rst")
+    assert fn.slug == "bump-newton-1.2.0rc2"
+    assert fn.tier == "minor"
 
 
 # ---------------------------------------------------------------------------

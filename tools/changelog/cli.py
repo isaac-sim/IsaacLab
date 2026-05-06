@@ -72,15 +72,88 @@ from typing import ClassVar
 REPO_ROOT = Path(__file__).parent.parent.parent
 PACKAGES_ROOT = REPO_ROOT / "source"
 
-# Recognised fragment filename patterns. ``<slug>`` is any short identifier
-# the contributor chose — typically their branch name with ``/`` replaced by
-# ``-``. The slug must not contain ``.`` (reserved for the tier suffix) or
-# ``/`` (path separator), but otherwise mirrors what git allows in a ref name.
-# These regexes live at module level because Fragment, FragmentBatch, and
-# PRDiff all match against them — they are the wire-format contract between
-# contributors and the gate.
-FRAGMENT_RE = re.compile(r"^(?P<slug>[^./][^./]*)(?:\.(?P<bump>minor|major))?\.rst$")
-SKIP_RE = re.compile(r"^(?P<slug>[^./][^./]*)\.skip$")
+
+@dataclass(frozen=True)
+class FragmentFilename:
+    """A fragment's filename parsed into ``(slug, tier)``.
+
+    Wire-format contract between contributors and the gate. Three classes
+    interpret a filename — :class:`Fragment` (instance, has the file on disk),
+    :class:`FragmentBatch` (directory walk, filters out skips), and
+    :class:`PRDiff` (gate, may see paths that don't exist on disk yet) — and
+    they all need to agree on what counts as a fragment, what tier it
+    declares, and what slug it owns. Centralising that logic on a value object
+    keeps the three in lockstep without forcing every caller to materialise a
+    :class:`Fragment`.
+
+    Suffix matching is anchored from the right with the longest suffix winning
+    (``foo.minor.rst`` is ``foo`` + minor, never ``foo.minor`` + patch). Slug
+    rules mirror ``git check-ref-format`` per-segment rules excluding ``/`` —
+    so dots inside the slug are fine (``bump-newton-1.2.0rc2.minor.rst`` is
+    valid), which matters because branch names routinely carry version numbers.
+    """
+
+    # Recognised filename suffixes, longest first. Exposed as a class
+    # attribute so tests and the contributor-facing error message can refer to
+    # the canonical list without re-stating it.
+    SUFFIXES: ClassVar[tuple[tuple[str, str], ...]] = (
+        (".minor.rst", "minor"),
+        (".major.rst", "major"),
+        (".skip", "skip"),
+        (".rst", "patch"),
+    )
+
+    # Chars forbidden inside a slug, mirroring ``git check-ref-format``.
+    _FORBIDDEN_CHARS: ClassVar[frozenset[str]] = frozenset(" ~^:?*[\\\x7f")
+
+    name: str
+
+    @cached_property
+    def _parsed(self) -> tuple[str, str] | None:
+        for suffix, tier in self.SUFFIXES:
+            if not self.name.endswith(suffix):
+                continue
+            slug = self.name[: -len(suffix)]
+            if not self._slug_is_valid(slug):
+                return None
+            return slug, tier
+        return None
+
+    @classmethod
+    def _slug_is_valid(cls, slug: str) -> bool:
+        """``True`` if ``slug`` satisfies the git-refname-minus-``/`` rules."""
+        if not slug:
+            return False
+        if slug[0] in "-." or slug[-1] == ".":
+            return False
+        if slug.endswith(".lock") or ".." in slug or "@{" in slug:
+            return False
+        return not any(c in cls._FORBIDDEN_CHARS or ord(c) < 32 or c == "/" for c in slug)
+
+    @property
+    def is_valid(self) -> bool:
+        """``True`` if the filename parses as either a fragment or a skip marker."""
+        return self._parsed is not None
+
+    @property
+    def is_fragment(self) -> bool:
+        """``True`` if the filename declares an ``.rst`` fragment (not a skip)."""
+        return self._parsed is not None and self._parsed[1] != "skip"
+
+    @property
+    def is_skip(self) -> bool:
+        """``True`` if the filename is a ``.skip`` marker."""
+        return self._parsed is not None and self._parsed[1] == "skip"
+
+    @property
+    def slug(self) -> str | None:
+        """Slug component, or ``None`` if the filename does not parse."""
+        return self._parsed[0] if self._parsed is not None else None
+
+    @property
+    def tier(self) -> str | None:
+        """Bump tier (``patch`` / ``minor`` / ``major`` / ``skip``), or ``None``."""
+        return self._parsed[1] if self._parsed is not None else None
 
 
 def _display_path(p: Path) -> str:
@@ -154,7 +227,8 @@ class Fragment:
 
     A :class:`Fragment` instance is just a path plus methods that interpret
     it as a changelog fragment. ``.gitkeep`` and ``*.skip`` files should
-    not be wrapped — only files matching :data:`FRAGMENT_RE`.
+    not be wrapped — only files whose :class:`FragmentFilename` is
+    ``is_fragment`` (i.e. an ``.rst`` fragment, not a skip marker).
     """
 
     path: Path
@@ -164,19 +238,22 @@ class Fragment:
         return self.path.name
 
     @cached_property
-    def _match(self) -> re.Match[str] | None:
-        return FRAGMENT_RE.match(self.name)
+    def _filename(self) -> FragmentFilename:
+        """Cached parsed view of ``self.path.name``."""
+        return FragmentFilename(self.name)
 
     @property
     def is_valid_filename(self) -> bool:
-        return self._match is not None
+        # ``.skip`` markers parse as :class:`FragmentFilename` but never reach
+        # :class:`Fragment` — :meth:`FragmentBatch.from_dir` peels them off
+        # into ``FragmentBatch.skips`` first. Only ``.rst`` fragments need
+        # content validation and tier aggregation.
+        return self._filename.is_fragment
 
     @property
     def bump(self) -> str:
         """Bump tier declared by the filename suffix (defaults to ``'patch'``)."""
-        if self._match and self._match.group("bump"):
-            return self._match.group("bump")
-        return "patch"
+        return self._filename.tier or "patch"
 
     def parse(self) -> dict[str, list[str]]:
         """Return ``{section: [lines]}`` from this fragment's content.
@@ -235,8 +312,7 @@ class Fragment:
         without needing to materialise a :class:`Fragment` (the diff entry
         may not exist on disk yet during a gate run).
         """
-        m = FRAGMENT_RE.match(filename) or SKIP_RE.match(filename)
-        return m.group("slug") if m else None
+        return FragmentFilename(filename).slug
 
     def merge_time(self) -> int:
         """Unix timestamp of the merge commit that introduced this fragment.
@@ -264,17 +340,21 @@ class Fragment:
     def validate(self) -> str | None:
         """Return a human-readable error string if malformed, else ``None``.
 
-        Filename rules: must match :data:`FRAGMENT_RE` (``.gitkeep`` and
-        ``*.skip`` files are filtered out at :meth:`FragmentBatch.from_dir`
-        level and never reach this method). Content rules (for ``*.rst``
-        fragments only): non-empty file with at least one valid section
-        heading and at least one bullet point.
+        Filename rules: must parse as :class:`FragmentFilename` with
+        ``is_fragment`` true (``.gitkeep`` and ``*.skip`` files are filtered
+        out at :meth:`FragmentBatch.from_dir` level and never reach this
+        method). Content rules (for ``*.rst`` fragments only): non-empty
+        file with at least one valid section heading and at least one
+        bullet point.
         """
         if not self.is_valid_filename:
             return (
                 "invalid filename — must be <slug>.rst, <slug>.minor.rst, "
-                "<slug>.major.rst, or <slug>.skip (slug = your branch name "
-                "with `/` replaced by `-`, no dots)"
+                "<slug>.major.rst, or <slug>.skip. Slug rules mirror git "
+                "refnames (excluding `/`): non-empty, no whitespace or any of "
+                "`~ ^ : ? * [ \\`, no leading `.` or `-`, no trailing `.` or "
+                "`.lock`, no `..` or `@{`. Dots inside the slug are fine "
+                "(e.g. `bump-newton-1.2.0rc2.minor.rst`)."
             )
         if not self.path.exists():
             # Deleted fragments don't need validating (consumed by a previous compile).
@@ -344,7 +424,7 @@ class FragmentBatch:
         for p in fragment_dir.iterdir():
             if p.is_dir() or p.name == ".gitkeep":
                 continue
-            if SKIP_RE.match(p.name):
+            if FragmentFilename(p.name).is_skip:
                 skips.append(p)
                 continue
             f = Fragment(p)
@@ -761,7 +841,7 @@ class PRDiff:
                     continue
 
                 # Rule 2: content validity (only for *.rst, not *.skip).
-                if not SKIP_RE.match(path.name):
+                if not FragmentFilename(path.name).is_skip:
                     err = Fragment(REPO_ROOT / f).validate()
                     if err:
                         invalid_fragments.append((f, err))
@@ -800,11 +880,7 @@ class PRDiff:
                 continue
 
             # Rule 4: this PR must add at least one valid fragment for the package.
-            owned = [
-                f
-                for f in fragment_changes
-                if f in self.added and (FRAGMENT_RE.match(Path(f).name) or SKIP_RE.match(Path(f).name))
-            ]
+            owned = [f for f in fragment_changes if f in self.added and FragmentFilename(Path(f).name).is_valid]
             if not owned:
                 missing.append(pkg.name)
 
