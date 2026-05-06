@@ -70,13 +70,14 @@ parser.add_argument("--external_callback", default=None, help="Fully qualified p
 parser.add_argument(
     "--frontend",
     type=str,
-    default="stable",
-    choices=["stable", "warp"],
+    default="torch",
+    choices=["torch", "warp"],
     help=(
-        "Runtime backend for the env. 'stable' uses isaaclab.envs.* (torch);"
-        " 'warp' routes through isaaclab_experimental.envs.warp_frontend.WarpFrontend,"
-        " which adapts a manager-based stable cfg onto ManagerBasedRLEnvWarp or dispatches"
-        " a direct task to its registered warp env class."
+        "Runtime backend for the env. 'torch' uses isaaclab.envs.* (PhysX or Newton via"
+        " factory dispatch); 'warp' routes through the WarpFrontend, which adapts a"
+        " manager-based cfg onto ManagerBasedRLEnvWarp or dispatches a direct task to its"
+        " registered warp env class. See isaaclab_experimental.envs.frontend for the"
+        " pluggable rule pipeline."
     ),
 )
 cli_args.add_rsl_rl_args(parser)
@@ -99,32 +100,15 @@ if args_cli.external_callback:
 # argparser and (optionally) the external callback function.
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
 
-# When the warp frontend is selected on a stable manager-based task, the cfg
-# must resolve any PresetCfg wrappers to their ``newton`` field. Hydra
-# resolves presets *before* the WarpFrontend runs, so we inject
-# ``presets=newton`` here. We only inject for tasks whose env_cfg_entry_point
-# is under ``isaaclab_tasks.manager_based``; direct tasks and the pre-warp
-# ``*-Warp-v0`` registrations don't carry the preset system, and injecting
-# ``presets=newton`` against them causes Hydra to error before the frontend
-# can produce its own diagnostic. Note: ``spec.entry_point`` is the env
-# *class* path (e.g. ``isaaclab.envs:ManagerBasedRLEnv``) — we check the
-# *cfg* entry point in ``spec.kwargs``.
-if args_cli.frontend == "warp" and args_cli.task is not None:
-    try:
-        _spec = gym.spec(args_cli.task)
-    except gym.error.NameNotFound:
-        _spec = None
-    _cfg_entry = _spec.kwargs.get("env_cfg_entry_point") if _spec is not None else None
-    _is_stable_manager = isinstance(_cfg_entry, str) and _cfg_entry.startswith("isaaclab_tasks.manager_based")
-    _explicit_preset = next((a for a in remaining_args if a.startswith("presets=")), None)
-    if _is_stable_manager and _explicit_preset is None:
-        remaining_args.append("presets=newton")
-    elif _is_stable_manager and _explicit_preset != "presets=newton":
-        logger.warning(
-            "--frontend=warp on %r expects presets=newton; got %r — adapter may fail to find a Newton physics cfg.",
-            args_cli.task,
-            _explicit_preset,
-        )
+# Build the chosen frontend and let it pre-process Hydra args. Frontends
+# may inject preset selections (e.g. WarpFrontend appends ``presets=newton``
+# for stable manager-based tasks so PresetCfg wrappers resolve to the Newton
+# field before Hydra builds the cfg).
+from isaaclab_experimental.envs.frontend import get_frontend  # noqa: E402
+
+_frontend = get_frontend(args_cli.frontend)
+if args_cli.task is not None:
+    remaining_args = _frontend.preprocess_hydra_args(args_cli.task, remaining_args)
 
 sys.argv = [sys.argv[0]] + remaining_args
 
@@ -210,16 +194,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # set the log directory for the environment (works for all environment types)
         env_cfg.log_dir = log_dir
 
-        # create isaac environment
+        # create isaac environment via the chosen frontend's rule pipeline.
+        # The frontend may mutate env_cfg in place (preset resolution,
+        # SceneEntityCfg promotion, mdp twin swaps, ...) before constructing
+        # the env. ``env.unwrapped.frontend_report`` carries what changed
+        # and what was missing.
         render_mode = "rgb_array" if args_cli.video else None
-        if args_cli.frontend == "warp":
-            # Lazy: first warp-side import. Calling this after SimulationApp
-            # is already alive avoids racing pxr extension init.
-            from isaaclab_experimental.envs.warp_frontend import WarpFrontend
-
-            env = WarpFrontend().build(env_cfg, task_id=args_cli.task, render_mode=render_mode)
-        else:
-            env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
+        env = _frontend.build(env_cfg, task_id=args_cli.task, render_mode=render_mode)
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
