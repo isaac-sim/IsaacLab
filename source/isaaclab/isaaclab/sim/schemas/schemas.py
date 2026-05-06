@@ -6,6 +6,7 @@
 # needed to import for allowing type-hinting: Usd.Stage | None
 from __future__ import annotations
 
+import dataclasses
 import logging
 import math
 
@@ -300,7 +301,7 @@ def modify_articulation_root_properties(
         return False
 
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
-    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
     # extract writer-side (non-USD) properties
     fix_root_link = cfg_dict.pop("fix_root_link", None)
 
@@ -452,7 +453,7 @@ def modify_rigid_body_properties(
     if not UsdPhysics.RigidBodyAPI(rigid_body_prim):
         return False
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
-    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
 
     # All fields routed by the helper via per-declaring-class lookup: base
     # ``rigid_body_enabled`` / ``kinematic_enabled`` go under ``physics:*``;
@@ -543,7 +544,7 @@ def modify_collision_properties(
         modify_mesh_collision_properties(prim_path, mesh_collision_cfg, stage)
 
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
-    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
     # pop the mesh_collision_property since it is already dispatched above
     cfg_dict.pop("mesh_collision_property", None)
 
@@ -632,7 +633,7 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
         return False
 
     # ``mass`` / ``density`` (``physics:*``) routed via the helper's per-declaring-class lookup.
-    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
     _apply_namespaced_schemas(rigid_prim, cfg, cfg_dict)
     # success
     return True
@@ -788,7 +789,7 @@ def modify_joint_drive_properties(
     # (a Python keyword-like name we cannot use as a cfg field). All other solver-common
     # joint-drive fields follow the snake_case = camelCase convention.
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
-    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
 
     # ensure_drives_exist: if both stiffness and damping are zero on the authored drive,
     # set a minimal stiffness so that backends like Newton recognise the drive as active.
@@ -1041,7 +1042,7 @@ def modify_mesh_collision_properties(
         UsdPhysics.MeshCollisionAPI.Apply(prim)
 
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
-    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
 
     # write the standard ``physics:approximation`` token via UsdPhysics.MeshCollisionAPI
     approximation_name = cfg_dict.pop("mesh_approximation_name", "none")

@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdPhysics, UsdShade
@@ -67,7 +68,7 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
         UsdPhysics.MaterialAPI.Apply(prim)
 
     # build cfg dict, dropping underscore-prefixed metadata keys and the spawner ``func`` field
-    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_") and k != "func"}
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg) if f.name != "func"}
 
     # All fields routed by the helper: base friction/restitution under ``physics:*``,
     # PhysX-subclass fields (compliant-contact, combine modes) under ``physxMaterial:*``.

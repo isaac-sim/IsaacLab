@@ -40,6 +40,13 @@ Changed
   (single-namespace USD with verified Newton consumer); ``enabled_self_collisions`` moves
   to the PhysX subclass (dual-namespace USD, with a future Newton sibling cfg owning the
   ``newton:*`` namespace).
+* Changed the defaults of :attr:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg.compliant_contact_stiffness`,
+  :attr:`compliant_contact_damping`, :attr:`friction_combine_mode`, and
+  :attr:`restitution_combine_mode` from concrete values (``0.0``, ``0.0``, ``"average"``,
+  ``"average"``) to ``None``. PhysX engine defaults match the previous concrete values, so
+  user-observable simulation behavior is unchanged; the difference is that these attributes
+  are now authored on the prim only when the user explicitly sets them (consistent with the
+  rest of the consumption-gated cfg layer).
 * Relocated :class:`RigidBodyMaterialCfg` to :mod:`isaaclab_physx.sim.spawners.materials` and
   split its fields between the new :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`
   (UsdPhysics-standard friction/restitution) and
