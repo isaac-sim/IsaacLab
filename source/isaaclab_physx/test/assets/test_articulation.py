@@ -195,7 +195,7 @@ def generate_articulation(
 # ---------------------------------------------------------------------------
 
 
-def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
+def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, enable_rigid_body_gravity: bool = False):
     """Build a Franka articulation at its configured home pose.
 
     See the Newton-side mirror for full docs. Standalone tests skip the
@@ -207,6 +207,11 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
         sim: The simulation context to use.
         zero_actuator_pd: If True, sets the panda_shoulder/panda_forearm
             actuator stiffness and damping to zero.
+        enable_rigid_body_gravity: If True, override
+            ``FRANKA_PANDA_HIGH_PD_CFG.spawn.rigid_props.disable_gravity``
+            (which defaults to True) so gravity actually loads the arm. Required
+            for any test that wants to exercise gravity-related dynamics
+            (e.g. gravity-compensation accuracy tests).
 
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
@@ -217,6 +222,12 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
         cfg.actuators["panda_shoulder"].damping = 0.0
         cfg.actuators["panda_forearm"].stiffness = 0.0
         cfg.actuators["panda_forearm"].damping = 0.0
+    if enable_rigid_body_gravity:
+        cfg = cfg.replace(
+            spawn=cfg.spawn.replace(
+                rigid_props=cfg.spawn.rigid_props.replace(disable_gravity=False),
+            ),
+        )
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
     robot = Articulation(cfg)
     sim.reset()
@@ -2722,6 +2733,166 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     # with proper ee-velocity feedback (``J · q_dot``).
     assert pos_mean < 5e-3, f"OSC pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
     assert rot_mean < 5e-2, f"OSC rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
+
+
+def _run_osc_stay_still_under_gravity(
+    sim,
+    device: str,
+    *,
+    gravity_compensation_enabled: bool,
+    num_steps: int = 100,
+):
+    """Run OSC with a stay-still target on Franka under gravity, return EE drift summary.
+
+    Shared helper for the gravity-comp tests. Setup mirrors
+    :func:`test_franka_osc_tracking_accuracy` (zero actuator PD so OSC's joint-effort
+    output is not opposed by an implicit-PD spring), but with scene gravity ON and the
+    target = the EE pose captured after the first sim step (which already includes a
+    fraction-of-a-mm of gravity-induced motion; that's the baseline drift starts from).
+
+    Args:
+        gravity_compensation_enabled: If ``True``, the OSC controller cfg has
+            ``gravity_compensation=True`` and ``osc.compute(gravity=g(q))`` receives
+            the data-layer ``gravity_compensation_forces`` slice. If ``False``,
+            ``gravity_compensation=False`` and ``gravity=None``.
+
+    Returns:
+        Tuple ``((pos_min, pos_mean), (rot_min, rot_mean))`` over the last 20% of
+        steps (per :func:`_summarize_history`), where ``pos`` is in meters and
+        ``rot`` in radians.
+    """
+    # Enable rigid-body gravity so the arm actually feels weight.
+    # ``FRANKA_PANDA_HIGH_PD_CFG`` defaults ``disable_gravity=True`` for IK/OSC tests.
+    robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(
+        sim, zero_actuator_pd=True, enable_rigid_body_gravity=True
+    )
+
+    osc = OperationalSpaceController(
+        OperationalSpaceControllerCfg(
+            target_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
+            gravity_compensation=gravity_compensation_enabled,
+            motion_stiffness_task=500.0,
+            motion_damping_ratio_task=1.0,
+        ),
+        num_envs=1,
+        device=device,
+    )
+
+    sim.step()
+    robot.update(sim.cfg.dt)
+
+    # Stay-still target = current EE pose in root frame, captured right after the
+    # first step. The OSC loop must hold this pose under gravity.
+    initial_ee_pos_b, initial_ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
+    target_pose_b = torch.cat([initial_ee_pos_b, initial_ee_quat_b], dim=-1)
+
+    pos_history: list[float] = []
+    rot_history: list[float] = []
+    for _ in range(num_steps):
+        jacobian_b = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
+        mass_matrix = robot.data.mass_matrix.torch[:, arm_joint_ids, :][:, :, arm_joint_ids]
+        ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
+        ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+        joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+        ee_vel_b = _compute_ee_vel_root(jacobian_b, joint_vel)
+
+        # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``;
+        # slice past the leading floating-base columns (0 for fixed-base Franka, so a
+        # no-op here, but the pattern matches the action-term convention).
+        gravity = (
+            robot.data.gravity_compensation_forces.torch[:, [j + robot.num_base_dofs for j in arm_joint_ids]]
+            if gravity_compensation_enabled
+            else None
+        )
+
+        osc.set_command(target_pose_b, current_ee_pose_b=ee_pose_b)
+        joint_efforts = osc.compute(
+            jacobian_b=jacobian_b,
+            current_ee_pose_b=ee_pose_b,
+            current_ee_vel_b=ee_vel_b,
+            mass_matrix=mass_matrix,
+            gravity=gravity,
+        )
+        robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
+        robot.write_data_to_sim()
+        sim.step()
+        robot.update(sim.cfg.dt)
+
+        pos_error, rot_error = compute_pose_error(ee_pos_b, ee_quat_b, target_pose_b[:, 0:3], target_pose_b[:, 3:7])
+        pos_history.append(pos_error.norm(dim=-1).max().item())
+        rot_history.append(rot_error.norm(dim=-1).max().item())
+
+    return _summarize_history(pos_history), _summarize_history(rot_history)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.isaacsim_ci
+def test_franka_osc_gravity_compensation_holds_under_gravity(sim, device, articulation_type, gravity_enabled):
+    """OSC with ``gravity_compensation=True`` must hold the EE pose under gravity.
+
+    With scene gravity ON and zero actuator PD (so OSC torques are not opposed by an
+    implicit-PD spring), passing
+    :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces` through
+    ``osc.compute(gravity=...)`` should keep the arm at the initial pose.
+
+    Pins three things that the existing direct-primitive
+    :func:`test_get_gravity_compensation_forces_static_equilibrium` does not:
+      1. OSC's ``_jacobi_joint_idx`` indexing — the ``+ num_base_dofs`` shift.
+      2. OSC's :meth:`OperationalSpaceController.compute` correctly adds ``g(q)`` to
+         its torque output.
+      3. The data-property ``gravity_compensation_forces`` is reachable from the OSC
+         pipeline (catches gating regressions in
+         :meth:`OperationalSpaceControllerAction._compute_dynamic_quantities`).
+
+    Companion test :func:`test_franka_osc_no_gravity_compensation_sags_under_gravity`
+    runs the same setup with ``gravity_compensation=False`` and reports the
+    uncompensated drift magnitude — a sanity check that gravity is loading the arm.
+    """
+    (pos_min, pos_mean), (rot_min, rot_mean) = _run_osc_stay_still_under_gravity(
+        sim, device, gravity_compensation_enabled=True
+    )
+    print(f"OSC_GC_ON pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
+
+    assert pos_mean < 5e-3, f"OSC + gravity_compensation pos_mean {pos_mean:.5f} > 5 mm — regression?"
+    assert rot_mean < 5e-2, f"OSC + gravity_compensation rot_mean {rot_mean:.5f} > 0.05 rad — regression?"
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.isaacsim_ci
+def test_franka_osc_no_gravity_compensation_sags_under_gravity(sim, device, articulation_type, gravity_enabled):
+    """OSC without ``gravity_compensation`` under gravity: sanity check that the arm sags.
+
+    Companion to :func:`test_franka_osc_gravity_compensation_holds_under_gravity`.
+    Same setup, but ``gravity_compensation=False`` and ``osc.compute(gravity=None)``.
+    With zero actuator PD, OSC's task-space impedance is the only restoring force —
+    the steady-state solution is whatever pose error the impedance produces enough
+    joint torque to balance ``g(q)``.
+
+    Asserts the drift is **non-trivially larger** than the with-comp threshold (5 mm).
+    Without this check, a regression that broke ``gravity_compensation_forces`` by
+    returning zeros (or a no-op `g(q)`) would pass the with-comp test silently. The
+    bound here proves gravity is actually loading the arm and the with-comp pass is
+    meaningful.
+    """
+    (pos_min, pos_mean), (rot_min, rot_mean) = _run_osc_stay_still_under_gravity(
+        sim, device, gravity_compensation_enabled=False
+    )
+    print(f"OSC_GC_OFF pos_min={pos_min:.5f} pos_mean={pos_mean:.5f} rot_min={rot_min:.5f} rot_mean={rot_mean:.5f}")
+
+    # Sanity: with gravity on and no comp, OSC's task-space spring vs gravity-load
+    # equilibrium produces a non-zero pose error. If this asserts fails, the test
+    # setup itself is broken (e.g., gravity is not on, or the home pose has no
+    # gravity load), which would invalidate the with-comp test as well.
+    assert pos_mean > 5e-3, (
+        f"OSC + no gravity_compensation pos_mean {pos_mean:.5f} ≤ 5 mm — gravity not loading the arm?"
+    )
 
 
 if __name__ == "__main__":
