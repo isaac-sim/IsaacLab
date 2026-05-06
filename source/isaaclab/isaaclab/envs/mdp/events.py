@@ -1626,55 +1626,6 @@ class _RandomizeFixedTendonPropertiesNewton(ManagerTermBase):
                 damping=damping[env_ids[:, None], tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
             )
 
-        # position limits
-        if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            limit = self.asset.data.fixed_tendon_pos_limits.torch.clone()
-            # -- lower limit
-            if lower_limit_distribution_params is not None:
-                limit[..., 0] = _randomize_prop_by_op(
-                    limit[..., 0],
-                    lower_limit_distribution_params,
-                    env_ids,
-                    tendon_ids,
-                    operation=operation,
-                    distribution=distribution,
-                )
-            # -- upper limit
-            if upper_limit_distribution_params is not None:
-                limit[..., 1] = _randomize_prop_by_op(
-                    limit[..., 1],
-                    upper_limit_distribution_params,
-                    env_ids,
-                    tendon_ids,
-                    operation=operation,
-                    distribution=distribution,
-                )
-
-            # check if the limits are valid
-            tendon_limits = limit[env_ids[:, None], tendon_ids]
-            if (tendon_limits[..., 0] > tendon_limits[..., 1]).any():
-                raise ValueError(
-                    "Randomization term 'randomize_fixed_tendon_parameters' is setting lower tendon limits that are"
-                    " greater than upper tendon limits."
-                )
-            self.asset.set_fixed_tendon_position_limit_index(
-                limit=tendon_limits, fixed_tendon_ids=tendon_ids, env_ids=env_ids
-            )
-
-        # rest length
-        if rest_length_distribution_params is not None:
-            rest_length = _randomize_prop_by_op(
-                self.asset.data.fixed_tendon_rest_length.torch.clone(),
-                rest_length_distribution_params,
-                env_ids,
-                tendon_ids,
-                operation=operation,
-                distribution=distribution,
-            )
-            self.asset.set_fixed_tendon_rest_length_index(
-                rest_length=rest_length[env_ids[:, None], tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
-            )
-
         # write the fixed tendon properties into the simulation
         self.asset.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
 
