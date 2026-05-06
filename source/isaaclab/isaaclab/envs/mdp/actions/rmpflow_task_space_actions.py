@@ -55,18 +55,13 @@ class RMPFlowAction(ActionTerm):
         self._body_idx = body_ids[0]
         self._body_name = body_names[0]
 
-        # check if articulation is fixed-base
-        # if fixed-base then the jacobian for the base is not computed
-        # this means that number of bodies is one less than the articulation's number of bodies
-        if self._asset.is_fixed_base:
-            self._jacobi_body_idx = self._body_idx - 1
-        else:
-            self._jacobi_body_idx = self._body_idx
-        # Jacobian / mass-matrix DoF axis prepends ``num_base_dofs`` floating-base columns
-        # (0 for fixed-base, 6 for floating-base), so actuated-joint id ``j`` maps to
-        # Jacobian column ``j + num_base_dofs``.
-        offset = self._asset.num_base_dofs
-        self._jacobi_joint_ids = [j + offset for j in self._joint_ids]
+        # Jacobian / mass-matrix axis convention:
+        # - body axis: fixed-base drops the fixed-root body row, so jacobi_body_idx = body_idx - 1;
+        #   floating-base keeps it (jacobi_body_idx = body_idx).
+        # - DoF axis: prepends num_base_dofs floating-base columns (0 fixed, 6 floating), so
+        #   actuated-joint id j maps to Jacobian column j + num_base_dofs.
+        self._jacobi_body_idx = self._body_idx - 1 if self._asset.is_fixed_base else self._body_idx
+        self._jacobi_joint_ids = [j + self._asset.num_base_dofs for j in self._joint_ids]
 
         # log info for debugging
         logger.info(
