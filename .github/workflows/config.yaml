@@ -6,5 +6,9 @@
 # Shared image config for CI workflows. Loaded by the `config` job in each
 # workflow via yq and exposed as job outputs (see e.g. .github/workflows/build.yaml).
 isaacsim_image_name: nvcr.io/nvidian/isaac-sim
-isaacsim_image_tag: latest-develop
+# TEMP: pinned to the last latest-develop digest where the full CI matrix passed
+# (run 25419229057, 2026-05-06 06:04 UTC). The mutable tag was bumped to a
+# regressed image around 08:25 UTC the same day; revert this line to
+# `latest-develop` once the upstream image is healthy again.
+isaacsim_image_tag: latest-develop@sha256:16bfc58870181907930b1df2f8cf2769f3553740d0d7c874fc0fc13de58b6880
 isaaclab_image_name: nvcr.io/nvidian/isaac-lab
