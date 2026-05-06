@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import contextlib
 import logging
 import sys
 from unittest import mock
@@ -224,10 +225,11 @@ def test_frame_stack_default_is_one():
 # These test :meth:`RendererCfg.provides_temporal_camera_data` directly across each subclass.
 # RTX is dynamic on the active AA mode; Newton Warp is always False; the base class is always True.
 
-from isaaclab.renderers.renderer_cfg import RendererCfg  # noqa: E402
-from isaaclab.sim.simulation_cfg import RenderCfg  # noqa: E402
 from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
+
+from isaaclab.renderers.renderer_cfg import RendererCfg  # noqa: E402
+from isaaclab.sim.simulation_cfg import RenderCfg  # noqa: E402
 
 
 @pytest.mark.isaacsim_ci
@@ -644,6 +646,7 @@ def test_auto_apply_handles_wrapper_policy():
 def _make_e2e_cfg():
     """Build a MultiBackendCameraCfg pointing at the test scene with a concrete RTX renderer."""
     from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
     from isaaclab_tasks.utils.presets import MultiBackendCameraCfg
 
     return MultiBackendCameraCfg(
@@ -770,10 +773,8 @@ def _cleanup_partial_sim() -> None:
     """Clear any SimulationContext left over from a mid-init failure."""
     sim = sim_utils.SimulationContext.instance()
     if sim is not None:
-        try:
+        with contextlib.suppress(Exception):
             sim.clear_instance()
-        except Exception:  # noqa: BLE001
-            pass
 
 
 @pytest.mark.isaacsim_ci
