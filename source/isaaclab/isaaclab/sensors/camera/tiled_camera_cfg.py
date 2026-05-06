@@ -27,7 +27,6 @@ class TiledCameraCfg(CameraCfg):
     class_type: type["TiledCamera"] | str = "{DIR}.tiled_camera:TiledCamera"
 
     def __post_init__(self):
-        # Leaf ``__post_init__`` only: call parent so ``renderer_cfg`` is filled.
         super().__post_init__()
         warnings.warn(
             "TiledCameraCfg is deprecated. Use CameraCfg directly — "
