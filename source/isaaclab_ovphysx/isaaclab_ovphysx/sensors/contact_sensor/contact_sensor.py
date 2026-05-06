@@ -166,12 +166,22 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._physx_instance = physx_instance
 
-        # Discover sensor bodies. Mirror the PhysX discovery path.
+        # Discover sensor bodies. Mirror the PhysX discovery path but use
+        # ``GetPrimTypeInfo().GetAppliedAPISchemas()`` (raw apiSchemas listOp)
+        # rather than ``GetAppliedSchemas()`` (filtered by USD's plugin
+        # registry).  Under the kitless ovphysx flow the ``PhysxSchema`` USD
+        # plugin is registered by :meth:`OvPhysxManager.initialize` so the
+        # wheel-side schema check passes, but the Python-side filtered API
+        # still hides ``PhysxContactReportAPI`` because the schema TYPE
+        # registration only happens when the C++ plugin library is loaded by
+        # ``omni.physx``.  The unfiltered API matches what the underlying
+        # USD apiSchemas listOp actually carries (verified against
+        # :class:`pxr.Sdf.PrimSpec.GetInfo("apiSchemas")`).
         leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
         template_prim_path = self._parent_prims[0].GetPath().pathString
         body_names: list[str] = []
         for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
-            if "PhysxContactReportAPI" in prim.GetAppliedSchemas():
+            if "PhysxContactReportAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas():
                 body_names.append(prim.GetPath().pathString.rsplit("/", 1)[-1])
         if not body_names:
             raise RuntimeError(
