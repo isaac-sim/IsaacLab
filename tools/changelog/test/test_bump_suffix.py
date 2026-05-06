@@ -117,7 +117,8 @@ def test_aggregate_bump_logic(bumps, expected):
         # consecutive dots, ``.lock`` ending, forbidden chars, ``/``.
         (".leading-dot.rst", False, False),
         ("-leading-dash.rst", False, False),
-        ("trailing-dot..rst", False, False),  # `..` not allowed
+        ("trailing-dot..rst", False, False),  # slug ``trailing-dot.`` ends in `.`
+        ("has..consecutive.rst", False, False),  # slug contains `..`
         ("ends-in.lock.rst", False, False),
         ("has space.rst", False, False),
         ("has~tilde.rst", False, False),

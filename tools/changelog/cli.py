@@ -848,14 +848,12 @@ class PRDiff:
                         continue
 
                 # Rule 3: slug uniqueness within the package's changelog.d/.
+                # By construction ``parse_slug`` returns a valid slug here:
+                # ``.skip`` files passed the ``is_skip`` filter (which only
+                # accepts a successfully parsed filename), and ``.rst`` files
+                # passed ``validate()`` (which rejects unparseable names).
                 slug = Fragment.parse_slug(path.name)
-                if slug is None:
-                    # Filename validation already flagged this above for *.rst,
-                    # but a malformed *.skip would slip through. Surface it.
-                    invalid_fragments.append(
-                        (f, "invalid filename — must be <slug>.rst, <slug>.minor.rst, <slug>.major.rst, or <slug>.skip")
-                    )
-                    continue
+                assert slug is not None, f"unreachable: {path.name!r} reached Rule 3 without a valid slug"
                 if slug in existing_slugs and existing_slugs[slug] != path.name:
                     invalid_fragments.append(
                         (
