@@ -71,8 +71,10 @@ def _install_stubs():
     """Insert MagicMock modules for all heavy dependencies."""
     for name in _MODULES_TO_STUB:
         if name not in sys.modules:
-            _stubs_installed[name] = MagicMock()
-            sys.modules[name] = _stubs_installed[name]
+            sys.modules[name] = _stubs_installed.setdefault(name, MagicMock())
+        if "." in name:
+            parent_name, child_name = name.rsplit(".", 1)
+            setattr(sys.modules[parent_name], child_name, sys.modules[name])
 
     @dataclass
     class DeadlinePacingConfig:
@@ -88,6 +90,21 @@ def _install_stubs():
     tsm.RetargetingExecutionConfig = RetargetingExecutionConfig  # type: ignore[attr-defined]
 
 
+def _restore_stubs():
+    """Remove stubs installed for this test module from ``sys.modules``."""
+    for name in reversed(_MODULES_TO_STUB):
+        stub = _stubs_installed.get(name)
+        if stub is None:
+            continue
+        if "." in name:
+            parent_name, child_name = name.rsplit(".", 1)
+            parent = sys.modules.get(parent_name)
+            if parent is not None and getattr(parent, child_name, None) is stub:
+                delattr(parent, child_name)
+        if sys.modules.get(name) is stub:
+            del sys.modules[name]
+
+
 _install_stubs()
 
 from isaaclab_teleop.isaac_teleop_cfg import (  # noqa: E402
@@ -97,9 +114,19 @@ from isaaclab_teleop.isaac_teleop_cfg import (  # noqa: E402
 )
 from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle  # noqa: E402
 
+_restore_stubs()
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _stub_heavy_dependencies():
+    """Keep CloudXR tests isolated from modules collected later in the suite."""
+    _install_stubs()
+    yield
+    _restore_stubs()
 
 
 def _make_cfg() -> IsaacTeleopCfg:
@@ -121,6 +148,24 @@ def _make_lifecycle(
         cloudxr_env_file=cloudxr_env_file,
         auto_launch_cloudxr=auto_launch_cloudxr,
     )
+
+
+def _make_supported_tsm_module() -> ModuleType:
+    """Build a fake ``teleop_session_manager`` with the new execution config API."""
+
+    @dataclass
+    class DeadlinePacingConfig:
+        safety_margin_s: float = 0.025
+
+    @dataclass
+    class RetargetingExecutionConfig:
+        mode: str = "sync"
+        pacing: DeadlinePacingConfig | None = None
+
+    tsm = ModuleType("isaacteleop.teleop_session_manager")
+    tsm.DeadlinePacingConfig = DeadlinePacingConfig  # type: ignore[attr-defined]
+    tsm.RetargetingExecutionConfig = RetargetingExecutionConfig  # type: ignore[attr-defined]
+    return tsm
 
 
 # ============================================================================
@@ -163,7 +208,13 @@ class TestRetargetingExecutionConfig:
 
     def test_cfg_defaults_to_deadline_paced_pipelined_retargeting(self):
         """Isaac Lab defaults to deadline-paced pipelined retargeting."""
-        cfg = _make_cfg()
+        import isaaclab_teleop.isaac_teleop_cfg as cfg_module
+
+        with (
+            patch.object(cfg_module, "_RETARGETING_EXECUTION_SUPPORTED", True),
+            patch.object(cfg_module, "_tsm", _make_supported_tsm_module()),
+        ):
+            cfg = _make_cfg()
 
         assert cfg.retargeting_execution.mode == "pipelined"
         assert cfg.retargeting_execution.pacing.safety_margin_s == 0.025
@@ -177,8 +228,23 @@ class TestRetargetingExecutionConfig:
 
         assert cfg.retargeting_execution is None
 
+    def test_retargeting_execution_support_requires_new_config_classes(self):
+        """IsaacTeleop must expose both execution config classes to enable the default."""
+        import isaaclab_teleop.isaac_teleop_cfg as cfg_module
+
+        legacy_tsm = ModuleType("isaacteleop.teleop_session_manager")
+        assert not cfg_module._retargeting_execution_is_supported(legacy_tsm)
+
+        legacy_tsm.RetargetingExecutionConfig = object
+        assert not cfg_module._retargeting_execution_is_supported(legacy_tsm)
+
+        legacy_tsm.DeadlinePacingConfig = object
+        assert cfg_module._retargeting_execution_is_supported(legacy_tsm)
+
     def test_session_config_receives_cfg_retargeting_execution(self):
         """The configured IsaacTeleop execution mode is passed into TeleopSession."""
+        import isaaclab_teleop.session_lifecycle as lifecycle_module
+
         cfg = _make_cfg()
         sentinel_execution = object()
         cfg.retargeting_execution = sentinel_execution
@@ -192,6 +258,7 @@ class TestRetargetingExecutionConfig:
         fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
 
         with (
+            patch.object(lifecycle_module, "_RETARGETING_EXECUTION_SUPPORTED", True),
             patch.object(fake_tsm_module, "TeleopSessionConfig", session_config_cls),
             patch.object(fake_tsm_module, "TeleopSession", session_cls),
             patch.object(lifecycle, "_ensure_xr_ar_profile_enabled"),
@@ -235,6 +302,8 @@ class TestRetargetingExecutionConfig:
 
     def test_session_config_propagates_typeerror_from_supported_isaacteleop(self):
         """A TypeError from a supported IsaacTeleop must surface, not be swallowed."""
+        import isaaclab_teleop.session_lifecycle as lifecycle_module
+
         cfg = _make_cfg()
         cfg.retargeting_execution = object()
 
@@ -248,6 +317,7 @@ class TestRetargetingExecutionConfig:
         fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
 
         with (
+            patch.object(lifecycle_module, "_RETARGETING_EXECUTION_SUPPORTED", True),
             patch.object(fake_tsm_module, "TeleopSessionConfig", raising_session_config),
             patch.object(fake_tsm_module, "TeleopSession", MagicMock()),
             patch.object(lifecycle, "_ensure_xr_ar_profile_enabled"),

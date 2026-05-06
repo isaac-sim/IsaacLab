@@ -30,13 +30,21 @@ if TYPE_CHECKING:
     from isaacteleop.teleop_session_manager import PluginConfig
 
 
+def _retargeting_execution_is_supported(teleop_session_manager: Any | None) -> bool:
+    """Check whether IsaacTeleop exposes retargeting execution configuration."""
+    return (
+        teleop_session_manager is not None
+        and hasattr(teleop_session_manager, "RetargetingExecutionConfig")
+        and hasattr(teleop_session_manager, "DeadlinePacingConfig")
+    )
+
+
 try:
     import isaacteleop.teleop_session_manager as _tsm
-
-    _RETARGETING_EXECUTION_SUPPORTED = True
 except ImportError:
     _tsm = None
-    _RETARGETING_EXECUTION_SUPPORTED = False
+
+_RETARGETING_EXECUTION_SUPPORTED = _retargeting_execution_is_supported(_tsm)
 
 
 def _default_retargeting_execution_config() -> Any | None:
