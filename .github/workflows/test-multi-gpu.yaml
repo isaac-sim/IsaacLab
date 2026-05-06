@@ -20,6 +20,8 @@ on:
       - "source/isaaclab/isaaclab/app/app_launcher.py"
       - "source/isaaclab_tasks/isaaclab_tasks/utils/sim_launcher.py"
       - "scripts/reinforcement_learning/**/train.py"
+      - "source/isaaclab_physx/isaaclab_physx/sim/views/fabric_frame_view.py"
+      - "source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py"
       - ".github/workflows/test-multi-gpu.yaml"
   workflow_dispatch:
 
@@ -28,6 +30,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-fabric-multi-gpu:
+    name: FabricFrameView multi-GPU unit tests
+    runs-on: [self-hosted, linux, x64, gpu, multi-gpu]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Isaac Lab
+        run: ./isaaclab.sh --install
+
+      - name: Run FabricFrameView multi-GPU unit tests
+        run: |
+          ./isaaclab.sh -p -m pytest -m multi_gpu \
+            source/isaaclab_physx/test/sim/test_views_xform_prim_fabric.py -v
+
   test-multi-gpu:
     name: Multi-GPU (${{ matrix.physics }}, ${{ matrix.renderer }})
     # Use dedicated multi-GPU runner to avoid blocking standard CI resources
