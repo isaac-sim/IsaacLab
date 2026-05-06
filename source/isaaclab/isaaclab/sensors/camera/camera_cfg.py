@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.backend_utils import get_default_render_cfg
+from isaaclab.utils.backend_utils import get_default_renderer_cfg
 
 from ..sensor_base_cfg import SensorBaseCfg
 
@@ -205,7 +205,7 @@ class CameraCfg(SensorBaseCfg):
         when that cfg defines the same-named field.
         """
         if self.renderer_cfg is None:
-            self.renderer_cfg = get_default_render_cfg()
+            self.renderer_cfg = get_default_renderer_cfg()
         # Forwarded by name: any same-named field on ``renderer_cfg`` will receive the value.
         for field_name, default in _DEPRECATED_RENDERER_FIELD_DEFAULTS.items():
             value = getattr(self, field_name)
