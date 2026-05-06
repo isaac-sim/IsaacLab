@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -109,11 +108,10 @@ def update_task_stage(
     obj1: RigidObject = env.scene[asset_cfg1.name]
     obj2: RigidObject = env.scene[asset_cfg2.name]
 
-    pos1 = wp.to_torch(obj1.data.root_pos_w)
-    pos2 = wp.to_torch(obj2.data.root_pos_w)
-    quat1 = wp.to_torch(obj1.data.root_quat_w)
-    quat2 = wp.to_torch(obj2.data.root_quat_w)
-
+    pos1 = obj1.data.root_pos_w.torch
+    pos2 = obj2.data.root_pos_w.torch
+    quat1 = obj1.data.root_quat_w.torch
+    quat2 = obj2.data.root_quat_w.torch
     # Store old stage to detect changes (BEFORE any stage transitions)
     old_stage = stage.clone()
 
@@ -240,9 +238,8 @@ def lift_trocars_reward(
     obj2: RigidObject = env.scene[asset_cfg2.name]
 
     # Get positions (num_envs, 3)
-    pos1 = wp.to_torch(obj1.data.root_pos_w)
-    pos2 = wp.to_torch(obj2.data.root_pos_w)
-
+    pos1 = obj1.data.root_pos_w.torch
+    pos2 = obj2.data.root_pos_w.torch
     target_z = table_height + lift_threshold
 
     # Check if lifted
@@ -380,8 +377,8 @@ def get_trocar_tip_position(
     tip_offset_local = getattr(env, cache_key)
 
     obj: RigidObject = env.scene[asset_cfg.name]
-    root_pos_w = wp.to_torch(obj.data.root_pos_w)  # Shape: (num_envs, 3)
-    root_quat_w = wp.to_torch(obj.data.root_quat_w)  # Shape: (num_envs, 4) XYZW
+    root_pos_w = obj.data.root_pos_w.torch  # Shape: (num_envs, 3)
+    root_quat_w = obj.data.root_quat_w.torch  # Shape: (num_envs, 4) XYZW
 
     tip_offset_local_batch = tip_offset_local.unsqueeze(0).repeat(env.num_envs, 1)
 
@@ -521,11 +518,10 @@ def trocar_insertion_reward(
     obj2: RigidObject = env.scene[asset_cfg2.name]
 
     # Positions and Rotations
-    pos1 = wp.to_torch(obj1.data.root_pos_w)
-    quat1 = wp.to_torch(obj1.data.root_quat_w)
-    pos2 = wp.to_torch(obj2.data.root_pos_w)
-    quat2 = wp.to_torch(obj2.data.root_quat_w)
-
+    pos1 = obj1.data.root_pos_w.torch
+    quat1 = obj1.data.root_quat_w.torch
+    pos2 = obj2.data.root_pos_w.torch
+    quat2 = obj2.data.root_quat_w.torch
     # Calculate center distance
     center_dist = torch.norm(pos1 - pos2, dim=-1)  # (num_envs,)
 
@@ -643,9 +639,8 @@ def trocar_placement_reward(
     obj2: RigidObject = env.scene[asset_cfg2.name]
 
     # Get root positions (num_envs, 3)
-    pos1 = wp.to_torch(obj1.data.root_pos_w)
-    pos2 = wp.to_torch(obj2.data.root_pos_w)
-
+    pos1 = obj1.data.root_pos_w.torch
+    pos2 = obj2.data.root_pos_w.torch
     # Get environment origins to handle multi-env spatial offsets
     env_origins = env.scene.env_origins  # shape: (num_envs, 3)
 

@@ -440,6 +440,19 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             """
             super().__init__(cfg, num_envs, seed_offset, total_num_processes, worker_info)
 
+        def _record_metrics(self, step_reward, terminations, infos):
+            """Override to use terminations (task completion) for success_once."""
+
+            episode_info = {}
+            self.returns += step_reward
+            self.success_once = self.success_once | terminations.bool()
+            episode_info["success_once"] = self.success_once.clone()
+            episode_info["return"] = self.returns.clone()
+            episode_info["episode_len"] = self.elapsed_steps.clone()
+            episode_info["reward"] = episode_info["return"] / episode_info["episode_len"]
+            infos["episode"] = episode_info
+            return infos
+
         def _make_env_function(self) -> collections.abc.Callable:
             """Create the environment factory function.
 
@@ -468,25 +481,6 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 isaac_env_cfg.scene.num_envs = self.cfg.init_params.num_envs
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
-
-                _original_reset = env.reset
-
-                import omni.kit.app
-
-                _app = omni.kit.app.get_app()
-
-                def _patched_reset(*args, **kwargs):
-                    obs, extras = _original_reset(*args, **kwargs)
-                    env.sim.set_setting("/app/player/playSimulations", False)
-                    _app.update()
-                    env.sim.set_setting("/app/player/playSimulations", True)
-                    for sensor in env.scene.sensors.values():
-                        sensor.update(dt=0.0, force_recompute=True)
-                    obs = env.observation_manager.compute(update_history=True)
-                    env.obs_buf = obs
-                    return obs, extras
-
-                env.reset = _patched_reset
 
                 return env, sim_app
 

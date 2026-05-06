@@ -11,7 +11,7 @@ include the basic configuration for different types of cameras, support scene-sp
 from collections.abc import Sequence
 
 import isaaclab.sim as sim_utils
-from isaaclab.sensors import CameraCfg, TiledCameraCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 
@@ -58,7 +58,7 @@ class CameraBaseCfg:
         if data_types is None:
             data_types = ("rgb",)
 
-        return TiledCameraCfg(
+        return CameraCfg(
             prim_path=prim_path,
             update_period=update_period,
             height=height,
@@ -70,7 +70,7 @@ class CameraBaseCfg:
                 horizontal_aperture=horizontal_aperture,
                 clipping_range=clipping_range,
             ),
-            offset=TiledCameraCfg.OffsetCfg(pos=pos_offset, rot=rot_offset, convention="ros"),
+            offset=CameraCfg.OffsetCfg(pos=pos_offset, rot=rot_offset, convention="ros"),
         )
 
 

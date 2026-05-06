@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
@@ -45,9 +44,8 @@ def object_drop_termination(
     obj2: RigidObject = env.scene[asset_cfg2.name]
 
     # Get positions
-    pos1 = wp.to_torch(obj1.data.root_pos_w)
-    pos2 = wp.to_torch(obj2.data.root_pos_w)
-
+    pos1 = obj1.data.root_pos_w.torch
+    pos2 = obj2.data.root_pos_w.torch
     # Check if either object has dropped
     dropped_1 = pos1[:, 2] < drop_height_threshold
     dropped_2 = pos2[:, 2] < drop_height_threshold

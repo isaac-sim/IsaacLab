@@ -370,6 +370,8 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     curriculum = None
 
+    num_rerenders_on_reset: int = 1
+
     def __post_init__(self):
         """Post initialization."""
         # general settings

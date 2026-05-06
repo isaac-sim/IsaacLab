@@ -11,7 +11,6 @@ import math
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_apply, quat_mul
@@ -118,9 +117,9 @@ def reset_tray_with_random_rotation(
 
     # Get default states (initial positions from config)
     # note: default_root_state is the local coordinate relative to the environment origin
-    tray_default_state = wp.to_torch(tray.data.default_root_state)[env_ids].clone()
-    trocar_1_default_state = wp.to_torch(trocar_1.data.default_root_state)[env_ids].clone()
-    trocar_2_default_state = wp.to_torch(trocar_2.data.default_root_state)[env_ids].clone()
+    tray_default_state = tray.data.default_root_state.torch[env_ids].clone()
+    trocar_1_default_state = trocar_1.data.default_root_state.torch[env_ids].clone()
+    trocar_2_default_state = trocar_2.data.default_root_state.torch[env_ids].clone()
 
     # get the world coordinate offset for each environment (multiple environment support)
     env_origins = env.scene.env_origins[env_ids]  # (num_envs, 3)
@@ -246,14 +245,14 @@ def reset_robot_to_default_joint_positions(
     robot = env.scene[robot_cfg.name]
 
     # Get default joint positions and velocities
-    default_joint_pos = wp.to_torch(robot.data.default_joint_pos)[env_ids].clone()
-    default_joint_vel = wp.to_torch(robot.data.default_joint_vel)[env_ids].clone()
+    default_joint_pos = robot.data.default_joint_pos.torch[env_ids].clone()
+    default_joint_vel = robot.data.default_joint_vel.torch[env_ids].clone()
 
     # Directly write joint state to simulation (bypasses PD controller)
     robot.write_joint_position_to_sim_index(position=default_joint_pos, env_ids=env_ids)
     robot.write_joint_velocity_to_sim_index(velocity=default_joint_vel, env_ids=env_ids)
 
     # Also reset root state
-    default_root_state = wp.to_torch(robot.data.default_root_state)[env_ids].clone()
+    default_root_state = robot.data.default_root_state.torch[env_ids].clone()
     robot.write_root_pose_to_sim_index(root_pose=default_root_state[:, :7], env_ids=env_ids)
     robot.write_root_velocity_to_sim_index(root_velocity=default_root_state[:, 7:13], env_ids=env_ids)
