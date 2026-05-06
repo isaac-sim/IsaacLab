@@ -422,7 +422,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data.body_link_pose_w,
+                self.data._body_link_pose_w_ta,
                 None,  # body_link_state_w
                 None,  # body_state_w
             ],
@@ -521,8 +521,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data.body_com_pose_w,
-                self.data.body_link_pose_w,
+                self.data._body_com_pose_w_ta,
+                self.data._body_link_pose_w_ta,
                 None,  # body_com_state_w
                 None,  # body_link_state_w
                 None,  # body_state_w
