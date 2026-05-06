@@ -148,17 +148,17 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``segmentation``,            |
     |                         |                              |                                                                             | ``simple_shading_*``         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          |                              |
+    | |gr1_pick_place|        | |gr1_pick_place-link|        | Pick up and place an object in a basket with a GR-1 humanoid robot          | ``physx``                    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          |                              |
+    | |gr1_pp_waist|          | |gr1_pp_waist-link|          | Pick up and place an object in a basket with a GR-1 humanoid robot          | ``physx``                    |
     |                         |                              | with waist degrees-of-freedom enables that provides a wider reach space.    |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |g1_pick_place|         | |g1_pick_place-link|         | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                              |
+    | |g1_pick_place|         | |g1_pick_place-link|         | Pick up and place an object in a basket with a Unitree G1 humanoid robot    | ``physx``                    |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |g1_pick_place_fixed|   | |g1_pick_place_fixed-link|   | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                              |
+    | |g1_pick_place_fixed|   | |g1_pick_place_fixed-link|   | Pick up and place an object in a basket with a Unitree G1 humanoid robot    | ``physx``                    |
     |                         |                              | with three-fingered hands. Robot is set up with the base fixed in place.    |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    |                              |
+    | |g1_pick_place_lm|      | |g1_pick_place_lm-link|      | Pick up and place an object in a basket with a Unitree G1 humanoid robot    | ``physx``                    |
     |                         |                              | with three-fingered hands and in-place locomanipulation capabilities        |                              |
     |                         |                              | enabled (i.e. Robot lower body balances in-place while upper body is        |                              |
     |                         |                              | controlled via Inverse Kinematics).                                         |                              |
@@ -189,7 +189,7 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``simple_shading_*``         |
     |                         |                              |                                                                             | ``{64,128,256}``             |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
-    | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    |                              |
+    | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    | ``physx``                    |
     |                         |                              | a Galbot humanoid robot                                                     |                              |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+------------------------------+
     | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with a Agibot A2D humanoid robot            |                              |
@@ -1108,6 +1108,11 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       -
       -
+    * - Isaac-Stack-Cube-Franka-IK-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
     * - Isaac-Dexsuite-Kuka-Allegro-Lift-v0
 
         Camera variants (requires ``--enable_cameras``):
@@ -1156,7 +1161,37 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
+      - ``physx``
+    * - Isaac-PickPlace-GR1T2-Abs-v0
       -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-NutPour-GR1T2-Pink-IK-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-PickPlace-Locomanipulation-G1-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
+    * - Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0
+      -
+      - Manager Based
+      -
+      - ``physx``
     * - Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0
       -
       - Manager Based
@@ -1171,42 +1206,17 @@ inferencing, including reading from an already trained checkpoint and disabling 
       -
       - Manager Based
       -
-      -
+      - ``physx``
     * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
       -
       - Manager Based
       -
-      -
+      - ``physx``
     * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
       - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
       - Manager Based
       -
-      -
-    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-    * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
-      -
-      - Manager Based
-      -
-      -
-    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
-      - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Play-v0
-      - Manager Based
-      -
-      -
+      - ``physx``
     * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
       -
       - Manager Based

@@ -33,16 +33,16 @@ timeout.  Only the first such test gets the extension — after it runs, the
 on-disk cache is populated.
 """
 
-STARTUP_DEADLINE = 45
+STARTUP_DEADLINE = 120
 """Seconds to wait for AppLauncher init or pytest collection before declaring a
 startup hang.
 
 AppLauncher prints ``[ISAACLAB] AppLauncher initialization complete`` to
 ``sys.__stderr__`` (never suppressed) when Kit finishes initializing, and pytest
 prints ``collected N items`` to stdout after collection.  If neither appears
-within this deadline the process is treated as hung.  45 s is above any
-legitimate Kit startup (typically 30--60 s) while still catching real hangs
-without wasting the full hard timeout.
+within this deadline the process is treated as hung.  Kit startup can exceed
+60 s on cold CI workers, so this catches real startup hangs without killing
+legitimate slow launches.
 """
 
 STARTUP_HANG_RETRIES = 2

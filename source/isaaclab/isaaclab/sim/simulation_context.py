@@ -22,6 +22,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
+from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
@@ -191,6 +192,7 @@ class SimulationContext:
         self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
         # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self.vis_marker_registry = VisMarkerRegistry()
 
         # Simulation state
         self._is_playing = False
@@ -752,6 +754,11 @@ class SimulationContext:
             return
 
         self.update_scene_data_provider()
+
+        # Marker callbacks update VisualizationMarkers state; visualizer step()
+        # consumes that state later in this method.
+        if any(viz.supports_markers() for viz in self._visualizers):
+            self.vis_marker_registry.dispatch_callbacks()
 
         visualizers_to_remove = []
         for viz in self._visualizers:
