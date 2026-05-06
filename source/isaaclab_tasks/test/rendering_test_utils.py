@@ -68,7 +68,7 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 
 # OVRTX kitless paths can segfault on GitHub Actions runners; keep warp/Kit paths in CI.
 _SKIP_ON_CI = (
-    os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("GITLAB_CI")
+    os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("GITLAB_CI") == "true"
 )
 _SKIP_ON_CI_MARK = pytest.mark.skipif(
     _SKIP_ON_CI,
