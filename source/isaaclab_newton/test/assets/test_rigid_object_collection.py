@@ -906,6 +906,7 @@ def test_body_pose_write_marks_fk_reset_mask(device, writer):
     and invalidate ``_fk_timestamp`` so downstream consumers re-run forward kinematics before the next step.
     Without the fix, ``_fk_reset_mask`` remains unset after an explicit pose write.
     """
+
     def _fk_reset_mask_dirty() -> bool:
         assert SimulationManager._fk_reset_mask is not None
         return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
