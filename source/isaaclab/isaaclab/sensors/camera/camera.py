@@ -468,14 +468,13 @@ class Camera(SensorBase):
                     for i in range(self._frame_stack_size):
                         history[i, init_ids] = single[init_ids]
                 history[self._frame_stack_idx].copy_(single)
-                ordered = torch.cat(
-                    [
-                        history[(self._frame_stack_idx + 1 + i) % self._frame_stack_size]
-                        for i in range(self._frame_stack_size)
-                    ],
-                    dim=-1,
-                )
-                self._stacked_output[name].copy_(ordered)
+                # Write history slots directly into stacked output via narrow views (oldest → newest).
+                # Avoids the per-frame ``torch.cat`` allocation while preserving the canonical layout.
+                stacked = self._stacked_output[name]
+                channels = single.shape[-1]
+                for i in range(self._frame_stack_size):
+                    src = history[(self._frame_stack_idx + 1 + i) % self._frame_stack_size]
+                    stacked.narrow(-1, i * channels, channels).copy_(src)
             if needs_init:
                 self._frame_stack_needs_init.zero_()
                 self._frame_stack_needs_init_cpu = False

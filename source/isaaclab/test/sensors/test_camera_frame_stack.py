@@ -12,6 +12,10 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
+import logging
+import sys
+from unittest import mock
+
 import pytest
 import torch
 
@@ -276,8 +280,6 @@ def test_rtx_renderer_no_temporal_aa_modes(mode):
 # -- Newton warning and preset resolution tests --
 # These require isaaclab_tasks for launch_simulation and preset configs.
 
-import logging
-
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 from isaaclab_tasks.utils.sim_launcher import launch_simulation
@@ -322,14 +324,8 @@ def _install_launcher_warning_capture():
 
 def _resolve_with_presets(presets_arg: str):
     """Resolve the cartpole-camera task config with the given ``presets=...`` value."""
-    import sys
-
-    old_argv = sys.argv
-    sys.argv = [sys.argv[0], f"presets={presets_arg}"]
-    try:
+    with mock.patch.object(sys, "argv", [sys.argv[0], f"presets={presets_arg}"]):
         env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera-Presets-Direct-v0", "skrl_cfg_entry_point")
-    finally:
-        sys.argv = old_argv
     return env_cfg
 
 
@@ -421,20 +417,14 @@ from isaaclab_tasks.utils.sim_launcher import _apply_frame_stack_policies, _reso
 def _resolve_with_presets_and_override(presets_arg: str, frame_stack_override):
     """Resolve cfg with given presets, optionally apply a CLI-style frame_stack override,
     then run the launcher's auto-apply step. Returns the final cam config."""
-    import sys
-
     argv_extra = []
     if presets_arg:
         argv_extra.append(f"presets={presets_arg}")
     if frame_stack_override is not None:
         argv_extra.append(f"env.tiled_camera.frame_stack={frame_stack_override}")
 
-    old_argv = sys.argv
-    sys.argv = [sys.argv[0]] + argv_extra
-    try:
+    with mock.patch.object(sys, "argv", [sys.argv[0]] + argv_extra):
         env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera-Presets-Direct-v0", "skrl_cfg_entry_point")
-    finally:
-        sys.argv = old_argv
 
     _apply_frame_stack_policies(env_cfg)
     return env_cfg.tiled_camera
@@ -564,15 +554,9 @@ def test_frame_stack_cli_override_respected(presets_arg, override, expected_fram
 def test_frame_stack_policy_resolves_correctly(presets_arg, expected_resolved):
     """The frame_stack_policy field itself resolves correctly via the preset system,
     independent of the auto-apply step."""
-    import sys
-
     argv_extra = [f"presets={presets_arg}"] if presets_arg else []
-    old_argv = sys.argv
-    sys.argv = [sys.argv[0]] + argv_extra
-    try:
+    with mock.patch.object(sys, "argv", [sys.argv[0]] + argv_extra):
         env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera-Presets-Direct-v0", "skrl_cfg_entry_point")
-    finally:
-        sys.argv = old_argv
 
     policy = env_cfg.tiled_camera.frame_stack_policy
     resolved = _resolve_frame_stack_policy(policy)
@@ -732,3 +716,119 @@ def test_physx_no_regression_output_shape(setup_scene):
     assert rgb.shape == (NUM_CAMERAS, CAMERA_HEIGHT, CAMERA_WIDTH, 3), (
         f"PhysX default should produce (N, H, W, 3), got {rgb.shape}"
     )
+
+
+# -- DirectRLEnv obs_space auto-adjust tests ---------------------------------------------
+# Verifies the multi-camera frame_stack guard on a 3-tuple ``observation_space``.
+
+from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg  # noqa: E402
+from isaaclab.scene import InteractiveSceneCfg  # noqa: E402
+from isaaclab.sim import SimulationCfg  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
+
+
+@configclass
+class _StubCameraCfg:
+    """Minimal stand-in carrying a ``frame_stack`` field."""
+
+    frame_stack: int = 1
+
+
+@configclass
+class _BaseObsAdjustEnvCfg(DirectRLEnvCfg):
+    """Minimal env config for obs_space auto-adjust testing."""
+
+    decimation: int = 1
+    action_space: int = 1
+    observation_space = [64, 64, 3]
+    episode_length_s: float = 100.0
+    sim: SimulationCfg = SimulationCfg(dt=0.005)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
+
+
+class _StubDirectRLEnv(DirectRLEnv):
+    """Stub env with no-op abstract method implementations."""
+
+    def _pre_physics_step(self, actions):
+        pass
+
+    def _apply_action(self):
+        pass
+
+    def _get_observations(self):
+        return {}
+
+    def _get_rewards(self):
+        return torch.zeros(self.num_envs, device=self.device)
+
+    def _get_dones(self):
+        time_out = self.episode_length_buf >= self.max_episode_length
+        return torch.zeros_like(time_out, dtype=torch.bool), time_out
+
+
+def _cleanup_partial_sim() -> None:
+    """Clear any SimulationContext left over from a mid-init failure."""
+    sim = sim_utils.SimulationContext.instance()
+    if sim is not None:
+        try:
+            sim.clear_instance()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@pytest.mark.isaacsim_ci
+def test_obs_space_adjusts_for_single_frame_stacked_camera():
+    """A single CameraCfg with frame_stack=2 should multiply observation_space channels by 2."""
+
+    @configclass
+    class EnvCfg(_BaseObsAdjustEnvCfg):
+        camera: _StubCameraCfg = _StubCameraCfg(frame_stack=2)
+
+    sim_utils.create_new_stage()
+    env = None
+    try:
+        env = _StubDirectRLEnv(cfg=EnvCfg())
+        assert list(env.cfg.observation_space) == [64, 64, 6]
+    finally:
+        if env is not None:
+            env.close()
+        else:
+            _cleanup_partial_sim()
+
+
+@pytest.mark.isaacsim_ci
+def test_obs_space_adjusts_once_for_matching_frame_stacks():
+    """Two cameras sharing frame_stack=2 should adjust observation_space once with no error."""
+
+    @configclass
+    class EnvCfg(_BaseObsAdjustEnvCfg):
+        cam_a: _StubCameraCfg = _StubCameraCfg(frame_stack=2)
+        cam_b: _StubCameraCfg = _StubCameraCfg(frame_stack=2)
+
+    sim_utils.create_new_stage()
+    env = None
+    try:
+        env = _StubDirectRLEnv(cfg=EnvCfg())
+        assert list(env.cfg.observation_space) == [64, 64, 6]
+    finally:
+        if env is not None:
+            env.close()
+        else:
+            _cleanup_partial_sim()
+
+
+@pytest.mark.isaacsim_ci
+def test_obs_space_raises_for_conflicting_frame_stacks():
+    """Two cameras with different frame_stack > 1 values should raise ``ValueError``."""
+
+    @configclass
+    class EnvCfg(_BaseObsAdjustEnvCfg):
+        cam_a: _StubCameraCfg = _StubCameraCfg(frame_stack=2)
+        cam_b: _StubCameraCfg = _StubCameraCfg(frame_stack=3)
+
+    sim_utils.create_new_stage()
+    try:
+        with pytest.raises(ValueError, match="conflicting frame_stack"):
+            _StubDirectRLEnv(cfg=EnvCfg())
+    finally:
+        _cleanup_partial_sim()

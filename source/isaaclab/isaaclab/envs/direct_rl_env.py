@@ -610,25 +610,33 @@ class DirectRLEnv(gym.Env):
             if isinstance(self.cfg.state_space, type(MISSING)):
                 self.cfg.state_space = self.cfg.num_states
 
-        # Auto-adjust observation_space for camera frame stacking.
-        # When a CameraCfg has frame_stack > 1, the output channel count
-        # is multiplied accordingly. This avoids requiring every task to manually
-        # update observation_space when frame stacking is enabled via presets.
+        # Auto-adjust observation_space for camera frame stacking. A 3-tuple
+        # observation_space implies a single camera drives the policy obs; we collect
+        # every camera-like field with ``frame_stack > 1`` and verify they all share
+        # the same value before adjusting, rather than silently picking the first.
         if isinstance(self.cfg.observation_space, (list, tuple)) and len(self.cfg.observation_space) == 3:
+            stacked_cameras: list[tuple[str, int]] = []
             for attr_name in self.cfg.__dataclass_fields__:
                 attr = getattr(self.cfg, attr_name, None)
                 frame_stack = getattr(attr, "frame_stack", None)
                 if isinstance(frame_stack, int) and frame_stack > 1:
-                    h, w, c = self.cfg.observation_space
-                    self.cfg.observation_space = [h, w, c * frame_stack]
-                    logger.info(
-                        "Auto-adjusted observation_space channels %d -> %d for frame_stack=%d on '%s'.",
-                        c,
-                        c * frame_stack,
-                        frame_stack,
-                        attr_name,
-                    )
-                    break
+                    stacked_cameras.append((attr_name, frame_stack))
+            if len({fs for _, fs in stacked_cameras}) > 1:
+                raise ValueError(
+                    f"Multiple camera fields have conflicting frame_stack values: {stacked_cameras}. "
+                    "With a 3-tuple observation_space, all stacked cameras must share the same frame_stack."
+                )
+            if stacked_cameras:
+                attr_name, frame_stack = stacked_cameras[0]
+                h, w, c = self.cfg.observation_space
+                self.cfg.observation_space = [h, w, c * frame_stack]
+                logger.info(
+                    "Auto-adjusted observation_space channels %d -> %d for frame_stack=%d on '%s'.",
+                    c,
+                    c * frame_stack,
+                    frame_stack,
+                    attr_name,
+                )
 
         # set up spaces
         self.single_observation_space = gym.spaces.Dict()
