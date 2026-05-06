@@ -54,7 +54,7 @@ For more information on the export arguments, see the
 
    .. literalinclude:: ../../../../scripts/tutorials/06_deploy/anymal_c_env.py
       :language: python
-      :emphasize-lines: 20, 100-118, 85-88
+      :emphasize-lines: 20, 75-77, 92-105
       :linenos:
 
 
