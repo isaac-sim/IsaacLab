@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass(frozen=True)
@@ -22,21 +21,6 @@ class SceneDataRequirement:
 
     requires_newton_model: bool = False
     requires_usd_stage: bool = False
-
-
-@dataclass(frozen=True)
-class VisualizerPrebuiltArtifacts:
-    """Prebuilt model/state payload shared from scene setup to providers.
-
-    This gets produced during clone-time visualizer prebuild and then read by
-    scene data providers as a fast path (instead of rebuilding from USD).
-    """
-
-    model: Any
-    state: Any
-    rigid_body_paths: list[str]
-    articulation_paths: list[str]
-    num_envs: int
 
 
 _VISUALIZER_REQUIREMENTS: dict[str, SceneDataRequirement] = {

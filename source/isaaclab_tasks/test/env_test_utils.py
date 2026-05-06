@@ -68,7 +68,7 @@ def _has_physics_preset(raw_cfg, preset_name: str) -> bool:
 
     Args:
         raw_cfg: Raw env config from :func:`load_cfg_from_registry`.
-        preset_name: Name of the preset to check for (e.g., 'newton').
+        preset_name: Name of the preset to check for (e.g., 'newton_mjwarp').
 
     Returns:
         True if ``raw_cfg.sim.physics`` is a PresetCfg with the given preset field.
@@ -94,7 +94,7 @@ def setup_environment(
     teleop_envs: bool | None = None,
     cartpole_showcase_envs: bool | None = None,
     pickplace_stack_envs: bool | None = None,
-    newton_envs: bool | None = None,
+    newton_mjwarp_envs: bool | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -121,10 +121,10 @@ def setup_environment(
             - True: include only PickPlace/Stack environments
             - False: exclude PickPlace/Stack environments
             - None: include all environments regardless of pick-place/stack type
-        newton_envs:
-            - True: include only environments that have a newton physics preset
-            - False: exclude environments that have a newton physics preset
-            - None: include all environments regardless of newton preset availability
+        newton_mjwarp_envs:
+            - True: include only environments that have an MJWarp physics preset.
+            - False: exclude environments that have an MJWarp physics preset.
+            - None: include all environments regardless of MJWarp preset availability.
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -185,13 +185,15 @@ def setup_environment(
                 continue
         # if None: no filter
 
-        # apply newton preset filter
-        if newton_envs is not None:
+        # apply MJWarp preset filter
+        if newton_mjwarp_envs is not None:
             # Use load_cfg_from_registry (not parse_env_cfg) so that the PresetCfg
             # wrapper on sim.physics is not yet resolved to its default.
             raw_cfg = load_cfg_from_registry(task_spec.id, "env_cfg_entry_point")
-            has_newton = _has_physics_preset(raw_cfg, "newton")
-            if (newton_envs is True and not has_newton) or (newton_envs is False and has_newton):
+            has_newton_mjwarp = _has_physics_preset(raw_cfg, "newton_mjwarp")
+            if (newton_mjwarp_envs is True and not has_newton_mjwarp) or (
+                newton_mjwarp_envs is False and has_newton_mjwarp
+            ):
                 continue
         # if None: no filter
 
@@ -235,7 +237,7 @@ def _run_environments(
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
-        physics_preset_name: Name of the physics preset to apply (e.g., 'newton').
+        physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
     """
 
@@ -323,7 +325,7 @@ def _check_random_actions(
         multi_agent: Whether the environment is multi-agent.
         create_stage_in_memory: Whether to create stage in memory.
         disable_clone_in_fabric: Whether to disable fabric cloning.
-        physics_preset_name: Name of the physics preset to apply (e.g., 'newton').
+        physics_preset_name: Name of the physics preset to apply (e.g., 'newton_mjwarp').
             If None, uses the environment's default physics.
     """
     # create a new context stage, if stage in memory is not enabled
@@ -363,10 +365,11 @@ def _check_random_actions(
                 print(f"[INFO]: Skipping {task_name} as it is a multi-agent task")
                 return
 
-        # TODO: Some Newton preset + multi-asset spawning combinations fail config validation
-        # here with a ValueError. Consider filtering invalid combinations in setup_environment()
-        # rather than forgiving them at runtime. See PR #5097 commit fb2c74a3862 for a workaround
-        # that caught the error and called pytest.skip().
+        # TODO: Selecting the MJWarp preset routes through the Newton backend, which does not yet
+        # support multi-asset spawning; some combinations fail config validation here with a
+        # ValueError. Consider filtering invalid combinations in setup_environment() rather than
+        # forgiving them at runtime. See PR #5097 commit fb2c74a3862 for a workaround that caught
+        # the error and called pytest.skip().
         env = gym.make(task_name, cfg=env_cfg)
 
         # disable control on stop

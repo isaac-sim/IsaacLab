@@ -850,33 +850,6 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
 
-    @property
-    def body_incoming_joint_wrench_b(self) -> ProxyArray:
-        """Joint reaction wrench applied to each body through its incoming joint, expressed in that body's frame.
-
-        Shape is (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
-        world of an articulation.
-
-        .. note::
-            PhysX expresses this wrench in the frame of ``body1`` as defined in the USD joint, which corresponds to
-            the child body's own frame when the USD convention is ``body0`` = parent, ``body1`` = child.
-
-        For more information on joint wrenches, please check the `PhysX documentation`_ and the underlying
-        `PhysX Tensor API`_.
-
-        .. _`PhysX documentation`: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
-        .. _`PhysX Tensor API`: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.api.ArticulationView.get_link_incoming_joint_force
-        """
-
-        if self._body_incoming_joint_wrench_b.timestamp < self._sim_timestamp:
-            self._body_incoming_joint_wrench_b.data = self._root_view.get_link_incoming_joint_force().view(
-                wp.spatial_vectorf
-            )
-            self._body_incoming_joint_wrench_b.timestamp = self._sim_timestamp
-        if self._body_incoming_joint_wrench_b_ta is None:
-            self._body_incoming_joint_wrench_b_ta = ProxyArray(self._body_incoming_joint_wrench_b.data)
-        return self._body_incoming_joint_wrench_b_ta
-
     """
     Joint state properties.
     """
@@ -1382,9 +1355,6 @@ class ArticulationData(BaseArticulationData):
         self._joint_pos = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
         self._joint_vel = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
         self._joint_acc = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
-        self._body_incoming_joint_wrench_b = TimestampedBuffer(
-            (self._num_instances, self._num_bodies, self._num_joints), self.device, wp.spatial_vectorf
-        )
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
         self._heading_w = TimestampedBuffer((self._num_instances), self.device, wp.float32)
@@ -1555,7 +1525,6 @@ class ArticulationData(BaseArticulationData):
         self._body_com_vel_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
-        self._body_incoming_joint_wrench_b_ta: ProxyArray | None = None
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None

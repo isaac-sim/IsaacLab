@@ -1,0 +1,4 @@
+Added
+^^^^^
+
+* This file has an unrecognised bump tier and should be rejected.

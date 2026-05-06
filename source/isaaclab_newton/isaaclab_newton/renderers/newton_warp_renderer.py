@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import weakref
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -16,7 +15,8 @@ import newton
 import torch
 import warp as wp
 
-from isaaclab.renderers import BaseRenderer
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
@@ -24,20 +24,14 @@ from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
     from isaaclab.physics import BaseSceneDataProvider
-    from isaaclab.sensors import SensorBase
     from isaaclab.sensors.camera.camera_data import CameraData
 
 logger = logging.getLogger(__name__)
 
 
 class RenderData:
-    class OutputNames:
-        RGB = "rgb"
-        RGBA = "rgba"
-        ALBEDO = "albedo"
-        DEPTH = "depth"
-        NORMALS = "normals"
-        INSTANCE_SEGMENTATION = "instance_segmentation_fast"
+    # Back-compat alias for callers of ``RenderData.OutputNames``.
+    OutputNames = RenderBufferKind
 
     @dataclass
     class CameraOutputs:
@@ -47,49 +41,44 @@ class RenderData:
         normals_image: wp.array(dtype=wp.vec3f, ndim=4) = None
         instance_segmentation_image: wp.array(dtype=wp.uint32, ndim=4) = None
 
-    def __init__(self, newton_sensor: newton.sensors.SensorTiledCamera, sensor: SensorBase):
+    def __init__(self, newton_sensor: newton.sensors.SensorTiledCamera, spec: CameraRenderSpec):
         self.newton_sensor = newton_sensor
 
-        # Currently camera owns the renderer and render data. By holding full
-        # reference of the sensor, we create a circular reference between the
-        # sensor and the render data. Weak reference ensures proper garbage
-        # collection.
-        self.sensor = weakref.ref(sensor)
         self.num_cameras = 1
 
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         self.outputs = RenderData.CameraOutputs()
-        self.width = getattr(sensor.cfg, "width", 100)
-        self.height = getattr(sensor.cfg, "height", 100)
+        self.width = getattr(spec.cfg, "width", 100)
+        self.height = getattr(spec.cfg, "height", 100)
 
     def set_outputs(self, output_data: dict[str, torch.Tensor]):
         for output_name, tensor_data in output_data.items():
-            if output_name == RenderData.OutputNames.RGBA:
+            if output_name == RenderBufferKind.RGBA:
                 self.outputs.color_image = self._from_torch(tensor_data, dtype=wp.uint32)
-            elif output_name == RenderData.OutputNames.ALBEDO:
+            elif output_name == RenderBufferKind.ALBEDO:
                 self.outputs.albedo_image = self._from_torch(tensor_data, dtype=wp.uint32)
-            elif output_name == RenderData.OutputNames.DEPTH:
+            elif output_name == RenderBufferKind.DEPTH:
                 self.outputs.depth_image = self._from_torch(tensor_data, dtype=wp.float32)
-            elif output_name == RenderData.OutputNames.NORMALS:
+            elif output_name == RenderBufferKind.NORMALS:
                 self.outputs.normals_image = self._from_torch(tensor_data, dtype=wp.vec3f)
-            elif output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
+            elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
                 self.outputs.instance_segmentation_image = self._from_torch(tensor_data, dtype=wp.uint32)
-            elif output_name == RenderData.OutputNames.RGB:
+            elif output_name == RenderBufferKind.RGB:
                 pass
             else:
                 logger.warning(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
 
     def get_output(self, output_name: str) -> wp.array:
-        if output_name == RenderData.OutputNames.RGBA:
+        if output_name == RenderBufferKind.RGBA:
             return self.outputs.color_image
-        elif output_name == RenderData.OutputNames.ALBEDO:
+        elif output_name == RenderBufferKind.ALBEDO:
             return self.outputs.albedo_image
-        elif output_name == RenderData.OutputNames.DEPTH:
+        elif output_name == RenderBufferKind.DEPTH:
             return self.outputs.depth_image
-        elif output_name == RenderData.OutputNames.NORMALS:
+        elif output_name == RenderBufferKind.NORMALS:
             return self.outputs.normals_image
-        elif output_name == RenderData.OutputNames.INSTANCE_SEGMENTATION:
+        elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
             return self.outputs.instance_segmentation_image
         return None
 
@@ -155,6 +144,7 @@ class NewtonWarpRenderer(BaseRenderer):
             requirement_for_renderer_type,
         )
 
+        self.cfg = cfg
         sim = SimulationContext.instance()
         current_req = sim.get_scene_data_requirements()
         renderer_req = requirement_for_renderer_type("newton_warp")
@@ -185,15 +175,32 @@ class NewtonWarpRenderer(BaseRenderer):
         if cfg.create_default_light:
             self.newton_sensor.utils.create_default_light(enable_shadows=cfg.enable_shadows)
 
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
+        """Publish the per-output layout this Newton Warp backend writes.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
+        seg_spec = (
+            RenderBufferSpec(4, torch.uint8)
+            if self.cfg.colorize_instance_segmentation
+            else RenderBufferSpec(1, torch.int32)
+        )
+        return {
+            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
+            RenderBufferKind.INSTANCE_SEGMENTATION_FAST: seg_spec,
+        }
+
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Newton Warp - uses Newton scene directly without stage export.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
         pass
 
-    def create_render_data(self, sensor: SensorBase) -> RenderData:
+    def create_render_data(self, spec: CameraRenderSpec) -> RenderData:
         """Create render data for the Newton tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
-        return RenderData(self.newton_sensor, sensor)
+        return RenderData(self.newton_sensor, spec)
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
@@ -241,8 +248,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
-        if render_data:
-            render_data.sensor = None
+        pass
 
     def get_scene_data_provider(self) -> BaseSceneDataProvider:
         return SimulationContext.instance().initialize_scene_data_provider()

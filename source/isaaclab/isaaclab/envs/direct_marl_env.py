@@ -169,15 +169,15 @@ class DirectMARLEnv(gym.Env):
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
-        # Instantiate the video recorder before sim.reset() so that any fallback TiledCamera
+        # Instantiate the video recorder before sim.reset() so that any fallback Camera
         # (used for state-based envs without an observation camera) is spawned into the USD
         # stage and registered for the PHYSICS_READY callback before physics initialises.
         # Forward render_mode so VideoRecorder only spawns fallback cameras when --video is active.
         if self.cfg.video_recorder is not None:
             self.cfg.video_recorder.env_render_mode = render_mode
             vr = self.cfg.video_recorder
-            vr.camera_position = tuple(float(x) for x in self.cfg.viewer.eye)
-            vr.camera_target = tuple(float(x) for x in self.cfg.viewer.lookat)
+            vr.eye = tuple(float(x) for x in self.cfg.viewer.eye)
+            vr.lookat = tuple(float(x) for x in self.cfg.viewer.lookat)
             self.video_recorder: VideoRecorder = self.cfg.video_recorder.class_type(self.cfg.video_recorder, self.scene)
         else:
             self.video_recorder = None
