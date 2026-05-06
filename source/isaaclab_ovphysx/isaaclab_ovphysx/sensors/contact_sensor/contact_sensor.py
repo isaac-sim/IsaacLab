@@ -166,17 +166,28 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._physx_instance = physx_instance
 
-        # Discover sensor bodies. Mirror the PhysX discovery path.
+        # Discover sensor bodies. Unlike the PhysX backend, ovphysx does not
+        # require ``PhysxContactReportAPI`` on the rigid body — see the
+        # :class:`ovphysx.api.ContactBinding` docstring ("No extra USD schema
+        # is needed beyond the rigid bodies themselves.").  This also makes
+        # the sensor functional in the kitless flow where the ``PhysxSchema``
+        # USD plugin is not registered and ``Physx*`` schema names cannot be
+        # applied via :meth:`pxr.Usd.Prim.AddAppliedSchema`.  We accept any
+        # prim that the USD-core :class:`pxr.UsdPhysics.RigidBodyAPI` is
+        # applied to (matches the spawner's ``activate_contact_sensors``
+        # flag's actual effect on the stage).
+        from pxr import UsdPhysics  # noqa: PLC0415
+
         leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
         template_prim_path = self._parent_prims[0].GetPath().pathString
         body_names: list[str] = []
         for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
-            if "PhysxContactReportAPI" in prim.GetAppliedSchemas():
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 body_names.append(prim.GetPath().pathString.rsplit("/", 1)[-1])
         if not body_names:
             raise RuntimeError(
-                f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
-                "\nHINT: Make sure to enable 'activate_contact_sensors' in the corresponding asset spawn configuration."
+                f"Sensor at path '{self.cfg.prim_path}' could not find any rigid bodies."
+                "\nHINT: The contact sensor expects prims with UsdPhysics.RigidBodyAPI applied."
             )
         self._body_names = body_names
         self._num_sensors = len(body_names)
