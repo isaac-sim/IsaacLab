@@ -99,11 +99,11 @@ def test_visualizer_csv_does_not_swallow_hydra_overrides():
     app_launcher_module.AppLauncher.add_app_launcher_args(parser)
 
     args, hydra_args = parser.parse_known_args(
-        ["--visualizer", "kit,newton,rerun", "presets=newton", "env.episode_length=10"]
+        ["--visualizer", "kit,newton,rerun", "presets=newton_mjwarp", "env.episode_length=10"]
     )
 
     assert args.visualizer == ["kit", "newton", "rerun"]
-    assert hydra_args == ["presets=newton", "env.episode_length=10"]
+    assert hydra_args == ["presets=newton_mjwarp", "env.episode_length=10"]
 
 
 def _resolve_headless_for_case(monkeypatch: pytest.MonkeyPatch, launcher_args: dict) -> tuple[bool, AppLauncher]:

@@ -22,7 +22,7 @@ on:
     - cron: '0 0 * * 0'  # Every Sunday at midnight UTC
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -101,6 +101,9 @@ jobs:
           --exclude 'huggingface\.co/nvidia/X-Mobility'
           --exclude 'openusd\.org'
           --exclude 'ubuntu\.com/server/docs'
+          --exclude 'docs\.ray\.io'
+          --exclude 'docs\.conda\.io'
+          --exclude 'stackoverflow\.com'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20

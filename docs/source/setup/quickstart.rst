@@ -53,9 +53,9 @@ package manager. To begin, create a virtual environment:
 
             .. code-block:: batch
 
-               # create a virtual environment named env_isaaclab with python3.12
+               :: create a virtual environment named env_isaaclab with python3.12
                uv venv --python 3.12 --seed env_isaaclab
-               # activate the virtual environment
+               :: activate the virtual environment
                env_isaaclab\Scripts\activate
 
    .. tab-item:: conda
@@ -151,9 +151,10 @@ Installation is now as easy as navigating to the repo and then calling the root 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. code:: bash
+      .. code:: batch
 
-         isaaclab.bat --install :: or "isaaclab.bat -i"
+         isaaclab.bat --install
+         :: or use "isaaclab.bat -i"
 
 
 Quick Start Using Isaac Launchable
@@ -193,11 +194,11 @@ Use the ``presets=`` argument to select the physics backend at runtime:
 
 .. code-block:: bash
 
-   # Newton (Kit-less) with Newton visualizer
+   # MJWarp (Newton backend, Kit-less) with Newton visualizer
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=newton \
+     presets=newton_mjwarp \
      --visualizer newton
 
    # PhysX (Kit) — requires Isaac Sim installed
@@ -206,11 +207,11 @@ Use the ``presets=`` argument to select the physics backend at runtime:
      --num_envs 4096 \
      presets=physx
 
-   # Newton with a specific visualizer
+   # MJWarp with a specific visualizer
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
-     presets=newton \
+     presets=newton_mjwarp \
      --visualizer viser
 
 Kit-less visualizer options are ``newton``, ``rerun``, and ``viser``.

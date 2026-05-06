@@ -130,17 +130,34 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     assert_state_equal(prev_state, scene.get_state())
 
 
-def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pytest.MonkeyPatch):
-    """Non-cfg clone path should execute visualizer clone callback with replicate args."""
+def test_clone_environments_non_cfg_publishes_clone_plans(monkeypatch: pytest.MonkeyPatch):
+    """Non-cfg clone path must dispatch physics + USD replicate and publish a ``ClonePlan``.
+
+    Replaces the old test that asserted a per-call visualizer clone callback was invoked. The
+    visualizer-fn callback was removed in favor of providers reading
+    :meth:`SimulationContext.get_clone_plans`; this test asserts the new contract: even
+    without prototype templates, the scene synthesizes a single trivial ClonePlan.
+    """
+    from isaaclab.cloner import ClonePlan
+
     scene = object.__new__(InteractiveScene)
     scene.cfg = SimpleNamespace(replicate_physics=False, num_envs=3)
     scene.stage = object()
     scene.physics_backend = "physx"
     scene._sensors = {}
+
+    set_plans_calls: list = []
+    sim_state: dict = {"plans": {}}
+
+    def _set_clone_plans(plans):
+        sim_state["plans"] = plans
+        set_plans_calls.append(plans)
+
     scene.sim = SimpleNamespace(
         get_scene_data_requirements=lambda: SceneDataRequirement(),
         update_scene_data_requirements=lambda requirements: None,
-        set_scene_data_visualizer_prebuilt_artifact=lambda artifact: None,
+        set_clone_plans=_set_clone_plans,
+        get_clone_plans=lambda: sim_state["plans"],
     )
     scene.env_fmt = "/World/envs/env_{}"
     scene._ALL_INDICES = torch.arange(3, dtype=torch.long)
@@ -160,14 +177,10 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
     monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.disabled_fabric_change_notifies", _noop_fabric_notices)
 
     physics_calls = []
-    visualizer_calls = []
     usd_calls = []
 
     def _physics_clone_fn(stage, *args, **kwargs):
         physics_calls.append((stage, args, kwargs))
-
-    def _visualizer_clone_fn(stage, *args, **kwargs):
-        visualizer_calls.append((stage, args, kwargs))
 
     def _usd_replicate(stage, *args, **kwargs):
         usd_calls.append((stage, args, kwargs))
@@ -175,58 +188,61 @@ def test_clone_environments_non_cfg_invokes_visualizer_clone_fn(monkeypatch: pyt
     scene.cloner_cfg = SimpleNamespace(
         device="cpu",
         physics_clone_fn=_physics_clone_fn,
-        visualizer_clone_fn=_visualizer_clone_fn,
         clone_usd=True,
     )
     monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.usd_replicate", _usd_replicate)
 
     scene.clone_environments(copy_from_source=False)
     assert len(physics_calls) == 1
-    assert len(visualizer_calls) == 1
     assert len(usd_calls) == 1
     mapping = physics_calls[0][1][3]
     assert mapping.dtype == torch.bool
     assert mapping.shape == (1, scene.num_envs)
+    # Plans are published once per clone, regardless of physics/usd flag combinations.
+    assert len(set_plans_calls) == 1
+    plans = set_plans_calls[-1]
+    assert set(plans.keys()) == {scene.env_fmt}
+    plan = plans[scene.env_fmt]
+    assert isinstance(plan, ClonePlan)
+    assert plan.dest_template == scene.env_fmt
+    assert plan.prototype_paths == [scene.env_fmt.format(0)]
+    assert plan.clone_mask.shape == (1, scene.num_envs)
+    assert scene.clone_plans is plans
 
     physics_calls.clear()
-    visualizer_calls.clear()
     usd_calls.clear()
+    set_plans_calls.clear()
     scene.clone_environments(copy_from_source=True)
     assert len(physics_calls) == 0
-    assert len(visualizer_calls) == 1
     assert len(usd_calls) == 1
+    assert len(set_plans_calls) == 1
 
 
-def test_refresh_visualizer_clone_fn_uses_registered_requirements(monkeypatch: pytest.MonkeyPatch):
-    """Clone-time prebuild hook should be installed from requirements registered after scene init."""
+def test_aggregate_scene_data_requirements_merges_visualizers_and_renderers(monkeypatch: pytest.MonkeyPatch):
+    """Scene aggregation must OR visualizer and sensor-renderer requirements onto sim context.
+
+    Replaces the old test that asserted a clone-time visualizer hook was installed from
+    requirements. The hook is gone; the only remaining behavior is publishing the merged
+    :class:`SceneDataRequirement` to the simulation context.
+    """
     scene = object.__new__(InteractiveScene)
     scene.physics_backend = "physx"
     scene.stage = object()
-    scene._sensors = {}
-    scene.cloner_cfg = SimpleNamespace(visualizer_clone_fn=None)
+    scene._sensors = {
+        "cam": SimpleNamespace(cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="newton_warp")))
+    }
 
-    requirements = SceneDataRequirement(requires_newton_model=True)
+    posted: list = []
     scene.sim = SimpleNamespace(
-        get_scene_data_requirements=lambda: requirements,
-        update_scene_data_requirements=lambda requirements: None,
-        set_scene_data_visualizer_prebuilt_artifact=lambda artifact: None,
+        get_scene_data_requirements=lambda: SceneDataRequirement(),
+        update_scene_data_requirements=posted.append,
     )
 
-    captured = {}
+    scene._aggregate_scene_data_requirements({"rerun"})
 
-    def _resolve_visualizer_clone_fn(**kwargs):
-        captured.update(kwargs)
-        return "visualizer-clone-fn"
-
-    monkeypatch.setattr(
-        "isaaclab.scene.interactive_scene.cloner.resolve_visualizer_clone_fn",
-        _resolve_visualizer_clone_fn,
-    )
-
-    scene._refresh_visualizer_clone_fn_from_requirements()
-
-    assert captured["requirements"].requires_newton_model
-    assert scene.cloner_cfg.visualizer_clone_fn == "visualizer-clone-fn"
+    assert len(posted) == 1
+    merged = posted[0]
+    assert merged.requires_newton_model
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):
