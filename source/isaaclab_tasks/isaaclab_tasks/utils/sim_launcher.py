@@ -334,7 +334,7 @@ def launch_simulation(
             " Backends without implicit damping (e.g. Newton's symplectic integrator) need"
             " temporal information for effective camera-based control."
             " Set frame_stack >= 2 on CameraCfg (or use MultiBackendCameraCfg which enables"
-            " frame_stack=2 automatically with presets=newton,newton_renderer)."
+            " frame_stack=2 automatically with presets=newton_mjwarp,newton_renderer)."
         )
 
     if needs_kit and has_kit_cameras:

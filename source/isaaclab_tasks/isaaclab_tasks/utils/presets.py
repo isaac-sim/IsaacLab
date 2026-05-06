@@ -42,7 +42,7 @@ class FrameStackPolicyCfg(PresetCfg):
     """``frame_stack`` policy keyed on physics + renderer; resolves to 2 only for Newton + Warp."""
 
     default: int = 0
-    newton: _FrameStackPolicyBranch = _FrameStackPolicyBranch()
+    newton_mjwarp: _FrameStackPolicyBranch = _FrameStackPolicyBranch()
 
 
 @configclass

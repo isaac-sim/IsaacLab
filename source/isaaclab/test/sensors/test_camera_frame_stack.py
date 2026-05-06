@@ -358,7 +358,7 @@ def test_no_warn_physx_warp():
 @pytest.mark.isaacsim_ci
 def test_no_warn_newton_rtx_dlss():
     """Newton needs temporal data, but RTX with default DLSS provides it. No warning."""
-    env_cfg = _resolve_with_presets("newton")
+    env_cfg = _resolve_with_presets("newton_mjwarp")
     env_cfg.tiled_camera.frame_stack = 1  # override the preset's frame_stack=2 to test renderer-only path
     # Default antialiasing_mode is None which falls back to DLSS (temporal).
     warnings = _run_launcher_and_capture(env_cfg)
@@ -370,7 +370,7 @@ def test_no_warn_newton_rtx_dlss():
 @pytest.mark.isaacsim_ci
 def test_warn_newton_rtx_fxaa():
     """Newton + RTX with user-overridden FXAA (spatial-only) should fire the warning dynamically."""
-    env_cfg = _resolve_with_presets("newton")
+    env_cfg = _resolve_with_presets("newton_mjwarp")
     env_cfg.tiled_camera.frame_stack = 1
     env_cfg.sim.render.antialiasing_mode = "FXAA"
     warnings = _run_launcher_and_capture(env_cfg)
@@ -382,7 +382,7 @@ def test_warn_newton_rtx_fxaa():
 @pytest.mark.isaacsim_ci
 def test_warn_newton_warp():
     """Newton + Warp + frame_stack=1: physics needs temporal, renderer doesn't provide. Warning fires."""
-    env_cfg = _resolve_with_presets("newton,newton_renderer")
+    env_cfg = _resolve_with_presets("newton_mjwarp,newton_renderer")
     env_cfg.tiled_camera.frame_stack = 1
     warnings = _run_launcher_and_capture(env_cfg)
     assert any("frame_stack" in w for w in warnings), f"Newton+Warp should warn: {warnings}"
@@ -391,7 +391,7 @@ def test_warn_newton_warp():
 @pytest.mark.isaacsim_ci
 def test_no_warn_newton_warp_stacked():
     """Newton + Warp + frame_stack=2: explicit temporal data via stacking. Warning suppressed."""
-    env_cfg = _resolve_with_presets("newton,newton_renderer")
+    env_cfg = _resolve_with_presets("newton_mjwarp,newton_renderer")
     env_cfg.tiled_camera.frame_stack = 2
     warnings = _run_launcher_and_capture(env_cfg)
     assert not any("frame_stack" in w for w in warnings), (
@@ -405,7 +405,7 @@ def test_no_warn_newton_warp_stacked():
 #   - MultiBackendCameraCfg.frame_stack: int = 0  (sentinel for "no user override; use policy")
 #   - MultiBackendCameraCfg.frame_stack_policy: FrameStackPolicyCfg = ...
 #       - Outer keys on physics preset name; default=0
-#       - newton branch is _FrameStackPolicyBranch (regular configclass) holding the renderer-keyed
+#       - newton_mjwarp branch is _FrameStackPolicyBranch (regular configclass) holding the renderer-keyed
 #         inner _FrameStackPolicyByRenderer (default=0, newton_renderer=2)
 #   - At launch time, _apply_frame_stack_policies() walks env_cfg and propagates the resolved
 #     policy onto frame_stack when frame_stack == 0. User-supplied values are respected.
@@ -484,16 +484,16 @@ def test_resolve_policy_unknown_structure():
         ("physx", 0),
         ("physx,newton_renderer", 0),
         # Newton physics: depends on renderer
-        ("newton", 0),  # Newton + default RTX (DLSS provides temporal): sentinel
-        ("newton,newton_renderer", 2),  # Newton + Warp: ONLY combo that needs stacking
-        ("newton,ovrtx_renderer", 0),  # Newton + OVRTX (assumed temporal): sentinel
+        ("newton_mjwarp", 0),  # Newton + default RTX (DLSS provides temporal): sentinel
+        ("newton_mjwarp,newton_renderer", 2),  # Newton + Warp: ONLY combo that needs stacking
+        ("newton_mjwarp,ovrtx_renderer", 0),  # Newton + OVRTX (assumed temporal): sentinel
         # Renderer preset alone (no physics preset): sentinel
         ("newton_renderer", 0),
         ("ovrtx_renderer", 0),
     ],
 )
 def test_frame_stack_policy_truth_table(presets_arg, expected_frame_stack):
-    """Verify the AND-condition: frame_stack=2 only for newton+newton_renderer combo."""
+    """Verify the AND-condition: frame_stack=2 only for newton_mjwarp+newton_renderer combo."""
     cam = _resolve_with_presets_and_override(presets_arg, frame_stack_override=None)
     assert cam.frame_stack == expected_frame_stack, (
         f"presets={presets_arg!r}: expected frame_stack={expected_frame_stack}, got {cam.frame_stack}"
@@ -516,13 +516,13 @@ def test_frame_stack_policy_truth_table(presets_arg, expected_frame_stack):
         ("physx", 4, 4),
         ("physx,newton_renderer", 2, 2),
         # Newton + RTX with overrides (policy says 0, override wins)
-        ("newton", 1, 1),
-        ("newton", 4, 4),
+        ("newton_mjwarp", 1, 1),
+        ("newton_mjwarp", 4, 4),
         # Newton + Warp with overrides (policy WOULD set 2, but override wins)
-        ("newton,newton_renderer", 1, 1),  # User wants no stacking despite Newton+Warp
-        ("newton,newton_renderer", 4, 4),
+        ("newton_mjwarp,newton_renderer", 1, 1),  # User wants no stacking despite Newton+Warp
+        ("newton_mjwarp,newton_renderer", 4, 4),
         # Newton + OVRTX with override
-        ("newton,ovrtx_renderer", 3, 3),
+        ("newton_mjwarp,ovrtx_renderer", 3, 3),
     ],
 )
 def test_frame_stack_cli_override_respected(presets_arg, override, expected_frame_stack):
@@ -546,9 +546,9 @@ def test_frame_stack_cli_override_respected(presets_arg, override, expected_fram
         ("physx,newton_renderer", 0),
         ("newton_renderer", 0),
         # Newton physics: outer picks _FrameStackPolicyBranch, inner resolves
-        ("newton", 0),  # No renderer preset: inner's default=0
-        ("newton,newton_renderer", 2),  # Inner's newton_renderer=2
-        ("newton,ovrtx_renderer", 0),  # Inner has no ovrtx_renderer field
+        ("newton_mjwarp", 0),  # No renderer preset: inner's default=0
+        ("newton_mjwarp,newton_renderer", 2),  # Inner's newton_renderer=2
+        ("newton_mjwarp,ovrtx_renderer", 0),  # Inner has no ovrtx_renderer field
     ],
 )
 def test_frame_stack_policy_resolves_correctly(presets_arg, expected_resolved):
