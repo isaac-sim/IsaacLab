@@ -296,7 +296,7 @@ class SensorBase(ABC):
         )
         # Optional: prim deletion (only supported by PhysX backend)
         self._prim_deletion_handle = None
-        if "physx" in physics_mgr_cls.__name__.lower():
+        if "physx" in physics_mgr_cls.__name__.lower() and "ovphysx" not in physics_mgr_cls.__name__.lower():
             from isaaclab_physx.physics import IsaacEvents  # noqa: PLC0415
 
             self._prim_deletion_handle = physics_mgr_cls.register_callback(

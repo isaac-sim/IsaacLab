@@ -202,7 +202,7 @@ class OvPhysxManager(PhysicsManager):
 
         import ovphysx
 
-        cls._physx = ovphysx.PhysX(device=ovphysx_device, gpu_index=gpu_index)
+        cls._physx = ovphysx.PhysX(device=ovphysx_device)
 
         # Without worker threads the stepper runs simulate()+fetchResults()
         # synchronously, blocking the calling thread for the full GPU step time.
