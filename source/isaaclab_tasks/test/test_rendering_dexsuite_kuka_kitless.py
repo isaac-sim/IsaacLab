@@ -27,7 +27,6 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 _require_ovrtx_install_fixture = make_require_ovrtx_install_fixture()
 
 
-@pytest.mark.flaky(max_runs=3, min_passes=1)
 @pytest.mark.parametrize("physics_backend,renderer,data_type", KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
 def test_rendering_dexsuite_kuka_kitless(physics_backend, renderer, data_type):
     """Camera output must match golden images (Dexsuite Kuka-Allegro Lift, single camera)."""

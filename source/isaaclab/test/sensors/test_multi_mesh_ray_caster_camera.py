@@ -752,11 +752,11 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
 
     # set camera position
     camera_warp.set_world_poses_from_view(
-        eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_warp.device),
+        eyes=torch.tensor([[0.1, 0.0, 5.0]], device=camera_warp.device),
         targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_warp.device),
     )
     camera_usd.set_world_poses_from_view(
-        eyes=torch.tensor([[0.0, 0.0, 5.0]], device=camera_usd.device),
+        eyes=torch.tensor([[0.1, 0.0, 5.0]], device=camera_usd.device),
         targets=torch.tensor([[0.0, 0.0, 0.0]], device=camera_usd.device),
     )
 
