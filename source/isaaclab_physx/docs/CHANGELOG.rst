@@ -1,28 +1,34 @@
 Changelog
 ---------
 
-0.5.28 (2026-04-30)
+0.5.29 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
-Added
+Changed
+^^^^^^^
+
+* Added fused :meth:`~isaaclab_physx.assets.Articulation.write_joint_state_to_sim_index`
+  that writes joint position and velocity in a single kernel launch instead of two.
+* Cached ``.view(wp.float32)`` results in root pose/velocity writers and wrench
+  composer views in ``write_data_to_sim`` to avoid per-call wrapper allocations.
+* Pre-allocated pinned CPU buffers for all joint property and body property writers,
+  replacing per-call ``wp.clone(device="cpu")`` allocations with ``wp.copy`` into
+  reusable pinned memory.
+
+
+0.5.28 (2026-04-29)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
 ^^^^^
 
-* Added :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg` (relocated from
-  :mod:`isaaclab.sim.schemas`), with PhysX-specific rigid body properties extending
-  :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`.
-* Added :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg` (relocated from
-  :mod:`isaaclab.sim.schemas`), with the PhysX-specific ``max_velocity`` field extending
-  :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`.
-
-Deprecated
-^^^^^^^^^^
-
-* Deprecated :class:`~isaaclab_physx.sim.schemas.RigidBodyPropertiesCfg` (relocated alias) in
-  favor of :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg`. Removal targeted
-  for 5.0.
-* Deprecated :class:`~isaaclab_physx.sim.schemas.JointDrivePropertiesCfg` (relocated alias) in
-  favor of :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg`. Removal targeted
-  for 5.0.
+* Fixed camera observation hang when a visualizer (e.g. KitVisualizer for XR
+  teleop) is active and ``--enable_cameras`` is set.
+  :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.ensure_isaac_rtx_render_update`
+  now performs the initial ``app.update()`` on the very first call for a new
+  :class:`~isaaclab.sim.SimulationContext`, even when a visualizer reports that
+  it pumps the Kit app loop, because the visualizer has not had a chance to pump
+  yet at that point.
 
 
 0.5.27 (2026-04-27)
@@ -160,7 +166,7 @@ Changed
 
 
 0.5.19 (2026-04-20)
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 Fixed
 ^^^^^
