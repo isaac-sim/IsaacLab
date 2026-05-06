@@ -75,15 +75,18 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
     monkeypatch.setattr(
         sim_launcher, "compute_kit_requirements", lambda env_cfg, launcher_args: (False, False, {"none"})
     )
-    monkeypatch.setitem(
-        sys.modules,
-        "isaaclab.app.settings_manager",
-        types.SimpleNamespace(get_settings_manager=lambda: _FakeSettings()),
-    )
+    # `app_launcher` imports both names from settings_manager; provide a full stub module
+    # so `from isaaclab.app import AppLauncher` succeeds in kitless mode.
+    _sm = types.ModuleType("isaaclab.app.settings_manager")
+    _sm.get_settings_manager = lambda: _FakeSettings()
+    _sm.initialize_carb_settings = lambda: None
+    monkeypatch.setitem(sys.modules, "isaaclab.app.settings_manager", _sm)
 
     env_cfg = _DummyEnvCfg(_DummySimCfg(None))
     launcher_args = argparse.Namespace(visualizer=["none"])
     with sim_launcher.launch_simulation(env_cfg, launcher_args):
         pass
 
-    assert captured == {"types": "", "explicit": True, "disable_all": True}
+    # `sync_visualizer_cli_settings_to_carb` uses ``" ".join(visualizer)`` → ``"none"`` for ``["none"]``,
+    # not an empty string (empty only when *visualizer* is missing/empty).
+    assert captured == {"types": "none", "explicit": True, "disable_all": True}

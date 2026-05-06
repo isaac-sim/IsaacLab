@@ -26,7 +26,6 @@ import math
 
 import pytest
 import torch
-import warp as wp
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
     STABLE_SHAPES,
@@ -124,7 +123,7 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
         contact_sensor: ContactSensor = scene["contact_sensor_a"]
         obj: RigidObject = scene["object_a"]
 
-        root_pose = wp.to_torch(obj.data.root_link_pose_w).clone()
+        root_pose = obj.data.root_link_pose_w.torch.clone()
         for group_idx, base_height in enumerate(base_heights):
             for i in range(envs_per_group):
                 env_idx = group_idx * envs_per_group + i
@@ -139,13 +138,13 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
         for _ in range(5):
             perform_sim_step(sim, scene, SIM_DT)
 
-        forces = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
+        forces = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
         for env_idx in range(num_envs):
             assert forces[env_idx].max().item() < 0.01, f"Env {env_idx}: No contact should be detected while in air."
 
         for tick in range(5, total_fall_steps):
             perform_sim_step(sim, scene, SIM_DT)
-            forces = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
+            forces = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
             for env_idx in range(num_envs):
                 if forces[env_idx].max().item() > 0.1 and not contact_detected[env_idx]:
                     contact_detected[env_idx] = True
@@ -184,7 +183,7 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
         for step in range(lift_steps):
             perform_sim_step(sim, scene, SIM_DT)
             if step > 10:
-                forces = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
+                forces = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
                 for env_idx in range(num_envs):
                     if forces[env_idx].max().item() < 0.01:
                         no_contact_detected[env_idx] = True
@@ -257,8 +256,8 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
         sensor_a: ContactSensor = scene["contact_sensor_a"]
         sensor_b: ContactSensor = scene["contact_sensor_b"]
 
-        pose_a = wp.to_torch(object_a.data.root_link_pose_w).clone()
-        pose_b = wp.to_torch(object_b.data.root_link_pose_w).clone()
+        pose_a = object_a.data.root_link_pose_w.torch.clone()
+        pose_b = object_b.data.root_link_pose_w.torch.clone()
         for group_idx, (_, separation) in enumerate(group_configs):
             for i in range(envs_per_group):
                 env_idx = group_idx * envs_per_group + i
@@ -278,8 +277,8 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
 
         for tick in range(collision_steps):
             perform_sim_step(sim, scene, SIM_DT)
-            forces_a = torch.norm(wp.to_torch(sensor_a.data.net_forces_w), dim=-1)
-            forces_b = torch.norm(wp.to_torch(sensor_b.data.net_forces_w), dim=-1)
+            forces_a = torch.norm(sensor_a.data.net_forces_w.torch, dim=-1)
+            forces_b = torch.norm(sensor_b.data.net_forces_w.torch, dim=-1)
             for env_idx in range(num_envs):
                 if forces_a[env_idx].max().item() > 0.1:
                     contact_detected_a[env_idx] = True
@@ -371,8 +370,8 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         for step in range(settle_steps):
             perform_sim_step(sim, scene, SIM_DT)
             if step >= settle_steps - avg_window:
-                force_a_samples.append(wp.to_torch(sensor_a.data.net_forces_w).clone())
-                force_b_samples.append(wp.to_torch(sensor_b.data.net_forces_w).clone())
+                force_a_samples.append(sensor_a.data.net_forces_w.torch.clone())
+                force_b_samples.append(sensor_b.data.net_forces_w.torch.clone())
 
         forces_a = torch.stack(force_a_samples).mean(dim=0)
         forces_b = torch.stack(force_b_samples).mean(dim=0)
@@ -444,7 +443,7 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
         obj: RigidObject = scene["object_a"]
         contact_sensor: ContactSensor = scene["contact_sensor_a"]
 
-        root_pose = wp.to_torch(obj.data.root_link_pose_w).clone()
+        root_pose = obj.data.root_link_pose_w.torch.clone()
         for env_idx in range(num_envs):
             root_pose[env_idx, 2] = drop_heights[env_idx] + object_radius
         obj.write_root_pose_to_sim_index(root_pose=root_pose)
@@ -455,7 +454,7 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
 
         for _ in range(total_steps):
             perform_sim_step(sim, scene, SIM_DT)
-            force_magnitudes = torch.norm(wp.to_torch(contact_sensor.data.net_forces_w), dim=-1)
+            force_magnitudes = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
             for env_idx in range(num_envs):
                 f = force_magnitudes[env_idx].max().item()
                 if f > 0.1:
@@ -572,8 +571,8 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
                 net_raw = contact_sensor.data.net_forces_w
                 if not matrix_samples:
                     assert matrix_raw is not None, "force_matrix_w should not be None when filter is set"
-                matrix_samples.append(wp.to_torch(matrix_raw).clone())
-                net_samples.append(wp.to_torch(net_raw).clone())
+                matrix_samples.append(matrix_raw.torch.clone())
+                net_samples.append(net_raw.torch.clone())
 
         force_matrix = torch.stack(matrix_samples).mean(dim=0)
         net_forces = torch.stack(net_samples).mean(dim=0)
@@ -723,14 +722,14 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
         # Newton's articulation.reset() doesn't write default_joint_pos to sim (unlike
         # ManagerBasedEnv's reset_scene_to_default event). Without this, joints start at 0.0
         # which is below thumb_joint_0's lower limit (0.279 rad), causing violent oscillation.
-        default_jpos = wp.to_torch(hand.data.default_joint_pos).clone()
-        default_jvel = wp.to_torch(hand.data.default_joint_vel).clone()
+        default_jpos = hand.data.default_joint_pos.torch.clone()
+        default_jvel = hand.data.default_joint_vel.torch.clone()
         hand.write_joint_position_to_sim_index(position=default_jpos)
         hand.write_joint_velocity_to_sim_index(velocity=default_jvel)
         hand.set_joint_position_target_index(target=default_jpos)
 
-        hand_world_pos = wp.to_torch(hand.data.root_link_pose_w)[:, :3]
-        drop_pose = wp.to_torch(drop_object.data.root_link_pose_w).clone()
+        hand_world_pos = hand.data.root_link_pose_w.torch[:, :3]
+        drop_pose = drop_object.data.root_link_pose_w.torch.clone()
         for env_idx, finger in enumerate(finger_names):
             offset = ALLEGRO_FINGERTIP_OFFSETS[finger]
             drop_pose[env_idx, 0] = hand_world_pos[env_idx, 0] + offset[0]
@@ -741,9 +740,9 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
         for _ in range(30):
             perform_sim_step(sim, scene, SIM_DT)
 
-        hand_world_pos = wp.to_torch(hand.data.root_link_pose_w)[:, :3]
+        hand_world_pos = hand.data.root_link_pose_w.torch[:, :3]
         drop_object.reset()
-        drop_pose = wp.to_torch(drop_object.data.root_link_pose_w).clone()
+        drop_pose = drop_object.data.root_link_pose_w.torch.clone()
         for env_idx, finger in enumerate(finger_names):
             offset = ALLEGRO_FINGERTIP_OFFSETS[finger]
             drop_pose[env_idx, 0] = hand_world_pos[env_idx, 0] + offset[0]
@@ -761,7 +760,7 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
             perform_sim_step(sim, scene, SIM_DT)
             for finger_name, sensor in finger_sensors.items():
                 if sensor.data.net_forces_w is not None:
-                    forces = wp.to_torch(sensor.data.net_forces_w)
+                    forces = sensor.data.net_forces_w.torch
                     for env_idx in range(num_envs):
                         f = torch.norm(forces[env_idx]).item()
                         peak_forces[finger_name][env_idx] = max(peak_forces[finger_name][env_idx], f)

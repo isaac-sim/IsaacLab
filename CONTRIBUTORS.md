@@ -60,6 +60,7 @@ Guidelines for modifications:
 * Bocheng Zou
 * Brayden Zhang
 * Brian Bingham
+* Brian Dilinila
 * Brian McCann
 * Caelan Garrett
 * Calvin Yu
@@ -81,6 +82,7 @@ Guidelines for modifications:
 * Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
+* Frank Lai
 * Gary Lvov
 * Giulio Romualdi
 * Grzegorz Malczyk
@@ -151,6 +153,7 @@ Guidelines for modifications:
 * Rafael Wiltz
 * Renaud Poncelet
 * René Zurbrügg
+* Richard Schmitt
 * RinZ27
 * Ritvik Singh
 * Rosario Scalise

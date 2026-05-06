@@ -20,7 +20,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.sensors.camera import Camera, TiledCamera
+from isaaclab.sensors.camera import Camera
 from isaaclab.sensors.sensor_base import SensorBase
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import quat_apply, quat_inv
@@ -66,7 +66,7 @@ class VisuoTactileSensor(SensorBase):
         The following requirements must be satisfied for proper sensor operation:
 
         **Camera Tactile Imaging**
-            If ``enable_camera_tactile=True``, a valid ``camera_cfg`` (TiledCameraCfg) must be
+            If ``enable_camera_tactile=True``, a valid ``camera_cfg`` (CameraCfg) must be
             provided with appropriate camera parameters.
 
         **Force Field Computation**
@@ -98,7 +98,7 @@ class VisuoTactileSensor(SensorBase):
         self._data: VisuoTactileSensorData = VisuoTactileSensorData()
 
         # Camera-based tactile sensing
-        self._camera_sensor: Camera | TiledCamera | None = None
+        self._camera_sensor: Camera | None = None
         self._nominal_tactile: dict | None = None
 
         # Force field tactile sensing
@@ -262,7 +262,7 @@ class VisuoTactileSensor(SensorBase):
         self._tactile_rgb_render = GelsightRender(self.cfg.render_cfg, device=self.device)
 
         # Create camera sensor
-        self._camera_sensor = TiledCamera(self.cfg.camera_cfg)
+        self._camera_sensor = Camera(self.cfg.camera_cfg)
 
         # Initialize camera
         if not self._camera_sensor.is_initialized:

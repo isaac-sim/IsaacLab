@@ -14,13 +14,14 @@ import numpy as np
 import torch
 import warp as wp
 
-import omni.physics.tensors.impl.api as physx
+import omni.physics.tensors.api as physx
 from pxr import UsdShade
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.asset_base import AssetBase
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -266,7 +267,7 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_pos_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_simulation_nodal_positions(self._data._nodal_pos_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_positions(self._get_nodal_pos_w_f32(), indices=env_ids)
 
     def write_nodal_pos_to_sim_mask(
         self,
@@ -334,7 +335,7 @@ class DeformableObject(AssetBase):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_vel_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_simulation_nodal_velocities(self._data._nodal_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_simulation_nodal_velocities(self._get_nodal_vel_w_f32(), indices=env_ids)
 
     def write_nodal_velocity_to_sim_mask(
         self,
@@ -407,7 +408,7 @@ class DeformableObject(AssetBase):
         )
         # set into simulation
         self.root_view.set_simulation_nodal_kinematic_targets(
-            self._data.nodal_kinematic_target.view(wp.float32), indices=env_ids
+            self._data.nodal_kinematic_target.warp.view(wp.float32), indices=env_ids
         )
 
     def write_nodal_kinematic_target_to_sim_mask(
@@ -526,14 +527,45 @@ class DeformableObject(AssetBase):
     Internal helper.
     """
 
+    def _get_nodal_pos_w_f32(self) -> wp.array:
+        """Get a cached float32 view of nodal_pos_w for PhysX TensorAPI.
+
+        Safe because ``DeformableObjectData`` copies into a stable pre-allocated
+        buffer via ``wp.copy`` (the pointer never changes).
+        Invalidated in ``_create_buffers``.
+        """
+        if self._nodal_pos_w_f32 is None:
+            self._nodal_pos_w_f32 = self._data._nodal_pos_w.data.view(wp.float32)
+        return self._nodal_pos_w_f32
+
+    def _get_nodal_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of nodal_vel_w for PhysX TensorAPI.
+
+        Safe because ``DeformableObjectData`` copies into a stable pre-allocated
+        buffer via ``wp.copy`` (the pointer never changes).
+        Invalidated in ``_create_buffers``.
+        """
+        if self._nodal_vel_w_f32 is None:
+            self._nodal_vel_w_f32 = self._data._nodal_vel_w.data.view(wp.float32)
+        return self._nodal_vel_w_f32
+
     def _resolve_env_ids(self, env_ids):
-        """Resolve environment indices to a warp int32 array."""
-        if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
+        """Resolve environment indices to a warp array.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+
+        Returns:
+            A warp array of environment indices.
+        """
+        if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
-        elif isinstance(env_ids, list):
+        if isinstance(env_ids, torch.Tensor):
+            if env_ids.dtype == torch.int64:
+                env_ids = env_ids.to(torch.int32)
+            return wp.from_torch(env_ids, dtype=wp.int32)
+        if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
-        elif isinstance(env_ids, torch.Tensor):
-            return wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
         return env_ids
 
     def _initialize_impl(self):
@@ -689,6 +721,11 @@ class DeformableObject(AssetBase):
         # constants
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
 
+        # Cached .view(wp.float32) wrappers for structured warp arrays.
+        # Safe because DeformableObjectData uses wp.copy into stable buffers.
+        self._nodal_pos_w_f32: wp.array | None = None
+        self._nodal_vel_w_f32: wp.array | None = None
+
         # default state
         # we use the initial nodal positions at spawn time as the default state
         # note: these are all in the simulation frame
@@ -700,35 +737,35 @@ class DeformableObject(AssetBase):
             (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec3f, device=self.device
         )
         # compute default nodal state as vec6f
-        self._data.default_nodal_state_w = wp.zeros(
+        default_nodal_state = wp.zeros(
             (self.num_instances, self.max_sim_vertices_per_body), dtype=vec6f, device=self.device
         )
         wp.launch(
             compute_nodal_state_w,
             dim=(self.num_instances, self.max_sim_vertices_per_body),
             inputs=[nodal_positions, nodal_velocities],
-            outputs=[self._data.default_nodal_state_w],
+            outputs=[default_nodal_state],
             device=self.device,
         )
+        self._data.default_nodal_state_w = ProxyArray(default_nodal_state)
 
         # kinematic targets (only for volume deformables, surface deformables do not support kinematic targets)
         if self._deformable_type == "volume":
             # kinematic targets — allocate our own buffer and copy from PhysX
             kinematic_raw = self.root_view.get_simulation_nodal_kinematic_targets()  # (N, V, 4) float32
             kinematic_view = kinematic_raw.view(wp.vec4f).reshape((self.num_instances, self.max_sim_vertices_per_body))
-            self._data.nodal_kinematic_target = wp.zeros(
+            kinematic_target = wp.zeros(
                 (self.num_instances, self.max_sim_vertices_per_body), dtype=wp.vec4f, device=self.device
             )
-            wp.copy(self._data.nodal_kinematic_target, kinematic_view)
+            wp.copy(kinematic_target, kinematic_view)
             # set all nodes as non-kinematic targets by default (flag = 1.0)
             wp.launch(
                 set_kinematic_flags_to_one,
                 dim=(self.num_instances * self.max_sim_vertices_per_body,),
-                inputs=[
-                    self._data.nodal_kinematic_target.reshape((self.num_instances * self.max_sim_vertices_per_body,))
-                ],
+                inputs=[kinematic_target.reshape((self.num_instances * self.max_sim_vertices_per_body,))],
                 device=self.device,
             )
+            self._data.nodal_kinematic_target = ProxyArray(kinematic_target)
 
     """
     Internal simulation callbacks.
@@ -750,7 +787,7 @@ class DeformableObject(AssetBase):
         # check where to visualize, kinematic targets only supported for volume deformables
         num_enabled = 0
         if self._deformable_type == "volume":
-            kinematic_target_torch = wp.to_torch(self.data.nodal_kinematic_target)
+            kinematic_target_torch = self.data.nodal_kinematic_target.torch
             targets_enabled = kinematic_target_torch[:, :, 3] == 0.0
             num_enabled = int(torch.sum(targets_enabled).item())
         # get positions if any targets are enabled

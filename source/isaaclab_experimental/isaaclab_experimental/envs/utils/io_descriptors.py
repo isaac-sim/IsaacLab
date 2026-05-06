@@ -59,10 +59,12 @@ def _make_descriptor(**kwargs: Any) -> GenericObservationIODescriptor:
     desc = GenericObservationIODescriptor(**known)
     # User defined extras are stored in the descriptor under the `extras` field
     desc.extras = extras
+    # ``out_dim`` is kept as a top-level attribute (not in extras) so the
+    # observation manager can read it without inspecting extras.
+    desc.out_dim = extras.pop("out_dim", None)
     return desc
 
 
-# TODO(jichuanh): The exact usage is unclear and this need revisit
 # Decorator factory for Warp-first IO descriptors.
 def generic_io_descriptor_warp(
     _func: Callable[Concatenate[ManagerBasedEnv, P], R] | None = None,
@@ -183,18 +185,38 @@ def generic_io_descriptor_warp(
 def record_shape(output: wp.array | None, descriptor: GenericObservationIODescriptor, **kwargs) -> None:
     """Record the shape of the output buffer.
 
-    No-op when ``output`` is ``None`` (the typical case during Warp-first
-    inspection).  Use a type-specific hook such as :func:`record_joint_shape`
-    to derive shape from config instead.
+    When ``output`` is not ``None`` (eager path), shape is read directly.
+    When ``output`` is ``None`` (Warp-first inspection), shape is derived from:
+    - ``descriptor.extras["axes"]`` for RootState observations, or
+    - ``asset_cfg.joint_ids`` for JointState observations.
+
+    BodyState shape cannot be derived without calling the function (the per-body
+    feature size varies). In that case shape is left unset.
 
     Args:
         output: The pre-allocated output buffer, or ``None`` during inspection.
         descriptor: The descriptor to record the shape to.
         **kwargs: Additional keyword arguments.
     """
-    if output is None:
+    if output is not None:
+        descriptor.shape = (output.shape[-1],)
         return
-    descriptor.shape = (output.shape[-1],)
+    # --- Warp-first fallback: derive shape without output ---
+    # 1) From axes metadata (RootState)
+    axes = descriptor.extras.get("axes") if descriptor.extras else None
+    if axes:
+        descriptor.shape = (len(axes),)
+        return
+    # 2) From asset_cfg for JointState
+    if descriptor.observation_type == "JointState":
+        asset_cfg = kwargs.get("asset_cfg")
+        if asset_cfg is not None:
+            asset: Articulation = kwargs["env"].scene[asset_cfg.name]
+            joint_ids = asset_cfg.joint_ids
+            if joint_ids == slice(None):
+                descriptor.shape = (len(asset.joint_names),)
+            else:
+                descriptor.shape = (len(joint_ids),)
 
 
 def record_dtype(output: wp.array | None, descriptor: GenericObservationIODescriptor, **kwargs) -> None:
@@ -281,7 +303,7 @@ def record_joint_pos_offsets(output: wp.array | None, descriptor: GenericObserva
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
-    descriptor.joint_pos_offsets = wp.to_torch(asset.data.default_joint_pos).clone()[:, ids][0]
+    descriptor.joint_pos_offsets = asset.data.default_joint_pos.torch.clone()[:, ids][0]
 
 
 def record_joint_vel_offsets(output: wp.array | None, descriptor: GenericObservationIODescriptor, **kwargs):
@@ -298,4 +320,4 @@ def record_joint_vel_offsets(output: wp.array | None, descriptor: GenericObserva
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
-    descriptor.joint_vel_offsets = wp.to_torch(asset.data.default_joint_vel).clone()[:, ids][0]
+    descriptor.joint_vel_offsets = asset.data.default_joint_vel.torch.clone()[:, ids][0]

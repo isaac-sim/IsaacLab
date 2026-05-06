@@ -6,8 +6,6 @@
 import os
 import tempfile
 
-import torch
-
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -547,46 +545,44 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     # Idle action to hold robot in default pose
     # Action format: [left arm pos (3), left arm quat (4), right arm pos (3), right arm quat (4),
     #                 left hand joint pos (11), right hand joint pos (11)]
-    idle_action = torch.tensor(
-        [
-            -0.22878,
-            0.2536,
-            1.0953,
-            0.5,
-            -0.5,
-            0.5,
-            0.5,
-            0.22878,
-            0.2536,
-            1.0953,
-            0.5,
-            -0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        ]
-    )
+    idle_action = [
+        -0.22878,
+        0.2536,
+        1.0953,
+        0.5,
+        -0.5,
+        0.5,
+        0.5,
+        0.22878,
+        0.2536,
+        1.0953,
+        0.5,
+        -0.5,
+        0.5,
+        0.5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ]
 
     def __post_init__(self):
         """Post initialization."""
@@ -611,3 +607,46 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             sim_device=self.sim.device,
             xr_cfg=self.xr,
         )
+
+        # Legacy teleop devices are built lazily via __getattr__ to avoid
+        # importing runtime-only modules (carb, pxr) at config-load time.
+        del self.teleop_devices
+
+    def __getattr__(self, name: str):
+        if name == "teleop_devices":
+            from isaaclab.devices.device_base import DevicesCfg  # noqa: PLC0415
+            from isaaclab.devices.openxr import ManusViveCfg, OpenXRDeviceCfg  # noqa: PLC0415
+            from isaaclab.devices.openxr.retargeters.humanoid.fourier.gr1t2_retargeter import (  # noqa: PLC0415
+                GR1T2RetargeterCfg,
+            )
+
+            self.teleop_devices = DevicesCfg(
+                devices={
+                    "handtracking": OpenXRDeviceCfg(
+                        retargeters=[
+                            GR1T2RetargeterCfg(
+                                enable_visualization=True,
+                                num_open_xr_hand_joints=2 * 26,
+                                sim_device=self.sim.device,
+                                hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                            ),
+                        ],
+                        sim_device=self.sim.device,
+                        xr_cfg=self.xr,
+                    ),
+                    "manusvive": ManusViveCfg(
+                        retargeters=[
+                            GR1T2RetargeterCfg(
+                                enable_visualization=True,
+                                num_open_xr_hand_joints=2 * 26,
+                                sim_device=self.sim.device,
+                                hand_joint_names=self.actions.upper_body_ik.hand_joint_names,
+                            ),
+                        ],
+                        sim_device=self.sim.device,
+                        xr_cfg=self.xr,
+                    ),
+                }
+            )
+            return self.teleop_devices
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")

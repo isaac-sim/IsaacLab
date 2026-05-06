@@ -35,7 +35,7 @@ from isaaclab_physx.physics import PhysxManager as SimulationManager
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
-    import omni.physics.tensors.impl.api as physx
+    import omni.physics.tensors.api as physx
 
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
@@ -239,12 +239,16 @@ class Articulation(BaseArticulation):
             if self._instantaneous_wrench_composer.active:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
+                get_force_data = self._get_inst_wrench_force_f32
+                get_torque_data = self._get_inst_wrench_torque_f32
             else:
                 composer = self._permanent_wrench_composer
+                get_force_data = self._get_perm_wrench_force_f32
+                get_torque_data = self._get_perm_wrench_torque_f32
             composer.compose_to_body_frame()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=composer.out_force_b.flatten().view(wp.float32),
-                torque_data=composer.out_torque_b.flatten().view(wp.float32),
+                force_data=get_force_data(),
+                torque_data=get_torque_data(),
                 position_data=None,
                 indices=self._ALL_INDICES,
                 is_global=False,
@@ -370,7 +374,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -394,7 +398,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -419,7 +423,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -448,8 +452,6 @@ class Articulation(BaseArticulation):
             ],
             outputs=[
                 self.data.root_link_pose_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -463,7 +465,7 @@ class Articulation(BaseArticulation):
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -476,7 +478,7 @@ class Articulation(BaseArticulation):
         The root pose comprises of the cartesian position and quaternion orientation in (x, y, z, w).
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -505,7 +507,7 @@ class Articulation(BaseArticulation):
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -538,9 +540,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_pose_w,
                 self.data.root_link_pose_w,
-                None,  # self.data._root_com_state_w.data,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
             ],
             device=self.device,
         )
@@ -555,7 +554,7 @@ class Articulation(BaseArticulation):
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -569,7 +568,7 @@ class Articulation(BaseArticulation):
         The orientation is the orientation of the principal axes of inertia.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -599,7 +598,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect partial data.
+            This method expects partial data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -626,7 +625,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -654,7 +653,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -685,8 +684,6 @@ class Articulation(BaseArticulation):
             outputs=[
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -694,7 +691,7 @@ class Articulation(BaseArticulation):
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_velocities(self._get_root_com_vel_w_f32(), indices=env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -710,7 +707,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -741,7 +738,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -776,9 +773,6 @@ class Articulation(BaseArticulation):
                 self.data.root_link_vel_w,
                 self.data.root_com_vel_w,
                 self.data.body_com_acc_w,
-                None,  # self.data._root_link_state_w.data,
-                None,  # self.data._root_state_w.data,
-                None,  # self.data._root_com_state_w.data,
             ],
             device=self.device,
         )
@@ -787,7 +781,7 @@ class Articulation(BaseArticulation):
         self.data._root_state_w.timestamp = -1.0
         self.data._root_com_state_w.timestamp = -1.0
         # set into simulation
-        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
+        self.root_view.set_root_velocities(self._get_root_link_vel_w_f32(), indices=env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -803,7 +797,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's frame rather than the root's center of mass.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -819,6 +813,71 @@ class Articulation(BaseArticulation):
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids, full_data=True)
 
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ):
+        """Write joint positions and velocities in a single fused kernel launch.
+
+        .. note::
+            This method expects partial data or full data.
+
+        .. tip::
+            For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
+            is only supporting indexing, hence masks need to be converted to indices.
+
+        Args:
+            position: Joint positions. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_ids: Joint indices. If None, then all joints are used.
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        # resolve all indices
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        if full_data:
+            self.assert_shape_and_dtype(position, (self.num_instances, self.num_joints), wp.float32, "position")
+            self.assert_shape_and_dtype(velocity, (self.num_instances, self.num_joints), wp.float32, "velocity")
+        else:
+            self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+            self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        wp.launch(
+            articulation_kernels.write_joint_state_data,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+                full_data,
+            ],
+            outputs=[
+                self.data.joint_pos,
+                self.data.joint_vel,
+                self.data._previous_joint_vel,
+                self.data.joint_acc,
+            ],
+            device=self.device,
+        )
+        # Invalidate buffers
+        self.data._body_com_vel_w.timestamp = -1.0
+        self.data._body_link_vel_w.timestamp = -1.0
+        self.data._body_com_pose_b.timestamp = -1.0
+        self.data._body_com_pose_w.timestamp = -1.0
+        self.data._body_link_pose_w.timestamp = -1.0
+        self.data._body_state_w.timestamp = -1.0
+        self.data._body_link_state_w.timestamp = -1.0
+        self.data._body_com_state_w.timestamp = -1.0
+        # set into simulation
+        self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
+        self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
+
     def write_joint_state_to_sim_mask(
         self,
         *,
@@ -830,7 +889,7 @@ class Articulation(BaseArticulation):
         """Write joint positions and velocities over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -842,9 +901,12 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        # set into simulation
-        self.write_joint_position_to_sim_mask(position=position, env_mask=env_mask, joint_mask=joint_mask)
-        self.write_joint_velocity_to_sim_mask(velocity=velocity, env_mask=env_mask, joint_mask=joint_mask)
+        # resolve masks to indices (PhysX only supports index-based TensorAPI)
+        env_ids = self._resolve_env_mask(env_mask)
+        joint_ids = self._resolve_joint_mask(joint_mask)
+        self.write_joint_state_to_sim_index(
+            position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True
+        )
 
     def write_joint_position_to_sim_index(
         self,
@@ -857,7 +919,7 @@ class Articulation(BaseArticulation):
         """Write joint positions over selected environment indices into the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -914,7 +976,7 @@ class Articulation(BaseArticulation):
         """Write joint positions over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -942,7 +1004,7 @@ class Articulation(BaseArticulation):
         """Write joint velocities to the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -991,7 +1053,7 @@ class Articulation(BaseArticulation):
         """Write joint velocities over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1023,7 +1085,7 @@ class Articulation(BaseArticulation):
         """Write joint stiffness over selected environment indices into the simulation.
 
         .. note::
-            This method expect partial data or full data.
+            This method expects partial data or full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1074,7 +1136,8 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_stiffnesses(wp.clone(self.data._joint_stiffness, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_stiffness, self.data._joint_stiffness)
+        self.root_view.set_dof_stiffnesses(self._cpu_joint_stiffness, indices=cpu_env_ids)
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1086,7 +1149,7 @@ class Articulation(BaseArticulation):
         """Write joint stiffness over selected environment mask into the simulation.
 
         .. note::
-            This method expect full data.
+            This method expects full data.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1168,7 +1231,8 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_damping, self.data._joint_damping)
+        self.root_view.set_dof_dampings(self._cpu_joint_damping, indices=cpu_env_ids)
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -1268,7 +1332,8 @@ class Articulation(BaseArticulation):
                 logger.info(violation_message)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_limits(wp.clone(self.data._joint_pos_limits, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_pos_limits, self.data._joint_pos_limits)
+        self.root_view.set_dof_limits(self._cpu_joint_pos_limits, indices=cpu_env_ids)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1372,7 +1437,8 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_max_velocities(wp.clone(self.data._joint_vel_limits, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_vel_limits, self.data._joint_vel_limits)
+        self.root_view.set_dof_max_velocities(self._cpu_joint_vel_limits, indices=cpu_env_ids)
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1473,7 +1539,8 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_max_forces(wp.clone(self.data._joint_effort_limits, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_effort_limits, self.data._joint_effort_limits)
+        self.root_view.set_dof_max_forces(self._cpu_joint_effort_limits, indices=cpu_env_ids)
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1572,7 +1639,8 @@ class Articulation(BaseArticulation):
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_armatures(wp.clone(self.data._joint_armature, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_armature, self.data._joint_armature)
+        self.root_view.set_dof_armatures(self._cpu_joint_armature, indices=cpu_env_ids)
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -1711,7 +1779,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_friction_props, friction_props)
+        self.root_view.set_dof_friction_properties(self._cpu_joint_friction_props, indices=cpu_env_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -1828,7 +1897,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_friction_props, friction_props)
+        self.root_view.set_dof_friction_properties(self._cpu_joint_friction_props, indices=cpu_env_ids)
 
     def write_joint_dynamic_friction_coefficient_to_sim_mask(
         self,
@@ -1928,7 +1998,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_joint_friction_props, friction_props)
+        self.root_view.set_dof_friction_properties(self._cpu_joint_friction_props, indices=cpu_env_ids)
 
     def write_joint_viscous_friction_coefficient_to_sim_mask(
         self,
@@ -2015,7 +2086,8 @@ class Articulation(BaseArticulation):
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_masses(wp.clone(self.data._body_mass, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_body_mass, self.data._body_mass)
+        self.root_view.set_masses(self._cpu_body_mass, indices=cpu_env_ids)
 
     def set_masses_mask(
         self,
@@ -2094,12 +2166,11 @@ class Articulation(BaseArticulation):
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from wp.transformf to flat (N, M, 7) array for PhysX
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        body_com_flat = (
-            wp.clone(self.data._body_com_pose_b.data, device="cpu")
-            .view(wp.float32)
-            .reshape((self.num_instances, self.num_bodies, 7))
+        wp.copy(
+            self._cpu_body_coms,
+            self.data._body_com_pose_b.data.view(wp.float32).reshape((self.num_instances, self.num_bodies, 7)),
         )
-        self.root_view.set_coms(body_com_flat, indices=cpu_env_ids)
+        self.root_view.set_coms(self._cpu_body_coms, indices=cpu_env_ids)
 
     def set_coms_mask(
         self,
@@ -2177,7 +2248,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=cpu_env_ids)
+        wp.copy(self._cpu_body_inertia, self.data._body_inertia)
+        self.root_view.set_inertias(self._cpu_body_inertia, indices=cpu_env_ids)
 
     def set_inertias_mask(
         self,
@@ -3076,12 +3148,12 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         # Write fixed tendon properties to the simulation.
         self.root_view.set_fixed_tendon_properties(
-            self.data.fixed_tendon_stiffness,
-            self.data.fixed_tendon_damping,
-            self.data.fixed_tendon_limit_stiffness,
-            self.data.fixed_tendon_pos_limits,
-            self.data.fixed_tendon_rest_length,
-            self.data.fixed_tendon_offset,
+            self.data.fixed_tendon_stiffness.warp,
+            self.data.fixed_tendon_damping.warp,
+            self.data.fixed_tendon_limit_stiffness.warp,
+            self.data.fixed_tendon_pos_limits.warp,
+            self.data.fixed_tendon_rest_length.warp,
+            self.data.fixed_tendon_offset.warp,
             indices=env_ids,
         )
 
@@ -3533,10 +3605,10 @@ class Articulation(BaseArticulation):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         # Write spatial tendon properties to the simulation.
         self.root_view.set_spatial_tendon_properties(
-            self.data.spatial_tendon_stiffness,
-            self.data.spatial_tendon_damping,
-            self.data.spatial_tendon_limit_stiffness,
-            self.data.spatial_tendon_offset,
+            self.data.spatial_tendon_stiffness.warp,
+            self.data.spatial_tendon_damping.warp,
+            self.data.spatial_tendon_limit_stiffness.warp,
+            self.data.spatial_tendon_offset.warp,
             indices=env_ids,
         )
 
@@ -3668,6 +3740,35 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
+        # Cached .view(wp.float32) wrappers for structured warp arrays.
+        # These avoid per-call wp.array metadata allocation in writers.
+        # Reset to None each time _create_buffers runs (during initialization).
+        self._root_link_pose_w_f32: wp.array | None = None
+        self._root_com_vel_w_f32: wp.array | None = None
+        self._root_link_vel_w_f32: wp.array | None = None
+        # Cached wrench views for write_data_to_sim
+        self._inst_wrench_force_f32: wp.array | None = None
+        self._inst_wrench_torque_f32: wp.array | None = None
+        self._perm_wrench_force_f32: wp.array | None = None
+        self._perm_wrench_torque_f32: wp.array | None = None
+
+        # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes.
+        # PhysX requires CPU arrays for "model" property updates (stiffness, damping, etc.).
+        # Pinned memory enables DMA fast path and avoids per-call malloc.
+        N, J, B = self.num_instances, self.num_joints, self.num_bodies
+        self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        self._cpu_joint_stiffness = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_damping = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_pos_limits = wp.zeros((N, J, 2), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_vel_limits = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_effort_limits = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_armature = wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_joint_friction_props = wp.zeros((N, J, 3), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_coms = wp.zeros((N, B, 7), dtype=wp.float32, device="cpu", pinned=True)
+        self._cpu_body_inertia = wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
+
     def _process_cfg(self):
         """Post processing of configuration parameters."""
         # default state
@@ -3756,14 +3857,14 @@ class Articulation(BaseArticulation):
                 joint_ids=joint_ids,
                 num_envs=self.num_instances,
                 device=self.device,
-                stiffness=wp.to_torch(self._data.joint_stiffness)[:, joint_ids],
-                damping=wp.to_torch(self._data.joint_damping)[:, joint_ids],
-                armature=wp.to_torch(self._data.joint_armature)[:, joint_ids],
-                friction=wp.to_torch(self._data.joint_friction_coeff)[:, joint_ids],
-                dynamic_friction=wp.to_torch(self._data.joint_dynamic_friction_coeff)[:, joint_ids],
-                viscous_friction=wp.to_torch(self._data.joint_viscous_friction_coeff)[:, joint_ids],
-                effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
-                velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
+                stiffness=self._data.joint_stiffness.torch[:, joint_ids],
+                damping=self._data.joint_damping.torch[:, joint_ids],
+                armature=self._data.joint_armature.torch[:, joint_ids],
+                friction=self._data.joint_friction_coeff.torch[:, joint_ids],
+                dynamic_friction=self._data.joint_dynamic_friction_coeff.torch[:, joint_ids],
+                viscous_friction=self._data.joint_viscous_friction_coeff.torch[:, joint_ids],
+                effort_limit=self._data.joint_effort_limits.torch[:, joint_ids].clone(),
+                velocity_limit=self._data.joint_vel_limits.torch[:, joint_ids],
             )
             # store actuator group
             self.actuators[actuator_name] = actuator
@@ -3945,16 +4046,16 @@ class Articulation(BaseArticulation):
             # prepare input for actuator model based on cached data
             # TODO : A tensor dict would be nice to do the indexing of all tensors together
             control_action = ArticulationActions(
-                joint_positions=wp.to_torch(self._data.joint_pos_target)[:, actuator.joint_indices],
-                joint_velocities=wp.to_torch(self._data.joint_vel_target)[:, actuator.joint_indices],
-                joint_efforts=wp.to_torch(self._data.joint_effort_target)[:, actuator.joint_indices],
+                joint_positions=self._data.joint_pos_target.torch[:, actuator.joint_indices],
+                joint_velocities=self._data.joint_vel_target.torch[:, actuator.joint_indices],
+                joint_efforts=self._data.joint_effort_target.torch[:, actuator.joint_indices],
                 joint_indices=actuator.joint_indices,
             )
             # compute joint command from the actuator model
             control_action = actuator.compute(
                 control_action,
-                joint_pos=wp.to_torch(self._data.joint_pos)[:, actuator.joint_indices],
-                joint_vel=wp.to_torch(self._data.joint_vel)[:, actuator.joint_indices],
+                joint_pos=self._data.joint_pos.torch[:, actuator.joint_indices],
+                joint_vel=self._data.joint_vel.torch[:, actuator.joint_indices],
             )
             # update targets (these are set into the simulation)
             joint_indices = actuator.joint_indices
@@ -4014,8 +4115,8 @@ class Articulation(BaseArticulation):
         """
         # check that the default values are within the limits
         joint_pos_limits = wp.to_torch(wp.clone(self.root_view.get_dof_limits(), device=self.device))[0]
-        out_of_range = wp.to_torch(self._data.default_joint_pos)[0] < joint_pos_limits[:, 0]
-        out_of_range |= wp.to_torch(self._data.default_joint_pos)[0] > joint_pos_limits[:, 1]
+        out_of_range = self._data.default_joint_pos.torch[0] < joint_pos_limits[:, 0]
+        out_of_range |= self._data.default_joint_pos.torch[0] > joint_pos_limits[:, 1]
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         # throw error if any of the default joint positions are out of the limits
         if len(violated_indices) > 0:
@@ -4024,14 +4125,14 @@ class Articulation(BaseArticulation):
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = joint_pos_limits[idx]
-                joint_pos = wp.to_torch(self._data.default_joint_pos)[0, idx]
+                joint_pos = self._data.default_joint_pos.torch[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_pos:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
         joint_max_vel = wp.to_torch(wp.clone(self.root_view.get_dof_max_velocities(), device=self.device))[0]
-        out_of_range = torch.abs(wp.to_torch(self._data.default_joint_vel)[0]) > joint_max_vel
+        out_of_range = torch.abs(self._data.default_joint_vel.torch[0]) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:
             # prepare message for violated joints
@@ -4039,7 +4140,7 @@ class Articulation(BaseArticulation):
             for idx in violated_indices:
                 joint_name = self.data.joint_names[idx]
                 joint_limit = [-joint_max_vel[idx], joint_max_vel[idx]]
-                joint_vel = wp.to_torch(self._data.default_joint_vel)[0, idx]
+                joint_vel = self._data.default_joint_vel.torch[0, idx]
                 # add to message
                 msg += f"\t- '{joint_name}': {joint_vel:.3f} not in [{joint_limit[0]:.3f}, {joint_limit[1]:.3f}]\n"
             raise ValueError(msg)
@@ -4070,23 +4171,23 @@ class Articulation(BaseArticulation):
         # -- gains
         # Use data properties which have already been cloned and stored during initialization
         # This avoids issues with indexedarray or empty arrays from root_view
-        stiffnesses = wp.to_torch(self.data.joint_stiffness)[0].cpu().tolist()
-        dampings = wp.to_torch(self.data.joint_damping)[0].cpu().tolist()
+        stiffnesses = self.data.joint_stiffness.torch[0].cpu().tolist()
+        dampings = self.data.joint_damping.torch[0].cpu().tolist()
         # -- properties
-        armatures = wp.to_torch(self.data.joint_armature)[0].cpu().tolist()
+        armatures = self.data.joint_armature.torch[0].cpu().tolist()
         # For friction, use the individual components from data
-        friction_coeff = wp.to_torch(self.data.joint_friction_coeff)[0].cpu()
-        dynamic_friction_coeff = wp.to_torch(self.data.joint_dynamic_friction_coeff)[0].cpu()
-        viscous_friction_coeff = wp.to_torch(self.data.joint_viscous_friction_coeff)[0].cpu()
+        friction_coeff = self.data.joint_friction_coeff.torch[0].cpu()
+        dynamic_friction_coeff = self.data.joint_dynamic_friction_coeff.torch[0].cpu()
+        viscous_friction_coeff = self.data.joint_viscous_friction_coeff.torch[0].cpu()
         static_frictions = friction_coeff.tolist()
         dynamic_frictions = dynamic_friction_coeff.tolist()
         viscous_frictions = viscous_friction_coeff.tolist()
         # -- limits
         # joint_pos_limits is vec2f array, convert to torch and extract [lower, upper] pairs
-        position_limits_torch = wp.to_torch(self.data.joint_pos_limits)[0].cpu()  # shape: (num_joints, 2)
+        position_limits_torch = self.data.joint_pos_limits.torch[0].cpu()  # shape: (num_joints, 2)
         position_limits = [tuple(pos_limit.tolist()) for pos_limit in position_limits_torch]
-        velocity_limits = wp.to_torch(self.data.joint_vel_limits)[0].cpu().tolist()
-        effort_limits = wp.to_torch(self.data.joint_effort_limits)[0].cpu().tolist()
+        velocity_limits = self.data.joint_vel_limits.torch[0].cpu().tolist()
+        effort_limits = self.data.joint_effort_limits.torch[0].cpu().tolist()
         # create table for term information
         joint_table = PrettyTable()
         joint_table.title = f"Simulation Joint Information (Prim path: {self.cfg.prim_path})"
@@ -4127,15 +4228,15 @@ class Articulation(BaseArticulation):
         if self.num_fixed_tendons > 0:
             # -- gains
             # Use data properties which have already been cloned and stored during initialization
-            ft_stiffnesses = wp.to_torch(self.data.fixed_tendon_stiffness)[0].cpu().tolist()
-            ft_dampings = wp.to_torch(self.data.fixed_tendon_damping)[0].cpu().tolist()
+            ft_stiffnesses = self.data.fixed_tendon_stiffness.torch[0].cpu().tolist()
+            ft_dampings = self.data.fixed_tendon_damping.torch[0].cpu().tolist()
             # -- limits
-            ft_limit_stiffnesses = wp.to_torch(self.data.fixed_tendon_limit_stiffness)[0].cpu().tolist()
+            ft_limit_stiffnesses = self.data.fixed_tendon_limit_stiffness.torch[0].cpu().tolist()
             # fixed_tendon_pos_limits is vec2f array
-            ft_limits_torch = wp.to_torch(self.data.fixed_tendon_pos_limits)[0].cpu()
+            ft_limits_torch = self.data.fixed_tendon_pos_limits.torch[0].cpu()
             ft_limits = [tuple(limit.tolist()) for limit in ft_limits_torch]
-            ft_rest_lengths = wp.to_torch(self.data.fixed_tendon_rest_length)[0].cpu().tolist()
-            ft_offsets = wp.to_torch(self.data.fixed_tendon_offset)[0].cpu().tolist()
+            ft_rest_lengths = self.data.fixed_tendon_rest_length.torch[0].cpu().tolist()
+            ft_offsets = self.data.fixed_tendon_offset.torch[0].cpu().tolist()
             # create table for term information
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Fixed Tendon Information (Prim path: {self.cfg.prim_path})"
@@ -4179,11 +4280,11 @@ class Articulation(BaseArticulation):
         if self.num_spatial_tendons > 0:
             # -- gains
             # Use data properties which have already been cloned and stored during initialization
-            st_stiffnesses = wp.to_torch(self.data.spatial_tendon_stiffness)[0].cpu().tolist()
-            st_dampings = wp.to_torch(self.data.spatial_tendon_damping)[0].cpu().tolist()
+            st_stiffnesses = self.data.spatial_tendon_stiffness.torch[0].cpu().tolist()
+            st_dampings = self.data.spatial_tendon_damping.torch[0].cpu().tolist()
             # -- limits
-            st_limit_stiffnesses = wp.to_torch(self.data.spatial_tendon_limit_stiffness)[0].cpu().tolist()
-            st_offsets = wp.to_torch(self.data.spatial_tendon_offset)[0].cpu().tolist()
+            st_limit_stiffnesses = self.data.spatial_tendon_limit_stiffness.torch[0].cpu().tolist()
+            st_offsets = self.data.spatial_tendon_offset.torch[0].cpu().tolist()
             # create table for term information
             tendon_table = PrettyTable()
             tendon_table.title = f"Simulation Spatial Tendon Information (Prim path: {self.cfg.prim_path})"
@@ -4212,17 +4313,23 @@ class Articulation(BaseArticulation):
             )
 
     def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
-        """
-        Get the CPU environment indices.
+        """Get the CPU environment indices.
+
+        For the full-index case (all environments), returns the pre-allocated
+        pinned CPU buffer. For partial indices (e.g. during partial resets), clones to CPU.
 
         Args:
             env_ids: Environment indices.
 
         Returns:
-            A warp array of environment indices.
+            A warp array of environment indices on CPU.
         """
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids, dtype=wp.int32)
+        # Fast path: if these are all indices, use pre-allocated pinned buffer
+        if env_ids.ptr == self._ALL_INDICES.ptr:
+            return self._cpu_env_ids_all
+        # Slow path: partial indices (reset), clone to CPU
         return wp.clone(env_ids, device="cpu")
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -4244,11 +4351,54 @@ class Articulation(BaseArticulation):
             env_ids = self._ALL_INDICES
         return env_ids
 
+    def _get_root_link_pose_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_link_pose_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
+        if self._root_link_pose_w_f32 is None:
+            self._root_link_pose_w_f32 = self.data._root_link_pose_w.data.view(wp.float32)
+        return self._root_link_pose_w_f32
+
+    def _get_root_com_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_com_vel_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
+        if self._root_com_vel_w_f32 is None:
+            self._root_com_vel_w_f32 = self.data._root_com_vel_w.data.view(wp.float32)
+        return self._root_com_vel_w_f32
+
+    def _get_root_link_vel_w_f32(self) -> wp.array:
+        """Get a cached float32 view of root_link_vel_w for PhysX TensorAPI. Invalidated in ``_create_buffers``."""
+        if self._root_link_vel_w_f32 is None:
+            self._root_link_vel_w_f32 = self.data._root_link_vel_w.data.view(wp.float32)
+        return self._root_link_vel_w_f32
+
+    def _get_inst_wrench_force_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of instantaneous wrench force. Invalidated in ``_create_buffers``."""
+        if self._inst_wrench_force_f32 is None:
+            self._inst_wrench_force_f32 = self._instantaneous_wrench_composer.out_force_b.warp.flatten().view(
+                wp.float32
+            )
+        return self._inst_wrench_force_f32
+
+    def _get_inst_wrench_torque_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of instantaneous wrench torque. Invalidated in ``_create_buffers``."""
+        if self._inst_wrench_torque_f32 is None:
+            self._inst_wrench_torque_f32 = self._instantaneous_wrench_composer.out_torque_b.warp.flatten().view(
+                wp.float32
+            )
+        return self._inst_wrench_torque_f32
+
+    def _get_perm_wrench_force_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of permanent wrench force. Invalidated in ``_create_buffers``."""
+        if self._perm_wrench_force_f32 is None:
+            self._perm_wrench_force_f32 = self._permanent_wrench_composer.out_force_b.warp.flatten().view(wp.float32)
+        return self._perm_wrench_force_f32
+
+    def _get_perm_wrench_torque_f32(self) -> wp.array:
+        """Get a cached flattened float32 view of permanent wrench torque. Invalidated in ``_create_buffers``."""
+        if self._perm_wrench_torque_f32 is None:
+            self._perm_wrench_torque_f32 = self._permanent_wrench_composer.out_torque_b.warp.flatten().view(wp.float32)
+        return self._perm_wrench_torque_f32
+
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array:
         """Resolve environment indices to a warp array.
-
-        .. note::
-            We need to convert torch tensors to warp arrays since the TensorAPI views only support warp arrays.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
@@ -4259,7 +4409,6 @@ class Articulation(BaseArticulation):
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
         if isinstance(env_ids, torch.Tensor):
-            # Convert int64 to int32 if needed, as warp expects int32
             if env_ids.dtype == torch.int64:
                 env_ids = env_ids.to(torch.int32)
             return wp.from_torch(env_ids, dtype=wp.int32)
@@ -4287,9 +4436,6 @@ class Articulation(BaseArticulation):
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a warp array or tensor.
 
-        .. note::
-            We do not need to convert torch tensors to warp arrays since they never get passed to the TensorAPI views.
-
         Args:
             joint_ids: Joint indices. If None, then all indices are used.
 
@@ -4300,6 +4446,10 @@ class Articulation(BaseArticulation):
             return wp.array(joint_ids, dtype=wp.int32, device=self.device)
         if (joint_ids is None) or (joint_ids == slice(None)):
             return self._ALL_JOINT_INDICES
+        if isinstance(joint_ids, torch.Tensor):
+            if joint_ids.dtype == torch.int64:
+                joint_ids = joint_ids.to(torch.int32)
+            return wp.from_torch(joint_ids, dtype=wp.int32)
         return joint_ids
 
     def _resolve_body_mask(self, body_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -4332,6 +4482,10 @@ class Articulation(BaseArticulation):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if (body_ids is None) or (body_ids == slice(None)):
             return self._ALL_BODY_INDICES
+        if isinstance(body_ids, torch.Tensor):
+            if body_ids.dtype == torch.int64:
+                body_ids = body_ids.to(torch.int32)
+            return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
     def _resolve_fixed_tendon_mask(self, fixed_tendon_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -4544,14 +4698,11 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ):
-        """Deprecated, same as :meth:`write_joint_position_to_sim_index` and
-        :meth:`write_joint_velocity_to_sim_index`."""
+        """Deprecated, same as :meth:`write_joint_state_to_sim_index`."""
         warnings.warn(
             "The function 'write_joint_state_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_to_sim_index' and 'write_joint_velocity_to_sim_index' instead.",
+            " use 'write_joint_state_to_sim_index' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        # set into simulation
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)

@@ -28,7 +28,7 @@ from isaaclab.assets import (
     RigidObjectCollection,
     RigidObjectCollectionCfg,
 )
-from isaaclab.physics.scene_data_requirements import resolve_scene_data_requirements
+from isaaclab.physics.scene_data_requirements import aggregate_requirements, resolve_scene_data_requirements
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
@@ -138,9 +138,7 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
-        self.sim.clear_scene_data_visualizer_prebuilt_artifact()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
-        visualizer_clone_fn = None
         requested_viz_types = set(self.sim.resolve_visualizer_types())
         if self.physics_backend.startswith("ovphysx"):
             from isaaclab_ovphysx.cloner import ovphysx_replicate
@@ -166,7 +164,6 @@ class InteractiveScene:
             clone_in_fabric=self.cfg.clone_in_fabric,
             device=self.device,
             physics_clone_fn=physics_clone_fn,
-            visualizer_clone_fn=None,
             # For ovphysx: env_1..N are created by physx.clone() in the physics
             # runtime after add_usd().  USD replication of the asset hierarchy
             # to env_1..N is skipped — only env_0 needs physics prims in the USD.
@@ -181,35 +178,29 @@ class InteractiveScene:
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
         self._default_env_origins, _ = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing, device=self.device)
         # copy empty prim of env_0 to env_1, env_2, ..., env_{num_envs-1} with correct location.
-        cloner.usd_replicate(
-            self.stage, [self.env_fmt.format(0)], [self.env_fmt], self._ALL_INDICES, positions=self._default_env_origins
-        )
+        # Suspend Fabric's USD notice listener: scene-init is followed by ``SimulationContext.reset``,
+        # which does the Fabric resync naturally — re-enabling here would just trigger a redundant batch.
+        # Note: ``restore=False`` means the listener stays disabled past this ``with`` block — through
+        # ``_add_entities_from_cfg`` and ``clone_environments`` below — until ``SimulationContext.reset``
+        # re-enables it. The nested suspension inside ``clone_environments`` becomes a no-op as a result.
+        with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
+            cloner.usd_replicate(
+                self.stage,
+                [self.env_fmt.format(0)],
+                [self.env_fmt],
+                self._ALL_INDICES,
+                positions=self._default_env_origins,
+            )
 
         self._global_prim_paths = list()
         has_scene_cfg_entities = self._is_scene_setup_from_cfg()
         if has_scene_cfg_entities:
             self._add_entities_from_cfg()
 
-        requirements = resolve_scene_data_requirements(
-            visualizer_types=requested_viz_types,
-            renderer_types=self._sensor_renderer_types(),
-        )
-        self.sim.update_scene_data_requirements(requirements)
-        visualizer_clone_fn = cloner.resolve_visualizer_clone_fn(
-            physics_backend=self.physics_backend,
-            requirements=requirements,
-            stage=self.stage,
-            set_visualizer_artifact=self.sim.set_scene_data_visualizer_prebuilt_artifact,
-        )
-        if visualizer_clone_fn is not None:
-            logger.debug(
-                "Enabling visualizer artifact prebuild for clone path "
-                "(backend=%s, requires_newton_model=%s, requires_usd_stage=%s).",
-                self.physics_backend,
-                requirements.requires_newton_model,
-                requirements.requires_usd_stage,
-            )
-            self.cloner_cfg.visualizer_clone_fn = visualizer_clone_fn
+        # Aggregate scene-data requirements from declared visualizers and constructed sensors,
+        # then publish to ``SimulationContext`` so downstream providers (constructed later by
+        # :meth:`SimulationContext.initialize_visualizers`) see the full picture in one read.
+        self._aggregate_scene_data_requirements(requested_viz_types)
 
         if has_scene_cfg_entities:
             self.clone_environments(copy_from_source=(not self.cfg.replicate_physics))
@@ -232,37 +223,70 @@ class InteractiveScene:
             prim = self.stage.GetPrimAtPath("/physicsScene")
             prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
-        if self._is_scene_setup_from_cfg():
-            self.cloner_cfg.clone_physics = not copy_from_source
-            cloner.clone_from_template(self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg)
-        else:
-            mapping = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
-            replicate_args = (
-                [self.env_fmt.format(0)],
-                [self.env_fmt],
-                self._ALL_INDICES,
-                mapping,
-                self._default_env_origins,
-            )
+        # Suspend Fabric's USD notice listener around bulk authoring (re-entrant with the inner
+        # call inside :func:`clone_from_template`). ``restore=False`` because the downstream
+        # ``SimulationContext.reset`` does the Fabric resync — re-enabling here would batch-resync
+        # everything we just authored, which is slower than the unsuppressed baseline.
+        with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
+            if self._is_scene_setup_from_cfg():
+                self.cloner_cfg.clone_physics = not copy_from_source
+                plans = cloner.clone_from_template(
+                    self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg
+                )
+            else:
+                mapping = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
+                replicate_args = (
+                    [self.env_fmt.format(0)],
+                    [self.env_fmt],
+                    self._ALL_INDICES,
+                    mapping,
+                )
 
-            if not copy_from_source and self.cloner_cfg.physics_clone_fn is not None:
-                self.cloner_cfg.physics_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
-            if self.cloner_cfg.visualizer_clone_fn is not None:
-                self.cloner_cfg.visualizer_clone_fn(self.stage, *replicate_args, device=self.cloner_cfg.device)
-            if self.cloner_cfg.clone_usd:
-                cloner.usd_replicate(self.stage, *replicate_args)
+                if not copy_from_source and self.cloner_cfg.physics_clone_fn is not None:
+                    self.cloner_cfg.physics_clone_fn(
+                        self.stage, *replicate_args, positions=self._default_env_origins, device=self.cloner_cfg.device
+                    )
+                if self.cloner_cfg.clone_usd:
+                    cloner.usd_replicate(self.stage, *replicate_args, positions=self._default_env_origins)
+                # Synthesize a single trivial ClonePlan so consumers (scene data providers,
+                # pointcloud samplers, etc.) get a uniform interface regardless of whether
+                # the scene was authored via prototypes or by hand under env_0.
+                plans = {
+                    self.env_fmt: cloner.ClonePlan(
+                        dest_template=self.env_fmt,
+                        prototype_paths=[self.env_fmt.format(0)],
+                        clone_mask=mapping,
+                    )
+                }
+
+        # Publish to ``SimulationContext`` (the canonical owner). The :attr:`clone_plans`
+        # property below forwards reads back through ``sim.get_clone_plans()`` so consumers
+        # holding a scene reference still see the published plans without a duplicate cache.
+        self.sim.set_clone_plans(plans)
+
+    def _aggregate_scene_data_requirements(self, visualizer_types=()) -> None:
+        """Aggregate scene-data requirements from visualizers and sensor renderers.
+
+        Runs once after :meth:`_add_entities_from_cfg` so all sensors are constructed and
+        their renderer types are visible. Pushes the merged :class:`SceneDataRequirement` to
+        :class:`SimulationContext` for later consumption by the scene data provider.
+        """
+        discovered_req = resolve_scene_data_requirements(
+            visualizer_types=visualizer_types,
+            renderer_types=self._sensor_renderer_types(),
+        )
+        current_req = self.sim.get_scene_data_requirements()
+        requirements = aggregate_requirements((current_req, discovered_req))
+        if requirements != current_req:
+            self.sim.update_scene_data_requirements(requirements)
 
     def _sensor_renderer_types(self) -> list[str]:
-        """Return renderer type names used by scene sensors."""
-        renderer_types: list[str] = []
-        for sensor in self._sensors.values():
-            sensor_cfg = getattr(sensor, "cfg", None)
-            renderer_cfg = getattr(sensor_cfg, "renderer_cfg", None)
-            if renderer_cfg is None:
-                continue
-            renderer_type = getattr(renderer_cfg, "renderer_type", "default")
-            renderer_types.append(renderer_type)
-        return renderer_types
+        """Return renderer type names used by scene sensors (skipping any without a renderer cfg)."""
+        return [
+            getattr(rcfg, "renderer_type", "default")
+            for s in self._sensors.values()
+            if (rcfg := getattr(getattr(s, "cfg", None), "renderer_cfg", None)) is not None
+        ]
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -403,6 +427,18 @@ class InteractiveScene:
         return self._surface_grippers
 
     @property
+    def clone_plans(self) -> dict[str, cloner.ClonePlan]:
+        """Per-group clone plans produced by :meth:`clone_environments`.
+
+        Forwards to :meth:`SimulationContext.get_clone_plans`, which is the canonical owner.
+        Keyed by each group's destination path template
+        (e.g. ``"/World/envs/env_{}/Object"``); the value records the prototype prim paths
+        and the per-env prototype assignment mask. Empty until :meth:`clone_environments`
+        runs, and (for the cfg path) empty when the scene cfg has no template prototypes.
+        """
+        return self.sim.get_clone_plans()
+
+    @property
     def extras(self) -> dict[str, FrameView]:
         """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
 
@@ -473,6 +509,11 @@ class InteractiveScene:
         Args:
             dt: The amount of time passed from last :meth:`update` call.
         """
+        # Scene-wide renderer transform sync once per step when all sensors update,
+        # so per-camera fetches do not own this concern (deduped inside RenderContext).
+        if not self.cfg.lazy_sensor_update:
+            self.sim.render_context.update_transforms(self.sim.get_physics_step_count())
+
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
@@ -612,30 +653,30 @@ class InteractiveScene:
         state["articulation"] = dict()
         for asset_name, articulation in self._articulations.items():
             asset_state = dict()
-            asset_state["root_pose"] = wp.to_torch(articulation.data.root_pose_w).clone()
+            asset_state["root_pose"] = articulation.data.root_pose_w.torch.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = wp.to_torch(articulation.data.root_vel_w).clone()
-            asset_state["joint_position"] = wp.to_torch(articulation.data.joint_pos).clone()
-            asset_state["joint_velocity"] = wp.to_torch(articulation.data.joint_vel).clone()
+            asset_state["root_velocity"] = articulation.data.root_vel_w.torch.clone()
+            asset_state["joint_position"] = articulation.data.joint_pos.torch.clone()
+            asset_state["joint_velocity"] = articulation.data.joint_vel.torch.clone()
             state["articulation"][asset_name] = asset_state
         # deformable objects
         state["deformable_object"] = dict()
         for asset_name, deformable_object in self._deformable_objects.items():
             asset_state = dict()
-            asset_state["nodal_position"] = wp.to_torch(deformable_object.data.nodal_pos_w).clone()
+            asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.torch.clone()
             if is_relative:
                 asset_state["nodal_position"][:, :3] -= self.env_origins
-            asset_state["nodal_velocity"] = wp.to_torch(deformable_object.data.nodal_vel_w).clone()
+            asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.torch.clone()
             state["deformable_object"][asset_name] = asset_state
         # rigid objects
         state["rigid_object"] = dict()
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = dict()
-            asset_state["root_pose"] = wp.to_torch(rigid_object.data.root_pose_w).clone()
+            asset_state["root_pose"] = rigid_object.data.root_pose_w.torch.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = wp.to_torch(rigid_object.data.root_vel_w).clone()
+            asset_state["root_velocity"] = rigid_object.data.root_vel_w.torch.clone()
             state["rigid_object"][asset_name] = asset_state
         # surface grippers
         state["gripper"] = dict()

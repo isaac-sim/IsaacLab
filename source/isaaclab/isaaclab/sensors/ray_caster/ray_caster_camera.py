@@ -172,10 +172,9 @@ class RayCasterCamera(RayCaster):
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
-        pos_wp, quat_wp = self._view.get_world_poses(indices)
-        pos_w, quat_w = wp.to_torch(pos_wp).clone(), wp.to_torch(quat_wp).clone()
+        pos_w, quat_w = self._view.get_world_poses(indices)
         pos_w, quat_w = math_utils.combine_frame_transforms(
-            pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
+            pos_w.torch.clone(), quat_w.torch.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
@@ -218,27 +217,27 @@ class RayCasterCamera(RayCaster):
 
         # get current positions
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
-        pos_wp, quat_wp = self._view.get_world_poses(indices)
-        pos_w, quat_w = wp.to_torch(pos_wp), wp.to_torch(quat_wp)
+        pos_w, quat_w = self._view.get_world_poses(indices)
+        pos_w_torch = pos_w.torch
+        quat_w_torch = quat_w.torch
         if positions is not None:
             # transform to camera frame
-            pos_offset_world_frame = positions - pos_w
-            self._offset_pos[env_ids] = math_utils.quat_apply(math_utils.quat_inv(quat_w), pos_offset_world_frame)
+            pos_offset_world_frame = positions - pos_w_torch
+            self._offset_pos[env_ids] = math_utils.quat_apply(math_utils.quat_inv(quat_w_torch), pos_offset_world_frame)
         if orientations is not None:
             # convert rotation matrix from input convention to world
             quat_w_set = math_utils.convert_camera_frame_orientation_convention(
                 orientations, origin=convention, target="world"
             )
-            self._offset_quat[env_ids] = math_utils.quat_mul(math_utils.quat_inv(quat_w), quat_w_set)
+            self._offset_quat[env_ids] = math_utils.quat_mul(math_utils.quat_inv(quat_w_torch), quat_w_set)
 
         # update the data
-        pos_wp2, quat_wp2 = self._view.get_world_poses(indices)
-        pos_w, quat_w = wp.to_torch(pos_wp2).clone(), wp.to_torch(quat_wp2).clone()
-        pos_w, quat_w = math_utils.combine_frame_transforms(
-            pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
+        pos_w2, quat_w2 = self._view.get_world_poses(indices)
+        pos_w_out, quat_w_out = math_utils.combine_frame_transforms(
+            pos_w2.torch.clone(), quat_w2.torch.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
-        self._data.pos_w[env_ids] = pos_w
-        self._data.quat_w_world[env_ids] = quat_w
+        self._data.pos_w[env_ids] = pos_w_out
+        self._data.quat_w_world[env_ids] = quat_w_out
 
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
@@ -581,7 +580,8 @@ class RayCasterCamera(RayCaster):
 
         .. deprecated v2.3.1:
             This function will be removed in a future release. Call
-            ``self._view.get_world_poses(indices)`` directly instead.
+            ``self._view.get_world_poses(indices)`` directly instead. The returned
+            ProxyArray pair exposes ``.warp`` and ``.torch`` accessors.
 
         Returns:
             A tuple of the position (in meters) and quaternion (x, y, z, w).
@@ -594,8 +594,8 @@ class RayCasterCamera(RayCaster):
         )
 
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
-        pos_wp, quat_wp = self._view.get_world_poses(indices)
-        return wp.to_torch(pos_wp).clone(), wp.to_torch(quat_wp).clone()
+        pos_w, quat_w = self._view.get_world_poses(indices)
+        return pos_w.torch.clone(), quat_w.torch.clone()
 
     def _compute_camera_world_poses(self, env_ids: Sequence[int]) -> tuple[torch.Tensor, torch.Tensor]:
         """Computes the pose of the camera in the world frame.
@@ -608,8 +608,9 @@ class RayCasterCamera(RayCaster):
             .. code-block:: python
 
                 indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
-                pos_wp, quat_wp = self._view.get_world_poses(indices)
-                pos_w, quat_w = wp.to_torch(pos_wp).clone(), wp.to_torch(quat_wp).clone()
+                pos_w, quat_w = self._view.get_world_poses(indices)
+                # The returned ProxyArray pair exposes .warp and .torch accessors
+                pos_w, quat_w = pos_w.torch.clone(), quat_w.torch.clone()
                 pos_w, quat_w = math_utils.combine_frame_transforms(
                     pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
                 )
@@ -623,6 +624,7 @@ class RayCasterCamera(RayCaster):
         )
 
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
-        pos_wp, quat_wp = self._view.get_world_poses(indices)
-        pos_w, quat_w = wp.to_torch(pos_wp).clone(), wp.to_torch(quat_wp).clone()
-        return math_utils.combine_frame_transforms(pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids])
+        pos_w, quat_w = self._view.get_world_poses(indices)
+        return math_utils.combine_frame_transforms(
+            pos_w.torch.clone(), quat_w.torch.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
+        )

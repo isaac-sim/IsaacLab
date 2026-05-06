@@ -147,20 +147,34 @@ _CMD_METACHARACTERS = frozenset("<>|&^")
 
 
 def _escape_for_cmd_exe(cmd: list[str] | tuple[str, ...]) -> list[str]:
-    """Wrap .bat/.cmd calls in cmd.exe /c so args with < > | & ^ stay literal
-    (otherwise Windows treats e.g. setuptools<82.0.0 as a redirection).
+    """Wrap .bat/.cmd calls in cmd.exe /c so args with < > | & ^ stay literal.
+
+    Uses cmd.exe caret-escaping (``^<``) for metacharacters in args without
+    whitespace; double-quotes args that contain whitespace. Avoids wrapping a
+    metacharacter-bearing arg in double quotes -- ``cmd.exe /c "...\"X<Y\""``
+    leaks the literal quotes through to the inner program because cmd.exe and
+    Python's subprocess.list2cmdline don't share a quoting convention, and
+    pip then sees the literal ``"setuptools<82.0.0"`` and rejects it.
     """
     # only .bat/.cmd needs wrapping
     exe = str(cmd[0]).lower()
     if not (exe.endswith(".bat") or exe.endswith(".cmd")):
         return list(cmd)
 
-    # quote anything with metacharacters or spaces
     parts: list[str] = []
     for arg in cmd:
         s = str(arg)
-        if any(c in s for c in _CMD_METACHARACTERS) or " " in s or "\t" in s:
+        has_meta = any(c in s for c in _CMD_METACHARACTERS)
+        has_space = " " in s or "\t" in s
+        # Args with spaces fall back to double-quoting: cmd.exe does not
+        # interpret metacharacters inside "..." but the literal quotes can
+        # leak through the python.bat hop. Bypass python.bat entirely (see
+        # extract_python_exe) for the common case; pip args with spaces and
+        # metacharacters in the same token are not currently used.
+        if has_space:
             parts.append(f'"{s}"')
+        elif has_meta:
+            parts.append("".join(f"^{c}" if c in _CMD_METACHARACTERS else c for c in s))
         else:
             parts.append(s)
 
@@ -306,7 +320,16 @@ def extract_python_exe() -> str:
 
         if isaacsim_path is not None:
             if is_windows():
-                python_exe = isaacsim_path / "python.bat"
+                # Prefer the underlying python.exe over python.bat so we avoid
+                # cmd.exe metacharacter-quoting hazards on pip args like
+                # ``setuptools<82.0.0``. isaaclab.bat already sources
+                # setup_conda_env.bat before reaching the CLI, so children
+                # inherit the right env without going back through python.bat.
+                kit_python_exe = isaacsim_path / "kit" / "python" / "python.exe"
+                if kit_python_exe.exists():
+                    python_exe = kit_python_exe
+                else:
+                    python_exe = isaacsim_path / "python.bat"
             else:
                 python_exe = isaacsim_path / "python.sh"
 

@@ -34,7 +34,7 @@ class TemplateCloneCfg:
     .. code-block:: python
 
         from isaaclab.cloner import TemplateCloneCfg, clone_from_template
-        from isaacsim.core.utils.stage import get_current_stage
+        from isaaclab.sim.utils.stage import get_current_stage
 
         stage = get_current_stage()
         cfg = TemplateCloneCfg(
@@ -72,9 +72,6 @@ class TemplateCloneCfg:
 
     physics_clone_fn: callable | None = None
     """Function used to perform physics replication."""
-
-    visualizer_clone_fn: callable | None = None
-    """Optional function used to build precomputed visualizer artifacts from the clone plan."""
 
     clone_strategy: callable = random
     """Function used to build prototype-to-environment mapping. Default is :func:`random`."""

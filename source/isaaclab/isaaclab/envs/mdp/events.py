@@ -483,9 +483,9 @@ class randomize_rigid_body_mass(ManagerTermBase):
         min_mass: float = 1e-6,
     ):
         if self.default_mass is None:
-            self.default_mass = wp.to_torch(self.asset.data.body_mass).clone()
+            self.default_mass = self.asset.data.body_mass.torch.clone()
         if self.default_inertia is None:
-            self.default_inertia = wp.to_torch(self.asset.data.body_inertia).clone()
+            self.default_inertia = self.asset.data.body_inertia.torch.clone()
         # resolve environment ids
         if env_ids is None:
             env_ids = torch.arange(env.scene.num_envs, device=self.asset.device, dtype=torch.int32)
@@ -499,7 +499,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
             body_ids = torch.tensor(self.asset_cfg.body_ids, dtype=torch.int32, device=self.asset.device)
 
         # get the current masses of the bodies (num_assets, num_bodies)
-        masses = wp.to_torch(self.asset.data.body_mass).clone()
+        masses = self.asset.data.body_mass.torch.clone()
 
         # apply randomization on default values
         # this is to make sure when calling the function multiple times, the randomization is applied on the
@@ -524,7 +524,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
             ratios = masses[env_ids[:, None], body_ids] / self.default_mass[env_ids[:, None], body_ids]
             # scale the inertia tensors by the the ratios
             # since mass randomization is done on default values, we can use the default inertia tensors
-            inertias = wp.to_torch(self.asset.data.body_inertia).clone()
+            inertias = self.asset.data.body_inertia.torch.clone()
             # inertia has shape: (num_envs, num_bodies, 9) for all assets
             inertias[env_ids[:, None], body_ids] = self.default_inertia[env_ids[:, None], body_ids] * ratios[..., None]
             # set the inertia tensors into the physics simulation
@@ -626,7 +626,7 @@ class randomize_rigid_body_inertia(ManagerTermBase):
         """
         # store default inertia on first call for repeatable randomization
         if self.default_inertia is None:
-            self.default_inertia = wp.to_torch(self.asset.data.body_inertia).clone()
+            self.default_inertia = self.asset.data.body_inertia.torch.clone()
 
         # resolve environment ids
         if env_ids is None:
@@ -714,7 +714,7 @@ class randomize_rigid_body_com(ManagerTermBase):
     ):
         # store default CoM on first call for repeatable randomization
         if self.default_com is None:
-            self.default_com = wp.to_torch(self.asset.data.body_com_pose_b).clone()
+            self.default_com = self.asset.data.body_com_pose_b.torch.clone()
 
         # resolve environment ids
         if env_ids is None:
@@ -1132,8 +1132,8 @@ class randomize_actuator_gains(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        self.default_joint_stiffness = wp.to_torch(self.asset.data.joint_stiffness).clone()
-        self.default_joint_damping = wp.to_torch(self.asset.data.joint_damping).clone()
+        self.default_joint_stiffness = self.asset.data.joint_stiffness.torch.clone()
+        self.default_joint_damping = self.asset.data.joint_damping.torch.clone()
 
         # For explicit actuators the sim-level stiffness/damping is zeroed out, so patch
         # the defaults with the actual actuator PD gains.
@@ -1262,18 +1262,14 @@ class randomize_joint_parameters(ManagerTermBase):
         self._backend = "newton" if "newton" in manager_name else "physx"
 
         # cache default values (common to both backends)
-        self.default_joint_friction_coeff = wp.to_torch(self.asset.data.joint_friction_coeff).clone()
-        self.default_joint_armature = wp.to_torch(self.asset.data.joint_armature).clone()
-        self.default_joint_pos_limits = wp.to_torch(self.asset.data.joint_pos_limits).clone()
+        self.default_joint_friction_coeff = self.asset.data.joint_friction_coeff.torch.clone()
+        self.default_joint_armature = self.asset.data.joint_armature.torch.clone()
+        self.default_joint_pos_limits = self.asset.data.joint_pos_limits.torch.clone()
 
         # cache dynamic/viscous friction (PhysX only - Newton only has static friction)
         if self._backend == "physx":
-            self.default_dynamic_joint_friction_coeff = wp.to_torch(
-                self.asset.data.joint_dynamic_friction_coeff
-            ).clone()
-            self.default_viscous_joint_friction_coeff = wp.to_torch(
-                self.asset.data.joint_viscous_friction_coeff
-            ).clone()
+            self.default_dynamic_joint_friction_coeff = (self.asset.data.joint_dynamic_friction_coeff.torch).clone()
+            self.default_viscous_joint_friction_coeff = (self.asset.data.joint_viscous_friction_coeff.torch).clone()
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
@@ -1381,7 +1377,7 @@ class randomize_joint_parameters(ManagerTermBase):
         # joint armature
         if armature_distribution_params is not None:
             armature = _randomize_prop_by_op(
-                wp.to_torch(self.asset.data.default_joint_armature).clone(),
+                self.asset.data.default_joint_armature.torch.clone(),
                 armature_distribution_params,
                 env_ids,
                 joint_ids,
@@ -1505,7 +1501,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # stiffness
         if stiffness_distribution_params is not None:
             stiffness = _randomize_prop_by_op(
-                wp.to_torch(self.asset.data.fixed_tendon_stiffness).clone(),
+                self.asset.data.fixed_tendon_stiffness.torch.clone(),
                 stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1519,7 +1515,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # damping
         if damping_distribution_params is not None:
             damping = _randomize_prop_by_op(
-                wp.to_torch(self.asset.data.fixed_tendon_damping).clone(),
+                self.asset.data.fixed_tendon_damping.torch.clone(),
                 damping_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1533,7 +1529,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # limit stiffness
         if limit_stiffness_distribution_params is not None:
             limit_stiffness = _randomize_prop_by_op(
-                wp.to_torch(self.asset.data.fixed_tendon_limit_stiffness).clone(),
+                self.asset.data.fixed_tendon_limit_stiffness.torch.clone(),
                 limit_stiffness_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1546,7 +1542,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
 
         # position limits
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            limit = wp.to_torch(self.asset.data.fixed_tendon_pos_limits).clone()
+            limit = self.asset.data.fixed_tendon_pos_limits.torch.clone()
             # -- lower limit
             if lower_limit_distribution_params is not None:
                 limit[..., 0] = _randomize_prop_by_op(
@@ -1582,7 +1578,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # rest length
         if rest_length_distribution_params is not None:
             rest_length = _randomize_prop_by_op(
-                wp.to_torch(self.asset.data.fixed_tendon_rest_length).clone(),
+                self.asset.data.fixed_tendon_rest_length.torch.clone(),
                 rest_length_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1596,7 +1592,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         # offset
         if offset_distribution_params is not None:
             offset = _randomize_prop_by_op(
-                wp.to_torch(self.asset.data.fixed_tendon_offset).clone(),
+                self.asset.data.fixed_tendon_offset.torch.clone(),
                 offset_distribution_params,
                 env_ids,
                 tendon_ids,
@@ -1668,7 +1664,7 @@ def push_by_setting_velocity(
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     # velocities
-    vel_w = wp.to_torch(asset.data.root_vel_w)[env_ids]
+    vel_w = asset.data.root_vel_w.torch[env_ids]
     # sample random velocities
     range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, device=asset.device)
@@ -1700,8 +1696,8 @@ def reset_root_state_uniform(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # get default root state
-    default_root_pose = wp.to_torch(asset.data.default_root_pose)[env_ids].clone()
-    default_root_vel = wp.to_torch(asset.data.default_root_vel)[env_ids].clone()
+    default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
+    default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
 
     # poses
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
@@ -1753,8 +1749,8 @@ def reset_root_state_with_random_orientation(
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # get default root state
-    default_root_pose = wp.to_torch(asset.data.default_root_pose)[env_ids].clone()
-    default_root_vel = wp.to_torch(asset.data.default_root_vel)[env_ids].clone()
+    default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
+    default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
 
     # poses
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
@@ -1821,7 +1817,7 @@ def reset_root_state_from_terrain(
     # sample random valid poses
     ids = torch.randint(0, valid_positions.shape[2], size=(len(env_ids),), device=env.device)
     positions = valid_positions[terrain.terrain_levels[env_ids], terrain.terrain_types[env_ids], ids]
-    positions += wp.to_torch(asset.data.default_root_pose)[env_ids, :3]
+    positions += asset.data.default_root_pose.torch[env_ids, :3]
 
     # sample random orientations
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["roll", "pitch", "yaw"]]
@@ -1836,7 +1832,7 @@ def reset_root_state_from_terrain(
     ranges = torch.tensor(range_list, device=asset.device)
     rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
 
-    velocities = wp.to_torch(asset.data.default_root_vel)[env_ids] + rand_samples
+    velocities = asset.data.default_root_vel.torch[env_ids] + rand_samples
 
     # set into the physics simulation
     asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
@@ -1865,18 +1861,18 @@ def reset_joints_by_scale(
         iter_env_ids = env_ids
 
     # get default joint state
-    joint_pos = wp.to_torch(asset.data.default_joint_pos)[iter_env_ids, asset_cfg.joint_ids].clone()
-    joint_vel = wp.to_torch(asset.data.default_joint_vel)[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_pos = asset.data.default_joint_pos.torch[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_vel = asset.data.default_joint_vel.torch[iter_env_ids, asset_cfg.joint_ids].clone()
 
     # scale these values randomly
     joint_pos *= math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel *= math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
     # clamp joint pos to limits
-    joint_pos_limits = wp.to_torch(asset.data.soft_joint_pos_limits)[iter_env_ids, asset_cfg.joint_ids]
+    joint_pos_limits = asset.data.soft_joint_pos_limits.torch[iter_env_ids, asset_cfg.joint_ids]
     joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
     # clamp joint vel to limits
-    joint_vel_limits = wp.to_torch(asset.data.soft_joint_vel_limits)[iter_env_ids, asset_cfg.joint_ids]
+    joint_vel_limits = asset.data.soft_joint_vel_limits.torch[iter_env_ids, asset_cfg.joint_ids]
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
@@ -1906,18 +1902,18 @@ def reset_joints_by_offset(
         iter_env_ids = env_ids
 
     # get default joint state
-    joint_pos = wp.to_torch(asset.data.default_joint_pos)[iter_env_ids, asset_cfg.joint_ids].clone()
-    joint_vel = wp.to_torch(asset.data.default_joint_vel)[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_pos = asset.data.default_joint_pos.torch[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_vel = asset.data.default_joint_vel.torch[iter_env_ids, asset_cfg.joint_ids].clone()
 
     # bias these values randomly
     joint_pos += math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel += math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
     # clamp joint pos to limits
-    joint_pos_limits = wp.to_torch(asset.data.soft_joint_pos_limits)[iter_env_ids, asset_cfg.joint_ids]
+    joint_pos_limits = asset.data.soft_joint_pos_limits.torch[iter_env_ids, asset_cfg.joint_ids]
     joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
     # clamp joint vel to limits
-    joint_vel_limits = wp.to_torch(asset.data.soft_joint_vel_limits)[iter_env_ids, asset_cfg.joint_ids]
+    joint_vel_limits = asset.data.soft_joint_vel_limits.torch[iter_env_ids, asset_cfg.joint_ids]
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
@@ -1947,7 +1943,7 @@ def reset_nodal_state_uniform(
     # extract the used quantities (to enable type-hinting)
     asset: DeformableObject = env.scene[asset_cfg.name]
     # get default root state
-    nodal_state = wp.to_torch(asset.data.default_nodal_state_w)[env_ids].clone()
+    nodal_state = asset.data.default_nodal_state_w.torch[env_ids].clone()
 
     # position
     range_list = [position_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
@@ -1978,8 +1974,8 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     # rigid bodies
     for rigid_object in env.scene.rigid_objects.values():
         # obtain default and deal with the offset for env origins
-        default_root_pose = wp.to_torch(rigid_object.data.default_root_pose)[env_ids].clone()
-        default_root_vel = wp.to_torch(rigid_object.data.default_root_vel)[env_ids].clone()
+        default_root_pose = rigid_object.data.default_root_pose.torch[env_ids].clone()
+        default_root_vel = rigid_object.data.default_root_vel.torch[env_ids].clone()
         default_root_pose[:, :3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
         rigid_object.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
@@ -1987,15 +1983,15 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
-        default_root_pose = wp.to_torch(articulation_asset.data.default_root_pose)[env_ids].clone()
-        default_root_vel = wp.to_torch(articulation_asset.data.default_root_vel)[env_ids].clone()
+        default_root_pose = articulation_asset.data.default_root_pose.torch[env_ids].clone()
+        default_root_vel = articulation_asset.data.default_root_vel.torch[env_ids].clone()
         default_root_pose[:, :3] += env.scene.env_origins[env_ids]
         # set into the physics simulation
         articulation_asset.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         articulation_asset.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
         # obtain default joint positions
-        default_joint_pos = wp.to_torch(articulation_asset.data.default_joint_pos)[env_ids].clone()
-        default_joint_vel = wp.to_torch(articulation_asset.data.default_joint_vel)[env_ids].clone()
+        default_joint_pos = articulation_asset.data.default_joint_pos.torch[env_ids].clone()
+        default_joint_vel = articulation_asset.data.default_joint_vel.torch[env_ids].clone()
         # set into the physics simulation
         articulation_asset.write_joint_position_to_sim_index(position=default_joint_pos, env_ids=env_ids)
         articulation_asset.write_joint_velocity_to_sim_index(velocity=default_joint_vel, env_ids=env_ids)
@@ -2006,7 +2002,7 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
     # deformable objects
     for deformable_object in env.scene.deformable_objects.values():
         # obtain default and set into the physics simulation
-        nodal_state = wp.to_torch(deformable_object.data.default_nodal_state_w)[env_ids].clone()
+        nodal_state = deformable_object.data.default_nodal_state_w.torch[env_ids].clone()
         deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
 
 
@@ -2049,7 +2045,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             )
 
         # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.utils.extensions import enable_extension  # noqa: PLC0415
+        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
 
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
@@ -2132,9 +2128,18 @@ class randomize_visual_texture_material(ManagerTermBase):
                 if prim.IsInstanceable():
                     prim.SetInstanceable(False)
 
+            # Resolve OmniPBR.mdl to an absolute path so that pxr.Ar.GetResolver().Resolve()
+            # returns a valid path. Kit's omni_usd_resolver intentionally returns "" for builtin
+            # MDL short-names (OMNI_USD_RESOLVER_MDL_BUILTIN_BYPASS=1), which causes Replicator
+            # >= 1.13.0 to pass an empty resolved path into UsdMdl.RegistryUtils, raising a
+            # 'rtx::neuraylib::MdlModuleId' is Invalid error.
+            import carb.tokens  # noqa: PLC0415
+
+            omni_pbr_mdl = carb.tokens.get_tokens_interface().resolve("${kit}/mdl/core/Base/OmniPBR.mdl")
+
             # TODO: Should we specify the value when creating the material?
             self.material_prims = rep.functional.create_batch.material(
-                mdl="OmniPBR.mdl", bind_prims=prims_group, count=num_prims, project_uvw=True
+                mdl=omni_pbr_mdl, bind_prims=prims_group, count=num_prims, project_uvw=True
             )
 
     def __call__(
@@ -2211,7 +2216,7 @@ class randomize_visual_color(ManagerTermBase):
         super().__init__(cfg, env)
 
         # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.utils.extensions import enable_extension  # noqa: PLC0415
+        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
 
         enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
@@ -2281,9 +2286,18 @@ class randomize_visual_color(ManagerTermBase):
                 if prim.IsInstanceable():
                     prim.SetInstanceable(False)
 
+            # Resolve OmniPBR.mdl to an absolute path so that pxr.Ar.GetResolver().Resolve()
+            # returns a valid path. Kit's omni_usd_resolver intentionally returns "" for builtin
+            # MDL short-names (OMNI_USD_RESOLVER_MDL_BUILTIN_BYPASS=1), which causes Replicator
+            # >= 1.13.0 to pass an empty resolved path into UsdMdl.RegistryUtils, raising a
+            # 'rtx::neuraylib::MdlModuleId' is Invalid error.
+            import carb.tokens  # noqa: PLC0415
+
+            omni_pbr_mdl = carb.tokens.get_tokens_interface().resolve("${kit}/mdl/core/Base/OmniPBR.mdl")
+
             # TODO: Should we specify the value when creating the material?
             self.material_prims = rep.functional.create_batch.material(
-                mdl="OmniPBR.mdl", bind_prims=prims_group, count=num_prims, project_uvw=True
+                mdl=omni_pbr_mdl, bind_prims=prims_group, count=num_prims, project_uvw=True
             )
 
     def __call__(

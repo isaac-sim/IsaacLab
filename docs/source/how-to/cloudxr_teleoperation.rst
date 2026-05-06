@@ -120,6 +120,14 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
        --visualizer kit \
        --xr
 
+.. tip::
+
+   The ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` task above uses **hand tracking** as its
+   input mode. Make sure your XR device has hand tracking enabled (optical hand tracking on
+   Quest 3, or the built-in hand tracking on Apple Vision Pro). Different tasks require
+   different input modes (motion controllers vs hand tracking) -- see the
+   :ref:`isaac-teleop-control-schemes` table for the full list.
+
 To switch the CloudXR device profile at launch time (e.g. from Quest to Apple Vision Pro),
 use the ``--cloudxr_env`` flag:
 

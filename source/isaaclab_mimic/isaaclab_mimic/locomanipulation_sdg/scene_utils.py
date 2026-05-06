@@ -85,7 +85,7 @@ class SceneBody(HasPose):
 
     def get_pose(self):
         """Get the 3D pose of the entity."""
-        body_link_state_w = wp.to_torch(self.scene[self.entity_name].data.body_link_state_w)
+        body_link_state_w = self.scene[self.entity_name].data.body_link_state_w.torch
         pose = body_link_state_w[
             :,
             self.scene[self.entity_name].data.body_names.index(self.body_name),
@@ -113,9 +113,9 @@ class SceneAsset(HasPose):
     def get_pose(self):
         """Get the 3D pose of the entity."""
         xform_prim = self._get_xform_view()
-        pos_wp, ori_wp = xform_prim.get_world_poses()
-        position = wp.to_torch(pos_wp)
-        orientation = wp.to_torch(ori_wp)
+        pos_w, quat_w = xform_prim.get_world_poses()
+        position = pos_w.torch
+        orientation = quat_w.torch
         pose = torch.cat([position, orientation], dim=-1)
         return pose
 

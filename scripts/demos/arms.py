@@ -36,7 +36,6 @@ simulation_app = app_launcher.app
 
 import numpy as np
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -178,15 +177,15 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             # reset the scene entities
             for index, robot in enumerate(entities.values()):
                 # root state
-                root_pose = wp.to_torch(robot.data.default_root_pose).clone()
+                root_pose = robot.data.default_root_pose.torch.clone()
                 root_pose[:, :3] += origins[index]
                 robot.write_root_pose_to_sim_index(root_pose=root_pose)
-                root_vel = wp.to_torch(robot.data.default_root_vel).clone()
+                root_vel = robot.data.default_root_vel.torch.clone()
                 robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
                 # set joint positions
                 joint_pos, joint_vel = (
-                    wp.to_torch(robot.data.default_joint_pos).clone(),
-                    wp.to_torch(robot.data.default_joint_vel).clone(),
+                    robot.data.default_joint_pos.torch.clone(),
+                    robot.data.default_joint_vel.torch.clone(),
                 )
                 robot.write_joint_position_to_sim_index(position=joint_pos)
                 robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
@@ -196,10 +195,8 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
         # apply random actions to the robots
         for robot in entities.values():
             # generate random joint positions
-            joint_pos_target = (
-                wp.to_torch(robot.data.default_joint_pos) + torch.randn_like(wp.to_torch(robot.data.joint_pos)) * 0.1
-            )
-            soft_limits = wp.to_torch(robot.data.soft_joint_pos_limits)
+            joint_pos_target = robot.data.default_joint_pos.torch + torch.randn_like(robot.data.joint_pos.torch) * 0.1
+            soft_limits = robot.data.soft_joint_pos_limits.torch
             joint_pos_target = joint_pos_target.clamp_(soft_limits[..., 0], soft_limits[..., 1])
             # apply action to the robot
             robot.set_joint_position_target_index(target=joint_pos_target)
