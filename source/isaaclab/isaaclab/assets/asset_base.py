@@ -205,16 +205,13 @@ class AssetBase(ABC):
         if debug_vis:
             if self._debug_vis_handle is None:
                 sim_ctx = SimulationContext.instance()
-                if "physx" in sim_ctx.physics_manager.__name__.lower():
-                    import omni.kit.app
-
-                    app_interface = omni.kit.app.get_app_interface()
-                    self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                        lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                    )
+                if sim_ctx is not None:
+                    self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
+            sim_ctx = SimulationContext.instance()
+            if sim_ctx is not None:
+                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+            else:
                 self._debug_vis_handle = None
         # return success
         return True
@@ -404,8 +401,10 @@ class AssetBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-        if self._debug_vis_handle is not None:
-            self._debug_vis_handle.unsubscribe()
+        sim_ctx = SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+        else:
             self._debug_vis_handle = None
 
     def _on_prim_deletion(self, event) -> None:
@@ -435,6 +434,8 @@ class AssetBase(ABC):
         if self._prim_deletion_handle is not None:
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
-        if self._debug_vis_handle is not None:
-            self._debug_vis_handle.unsubscribe()
+        sim_ctx = SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+        else:
             self._debug_vis_handle = None

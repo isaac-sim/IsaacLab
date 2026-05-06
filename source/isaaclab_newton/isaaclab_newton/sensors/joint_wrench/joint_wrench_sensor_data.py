@@ -27,8 +27,8 @@ class JointWrenchSensorData(BaseJointWrenchSensorData):
 
         Expressed in the frame selected by
         :attr:`~isaaclab.sensors.JointWrenchSensorCfg.convention`. Shape is
-        ``(num_envs, num_joints)``, dtype ``wp.vec3f``. In torch this resolves
-        to ``(num_envs, num_joints, 3)``. ``None`` before the simulation is
+        ``(num_envs, num_bodies)``, dtype ``wp.vec3f``. In torch this resolves
+        to ``(num_envs, num_bodies, 3)``. ``None`` before the simulation is
         initialized.
         """
         if self._force is None:
@@ -43,8 +43,8 @@ class JointWrenchSensorData(BaseJointWrenchSensorData):
 
         Expressed in the frame selected by
         :attr:`~isaaclab.sensors.JointWrenchSensorCfg.convention`. Shape is
-        ``(num_envs, num_joints)``, dtype ``wp.vec3f``. In torch this resolves
-        to ``(num_envs, num_joints, 3)``. ``None`` before the simulation is
+        ``(num_envs, num_bodies)``, dtype ``wp.vec3f``. In torch this resolves
+        to ``(num_envs, num_bodies, 3)``. ``None`` before the simulation is
         initialized.
         """
         if self._torque is None:

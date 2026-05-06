@@ -65,7 +65,7 @@ for the convenience of users.
      .. tab-item:: :icon:`fa-brands fa-windows` Windows
         :sync: windows
 
-        .. code:: bash
+        .. code:: batch
 
            cd IsaacSim
            build.bat

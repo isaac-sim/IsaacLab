@@ -805,22 +805,6 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pose_b.timestamp = self._sim_timestamp
         return self._body_com_pose_b_ta
 
-    @property
-    def body_incoming_joint_wrench_b(self) -> ProxyArray:
-        """Joint reaction wrench applied from body parent to child body in parent body frame.
-
-        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
-        (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
-        world of an articulation.
-
-        For more information on joint wrenches, please check the `PhysX documentation`_ and the
-        underlying `PhysX Tensor API`_.
-
-        .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
-        .. _PhysX Tensor API: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.api.ArticulationView.get_link_incoming_joint_force
-        """
-        raise NotImplementedError("Not implemented for Newton")
-
     """
     Joint state properties.
     """
@@ -1526,7 +1510,6 @@ class ArticulationData(BaseArticulationData):
             shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
         # Empty memory pre-allocations
-        self._body_incoming_joint_wrench_b = None
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b = None
         self._root_com_lin_vel_b = None
