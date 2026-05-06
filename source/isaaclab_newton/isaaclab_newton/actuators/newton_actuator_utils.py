@@ -69,6 +69,8 @@ from newton.actuators import (
     Delay,
 )
 
+from isaaclab.actuators import ActuatorBase, ImplicitActuator
+
 
 # ===========================================================================
 # 1. Warp kernels
@@ -112,13 +114,10 @@ class PhysxActuatorWrapper:
     """Flat-array wrapper serving as ``sim_state`` / ``sim_control`` for
     :meth:`Actuator.step` on the PhysX backend.
 
-    Only needed on PhysX — on the Newton backend the solver's own
-    ``State`` / ``Control`` objects fulfil this role directly (see the
-    module docstring for rationale).
-
-    Attributes are reassigned each frame to zero-copy flat views of the
-    existing 2-D Isaac Lab data via ``wp.array.reshape(-1)``.  Only
-    ``joint_f`` is a persistent allocation (zeroed before each step).
+    Most attributes are reassigned each frame to zero-copy flat views of
+    Isaac Lab's 2-D buffers. ``joint_f_2d`` is the only persistent
+    allocation, sized via :meth:`create`; ``joint_f`` is its flat alias
+    consumed by the Newton actuator step.
     """
 
     joint_q: wp.array | None = None
@@ -127,6 +126,53 @@ class PhysxActuatorWrapper:
     joint_target_vel: wp.array | None = None
     joint_act: wp.array | None = None
     joint_f: wp.array | None = None
+    joint_f_2d: wp.array | None = None
+
+    @classmethod
+    def create(cls, num_envs: int, num_joints: int, device: str) -> PhysxActuatorWrapper:
+        """Allocate the persistent ``joint_f`` buffer for the given articulation shape."""
+        w = cls()
+        w.joint_f_2d = wp.zeros((num_envs, num_joints), dtype=wp.float32, device=device)
+        w.joint_f = w.joint_f_2d.reshape(-1)
+        return w
+
+
+def build_actuator_telemetry(
+    actuators: dict[str, ActuatorBase],
+    num_envs: int,
+    num_joints: int,
+    device: str,
+) -> tuple[wp.array, wp.array, wp.array]:
+    """Build per-DOF telemetry tables.
+
+    Per-DOF ``modes`` is ``1`` for joints covered by an
+    :class:`~isaaclab.actuators.ImplicitActuator` group (shadow-PD) and
+    ``0`` otherwise (copy from the simulator's actuator output).
+    ``effort_limit`` carries the implicit-clip absolute limit (``inf``
+    elsewhere).
+
+    Returns:
+        ``(indices, modes, effort_limit)`` Warp arrays.
+    """
+    modes = torch.zeros(num_joints, dtype=torch.int32, device=device)
+    effort_limit = torch.full(
+        (num_envs, num_joints), float("inf"), device=device, dtype=torch.float32
+    )
+    for actuator in actuators.values():
+        if not isinstance(actuator, ImplicitActuator):
+            continue
+        j_ids = actuator.joint_indices
+        if j_ids == slice(None) or j_ids is None:
+            modes[:] = 1
+            effort_limit[:] = actuator.effort_limit
+        else:
+            modes[j_ids.long()] = 1
+            effort_limit[:, j_ids.long()] = actuator.effort_limit
+
+    indices = wp.from_torch(
+        torch.arange(num_joints, dtype=torch.int32, device=device), dtype=wp.int32
+    )
+    return indices, wp.from_torch(modes, dtype=wp.int32), wp.from_torch(effort_limit, dtype=wp.float32)
 
 
 # ===========================================================================

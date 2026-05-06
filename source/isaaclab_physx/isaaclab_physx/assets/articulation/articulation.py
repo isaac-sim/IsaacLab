@@ -24,9 +24,11 @@ from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
 try:
+    from isaaclab_newton.actuators import kernels as actuator_kernels
     from isaaclab_newton.actuators.newton_actuator_utils import (
         NewtonActuatorAdapter,
         PhysxActuatorWrapper,
+        build_actuator_telemetry,
     )
 
     _HAS_NEWTON_ACTUATORS = True
@@ -261,15 +263,19 @@ class Articulation(BaseArticulation):
             )
         self._instantaneous_wrench_composer.reset()
 
-        if self._physx_actuator_wrapper is not None:
-            # Newton actuator path: zero effort, run implicit actuators
-            # (if any) which write directly into the staging buffer, then
-            # step Newton actuators which add their effort in-place.
+        if self._has_newton_actuators and self._physx_actuator_wrapper is None:
+            # Implicit-only: ImplicitActuator.compute is a no-op, hand user buffers to PhysX directly.
+            self.root_view.set_dof_actuation_forces(self._data._joint_effort_target, self._ALL_INDICES)
+            if self._has_implicit_actuators:
+                self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
+                self.root_view.set_dof_velocity_targets(self._data._joint_vel_target, self._ALL_INDICES)
+        elif self._has_newton_actuators:
+            # Mixed: Newton step fills explicit DOFs, combine kernel merges with user FF.
             self._apply_actuator_model_newton()
             self.root_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
             if self._has_implicit_actuators:
-                self.root_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
-                self.root_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+                self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
+                self.root_view.set_dof_velocity_targets(self._data._joint_vel_target, self._ALL_INDICES)
         else:
             # Standard Lab actuator path
             self._apply_actuator_model()
@@ -285,6 +291,30 @@ class Articulation(BaseArticulation):
             dt: The time step size in seconds.
         """
         self.data.update(dt)
+        # Shadow PD telemetry for implicit DOFs (the simulator runs the real PD).
+        if self._has_newton_actuators and self._telemetry_indices is not None:
+            wp.launch(
+                actuator_kernels.compute_actuator_telemetry,
+                dim=(self.num_instances, self._telemetry_indices.shape[0]),
+                inputs=[
+                    self._data.joint_pos.warp,
+                    self._data.joint_vel.warp,
+                    self._data._joint_pos_target,
+                    self._data._joint_vel_target,
+                    self._data._joint_effort_target,
+                    self._joint_effort_target_sim,
+                    self._data.joint_stiffness.warp,
+                    self._data.joint_damping.warp,
+                    self._telemetry_effort_limit,
+                    self._telemetry_indices,
+                    self._telemetry_modes,
+                ],
+                outputs=[
+                    self._data._computed_torque,
+                    self._data._applied_torque,
+                ],
+                device=self.device,
+            )
 
     """
     Operations - Finders.
@@ -3748,29 +3778,53 @@ class Articulation(BaseArticulation):
         # flag for implicit actuators
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
+        self._has_newton_actuators = False
+        # Per-DOF telemetry tables; ``None`` when no Newton fast path is active.
+        self._telemetry_indices: wp.array | None = None
+        self._telemetry_modes: wp.array | None = None
+        self._telemetry_effort_limit: wp.array | None = None
 
         _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
 
         if _HAS_NEWTON_ACTUATORS and _use_newton_actuators:
             from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
 
-            first_prim = find_first_matching_prim(self.cfg.prim_path)
-            art_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
+            # Enable the fast path even for all-implicit articulations:
+            # PhysX runs PD internally; Lab only forwards targets.
+            self._has_newton_actuators = True
 
-            adapter = NewtonActuatorAdapter.from_usd(
-                stage=get_current_stage(),
-                joint_names=self.joint_names,
-                num_envs=self.num_instances,
-                num_joints=self.num_joints,
-                device=self.device,
-                articulation_prim_path=art_prim_path,
+            # Author Newton actuator prims only if any explicit Lab group exists.
+            has_explicit = any(
+                not (
+                    "ImplicitActuator" in actuator_cfg.class_type
+                    if isinstance(actuator_cfg.class_type, str)
+                    else issubclass(actuator_cfg.class_type, ImplicitActuator)
+                )
+                for actuator_cfg in self.cfg.actuators.values()
             )
 
-            self._physx_actuator_wrapper = PhysxActuatorWrapper()
-            adapter.finalize()
-            self.actuators["newton"] = adapter
-            self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
-            self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
+            if has_explicit:
+                first_prim = find_first_matching_prim(self.cfg.prim_path)
+                art_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
+
+                adapter = NewtonActuatorAdapter.from_usd(
+                    stage=get_current_stage(),
+                    joint_names=self.joint_names,
+                    num_envs=self.num_instances,
+                    num_joints=self.num_joints,
+                    device=self.device,
+                    articulation_prim_path=art_prim_path,
+                )
+
+                self._physx_actuator_wrapper = PhysxActuatorWrapper.create(
+                    num_envs=self.num_instances,
+                    num_joints=self.num_joints,
+                    device=self.device,
+                )
+                adapter.finalize()
+                self.actuators["newton"] = adapter
+                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
+                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
 
             for actuator_name, actuator_cfg in self.cfg.actuators.items():
                 cls_type = actuator_cfg.class_type
@@ -3784,6 +3838,13 @@ class Articulation(BaseArticulation):
                 else:
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
+            (
+                self._telemetry_indices,
+                self._telemetry_modes,
+                self._telemetry_effort_limit,
+            ) = build_actuator_telemetry(
+                self.actuators, self.num_instances, self.num_joints, self.device,
+            )
             return
 
         # --- Standard Isaac Lab actuator path ---
@@ -3998,62 +4059,36 @@ class Articulation(BaseArticulation):
             )
 
     def _apply_actuator_model_newton(self):
-        """Process actuators when Newton-native actuators are active.
+        """Mixed implicit + Newton path: step Newton actuators, then combine with user FF.
 
-        Zeros the effort staging buffer, processes any implicit Lab actuators
-        (which write directly into it), then steps Newton actuators whose
-        ``joint_f`` is a flat view of the same buffer — no scatter needed.
+        Newton writes explicit-DOF torques to ``joint_f_2d``; the combine kernel
+        merges them with user FF (for implicit DOFs) into ``_joint_effort_target_sim``.
+        Implicit-only takes the direct path in :meth:`write_data_to_sim`.
         """
-        # Zero the effort buffer; implicit actuators and Newton both write into it
-        self._joint_effort_target_sim.zero_()
-
-        # Process implicit Lab actuators (if any)
-        for actuator in self.actuators.values():
-            if _HAS_NEWTON_ACTUATORS and isinstance(actuator, NewtonActuatorAdapter):
-                continue
-            control_action = ArticulationActions(
-                joint_positions=wp.to_torch(self._data.joint_pos_target)[:, actuator.joint_indices],
-                joint_velocities=wp.to_torch(self._data.joint_vel_target)[:, actuator.joint_indices],
-                joint_efforts=wp.to_torch(self._data.joint_effort_target)[:, actuator.joint_indices],
-                joint_indices=actuator.joint_indices,
-            )
-            control_action = actuator.compute(
-                control_action,
-                joint_pos=wp.to_torch(self._data.joint_pos)[:, actuator.joint_indices],
-                joint_vel=wp.to_torch(self._data.joint_vel)[:, actuator.joint_indices],
-            )
-            joint_indices = actuator.joint_indices
-            if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
-                joint_indices = self._ALL_JOINT_INDICES
-            wp.launch(
-                articulation_kernels.update_targets,
-                dim=(self.num_instances, joint_indices.shape[0]),
-                inputs=[
-                    control_action.joint_positions,
-                    control_action.joint_velocities,
-                    control_action.joint_efforts,
-                    joint_indices,
-                ],
-                outputs=[
-                    self._joint_pos_target_sim,
-                    self._joint_vel_target_sim,
-                    self._joint_effort_target_sim,
-                ],
-                device=self.device,
-            )
-
-        # Step Newton actuators — joint_f is a flat view of _joint_effort_target_sim
-        # so Newton writes effort directly into the staging buffer.
-        newton_adapter = self.actuators.get("newton")
+        newton_adapter = self.actuators["newton"]
         w = self._physx_actuator_wrapper
+
+        # Newton actuators scatter-add into joint_f_2d; zero it first.
+        w.joint_f_2d.zero_()
         w.joint_q = self._data.joint_pos.warp.reshape(-1)
         w.joint_qd = self._data.joint_vel.warp.reshape(-1)
         w.joint_target_pos = self._data.joint_pos_target.warp.reshape(-1)
         w.joint_target_vel = self._data.joint_vel_target.warp.reshape(-1)
         w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
-        w.joint_f = self._joint_effort_target_sim.reshape(-1)
 
         newton_adapter.step(w, w, SimulationManager.get_physics_dt())
+
+        wp.launch(
+            actuator_kernels.combine_actuation_force,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[
+                self._data._joint_effort_target,
+                w.joint_f_2d,
+                self._telemetry_modes,
+            ],
+            outputs=[self._joint_effort_target_sim],
+            device=self.device,
+        )
 
     """
     Internal helpers -- Debugging.

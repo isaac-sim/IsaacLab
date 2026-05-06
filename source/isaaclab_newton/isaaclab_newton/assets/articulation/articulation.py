@@ -27,7 +27,11 @@ from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
 try:
-    from isaaclab_newton.actuators.newton_actuator_utils import NewtonActuatorAdapter
+    from isaaclab_newton.actuators import kernels as actuator_kernels
+    from isaaclab_newton.actuators.newton_actuator_utils import (
+        NewtonActuatorAdapter,
+        build_actuator_telemetry,
+    )
 
     _HAS_NEWTON_ACTUATORS = True
 except ImportError:
@@ -316,6 +320,30 @@ class Articulation(BaseArticulation):
             dt: The time step size in seconds.
         """
         self.data.update(dt)
+        # Shadow PD telemetry for implicit DOFs (the simulator runs the real PD).
+        if self._has_newton_actuators and self._telemetry_indices is not None:
+            wp.launch(
+                actuator_kernels.compute_actuator_telemetry,
+                dim=(self.num_instances, self._telemetry_indices.shape[0]),
+                inputs=[
+                    self._data.joint_pos.warp,
+                    self._data.joint_vel.warp,
+                    self._data._joint_pos_target,
+                    self._data._joint_vel_target,
+                    self._data._joint_effort_target,
+                    self._data._sim_bind_joint_effort,
+                    self._data.joint_stiffness.warp,
+                    self._data.joint_damping.warp,
+                    self._telemetry_effort_limit,
+                    self._telemetry_indices,
+                    self._telemetry_modes,
+                ],
+                outputs=[
+                    self._data._computed_torque,
+                    self._data._applied_torque,
+                ],
+                device=self.device,
+            )
 
     """
     Operations - Finders.
@@ -3459,6 +3487,10 @@ class Articulation(BaseArticulation):
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
         self._has_newton_actuators = False
+        # Per-DOF telemetry tables; ``None`` when no Newton fast path is active.
+        self._telemetry_indices: wp.array | None = None
+        self._telemetry_modes: wp.array | None = None
+        self._telemetry_effort_limit: wp.array | None = None
 
         _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
 
@@ -3473,26 +3505,27 @@ class Articulation(BaseArticulation):
 
             model = SimulationManager.get_model()
 
-            if not model.actuators:
-                return
-
-            dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
-            if dof_layout.slice is not None:
-                dof_offset = dof_layout.slice.start
-            elif dof_layout.indices is not None:
-                dof_offset = int(dof_layout.indices.numpy()[0])
-            else:
-                dof_offset = 0
-
-            adapter = NewtonActuatorAdapter(
-                model.actuators, self.num_instances, self.num_joints, dof_offset, self.device,
-            )
-            adapter.finalize()
-            self.actuators["newton"] = adapter
-            SimulationManager.register_adapter(adapter)
-            self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
-            self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
+            # Enable the fast path even for all-implicit articulations:
+            # the solver runs PD internally; Lab only forwards targets.
             self._has_newton_actuators = True
+
+            if model.actuators:
+                dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
+                if dof_layout.slice is not None:
+                    dof_offset = dof_layout.slice.start
+                elif dof_layout.indices is not None:
+                    dof_offset = int(dof_layout.indices.numpy()[0])
+                else:
+                    dof_offset = 0
+
+                adapter = NewtonActuatorAdapter(
+                    model.actuators, self.num_instances, self.num_joints, dof_offset, self.device,
+                )
+                adapter.finalize()
+                self.actuators["newton"] = adapter
+                SimulationManager.register_adapter(adapter)
+                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
+                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
 
             for actuator_name, actuator_cfg in self.cfg.actuators.items():
                 cls_type = actuator_cfg.class_type
@@ -3505,6 +3538,14 @@ class Articulation(BaseArticulation):
                     self._create_lab_actuator(actuator_name, actuator_cfg)
                 else:
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
+
+            (
+                self._telemetry_indices,
+                self._telemetry_modes,
+                self._telemetry_effort_limit,
+            ) = build_actuator_telemetry(
+                self.actuators, self.num_instances, self.num_joints, self.device,
+            )
 
             return
 

@@ -290,6 +290,170 @@ class TestMixedWithImplicitEquivalence(_EquivalenceTestBase):
 
 
 # ---------------------------------------------------------------------------
+# Implicit-only fast-path: enable Newton-actuator branch on PhysX with no explicit groups
+# ---------------------------------------------------------------------------
+
+IMPLICIT_ONLY_ACTUATORS = {
+    "legs": ImplicitActuatorCfg(
+        joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+        stiffness=40.0,
+        damping=5.0,
+    ),
+}
+
+
+class TestImplicitOnlyEquivalencePhysx(_EquivalenceTestBase):
+    """All-implicit articulation on PhysX with ``use_newton_actuators=True``: Lab vs fast-path."""
+
+    __test__ = True
+    actuators = IMPLICIT_ONLY_ACTUATORS
+
+
+def _run_simulation_with_telemetry(
+    actuators: dict,
+    use_newton_actuators: bool,
+    *,
+    num_steps: int = NUM_STEPS,
+) -> dict:
+    """Like :func:`_run_simulation` but also records ``computed_torque`` / ``applied_torque``."""
+    sim_cfg = SimulationCfg(
+        dt=DT,
+        physics=PhysxCfg(),
+        use_newton_actuators=use_newton_actuators,
+    )
+
+    with build_simulation_context(
+        device="cuda:0",
+        gravity_enabled=True,
+        add_ground_plane=True,
+        sim_cfg=sim_cfg,
+    ) as sim:
+        sim._app_control_on_stop_handle = None
+
+        for i in range(NUM_ENVS):
+            sim_utils.create_prim(
+                f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0)
+            )
+
+        art_cfg = ANYMAL_C_CFG.replace(
+            actuators=actuators,
+            prim_path="/World/Env_.*/Robot",
+        )
+        articulation = Articulation(art_cfg)
+        sim.reset()
+        assert articulation.is_initialized
+
+        init_pos = wp.to_torch(articulation.data.joint_pos).clone()
+        target_pos = init_pos + TARGET_OFFSET
+        target_vel = torch.zeros_like(init_pos)
+
+        articulation.set_joint_position_target_index(target=target_pos)
+        articulation.set_joint_velocity_target_index(target=target_vel)
+
+        recorded_pos, recorded_vel = [], []
+        recorded_computed, recorded_applied = [], []
+        for _ in range(num_steps):
+            articulation.write_data_to_sim()
+            sim.step()
+            articulation.update(DT)
+
+            recorded_pos.append(wp.to_torch(articulation.data.joint_pos).clone())
+            recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
+            recorded_computed.append(wp.to_torch(articulation.data.computed_torque).clone())
+            recorded_applied.append(wp.to_torch(articulation.data.applied_torque).clone())
+
+    return {
+        "joint_pos": recorded_pos,
+        "joint_vel": recorded_vel,
+        "computed_torque": recorded_computed,
+        "applied_torque": recorded_applied,
+        "target_pos": target_pos.clone(),
+        "target_vel": target_vel.clone(),
+    }
+
+
+class TestImplicitOnlyTelemetryPhysx(unittest.TestCase):
+    """Implicit-only fast path on PhysX: shadow-PD telemetry matches the Lab formula."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_simulation_with_telemetry(
+            IMPLICIT_ONLY_ACTUATORS, use_newton_actuators=True,
+        )
+        cls.kp = 40.0
+        cls.kd = 5.0
+
+    def test_telemetry_is_nonzero(self):
+        last = self.result["computed_torque"][-1]
+        self.assertGreater(
+            last.abs().max().item(),
+            1e-3,
+            "computed_torque is all-zero — implicit telemetry kernel did not run",
+        )
+
+    def test_telemetry_matches_pd_formula(self):
+        target_q = self.result["target_pos"]
+        target_v = self.result["target_vel"]
+        for step_i, (q, qd, comp) in enumerate(
+            zip(
+                self.result["joint_pos"],
+                self.result["joint_vel"],
+                self.result["computed_torque"],
+            )
+        ):
+            expected = self.kp * (target_q - q) + self.kd * (target_v - qd)
+            torch.testing.assert_close(
+                comp,
+                expected,
+                atol=5e-2,
+                rtol=1e-2,
+                msg=f"Telemetry diverged from PD formula at step {step_i}",
+            )
+
+    def test_applied_equals_computed_when_no_clip(self):
+        for step_i, (comp, app) in enumerate(
+            zip(self.result["computed_torque"], self.result["applied_torque"])
+        ):
+            torch.testing.assert_close(
+                app,
+                comp,
+                atol=1e-5,
+                rtol=1e-5,
+                msg=f"applied_torque != computed_torque at step {step_i} (no clip expected)",
+            )
+
+
+class TestExplicitOnlyTelemetryPhysx(unittest.TestCase):
+    """Explicit-only Newton actuators on PhysX: telemetry copies from the staging effort buffer."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result = _run_simulation_with_telemetry(
+            DC_MOTOR_ACTUATORS, use_newton_actuators=True,
+        )
+
+    def test_telemetry_is_nonzero(self):
+        last = self.result["applied_torque"][-1]
+        self.assertGreater(
+            last.abs().max().item(),
+            1e-3,
+            "applied_torque is all-zero — explicit-DOF telemetry path did not run",
+        )
+
+    def test_computed_equals_applied_explicit(self):
+        for step_i, (comp, app) in enumerate(
+            zip(self.result["computed_torque"], self.result["applied_torque"])
+        ):
+            torch.testing.assert_close(
+                comp,
+                app,
+                atol=1e-5,
+                rtol=1e-5,
+                msg=f"computed != applied for explicit-only at step {step_i}",
+            )
+
+
+# ---------------------------------------------------------------------------
 # Partial environment reset: verify per-env reset equivalence
 # ---------------------------------------------------------------------------
 
