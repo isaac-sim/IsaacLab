@@ -11,7 +11,7 @@ Changed
   custom-frequency parsing"), and a VRAM-leak fix on example reset
   (`newton-physics/newton#2710
   <https://github.com/newton-physics/newton/pull/2710>`_).
-* Newton ``v1.2.0rc2`` requires ``warp-lang>=1.13.0``, ``mujoco==3.8.0``,
+* Newton ``v1.2.0rc2`` requires ``warp-lang==1.13.0``, ``mujoco==3.8.0``,
   and ``mujoco-warp==3.8.0.1``. Pins updated in :mod:`isaaclab`,
   :mod:`isaaclab_newton`, :mod:`isaaclab_visualizers`, and
   ``tools/wheel_builder/res/python_packages.toml``.
