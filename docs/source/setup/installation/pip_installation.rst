@@ -95,7 +95,7 @@ Installing dependencies
             .. code-block:: bash
 
                unset LD_PRELOAD
-               export LD_PRELOAD="$LD_PRELOAD:/lib/aarch64-linux-gnu/libgomp.so.1"
+               export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 
             This ensures the correct ``libgomp`` library is preloaded for both Isaac Sim and Isaac Lab,
             removing the preload warnings during runtime.

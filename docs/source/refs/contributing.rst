@@ -149,20 +149,28 @@ for each version of the extension.
 
 .. note::
 
-   The version number on the ``extension.toml`` file should be updated according to
-   `Semantic Versioning <https://semver.org/>`__ and should match the version number in the
-   ``CHANGELOG.rst`` file.
+   ``CHANGELOG.rst`` and ``extension.toml`` are compiled by CI from per-PR **fragment
+   files** — contributors do not edit them directly. For every package your PR touches
+   in ``source/<pkg>/`` (outside ``changelog.d/``), add one fragment under
+   ``source/<pkg>/changelog.d/<slug>.<tier>.rst``:
+
+   * ``<slug>.rst`` — patch bump
+   * ``<slug>.minor.rst`` — minor bump (new public API)
+   * ``<slug>.major.rst`` — major bump (breaking change)
+   * ``<slug>.skip`` — no entry, no bump (CI / docs / test-only PRs)
+
+   ``<slug>`` is any short, unique name; your branch name with ``/`` replaced by ``-``
+   is the recommended default. Within a batch the highest tier wins for the package.
+   The version on ``extension.toml`` is bumped by CI according to
+   `Semantic Versioning <https://semver.org/>`__.
 
 The changelog file is written in `reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format.
 The goal of this changelog is to help users and contributors see precisely what notable changes have
 been made between each release (or version) of the extension. This is a *MUST* for every extension.
 
-For updating the changelog, please follow the following guidelines:
+For each fragment, please follow the following guidelines:
 
-* Each version should have a section with the version number and the release date.
-* The version number is updated according to `Semantic Versioning <https://semver.org/>`__. The
-  release date is the date on which the version is released.
-* Each version is divided into subsections based on the type of changes made.
+* Each fragment is divided into subsections based on the type of changes made.
 
   * ``Added``: For new features.
   * ``Changed``: For changes in existing functionality.
@@ -182,15 +190,9 @@ For updating the changelog, please follow the following guidelines:
 
    When in doubt, please check the style in the existing changelog files and follow the same style.
 
-For example, the following is a sample changelog:
+For example, ``source/isaaclab/changelog.d/<slug>.minor.rst``:
 
 .. code:: rst
-
-    Changelog
-    ---------
-
-    0.1.0 (2021-02-01)
-    ~~~~~~~~~~~~~~~~~~
 
     Added
     ^^^^^
