@@ -36,8 +36,8 @@ class IsaacsimKitPerspectiveVideo:
 
             ViewportManager.set_camera_view(
                 self.cfg.camera_prim_path,
-                eye=list(self.cfg.camera_position),
-                target=list(self.cfg.camera_target),
+                eye=list(self.cfg.eye),
+                target=list(self.cfg.lookat),
             )
             self._render_product = rep.create.render_product(self.cfg.camera_prim_path, (w, h))
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")

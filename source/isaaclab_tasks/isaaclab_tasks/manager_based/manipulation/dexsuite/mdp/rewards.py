@@ -132,9 +132,10 @@ class success_reward(ManagerTermBase):
 
     def reset(self, env_ids: Sequence[int] | None = None):
         if env_ids is None:
-            self.succeeded[:] = False
-        else:
-            self.succeeded[env_ids] = False
+            env_ids = slice(None)
+        # Episode success = whether the success condition was met at any point this episode.
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self.succeeded[env_ids].float().mean().item()
+        self.succeeded[env_ids] = False
 
     def __call__(
         self,
