@@ -8,6 +8,7 @@ __all__ = [
     "randomize_gears_and_base_pose",
     "set_robot_to_grasp_pose",
     "set_robot_to_object_grasp_pose",
+    "reset_plug_at_goal_curriculum",
     "ResetSampledConstantNoiseModel",
     "ResetSampledConstantNoiseModelCfg",
     "gear_pos_w",
@@ -16,6 +17,9 @@ __all__ = [
     "gear_shaft_quat_w",
     "rigid_object_pos_w",
     "rigid_object_quat_w",
+    "rigid_object_rot_6d_w",
+    "eef_pos_w",
+    "eef_rot_6d_w",
     "keypoint_command_error",
     "keypoint_command_error_exp",
     "keypoint_entity_error",
@@ -35,6 +39,7 @@ from .events import (
     randomize_gears_and_base_pose,
     set_robot_to_grasp_pose,
     set_robot_to_object_grasp_pose,
+    reset_plug_at_goal_curriculum,
 )
 from .noise_models import ResetSampledConstantNoiseModel, ResetSampledConstantNoiseModelCfg
 from .observations import (
@@ -44,6 +49,9 @@ from .observations import (
     gear_shaft_quat_w,
     rigid_object_pos_w,
     rigid_object_quat_w,
+    rigid_object_rot_6d_w,
+    eef_pos_w,
+    eef_rot_6d_w,
 )
 from .rewards import (
     keypoint_command_error,

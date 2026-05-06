@@ -3,12 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
+"""Task-space cable insertion environment for Flexiv Rizon 4S with Grav Gripper.
+
+Uses Operational Space Control (OSC) with 6D rotation observations and an
+at-goal curriculum.
+"""
+
+import math
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
+from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
@@ -16,22 +26,42 @@ from isaaclab.utils import configclass
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.terminations as cable_terminations
 from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.cable_insertion_env_cfg import (
+    PLUG_GOAL_ROT,
+    PLUG_INSERTION_OFFSET,
+    SOCKET_INSERTION_OFFSET,
     CableInsertionEnvCfg,
-    compute_plug_pose,
-    compute_socket_root,
+)
+
+from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.config.rizon_4s.joint_pos_env_cfg import (
+    _PLUG_ROOT,
+    _PLUG_ROT,
+    _SOCKET_ROOT,
+    _SOCKET_ROT,
+    set_finger_joint_pos_grav,
 )
 
 # ---------------------------------------------------------------------------
-# Flexiv workspace layout (Hubble Lab cable insertion station)
+# Rizon 4S arm joint names (convenience)
 # ---------------------------------------------------------------------------
-_GEOMETRY_POS = (0.481, -0.073, 0.071)
-_SOCKET_ROT = (0.0, 0.0, 0.70711, -0.70711)  # -90 deg Z
-_PLUG_CLEARANCE_Z = 0.068
+_ARM_JOINTS = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
 
-_SOCKET_ROOT = compute_socket_root(_GEOMETRY_POS, _SOCKET_ROT)
-_PLUG_ROOT, _PLUG_ROT = compute_plug_pose(
-    _GEOMETRY_POS, _SOCKET_ROT, z_clearance=_PLUG_CLEARANCE_Z,
+# ---------------------------------------------------------------------------
+# OSC gains
+# ---------------------------------------------------------------------------
+# d_gain = 2 * sqrt(p_gain) * damping_ratio
+_STIFFNESS = (300.0, 300.0, 300.0, 30.0, 30.0, 30.0)
+_DAMPING_RATIO_TRANS = 35.0 / (2.0 * math.sqrt(300.0))  # ~1.010
+_DAMPING_RATIO_ROT = 1.1 / (2.0 * math.sqrt(30.0))  # ~0.100
+_DAMPING_RATIO = (
+    _DAMPING_RATIO_TRANS, _DAMPING_RATIO_TRANS, _DAMPING_RATIO_TRANS,
+    _DAMPING_RATIO_ROT, _DAMPING_RATIO_ROT, _DAMPING_RATIO_ROT,
 )
+
+# Production action_scale = [0.01]*6 for both position and rotation
+_ACTION_SCALE = 0.025
+
+# GB300 plug insertion length (height of plug mesh along insertion axis)
+_INSERTION_LENGTH = 0.008
 
 ##
 # Pre-defined configs
@@ -40,63 +70,88 @@ from isaaclab_assets import FLEXIV_RIZON4S_GRAV_GRIPPER_CFG  # isort: skip
 
 
 ##
-# Gripper-specific helper functions
-##
-
-
-def set_finger_joint_pos_grav(
-    joint_pos: torch.Tensor,
-    reset_ind_joint_pos: list[int],
-    finger_joints: list[int],
-    finger_joint_position: float,
-):
-    """Set finger joint positions for the Grav gripper.
-
-    Args:
-        joint_pos: Joint positions tensor for the reset envs slice.
-        reset_ind_joint_pos: Row indices into the sliced ``joint_pos`` tensor.
-        finger_joints: List of all gripper joint indices (6 joints total).
-        finger_joint_position: Target position for the main finger joint [rad].
-
-    Note:
-        Grav gripper joint structure (indices from ``finger_joints`` list):
-            ``[0]`` ``finger_joint`` - main controllable joint
-            ``[1]`` ``left_inner_knuckle_joint`` - mimic with -1 gearing
-            ``[2]`` ``right_inner_knuckle_joint`` - mimic with -1 gearing
-            ``[3]`` ``right_outer_knuckle_joint`` - mimic with -1 gearing
-            ``[4]`` ``left_outer_finger_joint`` - mimic with +1 gearing
-            ``[5]`` ``right_outer_finger_joint`` - mimic with +1 gearing
-    """
-    for idx in reset_ind_joint_pos:
-        if len(finger_joints) < 6:
-            raise ValueError(f"Grav gripper requires at least 6 finger joints, got {len(finger_joints)}")
-
-        joint_pos[idx, finger_joints[0]] = finger_joint_position
-
-        joint_pos[idx, finger_joints[1]] = finger_joint_position
-        joint_pos[idx, finger_joints[2]] = finger_joint_position
-        joint_pos[idx, finger_joints[3]] = finger_joint_position
-
-        joint_pos[idx, finger_joints[4]] = -finger_joint_position
-        joint_pos[idx, finger_joints[5]] = -finger_joint_position
-
-
-##
-# Environment configuration
+# Observation configuration
 ##
 
 
 @configclass
-class EventCfg:
-    """Configuration for events."""
+class TaskSpaceObservationsCfg:
+    """Task-space observations with 6D rotation representation."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Actor observations: EEF pose + socket keypoint frame (18 dims)."""
+
+        eef_pos = ObsTerm(
+            func=mdp.eef_pos_w,
+            params={"asset_cfg": SceneEntityCfg("robot"), "body_name": "flange"},
+        )
+        eef_rot_6d = ObsTerm(
+            func=mdp.eef_rot_6d_w,
+            params={"asset_cfg": SceneEntityCfg("robot"), "body_name": "flange"},
+        )
+        socket_kp_pos = ObsTerm(
+            func=mdp.rigid_object_pos_w,
+            params={"asset_cfg": SceneEntityCfg("gb300_socket"), "offset": SOCKET_INSERTION_OFFSET},
+        )
+        socket_kp_rot_6d = ObsTerm(
+            func=mdp.rigid_object_rot_6d_w,
+            params={"asset_cfg": SceneEntityCfg("gb300_socket")},
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    @configclass
+    class CriticCfg(ObsGroup):
+        """Critic observations: joint state + both keypoint frames (32 dims)."""
+
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=_ARM_JOINTS)},
+        )
+        joint_vel = ObsTerm(
+            func=mdp.joint_vel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=_ARM_JOINTS)},
+        )
+        socket_kp_pos = ObsTerm(
+            func=mdp.rigid_object_pos_w,
+            params={"asset_cfg": SceneEntityCfg("gb300_socket"), "offset": SOCKET_INSERTION_OFFSET},
+        )
+        socket_kp_rot_6d = ObsTerm(
+            func=mdp.rigid_object_rot_6d_w,
+            params={"asset_cfg": SceneEntityCfg("gb300_socket")},
+        )
+        plug_kp_pos = ObsTerm(
+            func=mdp.rigid_object_pos_w,
+            params={"asset_cfg": SceneEntityCfg("gb300_plug"), "offset": PLUG_INSERTION_OFFSET},
+        )
+        plug_kp_rot_6d = ObsTerm(
+            func=mdp.rigid_object_rot_6d_w,
+            params={"asset_cfg": SceneEntityCfg("gb300_plug")},
+        )
+
+    policy: PolicyCfg = PolicyCfg()
+    critic: CriticCfg = CriticCfg()
+
+
+##
+# Event configuration
+##
+
+
+@configclass
+class TaskSpaceEventCfg:
+    """Events for the task-space cable insertion environment."""
 
     plug_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("gb300_plug", body_names=".*"),
-            "static_friction_range": (0.1, 0.1),
-            "dynamic_friction_range": (0.1, 0.1),
+            "static_friction_range": (0.001, 0.001),
+            "dynamic_friction_range": (0.001, 0.001),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -107,8 +162,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("gb300_socket", body_names=".*"),
-            "static_friction_range": (0.1, 0.1),
-            "dynamic_friction_range": (0.1, 0.1),
+            "static_friction_range": (0.001, 0.001),
+            "dynamic_friction_range": (0.001, 0.001),
             "restitution_range": (0.0, 0.0),
             "num_buckets": 16,
         },
@@ -145,20 +200,23 @@ class EventCfg:
         },
     )
 
-    randomize_plug_pose = EventTerm(
-        func=mdp.reset_root_state_uniform,
+    reset_plug_curriculum = EventTerm(
+        func=mdp.reset_plug_at_goal_curriculum,
         mode="reset",
         params={
-            "pose_range": {
+            "plug_cfg": SceneEntityCfg("gb300_plug"),
+            "socket_cfg": SceneEntityCfg("gb300_socket"),
+            "at_goal_prob": 0.8,
+            "insertion_axis": [0.0, 0.0, -1.0],
+            "insertion_length": _INSERTION_LENGTH,
+            "socket_insertion_offset": SOCKET_INSERTION_OFFSET,
+            "plug_insertion_offset": PLUG_INSERTION_OFFSET,
+            "goal_rot": list(PLUG_GOAL_ROT),
+            "normal_pose_range": {
                 "x": [-0.02, 0.02],
                 "y": [-0.02, 0.02],
                 "z": [-0.01, 0.01],
-                "roll": [0.0, 0.0],
-                "pitch": [0.0, 0.0],
-                "yaw": [0.0, 0.0],
             },
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("gb300_plug"),
         },
     )
 
@@ -174,9 +232,14 @@ class EventCfg:
     )
 
 
+##
+# Terminations
+##
+
+
 @configclass
-class TerminationsCfg:
-    """Configuration for termination terms."""
+class TaskSpaceTerminationsCfg:
+    """Termination terms for the task-space cable insertion."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
@@ -206,18 +269,22 @@ class TerminationsCfg:
     )
 
 
+##
+# Main environment configuration
+##
+
+
 @configclass
-class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
-    """Configuration for Flexiv Rizon 4s with Grav Gripper Cable Insertion Environment."""
+class Rizon4sTaskSpaceCableInsertionEnvCfg(CableInsertionEnvCfg):
+    """Task-space cable insertion with OSC control, 6D obs, curriculum, and production friction."""
 
     def __post_init__(self):
         super().__post_init__()
 
+        # EEF / grasp settings (same as joint-space variant)
         self.end_effector_body_name = "flange"
         self.num_arm_joints = 7
-        # Flange position in the plug's local frame.
         self.grasp_offset = [0.03, 0.002, -0.207]
-        # Identity: the target EEF orientation equals the plug orientation.
         self.grasp_rot_offset = [0.0, 0.0, 0.0, 1.0]
         self.gripper_joint_setter_func = set_finger_joint_pos_grav
 
@@ -225,29 +292,31 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
         self.plug_orientation_pitch_threshold_deg = 15.0
         self.plug_orientation_yaw_threshold_deg = 180.0
 
-        # Observation configuration for Rizon 4s arm joints only
-        self.observations.policy.joint_pos.params["asset_cfg"].joint_names = [
-            "joint1",
-            "joint2",
-            "joint3",
-            "joint4",
-            "joint5",
-            "joint6",
-            "joint7",
-        ]
-        self.observations.policy.joint_vel.params["asset_cfg"].joint_names = [
-            "joint1",
-            "joint2",
-            "joint3",
-            "joint4",
-            "joint5",
-            "joint6",
-            "joint7",
-        ]
+        # ----- Observations: task-space with 6D rotation -----
+        self.observations = TaskSpaceObservationsCfg()
 
-        self.events = EventCfg()
+        # ----- Actions: Operational Space Controller -----
+        self.actions.arm_action = OperationalSpaceControllerActionCfg(
+            asset_name="robot",
+            joint_names=_ARM_JOINTS,
+            body_name="flange",
+            controller_cfg=OperationalSpaceControllerCfg(
+                target_types=["pose_rel"],
+                impedance_mode="fixed",
+                inertial_dynamics_decoupling=False,
+                motion_stiffness_task=_STIFFNESS,
+                motion_damping_ratio_task=_DAMPING_RATIO,
+                nullspace_control="none",
+            ),
+            position_scale=_ACTION_SCALE,
+            orientation_scale=_ACTION_SCALE,
+        )
 
-        self.terminations = TerminationsCfg()
+        # ----- Events: curriculum + production friction -----
+        self.events = TaskSpaceEventCfg()
+
+        # ----- Terminations -----
+        self.terminations = TaskSpaceTerminationsCfg()
 
         self.terminations.plug_orientation_exceeded.params["roll_threshold_deg"] = (
             self.plug_orientation_roll_threshold_deg
@@ -259,14 +328,7 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
             self.plug_orientation_yaw_threshold_deg
         )
 
-        self.joint_action_scale = 0.025
-        self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
-            asset_name="robot",
-            joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"],
-            scale=self.joint_action_scale,
-            use_zero_offset=True,
-        )
-
+        # ----- Scene: robot -----
         self.scene.robot = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn.replace(
@@ -304,7 +366,7 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
             ),
         )
 
-        # Grav gripper actuator configuration (implicit - PhysX built-in joint drives).
+        # Grav gripper actuator configuration
         self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
             effort_limit_sim=2.0,
@@ -312,7 +374,6 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
             stiffness=2e3,
             damping=1e1,
         )
-
         self.scene.robot.actuators["gripper_passive"] = ImplicitActuatorCfg(
             joint_names_expr=[".*_knuckle_joint"],
             effort_limit_sim=1.0,
@@ -321,6 +382,7 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
             damping=0.0,
         )
 
+        # ----- Workspace positions -----
         self.scene.gb300_socket.init_state = RigidObjectCfg.InitialStateCfg(
             pos=_SOCKET_ROOT,
             rot=_SOCKET_ROT,
@@ -330,14 +392,12 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
             rot=_PLUG_ROT,
         )
 
-        # Grav gripper widths (joint angles).
-        # grasp: fingers wide open for approach.
-        # hold: fingers touching plug surface (no mesh overlap).
-        # close: fully-closed target that the actuator drives toward.
+        # Gripper widths (same as joint-space variant)
         self.hand_grasp_width = 0.3
         self.hand_hold_width = -0.08
         self.hand_close_width = -0.155
 
+        # Wire grasp event params
         self.events.set_robot_to_grasp_pose.params["end_effector_body_name"] = self.end_effector_body_name
         self.events.set_robot_to_grasp_pose.params["num_arm_joints"] = self.num_arm_joints
         self.events.set_robot_to_grasp_pose.params["grasp_rot_offset"] = self.grasp_rot_offset
@@ -345,6 +405,7 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
         self.events.set_robot_to_grasp_pose.params["gripper_joint_setter_func"] = self.gripper_joint_setter_func
         self.events.set_robot_to_grasp_pose.params["max_iterations"] = 150
 
+        # Wire termination params
         self.terminations.plug_dropped.params["end_effector_body_name"] = self.end_effector_body_name
         self.terminations.plug_dropped.params["grasp_offset"] = self.grasp_offset
         self.terminations.plug_dropped.params["grasp_rot_offset"] = self.grasp_rot_offset
@@ -354,8 +415,8 @@ class Rizon4sGravCableInsertionEnvCfg(CableInsertionEnvCfg):
 
 
 @configclass
-class Rizon4sGravCableInsertionEnvCfg_PLAY(Rizon4sGravCableInsertionEnvCfg):
-    """Play configuration for Flexiv Rizon 4s cable insertion."""
+class Rizon4sTaskSpaceCableInsertionEnvCfg_PLAY(Rizon4sTaskSpaceCableInsertionEnvCfg):
+    """Play configuration for task-space cable insertion."""
 
     def __post_init__(self):
         super().__post_init__()

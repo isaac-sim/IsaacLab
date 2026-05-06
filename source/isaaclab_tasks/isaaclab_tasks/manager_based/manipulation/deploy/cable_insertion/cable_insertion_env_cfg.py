@@ -27,52 +27,95 @@ import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
 
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
-# Use the FLATTENED USDs (produced by ``scripts/tools/flatten_cable_usd.py``).
-# Flattening bakes any per-prim ``xformOp`` translations/rotations into the mesh
-# vertices and recentres the collidable mesh so that ``bbox_center == (0, 0, 0)``
-# in the rigid-body frame. This is required for stable grasping because the
-# IK-based grasp event places the gripper at the rigid-body origin via
-# ``grasp_offset`` -- if the visible/collision mesh is offset from the body
-# origin (as in the un-flattened source USDs), the fingertips end up beside the
-# plug rather than around it, the gripper closes on empty space, and the plug
-# slides out (which is what we observed in the un-flattened smoke tests).
 ASSETS_DIR = os.path.join(CONFIG_DIR, "cable_insertion_assets")
 
 # ---------------------------------------------------------------------------
-# USD body-frame offsets (from IsaacLab_UR GB300AssetConfig)
+# USD body-frame offsets (GB300 asset geometry)
 # ---------------------------------------------------------------------------
 # The GB300 socket/plug USD root frames are far from the actual insertion
-# geometry.  These constants map root → insertion point in each asset's
+# geometry.  These constants map root -> insertion point in each asset's
 # local frame and are used for observations, rewards, and computing the
 # correct root positions so the geometry ends up at the desired workspace
 # location.
-#
-# Socket:  gear_offsets['plug'] from GB300Socket — root to insertion slot.
 SOCKET_INSERTION_OFFSET = [0.0254, 0.5347, 0.0543]
-# Plug:  held_keypoint_origin_local ≈ R(goal_rot_inv) @ (gear_offsets - goal_pos).
 PLUG_INSERTION_OFFSET = [0.03, 0.0, 0.0]
-# Plug goal rotation relative to socket:  euler(180, 0, -90) deg in (x,y,z,w).
+# Plug goal rotation relative to socket: euler(180, 0, -90) deg as (x,y,z,w).
 PLUG_GOAL_ROT = [0.70711, -0.70711, 0.0, 0.0]
-# Its inverse (conjugate), used for keypoint alignment in rewards.
 PLUG_GOAL_ROT_INV = [-0.70711, 0.70711, 0.0, 0.0]
 
+
 # ---------------------------------------------------------------------------
-# Default socket/plug workspace positions  (identity socket rotation)
+# Pure-python quaternion helpers (for module-level constant computation)
 # ---------------------------------------------------------------------------
-# Desired insertion-point position in world frame.  The socket ROOT is
-# placed so that root + SOCKET_INSERTION_OFFSET lands here.
+
+def _quat_rotate_vec(q_xyzw, v):
+    """Apply quaternion rotation to a 3D vector."""
+    qx, qy, qz, qw = q_xyzw
+    vx, vy, vz = v
+    tx = 2.0 * (qy * vz - qz * vy)
+    ty = 2.0 * (qz * vx - qx * vz)
+    tz = 2.0 * (qx * vy - qy * vx)
+    return (
+        vx + qw * tx + qy * tz - qz * ty,
+        vy + qw * ty + qz * tx - qx * tz,
+        vz + qw * tz + qx * ty - qy * tx,
+    )
+
+
+def _quat_mul(q1_xyzw, q2_xyzw):
+    """Multiply two quaternions in (x, y, z, w) format."""
+    x1, y1, z1, w1 = q1_xyzw
+    x2, y2, z2, w2 = q2_xyzw
+    return (
+        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+    )
+
+
+def compute_socket_root(geometry_pos, socket_rot):
+    """Compute socket USD root position from desired insertion-geometry world position.
+
+    The GB300 socket USD root frame is offset from the actual insertion
+    geometry by ``SOCKET_INSERTION_OFFSET`` in the socket's local frame.
+    This function inverts that offset for a given world-frame socket rotation.
+    """
+    rotated = _quat_rotate_vec(socket_rot, SOCKET_INSERTION_OFFSET)
+    return (
+        geometry_pos[0] - rotated[0],
+        geometry_pos[1] - rotated[1],
+        geometry_pos[2] - rotated[2],
+    )
+
+
+def compute_plug_pose(geometry_pos, socket_rot, z_clearance=0.0):
+    """Compute plug USD root position and world-frame rotation.
+
+    Returns ``(plug_root_pos, plug_rot)`` such that the plug insertion
+    point lands at ``geometry_pos`` (plus optional vertical clearance)
+    with the correct goal orientation relative to the socket.
+    """
+    plug_rot = _quat_mul(socket_rot, tuple(PLUG_GOAL_ROT))
+    plug_offset_world = _quat_rotate_vec(plug_rot, PLUG_INSERTION_OFFSET)
+    plug_root = (
+        geometry_pos[0] - plug_offset_world[0],
+        geometry_pos[1] - plug_offset_world[1],
+        geometry_pos[2] - plug_offset_world[2] + z_clearance,
+    )
+    return plug_root, plug_rot
+
+
+# ---------------------------------------------------------------------------
+# Default socket/plug workspace positions (identity socket rotation)
+# ---------------------------------------------------------------------------
 _INSERTION_POINT = [0.5, 0.0, 0.0]
-# socket_root = insertion_point - R(identity) @ SOCKET_INSERTION_OFFSET
-_SOCKET_ROOT_POS = (
-    _INSERTION_POINT[0] - SOCKET_INSERTION_OFFSET[0],
-    _INSERTION_POINT[1] - SOCKET_INSERTION_OFFSET[1],
-    _INSERTION_POINT[2] - SOCKET_INSERTION_OFFSET[2],
+_DEFAULT_SOCKET_ROT = (0.0, 0.0, 0.0, 1.0)
+
+_SOCKET_ROOT_POS = compute_socket_root(_INSERTION_POINT, _DEFAULT_SOCKET_ROT)
+_PLUG_ROOT_POS, _DEFAULT_PLUG_ROT = compute_plug_pose(
+    _INSERTION_POINT, _DEFAULT_SOCKET_ROT, z_clearance=0.033,
 )
-# Plug root at ~3 cm above the goal state (enough clearance for robot to
-# grasp before insertion).  Computed from IsaacLab_UR _reset_objects logic:
-#   gear_center_rel = kp_origin + insertion_axis*(base_h+h) + held_init_pos
-#   plug_root = socket_root + gear_center_rel - R(goal_rot) @ plug_kp_local
-_PLUG_ROOT_POS = (0.5, 0.03, 0.033)
 
 ##
 # Asset Configurations
@@ -100,7 +143,7 @@ class GB300Plug(RigidObjectCfg):
             solver_velocity_iteration_count=1,
             max_contact_impulse=1e32,
         ),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.019),
+        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
         collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
     )
     init_state = RigidObjectCfg.InitialStateCfg(pos=_PLUG_ROOT_POS, rot=PLUG_GOAL_ROT)
@@ -255,13 +298,15 @@ class RewardsCfg:
             "offset_1": SOCKET_INSERTION_OFFSET,
             "offset_2": PLUG_INSERTION_OFFSET,
             "rot_offset_2": PLUG_GOAL_ROT_INV,
-            "kp_exp_coeffs": [(10, 0.0001), (50, 0.0001), (150, 0.0001), (300, 0.0001)],
+            "kp_exp_coeffs": [(50, 0.0001), (300, 0.0001), (600, 0.0001)],
             "kp_use_sum_of_exps": False,
             "keypoint_scale": 0.15,
         },
     )
 
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06)
+
+    # action_l2 = RewTerm(func=mdp.action_l2, weight=-5.0e-06)
 
 
 @configclass
@@ -280,7 +325,17 @@ class CableInsertionEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     sim: SimulationCfg = SimulationCfg(
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            friction_combine_mode="multiply",
+            restitution_combine_mode="multiply",
+            static_friction=1.0,
+            dynamic_friction=1.0,
+            restitution=0.0,
+        ),
         physics=PhysxCfg(
+            bounce_threshold_velocity=0.2,
+            friction_offset_threshold=0.01,
+            friction_correlation_distance=0.00625,
             gpu_collision_stack_size=2**30,
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,

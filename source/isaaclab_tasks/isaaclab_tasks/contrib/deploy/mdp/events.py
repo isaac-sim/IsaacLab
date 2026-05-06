@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Class-based event terms specific to the gear assembly manipulation environments."""
+"""Class-based event terms for manipulation deployment environments."""
 
 from __future__ import annotations
 
@@ -714,9 +714,8 @@ class set_robot_to_object_grasp_pose(ManagerTermBase):
         # Snap the held object to the achieved gripper pose so the gripper actually
         # holds it after closing. Without this, any IK residual error or USD
         # geometry offset leaves the object outside the finger gap and gravity drops
-        # it. Mirrors the reference behaviour in
-        # ``IsaacLab_UR/tasks/insert/env.py::_reset_objects`` which writes
-        # ``held_asset_pose = achieved_hand_pose * inv(grasp_in_asset_pose)``.
+        # Snap the held object to the achieved gripper pose so the gripper
+        # actually holds it after closing.
         held_object = env.scene[self.target_object_name]
         achieved_hand_pos = wp.to_torch(self.robot_asset.data.body_pos_w)[env_ids, self.eef_idx].clone()
         achieved_hand_quat = wp.to_torch(self.robot_asset.data.body_quat_w)[env_ids, self.eef_idx].clone()
@@ -761,12 +760,9 @@ class set_robot_to_object_grasp_pose(ManagerTermBase):
         joint_vel = torch.zeros_like(wp.to_torch(self.robot_asset.data.joint_vel)[env_ids])
         joint_pos = wp.to_torch(self.robot_asset.data.joint_pos)[env_ids].clone()
 
-        # Write the gripper STATE at ``hand_hold_width`` (fingers just touching the
-        # object surface, no mesh overlap) and set the TARGET to
-        # ``hand_close_width`` (fully closed) so the actuator drive squeezes.
-        # This two-level approach mirrors IsaacLab_UR which writes
-        # ``gripper_close_joint_pos`` (from plug diameter) as state and
-        # ``gripper_close_joint_pos_target`` (from close_gripper_width) as target.
+        # Write gripper STATE at ``hand_hold_width`` (fingers just touching the
+        # plug, no mesh overlap) and set the TARGET to ``hand_close_width``
+        # (fully closed) so the actuator drive squeezes around the plug.
         self.gripper_joint_setter_func(
             joint_pos, list(range(num_reset_envs)), self.finger_joints, self.hand_hold_width
         )
@@ -777,3 +773,114 @@ class set_robot_to_object_grasp_pose(ManagerTermBase):
             joint_pos, list(range(num_reset_envs)), self.finger_joints, self.hand_close_width
         )
         self.robot_asset.set_joint_position_target_index(target=joint_pos, joint_ids=self.all_joints, env_ids=env_ids)
+
+
+class reset_plug_at_goal_curriculum(ManagerTermBase):
+    """Reset a fraction of plugs at the goal position (at-goal curriculum).
+
+    For each reset batch, a fraction ``at_goal_prob`` of environments have the
+    plug placed along the insertion axis at a random depth (from socket opening
+    to full insertion) with goal orientation. The remaining environments get
+    normal pose randomization.
+
+    This replaces the simple ``reset_root_state_uniform`` for the plug when
+    curriculum-based training is desired.
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+
+        self.plug: RigidObject = env.scene[cfg.params["plug_cfg"].name]
+        self.socket: RigidObject = env.scene[cfg.params["socket_cfg"].name]
+
+        self.at_goal_prob: float = cfg.params.get("at_goal_prob", 0.8)
+
+        insertion_axis = cfg.params.get("insertion_axis", [0.0, 0.0, 1.0])
+        self.insertion_axis = torch.tensor(insertion_axis, device=env.device, dtype=torch.float32)
+        self.insertion_axis = self.insertion_axis / self.insertion_axis.norm()
+
+        self.insertion_length: float = cfg.params.get("insertion_length", 0.02)
+
+        socket_offset = cfg.params.get("socket_insertion_offset", [0.0, 0.0, 0.0])
+        self.socket_insertion_offset = torch.tensor(socket_offset, device=env.device, dtype=torch.float32)
+
+        plug_offset = cfg.params.get("plug_insertion_offset", [0.0, 0.0, 0.0])
+        self.plug_insertion_offset = torch.tensor(plug_offset, device=env.device, dtype=torch.float32)
+
+        goal_rot = cfg.params.get("goal_rot", [0.0, 0.0, 0.0, 1.0])
+        self.goal_rot = torch.tensor(goal_rot, device=env.device, dtype=torch.float32)
+
+        self.normal_pose_range: dict = cfg.params.get("normal_pose_range", {})
+
+        self.identity_quat = torch.tensor(
+            [0.0, 0.0, 0.0, 1.0], device=env.device, dtype=torch.float32
+        )
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        plug_cfg: SceneEntityCfg | None = None,
+        socket_cfg: SceneEntityCfg | None = None,
+        at_goal_prob: float = 0.8,
+        insertion_axis: list | None = None,
+        insertion_length: float = 0.02,
+        socket_insertion_offset: list | None = None,
+        plug_insertion_offset: list | None = None,
+        goal_rot: list | None = None,
+        normal_pose_range: dict | None = None,
+    ):
+        num_envs = len(env_ids)
+
+        socket_pos = wp.to_torch(self.socket.data.root_pos_w)[env_ids]
+        socket_quat = wp.to_torch(self.socket.data.root_quat_w)[env_ids]
+
+        # Compute socket keypoint origin in world frame
+        socket_offset_batch = self.socket_insertion_offset.unsqueeze(0).expand(num_envs, -1)
+        id_quat_batch = self.identity_quat.unsqueeze(0).expand(num_envs, -1)
+        kp_origin_w, _ = math_utils.combine_frame_transforms(
+            socket_pos, socket_quat, socket_offset_batch, id_quat_batch,
+        )
+
+        # Insertion axis in world frame (rotated by socket orientation)
+        insertion_axis_w = math_utils.quat_apply(socket_quat, self.insertion_axis.unsqueeze(0).expand(num_envs, -1))
+
+        # Goal plug orientation in world frame
+        goal_quat_w = math_utils.quat_mul(socket_quat, self.goal_rot.unsqueeze(0).expand(num_envs, -1))
+
+        # Plug keypoint offset rotated into world frame (for converting kp pos -> root pos)
+        plug_offset_batch = self.plug_insertion_offset.unsqueeze(0).expand(num_envs, -1)
+        plug_kp_in_world = math_utils.quat_apply(goal_quat_w, plug_offset_batch)
+
+        # Default (normal) reset: small random perturbation around default plug pose
+        pose_range = self.normal_pose_range
+        rand_pos = torch.zeros(num_envs, 3, device=env.device)
+        for i, key in enumerate(["x", "y", "z"]):
+            rng = pose_range.get(key, [0.0, 0.0])
+            rand_pos[:, i] = torch.empty(num_envs, device=env.device).uniform_(rng[0], rng[1])
+
+        default_plug_pos = wp.to_torch(self.plug.data.default_root_state)[env_ids, :3] + env.scene.env_origins[env_ids]
+        normal_plug_pos = default_plug_pos + rand_pos
+        normal_plug_quat = wp.to_torch(self.plug.data.default_root_state)[env_ids, 3:7]
+
+        plug_pos = normal_plug_pos.clone()
+        plug_quat = normal_plug_quat.clone()
+
+        # At-goal curriculum: place fraction of envs along insertion axis
+        if self.at_goal_prob > 0.0 and num_envs > 0:
+            num_at_goal = int(num_envs * self.at_goal_prob)
+            if num_at_goal > 0:
+                perm = torch.randperm(num_envs, device=env.device)
+                at_goal_local = perm[:num_at_goal]
+
+                depth_rand = torch.rand(num_at_goal, 1, device=env.device)
+                goal_kp_pos = kp_origin_w[at_goal_local] + depth_rand * insertion_axis_w[at_goal_local] * self.insertion_length
+
+                # Convert keypoint position to plug root position
+                plug_pos[at_goal_local] = goal_kp_pos - plug_kp_in_world[at_goal_local]
+                plug_quat[at_goal_local] = goal_quat_w[at_goal_local]
+
+        new_root_pose = torch.cat([plug_pos, plug_quat], dim=-1)
+        zero_vel = torch.zeros(num_envs, 6, device=env.device, dtype=torch.float32)
+        self.plug.write_root_pose_to_sim(new_root_pose, env_ids=env_ids)
+        self.plug.write_root_velocity_to_sim(zero_vel, env_ids=env_ids)
