@@ -155,6 +155,53 @@ class FragmentFilename:
         """Bump tier (``patch`` / ``minor`` / ``major`` / ``skip``), or ``None``."""
         return self._parsed[1] if self._parsed is not None else None
 
+    # ---- User-facing pattern descriptions (derived from SUFFIXES) ---------
+
+    # Display order for help / error messages. The parser order in
+    # :attr:`SUFFIXES` is "longest suffix first" (semantically required), but
+    # readers prefer "tiers ascending" (patch → minor → major → skip).
+    _DISPLAY_ORDER: ClassVar[tuple[str, ...]] = ("patch", "minor", "major", "skip")
+
+    @classmethod
+    def pattern_summary(cls) -> str:
+        """Comma-separated list of accepted patterns: ``<slug>.rst, ..., or <slug>.skip``.
+
+        Single source of truth for the user-facing pattern list. Derived from
+        :attr:`SUFFIXES` so that adding a tier updates every error message
+        and help block at once.
+        """
+        by_tier = {tier: suffix for suffix, tier in cls.SUFFIXES}
+        parts = [f"<slug>{by_tier[t]}" for t in cls._DISPLAY_ORDER if t in by_tier]
+        return ", ".join(parts[:-1]) + f", or {parts[-1]}"
+
+    @classmethod
+    def help_lines_for_package(cls, package_name: str) -> list[str]:
+        """Per-tier help lines used when a package is missing a fragment.
+
+        Returns one ``add ...`` / ``or ...`` line per tier, formatted with
+        the path under the package's ``changelog.d/`` directory and an inline
+        annotation describing the bump.
+        """
+        annotations = {
+            "patch": "(patch bump)",
+            "minor": "(minor bump)",
+            "major": "(major bump)",
+            "skip": "(no entry, no bump)",
+        }
+        by_tier = {tier: suffix for suffix, tier in cls.SUFFIXES}
+        # Pad the suffix column so the annotations line up regardless of tier
+        # length — purely cosmetic, but the existing CI output already aligns.
+        suffix_width = max(len(s) for s in by_tier.values())
+        lines: list[str] = []
+        for i, t in enumerate(cls._DISPLAY_ORDER):
+            if t not in by_tier:
+                continue
+            verb = "add " if i == 0 else "or  "
+            path = f"source/{package_name}/changelog.d/<slug>{by_tier[t]}"
+            padding = " " * (suffix_width - len(by_tier[t]))
+            lines.append(f"{verb} {path}{padding}   {annotations[t]}")
+        return lines
+
 
 def _display_path(p: Path) -> str:
     """Pretty-print a Path. Strips ``REPO_ROOT`` if ``p`` is inside the repo,
@@ -349,12 +396,14 @@ class Fragment:
         """
         if not self.is_valid_filename:
             return (
-                "invalid filename — must be <slug>.rst, <slug>.minor.rst, "
-                "<slug>.major.rst, or <slug>.skip. Slug rules mirror git "
-                "refnames (excluding `/`): non-empty, no whitespace or any of "
-                "`~ ^ : ? * [ \\`, no leading `.` or `-`, no trailing `.` or "
-                "`.lock`, no `..` or `@{`. Dots inside the slug are fine "
-                "(e.g. `bump-newton-1.2.0rc2.minor.rst`)."
+                f"invalid filename — must be {FragmentFilename.pattern_summary()}. "
+                "Slug rules mirror git refnames (excluding `/`): non-empty, no "
+                "whitespace or any of `~ ^ : ? * [ \\`, no leading `.` or `-`, "
+                "no trailing `.` or `.lock`, no `..` or `@{`. Dots inside the "
+                "slug are fine (e.g. `bump-newton-1.2.0rc2.minor.rst`). "
+                "Note: a slug ending in `.skip` paired with `.rst` (e.g. "
+                "`foo.skip.rst`) parses as a *patch fragment* with slug "
+                "`foo.skip`, not as a skip marker — `.skip` is its own suffix."
             )
         if not self.path.exists():
             # Deleted fragments don't need validating (consumed by a previous compile).
@@ -663,7 +712,7 @@ class Package:
         for p in batch.invalid:
             print(
                 f"  WARNING: {_display_path(p)} does not match any recognised fragment "
-                "pattern (<slug>.rst, <slug>.minor.rst, <slug>.major.rst, <slug>.skip) — skipping.",
+                f"pattern ({FragmentFilename.pattern_summary()}) — skipping.",
                 file=sys.stderr,
             )
 
@@ -959,10 +1008,8 @@ def cmd_check(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> int
         print("::error::Missing changelog fragments for the following packages:")
         for pkg_name in missing:
             print(f"  • {pkg_name}")
-            print(f"    → add  source/{pkg_name}/changelog.d/<slug>.rst         (patch bump)")
-            print(f"    → or   source/{pkg_name}/changelog.d/<slug>.minor.rst   (minor bump)")
-            print(f"    → or   source/{pkg_name}/changelog.d/<slug>.major.rst   (major bump)")
-            print(f"    → or   source/{pkg_name}/changelog.d/<slug>.skip        (no entry, no bump)")
+            for line in FragmentFilename.help_lines_for_package(pkg_name):
+                print(f"    → {line}")
         print()
         print("Slug = your branch name with `/` replaced by `-` (or any short, unique name).")
         print()

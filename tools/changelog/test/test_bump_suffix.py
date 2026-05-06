@@ -108,6 +108,12 @@ def test_aggregate_bump_logic(bumps, expected):
         ("bump-newton-1.2.0rc2.minor.rst", True, False),
         ("foo.bar.rst", True, False),  # slug = ``foo.bar``, tier = patch
         ("1234.patch.rst", True, False),  # slug = ``1234.patch``, tier = patch
+        # Pin the easy contributor footgun: ``foo.skip.rst`` is a *patch
+        # fragment* with slug ``foo.skip`` (the file extension is ``.rst``),
+        # not a skip marker — ``.skip`` is its own suffix, mutually
+        # exclusive with ``.rst``. Locking this in so a future "fix" can't
+        # silently flip the semantics.
+        ("foo.skip.rst", True, False),
         # Files that are not fragments at all.
         (".gitkeep", False, False),
         ("README.md", False, False),
@@ -221,6 +227,22 @@ def test_fragment_filename_suffixes_are_canonical():
         (".skip", "skip"),
         (".rst", "patch"),
     )
+
+
+def test_fragment_filename_pattern_summary_is_derived_from_suffixes():
+    """User-facing list keeps tiers in display order and ends with ``or``."""
+    assert cli.FragmentFilename.pattern_summary() == ("<slug>.rst, <slug>.minor.rst, <slug>.major.rst, or <slug>.skip")
+
+
+def test_fragment_filename_help_lines_format_per_tier():
+    """Help lines for a missing package fragment cover every tier with aligned columns."""
+    lines = cli.FragmentFilename.help_lines_for_package("isaaclab_newton")
+    assert lines == [
+        "add  source/isaaclab_newton/changelog.d/<slug>.rst         (patch bump)",
+        "or   source/isaaclab_newton/changelog.d/<slug>.minor.rst   (minor bump)",
+        "or   source/isaaclab_newton/changelog.d/<slug>.major.rst   (major bump)",
+        "or   source/isaaclab_newton/changelog.d/<slug>.skip        (no entry, no bump)",
+    ]
 
 
 # ---------------------------------------------------------------------------
