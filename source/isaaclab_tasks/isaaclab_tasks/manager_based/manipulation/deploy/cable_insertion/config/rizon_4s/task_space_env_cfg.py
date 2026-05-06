@@ -213,8 +213,8 @@ class TaskSpaceEventCfg:
             "plug_insertion_offset": PLUG_INSERTION_OFFSET,
             "goal_rot": list(PLUG_GOAL_ROT),
             "normal_pose_range": {
-                "x": [-0.02, 0.02],
-                "y": [-0.02, 0.02],
+                "x": [-0.01, 0.01],
+                "y": [-0.01, 0.01],
                 "z": [-0.01, 0.01],
             },
         },
