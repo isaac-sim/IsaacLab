@@ -219,7 +219,7 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -244,7 +244,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -266,7 +266,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -288,7 +288,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -309,7 +309,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -330,7 +330,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -363,6 +363,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        include-files: "test_non_headless_launch.py"
         shard-index: "2"
         shard-count: "3"
         container-name: isaac-lab-core-3-test
@@ -372,7 +373,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -392,7 +393,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -411,7 +412,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -430,7 +431,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -449,7 +450,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -468,7 +469,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -487,7 +488,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -518,6 +519,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
+        include-files: "test_surface_gripper.py"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
@@ -525,7 +527,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -545,7 +547,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: needs.build-curobo.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -567,7 +569,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: needs.build-curobo.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
@@ -589,7 +591,7 @@ jobs:
     timeout-minutes: 300
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # [STRESS] disabled for stress-test
     steps:
     - uses: actions/checkout@v6
       with:
