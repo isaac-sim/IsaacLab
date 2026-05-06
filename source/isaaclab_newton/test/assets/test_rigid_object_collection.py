@@ -904,7 +904,9 @@ def test_body_pose_write_marks_fk_reset_mask(device, writer):
     buffer, so the property read is not what becomes stale — the simulator's internal ``body_q`` used by
     collision detection is. The write methods must therefore call :meth:`SimulationManager.invalidate_fk`
     so downstream consumers re-run forward kinematics before the next step. Without the fix,
-    ``_fk_reset_mask`` remains unset after an explicit pose write.
+    ``_fk_reset_mask`` remains unset after an explicit pose write. The buffer-aliasing invariant is
+    also pinned: a refactor that decouples ``_sim_bind_body_link_pose_w`` from the write target would
+    silently make the property stale, so we check the post-write pose matches the written value.
     """
 
     def _fk_reset_mask_dirty() -> bool:
@@ -927,6 +929,8 @@ def test_body_pose_write_marks_fk_reset_mask(device, writer):
         SimulationManager.forward()
         assert not _fk_reset_mask_dirty()
 
+        pre_write_pose = wp.to_torch(cube_object.data.body_link_pose_w).clone()
+
         target_pose = wp.to_torch(cube_object.data.body_link_pose_w).clone()
         target_pose[..., 0] += 10.0
         target_pose[..., 1] += 5.0
@@ -942,3 +946,12 @@ def test_body_pose_write_marks_fk_reset_mask(device, writer):
             cube_object.write_body_com_pose_to_sim_mask(body_poses=target_pose)
 
         assert _fk_reset_mask_dirty(), "pose write must call SimulationManager.invalidate_fk()"
+
+        # body_link_pose_w must reflect the write immediately — its underlying buffer is the write
+        # target. A regression that moves this property to a separate cached buffer (mirroring the
+        # single-object case) would silently break this invariant.
+        body_link = wp.to_torch(cube_object.data.body_link_pose_w)
+        assert not torch.allclose(body_link[..., :3], pre_write_pose[..., :3], rtol=1e-4, atol=1e-4), (
+            "body_link_pose_w still aliases the pre-write pose; the underlying buffer was not written"
+        )
+        torch.testing.assert_close(body_link[..., :3], target_pose[..., :3], rtol=1e-4, atol=1e-4)
