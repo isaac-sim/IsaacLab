@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections.abc import Sequence
 from typing import Any
@@ -980,7 +981,16 @@ class RigidObject(BaseRigidObject):
         # raise AttributeError (masked by hasattr) and fall back to "cuda:0" even when the
         # simulation is running on CPU, causing a device mismatch in binding.read().
         self._device = OvPhysxManager.get_device()
-        self._binding_pattern = self.cfg.prim_path
+        # Convert IsaacLab prim-path notation to the glob patterns ovphysx
+        # expects.  IsaacLab uses two conventions:
+        #   /World/envs/env_.*/object       -- regex dot-star for "any env index"
+        #   /World/envs/{ENV_REGEX_NS}/object -- explicit placeholder
+        # ovphysx ``create_tensor_binding`` uses fnmatch-style globs, so both
+        # map to ``*``.  Mirrors the Articulation backend's resolution
+        # (articulation.py:562-563).
+        pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", self.cfg.prim_path)
+        pattern = re.sub(r"\.\*", "*", pattern)
+        self._binding_pattern = pattern
 
         # Validate the prim tree before creating tensor bindings -- the wheel
         # silently produces a 0-prim binding when the pattern matches nothing,
