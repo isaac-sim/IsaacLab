@@ -903,8 +903,8 @@ def test_body_pose_write_marks_fk_reset_mask(device, writer):
     For a collection, ``_sim_bind_body_link_pose_w`` is bound directly to the simulator's root-transforms
     buffer, so the property read is not what becomes stale — the simulator's internal ``body_q`` used by
     collision detection is. The write methods must therefore call :meth:`SimulationManager.invalidate_fk`
-    and invalidate ``_fk_timestamp`` so downstream consumers re-run forward kinematics before the next step.
-    Without the fix, ``_fk_reset_mask`` remains unset after an explicit pose write.
+    so downstream consumers re-run forward kinematics before the next step. Without the fix,
+    ``_fk_reset_mask`` remains unset after an explicit pose write.
     """
 
     def _fk_reset_mask_dirty() -> bool:
@@ -926,7 +926,6 @@ def test_body_pose_write_marks_fk_reset_mask(device, writer):
         # Clear the dirty flag so we can observe that the write sets it.
         SimulationManager.forward()
         assert not _fk_reset_mask_dirty()
-        assert cube_object.data._fk_timestamp >= 0.0
 
         target_pose = wp.to_torch(cube_object.data.body_link_pose_w).clone()
         target_pose[..., 0] += 10.0
@@ -943,4 +942,3 @@ def test_body_pose_write_marks_fk_reset_mask(device, writer):
             cube_object.write_body_com_pose_to_sim_mask(body_poses=target_pose)
 
         assert _fk_reset_mask_dirty(), "pose write must call SimulationManager.invalidate_fk()"
-        assert cube_object.data._fk_timestamp < 0.0, "pose write must reset data._fk_timestamp to -1.0"

@@ -422,7 +422,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_link_pose_w_ta,
+                self.data.body_link_pose_w,
                 None,  # body_link_state_w
                 None,  # body_state_w
             ],
@@ -433,7 +433,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.data._body_com_state_w.timestamp = -1.0
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
-        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
 
     def write_body_link_pose_to_sim_mask(
@@ -521,8 +520,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 full_data,
             ],
             outputs=[
-                self.data._body_com_pose_w_ta,
-                self.data._body_link_pose_w_ta,
+                self.data.body_com_pose_w,
+                self.data.body_link_pose_w,
                 None,  # body_com_state_w
                 None,  # body_link_state_w
                 None,  # body_state_w
@@ -533,7 +532,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.data._body_link_state_w.timestamp = -1.0
         self.data._body_state_w.timestamp = -1.0
         self.data._body_com_state_w.timestamp = -1.0
-        self.data._fk_timestamp = -1.0  # Forces a kinematic update to get the latest body link poses.
         SimulationManager.invalidate_fk(env_ids=env_ids, articulation_ids=self._root_view.articulation_ids)
 
     def write_body_com_pose_to_sim_mask(
