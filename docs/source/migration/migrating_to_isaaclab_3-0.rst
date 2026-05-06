@@ -158,6 +158,8 @@ The following sensor classes also remain in the ``isaaclab`` package with unchan
 - :class:`~isaaclab.sensors.Imu`, :class:`~isaaclab.sensors.ImuCfg`, :class:`~isaaclab.sensors.ImuData`
 - :class:`~isaaclab.sensors.Pva`, :class:`~isaaclab.sensors.PvaCfg`, :class:`~isaaclab.sensors.PvaData`
 - :class:`~isaaclab.sensors.FrameTransformer`, :class:`~isaaclab.sensors.FrameTransformerCfg`, :class:`~isaaclab.sensors.FrameTransformerData`
+- :class:`~isaaclab.sensors.JointWrenchSensor`, :class:`~isaaclab.sensors.JointWrenchSensorCfg`,
+  :class:`~isaaclab.sensors.JointWrenchSensorData`
 
 These sensor classes now use factory patterns that automatically instantiate the appropriate backend
 implementation (PhysX by default), maintaining full backward compatibility.
@@ -179,6 +181,7 @@ you can import from ``isaaclab_physx.sensors``:
    from isaaclab_physx.sensors import Imu, ImuData
    from isaaclab_physx.sensors import Pva, PvaData
    from isaaclab_physx.sensors import FrameTransformer, FrameTransformerData
+   from isaaclab_physx.sensors import JointWrenchSensor, JointWrenchSensorData
 
 
 New ``isaaclab_newton`` Extension
@@ -188,6 +191,8 @@ A new extension ``isaaclab_newton`` provides Newton physics backend implementati
 
 - :class:`~isaaclab_newton.assets.Articulation` and :class:`~isaaclab_newton.assets.ArticulationData`
 - :class:`~isaaclab_newton.assets.RigidObject` and :class:`~isaaclab_newton.assets.RigidObjectData`
+- :class:`~isaaclab_newton.sensors.JointWrenchSensor` and
+  :class:`~isaaclab_newton.sensors.JointWrenchSensorData`
 
 These classes implement the same base interfaces as their PhysX counterparts
 (:class:`~isaaclab.assets.BaseArticulation`, :class:`~isaaclab.assets.BaseRigidObject`),
@@ -331,6 +336,75 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    sensor_quat = frame_transformer.data.target_quat_w
 
 
+Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
+-------------------------------------------------------------
+
+The ``ArticulationData.body_incoming_joint_wrench_b`` property has been removed. In
+Isaac Lab 3.0, incoming joint reaction wrenches are exposed through
+:class:`~isaaclab.sensors.JointWrenchSensor`, which has PhysX and Newton backend
+implementations and returns separate force [N] and torque [N·m] buffers.
+The sensor reports wrenches in the child-side incoming joint frame, with torque
+referenced at the child-side joint anchor.
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   wrench_b = robot.data.body_incoming_joint_wrench_b.torch[:, body_ids]
+
+**After (Isaac Lab 3.x):**
+
+.. code-block:: python
+
+   import torch
+   from isaaclab.scene import InteractiveSceneCfg
+   from isaaclab.sensors import JointWrenchSensorCfg
+
+   class MySceneCfg(InteractiveSceneCfg):
+       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+   sensor = env.scene.sensors["joint_wrench"]
+   data = sensor.data
+   wrench_j = torch.cat(
+       (
+           data.force.torch[:, body_ids],
+           data.torque.torch[:, body_ids],
+       ),
+       dim=-1,
+   )
+
+Use :attr:`~isaaclab.sensors.BaseJointWrenchSensor.body_names` or
+:meth:`~isaaclab.sensors.BaseJointWrenchSensor.find_bodies` to map sensor entries to
+articulation body names. PhysX reports one entry for every link, including the articulation
+root link. Newton reports the child bodies of reportable incoming joints.
+
+For manager-based environments, update observations that used the articulation data property to
+depend on the joint-wrench sensor instead:
+
+.. code-block:: python
+
+   import isaaclab.envs.mdp as mdp
+   from isaaclab.managers import SceneEntityCfg
+   from isaaclab.managers import ObservationTermCfg as ObsTerm
+   from isaaclab.scene import InteractiveSceneCfg
+   from isaaclab.sensors import JointWrenchSensorCfg
+
+   class MySceneCfg(InteractiveSceneCfg):
+       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+   feet_body_forces = ObsTerm(
+       func=mdp.body_incoming_wrench,
+       params={
+           "sensor_cfg": SceneEntityCfg(
+               "joint_wrench",
+               body_names=["left_foot", "right_foot"],
+           )
+       },
+   )
+
+
 Multi-Backend Support: PresetCfg Pattern
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -356,17 +430,17 @@ when no CLI override is given. Other fields are named presets selectable with
    class MyPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(...)   # used when no override is given
        physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
-       newton:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton
+       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``presets=newton`` (or ``presets=physx``) on the CLI to swap the entire config section:
+Pass ``presets=newton_mjwarp`` (or ``presets=physx``) on the CLI to swap the entire config section:
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton
+   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton_mjwarp
 
    # Run with default (PhysX) backend
    python train.py task=Isaac-Franka-Cabinet-v0
@@ -399,7 +473,7 @@ subclass that carries both a PhysX and a Newton variant.
    class ReachPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
        physx:   PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-       newton:  NewtonCfg = NewtonCfg(
+       newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
                cone="pyramidal", ls_parallel=True,
@@ -471,7 +545,7 @@ We can provide a Newton-specific config such as:
    class EnvEventCfg(PresetCfg):
        default: EventCfg = EventCfg()
        physx:   EventCfg = EventCfg()
-       newton:  _EnvNewtonEventCfg = _EnvNewtonEventCfg()
+       newton_mjwarp:  _EnvNewtonEventCfg = _EnvNewtonEventCfg()
 
 Then change the ``events`` field in your env cfg from ``EventCfg`` to ``EnvEventCfg``:
 

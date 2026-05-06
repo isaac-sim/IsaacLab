@@ -120,7 +120,12 @@ def main(
 
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    # For distributed training, launch_simulation() already resolved the
+    # correct per-rank device; only apply a CLI --device override for
+    # non-distributed runs (the default "cuda:0" would clobber the
+    # per-rank device otherwise).
+    if not args_cli.distributed:
+        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
     env_cfg.seed = args_cli.seed
 
     # check for invalid combination of CPU device with distributed training
@@ -131,10 +136,10 @@ def main(
         )
 
     # process distributed
+    # env_cfg.sim.device is already resolved by launch_simulation().
     world_size = 1
     world_rank = 0
     if args_cli.distributed:
-        env_cfg.sim.device = f"cuda:{int(os.getenv('LOCAL_RANK', '0'))}"
         world_size = int(os.getenv("WORLD_SIZE", 1))
         world_rank = int(os.getenv("RANK", "0"))
 

@@ -49,12 +49,14 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         # add hand, in-hand object, and goal object
         self.hand = Articulation(self.cfg.robot_cfg)
         self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
+        self._joint_wrench_sensor = self._create_joint_wrench_sensor()
         self._tiled_camera = Camera(self.cfg.tiled_camera)
         # clone and replicate (no need to filter for this environment)
         self.scene.clone_environments(copy_from_source=False)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
+        self.scene.sensors["joint_wrench"] = self._joint_wrench_sensor
         self.scene.sensors["tiled_camera"] = self._tiled_camera
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
@@ -127,13 +129,7 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         # vision observations from CMM
         image_obs = self._compute_image_observations()
         obs = torch.cat((state_obs, image_obs), dim=-1)
-        # asymmetric critic states — Newton does not implement body_incoming_joint_wrench_b
-        try:
-            self.fingertip_force_sensors = self.hand.data.body_incoming_joint_wrench_b.torch[:, self.finger_bodies]
-        except NotImplementedError:
-            self.fingertip_force_sensors = torch.zeros(
-                self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device
-            )
+        self._update_fingertip_force_sensors()
         state = self._compute_states()
 
         observations = {"policy": obs, "critic": state}

@@ -52,23 +52,53 @@ class NewtonGlPerspectiveVideo:
         viewer.set_world_offsets((0.0, 0.0, 0.0))
         viewer.up_axis = 2
 
-        import warp as wp
-
-        ex, ey, ez = self.cfg.camera_position
-        lx, ly, lz = self.cfg.camera_target
-        dx, dy, dz = lx - ex, ly - ey, lz - ez
-        length = math.sqrt(dx**2 + dy**2 + dz**2)
-        dx, dy, dz = dx / length, dy / length, dz / length
-        pitch = math.degrees(math.asin(max(-1.0, min(1.0, dz))))
-        yaw = math.degrees(math.atan2(dy, dx))
         aspect = w / h
         h_fov = math.radians(self.cfg.horiz_fov_deg)
         v_fov_deg = math.degrees(2.0 * math.atan(math.tan(h_fov / 2.0) / aspect))
         viewer.camera.fov = v_fov_deg
-        viewer.set_camera(pos=wp.vec3(ex, ey, ez), pitch=pitch, yaw=yaw)
 
         self._viewer = viewer
+        self._apply_camera(self.cfg.eye, self.cfg.lookat)
         logger.info("[NewtonGlPerspectiveVideo] ViewerGL ready (%dx%d).", w, h)
+
+    def _apply_camera(
+        self,
+        position: tuple[float, float, float],
+        target: tuple[float, float, float],
+    ) -> None:
+        """Point the recorder's ViewerGL at ``position`` looking toward ``target``."""
+        if self._viewer is None:
+            return
+        import warp as wp
+
+        ex, ey, ez = position
+        lx, ly, lz = target
+        dx, dy, dz = lx - ex, ly - ey, lz - ez
+        length = math.sqrt(dx**2 + dy**2 + dz**2)
+        if length > 1e-9:
+            dx, dy, dz = dx / length, dy / length, dz / length
+        pitch = math.degrees(math.asin(max(-1.0, min(1.0, dz))))
+        yaw = math.degrees(math.atan2(dy, dx))
+        self._viewer.set_camera(pos=wp.vec3(ex, ey, ez), pitch=pitch, yaw=yaw)
+
+    def update_camera(
+        self,
+        position: tuple[float, float, float],
+        target: tuple[float, float, float],
+    ) -> None:
+        """Update the recorder camera to match ``position`` / ``target``.
+
+        Safe to call before the first :meth:`render_rgb_array` (the viewer is
+        created lazily; the values will be applied immediately after creation).
+        When the viewer is already live the camera is repositioned in-place so
+        the next frame reflects the new viewpoint.
+
+        Args:
+            position: Camera eye position ``(x, y, z)``.
+            target: Camera look-at target ``(x, y, z)``.
+        """
+        self._ensure_viewer()
+        self._apply_camera(position, target)
 
     def render_rgb_array(self) -> np.ndarray:
         """Return one RGB frame from the Newton GL viewer. Raises on failure."""

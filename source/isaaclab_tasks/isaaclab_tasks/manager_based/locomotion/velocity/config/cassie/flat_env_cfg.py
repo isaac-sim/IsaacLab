@@ -17,7 +17,7 @@ from .rough_env_cfg import CassieRoughEnvCfg
 @configclass
 class PhysicsCfg(PresetCfg):
     default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    newton = NewtonCfg(
+    newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=52,
             nconmax=15,

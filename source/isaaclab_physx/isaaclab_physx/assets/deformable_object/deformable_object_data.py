@@ -115,11 +115,12 @@ class DeformableObjectData:
         """Nodal positions in simulation world frame. Shape is (num_instances, max_sim_vertices_per_body) vec3f."""
         if self._nodal_pos_w.timestamp < self._sim_timestamp:
             # get_simulation_nodal_positions() returns (N, V, 3) float32 — view as (N, V) vec3f
-            self._nodal_pos_w.data = (
+            src = (
                 self._root_view.get_simulation_nodal_positions()
                 .view(wp.vec3f)
                 .reshape((self._num_instances, self._max_sim_vertices))
             )
+            wp.copy(self._nodal_pos_w.data, src)
             self._nodal_pos_w.timestamp = self._sim_timestamp
             # Rebind ProxyArray since .data was replaced with a new wp.array
             if self._nodal_pos_w_ta is not None:
@@ -132,11 +133,12 @@ class DeformableObjectData:
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame. Shape is (num_instances, max_sim_vertices_per_body) vec3f."""
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
-            self._nodal_vel_w.data = (
+            src = (
                 self._root_view.get_simulation_nodal_velocities()
                 .view(wp.vec3f)
                 .reshape((self._num_instances, self._max_sim_vertices))
             )
+            wp.copy(self._nodal_vel_w.data, src)
             self._nodal_vel_w.timestamp = self._sim_timestamp
             # Rebind ProxyArray since .data was replaced with a new wp.array
             if self._nodal_vel_w_ta is not None:

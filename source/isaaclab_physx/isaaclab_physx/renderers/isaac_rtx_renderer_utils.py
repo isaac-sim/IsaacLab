@@ -127,7 +127,11 @@ def ensure_isaac_rtx_render_update() -> None:
         return  # Already pumped this step (by another camera or a visualizer)
 
     # If a visualizer already pumps the Kit app loop, mark as done and skip.
-    if any(viz.pumps_app_update() for viz in sim.visualizers):
+    # However, on the very first call for a new SimulationContext, the visualizer
+    # has not had a chance to pump yet (sim.render() was never called), so we
+    # must perform the initial app.update() ourselves to populate annotator buffers.
+    first_call_for_sim = _last_render_update_key[0] != id(sim)
+    if not first_call_for_sim and any(viz.pumps_app_update() for viz in sim.visualizers):
         _last_render_update_key = key
         return
 

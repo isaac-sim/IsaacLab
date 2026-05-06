@@ -61,8 +61,10 @@ They are structured as follows:
 * **demos**: Contains various demo applications that showcase the core framework :mod:`isaaclab`.
 * **environments**: Contains applications for running environments defined in :mod:`isaaclab_tasks` with
   different agents. These include a random policy, zero-action policy, teleoperation or scripted state machines.
+* **imitation_learning**: Contains applications for training and evaluating policies with various
+  imitation learning libraries (e.g. robomimic).
+* **reinforcement_learning**: Contains applications for training and evaluating policies with various
+  reinforcement learning libraries (e.g. rsl_rl, rl_games, sb3, skrl).
 * **tools**: Contains applications for using the tools provided by the framework. These include converting assets,
   generating datasets, etc.
 * **tutorials**: Contains step-by-step tutorials for using the APIs provided by the framework.
-* **workflows**: Contains applications for using environments with various learning-based frameworks. These include different
-  reinforcement learning or imitation learning libraries.

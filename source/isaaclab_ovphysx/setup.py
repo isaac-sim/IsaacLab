@@ -13,9 +13,11 @@ from setuptools import setup
 EXTENSION_PATH = os.path.dirname(os.path.realpath(__file__))
 EXTENSION_TOML_DATA = toml.load(os.path.join(EXTENSION_PATH, "config", "extension.toml"))
 
-INSTALL_REQUIRES = [
-    "ovphysx",
-]
+INSTALL_REQUIRES: list[str] = []
+
+EXTRAS_REQUIRE = {
+    "ovphysx": ["ovphysx"],
+}
 
 setup(
     name="isaaclab_ovphysx",
@@ -30,6 +32,7 @@ setup(
     package_data={"": ["*.pyi"]},
     python_requires=">=3.11",
     install_requires=INSTALL_REQUIRES,
+    extras_require=EXTRAS_REQUIRE,
     packages=[
         "isaaclab_ovphysx",
         "isaaclab_ovphysx.assets",
