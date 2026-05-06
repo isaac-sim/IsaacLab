@@ -366,6 +366,22 @@ class Frontend(ABC):
         meta = TaskResolver.resolve(task_id, cfg)
         ctx = ResolveContext(frontend=self.name, task=meta, strict=self.strict)
         report = Report(frontend=self.name, task=meta)
+        # If gym couldn't resolve the spec, the frontend has nothing to dispatch
+        # against. Block early with a clear message rather than letting
+        # downstream construct() fail with a NameNotFound.
+        if meta.spec is None:
+            report.issues.append(
+                Issue(
+                    rule="task_resolver",
+                    severity=Severity.BLOCKING,
+                    message=(
+                        f"task {task_id!r} is not registered with gymnasium."
+                        " Make sure the task package is imported before the frontend runs."
+                    ),
+                    location="task.spec",
+                )
+            )
+            return report
         self.preprocess_cfg(cfg, ctx)
         for rule in self._rules:
             if not rule.applies_to(ctx):

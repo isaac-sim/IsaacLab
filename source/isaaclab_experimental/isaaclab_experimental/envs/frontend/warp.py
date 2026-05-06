@@ -81,6 +81,12 @@ class CheckPhysicsIsNewton(CompatRule):
 
     name = "check_physics_is_newton"
 
+    NEWTON_MODULE_PREFIXES: ClassVar[tuple[str, ...]] = ("isaaclab_newton",)
+    """Module prefixes that mark a physics cfg as Newton-flavoured."""
+
+    PHYSX_MODULE_PREFIXES: ClassVar[tuple[str, ...]] = ("isaaclab_physx",)
+    """Module prefixes that mark a physics cfg as PhysX-flavoured (definitely incompatible)."""
+
     def applies_to(self, ctx: ResolveContext) -> bool:
         return ctx.task.workflow == Workflow.MANAGER_BASED
 
@@ -93,18 +99,21 @@ class CheckPhysicsIsNewton(CompatRule):
         # Skip PresetCfg wrappers — they'll be unwrapped by ResolvePhysicsPreset.
         if hasattr(physics, "newton") and not hasattr(physics, "class_type"):
             return
-        if module.startswith("isaaclab_physx"):
-            yield Issue(
-                rule=self.name,
-                severity=Severity.BLOCKING,
-                message=(
-                    f"sim.physics is {cls.__name__} ({module}); the warp runtime"
-                    f" needs Newton physics. Pass `presets=newton` or use a Newton"
-                    f" physics cfg explicitly."
-                ),
-                location="cfg.sim.physics",
-                detail={"physics_class": cls.__name__, "physics_module": module},
-            )
+        if module.startswith(self.NEWTON_MODULE_PREFIXES):
+            return  # OK
+        severity = Severity.BLOCKING if module.startswith(self.PHYSX_MODULE_PREFIXES) else Severity.WARNING
+        backend = "PhysX" if severity == Severity.BLOCKING else "unknown"
+        yield Issue(
+            rule=self.name,
+            severity=severity,
+            message=(
+                f"sim.physics is {cls.__name__} ({module}); the warp runtime"
+                f" needs a Newton physics cfg ({backend} detected). Pass"
+                f" `presets=newton` or use a Newton physics cfg explicitly."
+            ),
+            location="cfg.sim.physics",
+            detail={"physics_class": cls.__name__, "physics_module": module},
+        )
 
 
 class ResolvePhysicsPreset(CompatRule):
@@ -117,6 +126,9 @@ class ResolvePhysicsPreset(CompatRule):
     """
 
     name = "resolve_physics_preset"
+
+    def applies_to(self, ctx: ResolveContext) -> bool:
+        return ctx.task.workflow == Workflow.MANAGER_BASED
 
     def run(self, cfg: Any, ctx: ResolveContext) -> Iterable[Issue | Change]:
         physics = getattr(getattr(cfg, "sim", None), "physics", None)
@@ -202,7 +214,28 @@ class PromoteSceneEntityCfg(CompatRule):
                 for value in params.values():
                     if isinstance(value, Warp) or not isinstance(value, Stable):
                         continue
-                    value.__class__ = Warp
+                    # ``__class__ =`` is permitted only when the layouts
+                    # match (e.g. neither side adds ``__slots__`` over the
+                    # other). ``issubclass`` does *not* guarantee this. If
+                    # the runtime refuses, surface a blocking issue rather
+                    # than crash mid-pipeline; the cfg is still safe because
+                    # we set warp-only fields *after* the assignment.
+                    try:
+                        value.__class__ = Warp
+                    except TypeError as exc:
+                        yield Issue(
+                            rule=self.name,
+                            severity=Severity.BLOCKING,
+                            message=(
+                                f"in-place __class__ promotion to {Warp.__name__} failed:"
+                                f" {exc}. The warp variant likely diverged in slots/layout"
+                                f" from the stable one; rebuild cfg explicitly with the warp"
+                                f" SceneEntityCfg."
+                            ),
+                            location=".".join(path),
+                            detail={"warp_class": Warp.__name__, "stable_class": Stable.__name__},
+                        )
+                        return
                     value.joint_mask = None
                     value.joint_ids_wp = None
                     value.body_ids_wp = None
@@ -263,6 +296,14 @@ class SwapMdpFunctions(CompatRule):
                 stable = term.func
                 if not callable(stable):
                     continue
+                # Idempotency: if the term already references a warp-native
+                # callable (e.g. running the bridge against an already-warp
+                # task), don't try to swap. Without this guard the rule would
+                # ``resolve_warp_twin`` against modules that might not contain
+                # the same symbol and silently drop the term.
+                origin = getattr(stable, "__module__", "") or ""
+                if origin.startswith(WARP_ROOT_PREFIXES):
+                    continue
                 twin = resolve_warp_twin(stable.__name__, modules)
                 if twin is not None:
                     term.func = twin
@@ -281,7 +322,12 @@ class SwapMdpFunctions(CompatRule):
         """Locate warp mdp modules that mirror the task's stable mdp."""
         modules: list[ModuleType] = []
         entry = task.env_cfg_entry_point
-        if isinstance(entry, str) and entry.startswith(self.stable_root):
+        # Use a trailing dot when matching the stable root so a task registered
+        # under ``isaaclab_tasks_experimental.*`` (the warp side) doesn't match
+        # ``isaaclab_tasks`` and end up with a double-replaced
+        # ``isaaclab_tasks_experimental_experimental.*`` import path.
+        stable_prefix = self.stable_root + "."
+        if isinstance(entry, str) and entry.startswith(stable_prefix):
             warp_pkg = entry.rsplit(".", 1)[0].replace(self.stable_root, self.warp_root, 1)
             parts = warp_pkg.split(".")
             for depth in range(len(parts), 0, -1):
@@ -441,10 +487,15 @@ class WarpFrontend(Frontend):
         cfg_ep = spec.kwargs.get("env_cfg_entry_point")
         if not isinstance(cfg_ep, str) or not cfg_ep.startswith("isaaclab_tasks.manager_based"):
             return args
-        explicit = next((a for a in args if a.startswith("presets=")), None)
+
+        # Match both ``presets=foo`` and ``--presets=foo`` — Hydra accepts either.
+        def _is_preset_arg(arg: str) -> bool:
+            return arg.lstrip("-").startswith("presets=")
+
+        explicit = next((a for a in args if _is_preset_arg(a)), None)
         if explicit is None:
             return [*args, "presets=newton"]
-        if explicit != "presets=newton":
+        if explicit.lstrip("-") != "presets=newton":
             logger.warning(
                 "--frontend=warp on %r expects presets=newton; got %r — adapter may fail.",
                 task_id,

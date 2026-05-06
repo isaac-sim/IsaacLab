@@ -24,7 +24,6 @@ Public API::
 from __future__ import annotations
 
 from .base import (
-    WARP_ROOT_PREFIXES,
     Change,
     CompatRule,
     Frontend,
@@ -39,10 +38,7 @@ from .base import (
     Workflow,
     available_frontends,
     get_frontend,
-    iter_term_attrs,
     register_frontend,
-    resolve_warp_twin,
-    walk_attrs,
 )
 from .torch import TorchFrontend, WarnIfTaskIsWarpRegistered
 from .warp import (
@@ -62,6 +58,10 @@ register_frontend(TorchFrontend.name, TorchFrontend)
 register_frontend(WarpFrontend.name, WarpFrontend)
 
 
+# Public API. Internal helpers (``walk_attrs``, ``iter_term_attrs``,
+# ``resolve_warp_twin``, ``WARP_ROOT_PREFIXES``) are importable from
+# :mod:`isaaclab_experimental.envs.frontend.base` for users writing their own
+# rules, but they are not advertised here as the supported framework surface.
 __all__ = [
     # core abstractions
     "Frontend",
@@ -76,15 +76,10 @@ __all__ = [
     "Runtime",
     "ResolveContext",
     "FrontendIncompatibleError",
-    "WARP_ROOT_PREFIXES",
     # registry
     "register_frontend",
     "get_frontend",
     "available_frontends",
-    # rule helpers
-    "walk_attrs",
-    "resolve_warp_twin",
-    "iter_term_attrs",
     # built-in frontends
     "TorchFrontend",
     "WarpFrontend",

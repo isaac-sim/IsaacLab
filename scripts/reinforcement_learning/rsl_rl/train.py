@@ -104,10 +104,26 @@ remaining_args = list_intersection(remaining_args, remaining_args_env_registrati
 # may inject preset selections (e.g. WarpFrontend appends ``presets=newton``
 # for stable manager-based tasks so PresetCfg wrappers resolve to the Newton
 # field before Hydra builds the cfg).
-from isaaclab_experimental.envs.frontend import get_frontend  # noqa: E402
+#
+# The frontend package lives under ``isaaclab_experimental``, which is
+# optional. If it isn't installed, ``--frontend=torch`` (the default) still
+# needs to work — fall back to plain ``gym.make`` in that case. The warp
+# selection requires the experimental package, so import failure there is
+# fatal.
+_frontend = None
+try:
+    from isaaclab_experimental.envs.frontend import get_frontend  # noqa: E402
 
-_frontend = get_frontend(args_cli.frontend)
-if args_cli.task is not None:
+    _frontend = get_frontend(args_cli.frontend)
+except ImportError as _frontend_import_err:
+    if args_cli.frontend != "torch":
+        raise SystemExit(
+            f"--frontend={args_cli.frontend} requires isaaclab_experimental to be installed,"
+            f" but the import failed: {_frontend_import_err}"
+        ) from _frontend_import_err
+    logger.info("isaaclab_experimental not available; --frontend=torch will dispatch via plain gym.make.")
+
+if _frontend is not None and args_cli.task is not None:
     remaining_args = _frontend.preprocess_hydra_args(args_cli.task, remaining_args)
 
 sys.argv = [sys.argv[0]] + remaining_args
@@ -198,9 +214,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # The frontend may mutate env_cfg in place (preset resolution,
         # SceneEntityCfg promotion, mdp twin swaps, ...) before constructing
         # the env. ``env.unwrapped.frontend_report`` carries what changed
-        # and what was missing.
+        # and what was missing. When the experimental frontend package isn't
+        # available we already validated --frontend=torch above, so a plain
+        # gym.make is the documented fallback.
         render_mode = "rgb_array" if args_cli.video else None
-        env = _frontend.build(env_cfg, task_id=args_cli.task, render_mode=render_mode)
+        if _frontend is not None:
+            env = _frontend.build(env_cfg, task_id=args_cli.task, render_mode=render_mode)
+        else:
+            env = gym.make(args_cli.task, cfg=env_cfg, render_mode=render_mode)
 
         # convert to single-agent instance if required by the RL algorithm
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
