@@ -93,7 +93,11 @@ class RenderData:
         wp.launch(
             RenderData._update_transforms,
             self.newton_sensor.model.world_count,
-            [positions, converted_orientations, self.camera_transforms],
+            [
+                positions.view(wp.vec3f),
+                converted_orientations.view(wp.quatf),
+                self.camera_transforms.view(wp.transformf),
+            ],
             device=self.newton_sensor.model.device,
         )
 

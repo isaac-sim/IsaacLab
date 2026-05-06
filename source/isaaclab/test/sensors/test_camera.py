@@ -447,68 +447,36 @@ def test_depth_clipping(setup_sim_camera):
     camera_none.update(dt)
     camera_max.update(dt)
 
+    none_d2c = wp.to_torch(camera_none.data.output["distance_to_camera"])
+    none_d2ip = wp.to_torch(camera_none.data.output["distance_to_image_plane"])
+    zero_d2c = wp.to_torch(camera_zero.data.output["distance_to_camera"])
+    zero_d2ip = wp.to_torch(camera_zero.data.output["distance_to_image_plane"])
+    max_d2c = wp.to_torch(camera_max.data.output["distance_to_camera"])
+    max_d2ip = wp.to_torch(camera_max.data.output["distance_to_image_plane"])
+
     # none clipping should contain inf values
-    assert torch.isinf(camera_none.data.output["distance_to_camera"]).any()
-    assert torch.isinf(camera_none.data.output["distance_to_image_plane"]).any()
-    assert (
-        camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].min()
-        >= camera_cfg_zero.spawn.clipping_range[0]
-    )
-    assert (
-        camera_none.data.output["distance_to_camera"][~torch.isinf(camera_none.data.output["distance_to_camera"])].max()
-        <= camera_cfg_zero.spawn.clipping_range[1]
-    )
-    assert (
-        camera_none.data.output["distance_to_image_plane"][
-            ~torch.isinf(camera_none.data.output["distance_to_image_plane"])
-        ].min()
-        >= camera_cfg_zero.spawn.clipping_range[0]
-    )
-    assert (
-        camera_none.data.output["distance_to_image_plane"][
-            ~torch.isinf(camera_none.data.output["distance_to_camera"])
-        ].max()
-        <= camera_cfg_zero.spawn.clipping_range[1]
-    )
+    assert torch.isinf(none_d2c).any()
+    assert torch.isinf(none_d2ip).any()
+    assert none_d2c[~torch.isinf(none_d2c)].min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert none_d2c[~torch.isinf(none_d2c)].max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert none_d2ip[~torch.isinf(none_d2ip)].min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert none_d2ip[~torch.isinf(none_d2c)].max() <= camera_cfg_zero.spawn.clipping_range[1]
 
     # zero clipping should result in zero values
-    assert torch.all(
-        camera_zero.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])] == 0.0
-    )
-    assert torch.all(
-        camera_zero.data.output["distance_to_image_plane"][
-            torch.isinf(camera_none.data.output["distance_to_image_plane"])
-        ]
-        == 0.0
-    )
-    assert (
-        camera_zero.data.output["distance_to_camera"][camera_zero.data.output["distance_to_camera"] != 0.0].min()
-        >= camera_cfg_zero.spawn.clipping_range[0]
-    )
-    assert camera_zero.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1]
-    assert (
-        camera_zero.data.output["distance_to_image_plane"][
-            camera_zero.data.output["distance_to_image_plane"] != 0.0
-        ].min()
-        >= camera_cfg_zero.spawn.clipping_range[0]
-    )
-    assert camera_zero.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert torch.all(zero_d2c[torch.isinf(none_d2c)] == 0.0)
+    assert torch.all(zero_d2ip[torch.isinf(none_d2ip)] == 0.0)
+    assert zero_d2c[zero_d2c != 0.0].min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert zero_d2c.max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert zero_d2ip[zero_d2ip != 0.0].min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert zero_d2ip.max() <= camera_cfg_zero.spawn.clipping_range[1]
 
     # max clipping should result in max values
-    assert torch.all(
-        camera_max.data.output["distance_to_camera"][torch.isinf(camera_none.data.output["distance_to_camera"])]
-        == camera_cfg_zero.spawn.clipping_range[1]
-    )
-    assert torch.all(
-        camera_max.data.output["distance_to_image_plane"][
-            torch.isinf(camera_none.data.output["distance_to_image_plane"])
-        ]
-        == camera_cfg_zero.spawn.clipping_range[1]
-    )
-    assert camera_max.data.output["distance_to_camera"].min() >= camera_cfg_zero.spawn.clipping_range[0]
-    assert camera_max.data.output["distance_to_camera"].max() <= camera_cfg_zero.spawn.clipping_range[1]
-    assert camera_max.data.output["distance_to_image_plane"].min() >= camera_cfg_zero.spawn.clipping_range[0]
-    assert camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert torch.all(max_d2c[torch.isinf(none_d2c)] == camera_cfg_zero.spawn.clipping_range[1])
+    assert torch.all(max_d2ip[torch.isinf(none_d2ip)] == camera_cfg_zero.spawn.clipping_range[1])
+    assert max_d2c.min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert max_d2c.max() <= camera_cfg_zero.spawn.clipping_range[1]
+    assert max_d2ip.min() >= camera_cfg_zero.spawn.clipping_range[0]
+    assert max_d2ip.max() <= camera_cfg_zero.spawn.clipping_range[1]
 
 
 def test_camera_resolution_all_colorize(setup_sim_camera):

@@ -38,6 +38,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@wp.kernel
+def _reset_frame(frames: wp.array(dtype=wp.int64), indices: wp.array(dtype=wp.int32)):
+    tid = wp.tid()
+    frames[indices[tid]] = wp.int64(0)
+
+
+@wp.kernel
+def _increase_frame(frames: wp.array(dtype=wp.int64), indices: wp.array(dtype=wp.int32)):
+    tid = wp.tid()
+    frames[indices[tid]] += wp.int64(1)
+
+
 class Camera(SensorBase):
     r"""The camera sensor for acquiring visual data.
 
@@ -235,7 +247,7 @@ class Camera(SensorBase):
         """
         # resolve env_ids
         if env_ids is None:
-            env_ids = self._ALL_INDICES
+            env_ids = self._ALL_INDICES.numpy()
         elif isinstance(env_ids, wp.array):
             env_ids = env_ids.numpy()
 
@@ -312,25 +324,25 @@ class Camera(SensorBase):
         # convert to backend warp array
         if positions is not None:
             if isinstance(positions, torch.Tensor):
-                positions = wp.from_torch(positions, dtype=wp.vec3, device=self._device)
+                positions = wp.from_torch(positions.to(device=self._device).contiguous(), dtype=wp.vec3)
             elif not isinstance(positions, wp.array):
                 positions = wp.array(positions, dtype=wp.vec3, device=self._device)
 
         # convert rotation matrix from input convention to OpenGL
         if orientations is not None:
             if isinstance(orientations, torch.Tensor):
-                orientations = wp.from_torch(orientations, dtype=wp.quat, device=self._device)
+                orientations = wp.from_torch(orientations.to(device=self._device).contiguous(), dtype=wp.quat)
             elif not isinstance(orientations, wp.array):
                 orientations = wp.array(orientations, dtype=wp.quat, device=self._device)
             orientations = wp.from_torch(
                 convert_camera_frame_orientation_convention(
                     wp.to_torch(orientations), origin=convention, target="opengl"
-                )
+                ).contiguous()
             )
 
         if env_ids is not None:
             if isinstance(env_ids, torch.Tensor):
-                env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self._device)
+                env_ids = wp.from_torch(env_ids.to(device=self._device, dtype=torch.int32).contiguous(), dtype=wp.int32)
             elif not isinstance(env_ids, wp.array):
                 env_ids = wp.array(env_ids, dtype=wp.int32, device=self._device)
 
@@ -356,12 +368,24 @@ class Camera(SensorBase):
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view
+        if isinstance(eyes, torch.Tensor):
+            eyes_torch = eyes.to(device=self._device)
+            eyes = wp.from_torch(eyes_torch.contiguous(), dtype=wp.vec3)
+        else:
+            eyes_torch = wp.to_torch(eyes).to(device=self._device)
+
+        if isinstance(targets, torch.Tensor):
+            targets_torch = targets.to(device=self._device)
+        else:
+            targets_torch = wp.to_torch(targets).to(device=self._device)
+
         orientations = quat_from_matrix(
-            create_rotation_matrix_from_view(wp.to_torch(eyes), wp.to_torch(targets), up_axis, device=self._device)
+            create_rotation_matrix_from_view(eyes_torch, targets_torch, up_axis, device=self._device)
         )
+        orientations = wp.from_torch(orientations.contiguous(), dtype=wp.quat)
 
         if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32, device=self._device)
+            env_ids = wp.from_torch(env_ids.to(device=self._device, dtype=torch.int32).contiguous(), dtype=wp.int32)
         elif not isinstance(env_ids, wp.array):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self._device)
 
@@ -383,12 +407,15 @@ class Camera(SensorBase):
             env_ids = wp.from_torch(wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1))
         elif env_ids is None:
             env_ids = self._ALL_INDICES
+
+        if not isinstance(env_ids, wp.array):
+            env_ids = wp.array(env_ids, dtype=wp.int32)
+
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         self._update_poses(env_ids)
         # Reset the frame count
-        frame_torch = wp.to_torch(self._frame)
-        frame_torch[env_ids] = 0
+        wp.launch(_reset_frame, env_ids.shape[0], [self._frame, env_ids])
 
     """
     Implementation.
@@ -472,8 +499,12 @@ class Camera(SensorBase):
             return
 
         # Increment frame count
-        frame_torch = wp.to_torch(self._frame)
-        frame_torch[env_ids] += 1
+        wp.launch(
+            _increase_frame,
+            env_ids.shape[0],
+            [self._frame, wp.array(env_ids.cpu().to(torch.int32), device=self._frame.device)],
+            device=self._frame.device,
+        )
 
         # update latest camera pose if requested
         if self.cfg.update_latest_camera_pose:
@@ -537,6 +568,7 @@ class Camera(SensorBase):
                 type(self._renderer).__name__,
                 unsupported,
             )
+
         self._data = CameraData.allocate(
             data_types=known,
             height=self.cfg.height,
@@ -618,7 +650,10 @@ class Camera(SensorBase):
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:
             self._renderer.update_camera(
-                self._render_data, self._data.pos_w.view(wp.vec3f), self._data.quat_w_world.view(wp.quatf), self._data.intrinsic_matrices
+                self._render_data,
+                self._data.pos_w.view(wp.vec3f),
+                self._data.quat_w_world.view(wp.quatf),
+                self._data.intrinsic_matrices,
             )
 
     """

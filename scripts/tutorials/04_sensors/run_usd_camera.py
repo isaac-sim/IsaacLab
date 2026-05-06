@@ -77,6 +77,7 @@ from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.camera.utils import create_pointcloud_from_depth
 from isaaclab.utils import convert_dict_to_backend
+from isaaclab.utils.array import convert_to_torch
 
 
 def define_sensor() -> Camera:
@@ -255,12 +256,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             and args_cli.draw
             and "distance_to_image_plane" in camera.data.output.keys()
         ):
-            # Derive pointcloud from camera at camera_index; lift wp.array fields to torch
+            # Derive pointcloud from camera at camera_index; lift buffers to torch.
             pointcloud = create_pointcloud_from_depth(
-                intrinsic_matrix=wp.to_torch(camera.data.intrinsic_matrices)[camera_index],
+                intrinsic_matrix=convert_to_torch(camera.data.intrinsic_matrices)[camera_index],
                 depth=wp.to_torch(camera.data.output["distance_to_image_plane"])[camera_index],
-                position=wp.to_torch(camera.data.pos_w)[camera_index],
-                orientation=wp.to_torch(camera.data.quat_w_ros)[camera_index],
+                position=convert_to_torch(camera.data.pos_w)[camera_index],
+                orientation=convert_to_torch(camera.data.quat_w_ros)[camera_index],
                 device=sim.device,
             )
 

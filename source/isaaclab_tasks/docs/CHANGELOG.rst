@@ -22,14 +22,8 @@ Fixed
 1.5.33 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
-Fixed
-^^^^^
-
-* Fixed dexsuite ``vision_camera`` observation and the Franka stack
-  ``stack_ik_rel_blueprint`` ``image()`` helper to lift ``wp.array`` camera
-  outputs and intrinsics to torch tensors via :func:`warp.to_torch` before
-  applying Torch tensor operations.
-
+Changed
+^^^^^^^
 
 * Re-enabled ``add_base_mass`` randomization on H1 and Cassie in their
   rough-terrain configs (previously ``= None`` per the pre-existing biped
@@ -40,9 +34,6 @@ Fixed
   lighter pelvis mass; ``(1.0, 1.25)`` recovers to 90% of the
   mass-rand-disabled baseline while retaining the domain-randomization
   benefit.
-* Updated cartpole camera environments to consume ``wp.array`` camera outputs
-  via :func:`warp.to_torch` before applying Torch observation processing.
-
 
 
 1.5.32 (2026-04-30)

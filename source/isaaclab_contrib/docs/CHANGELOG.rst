@@ -1,16 +1,6 @@
 Changelog
 ---------
 
-0.3.1 (2026-04-30)
-~~~~~~~~~~~~~~~~~~
-
-Changed
-^^^^^^^
-
-* Updated :class:`~isaaclab_contrib.sensors.tacsl_sensor.VisuotactileSensor`
-  to consume ``wp.array`` camera depth outputs via :func:`warp.to_torch`.
-
-
 0.3.0 (2026-02-13)
 ~~~~~~~~~~~~~~~~~~
 

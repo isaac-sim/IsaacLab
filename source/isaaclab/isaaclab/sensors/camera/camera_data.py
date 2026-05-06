@@ -12,6 +12,7 @@ import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
 from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
+from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
 __all__ = ["CameraData", "RenderBufferKind", "RenderBufferSpec"]
@@ -159,7 +160,9 @@ class CameraData:
         Shape is (N, 4) where N is the number of sensors.
         """
         return wp.from_torch(
-            convert_camera_frame_orientation_convention(wp.to_torch(self.quat_w_world), origin="world", target="ros")
+            convert_camera_frame_orientation_convention(
+                convert_to_torch(self.quat_w_world), origin="world", target="ros"
+            )
         )
 
     @property
@@ -173,5 +176,7 @@ class CameraData:
         Shape is (N, 4) where N is the number of sensors.
         """
         return wp.from_torch(
-            convert_camera_frame_orientation_convention(wp.to_torch(self.quat_w_world), origin="world", target="opengl")
+            convert_camera_frame_orientation_convention(
+                convert_to_torch(self.quat_w_world), origin="world", target="opengl"
+            )
         )

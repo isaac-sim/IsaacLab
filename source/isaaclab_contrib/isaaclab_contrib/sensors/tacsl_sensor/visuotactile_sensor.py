@@ -23,6 +23,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.camera import Camera
 from isaaclab.sensors.sensor_base import SensorBase
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import quat_apply, quat_inv
 
 from .visuotactile_render import GelsightRender
@@ -227,7 +228,7 @@ class VisuoTactileSensor(SensorBase):
         # Store the initial nominal tactile data
         self._nominal_tactile = dict()
         for key, value in initial_render.items():
-            self._nominal_tactile[key] = value.clone()
+            self._nominal_tactile[key] = convert_to_torch(value).clone()
 
         return self._nominal_tactile
 
@@ -583,7 +584,7 @@ class VisuoTactileSensor(SensorBase):
             depth_key = "depth"
 
         if depth_key:
-            self._data.tactile_depth_image[env_ids] = wp.to_torch(camera_data.output[depth_key])[env_ids].clone()
+            self._data.tactile_depth_image[env_ids] = convert_to_torch(camera_data.output[depth_key])[env_ids].clone()
             diff = self._nominal_tactile[depth_key][env_ids] - self._data.tactile_depth_image[env_ids]
             self._data.tactile_rgb_image[env_ids] = self._tactile_rgb_render.render(diff.squeeze(-1))
 

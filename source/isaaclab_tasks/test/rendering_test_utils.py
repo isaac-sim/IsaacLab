@@ -14,6 +14,8 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils.array import convert_to_torch
+
 # Directory containing golden images.
 _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_images")
 
@@ -573,7 +575,7 @@ def validate_camera_outputs(
     test_name: str,
     physics_backend: str,
     renderer: str,
-    camera_outputs: dict[str, torch.Tensor],
+    camera_outputs: dict[str, Any],
     max_different_pixels_percentage: float,
     comparison_scores: list[dict],
 ) -> None:
@@ -587,6 +589,7 @@ def validate_camera_outputs(
     failed_data_types = {}
 
     for data_type, tensor in camera_outputs.items():
+        tensor = convert_to_torch(tensor)
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
         max_val = corrected.max()

@@ -36,6 +36,8 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
 from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
 
+from isaaclab.utils.array import convert_to_torch  # noqa: E402
+
 from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv  # noqa: E402
 from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import (  # noqa: E402
     ShadowHandVisionBenchmarkEnvCfg,
@@ -416,6 +418,7 @@ def test_camera_renders_not_empty(render_correctness_env):
     camera_output = env._tiled_camera.data.output
     assert len(camera_output) > 0, f"[{label}] Camera produced no output tensors at all."
     for dt, tensor in camera_output.items():
+        tensor = convert_to_torch(tensor)
         finite = torch.where(torch.isinf(tensor), torch.zeros_like(tensor), tensor)
         # import pdb; pdb.set_trace()
         assert finite.max() > 0.2, (

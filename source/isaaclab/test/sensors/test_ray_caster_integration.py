@@ -42,9 +42,14 @@ from isaaclab.sensors.ray_caster import (
 )
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
+from isaaclab.utils.array import convert_to_torch
 
 _GROUND_PATH = "/World/Ground"
 _DT = 0.01
+
+
+def _camera_output_to_torch(camera, data_type: str) -> torch.Tensor:
+    return convert_to_torch(camera.data.output[data_type])
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +231,7 @@ def test_multi_mesh_camera_set_intrinsic_matrices(sim_ground_camera):
     for _ in range(3):
         sim.step()
         camera.update(_DT)
-    output_before = camera.data.output["distance_to_camera"].clone()
+    output_before = _camera_output_to_torch(camera, "distance_to_camera").clone()
 
     # Change to a very different intrinsic matrix (different FOV)
     new_matrix = torch.tensor(
@@ -238,7 +243,7 @@ def test_multi_mesh_camera_set_intrinsic_matrices(sim_ground_camera):
     for _ in range(3):
         sim.step()
         camera.update(_DT)
-    output_after = camera.data.output["distance_to_camera"].clone()
+    output_after = _camera_output_to_torch(camera, "distance_to_camera").clone()
 
     assert not torch.allclose(output_before, output_after, atol=1e-3), (
         "MultiMeshRayCasterCamera: depth output must change after set_intrinsic_matrices; "
@@ -292,10 +297,10 @@ def test_multi_mesh_camera_d2ip_and_d2c_independent(sim_ground_camera):
     cam_d2ip.update(_DT)
     cam_d2c.update(_DT)
 
-    d2ip_joint = cam_joint.data.output["distance_to_image_plane"]
-    d2c_joint = cam_joint.data.output["distance_to_camera"]
-    d2ip_solo = cam_d2ip.data.output["distance_to_image_plane"]
-    d2c_solo = cam_d2c.data.output["distance_to_camera"]
+    d2ip_joint = _camera_output_to_torch(cam_joint, "distance_to_image_plane")
+    d2c_joint = _camera_output_to_torch(cam_joint, "distance_to_camera")
+    d2ip_solo = _camera_output_to_torch(cam_d2ip, "distance_to_image_plane")
+    d2c_solo = _camera_output_to_torch(cam_d2c, "distance_to_camera")
 
     # Joint camera must match solo cameras (clipping one must not corrupt the other)
     torch.testing.assert_close(d2ip_joint, d2ip_solo, atol=1e-5, rtol=1e-5)

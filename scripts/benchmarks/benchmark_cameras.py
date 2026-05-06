@@ -269,6 +269,7 @@ from isaaclab.sensors import (
     patterns,
 )
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, DictMeasurement, SingleMeasurement
+from isaaclab.utils.array import convert_to_torch
 from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
 from isaaclab_tasks.utils import load_cfg_from_registry
@@ -676,8 +677,8 @@ def run_simulator(
                     # Only update the camera if it hasn't been updated as part of scene_entities.update ...
                     camera.update(dt=sim.get_physics_dt())
 
-                # camera outputs and intrinsics are wp.array; lift to torch for math + collection
-                intrinsics_torch = wp.to_torch(camera.data.intrinsic_matrices)
+                # Camera outputs are raw wp.array, while migrated metadata accessors expose .torch.
+                intrinsics_torch = convert_to_torch(camera.data.intrinsic_matrices)
 
                 for data_type in data_types:
                     data_label = f"{label}_{cam_idx}_{data_type}"

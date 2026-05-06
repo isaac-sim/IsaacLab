@@ -7,12 +7,6 @@ Changelog
 Changed
 ^^^^^^^
 
-* Changed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` to consume
-  ``wp.array`` camera output buffers and camera state arrays from
-  :class:`~isaaclab.renderers.BaseRenderer`. Use :func:`warp.to_torch` on
-  ``camera.data.output`` entries if Torch tensor operations are required.
-* Updated PhysX PVA debug visualization to convert camera-convention
-  orientation outputs with :func:`warp.to_torch`.
 * Added fused :meth:`~isaaclab_physx.assets.Articulation.write_joint_state_to_sim_index`
   that writes joint position and velocity in a single kernel launch instead of two.
 * Cached ``.view(wp.float32)`` results in root pose/velocity writers and wrench
