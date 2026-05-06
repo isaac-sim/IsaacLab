@@ -138,6 +138,90 @@ def test_fragment_filename_extracts_dotted_slug_and_tier():
     assert fn.tier == "minor"
 
 
+@pytest.mark.parametrize(
+    "name,expected_slug,expected_tier",
+    [
+        # One representative case per tier so each branch of the SUFFIXES
+        # tuple is exercised on its own.
+        ("plain.rst", "plain", "patch"),
+        ("with-feature.minor.rst", "with-feature", "minor"),
+        ("with-break.major.rst", "with-break", "major"),
+        ("ci-only.skip", "ci-only", "skip"),
+        # Dotted slug carries the most-specific suffix.
+        ("v1.2.3-bump.major.rst", "v1.2.3-bump", "major"),
+        # Filenames that don't match any suffix yield ``(None, None)``.
+        ("not-a-fragment", None, None),
+        ("README.md", None, None),
+    ],
+)
+def test_fragment_filename_slug_and_tier(name, expected_slug, expected_tier):
+    fn = cli.FragmentFilename(name)
+    assert fn.slug == expected_slug
+    assert fn.tier == expected_tier
+
+
+@pytest.mark.parametrize(
+    "name,is_valid,is_fragment,is_skip",
+    [
+        # ``is_valid`` is true for both fragments and skip markers; only the
+        # latter two flags partition the parsed names. This grid asserts
+        # they're consistent for the four interesting outcomes.
+        ("plain.rst", True, True, False),
+        ("plain.minor.rst", True, True, False),
+        ("ci-only.skip", True, False, True),
+        ("not-a-fragment", False, False, False),
+    ],
+)
+def test_fragment_filename_validity_and_kind(name, is_valid, is_fragment, is_skip):
+    fn = cli.FragmentFilename(name)
+    assert fn.is_valid is is_valid
+    assert fn.is_fragment is is_fragment
+    assert fn.is_skip is is_skip
+
+
+@pytest.mark.parametrize(
+    "bad_char",
+    # Each forbidden char in :attr:`FragmentFilename._FORBIDDEN_CHARS` plus a
+    # representative ASCII control char and the ``DEL`` sentinel — the regex
+    # used to call these out via membership checks; the parser should still
+    # reject them per character.
+    [" ", "~", "^", ":", "?", "*", "[", "\\", "\x01", "\x7f"],
+)
+def test_fragment_filename_rejects_forbidden_chars(bad_char):
+    fn = cli.FragmentFilename(f"slug{bad_char}with-bad-char.rst")
+    assert fn.is_valid is False
+    assert fn.slug is None
+    assert fn.tier is None
+
+
+@pytest.mark.parametrize(
+    "name",
+    # Edge cases that don't fit cleanly into the parametrized validity grid:
+    # an empty filename, a filename that's *only* a suffix (slug would be
+    # empty), and the ``@{`` substring git refnames forbid.
+    [
+        "",
+        ".rst",
+        ".minor.rst",
+        ".skip",
+        "has@{atbrace}.rst",
+    ],
+)
+def test_fragment_filename_rejects_structural_edge_cases(name):
+    fn = cli.FragmentFilename(name)
+    assert fn.is_valid is False
+
+
+def test_fragment_filename_suffixes_are_canonical():
+    """``SUFFIXES`` is the wire-format contract — pin the exact tuple."""
+    assert cli.FragmentFilename.SUFFIXES == (
+        (".minor.rst", "minor"),
+        (".major.rst", "major"),
+        (".skip", "skip"),
+        (".rst", "patch"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Fragment.parse_slug — derived from filename for collision detection
 # ---------------------------------------------------------------------------
