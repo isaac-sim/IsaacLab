@@ -8,7 +8,7 @@ from __future__ import annotations
 import dataclasses
 import warnings
 from collections.abc import Callable
-from typing import Literal
+from typing import ClassVar, Literal
 
 from isaaclab.sim.spawners.materials import PhysicsMaterialCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
@@ -141,9 +141,9 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
 
     # -- Class metadata (not dataclass fields) --
     # USD applied schema written when at least one PhysX-namespaced field is set.
-    _usd_applied_schema = "PhysxMaterialAPI"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxMaterialAPI"
     # Prim attribute namespace for PhysX-specific fields.
-    _usd_namespace = "physxMaterial"
+    _usd_namespace: ClassVar[str | None] = "physxMaterial"
 
     compliant_contact_stiffness: float | None = None
     """Spring stiffness for a compliant contact model using implicit springs.

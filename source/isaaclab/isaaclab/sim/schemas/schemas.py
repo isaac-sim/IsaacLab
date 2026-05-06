@@ -113,14 +113,28 @@ Schema-application helper.
 """
 
 
+def _get_field_declaring_class(cfg_class: type, field_name: str) -> type | None:
+    """Return the most-base class in the MRO that declares ``field_name``.
+
+    Each cfg field is owned by a single class in the hierarchy (the one whose body
+    contains its annotation). This function walks the MRO in reverse so a base class
+    declaration wins over a subclass redeclaration with the same name -- the field's
+    USD namespace follows where it semantically lives, not where it was last
+    overridden for default values.
+    """
+    for cls in reversed(cfg_class.__mro__):
+        if field_name in getattr(cls, "__annotations__", {}):
+            return cls
+    return None
+
+
 def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
-    """Apply per-field exception schemas, then the cfg's main namespaced schema.
+    """Route every cfg field to its declaring class's namespace and apply schemas.
 
     The helper handles the common ``AddAppliedSchema`` + namespaced-attribute write
-    logic shared by every metadata-driven writer (rigid body, collision, joint drive,
-    articulation root, mesh collision, rigid-body material). Caller is responsible for
-    writing standard ``UsdPhysics`` fields via the typed API and popping them out of
-    ``cfg_dict`` first.
+    logic shared by every metadata-driven writer. Caller is responsible for popping
+    fields that need typed-API writes (multi-instance ``UsdPhysics.DriveAPI``,
+    ``TfToken`` attributes with ``allowedTokens``) out of ``cfg_dict`` first.
 
     USD attribute names are derived by snake_case -> camelCase conversion of cfg field
     names. The codebase enforces this as a convention: any cfg field whose
@@ -133,9 +147,12 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
        ``applied_schema -> (namespace, [cfg_field, ...])``. For each schema, if any
        listed field is non-None, the schema is applied (once) and each non-None field is
        written under that schema's namespace. Fields are popped from ``cfg_dict``.
-    2. **Main namespace** -- the remaining non-None entries in ``cfg_dict`` are written
-       under ``cfg._usd_namespace``; ``cfg._usd_applied_schema`` is applied if any write
-       fired.
+    2. **Per-declaring-class routing** -- each remaining non-None field is grouped by the
+       class that declares it (walking the MRO). Each group writes under that class's
+       ``_usd_namespace`` and applies that class's ``_usd_applied_schema`` (if any). This
+       means base-class fields go under the base namespace (e.g. ``physics:*``) even when
+       the cfg instance is a PhysX subclass -- the subclass's ``_usd_namespace =
+       "physxRigidBody"`` only governs *its own* fields.
 
     Args:
         prim: The USD prim to author on.
@@ -143,9 +160,12 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
         cfg_dict: A mutable dict view of the cfg's non-metadata fields. Modified in place.
 
     Raises:
-        ValueError: If main-namespace writes are queued but ``_usd_namespace`` is None.
+        ValueError: If a non-None field's declaring class does not define ``_usd_namespace``.
     """
-    # 1. Per-field exceptions
+    cfg_class = type(cfg)
+
+    # 1. Per-field exceptions (overrides per-class routing for codeless-PhysX-namespace
+    #    fields like ``disable_gravity`` on RigidBodyBaseCfg).
     field_exceptions = getattr(cfg, "_usd_field_exceptions", {}) or {}
     for applied_schema, (exc_ns, fields) in field_exceptions.items():
         triggered: list[tuple[str, object]] = []
@@ -161,24 +181,31 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
         for usd_attr, value in triggered:
             safe_set_attribute_on_usd_prim(prim, f"{exc_ns}:{usd_attr}", value, camel_case=False)
 
-    # 2. Main cfg namespace
-    namespace = getattr(cfg, "_usd_namespace", None)
-    applied_schema = getattr(cfg, "_usd_applied_schema", None)
+    # 2. Group remaining non-None writes by declaring class.
+    by_class: dict[type, list[tuple[str, object]]] = {}
+    for cfg_field, value in list(cfg_dict.items()):
+        if value is None:
+            continue
+        decl_class = _get_field_declaring_class(cfg_class, cfg_field)
+        if decl_class is None:
+            continue
+        by_class.setdefault(decl_class, []).append((to_camel_case(cfg_field, "cC"), value))
 
-    writes: list[tuple[str, object]] = [
-        (to_camel_case(cfg_field, "cC"), value) for cfg_field, value in cfg_dict.items() if value is not None
-    ]
-    if not writes:
-        return
-    if namespace is None:
-        raise ValueError(
-            f"{type(cfg).__name__} has solver-specific fields {[a for a, _ in writes]}"
-            " but does not define '_usd_namespace'."
-        )
-    if applied_schema and applied_schema not in prim.GetAppliedSchemas():
-        prim.AddAppliedSchema(applied_schema)
-    for usd_attr, value in writes:
-        safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
+    for decl_class, writes in by_class.items():
+        # Read namespace/schema from the declaring class's own ``__dict__`` (not via
+        # ``getattr``) so subclass overrides don't leak into base-field routing.
+        namespace = decl_class.__dict__.get("_usd_namespace", None)
+        applied_schema = decl_class.__dict__.get("_usd_applied_schema", None)
+        if namespace is None:
+            raise ValueError(
+                f"{decl_class.__name__} declares fields {[a for a, _ in writes]} but does"
+                " not define '_usd_namespace'. Add '_usd_namespace' to the class metadata"
+                " or route the fields via '_usd_field_exceptions'."
+            )
+        if applied_schema and applied_schema not in prim.GetAppliedSchemas():
+            prim.AddAppliedSchema(applied_schema)
+        for usd_attr, value in writes:
+            safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
 
 """
@@ -424,18 +451,13 @@ def modify_rigid_body_properties(
     # check if prim has rigid-body applied on it
     if not UsdPhysics.RigidBodyAPI(rigid_body_prim):
         return False
-    # retrieve the USD rigid-body api
-    usd_rigid_body_api = UsdPhysics.RigidBodyAPI(rigid_body_prim)
-
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
     cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
 
-    # set into USD API (solver-common properties; UsdPhysics.RigidBodyAPI fields)
-    for attr_name in ["rigid_body_enabled", "kinematic_enabled"]:
-        value = cfg_dict.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_rigid_body_api, attr_name, value, camel_case=True)
-
-    # apply per-field exceptions + main-namespace writes
+    # All fields routed by the helper via per-declaring-class lookup: base
+    # ``rigid_body_enabled`` / ``kinematic_enabled`` go under ``physics:*``;
+    # ``disable_gravity`` via field exceptions; PhysX-subclass fields under
+    # ``physxRigidBody:*``.
     _apply_namespaced_schemas(rigid_body_prim, cfg, cfg_dict)
     return True
 
@@ -515,9 +537,6 @@ def modify_collision_properties(
     # check if prim has collision applied on it
     if not UsdPhysics.CollisionAPI(collider_prim):
         return False
-    # retrieve the USD collision api
-    usd_collision_api = UsdPhysics.CollisionAPI(collider_prim)
-
     # dispatch nested mesh-collision cfg if present (preserve legacy behavior)
     mesh_collision_cfg = getattr(cfg, "mesh_collision_property", None)
     if mesh_collision_cfg is not None:
@@ -528,12 +547,10 @@ def modify_collision_properties(
     # pop the mesh_collision_property since it is already dispatched above
     cfg_dict.pop("mesh_collision_property", None)
 
-    # set into USD API (solver-common ``UsdPhysics.CollisionAPI`` fields)
-    for attr_name in ["collision_enabled"]:
-        value = cfg_dict.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_collision_api, attr_name, value, camel_case=True)
-
-    # apply per-field exceptions + main-namespace writes
+    # All fields routed by the helper via per-declaring-class lookup: base
+    # ``collision_enabled`` goes under ``physics:*``; ``contact_offset`` /
+    # ``rest_offset`` via field exceptions; PhysX-subclass fields under
+    # ``physxCollision:*``.
     _apply_namespaced_schemas(collider_prim, cfg, cfg_dict)
     # success
     return True
@@ -613,15 +630,10 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     # check if prim has mass API applied on it
     if not UsdPhysics.MassAPI(rigid_prim):
         return False
-    # retrieve the USD mass api
-    usd_physics_mass_api = UsdPhysics.MassAPI(rigid_prim)
 
-    # convert to dict
-    cfg = cfg.to_dict()
-    # set into USD API
-    for attr_name in ["mass", "density"]:
-        value = cfg.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_physics_mass_api, attr_name, value, camel_case=True)
+    # ``mass`` / ``density`` (``physics:*``) routed via the helper's per-declaring-class lookup.
+    cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_")}
+    _apply_namespaced_schemas(rigid_prim, cfg, cfg_dict)
     # success
     return True
 

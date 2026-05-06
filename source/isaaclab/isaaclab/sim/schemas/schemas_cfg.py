@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Literal
+from typing import ClassVar, Literal
 
 from isaaclab.utils import configclass
 
@@ -105,13 +105,13 @@ class ArticulationRootBaseCfg:
     # -- Class metadata (not dataclass fields) --
     # No base-native namespace today: every field is either solver-common (typed
     # UsdPhysics API) or routed through ``_usd_field_exceptions``.
-    _usd_namespace = None
-    _usd_applied_schema = None
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_applied_schema: ClassVar[str | None] = None
     # Per-field exceptions: applied_schema -> (namespace, [cfg_field, ...]). The USD
     # attribute name is the auto snake -> camelCase of the cfg field name (project
     # convention). When any listed field is non-None at write time, the writer applies
     # the schema and writes the attribute under the exception namespace.
-    _usd_field_exceptions: dict[str, tuple[str, list[str]]] = {
+    _usd_field_exceptions: ClassVar[dict] = {
         "PhysxArticulationAPI": ("physxArticulation", ["articulation_enabled"]),
     }
 
@@ -168,12 +168,15 @@ class RigidBodyBaseCfg:
     """
 
     # -- Class metadata (not dataclass fields) --
-    # No base-native namespace today: ``rigid_body_enabled`` and ``kinematic_enabled``
-    # are written via the typed ``UsdPhysics.RigidBodyAPI``; ``disable_gravity`` is
-    # routed through ``_usd_field_exceptions`` to ``physxRigidBody:disableGravity``.
-    _usd_namespace = None
-    _usd_applied_schema = None
-    _usd_field_exceptions: dict[str, tuple[str, list[str]]] = {
+    # ``rigid_body_enabled`` and ``kinematic_enabled`` write to ``physics:*`` (UsdPhysics
+    # standard attributes). The helper's per-declaring-class routing keeps these under
+    # the base namespace even when the cfg is a PhysX subclass instance. The
+    # ``UsdPhysics.RigidBodyAPI`` schema is applied upstream by ``define_rigid_body_properties``
+    # so ``_usd_applied_schema`` here stays None. ``disable_gravity`` is routed via
+    # ``_usd_field_exceptions`` to ``physxRigidBody:disableGravity``.
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {
         "PhysxRigidBodyAPI": ("physxRigidBody", ["disable_gravity"]),
     }
 
@@ -234,12 +237,13 @@ class CollisionBaseCfg:
     """
 
     # -- Class metadata (not dataclass fields) --
-    # No base-native namespace today: ``collision_enabled`` is written via the typed
-    # ``UsdPhysics.CollisionAPI``; ``contact_offset`` / ``rest_offset`` are routed
-    # through ``_usd_field_exceptions`` to ``physxCollision:*``.
-    _usd_namespace = None
-    _usd_applied_schema = None
-    _usd_field_exceptions: dict[str, tuple[str, list[str]]] = {
+    # ``collision_enabled`` writes to ``physics:collisionEnabled`` (UsdPhysics standard).
+    # The helper's per-declaring-class routing keeps it under ``physics:*`` even when
+    # the cfg is a PhysX subclass instance. ``contact_offset`` / ``rest_offset`` are
+    # routed via ``_usd_field_exceptions`` to ``physxCollision:*``.
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {
         "PhysxCollisionAPI": ("physxCollision", ["contact_offset", "rest_offset"]),
     }
 
@@ -283,6 +287,13 @@ class MassPropertiesCfg:
         the properties and leave the rest as-is.
     """
 
+    # -- Class metadata (not dataclass fields) --
+    # ``mass`` / ``density`` write to ``physics:*`` (UsdPhysics standard attributes).
+    # The ``UsdPhysics.MassAPI`` schema is applied upstream by ``define_mass_properties``.
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {}
+
     mass: float | None = None
     """The mass of the rigid body (in kg).
 
@@ -323,9 +334,9 @@ class JointDriveBaseCfg:
     # written via the typed ``UsdPhysics.DriveAPI``; ``max_joint_velocity`` is routed
     # through ``_usd_field_exceptions`` to ``physxJoint:maxJointVelocity`` (the only
     # USD path to ``Model.joint_velocity_limit`` today).
-    _usd_namespace = None
-    _usd_applied_schema = None
-    _usd_field_exceptions: dict[str, tuple[str, list[str]]] = {
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {
         "PhysxJointAPI": ("physxJoint", ["max_joint_velocity"]),
     }
 
@@ -435,11 +446,11 @@ class MeshCollisionBaseCfg:
     # mesh-collision cfg is supplied; ``_usd_applied_schema`` here records the standard
     # API name so subclasses that author no PhysX namespace can rely on the writer's
     # standard-vs-PhysX gating logic. PhysX-cooking subclasses override this.
-    _usd_applied_schema = "MeshCollisionAPI"
+    _usd_applied_schema: ClassVar[str | None] = "MeshCollisionAPI"
     # Base class authors no PhysX-namespaced fields, so no namespace is defined.
-    _usd_namespace = None
-    _usd_attr_name_map: dict[str, str] = {}
-    _usd_field_exceptions: dict[str, tuple[str, dict[str, str]]] = {}
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_attr_name_map: ClassVar[dict] = {}
+    _usd_field_exceptions: ClassVar[dict] = {}
 
     mesh_approximation_name: str = "none"
     """Name of mesh collision approximation method. Default: "none".

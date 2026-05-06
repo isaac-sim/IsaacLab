@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from pxr import Usd, UsdPhysics, UsdShade
 
 from isaaclab.sim.schemas.schemas import _apply_namespaced_schemas
-from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_schema
+from isaaclab.sim.utils import clone
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -63,19 +63,14 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
 
     # apply the standard UsdPhysics MaterialAPI (always)
-    usd_physics_material_api = UsdPhysics.MaterialAPI(prim)
-    if not usd_physics_material_api:
-        usd_physics_material_api = UsdPhysics.MaterialAPI.Apply(prim)
+    if not UsdPhysics.MaterialAPI(prim):
+        UsdPhysics.MaterialAPI.Apply(prim)
 
     # build cfg dict, dropping underscore-prefixed metadata keys and the spawner ``func`` field
     cfg_dict = {k: v for k, v in cfg.to_dict().items() if not k.startswith("_") and k != "func"}
 
-    # write standard UsdPhysics.MaterialAPI fields (friction + restitution)
-    for attr_name in ("static_friction", "dynamic_friction", "restitution"):
-        value = cfg_dict.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_physics_material_api, attr_name, value, camel_case=True)
-
-    # apply per-field exceptions + main-namespace writes
+    # All fields routed by the helper: base friction/restitution under ``physics:*``,
+    # PhysX-subclass fields (compliant-contact, combine modes) under ``physxMaterial:*``.
     _apply_namespaced_schemas(prim, cfg, cfg_dict)
 
     # return the prim

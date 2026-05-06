@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 import warnings
+from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
@@ -217,8 +218,8 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     # PhysX-specific fields below all live under the ``PhysxRigidBodyAPI`` schema's
     # ``physxRigidBody:*`` namespace. The ``disable_gravity`` field on the base remains
     # routed via ``_usd_field_exceptions`` (inherited).
-    _usd_applied_schema = "PhysxRigidBodyAPI"
-    _usd_namespace = "physxRigidBody"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxRigidBodyAPI"
+    _usd_namespace: ClassVar[str | None] = "physxRigidBody"
 
     linear_damping: float | None = None
     """Linear damping for the body."""
@@ -301,8 +302,8 @@ class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     # ``max_joint_velocity`` on the base remains routed via ``_usd_field_exceptions``
     # (inherited). Future PhysX-only joint-drive fields would be written under this
     # namespace.
-    _usd_applied_schema = "PhysxJointAPI"
-    _usd_namespace = "physxJoint"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxJointAPI"
+    _usd_namespace: ClassVar[str | None] = "physxJoint"
 
 
 @configclass
@@ -349,8 +350,8 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     # PhysX torsional-friction fields below live under the ``PhysxCollisionAPI`` schema's
     # ``physxCollision:*`` namespace. Base ``contact_offset`` / ``rest_offset`` remain
     # routed via ``_usd_field_exceptions`` (inherited).
-    _usd_applied_schema = "PhysxCollisionAPI"
-    _usd_namespace = "physxCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxCollisionAPI"
+    _usd_namespace: ClassVar[str | None] = "physxCollision"
 
     torsional_patch_radius: float | None = None
     """Radius of the contact patch for applying torsional friction [m].
@@ -387,8 +388,8 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     # PhysX articulation-root fields below live under the ``PhysxArticulationAPI`` schema's
     # ``physxArticulation:*`` namespace. Base ``articulation_enabled`` remains routed via
     # ``_usd_field_exceptions`` (inherited).
-    _usd_applied_schema = "PhysxArticulationAPI"
-    _usd_namespace = "physxArticulation"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxArticulationAPI"
+    _usd_namespace: ClassVar[str | None] = "physxArticulation"
 
     enabled_self_collisions: bool | None = None
     """Whether self-collisions between bodies in the same articulation are enabled.
@@ -487,8 +488,8 @@ class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
     """
 
-    _usd_applied_schema = "PhysxConvexHullCollisionAPI"
-    _usd_namespace = "physxConvexHullCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxConvexHullCollisionAPI"
+    _usd_namespace: ClassVar[str | None] = "physxConvexHullCollision"
 
     mesh_approximation_name: str = "convexHull"
     """Name of mesh collision approximation method. Default: "convexHull"."""
@@ -515,8 +516,8 @@ class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
     """
 
-    _usd_applied_schema = "PhysxConvexDecompositionCollisionAPI"
-    _usd_namespace = "physxConvexDecompositionCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxConvexDecompositionCollisionAPI"
+    _usd_namespace: ClassVar[str | None] = "physxConvexDecompositionCollision"
 
     mesh_approximation_name: str = "convexDecomposition"
     """Name of mesh collision approximation method. Default: "convexDecomposition"."""
@@ -565,8 +566,8 @@ class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
     """
 
-    _usd_applied_schema = "PhysxTriangleMeshCollisionAPI"
-    _usd_namespace = "physxTriangleMeshCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshCollisionAPI"
+    _usd_namespace: ClassVar[str | None] = "physxTriangleMeshCollision"
 
     mesh_approximation_name: str = "none"
     """Name of mesh collision approximation method. Default: "none" (uses triangle mesh)."""
@@ -589,8 +590,8 @@ class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
     """
 
-    _usd_applied_schema = "PhysxTriangleMeshSimplificationCollisionAPI"
-    _usd_namespace = "physxTriangleMeshSimplificationCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshSimplificationCollisionAPI"
+    _usd_namespace: ClassVar[str | None] = "physxTriangleMeshSimplificationCollision"
 
     mesh_approximation_name: str = "meshSimplification"
     """Name of mesh collision approximation method. Default: "meshSimplification"."""
@@ -623,8 +624,8 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyCollision.html#dynamic-triangle-meshes-with-sdfs
     """
 
-    _usd_applied_schema = "PhysxSDFMeshCollisionAPI"
-    _usd_namespace = "physxSDFMeshCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxSDFMeshCollisionAPI"
+    _usd_namespace: ClassVar[str | None] = "physxSDFMeshCollision"
 
     mesh_approximation_name: str = "sdf"
     """Name of mesh collision approximation method. Default: "sdf"."""

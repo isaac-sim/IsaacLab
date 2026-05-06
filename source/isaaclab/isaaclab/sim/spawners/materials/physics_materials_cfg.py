@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import ClassVar
 
 from isaaclab.utils import configclass
 
@@ -58,6 +59,14 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
 
     .. _UsdPhysics.MaterialAPI: https://openusd.org/dev/api/class_usd_physics_material_a_p_i.html
     """
+
+    # -- Class metadata (not dataclass fields) --
+    # ``static_friction`` / ``dynamic_friction`` / ``restitution`` write to ``physics:*``
+    # (UsdPhysics standard attributes). The helper's per-declaring-class routing keeps
+    # them under the base namespace even when the cfg is a PhysX subclass instance.
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {}
 
     func: Callable | str = "{DIR}.physics_materials:spawn_rigid_body_material"
 
