@@ -382,18 +382,27 @@ NEWTON_CFG_DEC = NewtonCfg(
 )
 
 
-class TestDecimation(unittest.TestCase):
-    """Lab vs Newton with decimation=2 and CUDA graph capture.
+class _DecimationTestBase(unittest.TestCase):
+    """Base for decimation tests with CUDA graph capture.
 
     Policy runs at 50 Hz, actuators at 100 Hz, physics at 200 Hz.
     The Newton path captures the full decimation loop as a CUDA graph;
     the Lab path runs an explicit per-substep loop.
+
+    Subclasses set ``actuators`` to the config under test.
     """
+
+    __test__ = False
+    actuators: dict = {}
+    pos_atol: float = 2e-3
+    pos_rtol: float = 1e-3
+    vel_atol: float = 0.1
+    vel_rtol: float = 1e-2
 
     @classmethod
     def setUpClass(cls):
         cls.lab_result = _run_simulation(
-            DC_MOTOR_ACTUATORS,
+            cls.actuators,
             use_newton_actuators=False,
             dt=DT_DEC,
             newton_cfg=NEWTON_CFG_DEC,
@@ -401,7 +410,7 @@ class TestDecimation(unittest.TestCase):
             decimation=DECIMATION,
         )
         cls.newton_result = _run_simulation(
-            DC_MOTOR_ACTUATORS,
+            cls.actuators,
             use_newton_actuators=True,
             dt=DT_DEC,
             newton_cfg=NEWTON_CFG_DEC,
@@ -416,8 +425,8 @@ class TestDecimation(unittest.TestCase):
             torch.testing.assert_close(
                 lab,
                 newton,
-                atol=2e-3,
-                rtol=1e-3,
+                atol=self.pos_atol,
+                rtol=self.pos_rtol,
                 msg=f"Positions diverged at policy step {step_i}",
             )
 
@@ -428,8 +437,8 @@ class TestDecimation(unittest.TestCase):
             torch.testing.assert_close(
                 lab,
                 newton,
-                atol=0.1,
-                rtol=1e-2,
+                atol=self.vel_atol,
+                rtol=self.vel_rtol,
                 msg=f"Velocities diverged at policy step {step_i}",
             )
 
@@ -438,6 +447,65 @@ class TestDecimation(unittest.TestCase):
         last = self.lab_result["joint_pos"][-1]
         diff = (last - first).abs().max().item()
         self.assertGreater(diff, 0.01, "Joints did not move — test is trivial")
+
+
+class TestDecimationDCMotor(_DecimationTestBase):
+    """DCMotor with decimation=2 and CUDA graph capture."""
+
+    __test__ = True
+    actuators = DC_MOTOR_ACTUATORS
+
+
+class TestDecimationIdealPD(_DecimationTestBase):
+    """IdealPD with decimation=2 and CUDA graph capture."""
+
+    __test__ = True
+    actuators = IDEAL_PD_ACTUATORS
+
+
+class TestDecimationDelayedPD(_DecimationTestBase):
+    """DelayedPD with decimation=2 and CUDA graph capture.
+
+    Delay buffers must be correctly stepped inside the captured graph.
+    """
+
+    __test__ = True
+    actuators = DELAYED_PD_ACTUATORS
+
+
+class TestDecimationMixed(_DecimationTestBase):
+    """Mixed actuators (IdealPD + DCMotor) with decimation=2 and CUDA graph."""
+
+    __test__ = True
+    actuators = MIXED_ACTUATORS
+
+
+class TestDecimationRemotizedPD(_DecimationTestBase):
+    """RemotizedPD (PD + delay + position-based clamping) with decimation=2."""
+
+    __test__ = True
+
+    @classmethod
+    def setUpClass(cls):
+        from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+
+        cls.actuators = {
+            "hips": IdealPDActuatorCfg(
+                joint_names_expr=[".*HAA", ".*HFE"],
+                stiffness=40.0,
+                damping=5.0,
+                effort_limit=80.0,
+            ),
+            "knees": RemotizedPDActuatorCfg(
+                joint_names_expr=[".*KFE"],
+                stiffness=60.0,
+                damping=1.5,
+                effort_limit=80.0,
+                max_delay=3,
+                joint_parameter_lookup=SPOT_KNEE_LOOKUP,
+            ),
+        }
+        super().setUpClass()
 
 
 # ---------------------------------------------------------------------------

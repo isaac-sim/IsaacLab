@@ -3772,7 +3772,6 @@ class Articulation(BaseArticulation):
             self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
             self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
 
-            # Also create any implicit actuators defined in the configs
             for actuator_name, actuator_cfg in self.cfg.actuators.items():
                 cls_type = actuator_cfg.class_type
                 is_implicit = (
@@ -3780,9 +3779,10 @@ class Articulation(BaseArticulation):
                     if isinstance(cls_type, str)
                     else issubclass(cls_type, ImplicitActuator)
                 )
-                if not is_implicit:
-                    continue
-                self._create_lab_actuator(actuator_name, actuator_cfg)
+                if is_implicit:
+                    self._create_lab_actuator(actuator_name, actuator_cfg)
+                else:
+                    self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
             return
 
@@ -3813,8 +3813,19 @@ class Articulation(BaseArticulation):
                         group_count += 1
             logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
 
-    def _create_lab_actuator(self, actuator_name: str, actuator_cfg: ActuatorBaseCfg) -> None:
-        """Instantiate a single Lab actuator from its config and write properties to sim."""
+    def _create_lab_actuator(
+        self, actuator_name: str, actuator_cfg: ActuatorBaseCfg, *, properties_only: bool = False,
+    ) -> None:
+        """Instantiate a single Lab actuator from its config and write properties to sim.
+
+        Args:
+            actuator_name: Name for the actuator group.
+            actuator_cfg: Configuration for the actuator.
+            properties_only: When ``True``, only write physical joint properties
+                (armature, limits, friction) without registering the actuator or
+                writing stiffness/damping. Used for explicit joints managed by
+                Newton actuators.
+        """
         joint_ids, joint_names = self.find_joints(actuator_cfg.joint_names_expr)
         if len(joint_names) == 0:
             raise ValueError(
@@ -3841,6 +3852,28 @@ class Articulation(BaseArticulation):
             effort_limit=wp.to_torch(self._data.joint_effort_limits)[:, joint_ids].clone(),
             velocity_limit=wp.to_torch(self._data.joint_vel_limits)[:, joint_ids],
         )
+
+        # Write physical joint properties (armature, limits, friction) — always needed.
+        self.write_joint_effort_limit_to_sim_index(
+            limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_velocity_limit_to_sim_index(
+            limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
+        self.write_joint_friction_coefficient_to_sim_index(
+            joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_dynamic_friction_coefficient_to_sim_index(
+            joint_dynamic_friction_coeff=actuator.dynamic_friction, joint_ids=actuator.joint_indices,
+        )
+        self.write_joint_viscous_friction_coefficient_to_sim_index(
+            joint_viscous_friction_coeff=actuator.viscous_friction, joint_ids=actuator.joint_indices,
+        )
+
+        if properties_only:
+            return
+
         self.actuators[actuator_name] = actuator
 
         # Store the configured values from the actuator model
@@ -3870,23 +3903,6 @@ class Articulation(BaseArticulation):
         else:
             self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=actuator.joint_indices)
             self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=actuator.joint_indices)
-
-        self.write_joint_effort_limit_to_sim_index(
-            limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices,
-        )
-        self.write_joint_velocity_limit_to_sim_index(
-            limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices,
-        )
-        self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
-        self.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices,
-        )
-        self.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff=actuator.dynamic_friction, joint_ids=actuator.joint_indices,
-        )
-        self.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff=actuator.viscous_friction, joint_ids=actuator.joint_indices,
-        )
 
     def _process_tendons(self):
         """Process fixed and spatial tendons."""

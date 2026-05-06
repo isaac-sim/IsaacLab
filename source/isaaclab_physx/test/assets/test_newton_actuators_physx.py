@@ -545,6 +545,38 @@ SPOT_KNEE_LOOKUP = [
 ]
 
 
+class TestRemotizedPDEquivalence(_EquivalenceTestBase):
+    """RemotizedPD (PD + delay + position-based clamping): Lab vs Newton (PhysX).
+
+    Uses the Spot knee lookup table on ANYmal's KFE joints with IdealPD
+    on HAA and HFE.
+    """
+
+    __test__ = True
+
+    @classmethod
+    def setUpClass(cls):
+        from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+
+        cls.actuators = {
+            "hips": IdealPDActuatorCfg(
+                joint_names_expr=[".*HAA", ".*HFE"],
+                stiffness=40.0,
+                damping=5.0,
+                effort_limit=80.0,
+            ),
+            "knees": RemotizedPDActuatorCfg(
+                joint_names_expr=[".*KFE"],
+                stiffness=60.0,
+                damping=1.5,
+                effort_limit=80.0,
+                max_delay=3,
+                joint_parameter_lookup=SPOT_KNEE_LOOKUP,
+            ),
+        }
+        super().setUpClass()
+
+
 class TestRemotizedPDFunctional(unittest.TestCase):
     """Verify RemotizedPDActuatorCfg runs correctly on PhysX with Newton actuators.
 
