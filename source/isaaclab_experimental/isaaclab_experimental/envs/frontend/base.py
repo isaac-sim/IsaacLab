@@ -301,11 +301,18 @@ class TaskResolver:
         if spec is None:
             return Runtime.UNKNOWN
         ep = spec.entry_point
+        # ``entry_point`` may be a ``"module:Class"`` string (the common case)
+        # or a class/callable object. Inspect ``__module__`` for the latter so
+        # warp-registered tasks classified as such regardless of the
+        # registration form.
         if isinstance(ep, str):
-            if ep.startswith(WARP_ROOT_PREFIXES):
-                return Runtime.WARP
-            if ep.startswith(("isaaclab.envs", "isaaclab_tasks")):
-                return Runtime.TORCH
+            module = ep
+        else:
+            module = getattr(ep, "__module__", "") or ""
+        if module.startswith(WARP_ROOT_PREFIXES):
+            return Runtime.WARP
+        if module.startswith(("isaaclab.envs", "isaaclab_tasks")):
+            return Runtime.TORCH
         return Runtime.UNKNOWN
 
 

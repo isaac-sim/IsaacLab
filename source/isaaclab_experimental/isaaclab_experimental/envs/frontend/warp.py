@@ -331,14 +331,23 @@ class SwapMdpFunctions(CompatRule):
             warp_pkg = entry.rsplit(".", 1)[0].replace(self.stable_root, self.warp_root, 1)
             parts = warp_pkg.split(".")
             for depth in range(len(parts), 0, -1):
+                target = ".".join(parts[:depth] + ["mdp"])
                 try:
-                    modules.append(importlib.import_module(".".join(parts[:depth] + ["mdp"])))
+                    modules.append(importlib.import_module(target))
                     break
-                except ImportError:
-                    continue
+                except ModuleNotFoundError as exc:
+                    # Only swallow "this candidate module does not exist".
+                    # An ImportError raised *inside* a module that does exist
+                    # is a real bug we should surface, not paper over by
+                    # falling back.
+                    if exc.name == target:
+                        continue
+                    raise
         try:
             modules.append(importlib.import_module(self.fallback_mdp))
-        except ImportError:
+        except ModuleNotFoundError as exc:
+            if exc.name != self.fallback_mdp:
+                raise
             logger.warning("WarpFrontend: fallback mdp module %r not importable", self.fallback_mdp)
         return modules
 
