@@ -10,7 +10,7 @@
 These tests require Isaac Sim (AppLauncher). They cover the integration-level
 items from ``TODO_ray_caster_kernel_tests.md``:
 
-- ``_get_view_transforms_wp`` ArticulationView and RigidBodyView paths
+- ``_get_sensor_transforms_wp`` ArticulationView and RigidBodyView paths
 - ``MultiMeshRayCaster`` env_mask behavior
 - ``MultiMeshRayCasterCamera.set_intrinsic_matrices`` propagation
 - ``_update_mesh_transforms`` non-identity orientation offset (known bug, xfail)
@@ -84,7 +84,7 @@ def sim_ground():
 
 
 # ---------------------------------------------------------------------------
-# _get_view_transforms_wp: ArticulationView path
+# _get_sensor_transforms_wp: ArticulationView path
 # ---------------------------------------------------------------------------
 
 
@@ -95,7 +95,7 @@ def test_articulation_view_path(sim_ground):
     Verifies that sensor pos_w matches the prim's initial position and that
     the downward ray hits the ground plane.  This exercises the
     ``ArticulationView.get_root_transforms()`` quaternion-convention path in
-    :meth:`_get_view_transforms_wp`.
+    :meth:`_get_sensor_transforms_wp`.
     """
     sim = sim_ground
     expected_pos = (3.0, 4.0, 5.0)
@@ -133,7 +133,7 @@ def test_articulation_view_path(sim_ground):
 
 
 # ---------------------------------------------------------------------------
-# _get_view_transforms_wp: RigidBodyView path
+# _get_sensor_transforms_wp: RigidBodyView path
 # ---------------------------------------------------------------------------
 
 
@@ -142,7 +142,7 @@ def test_rigid_body_view_path(sim_ground):
     """Mount a ray caster on a prim with RigidBodyAPI (no ArticulationRootAPI).
 
     Exercises the ``RigidBodyView.get_transforms()`` path in
-    :meth:`_get_view_transforms_wp`.
+    :meth:`_get_sensor_transforms_wp`.
     """
     sim = sim_ground
     expected_pos = (1.0, 2.0, 6.0)
