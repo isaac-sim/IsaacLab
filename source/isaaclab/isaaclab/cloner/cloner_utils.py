@@ -9,7 +9,7 @@ import contextlib
 import itertools
 import logging
 import math
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import torch
@@ -17,12 +17,13 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement, VisualizerPrebuiltArtifacts
 
 from . import _fabric_notices
 
 if TYPE_CHECKING:
     from .cloner_cfg import TemplateCloneCfg
+
+from .clone_plan import ClonePlan
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,9 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
             bindings.set_enable(fabric_id, True)
 
 
-def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg) -> None:
+def clone_from_template(
+    stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg
+) -> dict[str, ClonePlan]:
     """Clone assets from a template root into per-environment destinations.
 
     This utility discovers prototype prims under ``cfg.template_root`` whose names start with
@@ -118,6 +121,10 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         template_clone_cfg: Configuration describing template location, destination pattern,
             and replication/mapping behavior.
 
+    Returns:
+        Mapping from each group's destination template (e.g. ``"/World/envs/env_{}/Object"``)
+        to its :class:`ClonePlan`. Empty when no prototype groups are discovered.
+
     Note:
         This function suspends the Fabric USD notice listener for the duration of the call
         and **leaves it disabled on return**. It is intended to be invoked from a scene-init
@@ -128,6 +135,7 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
         :func:`disabled_fabric_change_notifies` with ``restore=True``.
     """
     cfg: TemplateCloneCfg = template_clone_cfg
+    plans: dict[str, ClonePlan] = {}
     # Suspend Fabric's USD notice listener for the duration of bulk authoring. ``restore=False``
     # because clone_from_template is only called at scene-init time, which is followed by
     # ``SimulationContext.reset`` — that reset path does the Fabric resync naturally, and
@@ -161,6 +169,15 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
                 src, dest, num_clones, cfg.clone_strategy, cfg.device
             )
 
+            # Per-group plans: slice ``clone_masking`` along the prototype axis using cumulative
+            # group sizes — each group's mask rows are contiguous in the ``[total_protos, num_envs]``
+            # tensor that ``make_clone_plan`` produced.
+            offsets = [0, *itertools.accumulate(len(g) for g in src)]
+            plans = {
+                d: ClonePlan(dest_template=d, prototype_paths=list(ps), clone_mask=clone_masking[lo:hi])
+                for ps, d, lo, hi in zip(src, dest, offsets, offsets[1:])
+            }
+
             # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first
             # instances will be served as sources for usd and physics replication.
             proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
@@ -170,27 +187,27 @@ def clone_from_template(stage: Usd.Stage, num_clones: int, template_clone_cfg: T
             stage.GetPrimAtPath(cfg.template_root).SetActive(False)
             get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
             positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
-            # If all prototypes map to env_0, clone whole env_0 to all envs; else clone per-object
+            # Heterogeneous default: emit per-prototype (sources, destinations, mask) and trust
+            # env_0..N's existing xforms (proto-spawn above already placed them, so don't
+            # re-author). When every env happens to pick prototype 0, collapse below to a
+            # single env_0 → all-envs copy and re-author positions (the destination subtree
+            # replaces env_1..N's prior xform).
+            sources = [tpl.format(int(idx)) for tpl, idx in zip(dest_paths, proto_idx.tolist())]
+            usd_positions: torch.Tensor | None = None
             if torch.all(proto_idx == 0):
-                mapping = clone_masking.new_ones(1, num_clones)
-                replicate_args = [clone_path_fmt.format(0)], [clone_path_fmt], world_indices, mapping
-                if cfg.clone_physics and cfg.physics_clone_fn is not None:
-                    cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-                if cfg.visualizer_clone_fn is not None:
-                    cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-                if cfg.clone_usd:
-                    # parse env_origins directly from clone_path
-                    usd_replicate(stage, *replicate_args, positions=positions)
+                sources = [clone_path_fmt.format(0)]
+                dest_paths = [clone_path_fmt]
+                clone_masking = clone_masking.new_ones(1, num_clones)
+                usd_positions = positions
 
-            else:
-                selected_src = [tpl.format(int(idx)) for tpl, idx in zip(dest_paths, proto_idx.tolist())]
-                replicate_args = selected_src, dest_paths, world_indices, clone_masking
-                if cfg.clone_physics and cfg.physics_clone_fn is not None:
-                    cfg.physics_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-                if cfg.visualizer_clone_fn is not None:
-                    cfg.visualizer_clone_fn(stage, *replicate_args, positions=positions, device=cfg.device)
-                if cfg.clone_usd:
-                    usd_replicate(stage, *replicate_args)
+            if cfg.clone_physics and cfg.physics_clone_fn is not None:
+                cfg.physics_clone_fn(
+                    stage, sources, dest_paths, world_indices, clone_masking, positions=positions, device=cfg.device
+                )
+            if cfg.clone_usd:
+                usd_replicate(stage, sources, dest_paths, world_indices, clone_masking, positions=usd_positions)
+
+    return plans
 
 
 def make_clone_plan(
@@ -482,37 +499,3 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cp
     ori = torch.zeros((N, 4), device=device)
     ori[:, 3] = 1.0  # w=1 for identity quaternion
     return pos, ori
-
-
-def resolve_visualizer_clone_fn(
-    physics_backend: str,
-    requirements: SceneDataRequirement,
-    stage,
-    set_visualizer_artifact: Callable[[VisualizerPrebuiltArtifacts | None], None],
-):
-    """Return an optional visualizer prebuild hook for clone workflows.
-
-    Args:
-        physics_backend: Active physics backend name.
-        requirements: Aggregated scene-data requirements.
-        stage: USD stage used by the clone callback.
-        set_visualizer_artifact: Callback for storing prebuilt visualizer artifacts.
-
-    Returns:
-        Clone callback when the prebuild path is supported; otherwise ``None``.
-    """
-    if "physx" not in physics_backend or not requirements.requires_newton_model:
-        return None
-    try:
-        from isaaclab_newton.cloner.newton_replicate import (
-            create_newton_visualizer_prebuild_clone_fn,
-        )
-    except (ImportError, ModuleNotFoundError) as exc:
-        logger.warning("Visualizer prebuild hook unavailable: failed to import backend helper.")
-        logger.debug("Visualizer prebuild import failure details: %s", exc)
-        return None
-
-    return create_newton_visualizer_prebuild_clone_fn(
-        stage=stage,
-        set_visualizer_artifact=set_visualizer_artifact,
-    )

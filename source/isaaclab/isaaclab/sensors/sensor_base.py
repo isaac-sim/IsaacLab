@@ -23,7 +23,6 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.utils.version import has_kit
 
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
@@ -151,17 +150,15 @@ class SensorBase(ABC):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                if has_kit():
-                    import omni.kit.app  # noqa: PLC0415
-
-                    app_interface = omni.kit.app.get_app_interface()
-                    self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                        lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                    )
+                sim_ctx = sim_utils.SimulationContext.instance()
+                if sim_ctx is not None:
+                    self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
             # remove the subscriber if it exists
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
+            sim_ctx = sim_utils.SimulationContext.instance()
+            if sim_ctx is not None:
+                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+            else:
                 self._debug_vis_handle = None
         # return success
         return True
@@ -323,8 +320,10 @@ class SensorBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-        if self._debug_vis_handle is not None:
-            self._debug_vis_handle.unsubscribe()
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+        else:
             self._debug_vis_handle = None
 
     def _on_prim_deletion(self, event) -> None:
@@ -358,8 +357,10 @@ class SensorBase(ABC):
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
         # Clear debug visualization
-        if self._debug_vis_handle is not None:
-            self._debug_vis_handle.unsubscribe()
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+        else:
             self._debug_vis_handle = None
 
     """

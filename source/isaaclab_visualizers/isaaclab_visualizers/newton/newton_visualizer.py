@@ -18,6 +18,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
+from .newton_visualization_markers import render_newton_visualization_markers
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
@@ -268,6 +269,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
+        self._resolved_visible_env_ids: list[int] | None = None
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -335,8 +337,10 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
             self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
-        _resolved = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        num_visualized_envs = len(_resolved) if _resolved is not None else num_envs
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        num_visualized_envs = (
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
+        )
         self._log_initialization_table(
             logger=logger,
             title="NewtonVisualizer Configuration",
@@ -374,6 +378,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._update_camera_from_usd_path()
 
         self._state = self._scene_data_provider.get_newton_state()
+        num_envs = int(self._scene_data_provider.get_metadata().get("num_envs", 0))
 
         contacts = None
         if self._viewer.show_contacts:
@@ -401,6 +406,10 @@ class NewtonVisualizer(BaseVisualizer):
                             self._viewer.log_contacts(contacts, self._state)
                         except RuntimeError as exc:
                             logger.debug(f"[NewtonVisualizer] Failed to log contacts: {exc}")
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(
+                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                        )
                 self._viewer.end_frame()
             else:
                 self._viewer._update()
@@ -475,8 +484,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._apply_camera_pose(pose)
 
     def supports_markers(self) -> bool:
-        """Newton OpenGL viewer does not implement Isaac Lab marker primitives."""
-        return False
+        """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""
+        return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
         """Newton OpenGL viewer does not provide live-plot panels."""

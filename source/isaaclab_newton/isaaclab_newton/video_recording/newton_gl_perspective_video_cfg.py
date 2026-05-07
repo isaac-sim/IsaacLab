@@ -29,10 +29,10 @@ class NewtonGlPerspectiveVideoCfg:
     window_height: int = 720
     """Viewer height in pixels."""
 
-    camera_position: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Camera position in world space (metres)."""
 
-    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Camera look-at target in world space (metres)."""
 
     horiz_fov_deg: float = 60.0
