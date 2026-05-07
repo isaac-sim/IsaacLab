@@ -144,6 +144,7 @@ Guidelines for modifications:
 * Patrick Yin
 * Paul Reeves
 * Peter Du
+* Peter Verswyvelen
 * Philipp Reist
 * Piotr Barejko
 * Pulkit Goyal
