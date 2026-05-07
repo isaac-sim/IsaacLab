@@ -72,8 +72,7 @@ class UsdFrameView(BaseFrameView):
             stage: USD stage to search for prims. Defaults to None, in which case the current
                 active stage from the simulation context is used.
             **kwargs: Additional keyword arguments (ignored). Allows forward-compatible
-                construction when callers pass backend-specific options like
-                ``sync_usd_on_fabric_write``.
+                construction when callers pass backend-specific options.
 
         Raises:
             ValueError: If any matched prim is not Xformable or doesn't have standardized
