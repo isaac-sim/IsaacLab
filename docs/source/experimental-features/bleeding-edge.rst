@@ -149,4 +149,4 @@ Key Files
    └── extension.py       # Task registration, obs/action conversion
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
-see `scripts/reinforcement_learning/rlinf/README.md <https://github.com/isaac-sim/IsaacLab/blob/main/scripts/reinforcement_learning/rlinf/README.md>`_.
+see ``scripts/reinforcement_learning/rlinf/README.md``.
