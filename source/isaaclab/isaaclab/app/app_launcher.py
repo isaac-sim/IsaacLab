@@ -353,6 +353,8 @@ class AppLauncher:
 
           If provided as an empty string, the experience file is determined based on the command-line flags:
 
+          * If deterministic and headless mode are True (without livestream/XR), the experience file is set to
+            ``isaaclab.python.headless.determinism.kit``.
           * If headless and enable_cameras are True, the experience file is set to
             ``isaaclab.python.headless.rendering.kit``.
           * If headless is False and enable_cameras is True, the experience file is set to
@@ -361,6 +363,9 @@ class AppLauncher:
             ``isaaclab.python.kit``.
           * If headless is True and enable_cameras is False, the experience file is set to
             ``isaaclab.python.headless.kit``.
+
+        * ``deterministic`` (bool): Enable deterministic app settings by selecting
+          ``isaaclab.python.headless.determinism.kit`` automatically for compatible default headless launches.
 
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
@@ -488,6 +493,15 @@ class AppLauncher:
             ),
         )
         arg_group.add_argument(
+            "--deterministic",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1],
+            help=(
+                "Enable deterministic app settings. If --experience is not set and the launch is headless"
+                " (without livestream/XR), AppLauncher auto-selects `isaaclab.python.headless.determinism.kit`."
+            ),
+        )
+        arg_group.add_argument(
             "--rendering_mode",
             type=str,
             action=ExplicitAction,
@@ -555,6 +569,7 @@ class AppLauncher:
         "xr": ([bool], False),
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
+        "deterministic": ([bool], False),
         "rendering_mode": ([str], "balanced"),
         "max_visible_envs": ([int, type(None)], None),
     }
@@ -978,6 +993,9 @@ class AppLauncher:
         # Check if input keywords contain an 'experience' file setting
         # Note: since experience is taken as a separate argument by Simulation App, we store it separately
         self._sim_experience_file = launcher_args.pop("experience", "")
+        deterministic_mode = bool(
+            launcher_args.get("deterministic", AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1])
+        )
 
         # If nothing is provided resolve the experience file based on the headless flag
         kit_app_exp_path = os.environ["EXP_PATH"]
@@ -990,7 +1008,11 @@ class AppLauncher:
         if self._sim_experience_file == "":
             # check if the headless flag is set
             # xr rendering overrides camera rendering settings
-            if self._enable_cameras and not self._xr:
+            if deterministic_mode and self._headless and not self._livestream and not self._xr:
+                self._sim_experience_file = os.path.join(
+                    isaaclab_app_exp_path, "isaaclab.python.headless.determinism.kit"
+                )
+            elif self._enable_cameras and not self._xr:
                 if self._headless and not self._livestream:
                     self._sim_experience_file = os.path.join(
                         isaaclab_app_exp_path, "isaaclab.python.headless.rendering.kit"
