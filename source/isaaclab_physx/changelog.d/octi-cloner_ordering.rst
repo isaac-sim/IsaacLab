@@ -1,6 +1,5 @@
 Changed
 ^^^^^^^
 
-* Changed rigid object collection spawning to require an explicit
-  ``spawn.spawn_path`` when a member has a spawner. Use ``spawn=None`` for
-  pre-authored prims that should only construct a view.
+* Changed rigid object collection spawning to honor planned ``spawn_path``
+  values while falling back to ``prim_path`` for direct construction.
