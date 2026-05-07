@@ -10,19 +10,12 @@ import itertools
 import logging
 import math
 from collections.abc import Iterator
-from typing import TYPE_CHECKING
 
 import torch
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
 
-import isaaclab.sim as sim_utils
-
 from . import _fabric_notices
-
-if TYPE_CHECKING:
-    from .cloner_cfg import TemplateCloneCfg
-
 from .clone_plan import ClonePlan
 
 logger = logging.getLogger(__name__)
@@ -105,116 +98,13 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
             bindings.set_enable(fabric_id, True)
 
 
-def clone_from_template(
-    stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg
-) -> ClonePlan:
-    """Clone assets from a template root into per-environment destinations.
-
-    This utility discovers prototype prims under ``cfg.template_root`` whose names start with
-    ``cfg.template_prototype_identifier``, builds a per-prototype mapping across
-    ``num_clones`` environments (random or modulo), and then performs USD and/or PhysX replication
-    according to the flags in ``cfg``.
-
-    Args:
-        stage: The USD stage to author into.
-        num_clones: Number of environments to clone to (typically equals ``cfg.num_clones``).
-        template_clone_cfg: Configuration describing template location, destination pattern,
-            and replication/mapping behavior.
-
-    Returns:
-        A single :class:`ClonePlan` with flat source paths, destination templates, and
-        the per-source environment mask. The plan is empty when no prototype groups are
-        discovered.
-
-    Note:
-        This function suspends the Fabric USD notice listener for the duration of the call
-        and **leaves it disabled on return**. It is intended to be invoked from a scene-init
-        path that is followed by :meth:`isaaclab.sim.SimulationContext.reset`, whose Fabric
-        resync naturally recovers the listener state. Callers that bypass that reset
-        contract (ad-hoc tooling, unit tests on a bare stage) should re-enable Fabric
-        notices themselves or wrap the call in
-        :func:`disabled_fabric_change_notifies` with ``restore=True``.
-    """
-    cfg: TemplateCloneCfg = template_clone_cfg
-    plan = ClonePlan(
-        sources=[],
-        destinations=[],
-        clone_mask=torch.empty((0, num_clones), device=cfg.device, dtype=torch.bool),
-    )
-    # Suspend Fabric's USD notice listener for the duration of bulk authoring. ``restore=False``
-    # because clone_from_template is only called at scene-init time, which is followed by
-    # ``SimulationContext.reset`` — that reset path does the Fabric resync naturally, and
-    # re-enabling here would trigger a redundant ``forceMinimalPopulate`` batch.
-    with disabled_fabric_change_notifies(stage, restore=False):
-        world_indices = torch.arange(num_clones, device=cfg.device)
-        clone_path_fmt = cfg.clone_regex.replace(".*", "{}")
-        prototype_id = cfg.template_prototype_identifier
-        prototypes = sim_utils.get_all_matching_child_prims(
-            cfg.template_root,
-            predicate=lambda prim: str(prim.GetPath()).split("/")[-1].startswith(prototype_id),
-        )
-        if len(prototypes) > 0:
-            # Canonicalize prototype-root order. Some simulation/visualization backends might apply order-dependent
-            # processing, so varying USD traversal or set iteration order can change outputs noticeably. Sorting here
-            # removes that nondeterminism at the source (group order feeds ``make_clone_plan`` and downstream
-            # replication), which matters for run-to-run reproducibility across IsaacLab's multi-backend stack.
-            prototype_roots = sorted({"/".join(str(prototype.GetPath()).split("/")[:-1]) for prototype in prototypes})
-
-            # discover prototypes per root then make a clone plan
-            src: list[list[str]] = []
-            dest: list[str] = []
-
-            for prototype_root in prototype_roots:
-                protos = sim_utils.find_matching_prim_paths(f"{prototype_root}/.*")
-                protos = [proto for proto in protos if proto.split("/")[-1].startswith(prototype_id)]
-                src.append(protos)
-                dest.append(prototype_root.replace(cfg.template_root, clone_path_fmt))
-
-            src_paths, dest_paths, clone_masking = make_clone_plan(
-                src, dest, num_clones, cfg.clone_strategy, cfg.device
-            )
-
-            # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first
-            # instances will be served as sources for usd and physics replication.
-            proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
-            proto_mask = torch.zeros_like(clone_masking)
-            proto_mask.scatter_(1, proto_idx.view(-1, 1).to(torch.long), clone_masking.any(dim=1, keepdim=True))
-            usd_replicate(stage, src_paths, dest_paths, world_indices, proto_mask)
-            stage.GetPrimAtPath(cfg.template_root).SetActive(False)
-            get_pos = lambda path: stage.GetPrimAtPath(path).GetAttribute("xformOp:translate").Get()  # noqa: E731
-            positions = torch.tensor([get_pos(clone_path_fmt.format(i)) for i in world_indices])
-            # Heterogeneous default: emit per-prototype (sources, destinations, mask) and trust
-            # env_0..N's existing xforms (proto-spawn above already placed them, so don't
-            # re-author). When every env happens to pick prototype 0, collapse below to a
-            # single env_0 → all-envs copy and re-author positions (the destination subtree
-            # replaces env_1..N's prior xform).
-            sources = [tpl.format(int(idx)) for tpl, idx in zip(dest_paths, proto_idx.tolist())]
-            usd_positions: torch.Tensor | None = None
-            if torch.all(proto_idx == 0):
-                sources = [clone_path_fmt.format(0)]
-                dest_paths = [clone_path_fmt]
-                clone_masking = clone_masking.new_ones(1, num_clones)
-                usd_positions = positions
-
-            if cfg.clone_physics and cfg.physics_clone_fn is not None:
-                cfg.physics_clone_fn(
-                    stage, sources, dest_paths, world_indices, clone_masking, positions=positions, device=cfg.device
-                )
-            if cfg.clone_usd:
-                usd_replicate(stage, sources, dest_paths, world_indices, clone_masking, positions=usd_positions)
-
-            plan = ClonePlan(sources=list(sources), destinations=list(dest_paths), clone_mask=clone_masking)
-
-    return plan
-
-
 def make_clone_plan(
     sources: list[list[str]],
     destinations: list[str],
     num_clones: int,
     clone_strategy: callable,
     device: str = "cpu",
-) -> tuple[list[str], list[str], torch.Tensor]:
+) -> ClonePlan:
     """Construct a cloning plan mapping prototype prims to per-environment destinations.
 
     The plan enumerates all combinations of prototypes, selects a combination per environment using ``clone_strategy``,
@@ -229,9 +119,8 @@ def make_clone_plan(
         device: Torch device for tensors in the plan. Defaults to ``"cpu"``.
 
     Returns:
-        tuple: ``(src, dest, masking)`` where ``src`` and ``dest`` are flattened lists of prototype and
-            destination paths, and ``masking`` is a ``[num_src, num_clones]`` boolean tensor with True
-            when source ``src[i]`` is used for clone ``j``.
+        A :class:`ClonePlan` whose ``sources`` and ``destinations`` are flattened per-source rows and
+        whose ``clone_mask`` is a ``[num_src, num_clones]`` boolean tensor.
     """
     # 1) Flatten into src and dest lists
     src = [p for group in sources for p in group]
@@ -254,7 +143,7 @@ def make_clone_plan(
 
     masking = torch.zeros((sum(group_sizes), num_clones), dtype=torch.bool, device=device)
     masking[rows, cols] = True
-    return src, dest, masking
+    return ClonePlan(sources=src, destinations=dest, clone_mask=masking)
 
 
 def usd_replicate(

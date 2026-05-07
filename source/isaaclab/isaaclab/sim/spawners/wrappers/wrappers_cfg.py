@@ -49,6 +49,15 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     assets_cfg: list[SpawnerCfg] = MISSING
     """List of asset configurations to spawn."""
 
+    spawn_paths: list[str | None] | None = None
+    """Optional concrete spawn paths, one per asset configuration.
+
+    When provided, :func:`spawn_multi_asset` spawns each variant at the matching
+    path instead of deriving sibling paths from the input ``prim_path``. ``None``
+    entries are skipped, which lets clone planning omit variants unused by any
+    environment.
+    """
+
     random_choice: bool = True
     """ This parameter is ignored.
     See :attr:`isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` for details.
@@ -76,6 +85,9 @@ class MultiUsdFileCfg(UsdFileCfg):
 
     usd_path: str | list[str] = MISSING
     """Path or a list of paths to the USD files to spawn asset from."""
+
+    spawn_paths: list[str | None] | None = None
+    """Optional concrete spawn paths, one per USD path. ``None`` entries are skipped."""
 
     random_choice: bool = True
     """Whether to randomly select an asset configuration. Default is True.

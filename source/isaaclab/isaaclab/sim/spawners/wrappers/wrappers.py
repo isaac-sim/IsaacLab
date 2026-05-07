@@ -46,21 +46,33 @@ def spawn_multi_asset(
     Returns:
         The created prim at the first prim path.
     """
-    split_path = prim_path.split("/")
-    prefix_path, base_name = "/".join(split_path[:-1]), split_path[-1]
-    if ".*" not in base_name:
-        raise ValueError(
-            f" The base name '{base_name}' in the prim path '{prim_path}' must contain '.*' to indicate"
-            " the path each individual multiple-asset to be spawned."
-        )
+    if cfg.spawn_paths is not None:
+        if len(cfg.spawn_paths) != len(cfg.assets_cfg):
+            raise ValueError(
+                f"Expected spawn_paths to match assets_cfg length, got {len(cfg.spawn_paths)} and"
+                f" {len(cfg.assets_cfg)}."
+            )
+        proto_prim_paths = list(cfg.spawn_paths)
+    else:
+        split_path = prim_path.split("/")
+        prefix_path, base_name = "/".join(split_path[:-1]), split_path[-1]
+        if ".*" not in base_name:
+            raise ValueError(
+                f" The base name '{base_name}' in the prim path '{prim_path}' must contain '.*' to indicate"
+                " the path each individual multiple-asset to be spawned."
+            )
+        proto_prim_paths = [f"{prefix_path}/{base_name.replace('.*', str(i))}" for i in range(len(cfg.assets_cfg))]
+
     if cfg.random_choice:
         logger.warning(
             "`random_choice` parameter in `spawn_multi_asset` is deprecated, and nothing will happen. "
             "Use `isaaclab.scene.interactive_scene_cfg.InteractiveSceneCfg.random_heterogeneous_cloning` instead."
         )
 
-    proto_prim_paths = list()
-    for index, asset_cfg in enumerate(cfg.assets_cfg):
+    spawned_prim_paths: list[str] = []
+    for proto_prim_path, asset_cfg in zip(proto_prim_paths, cfg.assets_cfg):
+        if proto_prim_path is None:
+            continue
         # append semantic tags if specified
         if cfg.semantic_tags is not None:
             if asset_cfg.semantic_tags is None:
@@ -74,7 +86,6 @@ def spawn_multi_asset(
             if hasattr(asset_cfg, attr_name) and attr_value is not None:
                 setattr(asset_cfg, attr_name, attr_value)
 
-        proto_prim_path = f"{prefix_path}/{base_name.replace('.*', str(index))}"
         asset_cfg.func(
             proto_prim_path,
             asset_cfg,
@@ -83,10 +94,10 @@ def spawn_multi_asset(
             clone_in_fabric=clone_in_fabric,
             replicate_physics=replicate_physics,
         )
-        # append to proto prim paths
-        proto_prim_paths.append(proto_prim_path)
-
-    return sim_utils.find_first_matching_prim(proto_prim_paths[0])
+        spawned_prim_paths.append(proto_prim_path)
+    if not spawned_prim_paths:
+        raise ValueError("No multi-asset variants were spawned. At least one spawn path must be active.")
+    return sim_utils.find_first_matching_prim(spawned_prim_paths[0])
 
 
 def spawn_multi_usd_file(
@@ -126,13 +137,13 @@ def spawn_multi_usd_file(
     usd_template_cfg = UsdFileCfg()
     for attr_name, attr_value in cfg.__dict__.items():
         # skip names we know are not present
-        if attr_name in ["func", "usd_path", "random_choice", "spawn_path"]:
+        if attr_name in ["func", "usd_path", "random_choice", "spawn_path", "spawn_paths"]:
             continue
         # set the attribute into the template
         setattr(usd_template_cfg, attr_name, attr_value)
 
     # create multi asset configuration of USD files
-    multi_asset_cfg = MultiAssetSpawnerCfg(assets_cfg=[])
+    multi_asset_cfg = MultiAssetSpawnerCfg(assets_cfg=[], spawn_paths=cfg.spawn_paths)
     for usd_path in usd_paths:
         usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
         multi_asset_cfg.assets_cfg.append(usd_cfg)

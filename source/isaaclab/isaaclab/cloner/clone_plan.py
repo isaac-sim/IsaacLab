@@ -14,12 +14,11 @@ import torch
 class ClonePlan:
     """Flat cloning source of truth.
 
-    Produced by :func:`~isaaclab.cloner.clone_from_template` after the template
-    prototypes are stamped into representative environment prims. The three fields
-    are the same flat replication contract consumed by USD, physics, and downstream
-    scene-data providers: each source path maps to the destination template at the
-    same index, and :attr:`clone_mask` selects the environments populated from that
-    source.
+    Produced by scene planning after representative source prims are assigned. The
+    three fields are the same flat replication contract consumed by USD, physics,
+    and downstream scene-data providers: each source path maps to the destination
+    template at the same index, and :attr:`clone_mask` selects the environments
+    populated from that source.
     """
 
     sources: list[str]
