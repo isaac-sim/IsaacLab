@@ -121,9 +121,10 @@ TESTS_TO_SKIP = [
     # lab_tasks
     "test_record_video.py",  # Failing
     "test_tiled_camera_env.py",  # Need to improve the logic
-    # TEMP: heavy parametrization dominates isaaclab_tasks [1/3] runtime;
-    # remove this entry once the slow/flaky shards stabilize.
+    # TEMP: heavy parametrizations dominate isaaclab_tasks shard runtime;
+    # remove these entries once the slow/flaky shards stabilize.
     "test_environments_newton.py",
+    "test_environments_with_stage_in_memory.py",
     # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
     *CUROBO_TESTS,
     # quarantined tests - run in dedicated CI job that does not block PR merges
