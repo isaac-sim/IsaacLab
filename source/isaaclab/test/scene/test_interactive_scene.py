@@ -241,7 +241,10 @@ def test_clone_environments_executes_asset_level_plan_without_usd_positions(monk
         yield
 
     monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.disabled_fabric_change_notifies", _noop_fabric_notices)
-    monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.usd_replicate", lambda *args, **kwargs: usd_calls.append((args, kwargs)))
+    monkeypatch.setattr(
+        "isaaclab.scene.interactive_scene.cloner.usd_replicate",
+        lambda *args, **kwargs: usd_calls.append((args, kwargs)),
+    )
 
     physics_calls = []
     usd_calls = []
