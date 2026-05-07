@@ -10,7 +10,6 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -52,10 +51,12 @@ def _skip_if_unavailable(device: str):
     idx = int(device.split(":")[1]) if ":" in device else 0
     n = torch.cuda.device_count()
     if idx >= n:
-        msg = f"{device} not available (device_count={n})"
-        if os.environ.get("GITHUB_ACTIONS") == "true":
-            pytest.fail(f"{msg} — multi-GPU runner is misconfigured")
-        pytest.skip(f"{msg} — multi-GPU test skipped on single-GPU machine")
+        # Always skip rather than fail: the dedicated multi-GPU workflow does its own
+        # pre-flight ``torch.cuda.device_count() >= 2`` check before invoking pytest, so
+        # a misconfigured multi-GPU runner is already caught there.  Failing here would
+        # only break the standard single-GPU CI runners that legitimately can't run
+        # ``cuda:1+`` tests.
+        pytest.skip(f"{device} not available (device_count={n}) — multi-GPU test skipped")
 
 
 # ------------------------------------------------------------------
