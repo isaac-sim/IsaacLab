@@ -1684,16 +1684,23 @@ class Articulation(BaseArticulation):
     ):
         r"""Write joint friction coefficients over selected environment indices into the simulation.
 
-        For Isaac Sim versions below 5.0, only the static friction coefficient is set.
-        This limits the resisting force or torque up to a maximum proportional to the transmitted
-        spatial force: :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
+        For Isaac Sim versions below 5.0, only the legacy unitless joint friction coefficient is set.
+        This limits the resisting force or torque up to a maximum proportional to the transmitted spatial force:
+        :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
 
-        For Isaac Sim versions 5.0 and above, the static, dynamic, and viscous friction coefficients
-        are set. The model combines Coulomb (static & dynamic) friction with a viscous term:
+        For Isaac Sim versions 5.0 and above, the PhysX joint friction parameter model is used. It combines
+        Coulomb (static and dynamic) friction with a viscous term:
 
-        - Static friction :math:`\mu_s` defines the maximum effort that prevents motion at rest.
-        - Dynamic friction :math:`\mu_d` applies once motion begins and remains constant during motion.
-        - Viscous friction :math:`c_v` is a velocity-proportional resistive term.
+        - Static friction effort defines the maximum effort that prevents motion at rest [N or N·m, depending on
+          joint type].
+        - Dynamic friction effort applies once motion begins and remains constant during motion [N or N·m,
+          depending on joint type].
+        - Viscous friction coefficient is a velocity-proportional resistive term [N·s/m or N·m·s/rad, depending
+          on joint type].
+
+        .. warning::
+            For Isaac Sim versions 5.0 and above, the static friction effort must be greater than or equal to the
+            dynamic friction effort.
 
         .. note::
             This method expects partial data or full data.
@@ -1703,11 +1710,12 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
-                Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
-            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.
+            joint_friction_coeff: Legacy unitless coefficient for Isaac Sim versions below 5.0, or static friction
+                effort [N or N·m, depending on joint type] for Isaac Sim versions 5.0 and above. Shape is
+                (len(env_ids), len(joint_ids)) or (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Dynamic friction effort [N or N·m, depending on joint type].
                 Same shape as above. If None, the dynamic coefficient is not updated.
-            joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
+            joint_viscous_friction_coeff: Viscous friction coefficient [N·s/m or N·m·s/rad, depending on joint type].
                 Same shape as above. If None, the viscous coefficient is not updated.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
@@ -1793,16 +1801,23 @@ class Articulation(BaseArticulation):
     ):
         r"""Write joint friction coefficients over selected environment mask into the simulation.
 
-        For Isaac Sim versions below 5.0, only the static friction coefficient is set.
-        This limits the resisting force or torque up to a maximum proportional to the transmitted
-        spatial force: :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
+        For Isaac Sim versions below 5.0, only the legacy unitless joint friction coefficient is set.
+        This limits the resisting force or torque up to a maximum proportional to the transmitted spatial force:
+        :math:`\|F_{resist}\| \leq \mu_s \, \|F_{spatial}\|`.
 
-        For Isaac Sim versions 5.0 and above, the static, dynamic, and viscous friction coefficients
-        are set. The model combines Coulomb (static & dynamic) friction with a viscous term:
+        For Isaac Sim versions 5.0 and above, the PhysX joint friction parameter model is used. It combines
+        Coulomb (static and dynamic) friction with a viscous term:
 
-        - Static friction :math:`\mu_s` defines the maximum effort that prevents motion at rest.
-        - Dynamic friction :math:`\mu_d` applies once motion begins and remains constant during motion.
-        - Viscous friction :math:`c_v` is a velocity-proportional resistive term.
+        - Static friction effort defines the maximum effort that prevents motion at rest [N or N·m, depending on
+          joint type].
+        - Dynamic friction effort applies once motion begins and remains constant during motion [N or N·m,
+          depending on joint type].
+        - Viscous friction coefficient is a velocity-proportional resistive term [N·s/m or N·m·s/rad, depending
+          on joint type].
+
+        .. warning::
+            For Isaac Sim versions 5.0 and above, the static friction effort must be greater than or equal to the
+            dynamic friction effort.
 
         .. note::
             This method expects full data.
@@ -1812,11 +1827,12 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_friction_coeff: Static friction coefficient :math:`\mu_s`.
-                Shape is (num_instances, num_joints).
-            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient :math:`\mu_d`.
+            joint_friction_coeff: Legacy unitless coefficient for Isaac Sim versions below 5.0, or static friction
+                effort [N or N·m, depending on joint type] for Isaac Sim versions 5.0 and above. Shape is
+                (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Dynamic friction effort [N or N·m, depending on joint type].
                 Same shape as above. If None, the dynamic coefficient is not updated.
-            joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
+            joint_viscous_friction_coeff: Viscous friction coefficient [N·s/m or N·m·s/rad, depending on joint type].
                 Same shape as above. If None, the viscous coefficient is not updated.
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
@@ -1842,7 +1858,9 @@ class Articulation(BaseArticulation):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
-        """Write joint dynamic friction coefficient over selected environment indices into the simulation.
+        """Write joint dynamic friction effort over selected environment indices into the simulation.
+
+        The dynamic friction effort is [N or N·m, depending on joint type].
 
         .. note::
             This method expects partial data or full data.
@@ -1852,8 +1870,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (len(env_ids), len(joint_ids))
-                or (num_instances, num_joints) if full_data.
+            joint_dynamic_friction_coeff: Dynamic friction effort [N or N·m, depending on joint type]. Shape is
+                (len(env_ids), len(joint_ids)) or (num_instances, num_joints) if full_data.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -1907,7 +1925,9 @@ class Articulation(BaseArticulation):
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Write joint dynamic friction coefficient over selected environment mask into the simulation.
+        """Write joint dynamic friction effort over selected environment mask into the simulation.
+
+        The dynamic friction effort is [N or N·m, depending on joint type].
 
         .. note::
             This method expects full data.
@@ -1917,7 +1937,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_dynamic_friction_coeff: Joint dynamic friction coefficient. Shape is (num_instances, num_joints).
+            joint_dynamic_friction_coeff: Dynamic friction effort [N or N·m, depending on joint type]. Shape is
+                (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -1942,6 +1963,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Write joint viscous friction coefficient over selected environment indices into the simulation.
 
+        The coefficient is [N·s/m or N·m·s/rad, depending on joint type].
+
         .. note::
             This method expects partial data or full data.
 
@@ -1950,8 +1973,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (len(env_ids), len(joint_ids))
-                or (num_instances, num_joints) if full_data.
+            joint_viscous_friction_coeff: Viscous friction coefficient [N·s/m or N·m·s/rad, depending on joint type].
+                Shape is (len(env_ids), len(joint_ids)) or (num_instances, num_joints) if full_data.
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -2010,6 +2033,8 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Write joint viscous friction coefficient over selected environment mask into the simulation.
 
+        The coefficient is [N·s/m or N·m·s/rad, depending on joint type].
+
         .. note::
             This method expects full data.
 
@@ -2018,7 +2043,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            joint_viscous_friction_coeff: Joint viscous friction coefficient. Shape is (num_instances, num_joints).
+            joint_viscous_friction_coeff: Viscous friction coefficient [N·s/m or N·m·s/rad, depending on joint type].
+                Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
