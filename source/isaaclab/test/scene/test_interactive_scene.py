@@ -130,12 +130,12 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     assert_state_equal(prev_state, scene.get_state())
 
 
-def test_clone_environments_non_cfg_publishes_clone_plans(monkeypatch: pytest.MonkeyPatch):
+def test_clone_environments_non_cfg_publishes_clone_plan(monkeypatch: pytest.MonkeyPatch):
     """Non-cfg clone path must dispatch physics + USD replicate and publish a ``ClonePlan``.
 
     Replaces the old test that asserted a per-call visualizer clone callback was invoked. The
     visualizer-fn callback was removed in favor of providers reading
-    :meth:`SimulationContext.get_clone_plans`; this test asserts the new contract: even
+    :meth:`SimulationContext.get_clone_plan`; this test asserts the new contract: even
     without prototype templates, the scene synthesizes a single trivial ClonePlan.
     """
     from isaaclab.cloner import ClonePlan
@@ -146,18 +146,18 @@ def test_clone_environments_non_cfg_publishes_clone_plans(monkeypatch: pytest.Mo
     scene.physics_backend = "physx"
     scene._sensors = {}
 
-    set_plans_calls: list = []
-    sim_state: dict = {"plans": {}}
+    set_plan_calls: list = []
+    sim_state: dict = {"plan": None}
 
-    def _set_clone_plans(plans):
-        sim_state["plans"] = plans
-        set_plans_calls.append(plans)
+    def _set_clone_plan(plan):
+        sim_state["plan"] = plan
+        set_plan_calls.append(plan)
 
     scene.sim = SimpleNamespace(
         get_scene_data_requirements=lambda: SceneDataRequirement(),
         update_scene_data_requirements=lambda requirements: None,
-        set_clone_plans=_set_clone_plans,
-        get_clone_plans=lambda: sim_state["plans"],
+        set_clone_plan=_set_clone_plan,
+        get_clone_plan=lambda: sim_state["plan"],
     )
     scene.env_fmt = "/World/envs/env_{}"
     scene._ALL_INDICES = torch.arange(3, dtype=torch.long)
@@ -198,24 +198,22 @@ def test_clone_environments_non_cfg_publishes_clone_plans(monkeypatch: pytest.Mo
     mapping = physics_calls[0][1][3]
     assert mapping.dtype == torch.bool
     assert mapping.shape == (1, scene.num_envs)
-    # Plans are published once per clone, regardless of physics/usd flag combinations.
-    assert len(set_plans_calls) == 1
-    plans = set_plans_calls[-1]
-    assert set(plans.keys()) == {scene.env_fmt}
-    plan = plans[scene.env_fmt]
+    # Plan is published once per clone, regardless of physics/usd flag combinations.
+    assert len(set_plan_calls) == 1
+    plan = set_plan_calls[-1]
     assert isinstance(plan, ClonePlan)
-    assert plan.dest_template == scene.env_fmt
-    assert plan.prototype_paths == [scene.env_fmt.format(0)]
+    assert plan.sources == [scene.env_fmt.format(0)]
+    assert plan.destinations == [scene.env_fmt]
     assert plan.clone_mask.shape == (1, scene.num_envs)
-    assert scene.clone_plans is plans
+    assert scene.clone_plan is plan
 
     physics_calls.clear()
     usd_calls.clear()
-    set_plans_calls.clear()
+    set_plan_calls.clear()
     scene.clone_environments(copy_from_source=True)
     assert len(physics_calls) == 0
     assert len(usd_calls) == 1
-    assert len(set_plans_calls) == 1
+    assert len(set_plan_calls) == 1
 
 
 def test_aggregate_scene_data_requirements_merges_visualizers_and_renderers(monkeypatch: pytest.MonkeyPatch):

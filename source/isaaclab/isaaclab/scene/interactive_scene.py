@@ -230,7 +230,7 @@ class InteractiveScene:
         with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
             if self._is_scene_setup_from_cfg():
                 self.cloner_cfg.clone_physics = not copy_from_source
-                plans = cloner.clone_from_template(
+                plan = cloner.clone_from_template(
                     self.stage, num_clones=self.num_envs, template_clone_cfg=self.cloner_cfg
                 )
             else:
@@ -251,18 +251,16 @@ class InteractiveScene:
                 # Synthesize a single trivial ClonePlan so consumers (scene data providers,
                 # pointcloud samplers, etc.) get a uniform interface regardless of whether
                 # the scene was authored via prototypes or by hand under env_0.
-                plans = {
-                    self.env_fmt: cloner.ClonePlan(
-                        dest_template=self.env_fmt,
-                        prototype_paths=[self.env_fmt.format(0)],
-                        clone_mask=mapping,
-                    )
-                }
+                plan = cloner.ClonePlan(
+                    sources=[self.env_fmt.format(0)],
+                    destinations=[self.env_fmt],
+                    clone_mask=mapping,
+                )
 
-        # Publish to ``SimulationContext`` (the canonical owner). The :attr:`clone_plans`
-        # property below forwards reads back through ``sim.get_clone_plans()`` so consumers
-        # holding a scene reference still see the published plans without a duplicate cache.
-        self.sim.set_clone_plans(plans)
+        # Publish to ``SimulationContext`` (the canonical owner). The :attr:`clone_plan`
+        # property below forwards reads back through ``sim.get_clone_plan()`` so consumers
+        # holding a scene reference still see the published plan without a duplicate cache.
+        self.sim.set_clone_plan(plan)
 
     def _aggregate_scene_data_requirements(self, visualizer_types=()) -> None:
         """Aggregate scene-data requirements from visualizers and sensor renderers.
@@ -427,16 +425,14 @@ class InteractiveScene:
         return self._surface_grippers
 
     @property
-    def clone_plans(self) -> dict[str, cloner.ClonePlan]:
-        """Per-group clone plans produced by :meth:`clone_environments`.
+    def clone_plan(self) -> cloner.ClonePlan | None:
+        """Clone plan produced by :meth:`clone_environments`.
 
-        Forwards to :meth:`SimulationContext.get_clone_plans`, which is the canonical owner.
-        Keyed by each group's destination path template
-        (e.g. ``"/World/envs/env_{}/Object"``); the value records the prototype prim paths
-        and the per-env prototype assignment mask. Empty until :meth:`clone_environments`
-        runs, and (for the cfg path) empty when the scene cfg has no template prototypes.
+        Forwards to :meth:`SimulationContext.get_clone_plan`, which is the canonical owner.
+        The plan records the source paths, destination templates, and the per-env source
+        assignment mask. ``None`` until :meth:`clone_environments` runs.
         """
-        return self.sim.get_clone_plans()
+        return self.sim.get_clone_plan()
 
     @property
     def extras(self) -> dict[str, FrameView]:

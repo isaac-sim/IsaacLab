@@ -222,11 +222,11 @@ def test_clone_decorator_wildcard_patterns(
 
 
 def test_clone_from_template_returns_clone_plan(sim):
-    """clone_from_template exposes per-group ClonePlan dicts with prototype-to-env masks.
+    """clone_from_template exposes a flat ClonePlan with source-to-env masks.
 
     Builds two USD prototypes under one group, clones across four envs with the deterministic
-    sequential strategy, and asserts the returned dict has one entry keyed by the group's
-    destination template, with a ``[2, 4]`` boolean mask whose columns sum to one.
+    sequential strategy, and asserts the returned plan has one source/destination row per
+    prototype, with a ``[2, 4]`` boolean mask whose columns sum to one.
     """
     num_clones = 4
     cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential, clone_physics=False)
@@ -240,17 +240,14 @@ def test_clone_from_template_returns_clone_plan(sim):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
 
     stage = sim_utils.get_current_stage()
-    plans = clone_from_template(stage, num_clones=num_clones, template_clone_cfg=cfg)
+    plan = clone_from_template(stage, num_clones=num_clones, template_clone_cfg=cfg)
 
-    assert isinstance(plans, dict)
-    assert list(plans.keys()) == ["/World/envs/env_{}/Object"]
-    plan = plans["/World/envs/env_{}/Object"]
     assert isinstance(plan, ClonePlan)
-    assert plan.dest_template == "/World/envs/env_{}/Object"
-    assert sorted(plan.prototype_paths) == [
-        "/World/template/Object/proto_asset_0",
-        "/World/template/Object/proto_asset_1",
+    assert plan.sources == [
+        "/World/envs/env_0/Object",
+        "/World/envs/env_1/Object",
     ]
+    assert plan.destinations == ["/World/envs/env_{}/Object", "/World/envs/env_{}/Object"]
     assert plan.clone_mask.shape == (2, num_clones)
     assert plan.clone_mask.dtype == torch.bool
     # Each env gets exactly one prototype (column-sum invariant)
@@ -260,8 +257,8 @@ def test_clone_from_template_returns_clone_plan(sim):
     assert torch.equal(actual_proto_idx, torch.tensor([0, 1, 0, 1]))
 
 
-def test_clone_from_template_returns_empty_dict_when_no_prototypes(sim):
-    """clone_from_template returns an empty dict when no prototypes match the identifier."""
+def test_clone_from_template_returns_empty_plan_when_no_prototypes(sim):
+    """clone_from_template returns an empty plan when no prototypes match the identifier."""
     num_clones = 2
     cfg = TemplateCloneCfg(device=sim.cfg.device, clone_strategy=sequential, clone_physics=False)
 
@@ -271,6 +268,9 @@ def test_clone_from_template_returns_empty_dict_when_no_prototypes(sim):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
 
     stage = sim_utils.get_current_stage()
-    plans = clone_from_template(stage, num_clones=num_clones, template_clone_cfg=cfg)
+    plan = clone_from_template(stage, num_clones=num_clones, template_clone_cfg=cfg)
 
-    assert plans == {}
+    assert isinstance(plan, ClonePlan)
+    assert plan.sources == []
+    assert plan.destinations == []
+    assert plan.clone_mask.shape == (0, num_clones)
