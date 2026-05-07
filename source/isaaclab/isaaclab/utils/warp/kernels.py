@@ -326,6 +326,32 @@ def raycast_dynamic_meshes_kernel(
                 ray_mesh_id[tid_env, tid_ray] = wp.int16(tid_mesh_id)
 
 
+@wp.kernel
+def clamp_above_to_inf_kernel(
+    threshold: wp.float32,
+    target: wp.array(dtype=wp.float32, ndim=4),
+):
+    """For every element ``v`` of ``target``, set ``v = +inf`` when ``v > threshold``.
+
+    Used by camera renderers to enforce that out-of-range depth-style outputs
+    propagate as ``inf`` regardless of the upstream clipping convention.
+    """
+    n, h, w, c = wp.tid()
+    if target[n, h, w, c] > threshold:
+        target[n, h, w, c] = wp.float32(wp.inf)
+
+
+@wp.kernel
+def replace_inf_kernel(
+    replacement: wp.float32,
+    target: wp.array(dtype=wp.float32, ndim=4),
+):
+    """For every element ``v`` of ``target``, set ``v = replacement`` when ``isinf(v)``."""
+    n, h, w, c = wp.tid()
+    if wp.isinf(target[n, h, w, c]):
+        target[n, h, w, c] = replacement
+
+
 @wp.kernel(enable_backward=False)
 def reshape_tiled_image(
     tiled_image_buffer: Any,

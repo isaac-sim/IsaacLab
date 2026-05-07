@@ -36,3 +36,16 @@ Changed
   ``wp.array | ProxyArray | torch.Tensor | numpy.ndarray`` inputs, with
   :class:`warp.array` documented as the canonical type. Existing
   ``torch.Tensor`` callers continue to work without changes.
+* **Breaking:** :attr:`~isaaclab.renderers.RenderBufferSpec.dtype` now stores a
+  Warp scalar dtype (e.g. ``warp.uint8``) rather than a ``torch.dtype``.
+  Renderer authors that build :class:`RenderBufferSpec` instances must update
+  ``RenderBufferSpec(channels, torch.uint8)`` to ``RenderBufferSpec(channels,
+  wp.uint8)`` (and similarly for ``torch.float32``, ``torch.int32``).
+* :class:`~isaaclab.sensors.camera.Camera`,
+  :class:`~isaaclab.sensors.camera.CameraData`, and the three first-party
+  renderers (:class:`IsaacRtxRenderer`, :class:`NewtonWarpRenderer`,
+  :class:`OVRTXRenderer`) no longer import or use ``torch`` internally: every
+  storage allocation goes through :func:`warp.zeros`, scatter / mask / clipping
+  operations are warp kernels (see
+  :mod:`~isaaclab.sensors.camera.kernels`), and quaternion convention
+  conversions are implemented by :func:`isaaclab.sensors.camera.orientation_conventions.convert_quat_array`.

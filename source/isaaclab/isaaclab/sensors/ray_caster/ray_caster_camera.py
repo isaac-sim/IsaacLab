@@ -37,11 +37,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _to_device_tensor(value: wp.array | ProxyArray | torch.Tensor, device: str | torch.device) -> torch.Tensor:
-    """Normalize an array-like input to a ``torch.Tensor`` on ``device``.
+def _as_torch_tensor(value: wp.array | ProxyArray | torch.Tensor, device: str | torch.device) -> torch.Tensor:
+    """Bring a wp/ProxyArray/torch input to a contiguous ``torch.Tensor`` on ``device``.
 
-    Accepts :class:`warp.array`, :class:`~isaaclab.utils.warp.proxy_array.ProxyArray`,
-    and :class:`torch.Tensor`. Warp inputs are unwrapped via ``wp.to_torch`` (zero-copy).
+    This helper exists only at the boundary where this class still calls into the
+    torch-based ``isaaclab.utils.math`` quaternion / pose utilities. The returned
+    tensor is a zero-copy view of the underlying warp memory whenever possible.
     """
     if isinstance(value, ProxyArray):
         value = value.torch
@@ -169,7 +170,7 @@ class RayCasterCamera(RayCaster):
         if env_ids is None:
             env_ids = slice(None)
         # normalize matrices input to torch on sensor device
-        matrices = _to_device_tensor(matrices, self._device)
+        matrices = _as_torch_tensor(matrices, self._device)
         # save new intrinsic matrices and focal length (write via the zero-copy torch view)
         intrinsic_view = self._data.intrinsic_matrices.torch
         intrinsic_view[env_ids] = matrices
@@ -251,12 +252,12 @@ class RayCasterCamera(RayCaster):
         pos_w_torch = pos_w.torch
         quat_w_torch = quat_w.torch
         if positions is not None:
-            positions = _to_device_tensor(positions, self._device)
+            positions = _as_torch_tensor(positions, self._device)
             # transform to camera frame
             pos_offset_world_frame = positions - pos_w_torch
             self._offset_pos[env_ids] = math_utils.quat_apply(math_utils.quat_inv(quat_w_torch), pos_offset_world_frame)
         if orientations is not None:
-            orientations = _to_device_tensor(orientations, self._device)
+            orientations = _as_torch_tensor(orientations, self._device)
             # convert rotation matrix from input convention to world
             quat_w_set = math_utils.convert_camera_frame_orientation_convention(
                 orientations, origin=convention, target="world"
@@ -291,8 +292,8 @@ class RayCasterCamera(RayCaster):
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
-        eyes = _to_device_tensor(eyes, self._device)
-        targets = _to_device_tensor(targets, self._device)
+        eyes = _as_torch_tensor(eyes, self._device)
+        targets = _as_torch_tensor(targets, self._device)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # camera position and rotation in opengl convention

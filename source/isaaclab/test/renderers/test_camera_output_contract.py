@@ -9,6 +9,7 @@ import warnings
 
 import pytest
 import torch
+import warp as wp
 
 pytest.importorskip("isaaclab_physx")
 
@@ -148,10 +149,10 @@ def test_camera_data_allocates_supported_subset_and_aliases_rgb():
     """CameraData allocates the intersection of requested + supported and aliases rgb into rgba."""
     cfg = _make_camera_cfg(["rgb", "rgba", "depth"])
     specs = {
-        RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-        RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-        RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-        RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
+        RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+        RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+        RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+        RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
     }
     data = CameraData.allocate(
         data_types=cfg.data_types, height=8, width=16, num_views=2, device="cpu", supported_specs=specs
@@ -173,8 +174,8 @@ def test_camera_data_drops_requested_types_not_in_supported_specs():
     """Requested types absent from supported_specs are absent from data.output."""
     cfg = _make_camera_cfg(["rgb", "normals"])
     specs = {
-        RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-        RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+        RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+        RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
     }
     data = CameraData.allocate(
         data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=specs
@@ -198,8 +199,8 @@ def test_camera_data_no_arg_construction_yields_empty_container():
 def test_camera_data_segmentation_dtype_follows_supported_spec():
     """CameraData consumes the layout dtype declared by the renderer spec."""
     cfg = _make_camera_cfg(["instance_segmentation_fast"])
-    raw_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(1, torch.int32)}
-    colorized_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(4, torch.uint8)}
+    raw_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(1, wp.int32)}
+    colorized_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(4, wp.uint8)}
 
     raw = CameraData.allocate(
         data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=raw_specs
@@ -218,9 +219,9 @@ def test_camera_data_output_proxyarray_zero_copy():
     """Mutations through .torch are visible through .warp on every output buffer."""
     cfg = _make_camera_cfg(["rgb", "rgba", "depth"])
     specs = {
-        RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-        RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-        RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
+        RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+        RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+        RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
     }
     data = CameraData.allocate(
         data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=specs
@@ -237,7 +238,7 @@ def test_camera_data_output_proxyarray_zero_copy():
 
 def test_camera_data_allocate_raises_on_unknown_name():
     """An unknown data_types name raises ValueError naming the offender."""
-    supported_specs = {RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8)}
+    supported_specs = {RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8)}
     with pytest.raises(ValueError) as exc_info:
         CameraData.allocate(
             data_types=["not_a_real_type"],

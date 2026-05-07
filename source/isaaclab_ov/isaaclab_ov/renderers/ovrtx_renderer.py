@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING, Any
 logger = logging.getLogger(__name__)
 
 import numpy as np
-import torch
 import warp as wp
 
 # The ovrtx C library links to its own version of the USD libraries. Having
@@ -41,7 +40,7 @@ from ovrtx import Device, PrimMode, Renderer, RendererConfig, Semantic
 from packaging.version import Version
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.sensors.camera.orientation_conventions import convert_quat_array
 
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
@@ -133,16 +132,16 @@ class OVRTXRenderer(BaseRenderer):
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
         }
 
     def __init__(self, cfg: OVRTXRendererCfg):
@@ -367,15 +366,8 @@ class OVRTXRenderer(BaseRenderer):
             self.initialize(spec)
         return OVRTXRenderData(spec, DEVICE)
 
-    # Map torch dtypes to their warp counterparts for zero-copy wrapping.
-    _TORCH_TO_WP_DTYPE: dict[torch.dtype, Any] = {
-        torch.uint8: wp.uint8,
-        torch.float32: wp.float32,
-        torch.int32: wp.int32,
-    }
-
     def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, wp.array]) -> None:
-        """Wrap caller-owned ``wp.array`` output buffers with the strict per-kind dtype OVRTX expects.
+        """Wrap caller-owned ``wp.array`` output buffers under the strict per-kind dtype OVRTX expects.
 
         Aliased views over a contiguous sibling (e.g. ``rgb`` over ``rgba``) are
         skipped; any other non-contiguous array raises ``ValueError``.
@@ -392,20 +384,8 @@ class OVRTXRenderer(BaseRenderer):
                     f"OVRTXRenderer.set_outputs: output '{name}' is non-contiguous and is not an"
                     " alias of a contiguous output buffer; cannot rewrap with the OVRTX dtype."
                 )
-            torch_dtype = wp.to_torch(arr).dtype
-            wp_dtype = self._TORCH_TO_WP_DTYPE.get(torch_dtype)
-            if wp_dtype is None:
-                raise ValueError(
-                    f"OVRTXRenderer.set_outputs: unsupported dtype {torch_dtype} for output"
-                    f" '{name}'. Add it to OVRTXRenderer._TORCH_TO_WP_DTYPE."
-                )
-            render_data.warp_buffers[name] = wp.array(
-                ptr=arr.ptr,
-                dtype=wp_dtype,
-                shape=tuple(arr.shape),
-                device=arr.device,
-                copy=False,
-            )
+            # Camera spec dtype is already a warp dtype; keep the buffer as-is.
+            render_data.warp_buffers[name] = arr
 
     def update_transforms(self) -> None:
         """Sync physics objects to OVRTX."""
@@ -443,14 +423,24 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Update camera transforms in OVRTX binding."""
         num_envs = positions.shape[0]
-        # convention helper expects torch; use the zero-copy view of the wp.array
-        camera_quats_opengl = convert_camera_frame_orientation_convention(
-            wp.to_torch(orientations), origin="world", target="opengl"
+        # Convert orientations from world to opengl convention via a warp kernel.
+        orientations_quatf = (
+            orientations
+            if orientations.dtype is wp.quatf
+            else wp.array(
+                ptr=orientations.ptr,
+                dtype=wp.quatf,
+                shape=(num_envs,),
+                device=orientations.device,
+                copy=False,
+            )
         )
-        camera_positions_wp = wp.array(
-            ptr=positions.ptr, dtype=wp.vec3, shape=(positions.shape[0],), device=positions.device, copy=False
+        camera_orientations_wp = convert_quat_array(orientations_quatf, origin="world", target="opengl")
+        camera_positions_wp = (
+            positions
+            if positions.dtype is wp.vec3
+            else wp.array(ptr=positions.ptr, dtype=wp.vec3, shape=(num_envs,), device=positions.device, copy=False)
         )
-        camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
         camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
         wp.launch(
             kernel=create_camera_transforms_kernel,
@@ -573,8 +563,14 @@ class OVRTXRenderer(BaseRenderer):
             with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
                 tiled_depth_data = wp.from_dlpack(mapping.tensor)
                 if tiled_depth_data.dtype == wp.uint32:
-                    tiled_depth_data = wp.from_torch(
-                        wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
+                    # Reinterpret in place as float32 (same bit width). Pure warp.
+                    tiled_depth_data = wp.array(
+                        ptr=tiled_depth_data.ptr,
+                        dtype=wp.float32,
+                        shape=tiled_depth_data.shape,
+                        strides=tiled_depth_data.strides,
+                        device=tiled_depth_data.device,
+                        copy=False,
                     )
                 self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers)
             break
@@ -590,15 +586,17 @@ class OVRTXRenderer(BaseRenderer):
 
                 if tiled_semantic_data.dtype == wp.uint32:
                     semantic_colors = self._generate_random_colors_from_ids(tiled_semantic_data)
-
-                    semantic_torch = wp.to_torch(semantic_colors)
-                    semantic_uint8 = semantic_torch.view(torch.uint8)
-
-                    if semantic_torch.dim() == 2:
-                        h, w = semantic_torch.shape
-                        semantic_uint8 = semantic_uint8.reshape(h, w, 4)
-
-                    tiled_semantic_data = wp.from_torch(semantic_uint8, dtype=wp.uint8)
+                    # Reinterpret each uint32 as 4 uint8 bytes by adding a trailing
+                    # channel axis. Pure warp; no torch involvement.
+                    base_shape = tuple(semantic_colors.shape)
+                    new_shape = base_shape + (4,) if len(base_shape) == 2 else base_shape
+                    tiled_semantic_data = wp.array(
+                        ptr=semantic_colors.ptr,
+                        dtype=wp.uint8,
+                        shape=new_shape,
+                        device=semantic_colors.device,
+                        copy=False,
+                    )
 
                 self._extract_rgba_tiles(
                     render_data,

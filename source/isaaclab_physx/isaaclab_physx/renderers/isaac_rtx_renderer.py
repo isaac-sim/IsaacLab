@@ -14,7 +14,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import torch
 import warp as wp
 from packaging import version
 
@@ -24,7 +23,7 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.utils.version import get_isaac_sim_version
-from isaaclab.utils.warp.kernels import reshape_tiled_image
+from isaaclab.utils.warp.kernels import clamp_above_to_inf_kernel, replace_inf_kernel, reshape_tiled_image
 
 from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update, ensure_rtx_hydra_engine_attached
 
@@ -107,19 +106,19 @@ class IsaacRtxRenderer(BaseRenderer):
         specs: dict[RenderBufferKind, RenderBufferSpec] = {
             # Replicator's native layout for color output is rgba/uint8;
             # ``Camera`` aliases ``rgb`` as a view into ``rgba`` storage.
-            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
-            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
         }
 
         if sim_major >= 6:
-            specs[RenderBufferKind.ALBEDO] = RenderBufferSpec(4, torch.uint8)
+            specs[RenderBufferKind.ALBEDO] = RenderBufferSpec(4, wp.uint8)
             for shading_type in SIMPLE_SHADING_MODES:
-                specs[RenderBufferKind(shading_type)] = RenderBufferSpec(3, torch.uint8)
+                specs[RenderBufferKind(shading_type)] = RenderBufferSpec(3, wp.uint8)
 
         seg_specs = (
             (RenderBufferKind.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
@@ -127,7 +126,7 @@ class IsaacRtxRenderer(BaseRenderer):
             (RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
         )
         for name, colorize in seg_specs:
-            specs[name] = RenderBufferSpec(4, torch.uint8) if colorize else RenderBufferSpec(1, torch.int32)
+            specs[name] = RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
 
         return specs
 
@@ -332,13 +331,18 @@ class IsaacRtxRenderer(BaseRenderer):
             else:
                 tiled_data_buffer = output
 
-            # convert data buffer to warp array
+            # convert data buffer to warp array. Replicator may return either a
+            # numpy array (CPU staging) or a torch tensor (GPU device-resident);
+            # both are wrapped via warp's interop without going through torch ops.
             if isinstance(tiled_data_buffer, np.ndarray):
-                # Let warp infer the dtype from numpy array instead of hardcoding uint8
+                # Let warp infer the dtype from numpy array instead of hardcoding uint8.
                 # Different annotators return different dtypes: RGB(uint8), depth(float32), segmentation(uint32)
                 tiled_data_buffer = wp.array(tiled_data_buffer, device=device)
+            elif isinstance(tiled_data_buffer, wp.array):
+                pass
             else:
-                tiled_data_buffer = tiled_data_buffer.to(device=device)
+                # torch.Tensor path: wrap as a zero-copy wp.array (no torch op).
+                tiled_data_buffer = wp.from_torch(tiled_data_buffer.contiguous())
 
             # process data for different segmentation types
             # Note: Replicator returns raw buffers of dtype uint32 for segmentation types
@@ -385,18 +389,24 @@ class IsaacRtxRenderer(BaseRenderer):
             #       in values larger than the clipping range in the output. We apply an additional clipping to
             #       ensure values are within the clipping range for all the annotators.
             if data_type == "distance_to_camera":
-                # Use the zero-copy torch view of the wp.array primary for the in-place clip.
-                view = wp.to_torch(output_wp)
-                view[view > cfg.spawn.clipping_range[1]] = torch.inf
+                wp.launch(
+                    kernel=clamp_above_to_inf_kernel,
+                    dim=output_wp.shape,
+                    inputs=[float(cfg.spawn.clipping_range[1]), output_wp],
+                    device=device,
+                )
 
             # apply defined clipping behavior
             if (
                 data_type in ("distance_to_camera", "distance_to_image_plane", "depth")
                 and self.cfg.depth_clipping_behavior != "none"
             ):
-                view = wp.to_torch(output_wp)
-                view[torch.isinf(view)] = (
-                    0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
+                replacement = 0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
+                wp.launch(
+                    kernel=replace_inf_kernel,
+                    dim=output_wp.shape,
+                    inputs=[float(replacement), output_wp],
+                    device=device,
                 )
 
     def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:

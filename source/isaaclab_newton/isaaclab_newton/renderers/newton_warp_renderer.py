@@ -8,17 +8,17 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import newton
-import torch
 import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.sensors.camera.orientation_conventions import convert_quat_array
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
@@ -83,29 +83,50 @@ class RenderData:
         return None
 
     def update(self, positions: wp.array, orientations: wp.array, intrinsics: wp.array):
-        # The convention helper expects a torch tensor; use the zero-copy view of the wp.array.
-        converted_orientations = convert_camera_frame_orientation_convention(
-            wp.to_torch(orientations), origin="world", target="opengl"
+        # Convert world-frame orientations to opengl in-place via a warp kernel
+        # (no torch involvement on the data path).
+        orientations_quatf = (
+            orientations
+            if orientations.dtype is wp.quatf
+            else wp.array(
+                ptr=orientations.ptr,
+                dtype=wp.quatf,
+                shape=(orientations.shape[0],),
+                device=orientations.device,
+                copy=False,
+            )
         )
+        converted_orientations = convert_quat_array(orientations_quatf, origin="world", target="opengl")
 
         self.camera_transforms = wp.empty(
             (1, self.newton_sensor.model.world_count), dtype=wp.transformf, device=self.newton_sensor.model.device
         )
+        positions_vec3 = (
+            positions
+            if positions.dtype is wp.vec3f
+            else wp.array(
+                ptr=positions.ptr,
+                dtype=wp.vec3f,
+                shape=(positions.shape[0],),
+                device=positions.device,
+                copy=False,
+            )
+        )
         wp.launch(
             RenderData._update_transforms,
             self.newton_sensor.model.world_count,
-            [positions, converted_orientations, self.camera_transforms],
+            [positions_vec3, converted_orientations, self.camera_transforms],
             device=self.newton_sensor.model.device,
         )
 
         if self.camera_rays is None:
-            intrinsics_torch = wp.to_torch(intrinsics)
-            first_focal_length = intrinsics_torch[:, 1, 1][0:1]
-            fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
-
-            self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
-                self.width, self.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
-            )
+            # Pull the focal length scalar via numpy (one element) to compute FOV
+            # without going through torch.
+            intrinsics_np = intrinsics.numpy() if intrinsics.device == "cpu" else intrinsics.numpy()
+            first_focal_length = float(intrinsics_np[0, 1, 1])
+            fov_radians = 2.0 * math.atan(self.height / (2.0 * first_focal_length))
+            fov_arr = wp.array([fov_radians], dtype=wp.float32, device=self.newton_sensor.model.device)
+            self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(self.width, self.height, fov_arr)
 
     def _typed_view(self, wp_data: wp.array, dtype) -> wp.array:
         """Reinterpret the output buffer as ``(world_count, num_cameras, height, width)`` of ``dtype``.
@@ -177,16 +198,14 @@ class NewtonWarpRenderer(BaseRenderer):
         """Publish the per-output layout this Newton Warp backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         seg_spec = (
-            RenderBufferSpec(4, torch.uint8)
-            if self.cfg.colorize_instance_segmentation
-            else RenderBufferSpec(1, torch.int32)
+            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_instance_segmentation else RenderBufferSpec(1, wp.int32)
         )
         return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, torch.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, torch.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.INSTANCE_SEGMENTATION_FAST: seg_spec,
         }
 
