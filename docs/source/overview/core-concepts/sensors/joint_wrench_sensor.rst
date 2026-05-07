@@ -6,7 +6,7 @@ Joint Wrench Sensor
 ===================
 
 The joint wrench sensor reports incoming joint reaction wrenches for selected
-articulation bodies. It exposes force [N] and torque [N*m] buffers separately,
+articulation bodies. It exposes force [N] and torque [N·m] buffers separately,
 with entries ordered by the sensor's :attr:`~isaaclab.sensors.JointWrenchSensor.body_names`.
 The default convention is ``incoming_joint_frame``, which expresses each wrench
 in the child-side joint frame at the child-side joint anchor.
