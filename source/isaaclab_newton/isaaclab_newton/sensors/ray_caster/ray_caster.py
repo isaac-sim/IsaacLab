@@ -161,13 +161,11 @@ class _NewtonRayCasterMixin:
         return wp.array(site_indices, dtype=wp.int32, device=self._device)
 
     def _update_mesh_transforms(self: Any) -> None:
-        """Refresh dynamic multi-mesh targets directly from Newton sites."""
+        """Refresh dynamic multi-mesh target slots directly from Newton sites."""
         if not hasattr(self, "_mesh_views"):
             return
-        mesh_idx = 0
         for site_indices, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
-                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
                 continue
 
             count = site_indices.shape[0]
@@ -177,14 +175,18 @@ class _NewtonRayCasterMixin:
             self._update_newton_site_transforms(site_indices, pose_buf, pos_buf, quat_buf)
             pos_w = wp.to_torch(pos_buf)
             quat_w = wp.to_torch(quat_buf)
-            if count != 1:
-                count = count // self._num_envs
-                pos_w = pos_w.view(self._num_envs, count, 3)
-                quat_w = quat_w.view(self._num_envs, count, 4)
-
-            self._mesh_positions_w_torch[:, mesh_idx : mesh_idx + count] = pos_w
-            self._mesh_orientations_w_torch[:, mesh_idx : mesh_idx + count] = quat_w
-            mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
+            slot_start, slot_end = self._slot_ranges_by_target_expr[target_cfg.prim_expr]
+            slot_count = slot_end - slot_start
+            if count == 1 and slot_count > 1:
+                pos_w = pos_w.repeat(slot_count, 1)
+                quat_w = quat_w.repeat(slot_count, 1)
+            if pos_w.shape[0] != slot_count:
+                raise RuntimeError(
+                    f"Tracked target '{target_cfg.prim_expr}' produced {pos_w.shape[0]} poses, "
+                    f"but the raycaster has {slot_count} mesh slots for that target."
+                )
+            self._slot_mesh_positions_w_torch[slot_start:slot_end] = pos_w
+            self._slot_mesh_orientations_w_torch[slot_start:slot_end] = quat_w
 
     def _update_newton_site_transforms(
         self: Any,

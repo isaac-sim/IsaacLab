@@ -375,21 +375,14 @@ def test_multi_mesh_consumes_clone_plan_without_usd_object_clones(sim_ground):
     env1_object = stage.GetPrimAtPath("/World/envs/env_1/Object")
     assert env0_object is not None and env0_object.IsValid()
     assert env1_object is not None and env1_object.IsValid()
-    # No USD clone was authored for env_2: its mesh table entry comes from ClonePlan.
+    # No USD clone was authored for env_2: its mesh slot comes from ClonePlan.
     env2_object = stage.GetPrimAtPath("/World/envs/env_2/Object")
     assert env2_object is None or not env2_object.IsValid()
 
-    # This PR intentionally keeps the rectangular dynamic-mesh kernel. Heterogeneous
-    # ClonePlan rows are represented by padding shorter environments with a dummy
-    # mesh pose far outside the ray-cast range; a follow-up PR can replace this
-    # with a new kernel.
-    mesh_positions = sensor._mesh_positions_w_torch.cpu()
-    assert sensor._mesh_ids_wp.shape == (num_envs, 2)
-    assert mesh_positions.shape == (num_envs, 2, 3)
-    assert torch.linalg.norm(mesh_positions[0, 1]) > 1.0e8
-    assert torch.linalg.norm(mesh_positions[1, 0]) < 1.0e8
-    assert torch.linalg.norm(mesh_positions[1, 1]) < 1.0e8
-    assert torch.linalg.norm(mesh_positions[2, 1]) > 1.0e8
+    # Heterogeneous ClonePlan rows should not be padded to a rectangular table:
+    # envs 0 and 2 use the one-part source, env 1 uses the two-part source.
+    slot_env_ids = wp.to_torch(sensor._slot_env_ids_wp).cpu()
+    assert torch.equal(torch.bincount(slot_env_ids, minlength=num_envs), torch.tensor([1, 2, 1]))
 
     hits = sensor.data.ray_hits_w.torch
     assert torch.isfinite(hits[0]).any(), "env_0 should hit the single-part prototype"
@@ -516,9 +509,9 @@ def test_update_mesh_transforms_non_identity_offset(sim_ground):
 
     # Verify mesh position: body at (0,0,2) rotated 90deg Z, child offset (1,0,0) local
     # Expected: (0, 0, 2) + rotate(90degZ, (1,0,0)) = (0, 0, 2) + (0, 1, 0) = (0, 1, 2)
-    mesh_pos = sensor._mesh_positions_w_torch.clone()
+    mesh_pos = sensor._slot_mesh_positions_w_torch.clone()
     np.testing.assert_allclose(
-        mesh_pos[0, 0].cpu().numpy(),
+        mesh_pos[0].cpu().numpy(),
         [0.0, 1.0, 2.0],
         atol=0.15,
         err_msg=(

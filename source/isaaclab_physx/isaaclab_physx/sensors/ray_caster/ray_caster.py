@@ -150,13 +150,11 @@ class _PhysXRayCasterMixin:
         return physics_sim_view.create_rigid_body_view(body_expr.replace(".*", "*"))
 
     def _update_mesh_transforms(self: Any) -> None:
-        """Refresh dynamic multi-mesh targets directly from PhysX views."""
+        """Refresh dynamic multi-mesh target slots directly from PhysX views."""
         if not hasattr(self, "_mesh_views"):
             return
-        mesh_idx = 0
         for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
-                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
                 continue
 
             transforms = view.get_transforms()
@@ -164,15 +162,18 @@ class _PhysXRayCasterMixin:
             pos_w = transforms_t[:, 0:3]
             ori_w = transforms_t[:, 3:7]
 
-            count = view.count
-            if count != 1:
-                count = count // self._num_envs
-                pos_w = pos_w.view(self._num_envs, count, 3)
-                ori_w = ori_w.view(self._num_envs, count, 4)
-
-            self._mesh_positions_w_torch[:, mesh_idx : mesh_idx + count] = pos_w
-            self._mesh_orientations_w_torch[:, mesh_idx : mesh_idx + count] = ori_w
-            mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
+            slot_start, slot_end = self._slot_ranges_by_target_expr[target_cfg.prim_expr]
+            slot_count = slot_end - slot_start
+            if pos_w.shape[0] == 1 and slot_count > 1:
+                pos_w = pos_w.repeat(slot_count, 1)
+                ori_w = ori_w.repeat(slot_count, 1)
+            if pos_w.shape[0] != slot_count:
+                raise RuntimeError(
+                    f"Tracked target '{target_cfg.prim_expr}' produced {pos_w.shape[0]} poses, "
+                    f"but the raycaster has {slot_count} mesh slots for that target."
+                )
+            self._slot_mesh_positions_w_torch[slot_start:slot_end] = pos_w
+            self._slot_mesh_orientations_w_torch[slot_start:slot_end] = ori_w
 
 
 class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):

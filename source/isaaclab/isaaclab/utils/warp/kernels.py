@@ -327,6 +327,55 @@ def raycast_dynamic_meshes_kernel(
 
 
 @wp.kernel(enable_backward=False)
+def raycast_dynamic_mesh_slots_kernel(
+    env_mask: wp.array(dtype=wp.bool),
+    slot_env_ids: wp.array(dtype=wp.int32),
+    mesh: wp.array(dtype=wp.uint64),
+    ray_starts: wp.array2d(dtype=wp.vec3),
+    ray_directions: wp.array2d(dtype=wp.vec3),
+    ray_hits: wp.array2d(dtype=wp.vec3),
+    ray_distance: wp.array2d(dtype=wp.float32),
+    ray_normal: wp.array2d(dtype=wp.vec3),
+    ray_face_id: wp.array2d(dtype=wp.int32),
+    ray_mesh_id: wp.array2d(dtype=wp.int16),
+    mesh_positions: wp.array(dtype=wp.vec3),
+    mesh_rotations: wp.array(dtype=wp.quat),
+    max_dist: float = 1e6,
+    return_normal: int = False,
+    return_face_id: int = False,
+    return_mesh_id: int = False,
+):
+    """Ray-cast against a flat list of per-environment mesh slots.
+
+    Launch with ``dim=(num_slots, num_rays)``. Each slot carries the owning
+    environment id, allowing heterogeneous scenes where environments have
+    different mesh counts without padding to a rectangular table.
+    """
+    slot_id, tid_ray = wp.tid()
+    tid_env = slot_env_ids[slot_id]
+    if not env_mask[tid_env]:
+        return
+
+    mesh_pose = wp.transform(mesh_positions[slot_id], mesh_rotations[slot_id])
+    mesh_pose_inv = wp.transform_inverse(mesh_pose)
+    direction = wp.transform_vector(mesh_pose_inv, ray_directions[tid_env, tid_ray])
+    start_pos = wp.transform_point(mesh_pose_inv, ray_starts[tid_env, tid_ray])
+
+    mesh_query_ray_t = wp.mesh_query_ray(mesh[slot_id], start_pos, direction, max_dist)
+    if mesh_query_ray_t.result:
+        wp.atomic_min(ray_distance, tid_env, tid_ray, mesh_query_ray_t.t)
+        if mesh_query_ray_t.t == ray_distance[tid_env, tid_ray]:
+            hit_pos = start_pos + mesh_query_ray_t.t * direction
+            ray_hits[tid_env, tid_ray] = wp.transform_point(mesh_pose, hit_pos)
+            if return_normal == 1:
+                ray_normal[tid_env, tid_ray] = wp.transform_vector(mesh_pose, mesh_query_ray_t.normal)
+            if return_face_id == 1:
+                ray_face_id[tid_env, tid_ray] = mesh_query_ray_t.face
+            if return_mesh_id == 1:
+                ray_mesh_id[tid_env, tid_ray] = wp.int16(slot_id)
+
+
+@wp.kernel(enable_backward=False)
 def reshape_tiled_image(
     tiled_image_buffer: Any,
     batched_image: Any,

@@ -239,15 +239,14 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
                 device=self._device,
             )
 
-        n_meshes = self._mesh_ids_wp.shape[1]
-
-        # Ray-cast against all meshes; closest hit wins via atomic_min on ray_distance.
+        # Ray-cast against all mesh slots; closest hit wins via atomic_min on ray_distance.
         wp.launch(
-            warp_kernels.raycast_dynamic_meshes_kernel,
-            dim=(n_meshes, self._num_envs, self.num_rays),
+            warp_kernels.raycast_dynamic_mesh_slots_kernel,
+            dim=(self._slot_mesh_ids_wp.shape[0], self.num_rays),
             inputs=[
                 env_mask,
-                self._mesh_ids_wp,
+                self._slot_env_ids_wp,
+                self._slot_mesh_ids_wp,
                 self._ray_starts_w,
                 self._ray_directions_w,
                 self._ray_hits_w_cam,
@@ -255,8 +254,8 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
                 self._ray_normal_w,
                 self._ray_face_id_w,
                 self._ray_mesh_id_w,
-                self._mesh_positions_w,
-                self._mesh_orientations_w,
+                self._slot_mesh_positions_w,
+                self._slot_mesh_orientations_w,
                 float(CAMERA_RAYCAST_MAX_DIST),
                 int(return_normal),
                 int(False),
