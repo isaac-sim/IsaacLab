@@ -23,7 +23,7 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
-from frame_view_contract_utils import CHILD_OFFSET, ViewBundle, test_set_world_updates_local  # noqa: E402
+from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
 from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 
 from pxr import Gf, UsdGeom  # noqa: E402
@@ -106,28 +106,11 @@ def view_factory():
 
 
 # ------------------------------------------------------------------
-# Override shared contract test with expected failure for Fabric.
-# FabricFrameView.set_world_poses writes to Fabric worldMatrix only; the local
-# pose (read via USD) does not reflect the change because there is no
-# Fabric → USD writeback for local poses.  This is tracked as Issue #5
-# (localMatrix: set_local_poses falls back to USD).
+# Override: ensure the shared contract test runs without xfail now that
+# get_local_poses computes local from Fabric world matrices.
 # ------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-@pytest.mark.xfail(
-    reason=(
-        "Issue #5: FabricFrameView.set_world_poses writes to Fabric worldMatrix only. "
-        "get_local_poses reads from stale USD because there is no Fabric→USD "
-        "writeback for local poses."
-    ),
-    strict=True,
-)
-def test_set_world_updates_local(device, view_factory):  # noqa: F811
-    """Override the shared test to mark it as expected failure."""
-    from frame_view_contract_utils import test_set_world_updates_local as _impl  # noqa: PLC0415
-
-    _impl(device, view_factory)
+# (No override needed — the shared test_set_world_updates_local from
+#  frame_view_contract_utils is imported via wildcard and will run as-is.)
 
 
 # ------------------------------------------------------------------
@@ -188,48 +171,103 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch):
-    """Forcing the topology-changed branch on a write triggers
-    :meth:`_rebuild_fabric_arrays` and leaves the view in a state where
-    subsequent writes/reads still produce correct data.
+def test_fabric_rebuild_after_topology_change(device, view_factory):
+    """A simulated topology change rebuilds the indexed fabric arrays and leaves
+    the view in a state where subsequent writes/reads still produce correct data.
 
-    Real ``PrimSelection.PrepareForReuse`` reports topology change only when
-    Fabric reallocates internally, which is hard to provoke from a unit test.
-    Instead we monkeypatch ``_prepare_for_reuse`` on the instance to always
-    take the rebuild branch and verify the view remains usable.
+    Real ``PrimSelection.PrepareForReuse`` reports topology change only when Fabric
+    reallocates internally, which is hard to provoke from a unit test.  Instead we
+    invoke :meth:`FabricFrameView._compute_fabric_indices` and rebuild the indexed
+    arrays manually, mimicking what ``_get_*_array`` would do on a real topology
+    event, then verify a roundtrip still works.
     """
     bundle = view_factory(2, device)
     view = bundle.view
 
-    # First write — initializes Fabric and binds _fabric_selection.
+    # First write — initializes Fabric.
     initial = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[initial, 1.0, 2.0, 3.0], device=device)
     view.set_world_poses(positions=initial)
 
-    rebuild_calls = []
-    real_rebuild = view._rebuild_fabric_arrays
+    # Simulate topology change: recompute fabric indices and rebuild every indexed array.
+    view._fabric_indices = view._compute_fabric_indices(view._trans_sel_ro)
+    view._world_ifa_ro = view._build_indexed_array(view._trans_sel_ro, view._WORLD_MATRIX_NAME)
+    view._local_ifa_ro = view._build_indexed_array(view._trans_sel_ro, view._LOCAL_MATRIX_NAME)
+    view._world_ifa_rw = view._build_indexed_array(view._world_sel_rw, view._WORLD_MATRIX_NAME)
+    view._local_ifa_rw = view._build_indexed_array(view._local_sel_rw, view._LOCAL_MATRIX_NAME)
+    view._parent_world_ifa_ro = view._build_parent_indexed_array(view._trans_sel_ro)
 
-    def spy_rebuild():
-        rebuild_calls.append(True)
-        real_rebuild()
-
-    def force_topology_changed():
-        if view._fabric_selection is not None:
-            view._fabric_selection.PrepareForReuse()
-            spy_rebuild()
-
-    monkeypatch.setattr(view, "_prepare_for_reuse", force_topology_changed)
-
-    # Trigger another write — goes through the forced topology-change branch.
+    # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new, 4.0, 5.0, 6.0], device=device)
     view.set_world_poses(positions=new)
 
-    assert rebuild_calls, "Forced topology-change branch did not invoke _rebuild_fabric_arrays"
-
-    # Read back — proves the rebuilt _view_to_fabric and _fabric_world_matrices
-    # are still consistent.
     ret_pos, _ = view.get_world_poses()
     pos_torch = wp.to_torch(ret_pos)
     expected = torch.tensor([[4.0, 5.0, 6.0], [4.0, 5.0, 6.0]], device=device)
     assert torch.allclose(pos_torch, expected, atol=1e-7), f"Read after rebuild failed on {device}: {pos_torch}"
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_prepare_for_reuse_detects_topology_change(device, view_factory):
+    """Each persistent ``PrimSelection`` exposes ``PrepareForReuse`` and returns a
+    bool.  When the underlying Fabric topology is unchanged it returns False.
+    """
+    bundle = view_factory(1, device)
+    view = bundle.view
+    view.get_world_poses()  # trigger Fabric init
+
+    assert view._trans_sel_ro is not None, "trans_sel_ro selection not initialized"
+    for selection in (view._trans_sel_ro, view._world_sel_rw, view._local_sel_rw):
+        result = selection.PrepareForReuse()
+        assert isinstance(result, bool), f"PrepareForReuse should return bool, got {type(result)}"
+        assert not result, "PrepareForReuse should return False when no topology change"
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_set_local_via_fabric_path(device, view_factory):
+    """Exercise the Fabric-native set_local_poses path.
+
+    Ensures set_local_poses computes child_world = parent_world * local
+    entirely within Fabric (not falling back to USD) by first triggering
+    the Fabric sync via get_world_poses.
+    """
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+
+    # Trigger Fabric init and sync (sets _fabric_usd_sync_done = True)
+    view.get_world_poses()
+
+    # Now set_local_poses should take the Fabric path
+    new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 2.0, 3.0], device=device)
+    ori = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
+    new_local_ori = wp.from_torch(ori)
+
+    view.set_local_poses(translations=new_local_pos, orientations=new_local_ori)
+
+    # Verify: world = parent(0,0,1) + local(1,2,3) = (1,2,4)
+    world_pos, _ = view.get_world_poses()
+    expected = torch.tensor([[1.0, 2.0, 4.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(world_pos.torch, expected, atol=1e-4, rtol=0)
+
+    # Verify get_local_poses returns the local offset
+    local_pos, _ = view.get_local_poses()
+    expected_local = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(local_pos.torch, expected_local, atol=1e-4, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_get_scales_fabric_path(device, view_factory):
+    """Exercise the Fabric-native get_scales path."""
+    bundle = view_factory(num_envs=1, device=device)
+    view = bundle.view
+
+    # Trigger Fabric init
+    view.get_world_poses()
+
+    scales = view.get_scales()
+    scales_t = wp.to_torch(scales)
+    # Default scale should be (1, 1, 1)
+    expected = torch.tensor([[1.0, 1.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(scales_t, expected, atol=1e-4, rtol=0)

@@ -271,26 +271,71 @@ def _run_pose_benchmarks(
     positions: wp.array,
     orientations: wp.array,
 ):
-    """Shared benchmark loop for get/set world poses on any FrameView."""
+    """Shared benchmark loop for get/set {world,local} poses on any FrameView."""
+
+    # FrameView getters now return ProxyArray; older callers worked with wp.array
+    # directly. Support both transparently.
+    def _as_wp(a):
+        return a.warp if hasattr(a, "warp") else a
+
+    positions_wp = _as_wp(positions)
+    orientations_wp = _as_wp(orientations)
+
     start_time = time.perf_counter()
     for _ in range(num_iterations):
         view.get_world_poses()
     timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
-    new_positions = wp.clone(positions)
+    new_positions = wp.clone(positions_wp)
     new_positions_t = wp.to_torch(new_positions)
     new_positions_t[:, 2] += 0.5
     expected_positions = new_positions_t.clone()
 
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        view.set_world_poses(new_positions, orientations)
+        view.set_world_poses(new_positions, orientations_wp)
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
+    # Interleaved set→get on world poses — the realistic write/read pattern for
+    # downstream consumers (e.g. cameras updating their pose then immediately
+    # querying it).
+    start_time = time.perf_counter()
+    for _ in range(num_iterations):
+        view.set_world_poses(new_positions, orientations_wp)
+        view.get_world_poses()
+    timing_results["interleaved_world"] = (time.perf_counter() - start_time) / num_iterations
+
+    # Local poses — Fabric-aware path on FabricFrameView, USD path otherwise.
+    if hasattr(view, "get_local_poses"):
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            view.get_local_poses()
+        timing_results["get_local_poses"] = (time.perf_counter() - start_time) / num_iterations
+
+    if hasattr(view, "set_local_poses"):
+        local_pos, local_ori = view.get_local_poses()
+        local_pos_t = (
+            local_pos.torch
+            if hasattr(local_pos, "torch")
+            else (wp.to_torch(local_pos) if isinstance(local_pos, wp.array) else local_pos)
+        )
+        local_ori_t = (
+            local_ori.torch
+            if hasattr(local_ori, "torch")
+            else (wp.to_torch(local_ori) if isinstance(local_ori, wp.array) else local_ori)
+        )
+        new_local_pos = wp.from_torch(local_pos_t.clone().contiguous())
+        new_local_ori = wp.from_torch(local_ori_t.clone().contiguous())
+
+        start_time = time.perf_counter()
+        for _ in range(num_iterations):
+            view.set_local_poses(translations=new_local_pos, orientations=new_local_ori)
+        timing_results["set_local_poses"] = (time.perf_counter() - start_time) / num_iterations
+
     ret_pos, ret_quat = view.get_world_poses()
-    ret_pos_t = wp.to_torch(ret_pos)
-    ret_quat_t = wp.to_torch(ret_quat)
-    ori_t = wp.to_torch(orientations)
+    ret_pos_t = ret_pos.torch if hasattr(ret_pos, "torch") else wp.to_torch(ret_pos)
+    ret_quat_t = ret_quat.torch if hasattr(ret_quat, "torch") else wp.to_torch(ret_quat)
+    ori_t = wp.to_torch(orientations_wp)
 
     pos_ok = torch.allclose(ret_pos_t, expected_positions, atol=1e-4, rtol=0)
     quat_ok = torch.allclose(ret_quat_t, ori_t, atol=1e-4, rtol=0)
@@ -327,6 +372,9 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         ("Initialization", "init"),
         ("Get World Poses", "get_world_poses"),
         ("Set World Poses", "set_world_poses"),
+        ("Interleaved Set->Get", "interleaved_world"),
+        ("Get Local Poses", "get_local_poses"),
+        ("Set Local Poses", "set_local_poses"),
     ]
 
     for op_name, op_key in operations:
