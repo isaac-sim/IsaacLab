@@ -309,7 +309,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled to isolate isaaclab_tasks CI hang
     steps:
     - uses: actions/checkout@v6
       with:
@@ -330,7 +330,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled to isolate isaaclab_tasks CI hang
     steps:
     - uses: actions/checkout@v6
       with:
@@ -351,7 +351,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: false  # TEMP: Disabled to isolate isaaclab_tasks CI hang
     steps:
     - uses: actions/checkout@v6
       with:
