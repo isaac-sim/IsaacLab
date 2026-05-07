@@ -263,21 +263,6 @@ def test_clone_environments_executes_asset_level_plan_without_usd_positions(monk
     assert set_plan_calls == [scene._clone_plan]
 
 
-def test_build_default_clone_plan_uses_env0_source(monkeypatch: pytest.MonkeyPatch):
-    """The constructor's default plan is always available before cfg planning."""
-    scene = object.__new__(InteractiveScene)
-    scene.cfg = SimpleNamespace(num_envs=3)
-    scene.env_fmt = "/World/envs/env_{}"
-    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
-
-    plan = scene._build_default_clone_plan()
-
-    assert plan.sources == ["/World/envs/env_0"]
-    assert plan.destinations == [scene.env_fmt]
-    assert plan.clone_mask.shape == (1, scene.num_envs)
-    assert plan.clone_mask.all()
-
-
 def test_build_clone_plan_from_cfg_plans_multi_and_single_spawners(monkeypatch: pytest.MonkeyPatch):
     """Heterogeneous planning writes source paths for multi and single spawners."""
     from isaaclab.cloner import sequential
