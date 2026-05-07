@@ -29,6 +29,7 @@ from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.utils.array import convert_to_torch
 
 pytestmark = pytest.mark.isaacsim_ci
 
@@ -1174,14 +1175,14 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
         camera.set_world_poses_from_view(eyes_close, target)
         sim.step()
         camera.update(dt)
-        depth_close = camera.data.output["distance_to_camera"].clone()
+        depth_close = convert_to_torch(camera.data.output["distance_to_camera"]).clone()
 
         # -- far position --
         eyes_far = torch.tensor([[8.0, 8.0, 8.0]], dtype=torch.float32, device=camera.device)
         camera.set_world_poses_from_view(eyes_far, target)
         sim.step()
         camera.update(dt)
-        depth_far = camera.data.output["distance_to_camera"].clone()
+        depth_far = convert_to_torch(camera.data.output["distance_to_camera"]).clone()
 
         # -- validate --
         valid_close = depth_close[depth_close < max_range]

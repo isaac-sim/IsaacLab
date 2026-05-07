@@ -12,6 +12,7 @@ import torchvision
 
 from isaaclab.sensors import save_images_to_file
 from isaaclab.utils import configclass
+from isaaclab.utils.array import convert_to_torch
 
 # Number of output channels for each supported camera data type.
 _DATA_TYPE_CHANNELS: dict[str, int] = {
@@ -227,7 +228,7 @@ class FeatureExtractor:
         """
         tensors = []
         for dt in self.data_types:
-            img = camera_output[dt].float()
+            img = convert_to_torch(camera_output[dt]).float()
             if dt == "rgb":
                 img = img / 255.0
             elif dt == "depth":
@@ -259,7 +260,7 @@ class FeatureExtractor:
         for dt in self.data_types:
             if dt not in camera_output:
                 continue
-            img = camera_output[dt].float()
+            img = convert_to_torch(camera_output[dt]).float()
             if dt == "depth":
                 img = img.clone()
                 img[img == float("inf")] = 0
