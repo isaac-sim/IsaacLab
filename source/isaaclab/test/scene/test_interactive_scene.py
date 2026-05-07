@@ -214,6 +214,18 @@ def test_clone_environments_executes_env_root_plan_with_positions(monkeypatch: p
     assert len(set_plan_calls) == 1
 
 
+def test_clone_environments_skips_replication_without_plan():
+    """Direct-path cfg scenes publish no plan and do not dispatch cloners."""
+    scene = object.__new__(InteractiveScene)
+    scene._clone_plan = None
+    set_plan_calls = []
+    scene.sim = SimpleNamespace(set_clone_plan=set_plan_calls.append)
+
+    scene.clone_environments(copy_from_source=False)
+
+    assert set_plan_calls == [None]
+
+
 def test_clone_environments_executes_asset_level_plan_without_usd_positions(monkeypatch: pytest.MonkeyPatch):
     """Asset-level plans preserve env-root transforms by skipping USD positions."""
     from isaaclab.cloner import ClonePlan
@@ -290,6 +302,7 @@ def test_build_clone_plan_from_cfg_plans_multi_and_single_spawners(monkeypatch: 
 
     plan = scene._build_clone_plan_from_cfg()
 
+    assert plan is not None
     assert plan.sources == [
         "/World/envs/env_0/Object",
         "/World/envs/env_1/Object",
@@ -325,10 +338,31 @@ def test_build_clone_plan_from_cfg_defaults_to_env0_plan(monkeypatch: pytest.Mon
 
     plan = scene._build_clone_plan_from_cfg()
 
+    assert plan is not None
     assert plan.sources == ["/World/envs/env_0"]
     assert plan.destinations == [scene.env_fmt]
     assert plan.clone_mask.shape == (1, scene.num_envs)
     assert scene.cfg.robot.spawn.spawn_path == "/World/envs/env_0/Robot"
+
+
+def test_build_clone_plan_from_cfg_returns_none_without_env_scoped_groups(monkeypatch: pytest.MonkeyPatch):
+    """Direct-path cfg scenes should not force env-root replication."""
+    from isaaclab.cloner import sequential
+
+    scene = object.__new__(InteractiveScene)
+    scene.cfg = SimpleNamespace(
+        num_envs=1,
+        robot=SimpleNamespace(
+            prim_path="/World/Robot",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        ),
+    )
+    scene.env_fmt = "/World/envs/env_{}"
+    scene.cloner_cfg = SimpleNamespace(clone_strategy=sequential)
+    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
+
+    assert scene._build_clone_plan_from_cfg() is None
+    assert scene.cfg.robot.spawn.spawn_path is None
 
 
 def test_build_clone_plan_from_cfg_sets_collection_member_paths(monkeypatch: pytest.MonkeyPatch):
@@ -356,6 +390,7 @@ def test_build_clone_plan_from_cfg_sets_collection_member_paths(monkeypatch: pyt
 
     plan = scene._build_clone_plan_from_cfg()
 
+    assert plan is not None
     planned_cube = scene.cfg.objects.rigid_objects["cube"]
     planned_shape = scene.cfg.objects.rigid_objects["shape"]
     assert planned_cube.spawn.spawn_path == "/World/envs/env_0/Cube"
@@ -388,6 +423,7 @@ def test_build_clone_plan_from_cfg_marks_unused_variants(monkeypatch: pytest.Mon
 
     plan = scene._build_clone_plan_from_cfg()
 
+    assert plan is not None
     assert scene.cfg.object.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object", None]
     assert plan.clone_mask[2].sum() == 0
 
