@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Regression tests for deterministic training CLI plumbing and seed ordering."""
 
 from __future__ import annotations
@@ -13,7 +18,6 @@ import pytest
 from tensorboard.backend.event_processing import event_accumulator
 
 from isaaclab.app import AppLauncher
-
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -97,8 +101,7 @@ def _read_rewards_per_iter(event_file: Path, preferred_tags: list[str]) -> list[
             selected_tag = reward_like_tags[0]
     if selected_tag is None:
         raise AssertionError(
-            f"No reward-like scalar tag found in tensorboard file: {event_file}. "
-            f"Available scalar tags: {scalar_tags}"
+            f"No reward-like scalar tag found in tensorboard file: {event_file}. Available scalar tags: {scalar_tags}"
         )
     return [event.value for event in ea.Scalars(selected_tag)]
 
@@ -199,11 +202,8 @@ def test_rl_games_deterministic_flag_affects_rewards_reproducibility():
     det_a, det_b = _aligned_rewards(rewards_det_1, rewards_det_2)
 
     assert not np.allclose(non_det_a, non_det_b, rtol=0.0, atol=1e-6), (
-        "Expected non-deterministic runs to produce different rewards/iter curves, "
-        "but they matched within tolerance."
+        "Expected non-deterministic runs to produce different rewards/iter curves, but they matched within tolerance."
     )
     assert np.allclose(det_a, det_b, rtol=0.0, atol=1e-6), (
-        "Expected deterministic runs to produce matching rewards/iter curves, "
-        "but they diverged."
+        "Expected deterministic runs to produce matching rewards/iter curves, but they diverged."
     )
-

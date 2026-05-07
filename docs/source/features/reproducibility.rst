@@ -23,7 +23,6 @@ depending on the manager-based or direct environment implementation respectively
 .. note::
 
    **App-level deterministic experience selection is exposed through ``AppLauncher``.**
-
    The ``--deterministic`` flag is provided by :meth:`isaaclab.app.AppLauncher.add_app_launcher_args`.
    When used with the default experience selection logic in a compatible headless launch, AppLauncher
    automatically selects ``isaaclab.python.headless.determinism.kit``.
