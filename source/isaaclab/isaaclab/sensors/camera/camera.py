@@ -18,8 +18,7 @@ from pxr import UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.math import (
@@ -380,9 +379,7 @@ class Camera(SensorBase):
         # references to prims located in the stage.
         sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
 
-        # Create a view for the sensor with Fabric enabled for fast pose queries.
-        # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
-        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True)
+        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(
