@@ -200,7 +200,7 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "rgb",
         id="newton-ovrtx-rgb",
-        marks=_SKIP_ON_CI_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
