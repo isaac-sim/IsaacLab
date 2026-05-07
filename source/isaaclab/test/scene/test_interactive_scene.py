@@ -263,6 +263,21 @@ def test_clone_environments_executes_asset_level_plan_without_usd_positions(monk
     assert set_plan_calls == [scene._clone_plan]
 
 
+def test_build_default_clone_plan_uses_env0_source(monkeypatch: pytest.MonkeyPatch):
+    """The constructor's default plan is always available before cfg planning."""
+    scene = object.__new__(InteractiveScene)
+    scene.cfg = SimpleNamespace(num_envs=3)
+    scene.env_fmt = "/World/envs/env_{}"
+    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
+
+    plan = scene._build_default_clone_plan()
+
+    assert plan.sources == ["/World/envs/env_0"]
+    assert plan.destinations == [scene.env_fmt]
+    assert plan.clone_mask.shape == (1, scene.num_envs)
+    assert plan.clone_mask.all()
+
+
 def test_build_clone_plan_from_cfg_plans_multi_and_single_spawners(monkeypatch: pytest.MonkeyPatch):
     """Heterogeneous planning writes source paths for multi and single spawners."""
     from isaaclab.cloner import sequential
@@ -302,6 +317,8 @@ def test_build_clone_plan_from_cfg_plans_multi_and_single_spawners(monkeypatch: 
     ]
     assert scene.cfg.object.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
     assert scene.cfg.robot.spawn.spawn_path == "/World/envs/env_0/Robot"
+    assert scene.cfg.object.prim_path == "{ENV_REGEX_NS}/Object"
+    assert scene.cfg.robot.prim_path == "{ENV_REGEX_NS}/Robot"
     assert torch.equal(plan.clone_mask.to(torch.int).argmax(dim=0).cpu(), torch.tensor([0, 1, 0, 1]))
 
 
@@ -388,6 +405,15 @@ def test_build_clone_plan_from_cfg_marks_unused_variants(monkeypatch: pytest.Mon
 
     assert scene.cfg.object.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object", None]
     assert plan.clone_mask[2].sum() == 0
+
+
+def test_add_entities_from_cfg_rejects_unresolved_presets():
+    """Preset selection belongs upstream of InteractiveScene."""
+    scene = object.__new__(InteractiveScene)
+    scene.cfg = SimpleNamespace(legacy=SimpleNamespace(presets={"default": object()}))
+
+    with pytest.raises(ValueError, match="unresolved presets"):
+        scene._add_entities_from_cfg()
 
 
 def test_aggregate_scene_data_requirements_merges_visualizers_and_renderers(monkeypatch: pytest.MonkeyPatch):
