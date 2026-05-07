@@ -18,12 +18,15 @@ EXTRAS_REQUIRE = {
     "newton": [
         "warp-lang",
         "PyOpenGL-accelerate",
+        "newton @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
         "imgui-bundle>=1.92.5",
     ],
     "rerun": [
+        "newton @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
         "rerun-sdk>=0.29.0",
     ],
     "viser": [
+        "newton @ git+https://github.com/newton-physics/newton.git@v1.2.0rc2",
         "viser>=1.0.16",
     ],
 }

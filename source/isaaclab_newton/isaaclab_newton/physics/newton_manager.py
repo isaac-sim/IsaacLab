@@ -71,7 +71,7 @@ def _set_fabric_transforms(
     i = int(wp.tid())
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
-    fabric_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
+    fabric_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))
 
 
 @wp.kernel(enable_backward=False)
@@ -517,6 +517,11 @@ class NewtonManager(PhysicsManager):
         cls._newton_imu_sensors = []
         cls._report_contacts = False
         cls._adapter = None
+        # Set by an articulation that took the ``use_newton_actuators=True``
+        # branch in ``_process_actuators_cfg``.  Together with the adapter
+        # check, this gates whether the decimation loop can be captured into
+        # a CUDA graph (see :meth:`_is_all_graphable`).
+        cls._use_newton_actuators_active = False
         cls._decimation = 1
         # Per-world reset masks
         cls._world_reset_mask = None
@@ -822,6 +827,7 @@ class NewtonManager(PhysicsManager):
         # Actuator registration is deferred to register_adapter(),
         # called by _process_actuators_cfg after the adapter is constructed.
         cls._adapter = None
+        cls._use_newton_actuators_active = False
 
         # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset)
         cls._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.int32, device=device)
@@ -1345,8 +1351,30 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _is_all_graphable(cls) -> bool:
-        """``True`` when an adapter is registered and all its actuators are CUDA-graph-safe."""
-        return cls._adapter is not None and cls._adapter.is_all_graphable
+        """``True`` when the decimation loop can be captured into a CUDA graph.
+
+        Requires:
+          1. An articulation took the ``use_newton_actuators=True`` branch
+             (signalled via :meth:`activate_newton_actuator_path`).
+          2. Either no actuator adapter was needed (all-implicit) or every
+             actuator in the adapter is CUDA-graph-safe.
+        """
+        if not cls._use_newton_actuators_active:
+            return False
+        return cls._adapter is None or cls._adapter.is_all_graphable
+
+    @classmethod
+    def activate_newton_actuator_path(cls) -> None:
+        """Signal that an articulation has opted into the Newton actuator fast path.
+
+        Called by the articulation's ``_process_actuators_cfg`` whenever it
+        enters the ``use_newton_actuators=True`` branch — including the
+        all-implicit case where no :class:`NewtonActuatorAdapter` is built.
+        Required because :meth:`_is_all_graphable` can no longer rely on
+        adapter presence alone to distinguish the fast path from the
+        standard Lab path (which also has ``_adapter is None``).
+        """
+        cls._use_newton_actuators_active = True
 
     @classmethod
     def register_adapter(cls, adapter: NewtonActuatorAdapter) -> None:
