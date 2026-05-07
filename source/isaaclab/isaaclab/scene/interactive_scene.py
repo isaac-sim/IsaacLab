@@ -212,6 +212,7 @@ class InteractiveScene:
 
     def _build_clone_plan_from_cfg(self) -> cloner.ClonePlan:
         """Build a clone plan from scene cfg spawn variants and write planned spawn paths."""
+
         def num_variants(spawn_cfg) -> int:
             if isinstance(spawn_cfg, sim_utils.MultiAssetSpawnerCfg):
                 return len(spawn_cfg.assets_cfg)
@@ -824,7 +825,9 @@ class InteractiveScene:
                 asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
             # set spawn_path on spawner if cloning is needed
             if hasattr(asset_cfg, "spawn") and asset_cfg.spawn is not None:
-                is_multi_spawner = isinstance(asset_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg))
+                is_multi_spawner = isinstance(
+                    asset_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
+                )
                 if self.env_ns not in asset_cfg.prim_path:
                     asset_cfg.spawn.spawn_path = asset_cfg.prim_path
                 elif is_multi_spawner and not asset_cfg.spawn.spawn_paths:
@@ -922,4 +925,3 @@ class InteractiveScene:
             if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
                 asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
                 self._global_prim_paths += asset_paths
-
