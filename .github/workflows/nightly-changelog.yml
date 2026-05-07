@@ -12,13 +12,15 @@
 # Scheduled workflow — must live on the default branch (``main``) for the
 # cron to register. See ``.github/workflows/README.md``.
 #
-# The push uses ``CHANGELOG_PAT`` (a personal access token / fine-grained
-# GitHub App token with ``contents:write`` on this repo) when it's
-# available so downstream CI runs on the auto-commit. Falls back to
-# ``GITHUB_TOKEN`` — sufficient for the push itself, but pushes signed
-# with ``GITHUB_TOKEN`` do not trigger workflow runs on the resulting
-# commit, which is by design (avoids infinite loops) but means the
-# Docker / docs rebuild won't re-trigger off the nightly's auto-commit.
+# The push uses a short-lived GitHub App installation token minted from
+# ``CHANGELOG_APP_ID`` + ``CHANGELOG_APP_PRIVATE_KEY`` (repo secrets). The
+# App must be installed on this repository with ``contents: write`` and
+# added to the bypass-actor list of ``develop``'s branch ruleset so the
+# auto-commit can push directly without satisfying required-checks /
+# required-approval gates.
+# Commits signed by an App token (unlike ``GITHUB_TOKEN``) are treated as
+# external pushes, so they DO trigger downstream workflow runs (Docker
+# rebuild, docs, etc.) without needing a separate PAT.
 
 name: Nightly Changelog Compilation
 
@@ -43,7 +45,9 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  # Reduced: the App installation token below carries its own write scope.
+  # GITHUB_TOKEN only needs read access for the standard checkout machinery.
+  contents: read
 
 jobs:
   compile-changelog:
@@ -52,6 +56,16 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      # Mint a short-lived (1 h) installation access token for the
+      # ``isaaclab-bot`` GitHub App. The App is on develop's branch-ruleset
+      # bypass list, so its push lands without needing the standard
+      # required-checks / required-approval pipeline.
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3  # v3.1.1
+        id: app-token
+        with:
+          app-id: ${{ secrets.CHANGELOG_APP_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           # Operate on develop, not the repo's default branch. Scheduled
@@ -60,9 +74,10 @@ jobs:
           # compile sees develop's accumulated fragments and the push
           # writes back to develop.
           ref: develop
-          # Use a PAT so the auto-commit triggers downstream CI; falls back
-          # to GITHUB_TOKEN which is sufficient for the push itself.
-          token: ${{ secrets.CHANGELOG_PAT || secrets.GITHUB_TOKEN }}
+          # App token (vs. GITHUB_TOKEN) means the push is signed by
+          # ``isaaclab-bot`` — the bypass identity — and downstream CI
+          # workflows DO trigger on the resulting commit.
+          token: ${{ steps.app-token.outputs.token }}
           # Full history so the compiler can resolve each fragment's merge
           # time via ``git log --diff-filter=A --first-parent``.
           fetch-depth: 0
@@ -83,8 +98,10 @@ jobs:
       - name: Commit and push if fragments were compiled
         if: inputs.dry_run != 'true'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Author commits as the App's bot user so the GitHub UI attributes
+          # them correctly. ID 282401363 is isaaclab-bot[bot]'s user ID.
+          git config user.name "isaaclab-bot[bot]"
+          git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
           git add source/*/changelog.d/ \
                   source/*/docs/CHANGELOG.rst \
                   source/*/config/extension.toml
