@@ -209,7 +209,8 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     ret_pos, _ = view.get_world_poses()
     pos_torch = wp.to_torch(ret_pos)
     expected = torch.tensor([[4.0, 5.0, 6.0], [4.0, 5.0, 6.0]], device=device)
-    assert torch.allclose(pos_torch, expected, atol=1e-7), f"Read after rebuild failed on {device}: {pos_torch}"
+    # 1e-5 ≈ 20 ULP at magnitudes ~4-6; absorbs float32 SRT compose/decompose drift.
+    assert torch.allclose(pos_torch, expected, atol=1e-5), f"Read after rebuild failed on {device}: {pos_torch}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
