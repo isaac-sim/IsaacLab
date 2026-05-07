@@ -5,9 +5,9 @@
 
 """OvPhysX replication hook for IsaacLab's cloning pipeline.
 
-Called by :func:`isaaclab.cloner.clone_from_template` in place of the PhysX
-or Newton replicators.  Unlike those replicators, ovphysx.PhysX does not exist
-yet at this point in the scene setup — it is created lazily on the first
+Called from the scene cloning path in place of immediate PhysX or Newton
+replication.  Unlike those replicators, ovphysx.PhysX does not exist yet at
+this point in the scene setup — it is created lazily on the first
 :meth:`~isaaclab_ovphysx.physics.OvPhysxManager.reset` call.
 
 This function records a *pending clone* on :class:`OvPhysxManager`.  When

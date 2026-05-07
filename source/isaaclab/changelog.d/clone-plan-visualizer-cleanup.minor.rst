@@ -1,43 +1,30 @@
 Added
 ^^^^^
 
-* Added :class:`~isaaclab.cloner.ClonePlan` frozen dataclass capturing per-group
-  prototype-to-environment mappings (``dest_template``, ``prototype_paths``,
-  ``clone_mask``). Lets downstream consumers (scene data providers, mesh samplers)
-  read prototype geometry once and scatter to environments via the per-group mask
-  instead of walking per-env USD paths.
-* Added :meth:`~isaaclab.sim.SimulationContext.get_clone_plans` and
-  :meth:`~isaaclab.sim.SimulationContext.set_clone_plans` for publishing and
-  consuming the cloner's per-group plan map.
-* Added :attr:`~isaaclab.scene.InteractiveScene.clone_plans` property (forwards to
-  :meth:`~isaaclab.sim.SimulationContext.get_clone_plans`) so consumers holding a
-  scene reference can read the published plans without going through the sim
-  context.
+* Added :class:`~isaaclab.cloner.ClonePlan` as the single source of truth for
+  clone sources, destination templates, and the source-to-environment mask.
+* Added :meth:`~isaaclab.sim.SimulationContext.get_clone_plan` and
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plan` for publishing the
+  scene clone plan.
+* Added explicit ``spawn_paths`` support to multi-asset spawners so scene
+  planning can spawn representative heterogeneous sources directly.
 
 Changed
 ^^^^^^^
 
-* **Breaking:** :func:`~isaaclab.cloner.clone_from_template` now returns
-  ``dict[str, ClonePlan]`` instead of ``None``. Bind the result and publish it
-  through :meth:`~isaaclab.sim.SimulationContext.set_clone_plans` if downstream
-  consumers (e.g. the PhysX scene data provider's Newton-visualizer build path)
-  need to read the plan.
+* **Breaking:** :class:`~isaaclab.scene.InteractiveScene` now builds clone plans
+  directly from asset configuration, spawns representative sources in their
+  selected environments, and replicates from those sources. This removes the old
+  template-spawn and prototype-discovery round trip.
+* **Breaking:** Replaced ``TemplateCloneCfg`` with
+  :class:`~isaaclab.cloner.CloneCfg` for clone execution settings.
+* Changed :func:`~isaaclab.cloner.make_clone_plan` to return a
+  :class:`~isaaclab.cloner.ClonePlan` object directly.
 
 Removed
 ^^^^^^^
 
-* **Breaking:** Removed
-  :attr:`~isaaclab.cloner.TemplateCloneCfg.visualizer_clone_fn`,
-  :func:`~isaaclab.cloner.resolve_visualizer_clone_fn`, and
-  :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`.
-  Scene data providers now build backend models from the
-  :class:`~isaaclab.cloner.ClonePlan` map via
-  :meth:`~isaaclab.sim.SimulationContext.get_clone_plans` instead of receiving a
-  prebuilt artifact through a clone-time callback.
-* **Breaking:** Removed
-  :meth:`~isaaclab.sim.SimulationContext.get_scene_data_visualizer_prebuilt_artifact`,
-  :meth:`~isaaclab.sim.SimulationContext.set_scene_data_visualizer_prebuilt_artifact`,
-  and
-  :meth:`~isaaclab.sim.SimulationContext.clear_scene_data_visualizer_prebuilt_artifact`.
-  Use :meth:`~isaaclab.sim.SimulationContext.get_clone_plans` /
-  :meth:`~isaaclab.sim.SimulationContext.set_clone_plans` instead.
+* **Breaking:** Removed :func:`~isaaclab.cloner.clone_from_template`. Use
+  :func:`~isaaclab.cloner.make_clone_plan`,
+  :func:`~isaaclab.cloner.usd_replicate`, and backend physics replication
+  functions for direct cloning workflows.
