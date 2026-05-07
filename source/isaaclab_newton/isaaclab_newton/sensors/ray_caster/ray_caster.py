@@ -5,151 +5,239 @@
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
+# pyright: reportInvalidTypeForm=none, reportPrivateUsage=none
+import re
+from types import SimpleNamespace
+from typing import Any
 
 import torch
 import warp as wp
 
+from pxr import UsdPhysics
+
 import isaaclab.sim as sim_utils
-from isaaclab.sensors.ray_caster import BaseRayCaster
-from isaaclab.sensors.ray_caster._target_tracker_utils import resolve_rigid_body_anchor
+from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 
 from isaaclab_newton.physics import NewtonManager
 
-if TYPE_CHECKING:
-    from isaaclab.sensors.ray_caster import RayCasterCfg
 
-logger = logging.getLogger(__name__)
+@wp.kernel
+def _newton_site_world_poses_kernel(
+    site_indices: wp.array(dtype=wp.int32),
+    shape_body: wp.array(dtype=wp.int32),
+    shape_transform: wp.array(dtype=wp.transform),
+    body_q: wp.array(dtype=wp.transform),
+    out_pose: wp.array(dtype=wp.transformf),
+    out_pos: wp.array(dtype=wp.vec3f),
+    out_quat: wp.array(dtype=wp.quatf),
+):
+    i = wp.tid()
+    site_idx = site_indices[i]
+    body_idx = shape_body[site_idx]
+    site_xform = shape_transform[site_idx]
+    if body_idx == -1:
+        world_xform = site_xform
+    else:
+        world_xform = wp.transform_multiply(body_q[body_idx], site_xform)
+    out_pose[i] = world_xform
+    out_pos[i] = wp.transform_get_translation(world_xform)
+    out_quat[i] = wp.transform_get_rotation(world_xform)
 
 
-class RayCaster(BaseRayCaster):
-    """Newton backend for the ray-cast sensor.
+def _find_physics_ancestor(prim):
+    """Return the nearest rigid-body ancestor for a sensor or target prim."""
+    ancestor = prim
+    while ancestor and ancestor.IsValid() and ancestor.GetPath().pathString != "/":
+        if ancestor.HasAPI(UsdPhysics.RigidBodyAPI):
+            return ancestor
+        ancestor = ancestor.GetParent()
+    return None
 
-    Site-based, mirroring :class:`~isaaclab_newton.sensors.pva.Pva` /
-    :class:`~isaaclab_newton.sensors.frame_transformer.FrameTransformer`. ``__init__``
-    walks USD to the rigid-body ancestor and registers a body-attached site (with
-    the prim→body offset) plus a world-origin reference — must run before
-    ``newton_replicate``. ``_initialize_impl`` resolves the per-env indices and builds
-    a :class:`SensorFrameTransform` against world-origin; ``sensor.transforms`` is
-    handed straight to :func:`update_ray_caster_kernel`.
 
-    Static parents bypass sites (a global ``body=-1`` site lives in the main builder
-    only, losing per-env origins) — fall back to a cached per-env ``wp.transformf``
-    array from USD, like PhysX.
+def _newton_body_pattern(body_path: str) -> str:
+    """Strip a concrete env prefix so Newton can register a cloned body pattern."""
+    return re.sub(r"^/World/envs/env_\d+/", "", body_path)
+
+
+def _xform_from_pose(pos, quat) -> wp.transform:
+    """Create a Warp transform from Isaac Lab ``xyzw`` pose values."""
+    return wp.transform(wp.vec3(float(pos[0]), float(pos[1]), float(pos[2])), wp.quat(*[float(v) for v in quat]))
+
+
+def _identity_offsets(count: int, device: str) -> tuple[wp.array, wp.array]:
+    """Create identity sensor offsets for site poses that already include the offset."""
+    offset_pos_wp = wp.zeros(count, dtype=wp.vec3f, device=device)
+    identity_quat = torch.zeros(count, 4, device=device)
+    identity_quat[:, 3] = 1.0
+    return offset_pos_wp, wp.from_torch(identity_quat.contiguous(), dtype=wp.quatf)
+
+
+class _NewtonRayCasterMixin:
+    """Newton site registration and pose tracking for ray-caster sensors.
+
+    Sites must be registered during construction so Newton can inject them into
+    prototype builders before cloning. Once physics is ready, the mixin resolves
+    those labels to concrete site indices and updates the sensor-owned buffers
+    directly from Newton model/state arrays.
     """
 
-    cfg: RayCasterCfg
-    __backend_name__: str = "newton"
+    @property
+    def count(self: Any) -> int:
+        """Number of resolved Newton sites tracked as sensor frames."""
+        return self._view_count
 
-    def __init__(self, cfg: RayCasterCfg):
-        super().__init__(cfg)
-        # Rigid-body branch: site labels + ``SensorFrameTransform``. Static: per-env
-        # ``wp.transformf`` array. ``_is_static_parent`` picks the branch.
-        self._site_label: str | None = None
-        self._world_origin_label: str | None = None
-        self._sensor_index: int | None = None
-        self._newton_transforms: wp.array | None = None
-        self._site_args_cached: bool = False
-        self._is_static_parent: bool = False
-        self._cached_body_pattern: str | None = None
-        self._cached_site_xform: wp.transform | None = None
-        self._static_transforms: wp.array | None = None
+    def __init__(self: Any, cfg):
+        """Register sensor and dynamic target sites before cloning occurs."""
+        super().__init__(cfg)  # pyright: ignore[reportCallIssue]
+        self._sensor_site_labels = self._register_sites_for_expr(self.cfg.prim_path)
+        self._tracked_site_labels_by_expr: dict[str, list[str]] = {}
+        for target_cfg in getattr(self, "_raycast_targets_cfg", []):
+            if target_cfg.track_mesh_transforms:
+                self._tracked_site_labels_by_expr[target_cfg.prim_expr] = self._register_sites_for_expr(
+                    target_cfg.prim_expr
+                )
 
-        # Sites must register before ``newton_replicate`` (fires from ``start_simulation``).
-        self._register_sites()
+    def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
+        """Register Newton sites for a prim expression and return site labels."""
+        prims = sim_utils.find_matching_prims(prim_expr)
+        labels: list[str] = []
+        if len(prims) == 0:
+            identity = wp.transform(wp.vec3(0.0, 0.0, 0.0), wp.quat(0.0, 0.0, 0.0, 1.0))
+            return [NewtonManager.cl_register_site(_newton_body_pattern(prim_expr), identity)]
 
-    def _register_sites(self) -> None:
-        """Walk USD once, cache args, register sites. STOP→reinit reuses the cache —
-        only the ``cl_register_site`` calls re-fire. Static branch defers per-env
-        transform-array build to :meth:`_initialize_impl` (needs ``_num_envs``)."""
-        if not self._site_args_cached:
-            prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-            if prim is None:
-                raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
-            anchor = resolve_rigid_body_anchor(prim)
-            if anchor is None:
-                self._is_static_parent = True
+        for prim in prims:
+            body = _find_physics_ancestor(prim)
+            if body is None:
+                pos, quat = sim_utils.resolve_prim_pose(prim)
+                labels.append(NewtonManager.cl_register_site(None, _xform_from_pose(pos, quat)))
             else:
-                ancestor, fixed_offset = anchor
-                if ancestor == prim:
-                    self._cached_body_pattern = self.cfg.prim_path
-                    self._cached_site_xform = wp.transform()
-                else:
-                    relative = prim.GetPath().MakeRelativePath(ancestor.GetPath()).pathString
-                    self._cached_body_pattern = self.cfg.prim_path.replace("/" + relative, "")
-                    self._cached_site_xform = wp.transform(fixed_offset[:3], fixed_offset[3:])
-            self._site_args_cached = True
-
-        if self._is_static_parent:
-            return  # static branch builds its per-env array in _initialize_impl
-        self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
-        self._site_label = NewtonManager.cl_register_site(self._cached_body_pattern, self._cached_site_xform)
-
-    def _initialize_impl(self) -> None:
-        """Build the per-step transforms source. Static: per-env USD pose array.
-        Rigid-body: resolve registered site indices, build ``SensorFrameTransform``
-        against world-origin. Either way, exposes ``wp.transformf`` of shape
-        ``(num_envs,)`` to :meth:`_get_sensor_transforms_wp`."""
-        super()._initialize_impl()
-        if self._is_static_parent:
-            prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-            if len(prims) != self._num_envs:
-                raise RuntimeError(
-                    f"RayCaster '{self.cfg.prim_path}' static-parent fallback expected"
-                    f" {self._num_envs} prims (one per env), got {len(prims)}."
+                pos, quat = sim_utils.resolve_prim_pose(prim, body)
+                labels.append(
+                    NewtonManager.cl_register_site(
+                        _newton_body_pattern(str(body.GetPath())), _xform_from_pose(pos, quat)
+                    )
                 )
-            rows = [[*p, *q] for p, q in (sim_utils.resolve_prim_pose(prim) for prim in prims)]
-            poses = torch.tensor(rows, device=self._device, dtype=torch.float32).contiguous()
-            self._static_transforms = wp.from_torch(poses).view(wp.transformf)
-            logger.info(f"RayCaster '{self.cfg.prim_path}' initialized: {self._num_envs} envs (static parent)")
-            return
+        return list(dict.fromkeys(labels))
 
-        site_map = NewtonManager._cl_site_index_map
-        for label in (self._world_origin_label, self._site_label):
-            if label not in site_map:
-                raise RuntimeError(
-                    f"RayCaster '{self.cfg.prim_path}': site label '{label}'"
-                    " missing from NewtonManager._cl_site_index_map."
-                )
+    def _initialize_pose_tracking(self: Any) -> None:
+        """Resolve registered site labels and allocate sensor-owned pose buffers."""
+        site_indices = self._resolve_site_indices(self._sensor_site_labels, self.cfg.prim_path, self._num_envs)
+        # The base classes still use ``self._view.count`` in a few generic
+        # places. Point it at the sensor instead of constructing an adapter.
+        self._view = self
+        self._view_count = len(site_indices)
+        self._sensor_site_indices = wp.array(site_indices, dtype=wp.int32, device=self._device)
+        self._newton_pose_w = wp.zeros(self._view_count, dtype=wp.transformf, device=self._device)
+        self._newton_pos_w = wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device)
+        self._newton_quat_w = wp.zeros(self._view_count, dtype=wp.quatf, device=self._device)
+        self._newton_pos_w_torch = wp.to_torch(self._newton_pos_w)
+        self._newton_quat_w_torch = wp.to_torch(self._newton_quat_w)
+        self._offset_pos_wp, self._offset_quat_wp = _identity_offsets(self._view_count, self._device)
 
-        # World-origin is global (body=-1) — same index per env.
-        world_origin_global, _ = site_map[self._world_origin_label]
-        references_list = [world_origin_global] * self._num_envs
+    def _get_view_transforms_wp(self: Any) -> wp.array:
+        """Return current Newton site transforms as ``wp.transformf``."""
+        self._update_newton_site_transforms(
+            self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w, self._newton_quat_w
+        )
+        return self._newton_pose_w
 
-        # Source site is body-attached (rigid-body branch reaches here exclusively).
-        _, source_per_world = site_map[self._site_label]
-        if len(source_per_world) != self._num_envs:
-            raise RuntimeError(
-                f"RayCaster '{self.cfg.prim_path}': source site has {len(source_per_world)}"
-                f" world entries, expected {self._num_envs}."
-            )
-        shapes_list = []
-        for env_idx, sites in enumerate(source_per_world):
-            if len(sites) != 1:
-                raise RuntimeError(
-                    f"RayCaster '{self.cfg.prim_path}': pattern matched {len(sites)} bodies"
-                    f" in env {env_idx}, expected exactly 1."
-                )
-            shapes_list.append(sites[0])
-
-        self._sensor_index = NewtonManager.add_frame_transform_sensor(shapes_list, references_list)
-        self._newton_transforms = NewtonManager._newton_frame_transform_sensors[self._sensor_index].transforms
-        logger.info(
-            f"RayCaster '{self.cfg.prim_path}' initialized: {self._num_envs} envs, sensor_index={self._sensor_index}"
+    def get_world_poses(self: Any, indices=None):
+        """Return world poses for camera helpers that still use pose tuples."""
+        self._get_view_transforms_wp()
+        if indices is None:
+            return SimpleNamespace(torch=self._newton_pos_w_torch), SimpleNamespace(torch=self._newton_quat_w_torch)
+        idx = wp.to_torch(indices).to(dtype=torch.long) if isinstance(indices, wp.array) else indices
+        return SimpleNamespace(torch=self._newton_pos_w_torch[idx]), SimpleNamespace(
+            torch=self._newton_quat_w_torch[idx]
         )
 
-    def _get_sensor_transforms_wp(self) -> wp.array:
-        """``SensorFrameTransform.transforms`` (rigid-body) or cached static array."""
-        return self._static_transforms if self._is_static_parent else self._newton_transforms
+    def _create_tracked_target_view(self: Any, target_prim_path: str):
+        """Resolve dynamic multi-mesh target sites to raw Newton site indices."""
+        labels = self._tracked_site_labels_by_expr.get(target_prim_path)
+        if labels is None:
+            labels = self._register_sites_for_expr(target_prim_path)
+            self._tracked_site_labels_by_expr[target_prim_path] = labels
+        site_indices = self._resolve_site_indices(labels, target_prim_path, self._num_envs)
+        return wp.array(site_indices, dtype=wp.int32, device=self._device)
 
-    def _invalidate_initialize_callback(self, event) -> None:
-        """Drop sensor refs on STOP and re-register sites — ``NewtonManager.close()``
-        clears ``_cl_pending_sites`` first, so this revives them for the next
-        ``start_simulation`` (mirrors :class:`Pva` / :class:`FrameTransformer`).
-        USD-walk cache + static array are kept (immutable)."""
-        super()._invalidate_initialize_callback(event)
-        self._newton_transforms = None
-        self._sensor_index = None
-        if not self._is_static_parent:
-            self._register_sites()
+    def _update_mesh_transforms(self: Any) -> None:
+        """Refresh dynamic multi-mesh targets directly from Newton sites."""
+        if not hasattr(self, "_mesh_views"):
+            return
+        mesh_idx = 0
+        for site_indices, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
+            if not target_cfg.track_mesh_transforms:
+                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
+                continue
+
+            count = site_indices.shape[0]
+            pos_buf = wp.zeros(count, dtype=wp.vec3f, device=self._device)
+            quat_buf = wp.zeros(count, dtype=wp.quatf, device=self._device)
+            pose_buf = wp.zeros(count, dtype=wp.transformf, device=self._device)
+            self._update_newton_site_transforms(site_indices, pose_buf, pos_buf, quat_buf)
+            pos_w = wp.to_torch(pos_buf)
+            quat_w = wp.to_torch(quat_buf)
+            if count != 1:
+                count = count // self._num_envs
+                pos_w = pos_w.view(self._num_envs, count, 3)
+                quat_w = quat_w.view(self._num_envs, count, 4)
+
+            self._mesh_positions_w_torch[:, mesh_idx : mesh_idx + count] = pos_w
+            self._mesh_orientations_w_torch[:, mesh_idx : mesh_idx + count] = quat_w
+            mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
+
+    def _update_newton_site_transforms(
+        self: Any,
+        site_indices: wp.array,
+        pose_buf: wp.array,
+        pos_buf: wp.array,
+        quat_buf: wp.array,
+    ) -> None:
+        """Launch the Newton site pose kernel into caller-provided buffers."""
+        model = NewtonManager._model
+        state = NewtonManager._state_0
+        if model is None or state is None:
+            raise RuntimeError("Newton simulation state is not initialized.")
+        wp.launch(
+            _newton_site_world_poses_kernel,
+            dim=site_indices.shape[0],
+            inputs=[site_indices, model.shape_body, model.shape_transform, state.body_q],
+            outputs=[pose_buf, pos_buf, quat_buf],
+            device=self._device,
+        )
+
+    @staticmethod
+    def _resolve_site_indices(labels: list[str], prim_expr: str, num_envs: int) -> list[int]:
+        """Expand registered site labels into per-environment Newton site indices."""
+        site_map = NewtonManager._cl_site_index_map
+        site_indices: list[int] = []
+        for env_idx in range(num_envs):
+            for label in labels:
+                if label not in site_map:
+                    raise ValueError(
+                        f"RayCaster target '{prim_expr}' site label '{label}' was not found in "
+                        "NewtonManager._cl_site_index_map."
+                    )
+                global_idx, per_world = site_map[label]
+                if per_world is None:
+                    if global_idx is None:
+                        raise ValueError(
+                            f"RayCaster target '{prim_expr}' site label '{label}' has no global Newton site index."
+                        )
+                    site_indices.append(global_idx)
+                else:
+                    if len(per_world) != num_envs:
+                        raise ValueError(
+                            f"RayCaster target '{prim_expr}' site label '{label}' has {len(per_world)} world entries, "
+                            f"expected {num_envs}."
+                        )
+                    if len(per_world[env_idx]) == 0:
+                        raise ValueError(
+                            f"RayCaster target '{prim_expr}' site label '{label}' matched no bodies in env {env_idx}."
+                        )
+                    site_indices.extend(per_world[env_idx])
+        return site_indices
+
+
+class RayCaster(_NewtonRayCasterMixin, BaseRayCaster):
+    """Newton ray-caster implementation."""

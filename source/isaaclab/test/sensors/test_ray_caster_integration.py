@@ -31,6 +31,7 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner.clone_plan import ClonePlan
 from isaaclab.sensors.ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,
@@ -73,6 +74,16 @@ def _single_downward_ray_cfg(prim_path: str) -> RayCasterCfg:
         pattern_cfg=patterns.GridPatternCfg(resolution=1.0, size=(0.0, 0.0), direction=(0.0, 0.0, -1.0)),
         ray_alignment="world",
     )
+
+
+def _spawn_cube_part(part_path: str, translation: tuple[float, float, float]) -> None:
+    """Create a small mesh-bearing part under an Xform target."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim(part_path, "Xform", translation=translation, stage=stage)
+    cube = UsdGeom.Cube.Define(stage, f"{part_path}/Mesh")
+    if cube is None:
+        raise RuntimeError(f"Failed to create cube mesh at {part_path}/Mesh.")
+    cube.CreateSizeAttr().Set(0.35)
 
 
 @pytest.fixture
@@ -305,6 +316,85 @@ def test_multi_mesh_camera_d2ip_and_d2c_independent(sim_ground_camera):
 # ---------------------------------------------------------------------------
 # MultiMeshRayCaster env_mask behavior
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_multi_mesh_consumes_clone_plan_without_usd_object_clones(sim_ground):
+    """MultiMeshRayCaster can consume ClonePlan metadata without USD object clones."""
+    sim = sim_ground
+    num_envs = 3
+    stage = sim_utils.get_current_stage()
+
+    sim_utils.create_prim("/World/envs", "Xform", stage=stage)
+    for env_id in range(num_envs):
+        sim_utils.create_prim(f"/World/envs/env_{env_id}", "Xform", translation=(3.0 * env_id, 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(f"/World/envs/env_{env_id}/Sensor", "Xform", translation=(0.0, 0.0, 3.0), stage=stage)
+
+    # Representative source assets live in the first concrete cloned instances,
+    # matching the scene convention used by the cloner. We do not author the
+    # env_2 destination object below; ClonePlan metadata must be enough for the
+    # raycaster to derive env_2's mesh records from env_0's source asset.
+    sim_utils.create_prim("/World/envs/env_0/Object", "Xform", stage=stage)
+    _spawn_cube_part("/World/envs/env_0/Object/part_0", (0.0, 0.0, 0.0))
+
+    sim_utils.create_prim("/World/envs/env_1/Object", "Xform", stage=stage)
+    _spawn_cube_part("/World/envs/env_1/Object/part_0", (-0.5, 0.0, 0.0))
+    _spawn_cube_part("/World/envs/env_1/Object/part_1", (0.5, 0.0, 0.0))
+
+    # This test intentionally does not call usd_replicate() for the object
+    # targets. It models the post-clone contract the scene publishes when object
+    # destinations are represented by ClonePlan metadata instead of USD prims.
+    sim.set_clone_plan(
+        ClonePlan(
+            sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
+            destinations=["/World/envs/env_{}/Object", "/World/envs/env_{}/Object"],
+            clone_mask=torch.tensor([[True, False, True], [False, True, False]], dtype=torch.bool, device=sim.device),
+        )
+    )
+    sim_utils.update_stage()
+
+    cfg = MultiMeshRayCasterCfg(
+        prim_path="/World/envs/env_.*/Sensor",
+        mesh_prim_paths=[
+            MultiMeshRayCasterCfg.RaycastTargetCfg(
+                prim_expr="/World/envs/env_.*/Object/part_.*",
+                track_mesh_transforms=False,
+            ),
+        ],
+        update_period=0,
+        offset=MultiMeshRayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
+        debug_vis=False,
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.5, size=(1.0, 0.0), direction=(0.0, 0.0, -1.0)),
+        ray_alignment="world",
+    )
+    sensor = MultiMeshRayCaster(cfg)
+    sim.reset()
+    sensor.update(_DT)
+
+    env0_object = stage.GetPrimAtPath("/World/envs/env_0/Object")
+    env1_object = stage.GetPrimAtPath("/World/envs/env_1/Object")
+    assert env0_object is not None and env0_object.IsValid()
+    assert env1_object is not None and env1_object.IsValid()
+    # No USD clone was authored for env_2: its mesh table entry comes from ClonePlan.
+    env2_object = stage.GetPrimAtPath("/World/envs/env_2/Object")
+    assert env2_object is None or not env2_object.IsValid()
+
+    # This PR intentionally keeps the rectangular dynamic-mesh kernel. Heterogeneous
+    # ClonePlan rows are represented by padding shorter environments with a dummy
+    # mesh pose far outside the ray-cast range; a follow-up PR can replace this
+    # with a new kernel.
+    mesh_positions = sensor._mesh_positions_w_torch.cpu()
+    assert sensor._mesh_ids_wp.shape == (num_envs, 2)
+    assert mesh_positions.shape == (num_envs, 2, 3)
+    assert torch.linalg.norm(mesh_positions[0, 1]) > 1.0e8
+    assert torch.linalg.norm(mesh_positions[1, 0]) < 1.0e8
+    assert torch.linalg.norm(mesh_positions[1, 1]) < 1.0e8
+    assert torch.linalg.norm(mesh_positions[2, 1]) > 1.0e8
+
+    hits = sensor.data.ray_hits_w.torch
+    assert torch.isfinite(hits[0]).any(), "env_0 should hit the single-part prototype"
+    assert torch.isfinite(hits[1]).any(), "env_1 should hit the two-part prototype"
+    assert torch.isfinite(hits[2]).any(), "env_2 should hit the single-part prototype"
 
 
 @pytest.mark.isaacsim_ci

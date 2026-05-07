@@ -32,24 +32,33 @@ from .kernels import (
 if TYPE_CHECKING:
     from .ray_caster_camera_cfg import RayCasterCameraCfg
 
+# import logger
 logger = logging.getLogger(__name__)
 
 
 class BaseRayCasterCamera(BaseRayCaster):
-    """Backend-agnostic ray-casting camera sensor.
+    """A ray-casting camera sensor.
 
-    Same interface as :class:`isaaclab.sensors.Camera` (USD-based), but raycasts the
-    configured warp meshes instead of going through the renderer — much faster for the
-    supported annotators: ``distance_to_camera``, ``distance_to_image_plane``, ``normals``.
-    Backends inherit body-tracker hooks from :class:`BaseRayCaster`.
+    The ray-caster camera uses a set of rays to get the distances to meshes in the scene. The rays are
+    defined in the sensor's local coordinate frame. The sensor has the same interface as the
+    :class:`isaaclab.sensors.Camera` that implements the camera class through USD camera prims.
+    However, this class provides a faster image generation. The sensor converts meshes from the list of
+    primitive paths provided in the configuration to Warp meshes. The camera then ray-casts against these
+    Warp meshes only.
+
+    Currently, only the following annotators are supported:
+
+    - ``"distance_to_camera"``: An image containing the distance to camera optical center.
+    - ``"distance_to_image_plane"``: An image containing distances of 3D points from camera plane along camera's z-axis.
+    - ``"normals"``: An image containing the local surface normal vectors at each pixel.
 
     .. note::
-        Static meshes only — dynamic-mesh raycast is WIP.
+        Currently, only static meshes are supported. Extending the warp mesh to support dynamic meshes
+        is a work in progress.
     """
 
     cfg: RayCasterCameraCfg
     """The configuration parameters."""
-
     UNSUPPORTED_TYPES: ClassVar[set[str]] = {
         "rgb",
         "instance_id_segmentation",
@@ -88,12 +97,12 @@ class BaseRayCasterCamera(BaseRayCaster):
         """Returns: A string containing information about the instance."""
         return (
             f"Ray-Caster-Camera @ '{self.cfg.prim_path}': \n"
-            f"\tbackend              : {self.__backend_name__}\n"
+            f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
             f"\tnumber of meshes     : {len(BaseRayCaster.meshes)}\n"
-            f"\tnumber of sensors    : {self._num_envs}\n"
+            f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
-            f"\ttotal number of rays : {self.num_rays * self._num_envs}\n"
+            f"\ttotal number of rays : {self.num_rays * self._view.count}\n"
             f"\timage shape          : {self.image_shape}"
         )
 
@@ -162,9 +171,10 @@ class BaseRayCasterCamera(BaseRayCaster):
             env_ids = torch.tensor(env_ids, dtype=torch.long, device=self._device)
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
-        pos_w, quat_w = self._get_sensor_world_poses(env_ids)
+        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+        pos_w, quat_w = self._view.get_world_poses(indices)
         pos_w, quat_w = math_utils.combine_frame_transforms(
-            pos_w.clone(), quat_w.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
+            pos_w.torch.clone(), quat_w.torch.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
@@ -206,7 +216,10 @@ class BaseRayCasterCamera(BaseRayCaster):
             env_ids = self._ALL_INDICES
 
         # get current positions
-        pos_w_torch, quat_w_torch = self._get_sensor_world_poses(env_ids)
+        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+        pos_w, quat_w = self._view.get_world_poses(indices)
+        pos_w_torch = pos_w.torch
+        quat_w_torch = quat_w.torch
         if positions is not None:
             # transform to camera frame
             pos_offset_world_frame = positions - pos_w_torch
@@ -219,9 +232,9 @@ class BaseRayCasterCamera(BaseRayCaster):
             self._offset_quat[env_ids] = math_utils.quat_mul(math_utils.quat_inv(quat_w_torch), quat_w_set)
 
         # update the data
-        pos_w_torch, quat_w_torch = self._get_sensor_world_poses(env_ids)
+        pos_w2, quat_w2 = self._view.get_world_poses(indices)
         pos_w_out, quat_w_out = math_utils.combine_frame_transforms(
-            pos_w_torch.clone(), quat_w_torch.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
+            pos_w2.torch.clone(), quat_w2.torch.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
         self._data.pos_w[env_ids] = pos_w_out
         self._data.quat_w_world[env_ids] = quat_w_out
@@ -254,9 +267,9 @@ class BaseRayCasterCamera(BaseRayCaster):
 
     def _initialize_rays_impl(self):
         # Create all indices buffer
-        self._ALL_INDICES = torch.arange(self._num_envs, device=self._device, dtype=torch.long)
+        self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
         # Create frame count buffer
-        self._frame = torch.zeros(self._num_envs, device=self._device, dtype=torch.long)
+        self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
         # create buffers
         self._create_buffers()
         # compute intrinsic matrices
@@ -269,8 +282,8 @@ class BaseRayCasterCamera(BaseRayCaster):
 
         # Offset buffers: warp-primary so the kernel always sees the current values without re-wrapping.
         # Zero-copy torch views (_offset_pos, _offset_quat) are used by set_world_poses for indexed writes.
-        self._offset_pos_wp = wp.zeros(self._num_envs, dtype=wp.vec3f, device=self._device)
-        self._offset_quat_wp = wp.zeros(self._num_envs, dtype=wp.quatf, device=self._device)
+        self._offset_pos_wp = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
+        self._offset_quat_wp = wp.zeros(self._view.count, dtype=wp.quatf, device=self._device)
         self._offset_pos = wp.to_torch(self._offset_pos_wp)
         self._offset_quat = wp.to_torch(self._offset_quat_wp)
         # Initialize from config
@@ -281,13 +294,13 @@ class BaseRayCasterCamera(BaseRayCaster):
         self._offset_quat[:] = quat_w
 
         # Warp buffers for world-frame rays (used by update kernel)
-        self._ray_starts_w = wp.zeros((self._num_envs, self.num_rays), dtype=wp.vec3f, device=self._device)
-        self._ray_directions_w = wp.zeros((self._num_envs, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_starts_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_directions_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
 
         # Warp views for ray_starts and ray_directions (from torch tensors returned by pattern_cfg.func)
         # These are (num_envs, num_rays, 3) torch tensors; wrap as warp vec3f arrays.
         # Store contiguous tensors explicitly so they are not garbage-collected while the
-        # warp views are alive (mirrors the pattern in BaseRayCaster._initialize_impl).
+        # warp views are alive (mirrors the pattern in RayCaster._initialize_impl).
         self._ray_starts_contiguous = self.ray_starts.contiguous()
         self._ray_directions_contiguous = self.ray_directions.contiguous()
         self._ray_starts_local = wp.from_torch(self._ray_starts_contiguous, dtype=wp.vec3f)
@@ -301,23 +314,23 @@ class BaseRayCasterCamera(BaseRayCaster):
         self._ray_cast_drift = wp.from_torch(self._ray_cast_drift_contiguous, dtype=wp.vec3f)
 
         # Warp buffers for camera pose outputs
-        self._pos_w_wp = wp.zeros(self._num_envs, dtype=wp.vec3f, device=self._device)
-        self._quat_w_wp = wp.zeros(self._num_envs, dtype=wp.quatf, device=self._device)
+        self._pos_w_wp = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
+        self._quat_w_wp = wp.zeros(self._view.count, dtype=wp.quatf, device=self._device)
 
         # Intermediate warp buffers for ray results (filled with inf before each raycasting step)
-        self._ray_distance = wp.zeros((self._num_envs, self.num_rays), dtype=wp.float32, device=self._device)
+        self._ray_distance = wp.zeros((self._view.count, self.num_rays), dtype=wp.float32, device=self._device)
         if "normals" in self.cfg.data_types:
-            self._ray_normal_w = wp.zeros((self._num_envs, self.num_rays), dtype=wp.vec3f, device=self._device)
+            self._ray_normal_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
         else:
             self._ray_normal_w = wp.zeros((1, 1), dtype=wp.vec3f, device=self._device)
 
         if "distance_to_image_plane" in self.cfg.data_types:
             self._distance_to_image_plane_wp = wp.zeros(
-                (self._num_envs, self.num_rays), dtype=wp.float32, device=self._device
+                (self._view.count, self.num_rays), dtype=wp.float32, device=self._device
             )
 
         # Torch buffer for ray hits (used by debug visualizer)
-        self.ray_hits_w = torch.full((self._num_envs, self.num_rays, 3), float("inf"), device=self._device)
+        self.ray_hits_w = torch.full((self._view.count, self.num_rays, 3), float("inf"), device=self._device)
         # Warp view of ray_hits_w
         self._ray_hits_w_wp = wp.from_torch(self.ray_hits_w.contiguous(), dtype=wp.vec3f)
 
@@ -341,7 +354,7 @@ class BaseRayCasterCamera(BaseRayCaster):
 
         # Update world-frame ray starts/directions and camera pose via warp kernel.
         # Camera always uses ALIGNMENT_BASE (full orientation) and zero drift.
-        transforms = self._get_sensor_transforms_wp()
+        transforms = self._get_view_transforms_wp()
         wp.launch(
             update_ray_caster_kernel,
             dim=(self._num_envs, self.num_rays),
@@ -448,18 +461,15 @@ class BaseRayCasterCamera(BaseRayCaster):
         if "normals" in self.cfg.data_types:
             self._data.output["normals"][env_ids] = self._ray_normal_w_torch[env_ids].view(-1, *self.image_shape, 3)
 
-    def _zero_data_buffers(self) -> None:
-        """Zero the camera-shaped data buffers (:class:`CameraData` layout)."""
-        self._data.pos_w.zero_()
-        self._data.quat_w_world.zero_()
-        for buf in self._data.output.values():
-            buf.zero_()
-
     def _debug_vis_callback(self, event):
+        # in case it crashes be safe
         if not hasattr(self, "ray_hits_w"):
             return
+        # filter out missed rays (inf values) before visualizing
         ray_hits_flat = self.ray_hits_w.reshape(-1, 3)
-        viz_points = ray_hits_flat[~torch.isinf(ray_hits_flat).any(dim=-1)]
+        valid_mask = ~torch.isinf(ray_hits_flat).any(dim=-1)
+        viz_points = ray_hits_flat[valid_mask]
+        # if no valid hits, skip
         if viz_points.shape[0] == 0:
             return
         self.ray_visualizer.visualize(viz_points)
@@ -517,14 +527,14 @@ class BaseRayCasterCamera(BaseRayCaster):
     def _create_buffers(self):
         """Create buffers for storing data."""
         # prepare drift (kept as torch tensors so subclasses may use torch indexing)
-        self.drift = torch.zeros(self._num_envs, 3, device=self.device)
-        self.ray_cast_drift = torch.zeros(self._num_envs, 3, device=self.device)
+        self.drift = torch.zeros(self._view.count, 3, device=self.device)
+        self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # create the data object
         # -- pose of the cameras
-        self._data.pos_w = torch.zeros((self._num_envs, 3), device=self._device)
-        self._data.quat_w_world = torch.zeros((self._num_envs, 4), device=self._device)
+        self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
+        self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
         # -- intrinsic matrix
-        self._data.intrinsic_matrices = torch.zeros((self._num_envs, 3, 3), device=self._device)
+        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
         self._data.intrinsic_matrices[:, 2, 2] = 1.0
         self._data.image_shape = self.image_shape
         # -- output data
@@ -539,7 +549,7 @@ class BaseRayCasterCamera(BaseRayCaster):
             else:
                 raise ValueError(f"Received unknown data type: {name}. Please check the configuration.")
             # allocate tensor to store the data
-            self._data.output[name] = torch.zeros((self._num_envs, *shape), device=self._device)
+            self._data.output[name] = torch.zeros((self._view.count, *shape), device=self._device)
 
     def _compute_intrinsic_matrices(self):
         """Computes the intrinsic matrices for the camera based on the config provided."""
@@ -570,17 +580,22 @@ class BaseRayCasterCamera(BaseRayCaster):
 
         .. deprecated v2.3.1:
             This function will be removed in a future release. Call
-            ``self._get_sensor_world_poses(env_ids)`` directly instead.
+            ``self._view.get_world_poses(indices)`` directly instead. The returned
+            ProxyArray pair exposes ``.warp`` and ``.torch`` accessors.
 
         Returns:
             A tuple of the position (in meters) and quaternion (x, y, z, w).
+
+
         """
         logger.warning(
             "The function '_compute_view_world_poses' is deprecated."
-            " Call 'self._get_sensor_world_poses(env_ids)' directly instead."
+            " Call 'self._view.get_world_poses(indices)' directly instead."
         )
-        pos_w, quat_w = self._get_sensor_world_poses(env_ids)
-        return pos_w.clone(), quat_w.clone()
+
+        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+        pos_w, quat_w = self._view.get_world_poses(indices)
+        return pos_w.torch.clone(), quat_w.torch.clone()
 
     def _compute_camera_world_poses(self, env_ids: Sequence[int]) -> tuple[torch.Tensor, torch.Tensor]:
         """Computes the pose of the camera in the world frame.
@@ -592,12 +607,12 @@ class BaseRayCasterCamera(BaseRayCaster):
 
             .. code-block:: python
 
-                pos_w, quat_w = self._get_sensor_world_poses(env_ids)
+                indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
+                pos_w, quat_w = self._view.get_world_poses(indices)
+                # The returned ProxyArray pair exposes .warp and .torch accessors
+                pos_w, quat_w = pos_w.torch.clone(), quat_w.torch.clone()
                 pos_w, quat_w = math_utils.combine_frame_transforms(
-                    pos_w.clone(),
-                    quat_w.clone(),
-                    self._offset_pos[env_ids],
-                    self._offset_quat[env_ids],
+                    pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
                 )
 
         Returns:
@@ -605,9 +620,11 @@ class BaseRayCasterCamera(BaseRayCaster):
         """
         logger.warning(
             "The function '_compute_camera_world_poses' is deprecated."
-            " Call 'self._get_sensor_world_poses(env_ids)' and 'math_utils.combine_frame_transforms' directly instead."
+            " Call 'self._view.get_world_poses(indices)' and 'math_utils.combine_frame_transforms' directly instead."
         )
-        pos_w, quat_w = self._get_sensor_world_poses(env_ids)
+
+        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
+        pos_w, quat_w = self._view.get_world_poses(indices)
         return math_utils.combine_frame_transforms(
-            pos_w.clone(), quat_w.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
+            pos_w.torch.clone(), quat_w.torch.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
         )

@@ -5,126 +5,175 @@
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
+from types import SimpleNamespace
+from typing import Any
 
 import torch
 import warp as wp
 
+from pxr import UsdPhysics
+
 import isaaclab.sim as sim_utils
-from isaaclab.sensors.ray_caster import BaseRayCaster
-from isaaclab.sensors.ray_caster._target_tracker_utils import resolve_rigid_body_anchor
+from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
-if TYPE_CHECKING:
-    from isaaclab.sensors.ray_caster import RayCasterCfg
-
-logger = logging.getLogger(__name__)
+from isaaclab_physx.physics import PhysxManager
 
 
-@wp.kernel(enable_backward=False)
-def _compose_body_xform_kernel(
-    body_transforms: wp.array(dtype=wp.transformf),
-    fixed_xform: wp.array(dtype=wp.transformf),
-    sensor_transforms: wp.array(dtype=wp.transformf),
-):
-    """Per-env compose: ``sensor_transforms[i] = body_transforms[i] * fixed_xform[i]``."""
-    i = wp.tid()
-    sensor_transforms[i] = body_transforms[i] * fixed_xform[i]
+def _find_physics_ancestor(prim):
+    """Return the nearest rigid-body ancestor for a sensor or target prim."""
+    ancestor = prim
+    while ancestor and ancestor.IsValid() and ancestor.GetPath().pathString != "/":
+        if ancestor.HasAPI(UsdPhysics.RigidBodyAPI):
+            return ancestor
+        ancestor = ancestor.GetParent()
+    return None
 
 
-class RayCaster(BaseRayCaster):
-    """PhysX backend for the ray-cast sensor.
+def _body_expr_from_sensor_expr(sensor_expr: str, first_sensor_prim, first_body_prim) -> str:
+    """Convert a sensor/target expression to the matching rigid-body expression."""
+    sensor_path = first_sensor_prim.GetPath().pathString
+    body_path = first_body_prim.GetPath().pathString
+    if sensor_path == body_path:
+        return sensor_expr
+    suffix = sensor_path[len(body_path) :]
+    if suffix and sensor_expr.endswith(suffix):
+        return sensor_expr[: -len(suffix)]
+    return body_path
 
-    Per-step body pose from a ``RigidObjectView``; the constant body→Xform offset
-    (resolved once at init) is composed each step in :meth:`_get_sensor_transforms_wp`
-    via :func:`_compose_body_xform_kernel`. The base ``update_ray_caster_kernel`` then
-    layers ``cfg.offset`` from :attr:`_offset_pos_wp` / :attr:`_offset_quat_wp`. No
-    FrameView/Fabric path, so the sensor follows the body through physics integration.
 
-    Static (non-physics) parents skip the view: per-env USD world poses are read once
-    and cached as a ``wp.transformf`` array.
+class _PhysXRayCasterMixin:
+    """PhysX pose tracking for ray-caster sensors.
+
+    PhysX can provide live rigid-body transforms after physics is ready. Static
+    non-physics prims are cached once at initialization; they are intentionally
+    not polled through USD during sensor updates.
     """
 
-    cfg: RayCasterCfg
-    __backend_name__: str = "physx"
+    @property
+    def count(self: Any) -> int:
+        """Number of tracked sensor frames."""
+        return self._view_count
 
-    def __init__(self, cfg: RayCasterCfg):
-        super().__init__(cfg)
-        # Rigid-body branch: ``_body_view`` + ``_fixed_transform_wp`` /
-        # ``_sensor_transforms_wp`` (compose kernel I/O). Static: ``_static_transforms``.
-        self._physics_sim_view = None
-        self._body_view = None
-        self._static_transforms: wp.array | None = None
-        self._rigid_parent_expr: str | None = None
-        self._fixed_transform_wp: wp.array | None = None
-        self._sensor_transforms_wp: wp.array | None = None
+    def _initialize_pose_tracking(self: Any) -> None:
+        """Initialize direct PhysX body tracking or a cached static pose table."""
+        prims = sim_utils.find_matching_prims(self.cfg.prim_path)
+        if len(prims) == 0:
+            raise RuntimeError(f"No sensor prims matched: {self.cfg.prim_path}")
 
-    def _initialize_impl(self) -> None:
-        """Resolve rigid-body ancestor; prep the per-step source.
-
-        Three branches: no rigid-body ancestor → static fallback (cache per-env USD
-        poses); ancestor == prim → body pose IS the sensor pose; ancestor above prim
-        → cache ``T_body_to_xform``, compose with body pose each step.
-
-        Crucially, ``T_body_to_xform`` is NOT baked into ``_offset_pos_wp`` /
-        ``_offset_quat_wp``: those carry ``cfg.offset`` for the camera path
-        (zero-copy torch-aliased — mutating the warp side corrupts the aliases).
-        """
-        super()._initialize_impl()
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-        prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if prim is None:
-            raise RuntimeError(f"Failed to find a prim at path expression: {self.cfg.prim_path}")
-
-        anchor = resolve_rigid_body_anchor(prim)
-        if anchor is None:
-            # Static fallback: cache per-env USD world poses, no view dependency.
-            prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-            if len(prims) != self._num_envs:
-                raise RuntimeError(
-                    f"RayCaster '{self.cfg.prim_path}' static-parent fallback expected"
-                    f" {self._num_envs} prims (one per env), got {len(prims)}."
-                )
-            rows = [[*p, *q] for p, q in (sim_utils.resolve_prim_pose(prim) for prim in prims)]
-            poses = torch.tensor(rows, device=self._device, dtype=torch.float32).contiguous()
-            self._static_transforms = wp.from_torch(poses).view(wp.transformf)
-            return
-        ancestor, fixed_offset = anchor
-
-        if ancestor == prim:
-            self._rigid_parent_expr = self.cfg.prim_path
-        else:
-            relative = prim.GetPath().MakeRelativePath(ancestor.GetPath()).pathString
-            self._rigid_parent_expr = self.cfg.prim_path.replace("/" + relative, "")
-            # Pack the fixed body→Xform transform once, per env, for the compose kernel.
-            fixed_xform = torch.tensor(
-                [fixed_offset] * self._num_envs, device=self._device, dtype=torch.float32
+        # The base classes still use ``self._view.count`` in a few generic
+        # places. Point it at the sensor instead of constructing an adapter.
+        self._view = self
+        body = _find_physics_ancestor(prims[0])
+        if body is None:
+            # Non-physics sensor frames do not move through PhysX. Resolve their
+            # authored world poses once and keep the update path USD-free.
+            poses = []
+            for prim in prims:
+                pos, quat = sim_utils.resolve_prim_pose(prim)
+                poses.append((*pos, *quat))
+            self._static_view_transforms_torch = torch.tensor(
+                poses, dtype=torch.float32, device=self._device
             ).contiguous()
-            self._fixed_transform_wp = wp.from_torch(fixed_xform).view(wp.transformf)
-            self._sensor_transforms_wp = wp.zeros(self._num_envs, dtype=wp.transformf, device=self._device)
-        self._body_view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr.replace(".*", "*"))
+            self._static_view_transforms_wp = wp.from_torch(self._static_view_transforms_torch).view(wp.transformf)
+            self._physx_body_view = None
+            self._view_count = len(prims)
+            self._offset_pos_wp = wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device)
+            identity_quat = torch.zeros(self._view_count, 4, device=self._device)
+            identity_quat[:, 3] = 1.0
+            self._offset_quat_contiguous = identity_quat.contiguous()
+            self._offset_quat_wp = wp.from_torch(self._offset_quat_contiguous, dtype=wp.quatf)
+            return
 
-    def _get_sensor_transforms_wp(self) -> wp.array:
-        """Per-step sensor Xform world transforms — cached static array, raw body
-        pose, or composed body * fixed offset, depending on which branch initialized."""
-        if self._body_view is None:
-            return self._static_transforms
-        body_t = self._body_view.get_transforms().view(wp.transformf)
-        if self._fixed_transform_wp is None:
-            return body_t
-        wp.launch(
-            _compose_body_xform_kernel,
-            dim=self._num_envs,
-            inputs=[body_t, self._fixed_transform_wp],
-            outputs=[self._sensor_transforms_wp],
-            device=self._device,
+        requested_prim_path = getattr(self, "_requested_prim_path", self.cfg.prim_path)
+        # When the public prim path pointed at a rigid body, BaseRayCaster
+        # spawned a child sensor prim and preserved the original body path.
+        body_expr = (
+            requested_prim_path
+            if self.cfg.prim_path != requested_prim_path
+            else _body_expr_from_sensor_expr(self.cfg.prim_path, prims[0], body)
         )
-        return self._sensor_transforms_wp
+        physics_sim_view = PhysxManager.get_physics_sim_view()
+        if physics_sim_view is None:
+            raise RuntimeError("PhysX simulation view is not initialized.")
+        self._physx_body_view = physics_sim_view.create_rigid_body_view(body_expr.replace(".*", "*"))
+        self._view_count = self._physx_body_view.count
 
-    def _invalidate_initialize_callback(self, event) -> None:
-        """Drop PhysX-owned refs on STOP; keep ``_static_transforms`` (USD-derived, immutable)."""
-        super()._invalidate_initialize_callback(event)
-        self._body_view = None
-        self._physics_sim_view = None
+        offset_pos = []
+        offset_quat = []
+        for prim in prims:
+            body_prim = _find_physics_ancestor(prim)
+            p, q = sim_utils.resolve_prim_pose(prim, body_prim)
+            offset_pos.append(p)
+            offset_quat.append(q)
+        if len(offset_pos) == 1 and self._view_count > 1:
+            offset_pos = offset_pos * self._view_count
+            offset_quat = offset_quat * self._view_count
+        self._offset_pos_wp = wp.array(offset_pos[: self._view_count], dtype=wp.vec3f, device=self._device)
+        self._offset_quat_contiguous = torch.tensor(
+            offset_quat[: self._view_count], dtype=torch.float32, device=self._device
+        )
+        self._offset_quat_wp = wp.from_torch(self._offset_quat_contiguous, dtype=wp.quatf)
+
+    def _get_view_transforms_wp(self: Any) -> wp.array:
+        """Return tracked sensor-frame transforms as ``wp.transformf``."""
+        if self._physx_body_view is None:
+            return self._static_view_transforms_wp
+        transforms = self._physx_body_view.get_transforms()
+        if isinstance(transforms, wp.array):
+            return transforms.view(wp.transformf)
+        return wp.from_torch(transforms.contiguous()).view(wp.transformf)
+
+    def get_world_poses(self: Any, indices=None):
+        """Return world poses for camera helpers that still use pose tuples."""
+        transforms = self._get_view_transforms_wp()
+        transforms_t = wp.to_torch(transforms).reshape(-1, 7)
+        if indices is not None:
+            idx = wp.to_torch(indices).to(dtype=torch.long) if isinstance(indices, wp.array) else indices
+            transforms_t = transforms_t[idx]
+        return SimpleNamespace(torch=transforms_t[:, 0:3]), SimpleNamespace(torch=transforms_t[:, 3:7])
+
+    def _create_tracked_target_view(self: Any, target_prim_path: str):
+        """Create a PhysX rigid-body view for dynamic multi-mesh targets."""
+        prims = sim_utils.find_matching_prims(target_prim_path)
+        if len(prims) == 0:
+            raise RuntimeError(f"No tracked target prims matched: {target_prim_path}")
+        body = _find_physics_ancestor(prims[0])
+        if body is None:
+            raise RuntimeError(
+                f"Cannot track non-physics ray-cast target '{target_prim_path}' with PhysX. "
+                "Set track_mesh_transforms=False for static targets, or apply RigidBodyAPI to dynamic targets."
+            )
+        body_expr = _body_expr_from_sensor_expr(target_prim_path, prims[0], body)
+        physics_sim_view = PhysxManager.get_physics_sim_view()
+        if physics_sim_view is None:
+            raise RuntimeError("PhysX simulation view is not initialized.")
+        return physics_sim_view.create_rigid_body_view(body_expr.replace(".*", "*"))
+
+    def _update_mesh_transforms(self: Any) -> None:
+        """Refresh dynamic multi-mesh targets directly from PhysX views."""
+        if not hasattr(self, "_mesh_views"):
+            return
+        mesh_idx = 0
+        for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
+            if not target_cfg.track_mesh_transforms:
+                mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
+                continue
+
+            transforms = view.get_transforms()
+            transforms_t = wp.to_torch(transforms) if isinstance(transforms, wp.array) else transforms
+            pos_w = transforms_t[:, 0:3]
+            ori_w = transforms_t[:, 3:7]
+
+            count = view.count
+            if count != 1:
+                count = count // self._num_envs
+                pos_w = pos_w.view(self._num_envs, count, 3)
+                ori_w = ori_w.view(self._num_envs, count, 4)
+
+            self._mesh_positions_w_torch[:, mesh_idx : mesh_idx + count] = pos_w
+            self._mesh_orientations_w_torch[:, mesh_idx : mesh_idx + count] = ori_w
+            mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
+
+
+class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):
+    """PhysX ray-caster implementation."""

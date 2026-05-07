@@ -5,23 +5,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from isaaclab.utils.backend_utils import FactoryBase
 
 from .base_ray_caster import BaseRayCaster
-from .ray_caster_data import RayCasterData
-
-if TYPE_CHECKING:
-    from isaaclab_newton.sensors.ray_caster import RayCaster as NewtonRayCaster
-    from isaaclab_physx.sensors.ray_caster import RayCaster as PhysXRayCaster
 
 
 class RayCaster(FactoryBase, BaseRayCaster):
-    """Factory for creating ray-caster sensor instances."""
+    """Backend-dispatching ray-caster sensor."""
 
-    data: RayCasterData
-
-    def __new__(cls, *args, **kwargs) -> BaseRayCaster | NewtonRayCaster | PhysXRayCaster:
-        """Create a new instance of a ray-caster based on the backend."""
-        return super().__new__(cls, *args, **kwargs)
+    _backend_class_names = {"physx": "RayCaster", "newton": "RayCaster"}

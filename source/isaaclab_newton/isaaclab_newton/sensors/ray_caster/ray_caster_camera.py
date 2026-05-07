@@ -5,23 +5,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from isaaclab.sensors.ray_caster.base_ray_caster_camera import BaseRayCasterCamera
 
-from isaaclab.sensors.ray_caster import BaseRayCasterCamera
-
-from .ray_caster import RayCaster
-
-if TYPE_CHECKING:
-    from isaaclab.sensors.ray_caster import RayCasterCameraCfg
+from .ray_caster import _NewtonRayCasterMixin
 
 
-class RayCasterCamera(BaseRayCasterCamera, RayCaster):
-    """Newton backend for the ray-caster camera sensor.
-
-    Camera buffers/intrinsics from :class:`BaseRayCasterCamera`, body tracker
-    (body-attached site + :class:`~newton.sensors.SensorFrameTransform`) from
-    :class:`RayCaster`.
-    """
-
-    cfg: RayCasterCameraCfg
-    __backend_name__: str = "newton"
+class RayCasterCamera(_NewtonRayCasterMixin, BaseRayCasterCamera):
+    """Newton RayCasterCamera implementation."""

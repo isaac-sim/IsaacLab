@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 
 class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
-    """Backend-agnostic multi-mesh ray-casting camera sensor.
+    """A multi-mesh ray-casting camera sensor.
 
     The ray-caster camera uses a set of rays to get the distances to meshes in the scene. The rays are
     defined in the sensor's local coordinate frame. The sensor has the same interface as the
@@ -48,21 +48,30 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
     """The configuration parameters."""
 
     def __init__(self, cfg: MultiMeshRayCasterCameraCfg):
+        """Initializes the camera object.
+
+        Args:
+            cfg: The configuration parameters.
+
+        Raises:
+            ValueError: If the provided data types are not supported by the ray-caster camera.
+        """
         self._check_supported_data_types(cfg)
-        # Skip BaseRayCasterCamera.__init__ — the camera-data swap and check are done above /
-        # below; BaseMultiMeshRayCaster's __init__ handles the multi-mesh init.
+        # initialize base class
         BaseMultiMeshRayCaster.__init__(self, cfg)
+        # create empty variables for storing output data
         self._data = MultiMeshRayCasterCameraData()
 
     def __str__(self) -> str:
+        """Returns: A string containing information about the instance."""
         return (
             f"Multi-Mesh Ray-Caster-Camera @ '{self.cfg.prim_path}': \n"
-            f"\tbackend              : {self.__backend_name__}\n"
+            f"\tview type            : {self._view.__class__}\n"
             f"\tupdate period (s)    : {self.cfg.update_period}\n"
             f"\tnumber of meshes     : {len(BaseMultiMeshRayCaster.meshes)}\n"
-            f"\tnumber of sensors    : {self._num_envs}\n"
+            f"\tnumber of sensors    : {self._view.count}\n"
             f"\tnumber of rays/sensor: {self.num_rays}\n"
-            f"\ttotal number of rays : {self.num_rays * self._num_envs}\n"
+            f"\ttotal number of rays : {self.num_rays * self._view.count}\n"
             f"\timage shape          : {self.image_shape}"
         )
 
@@ -89,8 +98,8 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
         # If either parent class gains new shared buffers, they must be added here explicitly.
 
         # Camera-specific bookkeeping buffers
-        self._ALL_INDICES = torch.arange(self._num_envs, device=self._device, dtype=torch.long)
-        self._frame = torch.zeros(self._num_envs, device=self._device, dtype=torch.long)
+        self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
+        self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
 
         # Build camera output buffers (intrinsics, image data, etc.)
         self._create_buffers()
@@ -112,44 +121,44 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
             origin=self.cfg.offset.convention,
             target="world",
         )
-        self._offset_quat = quat_offset.repeat(self._num_envs, 1)
-        self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._num_envs, 1)
+        self._offset_quat = quat_offset.repeat(self._view.count, 1)
+        self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
 
         # Camera pose buffers (torch, part of CameraData)
-        self._data.pos_w = torch.zeros(self._num_envs, 3, device=self._device)
-        self._data.quat_w_world = torch.zeros(self._num_envs, 4, device=self._device)
+        self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
+        self._data.quat_w_world = torch.zeros(self._view.count, 4, device=self._device)
         # Warp-backed camera orientation buffer for warp kernel calls;
-        # updated from self._data.quat_w_world in _update_buffers_impl.
-        self._quat_w_wp = wp.zeros(self._num_envs, dtype=wp.quatf, device=self._device)
+        # updated from self._data.quat_w_world in _update_ray_infos.
+        self._quat_w_wp = wp.zeros(self._view.count, dtype=wp.quatf, device=self._device)
         self._quat_w_wp_torch = wp.to_torch(self._quat_w_wp)
 
         # Warp buffer for distance_to_image_plane output (if requested)
         if "distance_to_image_plane" in self.cfg.data_types:
             self._distance_to_image_plane_wp = wp.zeros(
-                (self._num_envs, self.num_rays), dtype=wp.float32, device=self._device
+                (self._view.count, self.num_rays), dtype=wp.float32, device=self._device
             )
 
         # World-frame ray buffers: allocate as warp arrays first, then create zero-copy torch views.
         # Keeping warp arrays as primary storage avoids lifetime issues when passing to kernels.
-        self._ray_starts_w = wp.zeros((self._num_envs, self.num_rays), dtype=wp.vec3f, device=self._device)
-        self._ray_directions_w = wp.zeros((self._num_envs, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_starts_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_directions_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
         # Zero-copy torch views used for indexing and post-processing
         self._ray_starts_w_torch = wp.to_torch(self._ray_starts_w)
         self._ray_directions_w_torch = wp.to_torch(self._ray_directions_w)
 
         # Ray hit positions as a warp array; expose a torch view for debug visualisation
-        self._ray_hits_w_cam = wp.zeros((self._num_envs, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_hits_w_cam = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
         self.ray_hits_w = wp.to_torch(self._ray_hits_w_cam)
 
         # Per-ray closest-hit distance for atomic_min across meshes
-        self._ray_distance_cam_w = wp.zeros((self._num_envs, self.num_rays), dtype=wp.float32, device=self._device)
+        self._ray_distance_cam_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.float32, device=self._device)
 
         # Optional normal buffer (always allocated; filled only when "normals" is requested)
-        self._ray_normal_w = wp.zeros((self._num_envs, self.num_rays), dtype=wp.vec3f, device=self._device)
+        self._ray_normal_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.vec3f, device=self._device)
 
         # Mesh-id buffers from MultiMeshRayCaster._initialize_rays_impl
         if self.cfg.update_mesh_ids:
-            self._ray_mesh_id_w = wp.zeros((self._num_envs, self.num_rays), dtype=wp.int16, device=self._device)
+            self._ray_mesh_id_w = wp.zeros((self._view.count, self.num_rays), dtype=wp.int16, device=self._device)
             self._data.ray_mesh_ids = wp.to_torch(self._ray_mesh_id_w).unsqueeze(-1)
         else:
             self._ray_mesh_id_w = wp.empty((1, 1), dtype=wp.int16, device=self._device)
@@ -157,37 +166,56 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
         # Dummy face-id buffer (not used by camera but required by kernel signature)
         self._ray_face_id_w = wp.empty((1, 1), dtype=wp.int32, device=self._device)
 
-    def _update_buffers_impl(self, env_mask: wp.array):
+    def _update_ray_infos(self, env_mask: wp.array):
+        """Updates camera poses and world-frame ray buffers for masked environments.
+
+        Args:
+            env_mask: Boolean mask selecting which environments to update. Shape is (num_envs,).
+        """
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) == 0:
             return
 
-        # Camera world pose = sensor_xform_pose * cfg.offset, in torch — multi-mesh's
-        # per-env camera-frame offsets don't fit update_ray_caster_kernel's single-offset
-        # ABI. The sensor xform pose comes from the backend body tracker.
-        pos_w, quat_w = self._get_sensor_world_poses(env_ids)
+        # Compute camera world poses by composing view pose with sensor offset
+        indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32)
+        pos_w, quat_w = self._view.get_world_poses(indices)
+        pos_w, quat_w = pos_w.torch, quat_w.torch
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
+        # Store camera pose in CameraData (torch tensors) and warp-backed orientation buffer
         self._data.pos_w[env_ids] = pos_w
         self._data.quat_w_world[env_ids] = quat_w
         self._quat_w_wp_torch[env_ids] = quat_w
 
-        # Rotate local ray starts/directions into world frame using full camera orientation.
-        quat_repeat = quat_w.repeat(1, self.num_rays).reshape(-1, 4)
-        ray_starts_w = math_utils.quat_apply(quat_repeat, self.ray_starts[env_ids].reshape(-1, 3)).reshape(
-            len(env_ids), self.num_rays, 3
-        ) + pos_w.unsqueeze(1)
-        ray_dirs_w = math_utils.quat_apply(quat_repeat, self.ray_directions[env_ids].reshape(-1, 3)).reshape(
+        # Rotate local ray starts and directions into world frame using full camera orientation
+        quat_w_repeated = quat_w.repeat(1, self.num_rays).reshape(-1, 4)
+        ray_starts_local = self.ray_starts[env_ids].reshape(-1, 3)
+        ray_dirs_local = self.ray_directions[env_ids].reshape(-1, 3)
+
+        ray_starts_world = math_utils.quat_apply(quat_w_repeated, ray_starts_local).reshape(
             len(env_ids), self.num_rays, 3
         )
-        self._ray_starts_w_torch[env_ids] = ray_starts_w
-        self._ray_directions_w_torch[env_ids] = ray_dirs_w
+        ray_starts_world += pos_w.unsqueeze(1)
+        ray_dirs_world = math_utils.quat_apply(quat_w_repeated, ray_dirs_local).reshape(len(env_ids), self.num_rays, 3)
 
+        # Write back into the warp-backed buffers via zero-copy torch views
+        self._ray_starts_w_torch[env_ids] = ray_starts_world
+        self._ray_directions_w_torch[env_ids] = ray_dirs_world
+
+    def _update_buffers_impl(self, env_mask: wp.array):
+        """Fills the buffers of the sensor data."""
+        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+        if len(env_ids) == 0:
+            return
+
+        self._update_ray_infos(env_mask)
+
+        # Increment frame count for updated environments
         self._frame[env_ids] += 1
-        self._update_target_mesh_transforms()
 
-        n_meshes = self._mesh_ids_wp.shape[1]
+        self._update_mesh_transforms()
+
         return_normal = "normals" in self.cfg.data_types
 
         # Fill ray hit and distance buffers with inf for masked environments
@@ -211,7 +239,9 @@ class BaseMultiMeshRayCasterCamera(BaseRayCasterCamera, BaseMultiMeshRayCaster):
                 device=self._device,
             )
 
-        # Ray-cast against all meshes; closest hit wins via atomic_min on ray_distance
+        n_meshes = self._mesh_ids_wp.shape[1]
+
+        # Ray-cast against all meshes; closest hit wins via atomic_min on ray_distance.
         wp.launch(
             warp_kernels.raycast_dynamic_meshes_kernel,
             dim=(n_meshes, self._num_envs, self.num_rays),

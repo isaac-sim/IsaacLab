@@ -5,22 +5,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from isaaclab.sensors.ray_caster.base_ray_caster_camera import BaseRayCasterCamera
 
-from isaaclab.sensors.ray_caster import BaseRayCasterCamera
-
-from .ray_caster import RayCaster
-
-if TYPE_CHECKING:
-    from isaaclab.sensors.ray_caster import RayCasterCameraCfg
+from .ray_caster import _PhysXRayCasterMixin
 
 
-class RayCasterCamera(BaseRayCasterCamera, RayCaster):
-    """PhysX backend for the ray-caster camera sensor.
-
-    Camera buffers/intrinsics from :class:`BaseRayCasterCamera`, body tracker
-    (``RigidObjectView`` + per-step compose) from :class:`RayCaster`.
-    """
-
-    cfg: RayCasterCameraCfg
-    __backend_name__: str = "physx"
+class RayCasterCamera(_PhysXRayCasterMixin, BaseRayCasterCamera):
+    """PhysX RayCasterCamera implementation."""

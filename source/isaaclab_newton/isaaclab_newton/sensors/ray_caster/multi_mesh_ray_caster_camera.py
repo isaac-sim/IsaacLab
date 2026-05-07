@@ -5,24 +5,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from isaaclab.sensors.ray_caster.base_multi_mesh_ray_caster_camera import BaseMultiMeshRayCasterCamera
 
-from isaaclab.sensors.ray_caster import BaseMultiMeshRayCasterCamera
-
-from .multi_mesh_ray_caster import MultiMeshRayCaster
-from .ray_caster_camera import RayCasterCamera
-
-if TYPE_CHECKING:
-    from isaaclab.sensors.ray_caster import MultiMeshRayCasterCameraCfg
+from .ray_caster import _NewtonRayCasterMixin
 
 
-class MultiMeshRayCasterCamera(BaseMultiMeshRayCasterCamera, MultiMeshRayCaster, RayCasterCamera):
-    """Newton backend for the multi-mesh ray-cast camera sensor.
-
-    Multi-mesh + camera pipeline from :class:`BaseMultiMeshRayCasterCamera`,
-    target-mesh + body trackers from :class:`MultiMeshRayCaster` and
-    :class:`RayCasterCamera`.
-    """
-
-    cfg: MultiMeshRayCasterCameraCfg
-    __backend_name__: str = "newton"
+class MultiMeshRayCasterCamera(_NewtonRayCasterMixin, BaseMultiMeshRayCasterCamera):
+    """Newton MultiMeshRayCasterCamera implementation."""
