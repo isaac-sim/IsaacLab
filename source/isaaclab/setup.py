@@ -42,7 +42,8 @@ INSTALL_REQUIRES = [
     # required by omni.replicator.core S3 backend
     "botocore",
     # livestream
-    "starlette==0.49.1",
+    # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
+    "starlette>=0.40.0,<0.50",
     "omniverseclient==2.71.1.7015",
     # testing
     "pytest",
