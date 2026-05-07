@@ -166,11 +166,8 @@ class OvPhysxManager(PhysicsManager):
 
         device_str = PhysicsManager._device
         if "cuda" in device_str:
-            parts = device_str.split(":")
-            gpu_index = int(parts[1]) if len(parts) > 1 else 0
             ovphysx_device = "gpu"
         else:
-            gpu_index = 0
             ovphysx_device = "cpu"
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
