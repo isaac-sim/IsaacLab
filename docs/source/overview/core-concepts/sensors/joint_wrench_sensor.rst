@@ -17,14 +17,14 @@ For example, the Ant environment adds a joint wrench sensor to the scene:
 
 .. literalinclude:: ../../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/ant/ant_env_cfg.py
   :language: python
-  :lines: 84-96
+  :lines: 91-95
 
 The same environment uses :class:`~isaaclab.managers.SceneEntityCfg` to select
 the reported foot bodies for an observation term:
 
 .. literalinclude:: ../../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/classic/ant/ant_env_cfg.py
   :language: python
-  :lines: 128-143
+  :lines: 133-142
 
 Direct access to the sensor data follows the usual scene lookup pattern.
 
