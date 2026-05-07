@@ -407,15 +407,6 @@ def test_build_clone_plan_from_cfg_marks_unused_variants(monkeypatch: pytest.Mon
     assert plan.clone_mask[2].sum() == 0
 
 
-def test_add_entities_from_cfg_rejects_unresolved_presets():
-    """Preset selection belongs upstream of InteractiveScene."""
-    scene = object.__new__(InteractiveScene)
-    scene.cfg = SimpleNamespace(legacy=SimpleNamespace(presets={"default": object()}))
-
-    with pytest.raises(ValueError, match="unresolved presets"):
-        scene._add_entities_from_cfg()
-
-
 def test_aggregate_scene_data_requirements_merges_visualizers_and_renderers(monkeypatch: pytest.MonkeyPatch):
     """Scene aggregation must OR visualizer and sensor-renderer requirements onto sim context.
 

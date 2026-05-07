@@ -923,11 +923,6 @@ class InteractiveScene:
                 # all prims in the scene are Xform prims (i.e. have a transform component)
                 self._extras[asset_name] = FrameView(asset_cfg.prim_path, device=self.device, stage=self.stage)
             else:
-                if hasattr(asset_cfg, "presets"):
-                    raise ValueError(
-                        f"Scene config entry '{asset_name}' has unresolved presets. Resolve presets before "
-                        "constructing InteractiveScene."
-                    )
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
 
             # store global collision paths
