@@ -150,24 +150,6 @@ def _make_lifecycle(
     )
 
 
-def _make_supported_tsm_module() -> ModuleType:
-    """Build a fake ``teleop_session_manager`` with the new execution config API."""
-
-    @dataclass
-    class DeadlinePacingConfig:
-        safety_margin_s: float = 0.025
-
-    @dataclass
-    class RetargetingExecutionConfig:
-        mode: str = "sync"
-        pacing: DeadlinePacingConfig | None = None
-
-    tsm = ModuleType("isaacteleop.teleop_session_manager")
-    tsm.DeadlinePacingConfig = DeadlinePacingConfig  # type: ignore[attr-defined]
-    tsm.RetargetingExecutionConfig = RetargetingExecutionConfig  # type: ignore[attr-defined]
-    return tsm
-
-
 # ============================================================================
 # Shipped .env profile paths
 # ============================================================================
@@ -206,48 +188,14 @@ class TestEnvProfilePaths:
 class TestRetargetingExecutionConfig:
     """Tests for Isaac Lab's IsaacTeleop retargeting execution defaults."""
 
-    def test_cfg_defaults_to_deadline_paced_pipelined_retargeting(self):
-        """Isaac Lab defaults to deadline-paced pipelined retargeting."""
-        import isaaclab_teleop.isaac_teleop_cfg as cfg_module
-
-        with (
-            patch.object(cfg_module, "_RETARGETING_EXECUTION_SUPPORTED", True),
-            patch.object(cfg_module, "_tsm", _make_supported_tsm_module()),
-        ):
-            cfg = _make_cfg()
+    def test_session_config_receives_deadline_paced_pipelined_retargeting(self):
+        """The default retargeting execution config is passed into TeleopSession."""
+        cfg = _make_cfg()
 
         assert cfg.retargeting_execution.mode == "pipelined"
         assert cfg.retargeting_execution.pacing.safety_margin_s == 0.025
 
-    def test_cfg_defaults_to_none_with_legacy_isaacteleop(self):
-        """Older IsaacTeleop releases can still construct IsaacTeleopCfg."""
-        import isaaclab_teleop.isaac_teleop_cfg as cfg_module
-
-        with patch.object(cfg_module, "_RETARGETING_EXECUTION_SUPPORTED", False):
-            cfg = _make_cfg()
-
-        assert cfg.retargeting_execution is None
-
-    def test_retargeting_execution_support_requires_new_config_classes(self):
-        """IsaacTeleop must expose both execution config classes to enable the default."""
-        import isaaclab_teleop.isaac_teleop_cfg as cfg_module
-
-        legacy_tsm = ModuleType("isaacteleop.teleop_session_manager")
-        assert not cfg_module._retargeting_execution_is_supported(legacy_tsm)
-
-        legacy_tsm.RetargetingExecutionConfig = object
-        assert not cfg_module._retargeting_execution_is_supported(legacy_tsm)
-
-        legacy_tsm.DeadlinePacingConfig = object
-        assert cfg_module._retargeting_execution_is_supported(legacy_tsm)
-
-    def test_session_config_receives_cfg_retargeting_execution(self):
-        """The configured IsaacTeleop execution mode is passed into TeleopSession."""
-        import isaaclab_teleop.session_lifecycle as lifecycle_module
-
-        cfg = _make_cfg()
-        sentinel_execution = object()
-        cfg.retargeting_execution = sentinel_execution
+        sentinel_execution = cfg.retargeting_execution
 
         lifecycle = TeleopSessionLifecycle(cfg)
         lifecycle._pipeline = MagicMock()
@@ -258,7 +206,6 @@ class TestRetargetingExecutionConfig:
         fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
 
         with (
-            patch.object(lifecycle_module, "_RETARGETING_EXECUTION_SUPPORTED", True),
             patch.object(fake_tsm_module, "TeleopSessionConfig", session_config_cls),
             patch.object(fake_tsm_module, "TeleopSession", session_cls),
             patch.object(lifecycle, "_ensure_xr_ar_profile_enabled"),
@@ -267,64 +214,6 @@ class TestRetargetingExecutionConfig:
             assert lifecycle.try_start_session() is True
 
         assert session_config_cls.call_args.kwargs["retargeting_execution"] is sentinel_execution
-
-    def test_session_config_omits_retargeting_execution_for_legacy_isaacteleop(self, caplog):
-        """When IsaacTeleop lacks the new API, the kwarg is never passed."""
-        import isaaclab_teleop.isaac_teleop_cfg as cfg_module
-        import isaaclab_teleop.session_lifecycle as lifecycle_module
-
-        with patch.object(cfg_module, "_RETARGETING_EXECUTION_SUPPORTED", False):
-            cfg = _make_cfg()
-
-        cfg.retargeting_execution = object()
-
-        lifecycle = TeleopSessionLifecycle(cfg)
-        lifecycle._pipeline = MagicMock()
-        lifecycle._teleop_control_pipeline = None
-
-        session_config_cls = MagicMock(return_value=MagicMock())
-        session_cls = MagicMock()
-        fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
-
-        with (
-            patch.object(lifecycle_module, "_RETARGETING_EXECUTION_SUPPORTED", False),
-            patch.object(fake_tsm_module, "TeleopSessionConfig", session_config_cls),
-            patch.object(fake_tsm_module, "TeleopSession", session_cls),
-            patch.object(lifecycle, "_ensure_xr_ar_profile_enabled"),
-            patch.object(lifecycle, "_acquire_kit_oxr_handles", return_value=object()),
-            caplog.at_level("WARNING", logger="isaaclab_teleop.session_lifecycle"),
-        ):
-            assert lifecycle.try_start_session() is True
-
-        assert "retargeting_execution" not in session_config_cls.call_args.kwargs
-        assert session_config_cls.call_args.kwargs["app_name"] == cfg.app_name
-        assert "does not support retargeting_execution" in caplog.text
-
-    def test_session_config_propagates_typeerror_from_supported_isaacteleop(self):
-        """A TypeError from a supported IsaacTeleop must surface, not be swallowed."""
-        import isaaclab_teleop.session_lifecycle as lifecycle_module
-
-        cfg = _make_cfg()
-        cfg.retargeting_execution = object()
-
-        lifecycle = TeleopSessionLifecycle(cfg)
-        lifecycle._pipeline = MagicMock()
-        lifecycle._teleop_control_pipeline = None
-
-        def raising_session_config(**kwargs):
-            raise TypeError("invalid value for retargeting_execution")
-
-        fake_tsm_module = sys.modules["isaacteleop.teleop_session_manager"]
-
-        with (
-            patch.object(lifecycle_module, "_RETARGETING_EXECUTION_SUPPORTED", True),
-            patch.object(fake_tsm_module, "TeleopSessionConfig", raising_session_config),
-            patch.object(fake_tsm_module, "TeleopSession", MagicMock()),
-            patch.object(lifecycle, "_ensure_xr_ar_profile_enabled"),
-            patch.object(lifecycle, "_acquire_kit_oxr_handles", return_value=object()),
-        ):
-            with pytest.raises(TypeError, match="retargeting_execution"):
-                lifecycle.try_start_session()
 
 
 # ============================================================================
