@@ -65,6 +65,10 @@ jobs:
         with:
           app-id: ${{ secrets.CHANGELOG_APP_ID }}
           private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          # Declare the scope the App must have so token mint fails loudly
+          # if the App is misconfigured, instead of failing silently at the
+          # push step.
+          permission-contents: write
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
@@ -96,7 +100,7 @@ jobs:
           python3 tools/changelog/cli.py compile $ARGS
 
       - name: Commit and push if fragments were compiled
-        if: inputs.dry_run != 'true'
+        if: ${{ !inputs.dry_run }}
         run: |
           # Author commits as the App's bot user so the GitHub UI attributes
           # them correctly. ID 282401363 is isaaclab-bot[bot]'s user ID.
@@ -134,6 +138,11 @@ jobs:
               done
             } > "$MSG_FILE"
             git commit -F "$MSG_FILE"
+            # Rebase onto develop's current tip in case a human commit
+            # landed during this run (~2 min window between checkout and
+            # push). Without this the push fails non-fast-forward and the
+            # batch waits for the next run.
+            git pull --rebase origin develop
             # Push explicitly to develop so we don't accidentally write
             # to the source ref of a workflow_dispatch run.
             git push origin HEAD:develop
