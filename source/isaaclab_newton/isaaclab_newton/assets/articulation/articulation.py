@@ -2034,30 +2034,6 @@ class Articulation(BaseArticulation):
     Operations - Newton Actuator Parameter Writers.
     """
 
-    def write_actuator_stiffness_to_sim(
-        self,
-        adapter: NewtonActuatorAdapter,
-        *,
-        stiffness: torch.Tensor | wp.array | float,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Write actuator stiffness (``kp``) into each Newton controller for *env_ids*."""
-        env_ids = self._resolve_env_ids(env_ids)
-        env_mask = self._env_ids_to_mask(env_ids)
-        adapter.write_stiffness_to_sim(stiffness, env_ids, env_mask, self._propagate_gain_via_view)
-
-    def write_actuator_damping_to_sim(
-        self,
-        adapter: NewtonActuatorAdapter,
-        *,
-        damping: torch.Tensor | wp.array | float,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> None:
-        """Write actuator damping (``kd``) into each Newton controller for *env_ids*."""
-        env_ids = self._resolve_env_ids(env_ids)
-        env_mask = self._env_ids_to_mask(env_ids)
-        adapter.write_damping_to_sim(damping, env_ids, env_mask, self._propagate_gain_via_view)
-
     def _propagate_gain_via_view(
         self,
         adapter: NewtonActuatorAdapter,
@@ -3428,30 +3404,37 @@ class Articulation(BaseArticulation):
         if _use_newton_actuators and _HAS_NEWTON_ACTUATORS:
             from newton import Model as NewtonModel  # noqa: PLC0415
 
-            model = SimulationManager.get_model()
-
             # Enable the fast path even for all-implicit articulations:
             # the solver runs PD internally; Lab only forwards targets.
             self._has_newton_actuators = True
             SimulationManager.activate_newton_actuator_path()
 
-            if model.actuators:
-                dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
-                if dof_layout.slice is not None:
-                    dof_offset = dof_layout.slice.start
-                elif dof_layout.indices is not None:
-                    dof_offset = int(dof_layout.indices.numpy()[0])
-                else:
-                    dof_offset = 0
+            # Build (or share) the single sim-level actuator adapter. Idempotent —
+            # the first articulation to call this constructs it from
+            # ``model.actuators``; subsequent articulations reuse it.
+            SimulationManager.ensure_global_actuator_adapter()
 
-                adapter = NewtonActuatorAdapter(
-                    model.actuators, self.num_instances, self.num_joints, dof_offset, self.device,
+            # Zero the simulator's joint-drive PD on DOFs covered by an explicit
+            # Lab actuator config in *this* articulation. The global Newton
+            # adapter's actuator step writes their effort to ``joint_f``
+            # directly; the joint drive shouldn't add its own PD on top.
+            explicit_joint_ids: list[int] = []
+            for actuator_cfg in self.cfg.actuators.values():
+                cls_type = actuator_cfg.class_type
+                if (
+                    "ImplicitActuator" in cls_type
+                    if isinstance(cls_type, str)
+                    else issubclass(cls_type, ImplicitActuator)
+                ):
+                    continue
+                joint_ids, _ = self.find_joints(actuator_cfg.joint_names_expr)
+                explicit_joint_ids.extend(int(j) for j in joint_ids)
+            if explicit_joint_ids:
+                explicit_ids_t = torch.tensor(
+                    sorted(set(explicit_joint_ids)), dtype=torch.int32, device=self.device,
                 )
-                adapter.finalize()
-                self.actuators["newton"] = adapter
-                SimulationManager.register_adapter(adapter)
-                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
-                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)
+                self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=explicit_ids_t)
+                self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=explicit_ids_t)
 
             for actuator_name, actuator_cfg in self.cfg.actuators.items():
                 cls_type = actuator_cfg.class_type

@@ -1210,10 +1210,6 @@ class randomize_actuator_gains(ManagerTermBase):
                     self.asset.write_joint_stiffness_to_sim_index(
                         stiffness=stiffness, joint_ids=actuator.joint_indices, env_ids=env_ids
                     )
-                elif hasattr(self.asset, "write_actuator_stiffness_to_sim"):
-                    self.asset.write_actuator_stiffness_to_sim(
-                        actuator, stiffness=stiffness, env_ids=env_ids
-                    )
             # Randomize damping
             if damping_distribution_params is not None:
                 damping = actuator.damping[env_ids].clone()
@@ -1224,10 +1220,46 @@ class randomize_actuator_gains(ManagerTermBase):
                     self.asset.write_joint_damping_to_sim_index(
                         damping=damping, joint_ids=actuator.joint_indices, env_ids=env_ids
                     )
-                elif hasattr(self.asset, "write_actuator_damping_to_sim"):
-                    self.asset.write_actuator_damping_to_sim(
-                        actuator, damping=damping, env_ids=env_ids
-                    )
+
+        # Direct write to the global Newton actuator adapter
+        adapter = getattr(env.sim.physics_manager, "_adapter", None)
+        if adapter is None:
+            return
+        from newton import Model as NewtonModel  # noqa: PLC0415
+
+        dof_layout = self.asset._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
+        if dof_layout.slice is not None:
+            dof_offset = dof_layout.slice.start
+        elif dof_layout.indices is not None:
+            dof_offset = int(dof_layout.indices.numpy()[0])
+        else:
+            dof_offset = 0
+        if isinstance(self.asset_cfg.joint_ids, slice):
+            arti_local_ids = torch.arange(self.asset.num_joints, device=self.asset.device, dtype=torch.long)
+        else:
+            arti_local_ids = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device, dtype=torch.long)
+        # Column indices into the adapter's model-wide gain buffer for the
+        # joints this DR term should randomize.
+        adapter_indices = arti_local_ids + dof_offset
+        env_ids_wp = self.asset._resolve_env_ids(env_ids)
+        env_mask = self.asset._env_ids_to_mask(env_ids_wp)
+
+        def _randomize_at(data: torch.Tensor, params: tuple[float, float]) -> None:
+            _randomize_prop_by_op(
+                data, params, dim_0_ids=None, dim_1_ids=adapter_indices,
+                operation=operation, distribution=distribution,
+            )
+
+        if stiffness_distribution_params is not None:
+            stiffness = adapter.stiffness[env_ids].clone()
+            stiffness[:, adapter_indices] = self.default_joint_stiffness[env_ids][:, arti_local_ids].clone()
+            _randomize_at(stiffness, stiffness_distribution_params)
+            adapter.write_stiffness_to_sim(stiffness, env_ids_wp, env_mask, self.asset._propagate_gain_via_view)
+        if damping_distribution_params is not None:
+            damping = adapter.damping[env_ids].clone()
+            damping[:, adapter_indices] = self.default_joint_damping[env_ids][:, arti_local_ids].clone()
+            _randomize_at(damping, damping_distribution_params)
+            adapter.write_damping_to_sim(damping, env_ids_wp, env_mask, self.asset._propagate_gain_via_view)
 
 
 class randomize_joint_parameters(ManagerTermBase):

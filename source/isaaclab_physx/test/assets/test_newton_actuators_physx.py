@@ -527,6 +527,100 @@ class TestImplicitWithFeedforwardEquivalencePhysx(unittest.TestCase):
         self.assertGreater(diff, 0.01, "Joints did not move — test is trivial")
 
 
+# ---------------------------------------------------------------------------
+# Heterogeneous multi-articulation (ANYmal floating-base + Cartpole fixed-base)
+# ---------------------------------------------------------------------------
+
+
+CARTPOLE_EXPLICIT_ACTUATORS = {
+    "all_joints": IdealPDActuatorCfg(
+        joint_names_expr=["slider_to_cart", "cart_to_pole"],
+        stiffness=10.0,
+        damping=1.0,
+        effort_limit=100.0,
+    ),
+}
+
+
+def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM_STEPS) -> dict:
+    """Spawn ANYmal-C + Cartpole per env on PhysX (different DOF counts, base types)."""
+    from isaaclab_assets import CARTPOLE_CFG  # noqa: PLC0415
+
+    sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=use_newton_actuators)
+    with build_simulation_context(
+        device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+    ) as sim:
+        sim._app_control_on_stop_handle = None
+
+        for i in range(NUM_ENVS):
+            sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 6.0, 0, 0))
+
+        anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_.*/Anymal")
+        cartpole_cfg = CARTPOLE_CFG.replace(
+            actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_.*/Cartpole",
+        )
+        cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
+
+        anymal = Articulation(anymal_cfg)
+        cartpole = Articulation(cartpole_cfg)
+        sim.reset()
+        assert anymal.is_initialized and cartpole.is_initialized
+
+        init_anymal = wp.to_torch(anymal.data.joint_pos).clone()
+        init_cartpole = wp.to_torch(cartpole.data.joint_pos).clone()
+        anymal.set_joint_position_target_index(target=init_anymal + TARGET_OFFSET)
+        anymal.set_joint_velocity_target_index(target=torch.zeros_like(init_anymal))
+        cartpole.set_joint_position_target_index(target=init_cartpole + TARGET_OFFSET)
+        cartpole.set_joint_velocity_target_index(target=torch.zeros_like(init_cartpole))
+
+        pos_anymal, pos_cartpole = [], []
+        for _ in range(num_steps):
+            anymal.write_data_to_sim()
+            cartpole.write_data_to_sim()
+            sim.step()
+            anymal.update(DT)
+            cartpole.update(DT)
+            pos_anymal.append(wp.to_torch(anymal.data.joint_pos).clone())
+            pos_cartpole.append(wp.to_torch(cartpole.data.joint_pos).clone())
+
+    return {"joint_pos_anymal": pos_anymal, "joint_pos_cartpole": pos_cartpole}
+
+
+class TestHeterogeneousMultiArticulationPhysx(unittest.TestCase):
+    """Two structurally-different articulations (ANYmal floating + Cartpole fixed) on PhysX.
+
+    Each PhysX articulation owns its own :class:`PhysxActuatorWrapper`
+    and per-art :class:`NewtonActuatorAdapter`. Heterogeneous DOF counts
+    (12 vs 2) and base types (floating vs fixed) verify the
+    per-articulation authoring + adapter construction works for varied
+    structures. Equivalence against the Lab actuator path is the
+    meaningful end-to-end check.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.lab_result = _run_anymal_and_cartpole(use_newton_actuators=False)
+        cls.newton_result = _run_anymal_and_cartpole(use_newton_actuators=True)
+
+    def test_anymal_matches_lab(self):
+        for step_i, (lab, newton) in enumerate(
+            zip(self.lab_result["joint_pos_anymal"], self.newton_result["joint_pos_anymal"])
+        ):
+            torch.testing.assert_close(
+                newton, lab, atol=2e-3, rtol=1e-3,
+                msg=f"ANYmal joint_pos diverged from Lab path at step {step_i}",
+            )
+
+    def test_cartpole_matches_lab(self):
+        for step_i, (lab, newton) in enumerate(
+            zip(self.lab_result["joint_pos_cartpole"], self.newton_result["joint_pos_cartpole"])
+        ):
+            torch.testing.assert_close(
+                newton, lab, atol=2e-3, rtol=1e-3,
+                msg=f"Cartpole joint_pos diverged from Lab path at step {step_i}",
+            )
+
+
 class TestExplicitOnlyTelemetryPhysx(unittest.TestCase):
     """Explicit-only Newton actuators on PhysX: telemetry copies from the staging effort buffer."""
 
@@ -602,8 +696,8 @@ class TestWriteActuatorGainsPhysx(unittest.TestCase):
             self.assertGreater(len(kp_before), 0, "expected at least one PD controller in adapter")
             new_kp = adapter.stiffness.clone() * 2.0
             new_kd = adapter.damping.clone() * 3.0
-            articulation.write_actuator_stiffness_to_sim(adapter, stiffness=new_kp)
-            articulation.write_actuator_damping_to_sim(adapter, damping=new_kd)
+            articulation.write_actuator_stiffness_to_sim(stiffness=new_kp)
+            articulation.write_actuator_damping_to_sim(damping=new_kd)
             # Verify each controller's kp/kd actually changed (and roughly doubled/tripled).
             kp_idx = 0
             kd_idx = 0

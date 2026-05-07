@@ -149,10 +149,10 @@ class NewtonManager(PhysicsManager):
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
     _decimation: int = 1
-    # Optional in-graph hook invoked after the actuator step and before the
-    # solver substeps. Used by the articulation's implicit-DOF telemetry /
-    # FF-routing kernel (see isaaclab_newton.assets.articulation).
-    _post_actuator_callback: Callable[[], None] | None = None
+    # In-graph hooks invoked after the actuator step and before the solver
+    # substeps, in registration order. Multiple articulations register their
+    # implicit-DOF telemetry / FF-routing kernels here.
+    _post_actuator_callbacks: list[Callable[[], None]] = []
 
     # CUDA graphing
     _graph = None
@@ -457,8 +457,8 @@ class NewtonManager(PhysicsManager):
             # --- Some actuators not graph-safe: step them eagerly, graph solver only ---
             if cls._adapter is not None:
                 cls._adapter.step(cls._state_0, cls._control, physics_dt)
-            if cls._post_actuator_callback is not None:
-                cls._post_actuator_callback()
+            for cb in cls._post_actuator_callbacks:
+                cb()
 
             if use_graph:
                 wp.capture_launch(cls._graph)
@@ -524,7 +524,7 @@ class NewtonManager(PhysicsManager):
         cls._newton_imu_sensors = []
         cls._report_contacts = False
         cls._adapter = None
-        cls._post_actuator_callback = None
+        cls._post_actuator_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
         # check, this gates whether the decimation loop can be captured into
@@ -832,8 +832,9 @@ class NewtonManager(PhysicsManager):
         cls._control = cls._model.control()
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
 
-        # Actuator registration is deferred to register_adapter(),
-        # called by _process_actuators_cfg after the adapter is constructed.
+        # The single global actuator adapter is built lazily on first
+        # call to ``ensure_global_actuator_adapter`` from any
+        # Newton-fast-path articulation after this point.
         cls._adapter = None
         cls._use_newton_actuators_active = False
 
@@ -1294,8 +1295,8 @@ class NewtonManager(PhysicsManager):
 
             if cls._adapter is not None:
                 cls._adapter.step(cls._state_0, cls._control, physics_dt)
-            if cls._post_actuator_callback is not None:
-                cls._post_actuator_callback()
+            for cb in cls._post_actuator_callbacks:
+                cb()
 
             cls._run_solver_substeps(contacts)
 
@@ -1387,33 +1388,48 @@ class NewtonManager(PhysicsManager):
         cls._use_newton_actuators_active = True
 
     @classmethod
-    def register_adapter(cls, adapter: NewtonActuatorAdapter) -> None:
-        """Register the actuator adapter that owns states and stepping.
+    def ensure_global_actuator_adapter(cls) -> None:
+        """Build the single sim-level :class:`NewtonActuatorAdapter` if not yet built.
 
-        Called by the articulation's ``_process_actuators_cfg`` after
-        the :class:`NewtonActuatorAdapter` is constructed and finalised.
-
-        Args:
-            adapter: The actuator adapter instance.
+        Idempotent — each Newton-fast-path articulation calls this from
+        ``_process_actuators_cfg`` after the model is finalized; the first
+        call constructs the adapter from ``cls._model.actuators`` and
+        subsequent calls are no-ops. A single global adapter avoids the
+        multi-articulation clobbering that the per-articulation
+        ``register_adapter`` design suffered from. The adapter operates on
+        the full flat DOF layout (``dof_offset=0``, ``num_joints`` =
+        per-env total DOF count), so it iterates and steps every actuator
+        in the model in one pass.
         """
-        cls._adapter = adapter
+        if cls._adapter is not None:
+            return
+        if cls._model is None or not cls._model.actuators:
+            return
+        from isaaclab_newton.actuators.newton_actuator_utils import NewtonActuatorAdapter  # noqa: PLC0415
+
+        dofs_per_env = cls._model.joint_dof_count // cls._num_envs
+        cls._adapter = NewtonActuatorAdapter(
+            actuators=list(cls._model.actuators),
+            num_envs=cls._num_envs,
+            num_joints=dofs_per_env,
+            dof_offset=0,
+            device=PhysicsManager._device,
+        )
+        cls._adapter.finalize()
 
     @classmethod
-    def register_post_actuator_callback(
-        cls, callback: Callable[[], None] | None,
-    ) -> None:
-        """Register a hook invoked after the actuator step on every iteration.
+    def register_post_actuator_callback(cls, callback: Callable[[], None]) -> None:
+        """Append a hook to the list invoked after the actuator step on every iteration.
 
-        The callback runs inside the captured CUDA graph (when
+        Each callback runs inside the captured CUDA graph (when
         :meth:`_is_all_graphable` is ``True``) right after
         :meth:`NewtonActuatorAdapter.step` and before the solver substeps,
         so kernel writes to ``state``/``control`` are visible to the
-        integrator on the same iteration. Used by the articulation to
-        run its implicit-DOF telemetry / FF-routing kernel.
-
-        Pass ``None`` to clear the registration.
+        integrator on the same iteration. Multiple articulations register
+        their own implicit-DOF telemetry / FF-routing kernels here; all
+        registered callbacks fire in registration order each step.
         """
-        cls._post_actuator_callback = callback
+        cls._post_actuator_callbacks.append(callback)
 
     @classmethod
     def set_decimation(cls, decimation: int) -> None:

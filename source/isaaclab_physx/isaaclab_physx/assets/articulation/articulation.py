@@ -1212,24 +1212,31 @@ class Articulation(BaseArticulation):
 
     def write_actuator_stiffness_to_sim(
         self,
-        adapter: NewtonActuatorAdapter,
         *,
         stiffness: torch.Tensor | wp.array | float,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Write actuator stiffness (``kp``) into each Newton controller for *env_ids*."""
+        """Write actuator stiffness (``kp``) into this articulation's Newton controllers.
+
+        No-op when no Newton actuators are registered for this articulation.
+        """
+        adapter = self.actuators.get("newton")
+        if adapter is None:
+            return
         env_ids = self._resolve_env_ids(env_ids)
         env_mask = self._env_ids_to_mask(env_ids)
         adapter.write_stiffness_to_sim(stiffness, env_ids, env_mask, self._propagate_gain_via_kernel)
 
     def write_actuator_damping_to_sim(
         self,
-        adapter: NewtonActuatorAdapter,
         *,
         damping: torch.Tensor | wp.array | float,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Write actuator damping (``kd``) into each Newton controller for *env_ids*."""
+        """Write actuator damping (``kd``) into this articulation's Newton controllers."""
+        adapter = self.actuators.get("newton")
+        if adapter is None:
+            return
         env_ids = self._resolve_env_ids(env_ids)
         env_mask = self._env_ids_to_mask(env_ids)
         adapter.write_damping_to_sim(damping, env_ids, env_mask, self._propagate_gain_via_kernel)
