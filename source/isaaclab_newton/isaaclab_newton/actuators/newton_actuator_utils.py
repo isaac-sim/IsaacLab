@@ -178,42 +178,26 @@ class PhysxActuatorWrapper:
         return w
 
 
-def build_actuator_telemetry(
+def build_implicit_dof_mask(
     actuators: dict[str, ActuatorBase],
-    num_envs: int,
     num_joints: int,
     device: str,
-) -> tuple[wp.array, wp.array, wp.array]:
-    """Build per-DOF telemetry tables.
+) -> wp.array:
+    """Per-DOF mask consumed by the in-graph implicit-FF kernel.
 
-    Per-DOF ``modes`` is ``1`` for joints covered by an
-    :class:`~isaaclab.actuators.ImplicitActuator` group (shadow-PD) and
-    ``0`` otherwise (copy from the simulator's actuator output).
-    ``effort_limit`` carries the implicit-clip absolute limit (``inf``
-    elsewhere).
-
-    Returns:
-        ``(indices, modes, effort_limit)`` Warp arrays.
+    Entry is ``1`` for DOFs covered by an
+    :class:`~isaaclab.actuators.ImplicitActuator` group, ``0`` otherwise.
     """
     modes = torch.zeros(num_joints, dtype=torch.int32, device=device)
-    effort_limit = torch.full(
-        (num_envs, num_joints), float("inf"), device=device, dtype=torch.float32
-    )
     for actuator in actuators.values():
         if not isinstance(actuator, ImplicitActuator):
             continue
         j_ids = actuator.joint_indices
         if j_ids == slice(None) or j_ids is None:
             modes[:] = 1
-            effort_limit[:] = actuator.effort_limit
         else:
             modes[j_ids.long()] = 1
-            effort_limit[:, j_ids.long()] = actuator.effort_limit
-
-    indices = wp.from_torch(
-        torch.arange(num_joints, dtype=torch.int32, device=device), dtype=wp.int32
-    )
-    return indices, wp.from_torch(modes, dtype=wp.int32), wp.from_torch(effort_limit, dtype=wp.float32)
+    return wp.from_torch(modes, dtype=wp.int32)
 
 
 # ===========================================================================

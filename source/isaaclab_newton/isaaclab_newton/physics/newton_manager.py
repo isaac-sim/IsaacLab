@@ -11,7 +11,8 @@ import contextlib
 import ctypes
 import inspect
 import logging
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -148,6 +149,10 @@ class NewtonManager(PhysicsManager):
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
     _decimation: int = 1
+    # Optional in-graph hook invoked after the actuator step and before the
+    # solver substeps. Used by the articulation's implicit-DOF telemetry /
+    # FF-routing kernel (see isaaclab_newton.assets.articulation).
+    _post_actuator_callback: Callable[[], None] | None = None
 
     # CUDA graphing
     _graph = None
@@ -452,6 +457,8 @@ class NewtonManager(PhysicsManager):
             # --- Some actuators not graph-safe: step them eagerly, graph solver only ---
             if cls._adapter is not None:
                 cls._adapter.step(cls._state_0, cls._control, physics_dt)
+            if cls._post_actuator_callback is not None:
+                cls._post_actuator_callback()
 
             if use_graph:
                 wp.capture_launch(cls._graph)
@@ -517,6 +524,7 @@ class NewtonManager(PhysicsManager):
         cls._newton_imu_sensors = []
         cls._report_contacts = False
         cls._adapter = None
+        cls._post_actuator_callback = None
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
         # check, this gates whether the decimation loop can be captured into
@@ -1286,6 +1294,8 @@ class NewtonManager(PhysicsManager):
 
             if cls._adapter is not None:
                 cls._adapter.step(cls._state_0, cls._control, physics_dt)
+            if cls._post_actuator_callback is not None:
+                cls._post_actuator_callback()
 
             cls._run_solver_substeps(contacts)
 
@@ -1387,6 +1397,23 @@ class NewtonManager(PhysicsManager):
             adapter: The actuator adapter instance.
         """
         cls._adapter = adapter
+
+    @classmethod
+    def register_post_actuator_callback(
+        cls, callback: Callable[[], None] | None,
+    ) -> None:
+        """Register a hook invoked after the actuator step on every iteration.
+
+        The callback runs inside the captured CUDA graph (when
+        :meth:`_is_all_graphable` is ``True``) right after
+        :meth:`NewtonActuatorAdapter.step` and before the solver substeps,
+        so kernel writes to ``state``/``control`` are visible to the
+        integrator on the same iteration. Used by the articulation to
+        run its implicit-DOF telemetry / FF-routing kernel.
+
+        Pass ``None`` to clear the registration.
+        """
+        cls._post_actuator_callback = callback
 
     @classmethod
     def set_decimation(cls, decimation: int) -> None:

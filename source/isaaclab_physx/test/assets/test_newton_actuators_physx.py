@@ -373,46 +373,41 @@ def _run_simulation_with_telemetry(
 
 
 class TestImplicitOnlyTelemetryPhysx(unittest.TestCase):
-    """Implicit-only fast path on PhysX: shadow-PD telemetry matches the Lab formula."""
+    """Implicit-only fast path on PhysX: shadow-PD telemetry matches the Lab actuator path."""
 
     @classmethod
     def setUpClass(cls):
-        cls.result = _run_simulation_with_telemetry(
+        cls.lab_result = _run_simulation_with_telemetry(
+            IMPLICIT_ONLY_ACTUATORS, use_newton_actuators=False,
+        )
+        cls.newton_result = _run_simulation_with_telemetry(
             IMPLICIT_ONLY_ACTUATORS, use_newton_actuators=True,
         )
-        cls.kp = 40.0
-        cls.kd = 5.0
 
     def test_telemetry_is_nonzero(self):
-        last = self.result["computed_torque"][-1]
+        last = self.newton_result["computed_torque"][-1]
         self.assertGreater(
             last.abs().max().item(),
             1e-3,
             "computed_torque is all-zero — implicit telemetry kernel did not run",
         )
 
-    def test_telemetry_matches_pd_formula(self):
-        target_q = self.result["target_pos"]
-        target_v = self.result["target_vel"]
-        for step_i, (q, qd, comp) in enumerate(
-            zip(
-                self.result["joint_pos"],
-                self.result["joint_vel"],
-                self.result["computed_torque"],
-            )
+    def test_telemetry_matches_lab_path(self):
+        """Newton fast-path telemetry agrees with the Lab actuator-path telemetry."""
+        for step_i, (lab_comp, newton_comp) in enumerate(
+            zip(self.lab_result["computed_torque"], self.newton_result["computed_torque"])
         ):
-            expected = self.kp * (target_q - q) + self.kd * (target_v - qd)
             torch.testing.assert_close(
-                comp,
-                expected,
+                newton_comp,
+                lab_comp,
                 atol=5e-2,
                 rtol=1e-2,
-                msg=f"Telemetry diverged from PD formula at step {step_i}",
+                msg=f"computed_torque diverged from Lab path at step {step_i}",
             )
 
     def test_applied_equals_computed_when_no_clip(self):
         for step_i, (comp, app) in enumerate(
-            zip(self.result["computed_torque"], self.result["applied_torque"])
+            zip(self.newton_result["computed_torque"], self.newton_result["applied_torque"])
         ):
             torch.testing.assert_close(
                 app,
@@ -421,6 +416,115 @@ class TestImplicitOnlyTelemetryPhysx(unittest.TestCase):
                 rtol=1e-5,
                 msg=f"applied_torque != computed_torque at step {step_i} (no clip expected)",
             )
+
+
+# ---------------------------------------------------------------------------
+# Implicit + non-zero feedforward effort target
+# ---------------------------------------------------------------------------
+
+
+def _run_simulation_with_ff(
+    actuators: dict,
+    use_newton_actuators: bool,
+    *,
+    feedforward: float,
+    num_steps: int = NUM_STEPS,
+) -> dict:
+    """Run with both a position target and a non-zero feedforward effort target."""
+    sim_cfg = SimulationCfg(
+        dt=DT,
+        physics=PhysxCfg(),
+        use_newton_actuators=use_newton_actuators,
+    )
+
+    with build_simulation_context(
+        device="cuda:0",
+        gravity_enabled=True,
+        add_ground_plane=True,
+        sim_cfg=sim_cfg,
+    ) as sim:
+        sim._app_control_on_stop_handle = None
+
+        for i in range(NUM_ENVS):
+            sim_utils.create_prim(
+                f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0)
+            )
+
+        art_cfg = ANYMAL_C_CFG.replace(
+            actuators=actuators,
+            prim_path="/World/Env_.*/Robot",
+        )
+        articulation = Articulation(art_cfg)
+        sim.reset()
+        assert articulation.is_initialized
+
+        init_pos = wp.to_torch(articulation.data.joint_pos).clone()
+        target_pos = init_pos + TARGET_OFFSET
+        target_vel = torch.zeros_like(init_pos)
+        target_eff = torch.full_like(init_pos, feedforward)
+
+        articulation.set_joint_position_target_index(target=target_pos)
+        articulation.set_joint_velocity_target_index(target=target_vel)
+        articulation.set_joint_effort_target_index(target=target_eff)
+
+        recorded_pos, recorded_vel = [], []
+        for _ in range(num_steps):
+            articulation.write_data_to_sim()
+            sim.step()
+            articulation.update(DT)
+            recorded_pos.append(wp.to_torch(articulation.data.joint_pos).clone())
+            recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
+
+    return {"joint_pos": recorded_pos, "joint_vel": recorded_vel}
+
+
+class TestImplicitWithFeedforwardEquivalencePhysx(unittest.TestCase):
+    """Implicit-only actuators with a non-zero feedforward effort target on PhysX.
+
+    For implicit actuators, the user's feedforward effort must be additive
+    on top of the simulator's PD on both the Lab path and the Newton fast
+    path. This test commands a constant FF effort and compares joint
+    trajectories between the two paths.
+    """
+
+    FEEDFORWARD = 5.0
+    pos_atol = 2e-3
+    pos_rtol = 1e-3
+    vel_atol = 0.1
+    vel_rtol = 1e-2
+
+    @classmethod
+    def setUpClass(cls):
+        cls.lab_result = _run_simulation_with_ff(
+            IMPLICIT_ONLY_ACTUATORS, use_newton_actuators=False, feedforward=cls.FEEDFORWARD,
+        )
+        cls.newton_result = _run_simulation_with_ff(
+            IMPLICIT_ONLY_ACTUATORS, use_newton_actuators=True, feedforward=cls.FEEDFORWARD,
+        )
+
+    def test_joint_positions_match(self):
+        for step_i, (lab, newton) in enumerate(
+            zip(self.lab_result["joint_pos"], self.newton_result["joint_pos"])
+        ):
+            torch.testing.assert_close(
+                lab, newton, atol=self.pos_atol, rtol=self.pos_rtol,
+                msg=f"Joint positions diverged at step {step_i}",
+            )
+
+    def test_joint_velocities_match(self):
+        for step_i, (lab, newton) in enumerate(
+            zip(self.lab_result["joint_vel"], self.newton_result["joint_vel"])
+        ):
+            torch.testing.assert_close(
+                lab, newton, atol=self.vel_atol, rtol=self.vel_rtol,
+                msg=f"Joint velocities diverged at step {step_i}",
+            )
+
+    def test_trajectories_not_trivial(self):
+        first = self.lab_result["joint_pos"][0]
+        last = self.lab_result["joint_pos"][-1]
+        diff = (last - first).abs().max().item()
+        self.assertGreater(diff, 0.01, "Joints did not move — test is trivial")
 
 
 class TestExplicitOnlyTelemetryPhysx(unittest.TestCase):

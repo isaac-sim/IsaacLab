@@ -8,80 +8,53 @@
 import warp as wp
 
 
-@wp.kernel
-def combine_actuation_force(
-    user_ff: wp.array2d(dtype=wp.float32),
-    newton_output: wp.array2d(dtype=wp.float32),
-    joint_modes: wp.array(dtype=wp.int32),
-    out: wp.array2d(dtype=wp.float32),
-):
-    """Per-DOF select between user FF (``mode==1``, implicit) and Newton actuator output (``mode==0``).
-
-    For explicit DOFs the user FF was already folded into
-    :paramref:`newton_output` via Newton's ``joint_act``, so taking it
-    from there avoids double-counting.
-
-    Args:
-        user_ff: User-commanded feedforward effort [N·m or N], shape ``(num_envs, num_joints)``.
-        newton_output: Post-clamp Newton actuator output [N·m or N], shape ``(num_envs, num_joints)``.
-        joint_modes: Per-DOF mode (``0`` = explicit, ``1`` = implicit), shape ``(num_joints,)``.
-        out: Output actuation force buffer [N·m or N], shape ``(num_envs, num_joints)``.
-    """
-    i, j = wp.tid()
-    if joint_modes[j] == 1:
-        out[i, j] = user_ff[i, j]
-    else:
-        out[i, j] = newton_output[i, j]
-
-
-@wp.kernel
-def compute_actuator_telemetry(
+@wp.kernel(enable_backward=False)
+def synch_torque_and_apply_implicit_feedforwards(
     joint_pos: wp.array2d(dtype=wp.float32),
     joint_vel: wp.array2d(dtype=wp.float32),
     joint_pos_target: wp.array2d(dtype=wp.float32),
     joint_vel_target: wp.array2d(dtype=wp.float32),
     joint_effort_target: wp.array2d(dtype=wp.float32),
-    joint_effort_actual: wp.array2d(dtype=wp.float32),
-    stiffness: wp.array2d(dtype=wp.float32),
-    damping: wp.array2d(dtype=wp.float32),
+    joint_stiffness: wp.array2d(dtype=wp.float32),
+    joint_damping: wp.array2d(dtype=wp.float32),
     effort_limit: wp.array2d(dtype=wp.float32),
-    joint_indices: wp.array(dtype=wp.int32),
     joint_modes: wp.array(dtype=wp.int32),
-    target_computed_effort: wp.array2d(dtype=wp.float32),
-    target_applied_effort: wp.array2d(dtype=wp.float32),
+    sim_bind_joint_effort: wp.array2d(dtype=wp.float32),
+    computed: wp.array2d(dtype=wp.float32),
+    applied: wp.array2d(dtype=wp.float32),
 ):
-    """Per-DOF actuator torque telemetry.
+    """In-graph post-actuator hook: route implicit FF and sync telemetry.
 
-    For ``mode==0`` (explicit) copies :paramref:`joint_effort_actual` into both outputs.
-    For ``mode==1`` (implicit) reproduces :meth:`isaaclab.actuators.ImplicitActuator.compute` —
-    ``kp*(q_des-q) + kd*(v_des-v) + ff`` with optional clip — as a shadow computation;
-    the simulator runs the real PD.
+    For each (env, dof):
+      * Implicit DOF: write user FF to ``joint_f`` (sim integrates it
+        alongside the joint-drive PD), clamp the shadow PD ``kp*err_p +
+        kd*err_v`` to ``±effort_limit``, and write ``computed = applied
+        = PD_clipped + FF``.
+      * Explicit DOF: mirror Newton's post-actuator ``joint_f`` into
+        ``computed`` / ``applied``.
 
-    Args:
-        joint_pos: Current positions [rad or m, depending on joint type], shape ``(num_envs, num_joints)``.
-        joint_vel: Current velocities [rad/s or m/s], shape ``(num_envs, num_joints)``.
-        joint_pos_target: Position targets [rad or m, depending on joint type], shape ``(num_envs, num_joints)``.
-        joint_vel_target: Velocity targets [rad/s or m/s], shape ``(num_envs, num_joints)``.
-        joint_effort_target: Feedforward efforts [N·m or N], shape ``(num_envs, num_joints)``.
-        joint_effort_actual: Post-step actuator output [N·m or N], shape ``(num_envs, num_joints)``.
-        stiffness: Per-joint kp [N·m/rad], shape ``(num_envs, num_joints)``.
-        damping: Per-joint kd [N·m·s/rad], shape ``(num_envs, num_joints)``.
-        effort_limit: Absolute effort limit [N·m or N]; use ``inf`` to disable clipping. Shape ``(num_envs, num_joints)``.
-        joint_indices: DOF indices to process, shape ``(num_actuated_joints,)``.
-        joint_modes: Per-entry mode (``0`` = copy, ``1`` = compute), shape ``(num_actuated_joints,)``.
-        target_computed_effort: Output unclipped effort [N·m or N], shape ``(num_envs, num_joints)``.
-        target_applied_effort: Output post-clip effort [N·m or N], shape ``(num_envs, num_joints)``.
+    Limitation: ``effort_limit`` here only clamps the **PD shadow** used
+    for telemetry. The simulator's joint drive applies its max-force
+    only to the PD term, so user feedforward effort can exceed
+    ``effort_limit`` once it lands in ``joint_f``. Limiting the *total*
+    applied effort would require Newton's motor-actuator path
+    (configurable via the Newton team), which may have negative perf
+    implications.
     """
     i, j = wp.tid()
-    dof = joint_indices[j]
-    if joint_modes[j] == 0:
-        actual = joint_effort_actual[i, dof]
-        target_computed_effort[i, dof] = actual
-        target_applied_effort[i, dof] = actual
+    if joint_modes[j] == 1:
+        sim_bind_joint_effort[i, j] = joint_effort_target[i, j]
+        err_p = joint_pos_target[i, j] - joint_pos[i, j]
+        err_v = joint_vel_target[i, j] - joint_vel[i, j]
+        pd = joint_stiffness[i, j] * err_p + joint_damping[i, j] * err_v
+        limit = effort_limit[i, j]
+        pd_clipped = wp.clamp(pd, -limit, limit)
+        total = pd_clipped + sim_bind_joint_effort[i, j]
+        computed[i, j] = total
+        applied[i, j] = total
     else:
-        err_p = joint_pos_target[i, dof] - joint_pos[i, dof]
-        err_v = joint_vel_target[i, dof] - joint_vel[i, dof]
-        computed = stiffness[i, dof] * err_p + damping[i, dof] * err_v + joint_effort_target[i, dof]
-        target_computed_effort[i, dof] = computed
-        limit = effort_limit[i, dof]
-        target_applied_effort[i, dof] = wp.clamp(computed, -limit, limit)
+        val = sim_bind_joint_effort[i, j]
+        computed[i, j] = val
+        applied[i, j] = val
+
+

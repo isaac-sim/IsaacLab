@@ -30,7 +30,7 @@ try:
     from isaaclab_newton.actuators import kernels as actuator_kernels
     from isaaclab_newton.actuators.newton_actuator_utils import (
         NewtonActuatorAdapter,
-        build_actuator_telemetry,
+        build_implicit_dof_mask,
     )
 
     _HAS_NEWTON_ACTUATORS = True
@@ -295,11 +295,12 @@ class Articulation(BaseArticulation):
 
         if self._has_newton_actuators:
             # Raw targets go directly to Newton's control object. Newton PD
-            # consumes them for Newton-managed joints; the solver's built-in
-            # PD uses them for any implicit joints (whose stiffness/damping
-            # are non-zero in sim).
-            # Feedforward effort goes to control.joint_act (not joint_f,
-            # which is the actuator output buffer that Newton overwrites).
+            # consumes them for explicit (Newton-managed) joints; the
+            # solver's built-in joint drive does the PD for implicit joints
+            # (whose stiffness/damping are non-zero in sim). FF for explicit
+            # joints goes to control.joint_act; for implicit joints the
+            # in-graph post-actuator kernel writes the FF directly into
+            # control.joint_f.
             self.data._sim_bind_joint_position_target.assign(self._data._joint_pos_target)
             self.data._sim_bind_joint_velocity_target.assign(self._data._joint_vel_target)
             self.data._sim_bind_joint_act.assign(self._data._joint_effort_target)
@@ -318,30 +319,6 @@ class Articulation(BaseArticulation):
             dt: The time step size in seconds.
         """
         self.data.update(dt)
-        # Shadow PD telemetry for implicit DOFs (the simulator runs the real PD).
-        if self._has_newton_actuators and self._telemetry_indices is not None:
-            wp.launch(
-                actuator_kernels.compute_actuator_telemetry,
-                dim=(self.num_instances, self._telemetry_indices.shape[0]),
-                inputs=[
-                    self._data.joint_pos.warp,
-                    self._data.joint_vel.warp,
-                    self._data._joint_pos_target,
-                    self._data._joint_vel_target,
-                    self._data._joint_effort_target,
-                    self._data._sim_bind_joint_effort,
-                    self._data.joint_stiffness.warp,
-                    self._data.joint_damping.warp,
-                    self._telemetry_effort_limit,
-                    self._telemetry_indices,
-                    self._telemetry_modes,
-                ],
-                outputs=[
-                    self._data._computed_torque,
-                    self._data._applied_torque,
-                ],
-                device=self.device,
-            )
 
     """
     Operations - Finders.
@@ -3435,10 +3412,10 @@ class Articulation(BaseArticulation):
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
         self._has_newton_actuators = False
-        # Per-DOF telemetry tables; ``None`` when no Newton fast path is active.
-        self._telemetry_indices: wp.array | None = None
-        self._telemetry_modes: wp.array | None = None
-        self._telemetry_effort_limit: wp.array | None = None
+        # Per-DOF implicit/explicit mask consumed by the in-graph kernel
+        # ``synch_torque_and_apply_implicit_feedforwards``. ``None`` when
+        # no Newton fast path is active.
+        self._implicit_dof_mask: wp.array | None = None
 
         _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
 
@@ -3488,13 +3465,37 @@ class Articulation(BaseArticulation):
                 else:
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
-            (
-                self._telemetry_indices,
-                self._telemetry_modes,
-                self._telemetry_effort_limit,
-            ) = build_actuator_telemetry(
-                self.actuators, self.num_instances, self.num_joints, self.device,
+            self._implicit_dof_mask = build_implicit_dof_mask(
+                self.actuators, self.num_joints, self.device,
             )
+
+            # Run the implicit-DOF FF-routing + telemetry kernel inside the
+            # captured graph, right after the actuator step. Closure captures
+            # the buffers we need via ``self._data``.
+            def _post_actuator() -> None:
+                wp.launch(
+                    actuator_kernels.synch_torque_and_apply_implicit_feedforwards,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[
+                        self._data.joint_pos.warp,
+                        self._data.joint_vel.warp,
+                        self._data._joint_pos_target,
+                        self._data._joint_vel_target,
+                        self._data._joint_effort_target,
+                        self._data.joint_stiffness.warp,
+                        self._data.joint_damping.warp,
+                        self._data.joint_effort_limits.warp,
+                        self._implicit_dof_mask,
+                    ],
+                    outputs=[
+                        self._data._sim_bind_joint_effort,
+                        self._data._computed_torque,
+                        self._data._applied_torque,
+                    ],
+                    device=self.device,
+                )
+
+            SimulationManager.register_post_actuator_callback(_post_actuator)
 
             return
 

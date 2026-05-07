@@ -29,7 +29,7 @@ try:
         NewtonActuatorAdapter,
         PhysxActuatorWrapper,
         _gather_gain_kernel,
-        build_actuator_telemetry,
+        build_implicit_dof_mask,
     )
 
     _HAS_NEWTON_ACTUATORS = True
@@ -272,14 +272,14 @@ class Articulation(BaseArticulation):
 
         if self._has_newton_actuators:
             # Newton fast path: pos/vel targets pass straight through; the
-            # actuation buffer is either user FF (implicit-only) or the
-            # combine-kernel result of Newton output + user FF (mixed).
-            if self._physx_actuator_wrapper is not None:
-                self._apply_actuator_model_newton()
-                actuation_buf = self._joint_effort_target_sim
-            else:
-                actuation_buf = self._data._joint_effort_target
-            self.root_view.set_dof_actuation_forces(actuation_buf, self._ALL_INDICES)
+            # in-graph kernel inside ``_apply_actuator_model_newton`` merges
+            # Newton's actuator output (explicit DOFs) with user FF
+            # (implicit DOFs) into ``w.joint_f_2d``, which is what we push
+            # to PhysX as the actuation force.
+            self._apply_actuator_model_newton()
+            self.root_view.set_dof_actuation_forces(
+                self._physx_actuator_wrapper.joint_f_2d, self._ALL_INDICES,
+            )
             if self._has_implicit_actuators:
                 self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
                 self.root_view.set_dof_velocity_targets(self._data._joint_vel_target, self._ALL_INDICES)
@@ -299,30 +299,6 @@ class Articulation(BaseArticulation):
             dt: The time step size in seconds.
         """
         self.data.update(dt)
-        # Shadow PD telemetry for implicit DOFs (the simulator runs the real PD).
-        if self._has_newton_actuators and self._telemetry_indices is not None:
-            wp.launch(
-                actuator_kernels.compute_actuator_telemetry,
-                dim=(self.num_instances, self._telemetry_indices.shape[0]),
-                inputs=[
-                    self._data.joint_pos.warp,
-                    self._data.joint_vel.warp,
-                    self._data._joint_pos_target,
-                    self._data._joint_vel_target,
-                    self._data._joint_effort_target,
-                    self._joint_effort_target_sim,
-                    self._data.joint_stiffness.warp,
-                    self._data.joint_damping.warp,
-                    self._telemetry_effort_limit,
-                    self._telemetry_indices,
-                    self._telemetry_modes,
-                ],
-                outputs=[
-                    self._data._computed_torque,
-                    self._data._applied_torque,
-                ],
-                device=self.device,
-            )
 
     """
     Operations - Finders.
@@ -3850,10 +3826,10 @@ class Articulation(BaseArticulation):
         # if this is false, we by-pass certain checks when doing actuator-related operations
         self._has_implicit_actuators = False
         self._has_newton_actuators = False
-        # Per-DOF telemetry tables; ``None`` when no Newton fast path is active.
-        self._telemetry_indices: wp.array | None = None
-        self._telemetry_modes: wp.array | None = None
-        self._telemetry_effort_limit: wp.array | None = None
+        # Per-DOF implicit/explicit mask consumed by the
+        # ``synch_torque_and_apply_implicit_feedforwards`` kernel. ``None``
+        # when no Newton fast path is active.
+        self._implicit_dof_mask: wp.array | None = None
 
         _use_newton_actuators = getattr(self._sim_cfg, "use_newton_actuators", False)
 
@@ -3874,6 +3850,15 @@ class Articulation(BaseArticulation):
                 for actuator_cfg in self.cfg.actuators.values()
             )
 
+            # Always allocate the wrapper so ``_apply_actuator_model_newton``
+            # has a ``joint_f_2d`` buffer to merge effort into, even when
+            # there are no explicit Newton actuators (implicit-only case).
+            self._physx_actuator_wrapper = PhysxActuatorWrapper.create(
+                num_envs=self.num_instances,
+                num_joints=self.num_joints,
+                device=self.device,
+            )
+
             if has_explicit:
                 first_prim = find_first_matching_prim(self.cfg.prim_path)
                 art_prim_path = str(first_prim.GetPath()) if first_prim is not None else None
@@ -3887,11 +3872,6 @@ class Articulation(BaseArticulation):
                     articulation_prim_path=art_prim_path,
                 )
 
-                self._physx_actuator_wrapper = PhysxActuatorWrapper.create(
-                    num_envs=self.num_instances,
-                    num_joints=self.num_joints,
-                    device=self.device,
-                )
                 # Bind the wrapper's flat aliases of state/input buffers once.
                 # The underlying wp.arrays alias stable PhysX-owned GPU memory
                 # whose device pointer is fixed for the articulation's lifetime,
@@ -3919,12 +3899,8 @@ class Articulation(BaseArticulation):
                 else:
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
-            (
-                self._telemetry_indices,
-                self._telemetry_modes,
-                self._telemetry_effort_limit,
-            ) = build_actuator_telemetry(
-                self.actuators, self.num_instances, self.num_joints, self.device,
+            self._implicit_dof_mask = build_implicit_dof_mask(
+                self.actuators, self.num_joints, self.device,
             )
             return
 
@@ -4140,31 +4116,41 @@ class Articulation(BaseArticulation):
             )
 
     def _apply_actuator_model_newton(self):
-        """Mixed implicit + Newton path: step Newton actuators, then combine with user FF.
+        """Step Newton actuators (when present) then route FF + sync telemetry.
 
-        Newton writes explicit-DOF torques to ``joint_f_2d``; the combine kernel
-        merges them with user FF (for implicit DOFs) into ``_joint_effort_target_sim``.
-        Implicit-only takes the direct path in :meth:`write_data_to_sim`.
+        After ``newton_adapter.step`` (no-op if no explicit Newton actuators
+        exist), ``w.joint_f_2d`` holds the actuator output for explicit DOFs
+        and zero elsewhere. The
+        :func:`synch_torque_and_apply_implicit_feedforwards` kernel then
+        writes the user FF into ``joint_f_2d`` for implicit DOFs and fills
+        ``_data._computed_torque`` / ``_data._applied_torque``. The
+        resulting ``joint_f_2d`` is what gets pushed to PhysX as the
+        actuation force in :meth:`write_data_to_sim`.
         """
-        newton_adapter = self.actuators["newton"]
         w = self._physx_actuator_wrapper
-
-        # Newton actuators scatter-add into joint_f at their own indices;
-        # ``adapter.step`` pre-zeros exactly those slots. Slots outside any
-        # actuator's indices are implicit DOFs that the combine kernel reads
-        # from ``user_ff`` instead of ``joint_f_2d``, so they don't need
-        # clearing here.
-        newton_adapter.step(w, w, SimulationManager.get_physics_dt())
+        newton_adapter = self.actuators.get("newton")
+        if newton_adapter is not None:
+            newton_adapter.step(w, w, SimulationManager.get_physics_dt())
 
         wp.launch(
-            actuator_kernels.combine_actuation_force,
+            actuator_kernels.synch_torque_and_apply_implicit_feedforwards,
             dim=(self.num_instances, self.num_joints),
             inputs=[
+                self._data.joint_pos.warp,
+                self._data.joint_vel.warp,
+                self._data._joint_pos_target,
+                self._data._joint_vel_target,
                 self._data._joint_effort_target,
-                w.joint_f_2d,
-                self._telemetry_modes,
+                self._data.joint_stiffness.warp,
+                self._data.joint_damping.warp,
+                self._data.joint_effort_limits.warp,
+                self._implicit_dof_mask,
             ],
-            outputs=[self._joint_effort_target_sim],
+            outputs=[
+                w.joint_f_2d,
+                self._data._computed_torque,
+                self._data._applied_torque,
+            ],
             device=self.device,
         )
 

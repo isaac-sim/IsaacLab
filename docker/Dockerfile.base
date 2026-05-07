@@ -112,7 +112,6 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
         ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation nlopt==2.6.2; \
     fi
 
-
 # installing Isaac Lab dependencies
 # use pip caching to avoid reinstalling large packages
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
