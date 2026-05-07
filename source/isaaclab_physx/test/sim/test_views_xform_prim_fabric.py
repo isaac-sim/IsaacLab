@@ -235,7 +235,7 @@ def test_set_local_via_fabric_path(device, view_factory):
     bundle = view_factory(num_envs=1, device=device)
     view = bundle.view
 
-    # Trigger Fabric init and sync (sets _fabric_usd_sync_done = True)
+    # Trigger lazy `_initialize_fabric()` so subsequent calls take the Fabric path.
     view.get_world_poses()
 
     # Now set_local_poses should take the Fabric path
@@ -263,7 +263,7 @@ def test_get_scales_fabric_path(device, view_factory):
     bundle = view_factory(num_envs=1, device=device)
     view = bundle.view
 
-    # Trigger Fabric init
+    # Trigger lazy `_initialize_fabric()` so the get_scales call below uses Fabric.
     view.get_world_poses()
 
     scales = view.get_scales()

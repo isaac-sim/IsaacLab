@@ -120,9 +120,14 @@ class FabricFrameView(BaseFrameView):
         self._trans_sel_ro = None
         self._world_sel_rw = None
         self._local_sel_rw = None
-        # Index arrays (view-side indices and view→fabric mappings).
+        # Index arrays (view-side indices and view→fabric mappings).  Each selection's
+        # ``GetPaths()`` ordering is independent, so the view→fabric mapping is cached
+        # per selection rather than shared — sharing would silently corrupt indexed
+        # arrays whose selection didn't fire ``PrepareForReuse`` on the same frame.
         self._view_indices: wp.array | None = None
-        self._fabric_indices: wp.array | None = None
+        self._trans_ro_fabric_indices: wp.array | None = None
+        self._world_rw_fabric_indices: wp.array | None = None
+        self._local_rw_fabric_indices: wp.array | None = None
         self._parent_fabric_indices: wp.array | None = None
         # Indexed fabric arrays.
         self._world_ifa_ro = None
@@ -350,6 +355,10 @@ class FabricFrameView(BaseFrameView):
         )
         wp.synchronize()
 
+        # World was just written — recompute child localMatrix from parent worldMatrix
+        # so the next get_local_poses returns the new scale rather than the stale one.
+        self._sync_local_from_world(indices_wp)
+
     def get_scales(self, indices=None):
         if not self._use_fabric:
             return self._usd_view.get_scales(indices)
@@ -445,48 +454,54 @@ class FabricFrameView(BaseFrameView):
 
     def _get_world_ro_array(self):
         if self._trans_sel_ro.PrepareForReuse():
-            self._rebuild_indices_for(self._trans_sel_ro)
-            self._world_ifa_ro = self._build_indexed_array(self._trans_sel_ro, self._WORLD_MATRIX_NAME)
-            self._local_ifa_ro = self._build_indexed_array(self._trans_sel_ro, self._LOCAL_MATRIX_NAME)
-            self._parent_world_ifa_ro = self._build_parent_indexed_array(self._trans_sel_ro)
+            self._rebuild_trans_ro_arrays()
         return self._world_ifa_ro
 
     def _get_local_ro_array(self):
         if self._trans_sel_ro.PrepareForReuse():
-            self._rebuild_indices_for(self._trans_sel_ro)
-            self._world_ifa_ro = self._build_indexed_array(self._trans_sel_ro, self._WORLD_MATRIX_NAME)
-            self._local_ifa_ro = self._build_indexed_array(self._trans_sel_ro, self._LOCAL_MATRIX_NAME)
-            self._parent_world_ifa_ro = self._build_parent_indexed_array(self._trans_sel_ro)
+            self._rebuild_trans_ro_arrays()
         return self._local_ifa_ro
 
     def _get_world_rw_array(self):
         if self._world_sel_rw.PrepareForReuse():
-            self._rebuild_indices_for(self._world_sel_rw)
-            self._world_ifa_rw = self._build_indexed_array(self._world_sel_rw, self._WORLD_MATRIX_NAME)
+            self._world_rw_fabric_indices = self._compute_fabric_indices(self._world_sel_rw)
+            self._world_ifa_rw = self._build_indexed_array(
+                self._world_sel_rw, self._WORLD_MATRIX_NAME, self._world_rw_fabric_indices
+            )
         return self._world_ifa_rw
 
     def _get_local_rw_array(self):
         if self._local_sel_rw.PrepareForReuse():
-            self._rebuild_indices_for(self._local_sel_rw)
-            self._local_ifa_rw = self._build_indexed_array(self._local_sel_rw, self._LOCAL_MATRIX_NAME)
+            self._local_rw_fabric_indices = self._compute_fabric_indices(self._local_sel_rw)
+            self._local_ifa_rw = self._build_indexed_array(
+                self._local_sel_rw, self._LOCAL_MATRIX_NAME, self._local_rw_fabric_indices
+            )
         return self._local_ifa_rw
 
     def _get_parent_world_ro_array(self):
         # Built and refreshed alongside the trans_ro selection (parents share that selection).
         if self._parent_world_ifa_ro is None or self._trans_sel_ro.PrepareForReuse():
-            self._rebuild_indices_for(self._trans_sel_ro)
-            self._world_ifa_ro = self._build_indexed_array(self._trans_sel_ro, self._WORLD_MATRIX_NAME)
-            self._local_ifa_ro = self._build_indexed_array(self._trans_sel_ro, self._LOCAL_MATRIX_NAME)
-            self._parent_world_ifa_ro = self._build_parent_indexed_array(self._trans_sel_ro)
+            self._rebuild_trans_ro_arrays()
         return self._parent_world_ifa_ro
+
+    def _rebuild_trans_ro_arrays(self) -> None:
+        """Rebuild the trans_ro indices and the three indexed arrays that depend on them.
+
+        ``_world_ifa_ro``, ``_local_ifa_ro`` and ``_parent_world_ifa_ro`` are all
+        keyed off the ``trans_sel_ro`` path ordering, so they are refreshed together.
+        """
+        self._trans_ro_fabric_indices = self._compute_fabric_indices(self._trans_sel_ro)
+        self._world_ifa_ro = self._build_indexed_array(
+            self._trans_sel_ro, self._WORLD_MATRIX_NAME, self._trans_ro_fabric_indices
+        )
+        self._local_ifa_ro = self._build_indexed_array(
+            self._trans_sel_ro, self._LOCAL_MATRIX_NAME, self._trans_ro_fabric_indices
+        )
+        self._parent_world_ifa_ro = self._build_parent_indexed_array(self._trans_sel_ro)
 
     # ------------------------------------------------------------------
     # Internal — index computation
     # ------------------------------------------------------------------
-
-    def _rebuild_indices_for(self, selection) -> None:
-        """Recompute ``_fabric_indices`` (view → fabric) from a selection's path order."""
-        self._fabric_indices = self._compute_fabric_indices(selection)
 
     def _compute_fabric_indices(self, selection) -> wp.array:
         fabric_paths = selection.GetPaths()
@@ -517,9 +532,9 @@ class FabricFrameView(BaseFrameView):
             indices.append(fabric_idx)
         return wp.array(indices, dtype=wp.int32, device=self._device)
 
-    def _build_indexed_array(self, selection, attribute_name: str) -> wp.indexedfabricarray:
+    def _build_indexed_array(self, selection, attribute_name: str, fabric_indices: wp.array) -> wp.indexedfabricarray:
         fa = wp.fabricarray(selection, attribute_name)
-        return wp.indexedfabricarray(fa=fa, indices=self._fabric_indices)
+        return wp.indexedfabricarray(fa=fa, indices=fabric_indices)
 
     def _build_parent_indexed_array(self, selection) -> wp.indexedfabricarray:
         self._parent_fabric_indices = self._compute_parent_fabric_indices(selection)
@@ -598,15 +613,26 @@ class FabricFrameView(BaseFrameView):
         self._world_sel_rw = self._stage.SelectPrims(require_attrs=[wm_rw, lm_ro], device=self._device, want_paths=True)
         self._local_sel_rw = self._stage.SelectPrims(require_attrs=[wm_ro, lm_rw], device=self._device, want_paths=True)
 
-        # Build the view-side indices array (just [0..count-1]) and the view→fabric mapping.
+        # Build the view-side indices array (just [0..count-1]) and a per-selection
+        # view→fabric mapping (selections do not guarantee a shared path ordering).
         self._view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=self._device)
-        self._fabric_indices = self._compute_fabric_indices(self._trans_sel_ro)
+        self._trans_ro_fabric_indices = self._compute_fabric_indices(self._trans_sel_ro)
+        self._world_rw_fabric_indices = self._compute_fabric_indices(self._world_sel_rw)
+        self._local_rw_fabric_indices = self._compute_fabric_indices(self._local_sel_rw)
 
         # Indexed fabric arrays per (selection × attribute).
-        self._world_ifa_ro = self._build_indexed_array(self._trans_sel_ro, self._WORLD_MATRIX_NAME)
-        self._local_ifa_ro = self._build_indexed_array(self._trans_sel_ro, self._LOCAL_MATRIX_NAME)
-        self._world_ifa_rw = self._build_indexed_array(self._world_sel_rw, self._WORLD_MATRIX_NAME)
-        self._local_ifa_rw = self._build_indexed_array(self._local_sel_rw, self._LOCAL_MATRIX_NAME)
+        self._world_ifa_ro = self._build_indexed_array(
+            self._trans_sel_ro, self._WORLD_MATRIX_NAME, self._trans_ro_fabric_indices
+        )
+        self._local_ifa_ro = self._build_indexed_array(
+            self._trans_sel_ro, self._LOCAL_MATRIX_NAME, self._trans_ro_fabric_indices
+        )
+        self._world_ifa_rw = self._build_indexed_array(
+            self._world_sel_rw, self._WORLD_MATRIX_NAME, self._world_rw_fabric_indices
+        )
+        self._local_ifa_rw = self._build_indexed_array(
+            self._local_sel_rw, self._LOCAL_MATRIX_NAME, self._local_rw_fabric_indices
+        )
         self._parent_world_ifa_ro = self._build_parent_indexed_array(self._trans_sel_ro)
 
         # Pre-allocated reusable output buffers (world + local + scales).
