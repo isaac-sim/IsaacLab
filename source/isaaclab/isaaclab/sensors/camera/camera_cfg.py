@@ -119,7 +119,7 @@ class CameraCfg(SensorBaseCfg):
     integrator). The policy can infer velocity from pixel differences between consecutive frames.
 
     For performance reasons, values greater than 4 are not recommended: GPU memory scales linearly
-    with ``frame_stack`` and each step performs ``O(frame_stack)`` allocations to build the stacked
+    with ``frame_stack`` and each step performs ``O(frame_stack)`` copy operations to build the stacked
     output.
     """
 
