@@ -21,3 +21,13 @@ Changed
   :mod:`~isaaclab_newton.physics.newton_manager` and
   :mod:`~isaaclab_ov.renderers.ovrtx_renderer_kernels` to match the
   ``warp-lang`` 1.13 API (the ``wp.math`` namespace was removed).
+* Adapted :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to
+  Newton ``v1.2.0rc2``'s explicit shape-BVH lifecycle.
+  :meth:`~newton.sensors.SensorTiledCamera.update` no longer auto-builds
+  the BVH when a non-``None`` state is passed and the underlying
+  ``RenderContext.render`` now raises ``RuntimeError("build_bvh_shape()
+  must be called before rendering shapes.")`` if it was never built. The
+  renderer now calls ``newton.geometry.build_bvh_shape`` once after
+  sensor construction and ``newton.geometry.refit_bvh_shape`` each frame
+  before :meth:`~newton.sensors.SensorTiledCamera.update`, since env
+  body poses move every step.
