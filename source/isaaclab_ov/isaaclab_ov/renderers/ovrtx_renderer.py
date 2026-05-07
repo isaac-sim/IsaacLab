@@ -374,35 +374,36 @@ class OVRTXRenderer(BaseRenderer):
         torch.int32: wp.int32,
     }
 
-    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, torch.Tensor]) -> None:
-        """Wrap caller-owned torch output tensors as zero-copy warp arrays.
+    def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, wp.array]) -> None:
+        """Wrap caller-owned ``wp.array`` output buffers with the strict per-kind dtype OVRTX expects.
 
         Aliased views over a contiguous sibling (e.g. ``rgb`` over ``rgba``) are
-        skipped; any other non-contiguous tensor raises ``ValueError``.
+        skipped; any other non-contiguous array raises ``ValueError``.
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`.
         """
         render_data.warp_buffers = {}
-        for name, tensor in output_data.items():
-            if not tensor.is_contiguous():
-                if tensor.data_ptr() in {t.data_ptr() for t in output_data.values() if t.is_contiguous()}:
+        contiguous_ptrs = {arr.ptr for arr in output_data.values() if arr.is_contiguous}
+        for name, arr in output_data.items():
+            if not arr.is_contiguous:
+                if arr.ptr in contiguous_ptrs:
                     continue
                 raise ValueError(
                     f"OVRTXRenderer.set_outputs: output '{name}' is non-contiguous and is not an"
-                    " alias of a contiguous output tensor; cannot wrap as a zero-copy warp array."
+                    " alias of a contiguous output buffer; cannot rewrap with the OVRTX dtype."
                 )
-            wp_dtype = self._TORCH_TO_WP_DTYPE.get(tensor.dtype)
+            torch_dtype = wp.to_torch(arr).dtype
+            wp_dtype = self._TORCH_TO_WP_DTYPE.get(torch_dtype)
             if wp_dtype is None:
                 raise ValueError(
-                    f"OVRTXRenderer.set_outputs: unsupported torch dtype {tensor.dtype} for output"
+                    f"OVRTXRenderer.set_outputs: unsupported dtype {torch_dtype} for output"
                     f" '{name}'. Add it to OVRTXRenderer._TORCH_TO_WP_DTYPE."
                 )
-            torch_array = wp.from_torch(tensor)
             render_data.warp_buffers[name] = wp.array(
-                ptr=torch_array.ptr,
+                ptr=arr.ptr,
                 dtype=wp_dtype,
-                shape=tuple(tensor.shape),
-                device=torch_array.device,
+                shape=tuple(arr.shape),
+                device=arr.device,
                 copy=False,
             )
 
@@ -436,14 +437,19 @@ class OVRTXRenderer(BaseRenderer):
     def update_camera(
         self,
         render_data: OVRTXRenderData,
-        positions: torch.Tensor,
-        orientations: torch.Tensor,
-        intrinsics: torch.Tensor,
+        positions: wp.array,
+        orientations: wp.array,
+        intrinsics: wp.array,
     ) -> None:
         """Update camera transforms in OVRTX binding."""
         num_envs = positions.shape[0]
-        camera_quats_opengl = convert_camera_frame_orientation_convention(orientations, origin="world", target="opengl")
-        camera_positions_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3)
+        # convention helper expects torch; use the zero-copy view of the wp.array
+        camera_quats_opengl = convert_camera_frame_orientation_convention(
+            wp.to_torch(orientations), origin="world", target="opengl"
+        )
+        camera_positions_wp = wp.array(
+            ptr=positions.ptr, dtype=wp.vec3, shape=(positions.shape[0],), device=positions.device, copy=False
+        )
         camera_orientations_wp = wp.from_torch(camera_quats_opengl.contiguous(), dtype=wp.quatf)
         camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=DEVICE)
         wp.launch(

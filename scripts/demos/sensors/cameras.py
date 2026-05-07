@@ -239,8 +239,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # save every 10th image (for visualization purposes only)
         # note: saving images will slow down the simulation
         if count % 10 == 0:
-            # compare generated RGB images across different cameras
-            rgb_images = [scene["camera"].data.output["rgb"][0, ..., :3], scene["tiled_camera"].data.output["rgb"][0]]
+            # compare generated RGB images across different cameras (use ProxyArray.torch)
+            rgb_images = [
+                scene["camera"].data.output["rgb"].torch[0, ..., :3],
+                scene["tiled_camera"].data.output["rgb"].torch[0],
+            ]
             save_images_grid(
                 rgb_images,
                 subtitles=["Camera"],
@@ -250,9 +253,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
             # compare generated Depth images across different cameras
             depth_images = [
-                scene["camera"].data.output["distance_to_image_plane"][0],
-                scene["tiled_camera"].data.output["distance_to_image_plane"][0, ..., 0],
-                scene["raycast_camera"].data.output["distance_to_image_plane"][0],
+                scene["camera"].data.output["distance_to_image_plane"].torch[0],
+                scene["tiled_camera"].data.output["distance_to_image_plane"].torch[0, ..., 0],
+                scene["raycast_camera"].data.output["distance_to_image_plane"].torch[0],
             ]
             save_images_grid(
                 depth_images,
@@ -263,7 +266,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             )
 
             # save all tiled RGB images
-            tiled_images = scene["tiled_camera"].data.output["rgb"]
+            tiled_images = scene["tiled_camera"].data.output["rgb"].torch
             save_images_grid(
                 tiled_images,
                 subtitles=[f"Cam{i}" for i in range(tiled_images.shape[0])],
@@ -272,7 +275,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             )
 
             # save all camera RGB images
-            cam_images = scene["camera"].data.output["rgb"][..., :3]
+            cam_images = scene["camera"].data.output["rgb"].torch[..., :3]
             save_images_grid(
                 cam_images,
                 subtitles=[f"Cam{i}" for i in range(cam_images.shape[0])],

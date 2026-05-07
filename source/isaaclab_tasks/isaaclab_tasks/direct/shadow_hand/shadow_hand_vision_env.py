@@ -69,8 +69,11 @@ class ShadowHandVisionEnv(InHandManipulationEnv):
         object_pose = torch.cat([self.object_pos, self.gt_keypoints.view(-1, 24)], dim=-1)
 
         # train CNN to regress on keypoint positions
+        # CameraData.output entries are ProxyArray; the feature extractor expects
+        # torch tensors, so unwrap each entry via .torch (zero-copy view).
+        camera_output_torch = {k: v.torch for k, v in self._tiled_camera.data.output.items()}
         pose_loss, embeddings = self.feature_extractor.step(
-            self._tiled_camera.data.output,
+            camera_output_torch,
             object_pose,
         )
 

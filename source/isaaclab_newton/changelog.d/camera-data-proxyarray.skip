@@ -1,0 +1,2 @@
+Internal-only update: NewtonWarpRenderer signatures realigned with the BaseRenderer
+wp.array contract. No public API changes beyond what the isaaclab fragment covers.

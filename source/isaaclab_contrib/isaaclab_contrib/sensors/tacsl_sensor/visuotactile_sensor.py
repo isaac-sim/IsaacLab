@@ -224,10 +224,11 @@ class VisuoTactileSensor(SensorBase):
         if initial_render is None:
             raise RuntimeError("Initial render is None")
 
-        # Store the initial nominal tactile data
+        # Store the initial nominal tactile data; output values are ProxyArray —
+        # snapshot the torch view to keep the existing torch.Tensor downstream contract.
         self._nominal_tactile = dict()
         for key, value in initial_render.items():
-            self._nominal_tactile[key] = value.clone()
+            self._nominal_tactile[key] = value.torch.clone()
 
         return self._nominal_tactile
 
@@ -583,7 +584,8 @@ class VisuoTactileSensor(SensorBase):
             depth_key = "depth"
 
         if depth_key:
-            self._data.tactile_depth_image[env_ids] = camera_data.output[depth_key][env_ids].clone()
+            # camera_data.output[depth_key] is ProxyArray; index its torch view explicitly.
+            self._data.tactile_depth_image[env_ids] = camera_data.output[depth_key].torch[env_ids].clone()
             diff = self._nominal_tactile[depth_key][env_ids] - self._data.tactile_depth_image[env_ids]
             self._data.tactile_rgb_image[env_ids] = self._tactile_rgb_render.render(diff.squeeze(-1))
 

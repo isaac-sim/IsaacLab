@@ -10,12 +10,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
+import warp as wp
+
 from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
-    import torch
-
     from isaaclab.sensors.camera.camera_data import CameraData
 
 
@@ -60,13 +60,16 @@ class BaseRenderer(ABC):
         pass
 
     @abstractmethod
-    def set_outputs(self, render_data: Any, output_data: dict[str, torch.Tensor]) -> None:
+    def set_outputs(self, render_data: Any, output_data: dict[str, wp.array]) -> None:
         """Store reference to output buffers for writing during render.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
             output_data: Dictionary mapping output names (e.g. ``"rgb"``, ``"depth"``)
-                to pre-allocated tensors where rendered data will be written.
+                to pre-allocated :class:`warp.array` buffers where rendered data
+                will be written. Each buffer has shape ``(num_views, height, width,
+                channels)`` and the per-kind dtype declared by
+                :meth:`supported_output_types`.
         """
         pass
 
@@ -80,14 +83,14 @@ class BaseRenderer(ABC):
 
     @abstractmethod
     def update_camera(
-        self, render_data: Any, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
+        self, render_data: Any, positions: wp.array, orientations: wp.array, intrinsics: wp.array
     ) -> None:
         """Update camera poses and intrinsics for the next render.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
-            positions: Camera positions in world frame, shape ``(N, 3)``.
-            orientations: Camera orientations as quaternions (x, y, z, w), shape ``(N, 4)``.
+            positions: Camera positions [m] in world frame, shape ``(N, 3)``.
+            orientations: Camera orientations as quaternions ``(x, y, z, w)``, shape ``(N, 4)``.
             intrinsics: Camera intrinsic matrices, shape ``(N, 3, 3)``.
         """
         pass

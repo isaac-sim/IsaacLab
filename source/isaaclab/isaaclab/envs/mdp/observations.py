@@ -407,12 +407,12 @@ def image(
     # extract the used quantities (to enable type-hinting)
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
-    # obtain the input image
-    images = sensor.data.output[data_type]
+    # obtain the input image (CameraData fields are ProxyArray; .torch is a zero-copy view)
+    images = sensor.data.output[data_type].torch
 
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
-        images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
+        images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices.torch)
 
     # rgb/depth/normals image normalization
     if normalize:

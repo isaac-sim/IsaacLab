@@ -72,7 +72,7 @@ class IsaacRtxRenderData:
 
     annotators: dict[str, Any]
     render_product_paths: list[str]
-    output_data: dict[str, torch.Tensor] | None = None
+    output_data: dict[str, wp.array] | None = None
     spec: CameraRenderSpec | None = None
     renderer_info: dict[str, Any] = field(default_factory=dict)
 
@@ -277,7 +277,7 @@ class IsaacRtxRenderer(BaseRenderer):
             )
         return SIMPLE_SHADING_MODES[requested[0]]
 
-    def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, torch.Tensor]):
+    def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, wp.array]):
         """Store reference to output buffers for writing during render.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.output_data = output_data
@@ -290,9 +290,9 @@ class IsaacRtxRenderer(BaseRenderer):
     def update_camera(
         self,
         render_data: IsaacRtxRenderData,
-        positions: torch.Tensor,
-        orientations: torch.Tensor,
-        intrinsics: torch.Tensor,
+        positions: wp.array,
+        orientations: wp.array,
+        intrinsics: wp.array,
     ):
         """No-op for Replicator - uses USD camera prims directly.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
@@ -364,35 +364,38 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type in SIMPLE_SHADING_MODES:
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
+            output_wp = output_data[data_type]
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(view_count, cfg.height, cfg.width),
                 inputs=[
                     tiled_data_buffer.flatten(),
-                    wp.from_torch(output_data[data_type]),
-                    *list(output_data[data_type].shape[1:]),
+                    output_wp,
+                    *list(output_wp.shape[1:]),
                     num_tiles_x,
                 ],
                 device=device,
             )
 
-            # alias rgb as first 3 channels of rgba
-            if data_type == "rgba" and "rgb" in cfg.data_types:
-                output_data["rgb"] = output_data["rgba"][..., :3]
+            # rgb is pre-allocated as a non-contiguous view of rgba in CameraData.allocate(),
+            # so the kernel write to rgba is automatically reflected in rgb. No rebind needed.
 
             # NOTE: The `distance_to_camera` annotator returns the distance to the camera optical center.
             #       However, the replicator depth clipping is applied w.r.t. to the image plane which may result
             #       in values larger than the clipping range in the output. We apply an additional clipping to
             #       ensure values are within the clipping range for all the annotators.
             if data_type == "distance_to_camera":
-                output_data[data_type][output_data[data_type] > cfg.spawn.clipping_range[1]] = torch.inf
+                # Use the zero-copy torch view of the wp.array primary for the in-place clip.
+                view = wp.to_torch(output_wp)
+                view[view > cfg.spawn.clipping_range[1]] = torch.inf
 
             # apply defined clipping behavior
             if (
                 data_type in ("distance_to_camera", "distance_to_image_plane", "depth")
                 and self.cfg.depth_clipping_behavior != "none"
             ):
-                output_data[data_type][torch.isinf(output_data[data_type])] = (
+                view = wp.to_torch(output_wp)
+                view[torch.isinf(view)] = (
                     0.0 if self.cfg.depth_clipping_behavior == "zero" else cfg.spawn.clipping_range[1]
                 )
 

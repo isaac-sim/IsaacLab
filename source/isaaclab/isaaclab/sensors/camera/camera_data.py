@@ -9,29 +9,41 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
+import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
 from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
+from isaaclab.utils.warp.proxy_array import ProxyArray
 
 __all__ = ["CameraData", "RenderBufferKind", "RenderBufferSpec"]
 
 
+def _wrap(buf: torch.Tensor) -> ProxyArray:
+    """Wrap a torch buffer as a :class:`ProxyArray` with a zero-copy ``wp.array`` view."""
+    return ProxyArray(wp.from_torch(buf))
+
+
 @dataclass
 class CameraData:
-    """Data container for the camera sensor."""
+    """Data container for the camera sensor.
+
+    All array-valued fields are :class:`~isaaclab.utils.warp.proxy_array.ProxyArray`
+    wrappers around an underlying :class:`warp.array` (Warp-primary storage with a
+    cached zero-copy ``torch.Tensor`` view available via ``.torch``).
+    """
 
     ##
     # Frame state.
     ##
 
-    pos_w: torch.Tensor = None
-    """Position of the sensor origin in world frame, following ROS convention.
+    pos_w: ProxyArray = None
+    """Position [m] of the sensor origin in world frame, following ROS convention.
 
     Shape is (N, 3) where N is the number of sensors.
     """
 
-    quat_w_world: torch.Tensor = None
+    quat_w_world: ProxyArray = None
     """Quaternion orientation `(x, y, z, w)` of the sensor origin in world frame, following the world coordinate frame
 
     .. note::
@@ -47,13 +59,13 @@ class CameraData:
     image_shape: tuple[int, int] = None
     """A tuple containing (height, width) of the camera sensor."""
 
-    intrinsic_matrices: torch.Tensor = None
+    intrinsic_matrices: ProxyArray = None
     """The intrinsic matrices for the camera.
 
     Shape is (N, 3, 3) where N is the number of sensors.
     """
 
-    output: dict[str, torch.Tensor] = None
+    output: dict[str, ProxyArray] = None
     """The retrieved sensor data with sensor types as key.
 
     The format of the data is available in the `Replicator Documentation`_. For semantic-based data,
@@ -82,9 +94,11 @@ class CameraData:
     ) -> CameraData:
         """Build a :class:`CameraData` with output buffers pre-allocated.
 
-        Allocates one ``(num_views, height, width, channels)`` tensor per kind
+        Allocates one ``(num_views, height, width, channels)`` buffer per kind
         in the intersection of ``data_types`` and ``supported_specs``, using
-        the channels and dtype from each :class:`RenderBufferSpec`.
+        the channels and dtype from each :class:`RenderBufferSpec`. Each buffer
+        is exposed as a :class:`ProxyArray` (``wp.array`` primary, zero-copy
+        ``torch.Tensor`` view via ``.torch``).
 
         Args:
             data_types: Requested output names (typically :attr:`CameraCfg.data_types`).
@@ -124,19 +138,28 @@ class CameraData:
         if rgb_alias:
             requested.update({RenderBufferKind.RGB, RenderBufferKind.RGBA})
 
-        buffers: dict[str, torch.Tensor] = {}
+        # Allocate the underlying torch buffers first so we can preserve the
+        # rgb-as-view-of-rgba alias as a torch slice (shared memory). Each
+        # buffer is then wrapped as a ProxyArray over a wp.from_torch view —
+        # the wp.array and torch.Tensor share the same allocation.
+        torch_buffers: dict[str, torch.Tensor] = {}
         for name, spec in supported_specs.items():
             if name not in requested:
                 continue
             if rgb_alias and name == RenderBufferKind.RGB:
                 continue
-            buffers[str(name)] = torch.zeros(
+            torch_buffers[str(name)] = torch.zeros(
                 (num_views, height, width, spec.channels),
                 dtype=spec.dtype,
                 device=device,
             ).contiguous()
         if rgb_alias:
-            buffers[str(RenderBufferKind.RGB)] = buffers[str(RenderBufferKind.RGBA)][..., :3]
+            # Share storage with rgba: the slice is a non-contiguous torch view.
+            # ``wp.from_torch`` accepts strided views, so the resulting ProxyArray
+            # tracks the same underlying memory as the rgba buffer.
+            torch_buffers[str(RenderBufferKind.RGB)] = torch_buffers[str(RenderBufferKind.RGBA)][..., :3]
+
+        buffers: dict[str, ProxyArray] = {name: _wrap(buf) for name, buf in torch_buffers.items()}
 
         return cls(
             image_shape=(height, width),
@@ -149,7 +172,7 @@ class CameraData:
     ##
 
     @property
-    def quat_w_ros(self) -> torch.Tensor:
+    def quat_w_ros(self) -> ProxyArray:
         """Quaternion orientation `(x, y, z, w)` of the sensor origin in the world frame, following ROS convention.
 
         .. note::
@@ -157,10 +180,11 @@ class CameraData:
 
         Shape is (N, 4) where N is the number of sensors.
         """
-        return convert_camera_frame_orientation_convention(self.quat_w_world, origin="world", target="ros")
+        converted = convert_camera_frame_orientation_convention(self.quat_w_world.torch, origin="world", target="ros")
+        return _wrap(converted.contiguous())
 
     @property
-    def quat_w_opengl(self) -> torch.Tensor:
+    def quat_w_opengl(self) -> ProxyArray:
         """Quaternion orientation `(x, y, z, w)` of the sensor origin in the world frame, following
         Opengl / USD Camera convention.
 
@@ -169,4 +193,7 @@ class CameraData:
 
         Shape is (N, 4) where N is the number of sensors.
         """
-        return convert_camera_frame_orientation_convention(self.quat_w_world, origin="world", target="opengl")
+        converted = convert_camera_frame_orientation_convention(
+            self.quat_w_world.torch, origin="world", target="opengl"
+        )
+        return _wrap(converted.contiguous())

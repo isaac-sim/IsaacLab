@@ -26,6 +26,7 @@ from isaaclab.utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from isaaclab.utils.warp.proxy_array import ProxyArray
 
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -170,8 +171,13 @@ class Camera(SensorBase):
         return self._data
 
     @property
-    def frame(self) -> torch.tensor:
-        """Frame number when the measurement took place."""
+    def frame(self) -> ProxyArray:
+        """Frame number when the measurement took place.
+
+        Shape is (N,), dtype ``wp.int64``. Use ``.torch`` for a zero-copy
+        :class:`torch.Tensor` view or ``.warp`` for the underlying
+        :class:`warp.array`.
+        """
         return self._frame
 
     @property
@@ -184,7 +190,10 @@ class Camera(SensorBase):
     """
 
     def set_intrinsic_matrices(
-        self, matrices: torch.Tensor, focal_length: float | None = None, env_ids: Sequence[int] | None = None
+        self,
+        matrices: wp.array | ProxyArray | torch.Tensor | np.ndarray,
+        focal_length: float | None = None,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set parameters of the USD camera from its intrinsic matrix.
 
@@ -203,7 +212,10 @@ class Camera(SensorBase):
             is not true in the input intrinsic matrix, then the camera will not set up correctly.
 
         Args:
-            matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
+            matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3). A
+                :class:`warp.array` is the canonical input type;
+                :class:`~isaaclab.utils.warp.proxy_array.ProxyArray`,
+                :class:`torch.Tensor`, and :class:`numpy.ndarray` are also accepted.
             focal_length: Perspective focal length (in cm) used to calculate pixel size. Defaults to None. If None,
                 focal_length will be calculated 1 / width.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
@@ -211,7 +223,11 @@ class Camera(SensorBase):
         # resolve env_ids
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        # convert matrices to numpy tensors
+        # normalize input: ProxyArray → wp.array → torch.Tensor → numpy
+        if isinstance(matrices, ProxyArray):
+            matrices = matrices.torch
+        elif isinstance(matrices, wp.array):
+            matrices = wp.to_torch(matrices)
         if isinstance(matrices, torch.Tensor):
             matrices = matrices.cpu().numpy()
         else:
@@ -246,8 +262,8 @@ class Camera(SensorBase):
 
     def set_world_poses(
         self,
-        positions: torch.Tensor | None = None,
-        orientations: torch.Tensor | None = None,
+        positions: wp.array | ProxyArray | torch.Tensor | np.ndarray | None = None,
+        orientations: wp.array | ProxyArray | torch.Tensor | np.ndarray | None = None,
         env_ids: Sequence[int] | None = None,
         convention: Literal["opengl", "ros", "world"] = "ros",
     ):
@@ -264,10 +280,13 @@ class Camera(SensorBase):
         on the conventions.
 
         Args:
-            positions: The cartesian coordinates (in meters). Shape is (N, 3).
-                Defaults to None, in which case the camera position in not changed.
+            positions: The cartesian coordinates [m]. Shape is (N, 3). A :class:`warp.array`
+                is the canonical input type; :class:`ProxyArray`, :class:`torch.Tensor`,
+                and :class:`numpy.ndarray` are also accepted. Defaults to None, in which
+                case the camera position is not changed.
             orientations: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
-                Defaults to None, in which case the camera orientation in not changed.
+                Same accepted types as ``positions``. Defaults to None, in which case
+                the camera orientation is not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
 
@@ -277,18 +296,12 @@ class Camera(SensorBase):
         # resolve env_ids
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        # convert to backend tensor
+        # normalize positions to a torch tensor on the sensor device
         if positions is not None:
-            if isinstance(positions, np.ndarray):
-                positions = torch.from_numpy(positions).to(device=self._device)
-            elif not isinstance(positions, torch.Tensor):
-                positions = torch.tensor(positions, device=self._device)
+            positions = self._to_device_tensor(positions)
         # convert rotation matrix from input convention to OpenGL
         if orientations is not None:
-            if isinstance(orientations, np.ndarray):
-                orientations = torch.from_numpy(orientations).to(device=self._device)
-            elif not isinstance(orientations, torch.Tensor):
-                orientations = torch.tensor(orientations, device=self._device)
+            orientations = self._to_device_tensor(orientations)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
         # convert torch tensors to warp arrays for the view
         pos_wp = wp.from_torch(positions.contiguous()) if positions is not None else None
@@ -302,13 +315,19 @@ class Camera(SensorBase):
         self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
 
     def set_world_poses_from_view(
-        self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
+        self,
+        eyes: wp.array | ProxyArray | torch.Tensor | np.ndarray,
+        targets: wp.array | ProxyArray | torch.Tensor | np.ndarray,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set the poses of the camera from the eye position and look-at target position.
 
         Args:
-            eyes: The positions of the camera's eye. Shape is (N, 3).
-            targets: The target locations to look at. Shape is (N, 3).
+            eyes: The positions of the camera's eye. Shape is (N, 3). A :class:`warp.array`
+                is the canonical input type; :class:`ProxyArray`, :class:`torch.Tensor`,
+                and :class:`numpy.ndarray` are also accepted.
+            targets: The target locations to look at. Shape is (N, 3). Same accepted types
+                as ``eyes``.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
         Raises:
@@ -318,6 +337,9 @@ class Camera(SensorBase):
         # resolve env_ids
         if env_ids is None:
             env_ids = self._ALL_INDICES
+        # normalize inputs to torch tensors on the sensor device
+        eyes = self._to_device_tensor(eyes)
+        targets = self._to_device_tensor(targets)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view
@@ -346,8 +368,8 @@ class Camera(SensorBase):
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         self._update_poses(env_ids)
-        # Reset the frame count
-        self._frame[env_ids] = 0
+        # Reset the frame count (ProxyArray; mutate via the zero-copy torch view)
+        self._frame.torch[env_ids] = 0
 
     """
     Implementation.
@@ -390,8 +412,10 @@ class Camera(SensorBase):
 
         # Create all env_ids buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
-        # Create frame count buffer
-        self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
+        # Create frame count buffer (wp.array primary, ProxyArray-published).
+        self._frame = ProxyArray(
+            wp.from_torch(torch.zeros(self._view.count, device=self._device, dtype=torch.long).contiguous())
+        )
 
         # Convert all encapsulated prims to Camera
         for cam_prim in self._view.prims:
@@ -427,8 +451,8 @@ class Camera(SensorBase):
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) == 0:
             return
-        # Increment frame count
-        self._frame[env_ids] += 1
+        # Increment frame count (ProxyArray; mutate via the zero-copy torch view)
+        self._frame.torch[env_ids] += 1
         # update latest camera pose if requested
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_ids)
@@ -450,6 +474,23 @@ class Camera(SensorBase):
     """
     Private Helpers
     """
+
+    def _to_device_tensor(self, value: wp.array | ProxyArray | torch.Tensor | np.ndarray) -> torch.Tensor:
+        """Normalize an array-like input to a ``torch.Tensor`` on this sensor's device.
+
+        Accepts :class:`warp.array`, :class:`~isaaclab.utils.warp.proxy_array.ProxyArray`,
+        :class:`torch.Tensor`, and :class:`numpy.ndarray`. Warp inputs are unwrapped via
+        ``wp.to_torch`` (zero-copy).
+        """
+        if isinstance(value, ProxyArray):
+            value = value.torch
+        elif isinstance(value, wp.array):
+            value = wp.to_torch(value)
+        if isinstance(value, np.ndarray):
+            return torch.from_numpy(value).to(device=self._device)
+        if not isinstance(value, torch.Tensor):
+            return torch.tensor(value, device=self._device)
+        return value.to(device=self._device)
 
     def _check_supported_data_types(self, cfg: CameraCfg):
         """Checks if the data types are supported by the ray-caster camera."""
@@ -501,12 +542,22 @@ class Camera(SensorBase):
         )
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
         # the renderer: populate it on the freshly constructed ``CameraData``.
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
+        # Each field stores a wp.array primary buffer (allocated via wp.from_torch
+        # over a torch.zeros allocation) and is published as a ProxyArray.
+        self._data.intrinsic_matrices = ProxyArray(
+            wp.from_torch(torch.zeros((self._view.count, 3, 3), device=self._device).contiguous())
+        )
         self._update_intrinsic_matrices(self._ALL_INDICES)
-        self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
-        self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
+        self._data.pos_w = ProxyArray(
+            wp.from_torch(torch.zeros((self._view.count, 3), device=self._device).contiguous())
+        )
+        self._data.quat_w_world = ProxyArray(
+            wp.from_torch(torch.zeros((self._view.count, 4), device=self._device).contiguous())
+        )
         self._update_poses(self._ALL_INDICES)
-        self._renderer.set_outputs(self._render_data, self._data.output)
+        # Hand the renderer the underlying wp.array buffers; the ProxyArray
+        # wrappers in CameraData stay valid since both views share memory.
+        self._renderer.set_outputs(self._render_data, {name: proxy.warp for name, proxy in self._data.output.items()})
 
     def _update_intrinsic_matrices(self, env_ids: Sequence[int]):
         """Compute camera's matrix of intrinsic parameters.
@@ -517,6 +568,9 @@ class Camera(SensorBase):
             The calibration matrix projects points in the 3D scene onto an imaginary screen of the camera.
             The coordinates of points on the image plane are in the homogeneous representation.
         """
+        # zero-copy torch view of the wp.array buffer; in-place mutation is
+        # visible through both views.
+        intrinsic_view = self._data.intrinsic_matrices.torch
         # iterate over all cameras
         for i in env_ids:
             # Get corresponding sensor prim
@@ -534,11 +588,11 @@ class Camera(SensorBase):
             c_x = width * 0.5
             c_y = height * 0.5
             # create intrinsic matrix for depth linear
-            self._data.intrinsic_matrices[i, 0, 0] = f_x
-            self._data.intrinsic_matrices[i, 0, 2] = c_x
-            self._data.intrinsic_matrices[i, 1, 1] = f_y
-            self._data.intrinsic_matrices[i, 1, 2] = c_y
-            self._data.intrinsic_matrices[i, 2, 2] = 1
+            intrinsic_view[i, 0, 0] = f_x
+            intrinsic_view[i, 0, 2] = c_x
+            intrinsic_view[i, 1, 1] = f_y
+            intrinsic_view[i, 1, 2] = c_y
+            intrinsic_view[i, 2, 2] = 1
 
     def _update_poses(self, env_ids: Sequence[int]):
         """Computes the pose of the camera in the world frame with ROS convention.
@@ -558,14 +612,19 @@ class Camera(SensorBase):
             env_ids = torch.tensor(env_ids, dtype=torch.int32, device=self._device)
         indices = wp.from_torch(env_ids.to(dtype=torch.int32), dtype=wp.int32) if env_ids is not None else None
         pos_w, quat_w = self._view.get_world_poses(indices)
-        self._data.pos_w[env_ids] = pos_w.torch
-        self._data.quat_w_world[env_ids] = convert_camera_frame_orientation_convention(
+        # Mutate via the zero-copy torch view to avoid the ProxyArray.__setitem__
+        # deprecation warning (the view shares memory with the wp.array primary).
+        self._data.pos_w.torch[env_ids] = pos_w.torch
+        self._data.quat_w_world.torch[env_ids] = convert_camera_frame_orientation_convention(
             quat_w.torch, origin="opengl", target="world"
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)
         if self._render_data is not None:
             self._renderer.update_camera(
-                self._render_data, self._data.pos_w, self._data.quat_w_world, self._data.intrinsic_matrices
+                self._render_data,
+                self._data.pos_w.warp,
+                self._data.quat_w_world.warp,
+                self._data.intrinsic_matrices.warp,
             )
 
     """

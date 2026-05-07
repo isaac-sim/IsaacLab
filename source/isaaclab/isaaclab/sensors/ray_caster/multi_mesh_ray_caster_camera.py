@@ -12,6 +12,7 @@ import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.warp import kernels as warp_kernels
+from isaaclab.utils.warp.proxy_array import ProxyArray
 
 from .kernels import (
     CAMERA_RAYCAST_MAX_DIST,
@@ -84,9 +85,11 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
 
     def _create_buffers(self):
         super()._create_buffers()
-        self._data.image_mesh_ids = torch.zeros(
+        # image_mesh_ids primary buffer: torch.zeros + wp.from_torch share memory.
+        image_mesh_ids_torch = torch.zeros(
             self._num_envs, *self.image_shape, 1, device=self.device, dtype=torch.int16
-        )
+        ).contiguous()
+        self._data.image_mesh_ids = ProxyArray(wp.from_torch(image_mesh_ids_torch))
 
     def _initialize_rays_impl(self):
         # NOTE: This method intentionally does NOT call super()._initialize_rays_impl() through the MRO
@@ -99,7 +102,10 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
 
         # Camera-specific bookkeeping buffers
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
-        self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
+        # Frame count: wp.array primary, ProxyArray-published.
+        self._frame = ProxyArray(
+            wp.from_torch(torch.zeros(self._view.count, device=self._device, dtype=torch.long).contiguous())
+        )
 
         # Build camera output buffers (intrinsics, image data, etc.)
         self._create_buffers()
@@ -107,7 +113,7 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
 
         # Compute local ray starts/directions from the camera pattern (torch, init-time only)
         ray_starts_local, ray_directions_local = self.cfg.pattern_cfg.func(
-            self.cfg.pattern_cfg, self._data.intrinsic_matrices, self._device
+            self.cfg.pattern_cfg, self._data.intrinsic_matrices.torch, self._device
         )
         self.num_rays = ray_directions_local.shape[1]
 
@@ -124,9 +130,8 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         self._offset_quat = quat_offset.repeat(self._view.count, 1)
         self._offset_pos = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
 
-        # Camera pose buffers (torch, part of CameraData)
-        self._data.pos_w = torch.zeros(self._view.count, 3, device=self._device)
-        self._data.quat_w_world = torch.zeros(self._view.count, 4, device=self._device)
+        # Camera pose buffers (pos_w / quat_w_world) were already allocated as
+        # ProxyArrays in self._create_buffers() above; no re-init needed here.
         # Warp-backed camera orientation buffer for warp kernel calls;
         # updated from self._data.quat_w_world in _update_ray_infos.
         self._quat_w_wp = wp.zeros(self._view.count, dtype=wp.quatf, device=self._device)
@@ -183,9 +188,9 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w, quat_w, self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
-        # Store camera pose in CameraData (torch tensors) and warp-backed orientation buffer
-        self._data.pos_w[env_ids] = pos_w
-        self._data.quat_w_world[env_ids] = quat_w
+        # Store camera pose in CameraData via the zero-copy torch view of the wp.array primary
+        self._data.pos_w.torch[env_ids] = pos_w
+        self._data.quat_w_world.torch[env_ids] = quat_w
         self._quat_w_wp_torch[env_ids] = quat_w
 
         # Rotate local ray starts and directions into world frame using full camera orientation
@@ -211,8 +216,8 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
 
         self._update_ray_infos(env_mask)
 
-        # Increment frame count for updated environments
-        self._frame[env_ids] += 1
+        # Increment frame count for updated environments (ProxyArray; mutate via .torch)
+        self._frame.torch[env_ids] += 1
 
         self._update_mesh_transforms()
 
@@ -275,19 +280,23 @@ class MultiMeshRayCasterCamera(RayCasterCamera, MultiMeshRayCaster):
             # Apply depth clipping on the intermediate buffer (leaves _ray_distance_cam_w unmodified)
             self._apply_depth_clipping(env_mask, self._distance_to_image_plane_wp)
             d2ip_torch = wp.to_torch(self._distance_to_image_plane_wp)
-            self._data.output["distance_to_image_plane"][env_ids] = d2ip_torch[env_ids].view(-1, *self.image_shape, 1)
+            self._data.output["distance_to_image_plane"].torch[env_ids] = d2ip_torch[env_ids].view(
+                -1, *self.image_shape, 1
+            )
 
         if "distance_to_camera" in self.cfg.data_types:
             # d2ip (if requested) was computed before this block so _ray_distance_cam_w is still unclipped.
             self._apply_depth_clipping(env_mask, self._ray_distance_cam_w)
             ray_dist_torch = wp.to_torch(self._ray_distance_cam_w)
-            self._data.output["distance_to_camera"][env_ids] = ray_dist_torch[env_ids].view(-1, *self.image_shape, 1)
+            self._data.output["distance_to_camera"].torch[env_ids] = ray_dist_torch[env_ids].view(
+                -1, *self.image_shape, 1
+            )
 
         if return_normal:
             ray_normal_torch = wp.to_torch(self._ray_normal_w)
-            self._data.output["normals"][env_ids] = ray_normal_torch[env_ids].view(-1, *self.image_shape, 3)
+            self._data.output["normals"].torch[env_ids] = ray_normal_torch[env_ids].view(-1, *self.image_shape, 3)
 
         if self.cfg.update_mesh_ids:
-            self._data.image_mesh_ids[env_ids] = wp.to_torch(self._ray_mesh_id_w)[env_ids].view(
+            self._data.image_mesh_ids.torch[env_ids] = wp.to_torch(self._ray_mesh_id_w)[env_ids].view(
                 -1, *self.image_shape, 1
             )

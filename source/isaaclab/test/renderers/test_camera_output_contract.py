@@ -158,11 +158,13 @@ def test_camera_data_allocates_supported_subset_and_aliases_rgb():
     )
 
     assert set(data.output.keys()) == {"rgba", "rgb", "depth"}
-    assert data.output["rgba"].shape == (2, 8, 16, 4)
-    assert data.output["rgba"].dtype == torch.uint8
-    assert data.output["depth"].shape == (2, 8, 16, 1)
-    assert data.output["depth"].dtype == torch.float32
-    assert data.output["rgb"].data_ptr() == data.output["rgba"].data_ptr()
+    # ProxyArray exposes torch dtype/shape via .torch and the underlying wp.array via .warp.
+    assert tuple(data.output["rgba"].shape) == (2, 8, 16, 4)
+    assert data.output["rgba"].torch.dtype == torch.uint8
+    assert tuple(data.output["depth"].shape) == (2, 8, 16, 1)
+    assert data.output["depth"].torch.dtype == torch.float32
+    # rgb is a non-contiguous torch view of rgba; both ProxyArrays share the same allocation.
+    assert data.output["rgb"].torch.data_ptr() == data.output["rgba"].torch.data_ptr()
     assert data.image_shape == (8, 16)
     assert data.info == {"rgba": None, "rgb": None, "depth": None}
 
@@ -206,10 +208,31 @@ def test_camera_data_segmentation_dtype_follows_supported_spec():
         data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=colorized_specs
     )
 
-    assert raw.output["instance_segmentation_fast"].dtype == torch.int32
-    assert raw.output["instance_segmentation_fast"].shape == (1, 4, 4, 1)
-    assert colorized.output["instance_segmentation_fast"].dtype == torch.uint8
-    assert colorized.output["instance_segmentation_fast"].shape == (1, 4, 4, 4)
+    assert raw.output["instance_segmentation_fast"].torch.dtype == torch.int32
+    assert tuple(raw.output["instance_segmentation_fast"].shape) == (1, 4, 4, 1)
+    assert colorized.output["instance_segmentation_fast"].torch.dtype == torch.uint8
+    assert tuple(colorized.output["instance_segmentation_fast"].shape) == (1, 4, 4, 4)
+
+
+def test_camera_data_output_proxyarray_zero_copy():
+    """Mutations through .torch are visible through .warp on every output buffer."""
+    cfg = _make_camera_cfg(["rgb", "rgba", "depth"])
+    specs = {
+        RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8),
+        RenderBufferKind.RGB: RenderBufferSpec(3, torch.uint8),
+        RenderBufferKind.DEPTH: RenderBufferSpec(1, torch.float32),
+    }
+    data = CameraData.allocate(
+        data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=specs
+    )
+
+    # Write through the torch view; ensure the warp array sees the same memory.
+    rgba_proxy = data.output["rgba"]
+    rgba_proxy.torch[0, 0, 0, 0] = 7
+    assert rgba_proxy.warp.numpy()[0, 0, 0, 0] == 7
+
+    # The rgb proxy is a torch view of the rgba memory, so the same write is visible.
+    assert data.output["rgb"].torch[0, 0, 0, 0].item() == 7
 
 
 def test_camera_data_allocate_raises_on_unknown_name():

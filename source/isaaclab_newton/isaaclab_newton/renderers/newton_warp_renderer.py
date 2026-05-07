@@ -52,18 +52,18 @@ class RenderData:
         self.width = getattr(spec.cfg, "width", 100)
         self.height = getattr(spec.cfg, "height", 100)
 
-    def set_outputs(self, output_data: dict[str, torch.Tensor]):
-        for output_name, tensor_data in output_data.items():
+    def set_outputs(self, output_data: dict[str, wp.array]):
+        for output_name, wp_data in output_data.items():
             if output_name == RenderBufferKind.RGBA:
-                self.outputs.color_image = self._from_torch(tensor_data, dtype=wp.uint32)
+                self.outputs.color_image = self._typed_view(wp_data, dtype=wp.uint32)
             elif output_name == RenderBufferKind.ALBEDO:
-                self.outputs.albedo_image = self._from_torch(tensor_data, dtype=wp.uint32)
+                self.outputs.albedo_image = self._typed_view(wp_data, dtype=wp.uint32)
             elif output_name == RenderBufferKind.DEPTH:
-                self.outputs.depth_image = self._from_torch(tensor_data, dtype=wp.float32)
+                self.outputs.depth_image = self._typed_view(wp_data, dtype=wp.float32)
             elif output_name == RenderBufferKind.NORMALS:
-                self.outputs.normals_image = self._from_torch(tensor_data, dtype=wp.vec3f)
+                self.outputs.normals_image = self._typed_view(wp_data, dtype=wp.vec3f)
             elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
-                self.outputs.instance_segmentation_image = self._from_torch(tensor_data, dtype=wp.uint32)
+                self.outputs.instance_segmentation_image = self._typed_view(wp_data, dtype=wp.uint32)
             elif output_name == RenderBufferKind.RGB:
                 pass
             else:
@@ -82,9 +82,10 @@ class RenderData:
             return self.outputs.instance_segmentation_image
         return None
 
-    def update(self, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor):
+    def update(self, positions: wp.array, orientations: wp.array, intrinsics: wp.array):
+        # The convention helper expects a torch tensor; use the zero-copy view of the wp.array.
         converted_orientations = convert_camera_frame_orientation_convention(
-            orientations, origin="world", target="opengl"
+            wp.to_torch(orientations), origin="world", target="opengl"
         )
 
         self.camera_transforms = wp.empty(
@@ -98,29 +99,26 @@ class RenderData:
         )
 
         if self.camera_rays is None:
-            first_focal_length = intrinsics[:, 1, 1][0:1]
+            intrinsics_torch = wp.to_torch(intrinsics)
+            first_focal_length = intrinsics_torch[:, 1, 1][0:1]
             fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
             self.camera_rays = self.newton_sensor.utils.compute_pinhole_camera_rays(
                 self.width, self.height, wp.from_torch(fov_radians_all, dtype=wp.float32)
             )
 
-    def _from_torch(self, tensor: torch.Tensor, dtype) -> wp.array:
-        proxy_array = wp.from_torch(tensor)
-        if tensor.is_contiguous():
-            return wp.array(
-                ptr=proxy_array.ptr,
-                dtype=dtype,
-                shape=(self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
-                device=proxy_array.device,
-                copy=False,
-            )
+    def _typed_view(self, wp_data: wp.array, dtype) -> wp.array:
+        """Reinterpret the output buffer as ``(world_count, num_cameras, height, width)`` of ``dtype``.
 
-        logger.warning("NewtonWarpRenderer - torch output array is non-contiguous")
-        return wp.zeros(
-            (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
+        The Newton sensor writes per-pixel typed records; the camera buffer is allocated as a
+        4-D scalar array of the corresponding torch dtype. Both views share the same memory.
+        """
+        return wp.array(
+            ptr=wp_data.ptr,
             dtype=dtype,
-            device=proxy_array.device,
+            shape=(self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width),
+            device=wp_data.device,
+            copy=False,
         )
 
     @wp.kernel
@@ -202,7 +200,7 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         return RenderData(self.newton_sensor, spec)
 
-    def set_outputs(self, render_data: RenderData, output_data: dict[str, torch.Tensor]):
+    def set_outputs(self, render_data: RenderData, output_data: dict[str, wp.array]):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.set_outputs(output_data)
 
@@ -211,9 +209,7 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
         SimulationContext.instance().update_scene_data_provider(True)
 
-    def update_camera(
-        self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
-    ):
+    def update_camera(self, render_data: RenderData, positions: wp.array, orientations: wp.array, intrinsics: wp.array):
         """Update camera poses and intrinsics.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         render_data.update(positions, orientations, intrinsics)
@@ -241,9 +237,9 @@ class NewtonWarpRenderer(BaseRenderer):
                 continue
             image_data = render_data.get_output(output_name)
             if image_data is not None:
-                output_data = camera_data.output[output_name]
-                if image_data.ptr != output_data.data_ptr():
-                    wp.copy(wp.from_torch(output_data), image_data)
+                output_proxy = camera_data.output[output_name]
+                if image_data.ptr != output_proxy.warp.ptr:
+                    wp.copy(output_proxy.warp, image_data)
 
     def cleanup(self, render_data: RenderData | None):
         """Release resources. No-op for Newton Warp.

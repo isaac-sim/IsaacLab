@@ -215,7 +215,8 @@ class vision_camera(ManagerTermBase):
     def __call__(
         self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True
     ) -> torch.Tensor:  # obtain the input image
-        images = self.sensor.data.output[self.sensor_type]
+        # CameraData.output entries are ProxyArray; .torch is a zero-copy view.
+        images = self.sensor.data.output[self.sensor_type].torch
         torch.nan_to_num_(images, nan=1e6)
         if normalize:
             images = self.norm_fn(images)

@@ -232,7 +232,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             # Save images from camera at camera_index
             # note: BasicWriter only supports saving data in numpy format, so we need to convert the data to numpy.
             single_cam_data = convert_dict_to_backend(
-                {k: v[camera_index] for k, v in camera.data.output.items()}, backend="numpy"
+                {k: v.torch[camera_index] for k, v in camera.data.output.items()}, backend="numpy"
             )
 
             # Pack data back into replicator format to save them using its writer
@@ -245,7 +245,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
                     rep_output["annotators"][key] = {"render_product": {"data": data}}
             # Save images
             # Note: We need to provide On-time data for Replicator to save the images.
-            rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
+            rep_output["trigger_outputs"] = {"on_time": camera.frame.torch[camera_index]}
             rep_writer.write(rep_output)
 
         # Draw pointcloud if there is a GUI and --draw has been passed
@@ -256,10 +256,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         ):
             # Derive pointcloud from camera at camera_index
             pointcloud = create_pointcloud_from_depth(
-                intrinsic_matrix=camera.data.intrinsic_matrices[camera_index],
-                depth=camera.data.output["distance_to_image_plane"][camera_index],
-                position=camera.data.pos_w[camera_index],
-                orientation=camera.data.quat_w_ros[camera_index],
+                intrinsic_matrix=camera.data.intrinsic_matrices.torch[camera_index],
+                depth=camera.data.output["distance_to_image_plane"].torch[camera_index],
+                position=camera.data.pos_w.torch[camera_index],
+                orientation=camera.data.quat_w_ros.torch[camera_index],
                 device=sim.device,
             )
 

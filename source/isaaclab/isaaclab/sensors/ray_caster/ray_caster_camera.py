@@ -17,6 +17,7 @@ from pxr import UsdGeom
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.camera import CameraData
 from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
+from isaaclab.utils.warp.proxy_array import ProxyArray
 
 from .kernels import (
     ALIGNMENT_BASE,
@@ -34,6 +35,19 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def _to_device_tensor(value: wp.array | ProxyArray | torch.Tensor, device: str | torch.device) -> torch.Tensor:
+    """Normalize an array-like input to a ``torch.Tensor`` on ``device``.
+
+    Accepts :class:`warp.array`, :class:`~isaaclab.utils.warp.proxy_array.ProxyArray`,
+    and :class:`torch.Tensor`. Warp inputs are unwrapped via ``wp.to_torch`` (zero-copy).
+    """
+    if isinstance(value, ProxyArray):
+        value = value.torch
+    elif isinstance(value, wp.array):
+        value = wp.to_torch(value)
+    return value.to(device=device)
 
 
 class RayCasterCamera(RayCaster):
@@ -123,8 +137,13 @@ class RayCasterCamera(RayCaster):
         return (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width)
 
     @property
-    def frame(self) -> torch.tensor:
-        """Frame number when the measurement took place."""
+    def frame(self) -> ProxyArray:
+        """Frame number when the measurement took place.
+
+        Shape is (N,), dtype ``wp.int64``. Use ``.torch`` for a zero-copy
+        :class:`torch.Tensor` view or ``.warp`` for the underlying
+        :class:`warp.array`.
+        """
         return self._frame
 
     """
@@ -132,24 +151,32 @@ class RayCasterCamera(RayCaster):
     """
 
     def set_intrinsic_matrices(
-        self, matrices: torch.Tensor, focal_length: float = 1.0, env_ids: Sequence[int] | None = None
+        self,
+        matrices: wp.array | ProxyArray | torch.Tensor,
+        focal_length: float = 1.0,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set the intrinsic matrix of the camera.
 
         Args:
-            matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3).
+            matrices: The intrinsic matrices for the camera. Shape is (N, 3, 3). A
+                :class:`warp.array` is the canonical input type; :class:`ProxyArray` and
+                :class:`torch.Tensor` are also accepted.
             focal_length: Focal length to use when computing aperture values (in cm). Defaults to 1.0.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
         """
         # resolve env_ids
         if env_ids is None:
             env_ids = slice(None)
-        # save new intrinsic matrices and focal length
-        self._data.intrinsic_matrices[env_ids] = matrices.to(self._device)
+        # normalize matrices input to torch on sensor device
+        matrices = _to_device_tensor(matrices, self._device)
+        # save new intrinsic matrices and focal length (write via the zero-copy torch view)
+        intrinsic_view = self._data.intrinsic_matrices.torch
+        intrinsic_view[env_ids] = matrices
         self._focal_length = focal_length
         # recompute ray directions
         self.ray_starts[env_ids], self.ray_directions[env_ids] = self.cfg.pattern_cfg.func(
-            self.cfg.pattern_cfg, self._data.intrinsic_matrices[env_ids], self._device
+            self.cfg.pattern_cfg, intrinsic_view[env_ids], self._device
         )
         # Refresh warp views of local ray buffers; .contiguous() may produce a copy so we store
         # the contiguous tensors explicitly to prevent GC while the warp views are alive.
@@ -176,15 +203,15 @@ class RayCasterCamera(RayCaster):
         pos_w, quat_w = math_utils.combine_frame_transforms(
             pos_w.torch.clone(), quat_w.torch.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
-        self._data.pos_w[env_ids] = pos_w
-        self._data.quat_w_world[env_ids] = quat_w
-        # Reset the frame count
-        self._frame[env_ids] = 0
+        self._data.pos_w.torch[env_ids] = pos_w
+        self._data.quat_w_world.torch[env_ids] = quat_w
+        # Reset the frame count (ProxyArray; mutate via the zero-copy torch view)
+        self._frame.torch[env_ids] = 0
 
     def set_world_poses(
         self,
-        positions: torch.Tensor | None = None,
-        orientations: torch.Tensor | None = None,
+        positions: wp.array | ProxyArray | torch.Tensor | None = None,
+        orientations: wp.array | ProxyArray | torch.Tensor | None = None,
         env_ids: Sequence[int] | None = None,
         convention: Literal["opengl", "ros", "world"] = "ros",
     ):
@@ -201,10 +228,13 @@ class RayCasterCamera(RayCaster):
         on the conventions.
 
         Args:
-            positions: The cartesian coordinates (in meters). Shape is (N, 3).
-                Defaults to None, in which case the camera position in not changed.
+            positions: The cartesian coordinates [m]. Shape is (N, 3). A :class:`warp.array`
+                is the canonical input type; :class:`ProxyArray` and :class:`torch.Tensor`
+                are also accepted. Defaults to None, in which case the camera position is
+                not changed.
             orientations: The quaternion orientation in (x, y, z, w). Shape is (N, 4).
-                Defaults to None, in which case the camera orientation in not changed.
+                Same accepted types as ``positions``. Defaults to None, in which case
+                the camera orientation is not changed.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
             convention: The convention in which the poses are fed. Defaults to "ros".
 
@@ -221,10 +251,12 @@ class RayCasterCamera(RayCaster):
         pos_w_torch = pos_w.torch
         quat_w_torch = quat_w.torch
         if positions is not None:
+            positions = _to_device_tensor(positions, self._device)
             # transform to camera frame
             pos_offset_world_frame = positions - pos_w_torch
             self._offset_pos[env_ids] = math_utils.quat_apply(math_utils.quat_inv(quat_w_torch), pos_offset_world_frame)
         if orientations is not None:
+            orientations = _to_device_tensor(orientations, self._device)
             # convert rotation matrix from input convention to world
             quat_w_set = math_utils.convert_camera_frame_orientation_convention(
                 orientations, origin=convention, target="world"
@@ -236,23 +268,31 @@ class RayCasterCamera(RayCaster):
         pos_w_out, quat_w_out = math_utils.combine_frame_transforms(
             pos_w2.torch.clone(), quat_w2.torch.clone(), self._offset_pos[env_ids], self._offset_quat[env_ids]
         )
-        self._data.pos_w[env_ids] = pos_w_out
-        self._data.quat_w_world[env_ids] = quat_w_out
+        self._data.pos_w.torch[env_ids] = pos_w_out
+        self._data.quat_w_world.torch[env_ids] = quat_w_out
 
     def set_world_poses_from_view(
-        self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
+        self,
+        eyes: wp.array | ProxyArray | torch.Tensor,
+        targets: wp.array | ProxyArray | torch.Tensor,
+        env_ids: Sequence[int] | None = None,
     ):
         """Set the poses of the camera from the eye position and look-at target position.
 
         Args:
-            eyes: The positions of the camera's eye. Shape is (N, 3).
-            targets: The target locations to look at. Shape is (N, 3).
+            eyes: The positions of the camera's eye. Shape is (N, 3). A :class:`warp.array`
+                is the canonical input type; :class:`ProxyArray` and :class:`torch.Tensor`
+                are also accepted.
+            targets: The target locations to look at. Shape is (N, 3). Same accepted types
+                as ``eyes``.
             env_ids: A sensor ids to manipulate. Defaults to None, which means all sensor indices.
 
         Raises:
             RuntimeError: If the camera prim is not set. Need to call :meth:`initialize` method first.
             NotImplementedError: If the stage up-axis is not "Y" or "Z".
         """
+        eyes = _to_device_tensor(eyes, self._device)
+        targets = _to_device_tensor(targets, self._device)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # camera position and rotation in opengl convention
@@ -268,15 +308,17 @@ class RayCasterCamera(RayCaster):
     def _initialize_rays_impl(self):
         # Create all indices buffer
         self._ALL_INDICES = torch.arange(self._view.count, device=self._device, dtype=torch.long)
-        # Create frame count buffer
-        self._frame = torch.zeros(self._view.count, device=self._device, dtype=torch.long)
+        # Create frame count buffer (wp.array primary, ProxyArray-published).
+        self._frame = ProxyArray(
+            wp.from_torch(torch.zeros(self._view.count, device=self._device, dtype=torch.long).contiguous())
+        )
         # create buffers
         self._create_buffers()
         # compute intrinsic matrices
         self._compute_intrinsic_matrices()
-        # compute ray starts and directions
+        # compute ray starts and directions (pattern_cfg.func expects a torch.Tensor)
         self.ray_starts, self.ray_directions = self.cfg.pattern_cfg.func(
-            self.cfg.pattern_cfg, self._data.intrinsic_matrices, self._device
+            self.cfg.pattern_cfg, self._data.intrinsic_matrices.torch, self._device
         )
         self.num_rays = self.ray_directions.shape[1]
 
@@ -349,8 +391,8 @@ class RayCasterCamera(RayCaster):
         env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
         if len(env_ids) == 0:
             return
-        # increment frame count
-        self._frame[env_ids] += 1
+        # increment frame count (ProxyArray; mutate via the zero-copy torch view)
+        self._frame.torch[env_ids] += 1
 
         # Update world-frame ray starts/directions and camera pose via warp kernel.
         # Camera always uses ALIGNMENT_BASE (full orientation) and zero drift.
@@ -378,9 +420,9 @@ class RayCasterCamera(RayCaster):
             device=self._device,
         )
 
-        # Write camera pose to CameraData (torch tensors)
-        self._data.pos_w[env_ids] = self._pos_w_torch[env_ids]
-        self._data.quat_w_world[env_ids] = self._quat_w_torch[env_ids]
+        # Write camera pose to CameraData via the zero-copy torch view of the wp.array primary
+        self._data.pos_w.torch[env_ids] = self._pos_w_torch[env_ids]
+        self._data.quat_w_world.torch[env_ids] = self._quat_w_torch[env_ids]
 
         # Fill ray hit positions with inf before raycasting
         wp.launch(
@@ -447,19 +489,21 @@ class RayCasterCamera(RayCaster):
             )
             # Apply depth clipping on the intermediate buffer (leaves _ray_distance unmodified)
             self._apply_depth_clipping(env_mask, self._distance_to_image_plane_wp)
-            self._data.output["distance_to_image_plane"][env_ids] = self._distance_to_image_plane_torch[env_ids].view(
-                -1, *self.image_shape, 1
-            )
+            self._data.output["distance_to_image_plane"].torch[env_ids] = self._distance_to_image_plane_torch[
+                env_ids
+            ].view(-1, *self.image_shape, 1)
 
         if "distance_to_camera" in self.cfg.data_types:
             # d2ip (if requested) was computed before this block so _ray_distance is still unclipped.
             self._apply_depth_clipping(env_mask, self._ray_distance)
-            self._data.output["distance_to_camera"][env_ids] = self._ray_distance_torch[env_ids].view(
+            self._data.output["distance_to_camera"].torch[env_ids] = self._ray_distance_torch[env_ids].view(
                 -1, *self.image_shape, 1
             )
 
         if "normals" in self.cfg.data_types:
-            self._data.output["normals"][env_ids] = self._ray_normal_w_torch[env_ids].view(-1, *self.image_shape, 3)
+            self._data.output["normals"].torch[env_ids] = self._ray_normal_w_torch[env_ids].view(
+                -1, *self.image_shape, 3
+            )
 
     def _debug_vis_callback(self, event):
         # in case it crashes be safe
@@ -525,17 +569,28 @@ class RayCasterCamera(RayCaster):
             )
 
     def _create_buffers(self):
-        """Create buffers for storing data."""
+        """Create buffers for storing data.
+
+        Each :class:`CameraData` field stores a ``wp.array`` primary buffer
+        (allocated via ``wp.from_torch`` over a contiguous ``torch.zeros`` tensor)
+        and is exposed as a :class:`ProxyArray`. The torch view is the canonical
+        write target for in-place updates from python code.
+        """
         # prepare drift (kept as torch tensors so subclasses may use torch indexing)
         self.drift = torch.zeros(self._view.count, 3, device=self.device)
         self.ray_cast_drift = torch.zeros(self._view.count, 3, device=self.device)
         # create the data object
         # -- pose of the cameras
-        self._data.pos_w = torch.zeros((self._view.count, 3), device=self._device)
-        self._data.quat_w_world = torch.zeros((self._view.count, 4), device=self._device)
+        self._data.pos_w = ProxyArray(
+            wp.from_torch(torch.zeros((self._view.count, 3), device=self._device).contiguous())
+        )
+        self._data.quat_w_world = ProxyArray(
+            wp.from_torch(torch.zeros((self._view.count, 4), device=self._device).contiguous())
+        )
         # -- intrinsic matrix
-        self._data.intrinsic_matrices = torch.zeros((self._view.count, 3, 3), device=self._device)
-        self._data.intrinsic_matrices[:, 2, 2] = 1.0
+        intrinsic_torch = torch.zeros((self._view.count, 3, 3), device=self._device).contiguous()
+        intrinsic_torch[:, 2, 2] = 1.0
+        self._data.intrinsic_matrices = ProxyArray(wp.from_torch(intrinsic_torch))
         self._data.image_shape = self.image_shape
         # -- output data
         # create the buffers to store the annotator data.
@@ -548,8 +603,9 @@ class RayCasterCamera(RayCaster):
                 shape = (self.cfg.pattern_cfg.height, self.cfg.pattern_cfg.width, 3)
             else:
                 raise ValueError(f"Received unknown data type: {name}. Please check the configuration.")
-            # allocate tensor to store the data
-            self._data.output[name] = torch.zeros((self._view.count, *shape), device=self._device)
+            # allocate buffer (torch.zeros + wp.from_torch shares memory) and wrap as ProxyArray
+            buf = torch.zeros((self._view.count, *shape), device=self._device).contiguous()
+            self._data.output[name] = ProxyArray(wp.from_torch(buf))
 
     def _compute_intrinsic_matrices(self):
         """Computes the intrinsic matrices for the camera based on the config provided."""
@@ -566,11 +622,12 @@ class RayCasterCamera(RayCaster):
         f_y = pattern_cfg.height * pattern_cfg.focal_length / pattern_cfg.vertical_aperture
         c_x = pattern_cfg.horizontal_aperture_offset * f_x + pattern_cfg.width / 2
         c_y = pattern_cfg.vertical_aperture_offset * f_y + pattern_cfg.height / 2
-        # allocate the intrinsic matrices
-        self._data.intrinsic_matrices[:, 0, 0] = f_x
-        self._data.intrinsic_matrices[:, 0, 2] = c_x
-        self._data.intrinsic_matrices[:, 1, 1] = f_y
-        self._data.intrinsic_matrices[:, 1, 2] = c_y
+        # write into the zero-copy torch view of the wp.array primary buffer
+        intrinsic_view = self._data.intrinsic_matrices.torch
+        intrinsic_view[:, 0, 0] = f_x
+        intrinsic_view[:, 0, 2] = c_x
+        intrinsic_view[:, 1, 1] = f_y
+        intrinsic_view[:, 1, 2] = c_y
 
         # save focal length
         self._focal_length = pattern_cfg.focal_length
