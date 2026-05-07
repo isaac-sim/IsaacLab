@@ -17,6 +17,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test"
 
 from isaaclab.app import AppLauncher
 
+# Kit reads ``sys.argv`` directly during startup and segfaults on pytest flags
+# (e.g. ``-m multi_gpu``) that collide with its own short options.  Strip
+# everything but ``argv[0]`` before booting the app — the test file takes no
+# CLI arguments of its own.
+sys.argv = sys.argv[:1]
+
 simulation_app = AppLauncher(headless=True).app
 
 import pytest  # noqa: E402
