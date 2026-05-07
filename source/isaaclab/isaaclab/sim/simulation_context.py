@@ -176,11 +176,10 @@ class SimulationContext:
         self._scene_data_provider: BaseSceneDataProvider | None = None
         self._visualizers: list[BaseVisualizer] = []
         self._scene_data_requirements = SceneDataRequirement()
-        # Per-group clone plans published by InteractiveScene after cloning. Providers (e.g.
-        # the Newton visualizer model rebuilder on a PhysX backend) consume these to derive
-        # their own backend args. Empty dict until :meth:`InteractiveScene.clone_environments`
-        # runs.
-        self._clone_plans: dict[str, ClonePlan] = {}
+        # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
+        # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
+        # their own backend args. None until :meth:`InteractiveScene.clone_environments` runs.
+        self._clone_plan: ClonePlan | None = None
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -635,18 +634,18 @@ class SimulationContext:
         """Update scene-data requirements."""
         self._scene_data_requirements = requirements
 
-    def get_clone_plans(self) -> dict[str, ClonePlan]:
-        """Return per-group clone plans published by the scene, keyed by destination template.
+    def get_clone_plan(self) -> ClonePlan | None:
+        """Return the clone plan published by the scene.
 
         Set by :meth:`InteractiveScene.clone_environments` after replication. Consumed by
         scene data providers that build backend models (e.g. Newton visualizer model on a
-        PhysX backend) from the same plan the cloner used. Empty dict until the scene clones.
+        PhysX backend) from the same plan the cloner used. ``None`` until the scene clones.
         """
-        return self._clone_plans
+        return self._clone_plan
 
-    def set_clone_plans(self, plans: dict[str, ClonePlan]) -> None:
-        """Set the cloner's per-group clone-plan map."""
-        self._clone_plans = plans
+    def set_clone_plan(self, plan: ClonePlan | None) -> None:
+        """Set the cloner's clone plan."""
+        self._clone_plan = plan
 
     @property
     def visualizers(self) -> list[BaseVisualizer]:

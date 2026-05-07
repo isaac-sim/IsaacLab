@@ -107,7 +107,7 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
 
 def clone_from_template(
     stage: Usd.Stage, num_clones: int, template_clone_cfg: TemplateCloneCfg
-) -> dict[str, ClonePlan]:
+) -> ClonePlan:
     """Clone assets from a template root into per-environment destinations.
 
     This utility discovers prototype prims under ``cfg.template_root`` whose names start with
@@ -122,8 +122,9 @@ def clone_from_template(
             and replication/mapping behavior.
 
     Returns:
-        Mapping from each group's destination template (e.g. ``"/World/envs/env_{}/Object"``)
-        to its :class:`ClonePlan`. Empty when no prototype groups are discovered.
+        A single :class:`ClonePlan` with flat source paths, destination templates, and
+        the per-source environment mask. The plan is empty when no prototype groups are
+        discovered.
 
     Note:
         This function suspends the Fabric USD notice listener for the duration of the call
@@ -135,7 +136,11 @@ def clone_from_template(
         :func:`disabled_fabric_change_notifies` with ``restore=True``.
     """
     cfg: TemplateCloneCfg = template_clone_cfg
-    plans: dict[str, ClonePlan] = {}
+    plan = ClonePlan(
+        sources=[],
+        destinations=[],
+        clone_mask=torch.empty((0, num_clones), device=cfg.device, dtype=torch.bool),
+    )
     # Suspend Fabric's USD notice listener for the duration of bulk authoring. ``restore=False``
     # because clone_from_template is only called at scene-init time, which is followed by
     # ``SimulationContext.reset`` — that reset path does the Fabric resync naturally, and
@@ -169,15 +174,6 @@ def clone_from_template(
                 src, dest, num_clones, cfg.clone_strategy, cfg.device
             )
 
-            # Per-group plans: slice ``clone_masking`` along the prototype axis using cumulative
-            # group sizes — each group's mask rows are contiguous in the ``[total_protos, num_envs]``
-            # tensor that ``make_clone_plan`` produced.
-            offsets = [0, *itertools.accumulate(len(g) for g in src)]
-            plans = {
-                d: ClonePlan(dest_template=d, prototype_paths=list(ps), clone_mask=clone_masking[lo:hi])
-                for ps, d, lo, hi in zip(src, dest, offsets, offsets[1:])
-            }
-
             # Spawn the first instance of clones from prototypes, then deactivate the prototypes, those first
             # instances will be served as sources for usd and physics replication.
             proto_idx = clone_masking.to(torch.int32).argmax(dim=1)
@@ -207,7 +203,9 @@ def clone_from_template(
             if cfg.clone_usd:
                 usd_replicate(stage, sources, dest_paths, world_indices, clone_masking, positions=usd_positions)
 
-    return plans
+            plan = ClonePlan(sources=list(sources), destinations=list(dest_paths), clone_mask=clone_masking)
+
+    return plan
 
 
 def make_clone_plan(
