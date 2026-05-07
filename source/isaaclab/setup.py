@@ -43,7 +43,7 @@ INSTALL_REQUIRES = [
     "botocore",
     # livestream
     # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
-    "starlette>=0.40.0,<0.50",
+    "starlette>=0.46.0,<0.50",
     "omniverseclient==2.71.1.7015",
     # testing
     "pytest",
