@@ -51,8 +51,6 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
-    from newton.actuators import Actuator
-
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 # import logger
@@ -2066,43 +2064,10 @@ class Articulation(BaseArticulation):
         stiffness: torch.Tensor | wp.array | float,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Write actuator stiffness (kp) into the Newton controller arrays.
-
-        Analogous to :meth:`write_joint_stiffness_to_sim_index` but targets the
-        Newton actuator controller ``kp`` instead of the solver-level
-        ``joint_target_ke``.
-
-        Args:
-            adapter: The :class:`NewtonActuatorAdapter` whose gains to update.
-            stiffness: Stiffness values [N/m or N*m/rad, depending on joint
-                type]. Shape is ``(len(env_ids), num_joints)``.
-            env_ids: Environment indices. If ``None``, all environments.
-        """
+        """Write actuator stiffness (``kp``) into each Newton controller for *env_ids*."""
         env_ids = self._resolve_env_ids(env_ids)
-        stiffness_wp = wp.from_torch(adapter.stiffness, dtype=wp.float32)
-        if isinstance(stiffness, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], self._ALL_JOINT_INDICES.shape[0]),
-                inputs=[stiffness, env_ids, self._ALL_JOINT_INDICES],
-                outputs=[stiffness_wp],
-                device=self.device,
-            )
-        else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], self._ALL_JOINT_INDICES.shape[0]),
-                inputs=[stiffness, env_ids, self._ALL_JOINT_INDICES],
-                outputs=[stiffness_wp],
-                device=self.device,
-            )
         env_mask = self._env_ids_to_mask(env_ids)
-        for newton_act in adapter.actuators:
-            if hasattr(newton_act.controller, "kp"):
-                self._root_view.set_actuator_parameter(
-                    actuator=newton_act, component=newton_act.controller, name="kp",
-                    values=stiffness_wp, mask=env_mask,
-                )
+        adapter.write_stiffness_to_sim(stiffness, env_ids, env_mask, self._propagate_gain_via_view)
 
     def write_actuator_damping_to_sim(
         self,
@@ -2111,43 +2076,26 @@ class Articulation(BaseArticulation):
         damping: torch.Tensor | wp.array | float,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Write actuator damping (kd) into the Newton controller arrays.
-
-        Analogous to :meth:`write_joint_damping_to_sim_index` but targets the
-        Newton actuator controller ``kd`` instead of the solver-level
-        ``joint_target_kd``.
-
-        Args:
-            adapter: The :class:`NewtonActuatorAdapter` whose gains to update.
-            damping: Damping values [N*s/m or N*m*s/rad, depending on joint
-                type]. Shape is ``(len(env_ids), num_joints)``.
-            env_ids: Environment indices. If ``None``, all environments.
-        """
+        """Write actuator damping (``kd``) into each Newton controller for *env_ids*."""
         env_ids = self._resolve_env_ids(env_ids)
-        damping_wp = wp.from_torch(adapter.damping, dtype=wp.float32)
-        if isinstance(damping, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], self._ALL_JOINT_INDICES.shape[0]),
-                inputs=[damping, env_ids, self._ALL_JOINT_INDICES],
-                outputs=[damping_wp],
-                device=self.device,
-            )
-        else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], self._ALL_JOINT_INDICES.shape[0]),
-                inputs=[damping, env_ids, self._ALL_JOINT_INDICES],
-                outputs=[damping_wp],
-                device=self.device,
-            )
         env_mask = self._env_ids_to_mask(env_ids)
-        for newton_act in adapter.actuators:
-            if hasattr(newton_act.controller, "kd"):
-                self._root_view.set_actuator_parameter(
-                    actuator=newton_act, component=newton_act.controller, name="kd",
-                    values=damping_wp, mask=env_mask,
-                )
+        adapter.write_damping_to_sim(damping, env_ids, env_mask, self._propagate_gain_via_view)
+
+    def _propagate_gain_via_view(
+        self,
+        adapter: NewtonActuatorAdapter,
+        actuator,
+        controller,
+        attr: str,
+        values: wp.array,
+        env_mask: wp.array,
+    ) -> None:
+        """Per-actuator gain propagation using Newton's simulator-side scatter API."""
+        del adapter  # Newton path needs only the view + per-actuator info.
+        self._root_view.set_actuator_parameter(
+            actuator=actuator, component=controller, name=attr,
+            values=values, mask=env_mask,
+        )
 
     def _env_ids_to_mask(self, env_ids: wp.array) -> wp.array:
         """Convert warp env_ids to a boolean Warp mask."""
@@ -3508,6 +3456,7 @@ class Articulation(BaseArticulation):
             # Enable the fast path even for all-implicit articulations:
             # the solver runs PD internally; Lab only forwards targets.
             self._has_newton_actuators = True
+            SimulationManager.activate_newton_actuator_path()
 
             if model.actuators:
                 dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]

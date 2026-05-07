@@ -453,6 +453,76 @@ class TestExplicitOnlyTelemetryPhysx(unittest.TestCase):
             )
 
 
+class TestWriteActuatorGainsPhysx(unittest.TestCase):
+    """``write_actuator_*_to_sim`` propagates kp/kd into Newton controllers (PhysX backend).
+
+    Catches the silent no-op that ``randomize_actuator_gains`` would suffer
+    from on PhysX with ``use_newton_actuators=True`` if these writers were
+    missing (the events.py term falls back to ``hasattr`` and skips
+    explicit actuators).
+    """
+
+    def test_writers_exist(self):
+        # Guards against the missing-writer regression.
+        from isaaclab_physx.assets import Articulation
+        self.assertTrue(
+            hasattr(Articulation, "write_actuator_stiffness_to_sim"),
+            "Articulation is missing write_actuator_stiffness_to_sim — DR will silently no-op",
+        )
+        self.assertTrue(
+            hasattr(Articulation, "write_actuator_damping_to_sim"),
+            "Articulation is missing write_actuator_damping_to_sim — DR will silently no-op",
+        )
+
+    def test_writers_propagate_to_controller(self):
+        sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
+        with build_simulation_context(
+            device="cuda:0", gravity_enabled=True, add_ground_plane=True, sim_cfg=sim_cfg,
+        ) as sim:
+            sim._app_control_on_stop_handle = None
+            for i in range(NUM_ENVS):
+                sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
+            art_cfg = ANYMAL_C_CFG.replace(
+                actuators=DC_MOTOR_ACTUATORS, prim_path="/World/Env_.*/Robot",
+            )
+            articulation = Articulation(art_cfg)
+            sim.reset()
+            adapter = articulation.actuators["newton"]
+            # Snapshot initial controller gains.
+            kp_before = [
+                wp.to_torch(a.controller.kp).clone() for a in adapter.actuators if hasattr(a.controller, "kp")
+            ]
+            kd_before = [
+                wp.to_torch(a.controller.kd).clone() for a in adapter.actuators if hasattr(a.controller, "kd")
+            ]
+            self.assertGreater(len(kp_before), 0, "expected at least one PD controller in adapter")
+            new_kp = adapter.stiffness.clone() * 2.0
+            new_kd = adapter.damping.clone() * 3.0
+            articulation.write_actuator_stiffness_to_sim(adapter, stiffness=new_kp)
+            articulation.write_actuator_damping_to_sim(adapter, damping=new_kd)
+            # Verify each controller's kp/kd actually changed (and roughly doubled/tripled).
+            kp_idx = 0
+            kd_idx = 0
+            for newton_act in adapter.actuators:
+                ctrl = newton_act.controller
+                if hasattr(ctrl, "kp"):
+                    after = wp.to_torch(ctrl.kp)
+                    self.assertFalse(
+                        torch.equal(after, kp_before[kp_idx]),
+                        "controller.kp unchanged after write_actuator_stiffness_to_sim",
+                    )
+                    torch.testing.assert_close(after, kp_before[kp_idx] * 2.0, atol=1e-4, rtol=1e-4)
+                    kp_idx += 1
+                if hasattr(ctrl, "kd"):
+                    after = wp.to_torch(ctrl.kd)
+                    self.assertFalse(
+                        torch.equal(after, kd_before[kd_idx]),
+                        "controller.kd unchanged after write_actuator_damping_to_sim",
+                    )
+                    torch.testing.assert_close(after, kd_before[kd_idx] * 3.0, atol=1e-4, rtol=1e-4)
+                    kd_idx += 1
+
+
 # ---------------------------------------------------------------------------
 # Partial environment reset: verify per-env reset equivalence
 # ---------------------------------------------------------------------------

@@ -53,7 +53,7 @@ backends would not reduce code — it would only add coupling.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -102,6 +102,47 @@ def _scatter_gain_kernel(
     env = global_dof // num_joints
     local_dof = global_dof % num_joints
     dst[env * num_joints + local_dof] = src[i]
+
+
+@wp.kernel(enable_backward=False)
+def _gather_gain_kernel(
+    flat_src: wp.array(dtype=wp.float32),
+    dst: wp.array(dtype=wp.float32),
+    indices: wp.array(dtype=wp.uint32),
+    env_mask: wp.array(dtype=wp.bool),
+    dof_offset: int,
+    num_joints: int,
+):
+    """Gather from flat ``(num_envs * num_joints)`` layout into a per-actuator
+    controller array, only for envs where ``env_mask`` is ``True``."""
+    i = wp.tid()
+    global_dof = int(indices[i]) - dof_offset
+    env = global_dof // num_joints
+    if env_mask[env]:
+        local_dof = global_dof % num_joints
+        dst[i] = flat_src[env * num_joints + local_dof]
+
+
+@wp.kernel(enable_backward=False)
+def _scatter_gain_at_envs_kernel(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    out_data: wp.array2d(dtype=wp.float32),
+):
+    """Scatter ``in_data[i, j]`` into ``out_data[env_ids[i], j]`` for all (i, j)."""
+    i, j = wp.tid()
+    out_data[env_ids[i], j] = in_data[i, j]
+
+
+@wp.kernel(enable_backward=False)
+def _fill_gain_at_envs_kernel(
+    value: float,
+    env_ids: wp.array(dtype=wp.int32),
+    out_data: wp.array2d(dtype=wp.float32),
+):
+    """Set ``out_data[env_ids[i], j] = value`` for all (i, j)."""
+    i, j = wp.tid()
+    out_data[env_ids[i], j] = value
 
 
 # ===========================================================================
@@ -370,6 +411,93 @@ class NewtonActuatorAdapter:
     def is_all_graphable(self) -> bool:
         """``True`` when all actuators are CUDA-graph-safe."""
         return len(self.actuators) > 0 and all(a.is_graphable() for a in self.actuators)
+
+    def update_gain_at_env_ids(
+        self,
+        gain: str,
+        values: torch.Tensor | wp.array | float,
+        env_ids: wp.array,
+    ) -> wp.array:
+        """Scatter ``values`` into :attr:`stiffness` or :attr:`damping` at *env_ids*.
+
+        Shared backend-independent step used by ``write_actuator_*_to_sim`` to
+        keep the kp/kd buffer the adapter exposes for DR in sync with what
+        each Newton actuator's controller will receive.
+
+        Args:
+            gain: ``"stiffness"`` or ``"damping"``.
+            values: Per-env-per-joint values shape ``(len(env_ids), num_joints)``,
+                or a scalar to broadcast to every (env, joint).
+            env_ids: Warp int32 array of env indices to update.
+
+        Returns:
+            Warp view of the updated ``(num_envs, num_joints)`` buffer.
+        """
+        if gain == "stiffness":
+            buf = self.stiffness
+        elif gain == "damping":
+            buf = self.damping
+        else:
+            raise ValueError(f"gain must be 'stiffness' or 'damping', got {gain!r}")
+        buf_wp = wp.from_torch(buf, dtype=wp.float32)
+        if isinstance(values, float):
+            wp.launch(
+                _fill_gain_at_envs_kernel,
+                dim=(env_ids.shape[0], self.num_joints),
+                inputs=[values, env_ids],
+                outputs=[buf_wp],
+                device=self._device,
+            )
+        else:
+            wp.launch(
+                _scatter_gain_at_envs_kernel,
+                dim=(env_ids.shape[0], self.num_joints),
+                inputs=[values, env_ids],
+                outputs=[buf_wp],
+                device=self._device,
+            )
+        return buf_wp
+
+    def write_stiffness_to_sim(
+        self,
+        stiffness: torch.Tensor | wp.array | float,
+        env_ids: wp.array,
+        env_mask: wp.array,
+        propagate_fn: Callable[["NewtonActuatorAdapter", Actuator, Any, str, wp.array, wp.array], None],
+    ) -> None:
+        """Update the kp buffer at *env_ids* and push the new values into each Newton controller.
+
+        The per-actuator propagation step is backend-specific (Newton uses
+        :meth:`ArticulationView.set_actuator_parameter`; PhysX scatters via a
+        local Warp kernel), so the caller injects it as *propagate_fn*.
+        """
+        self._write_gain_to_sim("stiffness", "kp", stiffness, env_ids, env_mask, propagate_fn)
+
+    def write_damping_to_sim(
+        self,
+        damping: torch.Tensor | wp.array | float,
+        env_ids: wp.array,
+        env_mask: wp.array,
+        propagate_fn: Callable[["NewtonActuatorAdapter", Actuator, Any, str, wp.array, wp.array], None],
+    ) -> None:
+        """Update the kd buffer at *env_ids* and push the new values into each Newton controller."""
+        self._write_gain_to_sim("damping", "kd", damping, env_ids, env_mask, propagate_fn)
+
+    def _write_gain_to_sim(
+        self,
+        gain: str,
+        attr: str,
+        values: torch.Tensor | wp.array | float,
+        env_ids: wp.array,
+        env_mask: wp.array,
+        propagate_fn: Callable[["NewtonActuatorAdapter", Actuator, Any, str, wp.array, wp.array], None],
+    ) -> None:
+        """Shared body for :meth:`write_stiffness_to_sim` / :meth:`write_damping_to_sim`."""
+        buf = self.update_gain_at_env_ids(gain, values, env_ids)
+        for newton_act in self.actuators:
+            ctrl = newton_act.controller
+            if hasattr(ctrl, attr):
+                propagate_fn(self, newton_act, ctrl, attr, buf, env_mask)
 
     # -- config helpers (used by both adapter and authoring) -----------------
 

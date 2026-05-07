@@ -28,12 +28,19 @@ try:
     from isaaclab_newton.actuators.newton_actuator_utils import (
         NewtonActuatorAdapter,
         PhysxActuatorWrapper,
+        _gather_gain_kernel,
         build_actuator_telemetry,
     )
 
     _HAS_NEWTON_ACTUATORS = True
 except ImportError:
     _HAS_NEWTON_ACTUATORS = False
+
+
+@wp.kernel(enable_backward=False)
+def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
+    i = wp.tid()
+    mask[indices[i]] = True
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
@@ -263,21 +270,22 @@ class Articulation(BaseArticulation):
             )
         self._instantaneous_wrench_composer.reset()
 
-        if self._has_newton_actuators and self._physx_actuator_wrapper is None:
-            # Implicit-only: ImplicitActuator.compute is a no-op, hand user buffers to PhysX directly.
-            self.root_view.set_dof_actuation_forces(self._data._joint_effort_target, self._ALL_INDICES)
-            if self._has_implicit_actuators:
-                self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
-                self.root_view.set_dof_velocity_targets(self._data._joint_vel_target, self._ALL_INDICES)
-        elif self._has_newton_actuators:
-            # Mixed: Newton step fills explicit DOFs, combine kernel merges with user FF.
-            self._apply_actuator_model_newton()
-            self.root_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
+        if self._has_newton_actuators:
+            # Newton fast path: pos/vel targets pass straight through; the
+            # actuation buffer is either user FF (implicit-only) or the
+            # combine-kernel result of Newton output + user FF (mixed).
+            if self._physx_actuator_wrapper is not None:
+                self._apply_actuator_model_newton()
+                actuation_buf = self._joint_effort_target_sim
+            else:
+                actuation_buf = self._data._joint_effort_target
+            self.root_view.set_dof_actuation_forces(actuation_buf, self._ALL_INDICES)
             if self._has_implicit_actuators:
                 self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
                 self.root_view.set_dof_velocity_targets(self._data._joint_vel_target, self._ALL_INDICES)
         else:
-            # Standard Lab actuator path
+            # Standard Lab actuator path: per-group ``actuator.compute()`` may
+            # transform targets, so we push the staging buffers PhysX-side.
             self._apply_actuator_model()
             self.root_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
             if self._has_implicit_actuators:
@@ -1217,6 +1225,69 @@ class Articulation(BaseArticulation):
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
+
+    """
+    Operations - Newton Actuator Parameter Writers.
+
+    Mirror of the writers on :class:`isaaclab_newton.assets.Articulation`.
+    Required so that domain randomization terms (``randomize_actuator_gains``)
+    propagate kp/kd updates to explicit Newton actuators on the PhysX backend.
+    """
+
+    def write_actuator_stiffness_to_sim(
+        self,
+        adapter: NewtonActuatorAdapter,
+        *,
+        stiffness: torch.Tensor | wp.array | float,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write actuator stiffness (``kp``) into each Newton controller for *env_ids*."""
+        env_ids = self._resolve_env_ids(env_ids)
+        env_mask = self._env_ids_to_mask(env_ids)
+        adapter.write_stiffness_to_sim(stiffness, env_ids, env_mask, self._propagate_gain_via_kernel)
+
+    def write_actuator_damping_to_sim(
+        self,
+        adapter: NewtonActuatorAdapter,
+        *,
+        damping: torch.Tensor | wp.array | float,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write actuator damping (``kd``) into each Newton controller for *env_ids*."""
+        env_ids = self._resolve_env_ids(env_ids)
+        env_mask = self._env_ids_to_mask(env_ids)
+        adapter.write_damping_to_sim(damping, env_ids, env_mask, self._propagate_gain_via_kernel)
+
+    def _propagate_gain_via_kernel(
+        self,
+        adapter: NewtonActuatorAdapter,
+        actuator,
+        controller,
+        attr: str,
+        values: wp.array,
+        env_mask: wp.array,
+    ) -> None:
+        """Per-actuator gain propagation using a local Warp scatter kernel.
+
+        Newton has :meth:`ArticulationView.set_actuator_parameter` for this;
+        on PhysX we use :data:`_gather_gain_kernel` since no equivalent
+        simulator-side API exists.
+        """
+        wp.launch(
+            _gather_gain_kernel,
+            dim=actuator.indices.shape[0],
+            inputs=[
+                values.flatten(), getattr(controller, attr), actuator.indices, env_mask,
+                adapter._dof_offset, adapter.num_joints,
+            ],
+            device=self.device,
+        )
+
+    def _env_ids_to_mask(self, env_ids: wp.array) -> wp.array:
+        """Convert warp ``env_ids`` to a boolean Warp mask of length ``num_instances``."""
+        mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
+        wp.launch(_build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
+        return mask
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -3821,6 +3892,16 @@ class Articulation(BaseArticulation):
                     num_joints=self.num_joints,
                     device=self.device,
                 )
+                # Bind the wrapper's flat aliases of state/input buffers once.
+                # The underlying wp.arrays alias stable PhysX-owned GPU memory
+                # whose device pointer is fixed for the articulation's lifetime,
+                # so the views remain valid for every subsequent step.
+                w = self._physx_actuator_wrapper
+                w.joint_q = self._data.joint_pos.warp.reshape(-1)
+                w.joint_qd = self._data.joint_vel.warp.reshape(-1)
+                w.joint_target_pos = self._data.joint_pos_target.warp.reshape(-1)
+                w.joint_target_vel = self._data.joint_vel_target.warp.reshape(-1)
+                w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
                 adapter.finalize()
                 self.actuators["newton"] = adapter
                 self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
@@ -4068,14 +4149,11 @@ class Articulation(BaseArticulation):
         newton_adapter = self.actuators["newton"]
         w = self._physx_actuator_wrapper
 
-        # Newton actuators scatter-add into joint_f_2d; zero it first.
-        w.joint_f_2d.zero_()
-        w.joint_q = self._data.joint_pos.warp.reshape(-1)
-        w.joint_qd = self._data.joint_vel.warp.reshape(-1)
-        w.joint_target_pos = self._data.joint_pos_target.warp.reshape(-1)
-        w.joint_target_vel = self._data.joint_vel_target.warp.reshape(-1)
-        w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
-
+        # Newton actuators scatter-add into joint_f at their own indices;
+        # ``adapter.step`` pre-zeros exactly those slots. Slots outside any
+        # actuator's indices are implicit DOFs that the combine kernel reads
+        # from ``user_ff`` instead of ``joint_f_2d``, so they don't need
+        # clearing here.
         newton_adapter.step(w, w, SimulationManager.get_physics_dt())
 
         wp.launch(

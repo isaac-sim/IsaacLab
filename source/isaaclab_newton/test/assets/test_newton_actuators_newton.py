@@ -282,11 +282,18 @@ class _EquivalenceTestBase(unittest.TestCase):
     pos_rtol: float = 1e-3
     vel_atol: float = 0.1
     vel_rtol: float = 1e-2
+    # Torque equivalence tolerates a one-physics-step timing offset:
+    # standard path computes applied_torque pre-step, fast path post-step.
+    # The difference scales with kp*v*dt + kd*a*dt — largest in the first
+    # transient steps before targets are tracked, so skip those.
+    torque_atol: float = 5.0
+    torque_rtol: float = 0.15
+    torque_skip_steps: int = 3
 
     @classmethod
     def setUpClass(cls):
-        cls.lab_result = _run_simulation(cls.actuators, use_newton_actuators=False)
-        cls.newton_result = _run_simulation(cls.actuators, use_newton_actuators=True)
+        cls.lab_result = _run_simulation_with_telemetry(cls.actuators, use_newton_actuators=False)
+        cls.newton_result = _run_simulation_with_telemetry(cls.actuators, use_newton_actuators=True)
 
     def test_joint_positions_match(self):
         for step_i, (lab, newton) in enumerate(
@@ -310,6 +317,20 @@ class _EquivalenceTestBase(unittest.TestCase):
                 atol=self.vel_atol,
                 rtol=self.vel_rtol,
                 msg=f"Joint velocities diverged at step {step_i}",
+            )
+
+    def test_applied_torque_match(self):
+        for step_i, (lab, newton) in enumerate(
+            zip(self.lab_result["applied_torque"], self.newton_result["applied_torque"])
+        ):
+            if step_i < self.torque_skip_steps:
+                continue
+            torch.testing.assert_close(
+                lab,
+                newton,
+                atol=self.torque_atol,
+                rtol=self.torque_rtol,
+                msg=f"applied_torque diverged at step {step_i}",
             )
 
     def test_trajectories_not_trivial(self):
