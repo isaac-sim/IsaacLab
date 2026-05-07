@@ -189,13 +189,17 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     wp.launch(kernel=_fill_position, dim=2, inputs=[initial, 1.0, 2.0, 3.0], device=device)
     view.set_world_poses(positions=initial)
 
-    # Simulate topology change: recompute fabric indices and rebuild every indexed array.
-    view._fabric_indices = view._compute_fabric_indices(view._trans_sel_ro)
-    view._world_ifa_ro = view._build_indexed_array(view._trans_sel_ro, view._WORLD_MATRIX_NAME)
-    view._local_ifa_ro = view._build_indexed_array(view._trans_sel_ro, view._LOCAL_MATRIX_NAME)
-    view._world_ifa_rw = view._build_indexed_array(view._world_sel_rw, view._WORLD_MATRIX_NAME)
-    view._local_ifa_rw = view._build_indexed_array(view._local_sel_rw, view._LOCAL_MATRIX_NAME)
-    view._parent_world_ifa_ro = view._build_parent_indexed_array(view._trans_sel_ro)
+    # Simulate topology change: recompute per-selection fabric indices and rebuild
+    # every indexed array, mirroring the lazy paths in the ``_get_*_array`` accessors.
+    view._rebuild_trans_ro_arrays()
+    view._world_rw_fabric_indices = view._compute_fabric_indices(view._world_sel_rw)
+    view._world_ifa_rw = view._build_indexed_array(
+        view._world_sel_rw, view._WORLD_MATRIX_NAME, view._world_rw_fabric_indices
+    )
+    view._local_rw_fabric_indices = view._compute_fabric_indices(view._local_sel_rw)
+    view._local_ifa_rw = view._build_indexed_array(
+        view._local_sel_rw, view._LOCAL_MATRIX_NAME, view._local_rw_fabric_indices
+    )
 
     # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
