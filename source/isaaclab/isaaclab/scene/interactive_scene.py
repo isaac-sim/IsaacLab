@@ -210,6 +210,11 @@ class InteractiveScene:
             if self.cfg.filter_collisions and "physx" in self.physics_backend:
                 self.filter_collisions(self._global_prim_paths)
 
+    def _build_default_clone_plan(self) -> cloner.ClonePlan:
+        """Build the homogeneous env_0 source plan used when no variants split the scene."""
+        msk = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
+        return cloner.ClonePlan(sources=[self.env_fmt.format(0)], destinations=[self.env_fmt], clone_mask=msk)
+
     def _build_clone_plan_from_cfg(self) -> cloner.ClonePlan:
         """Build a clone plan from scene cfg spawn variants and write planned spawn paths."""
 
@@ -239,19 +244,18 @@ class InteractiveScene:
         for _, asset_cfg in ordered_items:
             cfgs = asset_cfg.rigid_objects.values() if isinstance(asset_cfg, RigidObjectCollectionCfg) else [asset_cfg]
             for cfg in (cfg for cfg in cfgs if hasattr(cfg, "prim_path")):
-                cfg.prim_path = cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
-                if not hasattr(cfg, "spawn") or cfg.spawn is None or self.env_ns not in cfg.prim_path:
+                prim_path = cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                if not hasattr(cfg, "spawn") or cfg.spawn is None or self.env_ns not in prim_path:
                     continue
                 if (count := num_variants(cfg.spawn)) <= 0:
-                    raise ValueError(f"Spawner at '{cfg.prim_path}' must have at least one variant.")
-                groups.append((cfg.spawn, cfg.prim_path.replace(self.env_regex_ns, self.env_fmt), count))
+                    raise ValueError(f"Spawner at '{prim_path}' must have at least one variant.")
+                groups.append((cfg.spawn, prim_path.replace(self.env_regex_ns, self.env_fmt), count))
 
         # Homogeneous scenes still spawn sources at env_0, but publish the simpler env-root plan.
         if not groups or all(count == 1 for _, _, count in groups):
             for spawn_cfg, destination, _ in groups:
                 set_spawn_paths(spawn_cfg, [destination.format(0)])
-            msk = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
-            return cloner.ClonePlan(sources=[self.env_fmt.format(0)], destinations=[self.env_fmt], clone_mask=msk)
+            return self._build_default_clone_plan()
 
         plan = cloner.make_clone_plan(
             [[destination.format(i) for i in range(count)] for _, destination, count in groups],
@@ -919,6 +923,11 @@ class InteractiveScene:
                 # all prims in the scene are Xform prims (i.e. have a transform component)
                 self._extras[asset_name] = FrameView(asset_cfg.prim_path, device=self.device, stage=self.stage)
             else:
+                if hasattr(asset_cfg, "presets"):
+                    raise ValueError(
+                        f"Scene config entry '{asset_name}' has unresolved presets. Resolve presets before "
+                        "constructing InteractiveScene."
+                    )
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
 
             # store global collision paths
