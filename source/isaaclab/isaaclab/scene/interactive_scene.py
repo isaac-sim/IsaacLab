@@ -215,7 +215,7 @@ class InteractiveScene:
             if self.cfg.filter_collisions and "physx" in self.physics_backend:
                 self.filter_collisions(self._global_prim_paths)
 
-    def _build_clone_plan_from_cfg(self) -> cloner.ClonePlan:
+    def _build_clone_plan_from_cfg(self) -> cloner.ClonePlan | None:
         """Build a clone plan from scene cfg spawn variants and write planned spawn paths."""
 
         def num_variants(spawn_cfg) -> int:
@@ -251,8 +251,11 @@ class InteractiveScene:
                     raise ValueError(f"Spawner at '{prim_path}' must have at least one variant.")
                 groups.append((cfg.spawn, prim_path.replace(self.env_regex_ns, self.env_fmt), count))
 
+        if not groups:
+            return None
+
         # Homogeneous scenes still spawn sources at env_0, but publish the simpler env-root plan.
-        if not groups or all(count == 1 for _, _, count in groups):
+        if all(count == 1 for _, _, count in groups):
             for spawn_cfg, destination, _ in groups:
                 set_spawn_paths(spawn_cfg, [destination.format(0)])
             return cloner.ClonePlan(
@@ -293,6 +296,12 @@ class InteractiveScene:
             If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
             may increase). Defaults to False.
         """
+        plan = self._clone_plan
+        assert self.sim is not None
+        if plan is None:
+            self.sim.set_clone_plan(None)
+            return
+
         # PhysX-only: set env id bit count for replicated physics. Newton handles env separation in its own API.
         # Intentionally matches both physx and ovphysx (both are PhysX-based)
         if self.cfg.replicate_physics and "physx" in self.physics_backend:
@@ -303,7 +312,6 @@ class InteractiveScene:
         # ``SimulationContext.reset`` does the Fabric resync — re-enabling here would batch-resync everything
         # we just authored, which is slower than the unsuppressed baseline.
         with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
-            plan = self._clone_plan
             replicate_args = (plan.sources, plan.destinations, self._ALL_INDICES, plan.clone_mask)
 
             if not copy_from_source and self.cloner_cfg.physics_clone_fn is not None:
