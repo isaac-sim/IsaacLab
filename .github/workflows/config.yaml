@@ -8,5 +8,5 @@
 # Split the digest this way because workflows compose the base image as
 # "${isaacsim_image_name}:${isaacsim_image_tag}".
 isaacsim_image_name: nvcr.io/nvidian/isaac-sim@sha256
-isaacsim_image_tag: a4f5dd6f3aa5600f11ede74089809f2bb6f40dfb4effcf8f69a80a0f08b50f54
+isaacsim_image_tag: 0a13cecc4965019f97c847660c5be16d4167bb54e1437cdcf6240765f7375df4
 isaaclab_image_name: nvcr.io/nvidian/isaac-lab
