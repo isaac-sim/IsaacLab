@@ -192,11 +192,16 @@ class InteractiveScene:
             )
 
         self._global_prim_paths = list()
-        self._clone_plan = self._build_default_clone_plan()
         has_scene_cfg_entities = self._is_scene_setup_from_cfg()
         if has_scene_cfg_entities:
             self._clone_plan = self._build_clone_plan_from_cfg()
             self._add_entities_from_cfg()
+        else:
+            self._clone_plan = cloner.ClonePlan(
+                sources=[self.env_fmt.format(0)],
+                destinations=[self.env_fmt],
+                clone_mask=torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool),
+            )
 
         # Aggregate scene-data requirements from declared visualizers and constructed sensors,
         # then publish to ``SimulationContext`` so downstream providers (constructed later by
@@ -209,11 +214,6 @@ class InteractiveScene:
             # Intentionally matches both physx and ovphysx (both are PhysX-based)
             if self.cfg.filter_collisions and "physx" in self.physics_backend:
                 self.filter_collisions(self._global_prim_paths)
-
-    def _build_default_clone_plan(self) -> cloner.ClonePlan:
-        """Build the homogeneous env_0 source plan used when no variants split the scene."""
-        msk = torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool)
-        return cloner.ClonePlan(sources=[self.env_fmt.format(0)], destinations=[self.env_fmt], clone_mask=msk)
 
     def _build_clone_plan_from_cfg(self) -> cloner.ClonePlan:
         """Build a clone plan from scene cfg spawn variants and write planned spawn paths."""
@@ -255,7 +255,11 @@ class InteractiveScene:
         if not groups or all(count == 1 for _, _, count in groups):
             for spawn_cfg, destination, _ in groups:
                 set_spawn_paths(spawn_cfg, [destination.format(0)])
-            return self._build_default_clone_plan()
+            return cloner.ClonePlan(
+                sources=[self.env_fmt.format(0)],
+                destinations=[self.env_fmt],
+                clone_mask=torch.ones((1, self.num_envs), device=self.device, dtype=torch.bool),
+            )
 
         plan = cloner.make_clone_plan(
             [[destination.format(i) for i in range(count)] for _, destination, count in groups],
