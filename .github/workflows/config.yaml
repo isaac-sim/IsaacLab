@@ -5,8 +5,6 @@
 
 # Shared image config for CI workflows. Loaded by the `config` job in each
 # workflow via yq and exposed as job outputs (see e.g. .github/workflows/build.yaml).
-# Split the digest this way because workflows compose the base image as
-# "${isaacsim_image_name}:${isaacsim_image_tag}".
-isaacsim_image_name: nvcr.io/nvidian/isaac-sim@sha256
-isaacsim_image_tag: 0a13cecc4965019f97c847660c5be16d4167bb54e1437cdcf6240765f7375df4
+isaacsim_image_name: nvcr.io/nvidian/isaac-sim
+isaacsim_image_tag: latest-develop
 isaaclab_image_name: nvcr.io/nvidian/isaac-lab
