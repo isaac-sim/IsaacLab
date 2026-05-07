@@ -6,6 +6,13 @@ Kit-less Installation
 Isaac Lab can be installed and used **without Isaac Sim** using the kit-less mode. This is the
 fastest way to get started and is ideal for users who only need the Newton physics backend.
 
+.. include:: include/pip_python_virtual_env.rst
+
+Cloning and installing Isaac Lab
+--------------------------------
+
+With the virtual environment activated, clone the repository and run the kit-less installer:
+
 .. code-block:: bash
 
    # Clone Isaac Lab
