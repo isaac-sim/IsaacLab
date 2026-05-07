@@ -83,7 +83,6 @@ Collect five demonstrations by running the following command:
    --visualizer kit \
    --xr \
    --device cpu \
-   --xr \
    --num_demos 5 \
    --dataset_file ./datasets/dataset_gr1.hdf5
 
@@ -194,7 +193,7 @@ The normalization parameters are saved in the model directory under ``PATH_TO_MO
 Record the normalization parameters for later use in the visualization step.
 
 .. note::
-   By default the trained models and logs will be saved to ``IssacLab/logs/robomimic``.
+   By default the trained models and logs will be saved to ``IsaacLab/logs/robomimic``.
 
 Visualize the results
 ^^^^^^^^^^^^^^^^^^^^^
@@ -630,7 +629,7 @@ Then, from the **Isaac-GR00T** directory, install GR00T N1.5 and its dependencie
    uv pip install -e .
    uv pip install wheel
    MAX_JOBS=4 uv pip install --no-build-isolation flash-attn==2.7.1.post4
-   MAX_JOBS=4 uv pip install --no-build-isolation pytorch3d
+   MAX_JOBS=4 uv pip install --no-build-isolation 'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9'
    uv pip install diffusers decord zmq
 
 Convert dataset to LeRobot format

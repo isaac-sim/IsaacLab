@@ -1,0 +1,48 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Changelog Fragment Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: 'Base branch to diff against'
+        required: true
+        default: 'develop'
+
+concurrency:
+  group: changelog-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-fragments:
+    name: Check changelog fragments
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          # Full history needed to diff against the base branch
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve base ref
+        id: base
+        run: echo "ref=${{ github.event.inputs.base_ref || github.base_ref }}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ steps.base.outputs.ref }}
+
+      - name: Verify changelog fragments
+        run: python3 tools/changelog/cli.py check ${{ steps.base.outputs.ref }}

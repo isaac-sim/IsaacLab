@@ -12,6 +12,8 @@ Newton GL viewer; Kit backends use the ``/OmniverseKit_Persp`` camera via
 
 from __future__ import annotations
 
+from typing import Literal
+
 from isaaclab.utils import configclass
 
 from .video_recorder import VideoRecorder
@@ -30,7 +32,7 @@ class VideoRecorderCfg:
     Set automatically by the environment base classes; do not set manually.
     """
 
-    camera_position: tuple[float, float, float] = (7.5, 7.5, 7.5)
+    eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
     """Perspective camera position in world space (metres).
 
     Direct RL / MARL and manager-based RL environments overwrite this from
@@ -38,8 +40,16 @@ class VideoRecorderCfg:
     task viewport for both Kit (PhysX / Isaac RTX) and Newton GL (Newton / OVRTX / etc.).
     """
 
-    camera_target: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
     """Perspective camera look-at target in world space (metres). Set from ``ViewerCfg.lookat`` at env init."""
+
+    backend_source: Literal["visualizer", "renderer"] = "visualizer"
+    """Source used to resolve the video capture backend.
+
+    ``"visualizer"`` records from the active Kit or Newton visualizer when one is enabled, and falls back to the
+    physics/renderer stack otherwise. ``"renderer"`` ignores active visualizers and records from the backend implied by
+    the physics/renderer stack.
+    """
 
     window_width: int = 1280
     """Width in pixels of the recorded frame."""

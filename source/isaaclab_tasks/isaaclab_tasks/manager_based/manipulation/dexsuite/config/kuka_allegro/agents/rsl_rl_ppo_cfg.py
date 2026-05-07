@@ -23,7 +23,6 @@ STATE_POLICY_CFG = RslRlMLPModelCfg(
     activation="elu",
 )
 
-
 STATE_CRITIC_CFG = RslRlMLPModelCfg(
     obs_normalization=True,
     hidden_dims=[512, 256, 128],
@@ -35,12 +34,10 @@ CNN_POLICY_CFG = RslRlCNNModelCfg(
     hidden_dims=[512, 256, 128],
     distribution_cfg=RslRlCNNModelCfg.GaussianDistributionCfg(init_std=1.0),
     cnn_cfg=RslRlCNNModelCfg.CNNCfg(
-        output_channels=[16, 32],
-        kernel_size=[3, 3],
+        output_channels=[32, 64, 64],
+        kernel_size=[8, 4, 3],
+        stride=[4, 2, 1],
         activation="elu",
-        max_pool=[True, True],
-        norm="batch",
-        global_pool="avg",
     ),
     activation="elu",
 )
@@ -89,7 +86,7 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
         actor=CNN_POLICY_CFG,
         critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG.replace(num_mini_batches=16),
+        algorithm=ALGO_CFG.replace(num_mini_batches=2),
     )
 
     duo_camera = DexsuiteKukaAllegroPPOBaseRunnerCfg().replace(
@@ -100,5 +97,5 @@ class DexsuiteKukaAllegroPPORunnerCfg(PresetCfg):
         },
         actor=CNN_POLICY_CFG,
         critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG.replace(num_mini_batches=16),
+        algorithm=ALGO_CFG.replace(num_mini_batches=2),
     )

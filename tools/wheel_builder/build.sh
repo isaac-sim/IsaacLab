@@ -8,6 +8,21 @@ VERSION=$(cat VERSION)
 BUILD_DIR=$SELF_DIR/build/stage
 DIST_DIR=$SELF_DIR/build/dist
 
+# Compose a PEP 440 local version when CI metadata is provided so the wheel is
+# traceable to a specific build and commit. With both env vars set the version
+# becomes e.g. "3.0.0+build123.abc1234" (build number is monotonic, sha slug
+# pins the source). If either is missing, fall back to the plain VERSION so
+# local dev builds stay simple.
+WHEEL_BUILD_NUMBER="${WHEEL_BUILD_NUMBER:-}"
+WHEEL_SHA="${WHEEL_SHA:-}"
+if [ -n "$WHEEL_BUILD_NUMBER" ] && [ -n "$WHEEL_SHA" ]; then
+  SHA_SLUG="${WHEEL_SHA:0:7}"
+  WHEEL_VERSION="${VERSION}+build${WHEEL_BUILD_NUMBER}.${SHA_SLUG}"
+else
+  WHEEL_VERSION="${VERSION}"
+fi
+echo "[WHEEL VERSION] $WHEEL_VERSION"
+
 # Platform tags matching the official IsaacLab wheel
 PYTHON_TAG="${PYTHON_TAG:-cp312}"
 ABI_TAG="${ABI_TAG:-cp312}"
@@ -65,7 +80,7 @@ cp "$SELF_DIR/res/__init__.py" "$BUILD_DIR/src/isaaclab/"
 cp "$SELF_DIR/res/__main__.py" "$BUILD_DIR/src/isaaclab/"
 
 # 3. Generate pyproject.toml with dependencies from python_packages.toml
-python3 "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/res/python_packages.toml" "$BUILD_DIR/pyproject.toml" "$VERSION"
+python3 "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/res/python_packages.toml" "$BUILD_DIR/pyproject.toml" "$WHEEL_VERSION"
 
 # 4. Build the wheel
 cd "$BUILD_DIR"

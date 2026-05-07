@@ -82,6 +82,7 @@ Guidelines for modifications:
 * Fabian Jenelten
 * Felipe Mohr
 * Felix Yu
+* Frank Lai
 * Gary Lvov
 * Giulio Romualdi
 * Grzegorz Malczyk
@@ -143,6 +144,7 @@ Guidelines for modifications:
 * Patrick Yin
 * Paul Reeves
 * Peter Du
+* Peter Verswyvelen
 * Philipp Reist
 * Piotr Barejko
 * Pulkit Goyal
@@ -152,6 +154,7 @@ Guidelines for modifications:
 * Rafael Wiltz
 * Renaud Poncelet
 * René Zurbrügg
+* Richard Schmitt
 * RinZ27
 * Ritvik Singh
 * Rosario Scalise

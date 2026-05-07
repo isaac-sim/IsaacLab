@@ -16,6 +16,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -32,7 +33,7 @@ from isaaclab_assets.robots.ant import ANT_CFG  # isort: skip
 class AntPhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    newton: NewtonCfg = NewtonCfg(
+    newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=38,
             nconmax=15,
@@ -43,7 +44,7 @@ class AntPhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
-    kamino: NewtonCfg = NewtonCfg(
+    newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(
             integrator="moreau",
             use_collision_detector=False,
@@ -90,6 +91,9 @@ class MySceneCfg(InteractiveSceneCfg):
     # robot
     robot = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
+    # sensors
+    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
     # lights
     light = AssetBaseCfg(
         prim_path="/World/light",
@@ -130,8 +134,9 @@ class ObservationsCfg:
             func=mdp.body_incoming_wrench,
             scale=0.1,
             params={
-                "asset_cfg": SceneEntityCfg(
-                    "robot", body_names=["front_left_foot", "front_right_foot", "left_back_foot", "right_back_foot"]
+                "sensor_cfg": SceneEntityCfg(
+                    "joint_wrench",
+                    body_names=["front_left_foot", "front_right_foot", "left_back_foot", "right_back_foot"],
                 )
             },
         )
@@ -146,37 +151,10 @@ class ObservationsCfg:
 
 
 @configclass
-class _AntNewtonObservationsCfg:
-    """Newton-compatible observations: excludes feet_body_forces (not implemented in Newton)."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for the policy."""
-
-        base_height = ObsTerm(func=mdp.base_pos_z)
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
-        base_yaw_roll = ObsTerm(func=mdp.base_yaw_roll)
-        base_angle_to_target = ObsTerm(func=mdp.base_angle_to_target, params={"target_pos": (1000.0, 0.0, 0.0)})
-        base_up_proj = ObsTerm(func=mdp.base_up_proj)
-        base_heading_proj = ObsTerm(func=mdp.base_heading_proj, params={"target_pos": (1000.0, 0.0, 0.0)})
-        joint_pos_norm = ObsTerm(func=mdp.joint_pos_limit_normalized)
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.2)
-        actions = ObsTerm(func=mdp.last_action)
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = True
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
-
-
-@configclass
 class AntObservationsCfg(PresetCfg):
     default: ObservationsCfg = ObservationsCfg()
     physx: ObservationsCfg = ObservationsCfg()
-    newton: _AntNewtonObservationsCfg = _AntNewtonObservationsCfg()
+    newton_mjwarp: ObservationsCfg = ObservationsCfg()
 
 
 @configclass

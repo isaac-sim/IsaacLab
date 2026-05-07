@@ -408,12 +408,12 @@ def test_depth_clipping(setup_sim_camera):
 
     camera_cfg_none = copy.deepcopy(camera_cfg_zero)
     camera_cfg_none.prim_path = "/World/CameraNone"
-    camera_cfg_none.depth_clipping_behavior = "none"
+    camera_cfg_none.renderer_cfg.depth_clipping_behavior = "none"
     camera_none = Camera(camera_cfg_none)
 
     camera_cfg_max = copy.deepcopy(camera_cfg_zero)
     camera_cfg_max.prim_path = "/World/CameraMax"
-    camera_cfg_max.depth_clipping_behavior = "max"
+    camera_cfg_max.renderer_cfg.depth_clipping_behavior = "max"
     camera_max = Camera(camera_cfg_max)
 
     # Play sim
@@ -504,9 +504,9 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
         "instance_segmentation_fast",
         "instance_id_segmentation_fast",
     ]
-    camera_cfg.colorize_instance_id_segmentation = True
-    camera_cfg.colorize_instance_segmentation = True
-    camera_cfg.colorize_semantic_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = True
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = True
     # Create camera
     camera = Camera(camera_cfg)
 
@@ -566,9 +566,9 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
         "instance_segmentation_fast",
         "instance_id_segmentation_fast",
     ]
-    camera_cfg.colorize_instance_id_segmentation = False
-    camera_cfg.colorize_instance_segmentation = False
-    camera_cfg.colorize_semantic_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = False
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
     # Create camera
     camera = Camera(camera_cfg)
 
@@ -627,9 +627,9 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
         "instance_segmentation_fast",
         "instance_id_segmentation_fast",
     ]
-    camera_cfg.colorize_instance_id_segmentation = True
-    camera_cfg.colorize_instance_segmentation = True
-    camera_cfg.colorize_semantic_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = True
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = True
     camera_cfg.width = 512
     camera_cfg.height = 512
     # Create camera
@@ -957,9 +957,9 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation_fast", "instance_id_segmentation_fast"]
     camera_cfg.prim_path = "/World/Origin_.*/CameraSensor"
-    camera_cfg.colorize_semantic_segmentation = False
-    camera_cfg.colorize_instance_segmentation = False
-    camera_cfg.colorize_instance_id_segmentation = False
+    camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_segmentation = False
+    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
     camera = Camera(camera_cfg)
 
     sim.reset()
@@ -1074,6 +1074,157 @@ def test_camera_frame_offset(setup_camera_device, device):
     assert torch.abs(image_after - image_before).mean() > 0.01
 
     del camera
+
+
+def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
+    """Test Camera warns once and drops data types its renderer cannot produce."""
+    import logging
+
+    from isaaclab.renderers import Renderer
+    from isaaclab.renderers.base_renderer import BaseRenderer
+
+    sim, camera_cfg, dt = setup_sim_camera
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.data_types = ["rgba", "depth", "normals"]
+
+    from isaaclab.sensors.camera.camera_data import RenderBufferKind, RenderBufferSpec
+
+    class _PartialRenderer(BaseRenderer):
+        """Publishes only ``rgba`` in its supported-output contract."""
+
+        def __init__(self, cfg=None):
+            self.cfg = cfg
+
+        def supported_output_types(self):
+            return {RenderBufferKind.RGBA: RenderBufferSpec(4, torch.uint8)}
+
+        def prepare_stage(self, stage, num_envs):
+            pass
+
+        def create_render_data(self, sensor):
+            return object()
+
+        def set_outputs(self, render_data, output_data):
+            pass
+
+        def update_transforms(self):
+            pass
+
+        def update_camera(self, render_data, positions, orientations, intrinsics):
+            pass
+
+        def render(self, render_data):
+            pass
+
+        def read_output(self, render_data, camera_data):
+            pass
+
+        def cleanup(self, render_data):
+            pass
+
+    backend = Renderer._get_backend(camera_cfg.renderer_cfg)
+    original = Renderer._registry.get(backend)
+    Renderer._registry[backend] = _PartialRenderer
+    try:
+        camera = Camera(camera_cfg)
+        caplog.clear()
+        with caplog.at_level(logging.WARNING, logger="isaaclab.sensors.camera.camera"):
+            sim.reset()
+            # Step a few frames and confirm the warning is emitted once at init.
+            for _ in range(3):
+                sim.step()
+                camera.update(dt)
+
+        warning_records = [
+            r for r in caplog.records if r.levelno == logging.WARNING and "does not support" in r.getMessage()
+        ]
+        assert len(warning_records) == 1, (
+            f"Expected exactly one 'does not support' warning, got {len(warning_records)}:"
+            f" {[r.getMessage() for r in warning_records]}"
+        )
+        msg = warning_records[0].getMessage()
+        assert "_PartialRenderer" in msg
+        assert "depth" in msg
+        assert "normals" in msg
+        assert "rgba" not in msg
+
+        # Only the supported subset is in ``data.output``; the rest were dropped.
+        assert set(camera.data.output.keys()) == {"rgba"}
+        # ``data.info`` mirrors the ``data.output`` keys.
+        assert set(camera.data.info.keys()) == {"rgba"}
+
+        del camera
+    finally:
+        if original is not None:
+            Renderer._registry[backend] = original
+        else:
+            Renderer._registry.pop(backend, None)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
+def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
+    """Camera pose changes via FrameView should be visible in rendered depth.
+
+    Moves the camera close then far, renders depth, and verifies that the mean
+    valid depth from the far position is significantly larger (>1.5×) than the
+    close position.  This validates that Fabric-side pose writes (via
+    PrepareForReuse) and USD writes are correctly propagated to the RTX
+    renderer.
+    """
+    sim, _unused_cam_cfg, dt = setup_camera_device
+
+    cam_cfg = CameraCfg(
+        prim_path="/World/PoseTestCam",
+        height=128,
+        width=256,
+        update_period=0,
+        update_latest_camera_pose=True,
+        data_types=["distance_to_camera"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.955,
+            clipping_range=(0.1, 1.0e5),
+        ),
+    )
+    camera = Camera(cam_cfg)
+    try:
+        sim.reset()
+
+        target = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+        max_range = cam_cfg.spawn.clipping_range[1]
+
+        # -- close position --
+        eyes_close = torch.tensor([[2.0, 2.0, 2.0]], dtype=torch.float32, device=camera.device)
+        camera.set_world_poses_from_view(eyes_close, target)
+        sim.step()
+        camera.update(dt)
+        depth_close = camera.data.output["distance_to_camera"].clone()
+
+        # -- far position --
+        eyes_far = torch.tensor([[8.0, 8.0, 8.0]], dtype=torch.float32, device=camera.device)
+        camera.set_world_poses_from_view(eyes_far, target)
+        sim.step()
+        camera.update(dt)
+        depth_far = camera.data.output["distance_to_camera"].clone()
+
+        # -- validate --
+        valid_close = depth_close[depth_close < max_range]
+        valid_far = depth_far[depth_far < max_range]
+
+        assert valid_close.numel() > 0, "No valid close-range depth pixels"
+        assert valid_far.numel() > 0, "No valid far-range depth pixels"
+
+        mean_close = valid_close.mean().item()
+        mean_far = valid_far.mean().item()
+
+        assert mean_far > mean_close * 1.5, (
+            f"Far depth ({mean_far:.2f}) should be > 1.5× close depth ({mean_close:.2f}). "
+            "Camera pose change may not be reaching the renderer."
+        )
+    finally:
+        del camera
 
 
 def _populate_scene():
