@@ -5,8 +5,7 @@
 
 """PhysX FrameView with Fabric GPU acceleration.
 
-Design follows the prototype in
-``https://github.com/bareya/IsaacLab/tree/pbarejko/camera-update``:
+Design:
 
 * Three persistent ``PrimSelection`` instances differing only in per-attribute access
   mode (one for each of {trans_ro, world_rw, local_rw}).
@@ -28,6 +27,7 @@ Design follows the prototype in
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 
 import torch
 import warp as wp
@@ -43,18 +43,19 @@ from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
 
-# TODO: USDRT SelectPrims still pins to cuda:0 even when ``device='cuda:1'`` is
-# requested.  When that limitation is lifted (see feat/frame-view-enable-mgpu),
-# this allowlist can drop the explicit cuda:0 entry.
+# TODO: extend this to ``cuda:N`` once we wire up multi-GPU support for the view.
+# Recent Kit / USDRT releases do support multi-GPU ``SelectPrims``, but the
+# rest of the FabricFrameView wiring (selections, indexed arrays, etc.) still
+# assumes a single device — to be tackled in a follow-up.
 _fabric_supported_devices = ("cpu", "cuda", "cuda:0")
 
 
 def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
-    """Ensure ``wp.array`` inputs are 2-D ``float32`` for the Fabric kernels.
+    """Ensure array is compatible with Fabric kernels (2-D float32).
 
-    For ``wp.array`` with vec dtypes (``vec3f``, ``vec4f``) this uses
-    :meth:`wp.array.view` for zero-copy reinterpretation.  ``torch.Tensor``
-    and already-correct 2-D float32 arrays pass through.
+    For ``wp.array`` with vec dtypes (``vec3f``, ``vec4f``), uses
+    :meth:`wp.array.view` for zero-copy reinterpretation.
+    ``torch.Tensor`` and already-correct 2-D float32 arrays pass through.
     """
     if not isinstance(a, wp.array):
         return a
@@ -68,15 +69,23 @@ def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
 class FabricFrameView(BaseFrameView):
     """FrameView with Fabric GPU acceleration for the PhysX backend.
 
-    Holds a :class:`UsdFrameView` internally for the disabled-Fabric fallback path
-    (when ``/physics/fabricEnabled`` is false or the device is unsupported).
+    Uses composition: holds a :class:`UsdFrameView` internally for USD
+    fallback and non-accelerated operations (visibility, scales when
+    Fabric is disabled).
 
-    When Fabric is enabled, all transform reads and writes go through Warp kernels
-    operating on Fabric ``omni:fabric:worldMatrix`` and ``omni:fabric:localMatrix``
-    via :class:`wp.indexedfabricarray`.  No prim attributes are added.
+    When Fabric is enabled, world-pose, local-pose, and scale operations
+    use Warp kernels operating on ``omni:fabric:worldMatrix`` and
+    ``omni:fabric:localMatrix``.  All other operations delegate to the
+    internal USD view.
 
-    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept
-    ``wp.array``.
+    After every Fabric write (``set_world_poses``, ``set_local_poses``,
+    ``set_scales``), :meth:`PrepareForReuse` is called on the
+    ``PrimSelection`` to notify the FSD renderer that Fabric data has
+    changed and to detect topology changes that require rebuilding
+    internal mappings.  Read operations do not call PrepareForReuse to
+    avoid unnecessary renderer invalidation.
+
+    Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
     """
 
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
@@ -84,9 +93,11 @@ class FabricFrameView(BaseFrameView):
 
     # Stage-level shared state.  Multiple FabricFrameView instances on the same stage
     # share one IFabricHierarchy handle; the dirty-stages set tracks which stages
-    # need ``update_world_xforms()`` before a world read.
-    _hierarchy_cache: dict[int, object] = {}
-    _dirty_stages: set[int] = set()
+    # need ``update_world_xforms()`` before a world read.  ``ClassVar`` plus the
+    # ``_static_`` prefix make it explicit (and enforceable by type checkers) that
+    # these are class-level — never shadow them with ``self.<name> = ...``.
+    _static_hierarchy_cache: ClassVar[dict[int, object]] = {}
+    _static_dirty_stages: ClassVar[set[int]] = set()
 
     def __init__(
         self,
@@ -96,6 +107,18 @@ class FabricFrameView(BaseFrameView):
         stage: Usd.Stage | None = None,
         **kwargs,
     ):
+        """Initialize the view.
+
+        Args:
+            prim_path: USD prim-path pattern to match.
+            device: Device for Warp arrays (``"cpu"`` or ``"cuda:0"``).
+            validate_xform_ops: Whether to validate prim xform-ops.
+            stage: USD stage; defaults to the current sim context's stage.
+            **kwargs: Additional keyword arguments (ignored). Matches the signature of
+                :class:`~isaaclab.sim.views.UsdFrameView` so that the top-level
+                :class:`~isaaclab.sim.views.FrameView` factory can forward backend-agnostic
+                kwargs without each backend having to know about every option.
+        """
         self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
         self._device = device
 
@@ -116,10 +139,12 @@ class FabricFrameView(BaseFrameView):
         self._stage_id: int | None = None
         self._stage = None
         self._fabric_hierarchy = None
+
         # Selections.
         self._trans_sel_ro = None
         self._world_sel_rw = None
         self._local_sel_rw = None
+
         # Index arrays (view-side indices and view→fabric mappings).  Each selection's
         # ``GetPaths()`` ordering is independent, so the view→fabric mapping is cached
         # per selection rather than shared — sharing would silently corrupt indexed
@@ -129,14 +154,21 @@ class FabricFrameView(BaseFrameView):
         self._world_rw_fabric_indices: wp.array | None = None
         self._local_rw_fabric_indices: wp.array | None = None
         self._parent_fabric_indices: wp.array | None = None
+
         # Indexed fabric arrays.
         self._world_ifa_ro = None
         self._local_ifa_ro = None
         self._world_ifa_rw = None
         self._local_ifa_rw = None
         self._parent_world_ifa_ro = None
-        # Cached output buffers.
-        self._fabric_dummy_buffer: wp.array | None = None
+
+        # Sentinel passed to ``compose_indexed_fabric_transforms`` /
+        # ``decompose_indexed_fabric_transforms`` for slots the caller does not want
+        # written or read.  The kernels gate every per-row access on
+        # ``shape[0] > 0``, so a ``(0, 0)`` array is enough — the inner dim is never
+        # indexed.  One shared instance covers all "unused" slots regardless of
+        # whether they would have held positions, quaternions, or scales.
+        self._fabric_empty_2d_array_sentinel: wp.array | None = None
 
     # ------------------------------------------------------------------
     # Delegated properties
@@ -170,7 +202,7 @@ class FabricFrameView(BaseFrameView):
         self._usd_view.set_visibility(visibility, indices)
 
     # ------------------------------------------------------------------
-    # World poses
+    # World poses — Fabric-accelerated or USD fallback
     # ------------------------------------------------------------------
 
     def set_world_poses(self, positions=None, orientations=None, indices=None):
@@ -185,8 +217,8 @@ class FabricFrameView(BaseFrameView):
         self._sync_world_from_local_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
-        positions_wp = _to_float32_2d(positions) if positions is not None else self._fabric_dummy_buffer
-        orientations_wp = _to_float32_2d(orientations) if orientations is not None else self._fabric_dummy_buffer
+        positions_wp = self._to_float32_2d_or_empty(positions)
+        orientations_wp = self._to_float32_2d_or_empty(orientations)
 
         wp.launch(
             kernel=fabric_utils.compose_indexed_fabric_transforms,
@@ -195,7 +227,7 @@ class FabricFrameView(BaseFrameView):
                 self._get_world_rw_array(),
                 positions_wp,
                 orientations_wp,
-                self._fabric_dummy_buffer,
+                self._fabric_empty_2d_array_sentinel,
                 False,
                 False,
                 False,
@@ -237,7 +269,7 @@ class FabricFrameView(BaseFrameView):
                 self._get_world_ro_array(),
                 positions_wp,
                 orientations_wp,
-                self._fabric_dummy_buffer,
+                self._fabric_empty_2d_array_sentinel,
                 indices_wp,
             ],
             device=self._device,
@@ -261,8 +293,8 @@ class FabricFrameView(BaseFrameView):
             self._initialize_fabric()
 
         indices_wp = self._resolve_indices_wp(indices)
-        translations_wp = _to_float32_2d(translations) if translations is not None else self._fabric_dummy_buffer
-        orientations_wp = _to_float32_2d(orientations) if orientations is not None else self._fabric_dummy_buffer
+        translations_wp = self._to_float32_2d_or_empty(translations)
+        orientations_wp = self._to_float32_2d_or_empty(orientations)
 
         wp.launch(
             kernel=fabric_utils.compose_indexed_fabric_transforms,
@@ -271,7 +303,7 @@ class FabricFrameView(BaseFrameView):
                 self._get_local_rw_array(),
                 translations_wp,
                 orientations_wp,
-                self._fabric_dummy_buffer,
+                self._fabric_empty_2d_array_sentinel,
                 False,
                 False,
                 False,
@@ -282,7 +314,7 @@ class FabricFrameView(BaseFrameView):
         wp.synchronize()
 
         # Mark the stage dirty so the next world read calls update_world_xforms().
-        FabricFrameView._dirty_stages.add(self._stage_id)
+        FabricFrameView._static_dirty_stages.add(self._stage_id)
 
     def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
@@ -309,7 +341,7 @@ class FabricFrameView(BaseFrameView):
                 self._get_local_ro_array(),
                 translations_wp,
                 orientations_wp,
-                self._fabric_dummy_buffer,
+                self._fabric_empty_2d_array_sentinel,
                 indices_wp,
             ],
             device=self._device,
@@ -336,15 +368,15 @@ class FabricFrameView(BaseFrameView):
         self._sync_world_from_local_if_dirty()
 
         indices_wp = self._resolve_indices_wp(indices)
-        scales_wp = _to_float32_2d(scales) if scales is not None else self._fabric_dummy_buffer
+        scales_wp = self._to_float32_2d_or_empty(scales)
 
         wp.launch(
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[
                 self._get_world_rw_array(),
-                self._fabric_dummy_buffer,
-                self._fabric_dummy_buffer,
+                self._fabric_empty_2d_array_sentinel,
+                self._fabric_empty_2d_array_sentinel,
                 scales_wp,
                 False,
                 False,
@@ -383,8 +415,8 @@ class FabricFrameView(BaseFrameView):
             dim=count,
             inputs=[
                 self._get_world_ro_array(),
-                self._fabric_dummy_buffer,
-                self._fabric_dummy_buffer,
+                self._fabric_empty_2d_array_sentinel,
+                self._fabric_empty_2d_array_sentinel,
                 scales_wp,
                 indices_wp,
             ],
@@ -399,6 +431,9 @@ class FabricFrameView(BaseFrameView):
     # Internal — sync helpers
     # ------------------------------------------------------------------
 
+    def _to_float32_2d_or_empty(self, data):
+        return self._fabric_empty_2d_array_sentinel if data is None else _to_float32_2d(data)
+
     def _sync_world_from_local_if_dirty(self) -> None:
         """If a prior local write left world matrices stale, recompute them on the fly.
 
@@ -408,7 +443,7 @@ class FabricFrameView(BaseFrameView):
         does ``child_world = parent_world * child_local`` per child, leaving the
         Fabric-side localMatrix untouched.
         """
-        if self._stage_id is None or self._stage_id not in FabricFrameView._dirty_stages:
+        if self._stage_id is None or self._stage_id not in FabricFrameView._static_dirty_stages:
             return
         # Make sure the parent indexed array is up-to-date with the current trans selection.
         if self._parent_world_ifa_ro is None:
@@ -425,7 +460,7 @@ class FabricFrameView(BaseFrameView):
             device=self._device,
         )
         wp.synchronize()
-        FabricFrameView._dirty_stages.discard(self._stage_id)
+        FabricFrameView._static_dirty_stages.discard(self._stage_id)
 
     def _sync_local_from_world(self, indices_wp: wp.array) -> None:
         """Recompute child ``localMatrix`` from (parent worldMatrix, child worldMatrix).
@@ -568,14 +603,14 @@ class FabricFrameView(BaseFrameView):
         # BEFORE we author any local matrices, so the per-prim
         # ``SetLocalXformFromUsd`` calls below mark themselves dirty and the next
         # ``update_world_xforms()`` walks the parent chain to populate worldMatrix.
-        if self._stage_id not in FabricFrameView._hierarchy_cache:
+        if self._stage_id not in FabricFrameView._static_hierarchy_cache:
             hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
                 self._stage.GetFabricId(), self._stage.GetStageIdAsStageId()
             )
             hierarchy.track_local_xform_changes(True)
             hierarchy.track_world_xform_changes(True)
-            FabricFrameView._hierarchy_cache[self._stage_id] = hierarchy
-        self._fabric_hierarchy = FabricFrameView._hierarchy_cache[self._stage_id]
+            FabricFrameView._static_hierarchy_cache[self._stage_id] = hierarchy
+        self._fabric_hierarchy = FabricFrameView._static_hierarchy_cache[self._stage_id]
 
         # Ensure each child prim AND its parent have BOTH Fabric world and local matrix
         # attributes.  Our ``trans_ro`` selection requires both, so prims missing either
@@ -641,7 +676,7 @@ class FabricFrameView(BaseFrameView):
         self._fabric_scales_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_local_translations_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_local_orientations_buf = wp.zeros((self.count, 4), dtype=wp.float32, device=self._device)
-        self._fabric_dummy_buffer = wp.zeros((0, 3), dtype=wp.float32, device=self._device)
+        self._fabric_empty_2d_array_sentinel = wp.zeros((0, 0), dtype=wp.float32, device=self._device)
 
         self._fabric_positions_ta = ProxyArray(self._fabric_positions_buf)
         self._fabric_orientations_ta = ProxyArray(self._fabric_orientations_buf)
@@ -672,7 +707,7 @@ class FabricFrameView(BaseFrameView):
             if hasattr(scales_obj, "warp")
             else scales_obj
             if isinstance(scales_obj, wp.array)
-            else self._fabric_dummy_buffer
+            else self._fabric_empty_2d_array_sentinel
         )
         local_pos_ta, local_ori_ta = self._usd_view.get_local_poses()
         # Compose into child worldMatrix.
@@ -699,7 +734,7 @@ class FabricFrameView(BaseFrameView):
                 self._local_ifa_rw,
                 _to_float32_2d(local_pos_ta.warp),
                 _to_float32_2d(local_ori_ta.warp),
-                self._fabric_dummy_buffer,
+                self._fabric_empty_2d_array_sentinel,
                 False,
                 False,
                 False,
