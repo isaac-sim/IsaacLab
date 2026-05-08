@@ -351,6 +351,7 @@ class PhysicsManager(ABC):
         Args:
             decimation: Number of physics steps per environment step.
         """
+        pass
 
     @classmethod
     def handles_decimation(cls) -> bool:

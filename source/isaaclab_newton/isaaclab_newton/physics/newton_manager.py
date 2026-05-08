@@ -114,6 +114,7 @@ class NewtonManager(PhysicsManager):
 
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
+    _decimation: int = 1
     _num_envs: int | None = None
 
     # Newton model and state
@@ -148,7 +149,6 @@ class NewtonManager(PhysicsManager):
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
-    _decimation: int = 1
     # In-graph hooks invoked after the actuator step and before the solver
     # substeps, in registration order. Multiple articulations register their
     # implicit-DOF telemetry / FF-routing kernels here.

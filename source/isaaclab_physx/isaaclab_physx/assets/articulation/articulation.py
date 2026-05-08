@@ -40,6 +40,8 @@ except ImportError:
 def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
     i = wp.tid()
     mask[indices[i]] = True
+
+
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
@@ -272,12 +274,13 @@ class Articulation(BaseArticulation):
         if self._has_newton_actuators:
             # Newton fast path: pos/vel targets pass straight through; the
             # in-graph kernel inside ``_apply_actuator_model_newton`` merges
-            # Newton's actuator output (explicit DOFs) with user FF
-            # (implicit DOFs) into ``w.joint_f_2d``, which is what we push
-            # to PhysX as the actuation force.
+            # Newton's actuator output with the user FF for actuated DOFs
+            # into ``w.joint_f_2d``, which is what we push to PhysX as the
+            # actuation force.
             self._apply_actuator_model_newton()
             self.root_view.set_dof_actuation_forces(
-                self._physx_actuator_wrapper.joint_f_2d, self._ALL_INDICES,
+                self._physx_actuator_wrapper.joint_f_2d,
+                self._ALL_INDICES,
             )
             if self._has_implicit_actuators:
                 self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
@@ -3882,7 +3885,9 @@ class Articulation(BaseArticulation):
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
             self._implicit_dof_mask = build_implicit_dof_mask(
-                self.actuators, self.num_joints, self.device,
+                self.actuators,
+                self.num_joints,
+                self.device,
             )
             return
 
@@ -3914,7 +3919,11 @@ class Articulation(BaseArticulation):
             logger.warning(f"\nActuatorCfg-USD Value Discrepancy Resolution (matching values are skipped): \n{t}")
 
     def _create_lab_actuator(
-        self, actuator_name: str, actuator_cfg: ActuatorBaseCfg, *, properties_only: bool = False,
+        self,
+        actuator_name: str,
+        actuator_cfg: ActuatorBaseCfg,
+        *,
+        properties_only: bool = False,
     ) -> None:
         """Instantiate a single Lab actuator from its config and write properties to sim.
 
@@ -3955,20 +3964,25 @@ class Articulation(BaseArticulation):
 
         # Write physical joint properties (armature, limits, friction) — always needed.
         self.write_joint_effort_limit_to_sim_index(
-            limits=actuator.effort_limit_sim, joint_ids=actuator.joint_indices,
+            limits=actuator.effort_limit_sim,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_velocity_limit_to_sim_index(
-            limits=actuator.velocity_limit_sim, joint_ids=actuator.joint_indices,
+            limits=actuator.velocity_limit_sim,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_armature_to_sim_index(armature=actuator.armature, joint_ids=actuator.joint_indices)
         self.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff=actuator.friction, joint_ids=actuator.joint_indices,
+            joint_friction_coeff=actuator.friction,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_dynamic_friction_coefficient_to_sim_index(
-            joint_dynamic_friction_coeff=actuator.dynamic_friction, joint_ids=actuator.joint_indices,
+            joint_dynamic_friction_coeff=actuator.dynamic_friction,
+            joint_ids=actuator.joint_indices,
         )
         self.write_joint_viscous_friction_coefficient_to_sim_index(
-            joint_viscous_friction_coeff=actuator.viscous_friction, joint_ids=actuator.joint_indices,
+            joint_viscous_friction_coeff=actuator.viscous_friction,
+            joint_ids=actuator.joint_indices,
         )
 
         if properties_only:
@@ -4100,11 +4114,11 @@ class Articulation(BaseArticulation):
     def _apply_actuator_model_newton(self):
         """Step Newton actuators (when present) then route FF + sync telemetry.
 
-        After ``newton_adapter.step`` (no-op if no explicit Newton actuators
-        exist), ``w.joint_f_2d`` holds the actuator output for explicit DOFs
+        After ``newton_adapter.step`` (no-op if no Newton actuators exist),
+        ``w.joint_f_2d`` holds the actuator output for the actuated DOFs
         and zero elsewhere. The
         :func:`synch_torque_and_apply_implicit_feedforwards` kernel then
-        writes the user FF into ``joint_f_2d`` for implicit DOFs and fills
+        writes the user FF into ``joint_f_2d`` for actuated DOFs and fills
         ``_data._computed_torque`` / ``_data._applied_torque``. The
         resulting ``joint_f_2d`` is what gets pushed to PhysX as the
         actuation force in :meth:`write_data_to_sim`.
