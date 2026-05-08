@@ -9,7 +9,10 @@ Logs context state and the PBO/CUDA-GL interop result so we can tell whether
 the FBO itself is empty (rendering didn't happen) or whether the PBO/CUDA
 readback path returned zeros while the FBO had content.
 
-Active whenever this conftest is loaded.
+The instrumentation is installed via pytest_collection_modifyitems so Newton
+is imported AFTER the test file has run AppLauncher (which sets up Kit's pxr
+bindings). Importing Newton at conftest top-level pulls pxr in too early and
+causes a TypeError on Kit 110+ ("No to_python converter for GfVec3f").
 """
 
 from __future__ import annotations
@@ -32,15 +35,17 @@ def _gl_err_str(code):
 
 
 def _log_environment_once():
-    """Print env info one time before the first instrumented get_frame."""
     try:
         import sys
-        import warp as wp
+
         import newton as nt
+        import warp as wp
+
         print(f"[VIZDIAG] python={sys.version.split()[0]}", flush=True)
         print(f"[VIZDIAG] warp={wp.__version__}  newton={nt.__version__}", flush=True)
         try:
             import pyglet
+
             print(f"[VIZDIAG] pyglet={pyglet.version}  headless={pyglet.options.get('headless')}", flush=True)
         except Exception as exc:
             print(f"[VIZDIAG] pyglet info error: {exc}", flush=True)
@@ -60,8 +65,9 @@ def _instrument_viewergl_once():
     original_get_frame = ViewerGL.get_frame
 
     def instrumented_get_frame(self, target_image=None, render_ui=False):
-        from newton._src.viewer.gl.opengl import RendererGL  # noqa: PLC0415
         import numpy as np  # noqa: PLC0415
+
+        from newton._src.viewer.gl.opengl import RendererGL  # noqa: PLC0415
 
         gl = RendererGL.gl
         prefix = "[VIZDIAG]"
@@ -70,7 +76,6 @@ def _instrument_viewergl_once():
             _log_environment_once()
             ViewerGL._vizdiag_env_logged = True
 
-        # Pre-call state.
         try:
             fbo = self.renderer._frame_fbo
             w, h = self.renderer._screen_width, self.renderer._screen_height
@@ -82,8 +87,7 @@ def _instrument_viewergl_once():
         e0 = gl.glGetError()
         print(f"{prefix} glGetError before: {_gl_err_str(e0)}", flush=True)
 
-        # Direct CPU readback before delegating — proves whether the FBO has
-        # content independent of the PBO/CUDA path.
+        # Direct CPU readback of the FBO (independent of the PBO/CUDA path).
         try:
             assert fbo is not None
             cpu_buf = (ctypes.c_uint8 * (w * h * 3))()
@@ -95,7 +99,7 @@ def _instrument_viewergl_once():
             cpu_nonzero = int((cpu_arr != 0).sum())
             cpu_max = int(cpu_arr.max()) if cpu_arr.size else 0
             print(
-                f"{prefix} CPU-readback: nonzero={cpu_nonzero}/{w*h*3}  max={cpu_max}  "
+                f"{prefix} CPU-readback: nonzero={cpu_nonzero}/{w * h * 3}  max={cpu_max}  "
                 f"first12={cpu_arr[:12].tolist()}  err={_gl_err_str(cpu_err)}",
                 flush=True,
             )
@@ -103,7 +107,6 @@ def _instrument_viewergl_once():
         except Exception as exc:
             print(f"{prefix} CPU-readback error: {exc}", flush=True)
 
-        # Now delegate to the real implementation (the PBO/CUDA-GL path).
         result = original_get_frame(self, target_image=target_image, render_ui=render_ui)
         e1 = gl.glGetError()
         print(f"{prefix} glGetError after: {_gl_err_str(e1)}", flush=True)
@@ -126,4 +129,6 @@ def _instrument_viewergl_once():
     print("[VIZDIAG] ViewerGL.get_frame instrumented", flush=True)
 
 
-_instrument_viewergl_once()
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001
+    """Hook fires after test files are collected (i.e., after AppLauncher in test files runs)."""
+    _instrument_viewergl_once()
