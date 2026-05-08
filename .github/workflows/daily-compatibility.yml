@@ -111,6 +111,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: "ovrtx"
 
     - name: Copy All Test Results from IsaacLab Tasks Container
       run: |

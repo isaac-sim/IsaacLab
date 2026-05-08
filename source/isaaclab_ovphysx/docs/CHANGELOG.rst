@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+0.1.3 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed ``ArticulationData.body_incoming_joint_wrench_b`` to match the
+  shared articulation data API. Code that needs incoming joint reaction
+  wrenches should use a backend joint-wrench sensor instead of the articulation
+  data object.
+
+
 0.1.2 (2026-04-23)
 ~~~~~~~~~~~~~~~~~~
 

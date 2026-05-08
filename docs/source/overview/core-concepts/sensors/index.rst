@@ -18,5 +18,7 @@ The following pages describe the available sensors in more detail:
     contact_sensor
     frame_transformer
     imu
+    pva
+    joint_wrench_sensor
     ray_caster
     visuo_tactile_sensor
