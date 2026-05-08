@@ -632,47 +632,6 @@ def _write_empty_report():
     print(f"Wrote empty report to tests/{result_file}")
 
 
-# TODO(huidongc): Remove this helper once the ov module becomes a required dependency.
-def _maybe_install_ovrtx(workspace_root: str, test_files: list[str]) -> None:
-    """Install ``ov[ovrtx]`` before running kitless rendering tests.
-
-    Args:
-        workspace_root: The root directory of the workspace.
-        test_files: A list of test files to check for kitless rendering tests.
-
-    Returns:
-        None
-    """
-    found_kitless_rendering_tests = False
-
-    for test_file in test_files:
-        path_parts = os.path.normpath(test_file).split(os.sep)
-        in_tasks_test_module = len(path_parts) >= 3 and path_parts[-3:-1] == ["isaaclab_tasks", "test"]
-        base_name = path_parts[-1]
-        if in_tasks_test_module and base_name.startswith("test_rendering") and base_name.endswith("_kitless.py"):
-            found_kitless_rendering_tests = True
-            break
-
-    if not found_kitless_rendering_tests:
-        return
-
-    print("Detected kitless rendering tests; installing optional dependency: ov[ovrtx]")
-
-    launcher_name = "isaaclab.bat" if os.name == "nt" else "isaaclab.sh"
-    launcher_path = os.path.join(workspace_root, launcher_name)
-    cmd = [launcher_path, "-i", "ov[ovrtx]"]
-    result = subprocess.run(cmd, cwd=workspace_root, capture_output=True, text=True)
-    if result.returncode != 0:
-        print("⚠️ Failed to install optional dependency ov[ovrtx]")
-        print("=== ov[ovrtx] install stdout ===")
-        print(result.stdout)
-        print("=== ov[ovrtx] install stderr ===")
-        print(result.stderr)
-        return
-
-    print("✅ Installed optional dependency ov[ovrtx]")
-
-
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     # Get the workspace root directory (one level up from tools)
@@ -753,8 +712,6 @@ def pytest_sessionstart(session):
     print(f"Found {len(test_files)} test files after filtering:")
     for test_file in test_files:
         print(f"  - {test_file}")
-
-    _maybe_install_ovrtx(workspace_root, test_files)
 
     # Run all tests individually
     failed_tests, test_status, xml_reports = run_individual_tests(test_files, workspace_root, isaacsim_ci)
