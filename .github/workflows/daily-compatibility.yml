@@ -111,7 +111,6 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        # TODO(huidong): Remove this extra install once isaaclab_ov is a production feature.
         extra-pip-packages: "ovrtx"
 
     - name: Copy All Test Results from IsaacLab Tasks Container
