@@ -102,4 +102,6 @@ def _patch_viewergl_with_explicit_sync():
     print("[H4] ViewerGL.get_frame patched with explicit glFinish + wp.synchronize_device")
 
 
-_patch_viewergl_with_explicit_sync()
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001
+    """Hook fires after test files are collected (i.e., after AppLauncher in test files runs)."""
+    _patch_viewergl_with_explicit_sync()
