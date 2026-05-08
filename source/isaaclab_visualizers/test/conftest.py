@@ -5,16 +5,16 @@
 
 """H6 fix attempt: make Newton ViewerGL's GL context current before get_frame().
 
-Newton's ViewerGL.get_frame issues GL calls (glBindFramebuffer, glReadPixels,
-RegisteredGLBuffer.map) without first calling self._make_current(). If Kit's
-GLFW window context is current at the moment get_frame() runs, those GL calls
-operate on Kit's context where Newton's FBO/PBO ids are invalid. The result
-silently reads from Kit's framebuffer (empty for the visualizer test) or
-returns zeros from glReadPixels.
+Newton's ViewerGL.get_frame issues GL calls without first calling
+self._make_current(). If Kit's GLFW context is current at the moment
+get_frame() runs, those GL calls operate on Kit's context where Newton's
+FBO/PBO ids are invalid - the readback returns zeros, the test fails as
+"fully black".
 
-This patch wraps ViewerGL.get_frame to call self.renderer._make_current()
-at the start. If the visualizer test passes with this in place, the fix is
-to push self._make_current() into Newton upstream's get_frame.
+The patch is applied via pytest_collection_modifyitems so Newton is imported
+only AFTER the test file has run AppLauncher (which sets up Kit's pxr
+bindings). Importing Newton at conftest top-level pulls pxr in too early
+and causes a TypeError on Kit 110+ ('No to_python converter for GfVec3f').
 """
 
 from __future__ import annotations
@@ -43,4 +43,6 @@ def _patch_viewergl_make_current_before_get_frame():
     print("[H6] ViewerGL.get_frame wrapped with _make_current()", flush=True)
 
 
-_patch_viewergl_make_current_before_get_frame()
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001
+    """Hook fires after test files are collected (i.e., after AppLauncher in test files runs)."""
+    _patch_viewergl_make_current_before_get_frame()
