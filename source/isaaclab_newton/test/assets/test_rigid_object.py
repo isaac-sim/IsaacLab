@@ -1259,3 +1259,77 @@ def test_warmup_attach_stage_not_called_for_cpu():
             f"This indicates the CPU MBP broadphase double-initialization regression is present: "
             f"attach_stage() + force_load_physics_from_usd() must not be combined for CPU."
         )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("writer", ["link_index", "link_mask", "com_index", "com_mask"])
+@pytest.mark.isaacsim_ci
+def test_body_link_pose_w_fresh_after_root_pose_write(device, writer):
+    """Regression: ``body_link_pose_w`` must reflect a freshly written root pose without an intervening sim step.
+
+    After ``write_root_{link,com}_pose_to_sim_{index,mask}``, the cached ``_sim_bind_body_link_pose_w``
+    (Newton ``body_q``) is stale until forward kinematics is re-evaluated. The getter must call
+    :meth:`SimulationManager.forward` so the returned tensor matches the written pose. Without the fix,
+    the getter returns the pre-write value. The write must also dirty the simulator-side
+    ``_fk_reset_mask`` so collision queries (which read ``body_q`` directly, not via the property)
+    re-run FK before the next step.
+    """
+
+    def _fk_reset_mask_dirty() -> bool:
+        assert SimulationManager._fk_reset_mask is not None
+        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+
+    num_cubes = 2
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.5, device=device)
+
+        sim.reset()
+        assert cube_object.is_initialized
+
+        # Step once so that _sim_timestamp > 0 and caches are primed.
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        # Prime the body_link_pose_w cache with the current pose.
+        pre_write_pose = wp.to_torch(cube_object.data.body_link_pose_w).clone().view(num_cubes, 7)
+
+        # Clear the dirty flag so we can observe that the write sets it.
+        SimulationManager.forward()
+        assert not _fk_reset_mask_dirty()
+
+        # Build a target pose clearly distinct from the current one in both translation and orientation.
+        # Quaternion in (x, y, z, w) for 90° about z: [0, 0, sin(pi/4), cos(pi/4)] = [0, 0, sqrt(0.5), sqrt(0.5)].
+        target_pose = wp.to_torch(cube_object.data.root_link_pose_w).clone()
+        target_pose[..., 0] += 10.0
+        target_pose[..., 1] += 5.0
+        target_pose[..., 2] += 2.0
+        sqrt_half = 0.7071067811865476
+        target_pose[..., 3] = 0.0
+        target_pose[..., 4] = 0.0
+        target_pose[..., 5] = sqrt_half
+        target_pose[..., 6] = sqrt_half
+
+        if writer == "link_index":
+            cube_object.write_root_link_pose_to_sim_index(root_pose=target_pose)
+        elif writer == "link_mask":
+            cube_object.write_root_link_pose_to_sim_mask(root_pose=target_pose)
+        elif writer == "com_index":
+            cube_object.write_root_com_pose_to_sim_index(root_pose=target_pose)
+        elif writer == "com_mask":
+            cube_object.write_root_com_pose_to_sim_mask(root_pose=target_pose)
+
+        # The simulator-side dirty flag must be set before any property read clears it via forward().
+        assert _fk_reset_mask_dirty(), "pose write must call SimulationManager.invalidate_fk()"
+
+        # Read without stepping: getter must trigger forward kinematics and return the fresh pose.
+        body_link = wp.to_torch(cube_object.data.body_link_pose_w).view(num_cubes, 7)
+        # Defeat alias accidents: the property must not still return the pre-write value.
+        assert not torch.allclose(body_link[..., :3], pre_write_pose[..., :3], rtol=1e-4, atol=1e-4), (
+            "body_link_pose_w returned the pre-write cached pose; forward() was not invoked"
+        )
+        # Translation must match the write.
+        torch.testing.assert_close(body_link[..., :3], target_pose[..., :3], rtol=1e-4, atol=1e-4)
+        # Orientation: compare via |q1 · q2| ≈ 1 to account for the q ≡ -q double cover.
+        quat_dot = torch.abs((body_link[..., 3:7] * target_pose[..., 3:7]).sum(dim=-1))
+        torch.testing.assert_close(quat_dot, torch.ones_like(quat_dot), rtol=1e-4, atol=1e-4)
