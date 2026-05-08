@@ -369,7 +369,10 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_friction_coeff(self) -> ProxyArray:
-        """Joint static friction coefficient provided to the simulation.
+        """PhysX joint static friction value provided to the simulation.
+
+        For Isaac Sim 5.0 and later, this is the static friction effort [N or N·m, depending on joint type].
+        For earlier Isaac Sim versions, this is the legacy unitless joint friction coefficient.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
@@ -379,7 +382,9 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_dynamic_friction_coeff(self) -> ProxyArray:
-        """Joint dynamic friction coefficient provided to the simulation.
+        """PhysX joint dynamic friction effort provided to the simulation.
+
+        The effort is [N or N·m, depending on joint type].
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
@@ -390,6 +395,8 @@ class ArticulationData(BaseArticulationData):
     @property
     def joint_viscous_friction_coeff(self) -> ProxyArray:
         """Joint viscous friction coefficient provided to the simulation.
+
+        The coefficient is [N·s/m or N·m·s/rad, depending on joint type].
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
