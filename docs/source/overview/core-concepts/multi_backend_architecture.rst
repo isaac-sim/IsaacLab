@@ -161,10 +161,10 @@ Users then select the MJWarp Newton preset at the command line:
 .. code-block:: bash
 
     # Default (PhysX)
-    python train.py --task Isaac-Cartpole-v0
+    ./isaaclab.sh train --library rsl_rl --task Isaac-Cartpole-v0
 
     # MJWarp (Newton backend)
-    python train.py --task Isaac-Cartpole-v0 presets=newton_mjwarp
+    ./isaaclab.sh train --library rsl_rl --task Isaac-Cartpole-v0 presets=newton_mjwarp
 
 The Physics Manager
 -------------------

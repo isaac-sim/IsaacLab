@@ -20,7 +20,7 @@ Quick Installation
    ./isaaclab.sh -i
 
    # Run training (MJWarp on the Newton backend, 16 envs)
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
      --task=Isaac-Cartpole-Direct-v0 \
      --num_envs=16 --max_iterations=10 \
      presets=newton_mjwarp --visualizer newton
@@ -34,20 +34,20 @@ The ``presets=`` Hydra override selects the physics backend and renderer at runt
 .. code-block:: bash
 
    # MJWarp (Newton backend, Kit-less)
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=newton_mjwarp \
      --visualizer newton
 
    # PhysX (Kit — requires Isaac Sim)
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=physx
 
    # MJWarp with a specific visualizer
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=newton_mjwarp \

@@ -124,7 +124,7 @@ class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
     To debug a specific real-world scenario, edit the constants below to match
     the physical setup, then run::
 
-        python scripts/reinforcement_learning/play.py --library rsl_rl \\
+        ./isaaclab.sh play --library rsl_rl \\
             --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0 \\
             --num_envs 1 --checkpoint <path_to_model.pt>
 

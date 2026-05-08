@@ -177,12 +177,12 @@ Launch Training
 -------------------
 
 The various reinforcement learning libraries in Isaac Lab are accessed through the unified
-``scripts/reinforcement_learning/train.py`` script and their corresponding ``play.py`` scripts.
-Invoking these scripts will require a **Task Name** and a corresponding **Entry Point** to the gymnasium API. For example
+``train`` and ``play`` commands.
+Invoking these commands will require a **Task Name** and a corresponding **Entry Point** to the gymnasium API. For example
 
 .. code-block:: bash
 
-    python scripts/reinforcement_learning/train.py --library skrl --task=Isaac-Ant-v0
+    ./isaaclab.sh train --library skrl --task=Isaac-Ant-v0
 
 This will train the mujoco ant to "run".  You can see the various launch option available to you with the ``--help`` flag.  Note specifically the ``--num_envs`` option and the ``--headless`` flag,
 both of which can be useful when trying to develop and debug a new environment. Options specified at this level automatically overwrite any configuration equivalent that may be defined in the code
@@ -196,20 +196,20 @@ Use the ``presets=`` argument to select the physics backend at runtime:
 .. code-block:: bash
 
    # MJWarp (Newton backend, Kit-less) with Newton visualizer
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=newton_mjwarp \
      --visualizer newton
 
    # PhysX (Kit) — requires Isaac Sim installed
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=physx
 
    # MJWarp with a specific visualizer
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
      --task Isaac-Cartpole-Direct-v0 \
      --num_envs 4096 \
      presets=newton_mjwarp \

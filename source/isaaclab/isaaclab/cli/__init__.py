@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import sys
 
 from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
@@ -17,17 +18,32 @@ from .commands.misc import (
     command_vscode_settings,
 )
 from .utils import (
+    ISAACLAB_ROOT,
     is_windows,
     run_python_command,
 )
 
+_RL_COMMANDS = {
+    "train": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py",
+    "play": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py",
+}
+
 
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
+    if len(sys.argv) > 1 and sys.argv[1] in _RL_COMMANDS:
+        run_python_command(_RL_COMMANDS[sys.argv[1]], sys.argv[2:], check=True)
+        return
+
     parser = argparse.ArgumentParser(
         description="Isaac Lab CLI",
         prog="isaaclab" + (".bat" if is_windows() else ".sh"),
         formatter_class=argparse.RawTextHelpFormatter,
+        epilog=(
+            "commands:\n"
+            "  train  Run scripts/reinforcement_learning/train.py\n"
+            "  play   Run scripts/reinforcement_learning/play.py"
+        ),
     )
 
     _submodules_str = ", ".join(sorted(VALID_ISAACLAB_SUBMODULES))
@@ -68,8 +84,7 @@ def cli() -> None:
         nargs=argparse.REMAINDER,
         help=(
             "Run the python executable provided by Isaac Sim or virtual environment (if active).\n"
-            "Shorthands: train.py -> scripts/reinforcement_learning/train.py, "
-            "play.py -> scripts/reinforcement_learning/play.py."
+            "For reinforcement learning workflows, prefer the direct `train` and `play` commands."
         ),
     )
     parser.add_argument(

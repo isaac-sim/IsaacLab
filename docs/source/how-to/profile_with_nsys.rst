@@ -42,7 +42,7 @@ The following command shows how to capture a profile for the ``Isaac-Cartpole-v0
        -t nvtx,cuda \
        --python-functions-trace=scripts/benchmarks/nsys_trace.json \
        -o my_profile \
-       ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+        ./isaaclab.sh train --library rsl_rl \
            --task=Isaac-Cartpole-v0 \
            --headless \
            --max_iterations=3

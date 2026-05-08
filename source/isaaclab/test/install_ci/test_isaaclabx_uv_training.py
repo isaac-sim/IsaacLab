@@ -43,8 +43,7 @@ class Test_UV_Env_Heavy(UV_Mixin):
             result = self.run_in_uv_env(
                 [
                     str(self.cli_script),
-                    "-p",
-                    "scripts/reinforcement_learning/train.py",
+                    "train",
                     "--library",
                     "rsl_rl",
                     "--task",

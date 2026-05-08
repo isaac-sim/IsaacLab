@@ -13,6 +13,7 @@ from unittest import mock
 
 import pytest
 
+from isaaclab.cli import cli
 from isaaclab.cli.utils import (
     ISAACLAB_ROOT,
     determine_python_version,
@@ -153,6 +154,43 @@ class TestRunPythonCommand:
         command = run_command_mock.call_args.args[0]
         assert command[:2] == ["/usr/bin/python", "./train.py"]
         assert command[2:] == ["--help"]
+
+
+# ---------------------------------------------------------------------------
+# cli
+# ---------------------------------------------------------------------------
+
+
+class TestCli:
+    """Tests for the Isaac Lab CLI."""
+
+    def test_train_command_runs_unified_train_script(self):
+        """Should dispatch the train command to the unified reinforcement learning training script."""
+        with (
+            mock.patch.object(sys, "argv", ["isaaclab.sh", "train", "--library", "rsl_rl"]),
+            mock.patch("isaaclab.cli.run_python_command") as run_python_command_mock,
+        ):
+            cli()
+
+        run_python_command_mock.assert_called_once_with(
+            ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py",
+            ["--library", "rsl_rl"],
+            check=True,
+        )
+
+    def test_play_command_runs_unified_play_script(self):
+        """Should dispatch the play command to the unified reinforcement learning play script."""
+        with (
+            mock.patch.object(sys, "argv", ["isaaclab.sh", "play", "--library", "rsl_rl"]),
+            mock.patch("isaaclab.cli.run_python_command") as run_python_command_mock,
+        ):
+            cli()
+
+        run_python_command_mock.assert_called_once_with(
+            ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py",
+            ["--library", "rsl_rl"],
+            check=True,
+        )
 
 
 # ---------------------------------------------------------------------------

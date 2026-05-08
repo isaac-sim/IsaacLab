@@ -75,32 +75,32 @@ source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/assemble_trocar/
 
 ```bash
 # Basic training (uses default config)
-python train.py
+./isaaclab.sh train --library rlinf
 
 # Training with a specific config
-python train.py --config_name isaaclab_ppo_gr00t_assemble_trocar
+./isaaclab.sh train --library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar
 
 # Training with task override
-python train.py --task Isaac-Assemble-Trocar-G129-Dex3-RLinf-v0
+./isaaclab.sh train --library rlinf --task Isaac-Assemble-Trocar-G129-Dex3-RLinf-v0
 
 # Training with custom settings
-python train.py --num_envs 64 --max_epochs 1000
+./isaaclab.sh train --library rlinf --num_envs 64 --max_epochs 1000
 
 # List available tasks
-python train.py --list_tasks
+./isaaclab.sh train --library rlinf --list_tasks
 ```
 
 ### Evaluation
 
 ```bash
 # Evaluate a trained checkpoint
-python play.py --model_path /path/to/checkpoint
+./isaaclab.sh play --library rlinf --model_path /path/to/checkpoint
 
 # Evaluate with video recording
-python play.py --model_path /path/to/checkpoint --video
+./isaaclab.sh play --library rlinf --model_path /path/to/checkpoint --video
 
 # Evaluate with specific number of environments
-python play.py --model_path /path/to/checkpoint --num_envs 8
+./isaaclab.sh play --library rlinf --model_path /path/to/checkpoint --num_envs 8
 ```
 
 ## Configuration
@@ -282,7 +282,7 @@ The task is registered automatically at runtime via the extension module. Task I
 ### 4. Run Training
 
 ```bash
-python train.py --config_path /path/to/your/config/dir \
+./isaaclab.sh train --library rlinf --config_path /path/to/your/config/dir \
     --config_name isaaclab_ppo_gr00t_my_task
 ```
 

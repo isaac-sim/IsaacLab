@@ -444,10 +444,10 @@ Pass ``presets=newton_mjwarp`` (or ``presets=physx``) on the CLI to swap the ent
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton_mjwarp
+   ./isaaclab.sh train --library rsl_rl --task=Isaac-Franka-Cabinet-v0 presets=newton_mjwarp
 
    # Run with default (PhysX) backend
-   python train.py task=Isaac-Franka-Cabinet-v0
+   ./isaaclab.sh train --library rsl_rl --task=Isaac-Franka-Cabinet-v0
 
 Adding Multi-Backend Support to an Environment
 -----------------------------------------------

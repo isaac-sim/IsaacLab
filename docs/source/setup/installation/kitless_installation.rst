@@ -16,7 +16,7 @@ fastest way to get started and is ideal for users who only need the Newton physi
    ./isaaclab.sh --install   # or ./isaaclab.sh -i
 
    # Kickoff training with MJWarp physics and Newton visualizer
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
    --task=Isaac-Cartpole-Direct-v0 \
    --num_envs=16 --max_iterations=10 \
    presets=newton_mjwarp --visualizer newton

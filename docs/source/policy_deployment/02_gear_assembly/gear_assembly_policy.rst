@@ -263,7 +263,7 @@ These friction values were determined through iterative visual comparison:
 
            .. code-block:: bash
 
-               python scripts/reinforcement_learning/train.py --library rsl_rl \
+               ./isaaclab.sh train --library rsl_rl \
                    --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
                    --headless \
                    --video --video_length 800 --video_interval 5000
@@ -272,7 +272,7 @@ These friction values were determined through iterative visual comparison:
 
            .. code-block:: bash
 
-               python scripts/reinforcement_learning/train.py --library rsl_rl \
+               ./isaaclab.sh train --library rsl_rl \
                    --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
                    --headless \
                    --video --video_length 800 --video_interval 5000
@@ -650,7 +650,7 @@ First, launch the training with a small number of environments and visualization
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/train.py --library rsl_rl \
+            ./isaaclab.sh train --library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -659,7 +659,7 @@ First, launch the training with a small number of environments and visualization
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/train.py --library rsl_rl \
+            ./isaaclab.sh train --library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -668,7 +668,7 @@ First, launch the training with a small number of environments and visualization
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/train.py --library rsl_rl \
+            ./isaaclab.sh train --library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
                 --num_envs 4 \
                 --visualizer kit
@@ -697,7 +697,7 @@ Now launch the full training run with more parallel environments in headless mod
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/train.py --library rsl_rl \
+            ./isaaclab.sh train --library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
                 --headless \
                 --num_envs 256 \
@@ -707,7 +707,7 @@ Now launch the full training run with more parallel environments in headless mod
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/train.py --library rsl_rl \
+            ./isaaclab.sh train --library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
                 --headless \
                 --num_envs 256 \
@@ -717,7 +717,7 @@ Now launch the full training run with more parallel environments in headless mod
 
         .. code-block:: bash
 
-            python scripts/reinforcement_learning/train.py --library rsl_rl \
+            ./isaaclab.sh train --library rsl_rl \
                 --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
                 --headless \
                 --num_envs 256 \
@@ -823,7 +823,7 @@ CUDA Out of Memory
 
    .. code-block:: bash
 
-       python scripts/reinforcement_learning/train.py --library rsl_rl \
+       ./isaaclab.sh train --library rsl_rl \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
            --headless \
            --num_envs 128  # Reduce from 256 to 128, 64, etc.
@@ -854,7 +854,7 @@ CUDA Out of Memory
 
    .. code-block:: bash
 
-       python scripts/reinforcement_learning/train.py --library rsl_rl \
+       ./isaaclab.sh train --library rsl_rl \
            --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
            --headless \
            --num_envs 256
@@ -874,7 +874,7 @@ To use it, run the standard ``play.py`` script:
 
 .. code-block:: bash
 
-    python scripts/reinforcement_learning/play.py --library rsl_rl \
+    ./isaaclab.sh play --library rsl_rl \
         --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0 \
         --num_envs 1 \
         --checkpoint <path_to_model.pt>

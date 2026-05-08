@@ -9,8 +9,8 @@ import warnings
 
 warnings.warn(
     "scripts/reinforcement_learning/rsl_rl/train.py is deprecated. Use "
-    "`./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task <TASK>` instead. "
-    "Example: `./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Cartpole-v0`.",
+    "`./isaaclab.sh train --library rsl_rl --task <TASK>` instead. "
+    "Example: `./isaaclab.sh train --library rsl_rl --task Isaac-Cartpole-v0`.",
     DeprecationWarning,
     stacklevel=1,
 )

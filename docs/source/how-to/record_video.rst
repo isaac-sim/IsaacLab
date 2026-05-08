@@ -21,7 +21,7 @@ Example usage:
 
 .. code-block:: shell
 
-    python scripts/reinforcement_learning/train.py --library rl_games --task=Isaac-Cartpole-v0 --headless --video --video_length 100 --video_interval 500
+    ./isaaclab.sh train --library rl_games --task=Isaac-Cartpole-v0 --headless --video --video_length 100 --video_interval 500
 
 
 The recorded videos will be saved in the same directory as the training checkpoints, under

@@ -153,7 +153,7 @@ To run Isaac Lab commands, open a terminal on the workstation:
 
 .. code-block:: bash
 
-   ~/IsaacLab/isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
      --task=Isaac-Cartpole-Direct-v0 --headless
 
 

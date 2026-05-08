@@ -1120,8 +1120,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
         - single-camera: append ``presets=single_camera,isaacsim_rtx_renderer``
         - dual-camera: append ``presets=duo_camera,isaacsim_rtx_renderer``
 
-        The same ``presets=`` flags must be passed to both the training and
-        play scripts.  There is no separately registered
+        The same ``presets=`` flags must be passed to both the ``train`` and
+        ``play`` commands.  There is no separately registered
         ``Isaac-Dexsuite-Kuka-Allegro-Lift-Single-Camera-v0`` environment;
         all observation-mode variants share the base task name and are
         selected via the preset system.
@@ -1136,8 +1136,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
         - single-camera: append ``presets=single_camera,isaacsim_rtx_renderer``
         - dual-camera: append ``presets=duo_camera,isaacsim_rtx_renderer``
 
-        The same ``presets=`` flags must be passed to both the training and
-        play scripts.
+        The same ``presets=`` flags must be passed to both the ``train`` and
+        ``play`` commands.
       - Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)

@@ -3,28 +3,28 @@ Reinforcement Learning Scripts
 
 We provide wrappers to different reinforcement libraries. These wrappers convert the data
 from the environments into the respective libraries function argument and return types.
-The unified reinforcement learning entrypoints can be launched with their full paths or
-with the ``train.py`` and ``play.py`` shorthands:
+The unified reinforcement learning entrypoints can be launched with the Isaac Lab
+``train`` and ``play`` commands:
 
 .. code:: bash
 
-   ./isaaclab.sh -p train.py --library <framework> --task <task-name>
-   ./isaaclab.sh -p play.py --library <framework> --task <task-name>
+   ./isaaclab.sh train --library <framework> --task <task-name>
+   ./isaaclab.sh play --library <framework> --task <task-name>
 
-This shorthand is resolved by the Isaac Lab CLI. When running Python directly from
-an activated environment, use the full script path.
+These commands are resolved by the Isaac Lab CLI. When running Python directly
+from an activated environment, use the full script path.
 
 Newton Backend
 --------------
 
-All training and play scripts support the **Newton physics backend** via the ``presets=newton_mjwarp``
+All training and play commands support the **Newton physics backend** via the ``presets=newton_mjwarp``
 Hydra override. Appending ``presets=newton_mjwarp`` to any command below switches the physics engine
 from the default PhysX to Newton:
 
 .. code:: bash
 
    # Generic pattern — works with any framework and task that supports Newton
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library <framework> \
+    ./isaaclab.sh train --library <framework> \
        --task <task-name> --headless presets=newton_mjwarp
 
 .. note::
@@ -55,12 +55,12 @@ model) with ``presets=rgb``:
 .. code:: bash
 
    # Train with RGB-only observations
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl \
+    ./isaaclab.sh train --library rsl_rl \
        --task Isaac-Repose-Cube-Shadow-Vision-Direct-v0 --headless \
        --enable_cameras presets=rgb
 
    # Play — must use the same preset to load the matching checkpoint
-   ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rsl_rl \
+    ./isaaclab.sh play --library rsl_rl \
        --task Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0 \
        --enable_cameras presets=rgb
 
@@ -102,13 +102,13 @@ RL-Games
             # install python module (for rl-games)
             ./isaaclab.sh -i rl_games
             # run script for training
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rl_games --task Isaac-Ant-v0 --headless
+             ./isaaclab.sh train --library rl_games --task Isaac-Ant-v0 --headless
             # run script for training with Newton backend
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rl_games --task Isaac-Ant-v0 --headless presets=newton_mjwarp
+             ./isaaclab.sh train --library rl_games --task Isaac-Ant-v0 --headless presets=newton_mjwarp
             # run script for playing with 32 environments
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rl_games --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+             ./isaaclab.sh play --library rl_games --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rl_games --task Isaac-Ant-v0 --headless --video --video_length 200
+             ./isaaclab.sh play --library rl_games --task Isaac-Ant-v0 --headless --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -118,13 +118,13 @@ RL-Games
             :: install python module (for rl-games)
             isaaclab.bat -i rl_games
             :: run script for training
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library rl_games --task Isaac-Ant-v0 --headless
+            isaaclab.bat train --library rl_games --task Isaac-Ant-v0 --headless
             :: run script for training with Newton backend
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library rl_games --task Isaac-Ant-v0 --headless presets=newton_mjwarp
+            isaaclab.bat train --library rl_games --task Isaac-Ant-v0 --headless presets=newton_mjwarp
             :: run script for playing with 32 environments
-            isaaclab.bat -p scripts\reinforcement_learning\play.py --library rl_games --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
+            isaaclab.bat play --library rl_games --task Isaac-Ant-v0 --num_envs 32 --checkpoint /PATH/TO/model.pth
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
-            isaaclab.bat -p scripts\reinforcement_learning\play.py --library rl_games --task Isaac-Ant-v0 --headless --video --video_length 200
+            isaaclab.bat play --library rl_games --task Isaac-Ant-v0 --headless --video --video_length 200
 
 RSL-RL
 ------
@@ -143,13 +143,13 @@ RSL-RL
             # install python module (for rsl-rl)
             ./isaaclab.sh -i rsl_rl
             # run script for training
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Reach-Franka-v0 --headless
+             ./isaaclab.sh train --library rsl_rl --task Isaac-Reach-Franka-v0 --headless
             # run script for training with Newton backend
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Reach-Franka-v0 --headless presets=newton_mjwarp
+             ./isaaclab.sh train --library rsl_rl --task Isaac-Reach-Franka-v0 --headless presets=newton_mjwarp
             # run script for playing with 32 environments
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rsl_rl --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+             ./isaaclab.sh play --library rsl_rl --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rsl_rl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+             ./isaaclab.sh play --library rsl_rl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -159,13 +159,13 @@ RSL-RL
             :: install python module (for rsl-rl)
             isaaclab.bat -i rsl_rl
             :: run script for training
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library rsl_rl --task Isaac-Reach-Franka-v0 --headless
+            isaaclab.bat train --library rsl_rl --task Isaac-Reach-Franka-v0 --headless
             :: run script for training with Newton backend
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library rsl_rl --task Isaac-Reach-Franka-v0 --headless presets=newton_mjwarp
+            isaaclab.bat train --library rsl_rl --task Isaac-Reach-Franka-v0 --headless presets=newton_mjwarp
             :: run script for playing with 32 environments
-            isaaclab.bat -p scripts\reinforcement_learning\play.py --library rsl_rl --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
+            isaaclab.bat play --library rsl_rl --task Isaac-Reach-Franka-v0 --num_envs 32 --load_run run_folder_name --checkpoint /PATH/TO/model.pt
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
-            isaaclab.bat -p scripts\reinforcement_learning\play.py --library rsl_rl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+            isaaclab.bat play --library rsl_rl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
 -  Training and distilling an agent with
    `RSL-RL <https://github.com/leggedrobotics/rsl_rl>`__ on ``Isaac-Velocity-Flat-Anymal-D-v0``:
@@ -181,13 +181,13 @@ RSL-RL
             # install python module (for rsl-rl)
             ./isaaclab.sh -i rsl_rl
             # run script for rl training of the teacher agent
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless
+             ./isaaclab.sh train --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless
             # run script for rl training of the teacher agent with Newton backend
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless presets=newton_mjwarp
+             ./isaaclab.sh train --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless presets=newton_mjwarp
             # run script for distilling the teacher agent into a student agent
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+             ./isaaclab.sh train --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
             # run script for playing the student with 64 environments
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
+             ./isaaclab.sh play --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -197,13 +197,13 @@ RSL-RL
             :: install python module (for rsl-rl)
             isaaclab.bat -i rsl_rl
             :: run script for rl training of the teacher agent
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless
+            isaaclab.bat train --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless
             :: run script for rl training of the teacher agent with Newton backend
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless presets=newton_mjwarp
+            isaaclab.bat train --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless presets=newton_mjwarp
             :: run script for distilling the teacher agent into a student agent
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
+            isaaclab.bat train --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --headless --agent rsl_rl_distillation_cfg_entry_point --load_run teacher_run_folder_name
             :: run script for playing the student with 64 environments
-            isaaclab.bat -p scripts\reinforcement_learning\play.py --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
+            isaaclab.bat play --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --num_envs 64 --agent rsl_rl_distillation_cfg_entry_point
 
 SKRL
 ----
@@ -226,13 +226,13 @@ SKRL
                      # install python module (for skrl)
                      ./isaaclab.sh -i skrl
                      # run script for training
-                     ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library skrl --task Isaac-Reach-Franka-v0 --headless
+                      ./isaaclab.sh train --library skrl --task Isaac-Reach-Franka-v0 --headless
                      # run script for training with Newton backend
-                     ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library skrl --task Isaac-Reach-Franka-v0 --headless presets=newton_mjwarp
+                      ./isaaclab.sh train --library skrl --task Isaac-Reach-Franka-v0 --headless presets=newton_mjwarp
                      # run script for playing with 32 environments
-                     ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library skrl --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+                      ./isaaclab.sh play --library skrl --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
                      # run script for recording video of a trained agent (requires installing `ffmpeg`)
-                     ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library skrl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+                      ./isaaclab.sh play --library skrl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
                .. tab-item:: :icon:`fa-brands fa-windows` Windows
                   :sync: windows
@@ -242,13 +242,13 @@ SKRL
                      :: install python module (for skrl)
                      isaaclab.bat -i skrl
                      :: run script for training
-                     isaaclab.bat -p scripts\reinforcement_learning\train.py --library skrl --task Isaac-Reach-Franka-v0 --headless
+                     isaaclab.bat train --library skrl --task Isaac-Reach-Franka-v0 --headless
                      :: run script for training with Newton backend
-                     isaaclab.bat -p scripts\reinforcement_learning\train.py --library skrl --task Isaac-Reach-Franka-v0 --headless presets=newton_mjwarp
+                     isaaclab.bat train --library skrl --task Isaac-Reach-Franka-v0 --headless presets=newton_mjwarp
                      :: run script for playing with 32 environments
-                     isaaclab.bat -p scripts\reinforcement_learning\play.py --library skrl --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
+                     isaaclab.bat play --library skrl --task Isaac-Reach-Franka-v0 --num_envs 32 --checkpoint /PATH/TO/model.pt
                      :: run script for recording video of a trained agent (requires installing `ffmpeg`)
-                     isaaclab.bat -p scripts\reinforcement_learning\play.py --library skrl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
+                     isaaclab.bat play --library skrl --task Isaac-Reach-Franka-v0 --headless --video --video_length 200
 
       .. tab-item:: JAX
 
@@ -278,13 +278,13 @@ SKRL
             # install skrl dependencies for JAX
             ./isaaclab.sh -p -m pip install skrl["jax"]
             # run script for training
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library skrl --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
+             ./isaaclab.sh train --library skrl --task Isaac-Reach-Franka-v0 --headless --ml_framework jax
             # run script for training with Newton backend
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library skrl --task Isaac-Reach-Franka-v0 --headless --ml_framework jax presets=newton_mjwarp
+             ./isaaclab.sh train --library skrl --task Isaac-Reach-Franka-v0 --headless --ml_framework jax presets=newton_mjwarp
             # run script for playing with 32 environments
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library skrl --task Isaac-Reach-Franka-v0 --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
+             ./isaaclab.sh play --library skrl --task Isaac-Reach-Franka-v0 --num_envs 32  --ml_framework jax --checkpoint /PATH/TO/model.pt
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library skrl --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
+             ./isaaclab.sh play --library skrl --task Isaac-Reach-Franka-v0 --headless --ml_framework jax --video --video_length 200
 
    - Training the multi-agent environment ``Isaac-Shadow-Hand-Over-Direct-v0`` with skrl:
 
@@ -299,9 +299,9 @@ SKRL
             # install python module (for skrl)
             ./isaaclab.sh -i skrl
             # run script for training with the MAPPO algorithm (IPPO is also supported)
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
+             ./isaaclab.sh train --library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
             # run script for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+             ./isaaclab.sh play --library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -311,9 +311,9 @@ SKRL
             :: install python module (for skrl)
             isaaclab.bat -i skrl
             :: run script for training with the MAPPO algorithm (IPPO is also supported)
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
+            isaaclab.bat train --library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --headless --algorithm MAPPO
             :: run script for playing with 32 environments with the MAPPO algorithm (IPPO is also supported)
-            isaaclab.bat -p scripts\reinforcement_learning\play.py --library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
+            isaaclab.bat play --library skrl --task Isaac-Shadow-Hand-Over-Direct-v0 --num_envs 32 --algorithm MAPPO --checkpoint /PATH/TO/model.pt
 
 Stable-Baselines3
 -----------------
@@ -333,13 +333,13 @@ Stable-Baselines3
             # install python module (for stable-baselines3)
             ./isaaclab.sh -i sb3
             # run script for training
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
+             ./isaaclab.sh train --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
             # run script for training with Newton backend
-            ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless presets=newton_mjwarp
+             ./isaaclab.sh train --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless presets=newton_mjwarp
             # run script for playing with 32 environments
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+             ./isaaclab.sh play --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
             # run script for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
+             ./isaaclab.sh play --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -349,13 +349,13 @@ Stable-Baselines3
             :: install python module (for stable-baselines3)
             isaaclab.bat -i sb3
             :: run script for training
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
+            isaaclab.bat train --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless
             :: run script for training with Newton backend
-            isaaclab.bat -p scripts\reinforcement_learning\train.py --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless presets=newton_mjwarp
+            isaaclab.bat train --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless presets=newton_mjwarp
             :: run script for playing with 32 environments
-            isaaclab.bat -p scripts\reinforcement_learning\play.py --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            isaaclab.bat play --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
             :: run script for recording video of a trained agent (requires installing `ffmpeg`)
-            isaaclab.bat -p scripts\reinforcement_learning\play.py --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
+            isaaclab.bat play --library sb3 --task Isaac-Velocity-Flat-Unitree-A1-v0 --headless --video --video_length 200
 
 RLinf
 -----
@@ -385,35 +385,35 @@ large VLA models that don't fit on a single GPU.
    .. code:: bash
 
       # Train with default config (assemble trocar task with GR00T)
-      ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rlinf
+       ./isaaclab.sh train --library rlinf
 
       # Train with a specific config
-      ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rlinf \
+       ./isaaclab.sh train --library rlinf \
           --config_name isaaclab_ppo_gr00t_assemble_trocar
 
       # Train with task override and custom settings
-      ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rlinf \
+       ./isaaclab.sh train --library rlinf \
           --config_name isaaclab_ppo_gr00t_assemble_trocar \
           --task Isaac-Assemble-Trocar-G129-Dex3-RLinf-v0 \
           --num_envs 64 --max_epochs 1000
 
       # List available tasks
-      ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rlinf --list_tasks
+       ./isaaclab.sh train --library rlinf --list_tasks
 
 -  Evaluating a trained VLA agent:
 
    .. code:: bash
 
       # Evaluate a trained checkpoint
-      ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rlinf \
+       ./isaaclab.sh play --library rlinf \
           --model_path /path/to/checkpoint
 
       # Evaluate with video recording
-      ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rlinf \
+       ./isaaclab.sh play --library rlinf \
           --model_path /path/to/checkpoint --video
 
       # Evaluate with specific number of environments and episodes
-      ./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rlinf \
+       ./isaaclab.sh play --library rlinf \
           --model_path /path/to/checkpoint --num_envs 8 --num_episodes 10
 
 

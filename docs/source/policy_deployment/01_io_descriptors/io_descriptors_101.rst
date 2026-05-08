@@ -78,10 +78,10 @@ This can be done by setting the ``export_io_descriptors`` flag in the command li
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library sb3 --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rl_games --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
-   ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library skrl --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
+    ./isaaclab.sh train --library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
+    ./isaaclab.sh train --library sb3 --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
+    ./isaaclab.sh train --library rl_games --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
+    ./isaaclab.sh train --library skrl --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
 
 
 Attaching IO Descriptors to Custom Observation Terms

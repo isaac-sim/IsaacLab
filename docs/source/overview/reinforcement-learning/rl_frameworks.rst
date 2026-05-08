@@ -106,7 +106,7 @@ Training commands (check for the *'Training time: XXX seconds'* line in the term
 
 .. code:: bash
 
-    python scripts/reinforcement_learning/train.py --library rl_games --task Isaac-Humanoid-v0 --max_iterations 500 --headless
-    python scripts/reinforcement_learning/train.py --library skrl --task Isaac-Humanoid-v0 --max_iterations 500 --headless
-    python scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Humanoid-v0 --max_iterations 500 --headless
-    python scripts/reinforcement_learning/train.py --library sb3 --task Isaac-Humanoid-v0 --max_iterations 500 --headless
+    ./isaaclab.sh train --library rl_games --task Isaac-Humanoid-v0 --max_iterations 500 --headless
+    ./isaaclab.sh train --library skrl --task Isaac-Humanoid-v0 --max_iterations 500 --headless
+    ./isaaclab.sh train --library rsl_rl --task Isaac-Humanoid-v0 --max_iterations 500 --headless
+    ./isaaclab.sh train --library sb3 --task Isaac-Humanoid-v0 --max_iterations 500 --headless
