@@ -14,6 +14,25 @@ from typing import Any
 class BaseSceneDataProvider(ABC):
     """Backend-agnostic scene data provider interface."""
 
+    def set_interactive_scene(self, scene: Any) -> None:
+        """Attach the interactive scene so visualizers can discover scene-owned sensors."""
+        self._interactive_scene = scene
+
+    def get_interactive_scene(self) -> Any | None:
+        """Return the registered interactive scene, if available."""
+        return getattr(self, "_interactive_scene", None)
+
+    def get_camera_sensors(self) -> dict[str, Any]:
+        """Return Isaac Lab camera sensors keyed by scene sensor name."""
+        scene = getattr(self, "_interactive_scene", None)
+        if scene is None:
+            return {}
+        try:
+            from isaaclab.sensors.camera import Camera
+        except ImportError:
+            return {}
+        return {name: sensor for name, sensor in scene.sensors.items() if isinstance(sensor, Camera)}
+
     @abstractmethod
     def update(self) -> None:
         """Refresh any cached scene data (full model/state)."""

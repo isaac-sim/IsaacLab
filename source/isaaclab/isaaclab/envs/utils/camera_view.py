@@ -1,0 +1,202 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Helpers for visualizer and recorder camera image views."""
+
+from __future__ import annotations
+
+import math
+import random
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+import torch
+
+import isaaclab.sim as sim_utils
+from isaaclab.sensors.camera import Camera, CameraCfg
+
+_GENERATED_CAMERA_NAME = "VisualizerCamera"
+
+
+@dataclass
+class ResolvedCameraView:
+    """Camera sensor plus selected sensor indices."""
+
+    camera: Camera
+    env_indices: list[int]
+    owns_camera: bool = False
+    generated_prim_paths: list[str] | None = None
+
+
+def resolve_tiled_env_indices(num_envs: int, tiled_cam_num: int, env_indices: list[int] | None) -> list[int]:
+    """Resolve env ids for tiled camera view once at visualizer initialization."""
+    if num_envs <= 0:
+        return []
+    max_count = min(max(1, int(tiled_cam_num)), num_envs)
+    if env_indices is not None:
+        return [idx for idx in env_indices if 0 <= int(idx) < num_envs][:max_count]
+    return sorted(random.sample(range(num_envs), max_count))
+
+
+def resolve_mono_env_index(num_envs: int) -> list[int]:
+    """Return env_0 for mono sensor camera views."""
+    return [0] if num_envs > 0 else []
+
+
+def env_path_from_template(path_template: str, env_id: int) -> str:
+    """Resolve common env wildcard/template spellings to a concrete env path."""
+    path = path_template
+    if "%d" in path:
+        return path % env_id
+    if "{}" in path:
+        return path.format(env_id)
+    path = path.replace("/World/envs/*", f"/World/envs/env_{env_id}")
+    path = path.replace("/World/envs/env_.*", f"/World/envs/env_{env_id}")
+    path = path.replace("/World/envs/env_.*/", f"/World/envs/env_{env_id}/")
+    return path
+
+
+def _camera_concrete_paths(camera: Camera) -> list[str]:
+    view = getattr(camera, "_view", None)
+    prims = getattr(view, "prims", None)
+    if not prims:
+        return []
+    return [prim.GetPath().pathString for prim in prims]
+
+
+def find_camera_by_prim_path(camera_sensors: dict[str, Camera], cam_prim_path: str, env_indices: list[int]) -> Camera:
+    """Find a scene-owned Camera by config template or concrete camera prim paths."""
+    wanted = {env_path_from_template(cam_prim_path, env_id) for env_id in env_indices}
+    for camera in camera_sensors.values():
+        if getattr(camera.cfg, "prim_path", None) == cam_prim_path:
+            return camera
+        concrete = set(_camera_concrete_paths(camera))
+        if wanted and wanted.issubset(concrete):
+            return camera
+    stage = sim_utils.get_current_stage()
+    stage_matches = [path for path in wanted if stage.GetPrimAtPath(path).IsValid()] if stage is not None else []
+    if stage_matches:
+        raise RuntimeError(
+            f"cam_prim_path={cam_prim_path!r} matched USD camera prims, but no Isaac Lab Camera sensor owns them. "
+            "Add the camera to scene.sensors or use cam_source='cfg'."
+        )
+    raise RuntimeError(f"No Isaac Lab Camera sensor matched cam_prim_path={cam_prim_path!r}.")
+
+
+def ensure_camera_initialized(camera: Camera) -> None:
+    """Initialize a visualizer-owned Camera created after the normal physics-ready callback."""
+    if not camera.is_initialized:
+        camera._initialize_callback(None)
+
+
+def create_visualizer_camera(
+    *,
+    num_envs: int,
+    camera_name: str = _GENERATED_CAMERA_NAME,
+    width: int,
+    height: int,
+    renderer_cfg: Any,
+) -> tuple[Camera, list[str]]:
+    """Create an internal RGB Camera sensor for visualizer image views."""
+    spawn = sim_utils.PinholeCameraCfg(
+        focal_length=24.0,
+        focus_distance=400.0,
+        horizontal_aperture=20.955,
+        clipping_range=(0.1, 1.0e5),
+    )
+    generated_paths = [f"/World/envs/env_{env_id}/{camera_name}" for env_id in range(int(num_envs))]
+    for path in generated_paths:
+        if len(sim_utils.find_matching_prims(path)) == 0:
+            spawn.func(path, spawn, translation=(0.0, 0.0, 0.0), orientation=(0.0, 0.0, 0.0, 1.0))
+    cfg = CameraCfg(
+        prim_path=f"/World/envs/env_.*/{camera_name}",
+        update_period=0.0,
+        height=int(height),
+        width=int(width),
+        data_types=["rgb"],
+        spawn=None,
+        renderer_cfg=renderer_cfg,
+    )
+    camera = Camera(cfg)
+    ensure_camera_initialized(camera)
+    return camera, generated_paths
+
+
+def remove_generated_prims(prim_paths: list[str] | None) -> None:
+    """Remove visualizer-owned camera prims from the current stage."""
+    if not prim_paths:
+        return
+    stage = sim_utils.get_current_stage()
+    if stage is None:
+        return
+    for path in prim_paths:
+        prim = stage.GetPrimAtPath(path)
+        if prim.IsValid():
+            stage.RemovePrim(path)
+
+
+def camera_rgb_batch(camera: Camera, env_indices: list[int]) -> torch.Tensor:
+    """Return RGB output for selected env indices."""
+    rgb = camera.data.output["rgb"]
+    if env_indices:
+        index = torch.tensor(env_indices, dtype=torch.long, device=rgb.device)
+        return rgb.index_select(0, index)
+    return rgb
+
+
+def compose_rgb_grid(rgb_batch: torch.Tensor) -> np.ndarray:
+    """Compose an RGB batch into a near-square uint8 image grid for Kit UI display."""
+    rgb_np = rgb_batch.detach().contiguous().cpu().numpy()
+    if rgb_np.ndim == 3:
+        return rgb_np[..., :3]
+    n, h, w, _ = rgb_np.shape
+    cols = max(1, math.ceil(math.sqrt(n)))
+    rows = math.ceil(n / cols)
+    pad = rows * cols - n
+    if pad > 0:
+        rgb_np = np.concatenate([rgb_np[..., :3], np.zeros((pad, h, w, 3), dtype=rgb_np.dtype)], axis=0)
+    else:
+        rgb_np = rgb_np[..., :3]
+    return rgb_np.reshape(rows, cols, h, w, 3).transpose(0, 2, 1, 3, 4).reshape(rows * h, cols * w, 3)
+
+
+def compute_tile_resolution(window_width: int, window_height: int, num_tiles: int) -> tuple[int, int]:
+    """Derive a conservative per-tile resolution from the visualizer window."""
+    cols = max(1, math.ceil(math.sqrt(max(1, num_tiles))))
+    rows = math.ceil(max(1, num_tiles) / cols)
+    return max(1, int(window_width) // cols), max(1, int(window_height) // rows)
+
+
+def prim_world_positions(stage: Any, prim_path_template: str, env_indices: list[int]) -> torch.Tensor:
+    """Return world-space translations for concrete prim paths resolved from env ids."""
+    from pxr import UsdGeom
+
+    xform_cache = UsdGeom.XformCache()
+    positions = []
+    for env_id in env_indices:
+        prim_path = env_path_from_template(prim_path_template, env_id)
+        prim = stage.GetPrimAtPath(prim_path)
+        if not prim.IsValid():
+            raise RuntimeError(f"cam_follow_prim_path resolved to missing prim: {prim_path!r}.")
+        transform = xform_cache.GetLocalToWorldTransform(prim)
+        translation = transform.ExtractTranslation()
+        positions.append((float(translation[0]), float(translation[1]), float(translation[2])))
+    return torch.tensor(positions, dtype=torch.float32)
+
+
+def apply_camera_view_from_origins(
+    camera: Camera,
+    origins: torch.Tensor,
+    eye: tuple[float, float, float],
+    lookat: tuple[float, float, float],
+    env_ids: list[int] | None = None,
+) -> None:
+    """Set camera poses from origins plus relative eye/lookat offsets."""
+    device = camera.device
+    origins = origins.to(device=device)
+    eye_offset = torch.tensor(eye, dtype=torch.float32, device=device).unsqueeze(0)
+    lookat_offset = torch.tensor(lookat, dtype=torch.float32, device=device).unsqueeze(0)
+    camera.set_world_poses_from_view(origins + eye_offset, origins + lookat_offset, env_ids=env_ids)

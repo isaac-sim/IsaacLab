@@ -169,6 +169,7 @@ class ManagerBasedEnv:
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
+            self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller

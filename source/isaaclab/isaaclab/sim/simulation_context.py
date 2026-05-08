@@ -181,6 +181,7 @@ class SimulationContext:
         # their own backend args. Empty dict until :meth:`InteractiveScene.clone_environments`
         # runs.
         self._clone_plans: dict[str, ClonePlan] = {}
+        self._interactive_scene = None
         self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -625,7 +626,15 @@ class SimulationContext:
     def initialize_scene_data_provider(self) -> BaseSceneDataProvider:
         if self._scene_data_provider is None:
             self._scene_data_provider = SceneDataProvider(self.stage, self)
+            if self._interactive_scene is not None:
+                self._scene_data_provider.set_interactive_scene(self._interactive_scene)
         return self._scene_data_provider
+
+    def register_interactive_scene(self, scene) -> None:
+        """Register the active scene so scene data providers can expose scene-owned sensors."""
+        self._interactive_scene = scene
+        if self._scene_data_provider is not None:
+            self._scene_data_provider.set_interactive_scene(scene)
 
     def get_scene_data_requirements(self) -> SceneDataRequirement:
         """Return scene-data requirements resolved from visualizers/renderers."""

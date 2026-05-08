@@ -220,8 +220,12 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
+        state = self.get_scene_data_provider().get_newton_state()
+        # Newton's raytraced camera kernels require fresh BVHs before shape/particle rendering.
+        newton.geometry.build_bvh_shape(self.newton_sensor.model, state)
+        newton.geometry.build_bvh_particle(self.newton_sensor.model, state)
         self.newton_sensor.update(
-            self.get_scene_data_provider().get_newton_state(),
+            state,
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,

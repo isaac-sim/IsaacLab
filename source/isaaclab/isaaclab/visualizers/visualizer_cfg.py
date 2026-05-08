@@ -41,10 +41,27 @@ class VisualizerCfg:
     """Initial camera look-at point (x, y, z) in world coordinates."""
 
     cam_source: Literal["cfg", "prim_path"] = "cfg"
-    """Camera source mode: 'cfg' uses eye/lookat, 'prim_path' follows a camera prim."""
+    """Camera source mode: 'cfg' uses eye/lookat, 'prim_path' uses Isaac Lab camera sensor output."""
 
-    cam_prim_path: str = "/World/envs/env_0/Camera"
-    """Absolute USD path to a camera prim when cam_source='prim_path'."""
+    cam_prim_path: str = "/World/envs/*/Camera"
+    """Camera prim path or env wildcard path when cam_source='prim_path'."""
+
+    cam_follow_prim_path: str | None = None
+    """Optional prim path whose world pose anchors generated camera views.
+
+    When set, camera controls are disabled and eye/lookat are interpreted relative
+    to the matched follow prim. Wildcards resolve to env_0 for mono view and to
+    selected envs for tiled view.
+    """
+
+    tiled_cam_view: bool = False
+    """Enable a non-interactive tiled camera image view."""
+
+    tiled_cam_num: int = 24
+    """Number of camera tiles to show when tiled_cam_env_indices is None."""
+
+    tiled_cam_env_indices: list[int] | None = None
+    """Env ids to show in tiled camera view; if None, sample tiled_cam_num envs once at initialization."""
 
     max_visible_envs: int | None = None
     """Upper bound on how many envs are shown.

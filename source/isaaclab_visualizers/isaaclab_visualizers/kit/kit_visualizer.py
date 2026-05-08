@@ -13,6 +13,18 @@ from typing import TYPE_CHECKING
 
 from pxr import Gf, Usd, UsdGeom, Vt
 
+from isaaclab.envs.utils.camera_view import (
+    apply_camera_view_from_origins,
+    camera_rgb_batch,
+    compose_rgb_grid,
+    compute_tile_resolution,
+    create_visualizer_camera,
+    find_camera_by_prim_path,
+    prim_world_positions,
+    remove_generated_prims,
+    resolve_mono_env_index,
+    resolve_tiled_env_indices,
+)
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
@@ -52,6 +64,13 @@ class KitVisualizer(BaseVisualizer):
         self._runtime_headless = bool(cfg.headless)
         # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
         self._controlled_camera_path: str | None = None
+        self._camera_sensor = None
+        self._camera_sensor_indices: list[int] = []
+        self._camera_env_indices: list[int] = []
+        self._camera_is_owned = False
+        self._generated_camera_prim_paths: list[str] = []
+        self._camera_image_provider = None
+        self._camera_image_window = None
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -102,6 +121,7 @@ class KitVisualizer(BaseVisualizer):
                 ("headless", self._runtime_headless),
             ],
         )
+        self._setup_camera_sensor_view(num_envs_meta)
 
         self._is_initialized = True
 
@@ -128,6 +148,7 @@ class KitVisualizer(BaseVisualizer):
                 settings.set_bool("/app/player/playSimulations", True)
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
+        self._update_camera_image_panel()
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
         # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
         self._refresh_partial_viz_point_instancers_if_needed()
@@ -137,6 +158,14 @@ class KitVisualizer(BaseVisualizer):
         if not self._is_initialized:
             return
         self._restore_env_visibility()
+        if self._camera_sensor is not None and self._camera_is_owned:
+            cleanup = getattr(self._camera_sensor, "__del__", None)
+            if callable(cleanup):
+                cleanup()
+            remove_generated_prims(self._generated_camera_prim_paths)
+        self._camera_sensor = None
+        self._camera_image_provider = None
+        self._camera_image_window = None
         self._simulation_app = None
         self._viewport_window = None
         self._viewport_api = None
@@ -289,7 +318,10 @@ class KitVisualizer(BaseVisualizer):
             self._refresh_controlled_camera_path()
             return
         self._viewport_api = self._viewport_window.viewport_api
-        if self.cfg.cam_source == "prim_path":
+        if self._uses_camera_sensor_view():
+            # Camera sensor image views are shown in a non-interactive image panel.
+            pass
+        elif self.cfg.cam_source == "prim_path":
             if not self._set_active_camera_path(self.cfg.cam_prim_path):
                 raise RuntimeError(
                     "[KitVisualizer] cam_source='prim_path' requires a valid cam_prim_path. "
@@ -298,6 +330,101 @@ class KitVisualizer(BaseVisualizer):
         else:
             self._apply_cfg_camera_pose_if_configured()
         self._refresh_controlled_camera_path()
+
+    def _uses_camera_sensor_view(self) -> bool:
+        """Return whether Kit should display a camera sensor image instead of an interactive viewport camera."""
+        return bool(self.cfg.tiled_cam_view or self.cfg.cam_source == "prim_path" or self.cfg.cam_follow_prim_path)
+
+    def _setup_camera_sensor_view(self, num_envs: int) -> None:
+        """Resolve or create the Camera sensor backing non-interactive image views."""
+        if not self._uses_camera_sensor_view() or self._runtime_headless:
+            return
+        env_ids = (
+            resolve_tiled_env_indices(num_envs, self.cfg.tiled_cam_num, self.cfg.tiled_cam_env_indices)
+            if self.cfg.tiled_cam_view
+            else resolve_mono_env_index(num_envs)
+        )
+        self._camera_env_indices = env_ids
+        if self.cfg.cam_source == "prim_path":
+            cameras = self._scene_data_provider.get_camera_sensors()
+            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.cam_prim_path, env_ids)
+            self._camera_sensor_indices = env_ids
+        else:
+            from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+            count = max(1, len(env_ids))
+            tile_w, tile_h = compute_tile_resolution(self.cfg.window_width, self.cfg.window_height, count)
+            self._camera_sensor, self._generated_camera_prim_paths = create_visualizer_camera(
+                num_envs=num_envs,
+                width=tile_w,
+                height=tile_h,
+                renderer_cfg=IsaacRtxRendererCfg(),
+            )
+            self._camera_sensor_indices = env_ids
+            self._camera_is_owned = True
+            self._update_owned_camera_poses()
+        self._setup_camera_image_window()
+
+    def _setup_camera_image_window(self) -> None:
+        """Create a dockable Kit UI image panel for camera sensor RGB output."""
+        import omni.ui
+
+        title = self.cfg.viewport_name or "Visualizer Camera"
+        self._camera_image_provider = omni.ui.ByteImageProvider()
+        self._camera_image_window = omni.ui.Window(title, width=self.cfg.window_width, height=self.cfg.window_height)
+        with self._camera_image_window.frame:
+            omni.ui.ImageWithProvider(self._camera_image_provider)
+
+        dock_position_name = self.cfg.dock_position.upper()
+        dock_position_map = {
+            "LEFT": omni.ui.DockPosition.LEFT,
+            "RIGHT": omni.ui.DockPosition.RIGHT,
+            "BOTTOM": omni.ui.DockPosition.BOTTOM,
+            "SAME": omni.ui.DockPosition.SAME,
+        }
+        asyncio.ensure_future(
+            self._dock_image_window_async(title, dock_position_map.get(dock_position_name, omni.ui.DockPosition.SAME))
+        )
+
+    async def _dock_image_window_async(self, window_name: str, dock_position) -> None:
+        """Dock the camera image panel next to the main viewport."""
+        import omni.kit.app
+        import omni.ui
+
+        image_window = None
+        for _ in range(10):
+            image_window = omni.ui.Workspace.get_window(window_name)
+            if image_window:
+                break
+            await omni.kit.app.get_app().next_update_async()
+        main_viewport = omni.ui.Workspace.get_window("Viewport")
+        if image_window is not None and main_viewport is not None and image_window != main_viewport:
+            image_window.dock_in(main_viewport, dock_position, 0.5)
+
+    def _update_owned_camera_poses(self) -> None:
+        """Update generated camera poses from env origins or follow prims."""
+        if self._camera_sensor is None or not self._camera_is_owned:
+            return
+        if self.cfg.cam_follow_prim_path:
+            origins = prim_world_positions(
+                self._scene_data_provider.get_usd_stage(), self.cfg.cam_follow_prim_path, self._camera_env_indices
+            )
+        else:
+            env_origins = self._scene_data_provider.get_interactive_scene().env_origins
+            origins = env_origins[self._camera_env_indices].detach().cpu()
+        apply_camera_view_from_origins(
+            self._camera_sensor, origins, self.cfg.eye, self.cfg.lookat, self._camera_env_indices
+        )
+
+    def _update_camera_image_panel(self) -> None:
+        """Refresh the non-interactive Kit image panel from camera RGB output."""
+        if self._camera_sensor is None or self._camera_image_provider is None:
+            return
+        if self._camera_is_owned and self.cfg.cam_follow_prim_path:
+            self._update_owned_camera_poses()
+        rgb = camera_rgb_batch(self._camera_sensor, self._camera_sensor_indices)
+        image = compose_rgb_grid(rgb) if self.cfg.tiled_cam_view else rgb[0].detach().contiguous().cpu().numpy()
+        self._camera_image_provider.set_data_array(image.astype("uint8", copy=False), [image.shape[1], image.shape[0]])
 
     def _refresh_controlled_camera_path(self) -> None:
         """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""

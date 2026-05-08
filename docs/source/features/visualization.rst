@@ -287,6 +287,7 @@ Omniverse Visualizer
 - Live plots for monitoring training metrics
 - Full Isaac Sim rendering capabilities and tooling
 - Visualization markers for debugging (arrows, frames, object targets, etc.)
+- Tiled RGB camera views from Isaac Lab ``Camera`` sensors in a dockable image panel
 
 **Core Configuration:**
 
@@ -320,6 +321,7 @@ Newton Visualizer
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 - Visualization markers (joints, contacts, springs, COM, debug markers)
+- Tiled RGB camera views via Newton ``Viewer.log_image`` from Isaac Lab ``Camera`` sensors
 
 
 **Interactive Controls:**
