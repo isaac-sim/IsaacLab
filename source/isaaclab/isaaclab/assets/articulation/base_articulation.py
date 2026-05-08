@@ -100,47 +100,13 @@ class BaseArticulation(AssetBase):
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
 
-        self._author_newton_actuator_prims()
-
-    # -- USD authoring helpers ------------------------------------------------
-
-    def _author_newton_actuator_prims(self) -> None:
-        """Author Newton actuator prims on the USD stage from Lab configs.
-
-        Called from ``__init__`` after ``super().__init__()`` has spawned the
-        articulation prototype.  When ``use_newton_actuators`` is enabled,
-        this translates explicit Lab actuator configs into ``NewtonActuator``
-        USD prims.
-
-        For every joint covered by a Lab config, any existing
-        ``NewtonActuator`` prim targeting that joint is replaced.  Joints
-        not covered by any config keep their USD-authored actuators.
-        """
-        if self._sim_cfg is None:
-            return
-        if not getattr(self._sim_cfg, "use_newton_actuators", False):
-            return
 
         try:
-            from isaaclab_newton.actuators.newton_actuator_utils import (  # noqa: PLC0415
-                author_newton_actuator_prims,
-            )
+            from isaaclab_newton.actuators import author_actuator_prims_for_articulation  # noqa: PLC0415
         except ImportError:
-            return
-
-        from isaaclab.sim.utils.queries import find_first_matching_prim  # noqa: PLC0415
-
-        spawn_path = getattr(self.cfg.spawn, "spawn_path", None) if self.cfg.spawn is not None else None
-        search_path = spawn_path if spawn_path is not None else self.cfg.prim_path
-        first_prim = find_first_matching_prim(search_path)
-        if first_prim is None:
-            return
-
-        author_newton_actuator_prims(
-            stage=self.stage,
-            articulation_prim_path=str(first_prim.GetPath()),
-            actuator_cfgs=self.cfg.actuators,
-        )
+            pass
+        else:
+            author_actuator_prims_for_articulation(self.cfg, self._sim_cfg, self.stage)
 
     """
     Properties

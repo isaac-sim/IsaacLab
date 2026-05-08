@@ -1254,12 +1254,12 @@ class randomize_actuator_gains(ManagerTermBase):
             stiffness = adapter.stiffness[env_ids].clone()
             stiffness[:, adapter_indices] = self.default_joint_stiffness[env_ids][:, arti_local_ids].clone()
             _randomize_at(stiffness, stiffness_distribution_params)
-            adapter.write_stiffness_to_sim(stiffness, env_ids_wp, env_mask, self.asset._propagate_gain_via_view)
+            adapter.write_stiffness_to_sim(stiffness, env_ids_wp, env_mask)
         if damping_distribution_params is not None:
             damping = adapter.damping[env_ids].clone()
             damping[:, adapter_indices] = self.default_joint_damping[env_ids][:, arti_local_ids].clone()
             _randomize_at(damping, damping_distribution_params)
-            adapter.write_damping_to_sim(damping, env_ids_wp, env_mask, self.asset._propagate_gain_via_view)
+            adapter.write_damping_to_sim(damping, env_ids_wp, env_mask)
 
 
 class randomize_joint_parameters(ManagerTermBase):

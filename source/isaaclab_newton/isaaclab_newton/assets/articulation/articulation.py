@@ -27,11 +27,8 @@ from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
 try:
+    from isaaclab_newton.actuators import NewtonActuatorAdapter, build_implicit_dof_mask
     from isaaclab_newton.actuators import kernels as actuator_kernels
-    from isaaclab_newton.actuators.newton_actuator_utils import (
-        NewtonActuatorAdapter,
-        build_implicit_dof_mask,
-    )
 
     _HAS_NEWTON_ACTUATORS = True
 except ImportError:
@@ -55,12 +52,6 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
-
-
-@wp.kernel(enable_backward=False)
-def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
-    i = wp.tid()
-    mask[indices[i]] = True
 
 
 class Articulation(BaseArticulation):
@@ -2034,28 +2025,18 @@ class Articulation(BaseArticulation):
     Operations - Newton Actuator Parameter Writers.
     """
 
-    def _propagate_gain_via_view(
-        self,
-        adapter: NewtonActuatorAdapter,
-        actuator,
-        controller,
-        attr: str,
-        values: wp.array,
-        env_mask: wp.array,
-    ) -> None:
-        """Per-actuator gain propagation using Newton's simulator-side scatter API."""
-        del adapter  # Newton path needs only the view + per-actuator info.
-        self._root_view.set_actuator_parameter(
-            actuator=actuator, component=controller, name=attr,
-            values=values, mask=env_mask,
-        )
+    @staticmethod
+    @wp.kernel(enable_backward=False)
+    def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
+        i = wp.tid()
+        mask[indices[i]] = True
 
     def _env_ids_to_mask(self, env_ids: wp.array) -> wp.array:
         """Convert warp env_ids to a boolean Warp mask."""
         if env_ids is self._ALL_INDICES:
             return self._ALL_ENV_MASK
         mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
-        wp.launch(_build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
+        wp.launch(self._build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
         return mask
 
     """
@@ -3412,7 +3393,7 @@ class Articulation(BaseArticulation):
             # Build (or share) the single sim-level actuator adapter. Idempotent —
             # the first articulation to call this constructs it from
             # ``model.actuators``; subsequent articulations reuse it.
-            SimulationManager.ensure_global_actuator_adapter()
+            SimulationManager.ensure_global_actuator_adapter(self._root_view)
 
             # Zero the simulator's joint-drive PD on DOFs covered by an explicit
             # Lab actuator config in *this* articulation. The global Newton

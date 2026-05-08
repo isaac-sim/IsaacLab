@@ -24,13 +24,12 @@ from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 
 try:
-    from isaaclab_newton.actuators import kernels as actuator_kernels
-    from isaaclab_newton.actuators.newton_actuator_utils import (
+    from isaaclab_newton.actuators import (
         NewtonActuatorAdapter,
         PhysxActuatorWrapper,
-        _gather_gain_kernel,
         build_implicit_dof_mask,
     )
+    from isaaclab_newton.actuators import kernels as actuator_kernels
 
     _HAS_NEWTON_ACTUATORS = True
 except ImportError:
@@ -1225,7 +1224,7 @@ class Articulation(BaseArticulation):
             return
         env_ids = self._resolve_env_ids(env_ids)
         env_mask = self._env_ids_to_mask(env_ids)
-        adapter.write_stiffness_to_sim(stiffness, env_ids, env_mask, self._propagate_gain_via_kernel)
+        adapter.write_stiffness_to_sim(stiffness, env_ids, env_mask)
 
     def write_actuator_damping_to_sim(
         self,
@@ -1239,32 +1238,7 @@ class Articulation(BaseArticulation):
             return
         env_ids = self._resolve_env_ids(env_ids)
         env_mask = self._env_ids_to_mask(env_ids)
-        adapter.write_damping_to_sim(damping, env_ids, env_mask, self._propagate_gain_via_kernel)
-
-    def _propagate_gain_via_kernel(
-        self,
-        adapter: NewtonActuatorAdapter,
-        actuator,
-        controller,
-        attr: str,
-        values: wp.array,
-        env_mask: wp.array,
-    ) -> None:
-        """Per-actuator gain propagation using a local Warp scatter kernel.
-
-        Newton has :meth:`ArticulationView.set_actuator_parameter` for this;
-        on PhysX we use :data:`_gather_gain_kernel` since no equivalent
-        simulator-side API exists.
-        """
-        wp.launch(
-            _gather_gain_kernel,
-            dim=actuator.indices.shape[0],
-            inputs=[
-                values.flatten(), getattr(controller, attr), actuator.indices, env_mask,
-                adapter._dof_offset, adapter.num_joints,
-            ],
-            device=self.device,
-        )
+        adapter.write_damping_to_sim(damping, env_ids, env_mask)
 
     def _env_ids_to_mask(self, env_ids: wp.array) -> wp.array:
         """Convert warp ``env_ids`` to a boolean Warp mask of length ``num_instances``."""
@@ -3890,6 +3864,7 @@ class Articulation(BaseArticulation):
                 w.joint_target_vel = self._data.joint_vel_target.warp.reshape(-1)
                 w.joint_act = self._data.joint_effort_target.warp.reshape(-1)
                 adapter.finalize()
+                adapter.set_kernel_propagator()
                 self.actuators["newton"] = adapter
                 self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)
                 self.write_joint_damping_to_sim_index(damping=0.0, joint_ids=adapter.joint_indices)

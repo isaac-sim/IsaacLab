@@ -1388,24 +1388,25 @@ class NewtonManager(PhysicsManager):
         cls._use_newton_actuators_active = True
 
     @classmethod
-    def ensure_global_actuator_adapter(cls) -> None:
+    def ensure_global_actuator_adapter(cls, root_view: Any) -> None:
         """Build the single sim-level :class:`NewtonActuatorAdapter` if not yet built.
 
         Idempotent — each Newton-fast-path articulation calls this from
-        ``_process_actuators_cfg`` after the model is finalized; the first
-        call constructs the adapter from ``cls._model.actuators`` and
-        subsequent calls are no-ops. A single global adapter avoids the
-        multi-articulation clobbering that the per-articulation
-        ``register_adapter`` design suffered from. The adapter operates on
-        the full flat DOF layout (``dof_offset=0``, ``num_joints`` =
-        per-env total DOF count), so it iterates and steps every actuator
-        in the model in one pass.
+        ``_process_actuators_cfg`` after the model is finalized, passing
+        its own ``root_view``; the first call constructs the adapter from
+        ``cls._model.actuators`` and configures the gain propagator with
+        the supplied view, subsequent calls are no-ops. A single global
+        adapter avoids the multi-articulation clobbering that the
+        per-articulation ``register_adapter`` design suffered from. The
+        adapter operates on the full flat DOF layout (``dof_offset=0``,
+        ``num_joints`` = per-env total DOF count), so it iterates and
+        steps every actuator in the model in one pass.
         """
         if cls._adapter is not None:
             return
         if cls._model is None or not cls._model.actuators:
             return
-        from isaaclab_newton.actuators.newton_actuator_utils import NewtonActuatorAdapter  # noqa: PLC0415
+        from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
 
         dofs_per_env = cls._model.joint_dof_count // cls._num_envs
         cls._adapter = NewtonActuatorAdapter(
@@ -1416,6 +1417,10 @@ class NewtonManager(PhysicsManager):
             device=PhysicsManager._device,
         )
         cls._adapter.finalize()
+        # ``set_actuator_parameter`` dispatches on the actuator object (which
+        # is model-scoped), so any one articulation's view works for the
+        # global adapter spanning multiple articulations.
+        cls._adapter.set_view_propagator(root_view)
 
     @classmethod
     def register_post_actuator_callback(cls, callback: Callable[[], None]) -> None:
