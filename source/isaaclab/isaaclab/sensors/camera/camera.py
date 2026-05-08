@@ -113,8 +113,7 @@ class Camera(SensorBase):
         # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
         # flag must be set pre-sim.reset() because SimulationContext.is_rendering
         # and several env classes read it before the renderer's __init__ runs.
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
-        if renderer_type == "isaac_rtx":
+        if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
             get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
         # Compute camera orientation (convention conversion) and spawn
