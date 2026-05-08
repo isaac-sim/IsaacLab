@@ -337,15 +337,30 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
         startup_deadline = min(timeout, STARTUP_DEADLINE + extra)
 
-        cmd = [
-            sys.executable,
-            "-m",
-            "pytest",
-            "--no-header",
-            f"--config-file={workspace_root}/pyproject.toml",
-            f"--junitxml=tests/test-reports-{str(file_name)}.xml",
-            "--tb=short",
-        ]
+        if file_name in [
+            "test_rendering_dexsuite_kuka_kitless.py",
+            "test_rendering_cartpole_kitless.py",
+            "test_rendering_shadow_hand_kitless.py",
+        ]:
+            cmd = [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-s",
+                "-vv",
+                f"--config-file={workspace_root}/pyproject.toml",
+                f"--junitxml=tests/test-reports-{str(file_name)}.xml",
+            ]
+        else:
+            cmd = [
+                sys.executable,
+                "-m",
+                "pytest",
+                "--no-header",
+                f"--config-file={workspace_root}/pyproject.toml",
+                f"--junitxml=tests/test-reports-{str(file_name)}.xml",
+                "--tb=short",
+            ]
 
         if isaacsim_ci:
             cmd.append("-m")
@@ -619,6 +634,15 @@ def _collect_test_files(
         test_files.sort()
         test_files = [f for i, f in enumerate(test_files) if i % shard_count == shard_index]
         print(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
+
+    # TEMP DEBUGGING
+    if filter_pattern == "isaaclab_tasks":
+        if shard_index == 0:
+            test_files = ["/workspace/isaaclab/source/isaaclab_tasks/test/test_rendering_cartpole_kitless.py"]
+        elif shard_index == 1:
+            test_files = ["/workspace/isaaclab/source/isaaclab_tasks/test/test_rendering_dexsuite_kuka_kitless.py"]
+        elif shard_index == 2:
+            test_files = ["/workspace/isaaclab/source/isaaclab_tasks/test/test_rendering_shadow_hand_kitless.py"]
 
     return test_files
 
