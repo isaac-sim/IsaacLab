@@ -54,6 +54,8 @@ INSTALL_REQUIRES = [
     "flaky",
     "packaging",
     "psutil",
+    # cross-platform file locking (used to serialize USD spawn across distributed ranks)
+    "filelock",
     # Required by pydantic-core/imgui_bundle on Python 3.12 (Sentinel symbol).
     "typing_extensions>=4.14.0",
     "lazy_loader>=0.4",
