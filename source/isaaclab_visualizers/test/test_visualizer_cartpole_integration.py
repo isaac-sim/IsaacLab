@@ -522,22 +522,6 @@ def test_cartpole_newton_visualizer_tiled_camera_rgb_non_black(
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.skip(
-    reason=(
-        "ViewerGL.get_frame returns a fully-black 600x600x3 buffer in CI on the current "
-        "Isaac Sim image + Newton 1.2.0rc2 + warp-lang 1.13 cohort. Failure is "
-        "deterministic across two consecutive reruns of the same SHA and reproduces on "
-        "every PR that touches the rendering / camera / sensor / USD stack (5 PRs hit it "
-        "in the last 100 build.yaml runs); zero failures on PRs outside that scope. "
-        "Investigation ruled out: rc1->rc2 viewer code diff (7-line image_logger.clear "
-        "only), wp.RegisteredGLBuffer API (byte-identical 1.12 vs 1.13), pure flakiness "
-        "(deterministic), and the bump cohort alone (warp-1.12 branches both pass and "
-        "fail). Strongest remaining hypothesis: a CUDA-OpenGL interop init-order "
-        "fragility in the PBO + glReadPixels + RegisteredGLBuffer.map path that gets "
-        "tipped by any source change perturbing GL/CUDA bring-up. Re-enable once root "
-        "cause is identified."
-    )
-)
 @pytest.mark.parametrize("backend_kind", ["physx", "newton"])
 def test_cartpole_newton_visualizer_viewergl_rgb_motion(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
     """Newton GL (``ViewerGL.get_frame``): full motion steps, last frame non-black; early vs late differ; logs."""

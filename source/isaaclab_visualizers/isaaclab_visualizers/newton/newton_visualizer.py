@@ -463,7 +463,17 @@ class NewtonVisualizer(BaseVisualizer):
         if self._viewer is None:
             return
         cam_pos, cam_target = pose
-        self._viewer.camera.pos = wp.vec3(*cam_pos)
+        # Newton's ``Camera.translate()`` adds a ``pyglet.math.Vec3`` delta to
+        # ``camera.pos`` via ``+=`` every viewer update. warp 1.13's strict
+        # ``__add__`` rejects ``wp.vec3 + pyglet.math.Vec3`` with
+        # ``TypeError: Built-in functions cannot be called with non-Warp array
+        # types``. The exception is silenced by the visualizer's try/except,
+        # which then skips ``renderer.render()`` -- the FBO is never written
+        # and the frame reads back fully black. Assigning a ``pyglet.math.Vec3``
+        # here keeps the add homogeneous.
+        from pyglet.math import Vec3 as _PyVec3
+
+        self._viewer.camera.pos = _PyVec3(float(cam_pos[0]), float(cam_pos[1]), float(cam_pos[2]))
         cam_pos_np = np.array(cam_pos, dtype=np.float32)
         cam_target_np = np.array(cam_target, dtype=np.float32)
         direction = cam_target_np - cam_pos_np
