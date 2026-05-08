@@ -576,11 +576,15 @@ class Camera(SensorBase):
         )
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
         # the renderer: populate it on the freshly constructed CameraData.
+        # ``pos_w`` / ``quat_w_world`` are stored as plain float32 arrays with
+        # explicit ``(N, 3)`` / ``(N, 4)`` layout so ``ProxyArray.shape``
+        # matches the documented shape; warp kernels reinterpret them as
+        # ``wp.vec3`` / ``wp.quatf`` views (zero-copy) when needed.
         n = self._view.count
         self._data.intrinsic_matrices = ProxyArray(wp.zeros((n, 3, 3), dtype=wp.float32, device=device_str))
         self._update_intrinsic_matrices(list(range(n)))
-        self._data.pos_w = ProxyArray(wp.zeros(n, dtype=wp.vec3, device=device_str))
-        self._data.quat_w_world = ProxyArray(wp.zeros(n, dtype=wp.quatf, device=device_str))
+        self._data.pos_w = ProxyArray(wp.zeros((n, 3), dtype=wp.float32, device=device_str))
+        self._data.quat_w_world = ProxyArray(wp.zeros((n, 4), dtype=wp.float32, device=device_str))
         self._update_poses_wp(self._ALL_INDICES)
         # Hand the renderer the underlying wp.array buffers; the ProxyArray
         # wrappers in CameraData stay valid since both views share memory.
@@ -639,29 +643,36 @@ class Camera(SensorBase):
         # Convert quat_w (opengl) -> world via a warp kernel and scatter into CameraData.
         n_pose = int(env_ids_wp.shape[0])
         quat_w_world_local = convert_quat_array(quat_w_proxy.warp, origin="opengl", target="world")
-        # Build a temporary wp.bool mask covering env_ids_wp so we can scatter through
-        # the existing masked_set kernels.
-        mask_local = wp.zeros(self._view.count, dtype=wp.bool, device=self._device)
-        wp.launch(
-            camera_kernels.indices_to_mask_kernel,
-            dim=n_pose,
-            inputs=[env_ids_wp, mask_local],
-            device=self._device,
+        n_total = self._view.count
+        # Reinterpret the (N, 3) / (N, 4) float32 storage as wp.vec3 / wp.quatf
+        # views so the existing scatter kernels (which take typed inputs) can be
+        # reused without copying.
+        pos_dst = self._data.pos_w.warp
+        quat_dst = self._data.quat_w_world.warp
+        pos_dst_vec3 = wp.array(
+            ptr=pos_dst.ptr,
+            dtype=wp.vec3,
+            shape=(n_total,),
+            device=pos_dst.device,
+            copy=False,
         )
-        # Scatter pos and quat into self._data via masked copies.
-        # Note: the view's pos/quat arrays are already the same length as env_ids_wp,
-        # so we copy them into a full-sized scratch first via index, then mask-copy.
-        # For correctness, we instead scatter directly from the (M,) arrays using an indexed kernel.
+        quat_dst_quatf = wp.array(
+            ptr=quat_dst.ptr,
+            dtype=wp.quatf,
+            shape=(n_total,),
+            device=quat_dst.device,
+            copy=False,
+        )
         wp.launch(
             camera_kernels.scatter_vec3f_kernel,
             dim=n_pose,
-            inputs=[env_ids_wp, pos_w_proxy.warp, self._data.pos_w.warp],
+            inputs=[env_ids_wp, pos_w_proxy.warp, pos_dst_vec3],
             device=self._device,
         )
         wp.launch(
             camera_kernels.scatter_quatf_kernel,
             dim=n_pose,
-            inputs=[env_ids_wp, quat_w_world_local, self._data.quat_w_world.warp],
+            inputs=[env_ids_wp, quat_w_world_local, quat_dst_quatf],
             device=self._device,
         )
         # notify renderer of updated poses (guarded in case called before initialization completes)

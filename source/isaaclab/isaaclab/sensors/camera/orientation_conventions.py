@@ -13,6 +13,7 @@ import time from a small numpy computation.
 
 from __future__ import annotations
 
+import functools
 import math
 from typing import Literal
 
@@ -82,17 +83,25 @@ def _matrix_to_quat_xyzw(rotm: np.ndarray) -> tuple[float, float, float, float]:
 # 180 deg rotation around X axis: q = (1, 0, 0, 0) in (x, y, z, w). 180-deg rotations are
 # self-inverse, so the same quaternion serves both directions for ros<->opengl.
 _Q_FLIP_YZ = (1.0, 0.0, 0.0, 0.0)
-# The torch reference (``isaaclab.utils.math.convert_camera_frame_orientation_convention``)
-# post-multiplies by matrix_from_euler([pi/2, -pi/2, 0], "XYZ") for world->opengl and by
-# the *transpose* of the same matrix for opengl->world. As a quaternion, the transpose of
-# a unit rotation matrix is the inverse — i.e. the conjugate of the corresponding quat.
-_Q_WORLD_TO_OPENGL = _matrix_to_quat_xyzw(_euler_xyz_intrinsic_to_matrix(math.pi / 2, -math.pi / 2, 0.0))
-_Q_OPENGL_TO_WORLD = (
-    -_Q_WORLD_TO_OPENGL[0],
-    -_Q_WORLD_TO_OPENGL[1],
-    -_Q_WORLD_TO_OPENGL[2],
-    _Q_WORLD_TO_OPENGL[3],
-)
+
+
+@functools.cache
+def _q_world_to_opengl() -> tuple[float, float, float, float]:
+    """The torch reference (``isaaclab.utils.math.convert_camera_frame_orientation_convention``)
+    post-multiplies by ``matrix_from_euler([pi/2, -pi/2, 0], "XYZ")`` for world->opengl.
+
+    Computed lazily so importing this module under tools that mock ``numpy``
+    (e.g. Sphinx ``autodoc_mock_imports``) does not fail at module load.
+    """
+    return _matrix_to_quat_xyzw(_euler_xyz_intrinsic_to_matrix(math.pi / 2, -math.pi / 2, 0.0))
+
+
+@functools.cache
+def _q_opengl_to_world() -> tuple[float, float, float, float]:
+    """Inverse of :func:`_q_world_to_opengl` — i.e. the conjugate, since the
+    underlying rotation is unit-norm. Lazy for the same reason."""
+    qx, qy, qz, qw = _q_world_to_opengl()
+    return -qx, -qy, -qz, qw
 
 
 def _identity() -> tuple[float, float, float, float]:
@@ -125,7 +134,7 @@ def _resolve_conversion_quat(
     if origin == "ros":
         to_opengl = _Q_FLIP_YZ
     elif origin == "world":
-        to_opengl = _Q_WORLD_TO_OPENGL
+        to_opengl = _q_world_to_opengl()
     else:  # origin == "opengl"
         to_opengl = _identity()
 
@@ -133,7 +142,7 @@ def _resolve_conversion_quat(
     if target == "ros":
         from_opengl = _Q_FLIP_YZ
     elif target == "world":
-        from_opengl = _Q_OPENGL_TO_WORLD
+        from_opengl = _q_opengl_to_world()
     else:  # target == "opengl"
         from_opengl = _identity()
 
