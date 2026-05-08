@@ -178,14 +178,14 @@ Here are some general commands to get started with it:
 
         .. code-block:: bash
 
-          python scripts/reinforcement_learning/<specific-rl-library>/train.py --task=<Task-Name>
+          python scripts/reinforcement_learning/train.py --library <specific-rl-library> --task=<Task-Name>
 
     .. tab-item:: :icon:`fa-brands fa-windows` Windows
         :sync: windows
 
         .. code-block:: batch
 
-          python scripts\reinforcement_learning\<specific-rl-library>\train.py --task=<Task-Name>
+          python scripts\reinforcement_learning\train.py --library <specific-rl-library> --task=<Task-Name>
 
 * Run a task with dummy agents.
 

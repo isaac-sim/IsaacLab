@@ -44,7 +44,9 @@ class Test_UV_Env_Heavy(UV_Mixin):
                 [
                     str(self.cli_script),
                     "-p",
-                    "scripts/reinforcement_learning/rsl_rl/train.py",
+                    "scripts/reinforcement_learning/train.py",
+                    "--library",
+                    "rsl_rl",
                     "--task",
                     "Isaac-Cartpole-Direct-v0",
                     "--num_envs",

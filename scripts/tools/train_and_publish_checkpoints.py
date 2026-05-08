@@ -138,7 +138,9 @@ from omni.client._omniclient import CopyBehavior
 from isaaclab_rl.utils.pretrained_checkpoint import (
     WORKFLOW_EXPERIMENT_NAME_VARIABLE,
     WORKFLOW_PLAYER,
+    WORKFLOW_PLAYER_ARGS,
     WORKFLOW_TRAINER,
+    WORKFLOW_TRAINER_ARGS,
     WORKFLOWS,
     get_log_root_path,
     get_pretrained_checkpoint_path,
@@ -183,6 +185,7 @@ def train_job(workflow, task_name, headless=False, force=False, num_envs=None):
     cmd = [
         sys.executable,
         WORKFLOW_TRAINER[workflow],
+        *WORKFLOW_TRAINER_ARGS[workflow],
         "--task",
         task_name,
         "--enable_cameras",
@@ -236,6 +239,7 @@ def review_pretrained_checkpoint(workflow, task_name, force_review=False, num_en
     cmd = [
         sys.executable,
         WORKFLOW_PLAYER[workflow],
+        *WORKFLOW_PLAYER_ARGS[workflow],
         "--task",
         task_name,
         "--checkpoint",

@@ -20,7 +20,11 @@ import env_benchmark_test_utils as utils
 import gymnasium as gym
 import pytest
 
-from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    WORKFLOW_EXPERIMENT_NAME_VARIABLE,
+    WORKFLOW_TRAINER,
+    WORKFLOW_TRAINER_ARGS,
+)
 
 
 def setup_environment():
@@ -42,6 +46,7 @@ def train_job(workflow, task, env_config, num_gpus):
     cmd = [
         sys.executable,
         WORKFLOW_TRAINER[workflow],
+        *WORKFLOW_TRAINER_ARGS[workflow],
         "--task",
         task,
         "--enable_cameras",

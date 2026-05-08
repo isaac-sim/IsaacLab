@@ -5,16 +5,6 @@
 
 """Script to play a checkpoint if an RL agent from RSL-RL."""
 
-import warnings
-
-warnings.warn(
-    "scripts/reinforcement_learning/rsl_rl/play.py is deprecated. Use "
-    "`./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rsl_rl --task <TASK>` instead. "
-    "Example: `./isaaclab.sh -p scripts/reinforcement_learning/play.py --library rsl_rl --task Isaac-Cartpole-v0`.",
-    DeprecationWarning,
-    stacklevel=1,
-)
-
 import argparse
 import contextlib
 import importlib.metadata as metadata

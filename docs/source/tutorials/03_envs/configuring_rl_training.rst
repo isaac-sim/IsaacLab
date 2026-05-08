@@ -87,13 +87,13 @@ entry point.
 All the scripts in the ``scripts/reinforcement_learning`` directory are configured by default to read the
 ``<library_name>_cfg_entry_point`` from the ``kwargs`` dictionary to retrieve the configuration instance.
 
-For instance, the following code block shows how the ``train.py`` script reads the configuration
+For instance, the following code block shows how the SB3 training logic reads the configuration
 instance for the Stable-Baselines3 library:
 
 .. dropdown:: Code for train.py with SB3
     :icon: code
 
-    .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train.py
+    .. literalinclude:: ../../../../scripts/reinforcement_learning/sb3/train_sb3.py
       :language: python
       :emphasize-lines: 26-28, 102-103
       :linenos:
@@ -113,7 +113,7 @@ we can use the ``--agent`` argument to specify the configuration instance to use
   .. code-block:: bash
 
     # standard PPO training
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless \
+    ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Cartpole-v0 --headless \
       --run_name ppo
 
 * Training with the PPO configuration with symmetry augmentation:
@@ -121,12 +121,12 @@ we can use the ``--agent`` argument to specify the configuration instance to use
   .. code-block:: bash
 
     # PPO training with symmetry augmentation
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless \
+    ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Cartpole-v0 --headless \
       --agent rsl_rl_with_symmetry_cfg_entry_point \
       --run_name ppo_with_symmetry_data_augmentation
 
     # you can use hydra to disable symmetry augmentation but enable mirror loss computation
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --headless \
+    ./isaaclab.sh -p scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Cartpole-v0 --headless \
       --agent rsl_rl_with_symmetry_cfg_entry_point \
       --run_name ppo_without_symmetry_data_augmentation \
       agent.algorithm.symmetry_cfg.use_data_augmentation=false

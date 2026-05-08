@@ -19,11 +19,17 @@ PRETRAINED_CHECKPOINT_PATH = NUCLEUS_ASSET_ROOT_DIR + "/IsaacLab/PretrainedCheck
 WORKFLOWS = ["rl_games", "rsl_rl", "sb3", "skrl"]
 """The supported workflows for pre-trained checkpoints"""
 
-WORKFLOW_TRAINER = {w: f"scripts/reinforcement_learning/{w}/train.py" for w in WORKFLOWS}
-"""A dict mapping workflow to their training program path"""
+WORKFLOW_TRAINER = {w: "scripts/reinforcement_learning/train.py" for w in WORKFLOWS}
+"""A dict mapping workflow to the unified training program path"""
 
-WORKFLOW_PLAYER = {w: f"scripts/reinforcement_learning/{w}/play.py" for w in WORKFLOWS}
-"""A dict mapping workflow to their play program path"""
+WORKFLOW_TRAINER_ARGS = {w: ["--library", w] for w in WORKFLOWS}
+"""A dict mapping workflow to arguments required by the unified training program"""
+
+WORKFLOW_PLAYER = {w: "scripts/reinforcement_learning/play.py" for w in WORKFLOWS}
+"""A dict mapping workflow to the unified play program path"""
+
+WORKFLOW_PLAYER_ARGS = {w: ["--library", w] for w in WORKFLOWS}
+"""A dict mapping workflow to arguments required by the unified play program"""
 
 WORKFLOW_PRETRAINED_CHECKPOINT_FILENAMES = {
     "rl_games": "checkpoint.pth",

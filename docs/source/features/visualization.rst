@@ -63,20 +63,20 @@ Launch visualizers from the command line with ``--visualizer`` (or ``--viz`` ali
 .. code-block:: bash
 
     # Launch all visualizers (comma-delimited list, no spaces)
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz kit,newton,rerun
+    python scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Cartpole-v0 --viz kit,newton,rerun
 
     # Launch only the Newton visualizer
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz newton
+    python scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Cartpole-v0 --viz newton
 
     # Launch the Viser web-based visualizer
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz viser
+    python scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Cartpole-v0 --viz viser
 
 
 To run in headless mode, omit the ``--viz`` argument:
 
 .. code-block:: bash
 
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0
+    python scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Cartpole-v0
 
 .. note::
 
@@ -491,7 +491,7 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 
 .. code-block:: bash
 
-    python scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole-v0 --viz rerun --num_envs 512
+    python scripts/reinforcement_learning/train.py --library rsl_rl --task Isaac-Cartpole-v0 --viz rerun --num_envs 512
 
 
 **Rerun Visualizer FPS Control**

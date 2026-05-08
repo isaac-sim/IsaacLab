@@ -69,7 +69,8 @@ def main():
     command.extend(
         [
             "-p",
-            "scripts/reinforcement_learning/rl_games/train.py",
+            "scripts/reinforcement_learning/train.py",
+            "--library=rl_games",
             "--task=Isaac-AutoMate-Disassembly-Direct-v0",
             f"--num_envs={args.num_envs}",
             f"--seed={args.seed}",
