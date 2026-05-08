@@ -52,7 +52,7 @@ class KukaAllegroSceneCfg(PresetCfg):
                     ),
                 )
 
-    default = KukaAllegroSceneCfg(num_envs=4096, env_spacing=2.0, replicate_physics=True)
+    default = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     single_camera = default.replace(base_camera=BaseTiledCameraCfg())
     duo_camera = default.replace(base_camera=BaseTiledCameraCfg(), wrist_camera=WristTiledCameraCfg())
 
