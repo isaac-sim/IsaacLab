@@ -218,7 +218,7 @@ class PinkInverseKinematicsAction(ActionTerm):
         """
         # Get base link frame pose in world origin using cached index
         articulation_data = self._env.scene[self.cfg.controller.articulation_name].data
-        base_link_frame_in_world_origin = articulation_data.body_link_state_w.torch[:, self._base_link_idx, :7]
+        base_link_frame_in_world_origin = articulation_data.body_link_pose_w.torch[:, self._base_link_idx]
 
         # Transform to environment origin frame (reuse buffer to avoid allocation)
         torch.sub(

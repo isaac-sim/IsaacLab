@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -27,6 +28,7 @@ class PhysicsCfg(PresetCfg):
     default = PhysxCfg()
     physx = PhysxCfg()
     newton_mjwarp = NewtonCfg()
+    ovphysx = OvPhysxCfg()
 
 
 @configclass
