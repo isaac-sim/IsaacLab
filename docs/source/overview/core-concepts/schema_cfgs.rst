@@ -5,16 +5,40 @@ Schema Configuration Classes
 
 Isaac Lab's spawners author USD physics attributes onto prims via a layered set of
 configuration classes. The layering separates **universal-physics** parameters
-(honored by every backend) from **backend-specific** parameters (only meaningful
-to one solver), so the same asset cfg can be authored once and target any backend
-that supports it.
+from **backend-specific** parameters, so the same asset cfg can be authored once
+and target any backend that supports it.
 
 This page explains the class hierarchy, when to use each tier, and how parameters
 route to the underlying USD attributes.
 
+Migrating from 2.x? See :ref:`schemas-cfg-refactor` in the 3.0 migration guide.
+
 .. contents::
    :local:
    :depth: 2
+
+Quick example
+-------------
+
+Add MuJoCo (MJC) gravity compensation to an articulated asset:
+
+.. code-block:: python
+
+   import isaaclab.sim as sim_utils
+   from isaaclab_newton.sim.schemas import (
+       MujocoRigidBodyPropertiesCfg,
+       MujocoJointDrivePropertiesCfg,
+   )
+
+   spawn = sim_utils.UsdFileCfg(
+       usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka_instanceable.usd",
+       rigid_props=MujocoRigidBodyPropertiesCfg(gravcomp=1.0),
+       joint_drive_props=MujocoJointDrivePropertiesCfg(actuatorgravcomp=True),
+   )
+
+The Mujoco-specific fields land under ``mjc:*`` on the prim; any
+``RigidBodyBaseCfg`` / ``JointDriveBaseCfg`` fields you set on the same instance
+land under ``physics:*``. See :ref:`schema-cfgs-mixed` for the full routing rules.
 
 Class hierarchy
 ---------------
@@ -49,10 +73,20 @@ extension package:
    │   ├── isaaclab_physx.sim.schemas.{PhysxConvexHull, PhysxConvexDecomposition,
    │   │                                PhysxTriangleMesh, PhysxSDFMesh, ...}PropertiesCfg
    │   └── isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg
+   │       (also inherits NewtonCollisionPropertiesCfg — multi-namespace)
    │
    └── isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg
        ├── isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg
        └── isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg
+
+:class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionPropertiesCfg` uses
+multiple inheritance: it extends both
+:class:`~isaaclab_newton.sim.schemas.NewtonCollisionPropertiesCfg` (for
+``contact_margin`` / ``contact_gap``) and
+:class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` (for
+``mesh_approximation_name``). This is the textbook case for the per-declaring-
+class MRO routing described under :ref:`schema-cfgs-mixed` — each inherited
+field is written under the namespace of the class that declared it.
 
 The hierarchy is **single-rooted per spawner slot**: every spawner has a single
 field for each property group (``rigid_props``, ``joint_drive_props``,
@@ -93,10 +127,16 @@ The choice depends on which backends you target and which fields you need.
 What parameters live where
 --------------------------
 
-Universal physics (``physics:*`` namespace, ``UsdPhysics.*API``)
+Universal physics (declared on the base class)
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
-Lives on the **base class**. Every backend honors these.
+Lives on the **base class**. Most fields write to ``physics:*`` (the standard
+``UsdPhysics.*API`` namespace), but a small set of "exception" fields are
+declared on the base for backend-portability yet route to a non-``physics:*``
+namespace because that is the only USD path honored today (e.g.,
+``disable_gravity`` writes ``physxRigidBody:disableGravity`` because both PhysX
+and Newton's importer consume the PhysX attribute). The "USD attribute" column
+below is the actual emitted attribute, not the namespace family.
 
 .. list-table::
    :header-rows: 1
@@ -129,6 +169,11 @@ Lives on the **base class**. Every backend honors these.
    * - ``JointDriveBaseCfg``
      - ``max_joint_velocity``
      - ``physxJoint:maxJointVelocity`` (sole USD path; Newton consumes via PhysX bridge today)
+   * - ``JointDriveBaseCfg``
+     - ``ensure_drives_exist``
+     - writer-side only — when ``True``, ensures any drive with ``stiffness=0`` and
+       ``damping=0`` gets a minimal ``stiffness=1e-3`` so backends like Newton recognize
+       the joint as actively driven; not a USD attribute on its own
    * - ``MassPropertiesCfg``
      - ``mass``, ``density``
      - ``physics:mass``, ``physics:density``
@@ -222,6 +267,8 @@ running Newton's MuJoCo solver.
      - ``actuatorgravcomp``
      - ``mjc:actuatorgravcomp`` via ``MjcJointAPI``
 
+.. _schema-cfgs-mixed:
+
 Mixed-namespace authoring on a single instance
 ----------------------------------------------
 
@@ -247,7 +294,7 @@ fields are non-None.
 Spawner usage
 -------------
 
-Spawners (``UsdFileCfg``, ``MeshCuboidCfg``, ``RigidObjectSpawnerCfg``, …) accept
+Spawners (``UsdFileCfg``, ``MeshCuboidCfg``, ``MeshSphereCfg``, …) accept
 the base class type for each slot and use polymorphism to dispatch to the
 correct subclass at write time:
 
@@ -268,10 +315,30 @@ correct subclass at write time:
        ),
    )
 
-The spawner auto-enables body-level gravity compensation when joint-level
-``actuatorgravcomp=True`` is requested but no MuJoCo rigid-body cfg is provided —
-``actuatorgravcomp`` only routes forces and has no effect without body-level
-``gravcomp``.
+.. _schema-cfgs-gravcomp:
+
+Gravity compensation (MuJoCo solver)
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Gravity compensation has two halves and you typically need both:
+
+* **Body-level**:
+  :attr:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg.gravcomp`
+  on each rigid body (writes ``mjc:gravcomp``). This is what *computes* the
+  compensation force.
+* **Joint-level**:
+  :attr:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg.actuatorgravcomp`
+  on each joint (writes ``mjc:actuatorgravcomp``). This routes the compensation
+  force through the actuator channel (``qfrc_actuator``) so it counts against
+  ``actuatorfrcrange``; otherwise it goes to ``qfrc_passive``.
+
+``actuatorgravcomp=True`` alone is a no-op — without body-level ``gravcomp``
+there are no forces to route. To prevent this footgun, the spawner
+**auto-enables** ``MujocoRigidBodyPropertiesCfg(gravcomp=1.0)`` whenever
+``joint_drive_props`` is a Mujoco cfg with ``actuatorgravcomp=True`` and
+``rigid_props`` is not already a Mujoco cfg. If you want a different
+``gravcomp`` value (or want to disable the auto-enable), pass an explicit
+``MujocoRigidBodyPropertiesCfg`` in ``rigid_props``.
 
 Naming convention
 -----------------
@@ -287,8 +354,13 @@ aliases live on ``JointDriveBaseCfg`` today:
 * ``max_velocity`` → ``max_joint_velocity`` (USD attribute is ``physxJoint:maxJointVelocity``)
 * ``max_effort`` → ``max_force`` (USD attribute is ``drive:<axis>:physics:maxForce``)
 
-The aliases emit a ``DeprecationWarning`` at instantiation and are scheduled for
-removal in 5.0.
+The old names remain as real dataclass fields (so ``dataclasses.fields()``
+sees them), defaulting to ``None``. ``__post_init__`` runs
+``_deprecate_field_alias`` which, when the old field is set: emits a
+``DeprecationWarning``, copies the value into the canonical field if the
+canonical is ``None``, then nulls the old field. Setting **both** in the same
+constructor is silent — the canonical wins; the old name's value is discarded.
+Both aliases are scheduled for removal in 5.0.
 
 See also
 --------

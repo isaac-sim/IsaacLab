@@ -98,6 +98,8 @@ The following classes have been moved to ``isaaclab_physx``:
    installation steps are required.
 
 
+.. _schemas-cfg-refactor:
+
 Schema Configuration Class Refactor
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -166,8 +168,13 @@ Existing 2.x code continues to work via the deprecation aliases:
 **Field renames on** ``JointDriveBaseCfg``
 
 Two cfg fields were renamed so their snake_case names map identity-style to the
-USD camelCase attribute names. Both old names are forwarded via
-``__post_init__`` and emit ``DeprecationWarning`` (removed in 5.0).
+USD camelCase attribute names. The old names remain as deprecated dataclass
+fields on :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` (so
+``dataclasses.fields()`` still sees them) and are forwarded to the new fields
+in ``__post_init__`` with a ``DeprecationWarning``. Setting **both** the old
+and new field on the same instance is silent — the canonical (new) field
+wins; the old field's value is discarded after the warning. Both aliases are
+scheduled for removal in 5.0.
 
 .. list-table::
    :header-rows: 1
@@ -176,18 +183,28 @@ USD camelCase attribute names. Both old names are forwarded via
    * - Isaac Lab 2.x
      - Isaac Lab 3.0
      - USD attribute (unchanged)
-   * - ``max_velocity``
-     - ``max_joint_velocity``
+   * - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_velocity`
+     - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_joint_velocity`
      - ``physxJoint:maxJointVelocity``
-   * - ``max_effort``
-     - ``max_force``
+   * - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_effort`
+     - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_force`
      - ``drive:<axis>:physics:maxForce``
 
 .. code-block:: python
 
-   # Both still work; new names recommended
-   sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0)        # 2.x
-   sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0)   # 3.0
+   # Both still work; new names recommended.
+   import isaaclab.sim as sim_utils
+   from isaaclab.sim.schemas import JointDriveBaseCfg
+
+   # Isaac Lab 2.x style — JointDrivePropertiesCfg is now a deprecated alias
+   sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0)
+
+   # Isaac Lab 3.0 — backend-portable
+   JointDriveBaseCfg(max_force=80.0, max_joint_velocity=5.0)
+
+   # Isaac Lab 3.0 — PhysX-targeted (with PhysX-only fields available)
+   from isaaclab_physx.sim.schemas import PhysxJointDrivePropertiesCfg
+   PhysxJointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0)
 
 **New Newton and MuJoCo cfg classes**
 
@@ -215,6 +232,15 @@ available under :mod:`isaaclab_newton.sim.schemas`:
 
 The MuJoCo cfgs subclass their Newton parent because MuJoCo is one of Newton's
 solver options.
+
+.. note::
+
+   Spawners auto-enable body-level gravity compensation when joint-level
+   ``actuatorgravcomp=True`` is requested but no Mujoco rigid-body cfg is
+   provided — without ``gravcomp`` on the bodies, ``actuatorgravcomp`` is a
+   no-op (no forces to route). To override, pass an explicit
+   ``MujocoRigidBodyPropertiesCfg`` in ``rigid_props``. See
+   :ref:`schema-cfgs-gravcomp` for details.
 
 For complete tables of which fields live on which class and where each lands in
 USD, see :ref:`schema-cfgs`.
