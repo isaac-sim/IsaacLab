@@ -92,7 +92,7 @@ def generate_articulation_cfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -116,7 +116,7 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -844,8 +844,8 @@ def test_external_force_buffer(sim, num_articulations, device):
 
         # check if the articulation's force and torque buffers are correctly updated
         for i in range(num_articulations):
-            assert articulation.permanent_wrench_composer.composed_force.torch[i, 0, 0].item() == force
-            assert articulation.permanent_wrench_composer.composed_torque.torch[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.out_force_b.torch[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.out_torque_b.torch[i, 0, 0].item() == force
 
         # Check if the instantaneous wrench is correctly added to the permanent wrench
         articulation.instantaneous_wrench_composer.add_forces_and_torques_index(
@@ -1359,7 +1359,7 @@ def test_setting_velocity_limit_implicit(sim, num_articulations, device, vel_lim
         # Case 3: velocity limit sim is not set but velocity limit is set
         #   For backwards compatibility, we do not set velocity limit to simulation
         #   Thus, both default to USD default value.
-        limit = articulation_cfg.spawn.joint_drive_props.max_velocity
+        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     else:
         # Case 4: only velocity limit sim is set
         #   In this case, the velocity limit is set to the USD value
@@ -1418,7 +1418,7 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     if vel_limit_sim is not None:
         limit = vel_limit_sim
     else:
-        limit = articulation_cfg.spawn.joint_drive_props.max_velocity
+        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     # check physx is set to expected value
     expected_vel_limit = torch.full_like(physx_vel_limit, limit)
     torch.testing.assert_close(physx_vel_limit, expected_vel_limit)
@@ -1466,7 +1466,7 @@ def test_setting_effort_limit_implicit(sim, num_articulations, device, effort_li
 
     # decide the limit based on what is set
     if effort_limit_sim is None and effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_effort
+        limit = articulation_cfg.spawn.joint_drive_props.max_force
     elif effort_limit_sim is not None and effort_limit is None:
         limit = effort_limit_sim
     elif effort_limit_sim is None and effort_limit is not None:
@@ -1559,10 +1559,10 @@ def test_reset(sim, num_articulations, device):
     # Reset should zero external forces and torques
     assert not articulation._instantaneous_wrench_composer.active
     assert not articulation._permanent_wrench_composer.active
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == 0
+    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_force_b.torch) == 0
+    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_torque_b.torch) == 0
+    assert torch.count_nonzero(articulation._permanent_wrench_composer.out_force_b.torch) == 0
+    assert torch.count_nonzero(articulation._permanent_wrench_composer.out_torque_b.torch) == 0
 
     if num_articulations > 1:
         num_bodies = articulation.num_bodies
@@ -1577,10 +1577,10 @@ def test_reset(sim, num_articulations, device):
         articulation.reset(env_ids=torch.tensor([0], device=device))
         assert articulation._instantaneous_wrench_composer.active
         assert articulation._permanent_wrench_composer.active
-        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_force_b.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_torque_b.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._permanent_wrench_composer.out_force_b.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._permanent_wrench_composer.out_torque_b.torch) == num_bodies * 3
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -1828,108 +1828,6 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
         elif state_location == "link":
             torch.testing.assert_close(rand_state[..., :7], articulation.data.root_link_pose_w.torch)
             torch.testing.assert_close(rand_state[..., 7:], articulation.data.root_link_vel_w.torch)
-
-
-@pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
-def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, device):
-    """Test the data.body_incoming_joint_wrench_b buffer is populated correctly and statically correct for single joint.
-
-    This test verifies that:
-    1. The body incoming joint wrench buffer has correct shape
-    2. The wrench values are statically correct for a single joint
-    3. The wrench values match expected values from gravity and external forces
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
-    )
-
-    # Play the simulator
-    sim.reset()
-
-    # Resolve body indices by name (ordering may differ across physics backends)
-    arm_idx = articulation.body_names.index("Arm")
-    root_idx = articulation.body_names.index("CenterPivot")
-    # apply external force
-    external_force_vector_b = torch.zeros((num_articulations, articulation.num_bodies, 3), device=device)
-    external_force_vector_b[:, arm_idx, 1] = 10.0  # 10 N in Y direction
-    external_torque_vector_b = torch.zeros((num_articulations, articulation.num_bodies, 3), device=device)
-    external_torque_vector_b[:, arm_idx, 2] = 10.0  # 10 Nm in z direction
-
-    # apply action to the articulation
-    joint_pos = torch.ones_like(articulation.data.joint_pos.torch) * 1.5708 / 2.0
-    articulation.write_joint_position_to_sim_index(
-        position=torch.ones_like(articulation.data.joint_pos.torch),
-    )
-    articulation.write_joint_velocity_to_sim_index(
-        velocity=torch.zeros_like(articulation.data.joint_vel.torch),
-    )
-    articulation.set_joint_position_target_index(target=joint_pos)
-    articulation.write_data_to_sim()
-    for _ in range(50):
-        articulation.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=external_force_vector_b, torques=external_torque_vector_b
-        )
-        articulation.write_data_to_sim()
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
-        # check shape
-        assert articulation.data.body_incoming_joint_wrench_b.torch.shape == (
-            num_articulations,
-            articulation.num_bodies,
-            6,
-        )
-
-    # calculate expected static
-    mass = articulation.data.body_mass.torch.to("cpu")
-    pos_w = articulation.data.body_pos_w.torch
-    quat_w = articulation.data.body_quat_w.torch
-
-    mass_link2 = mass[:, arm_idx].view(num_articulations, -1)
-    gravity = torch.tensor(sim.cfg.gravity, device="cpu").repeat(num_articulations, 1).view((num_articulations, 3))
-
-    # NOTE: the com and link pose for single joint are colocated
-    weight_vector_w = mass_link2 * gravity
-    # expected wrench from link mass and external wrench
-    # PhysX reports the incoming joint wrench as the force FROM body0 ONTO body1 (body1's frame).
-    # The USD asset defines body0=CenterPivot, body1=Arm, so the wrench is the constraint/support
-    # force from CenterPivot onto Arm, expressed in Arm's frame.
-    # In static equilibrium this equals -(gravity + external forces on Arm).
-    total_force_w = weight_vector_w.to(device) + math_utils.quat_apply(
-        quat_w[:, arm_idx, :], external_force_vector_b[:, arm_idx, :]
-    )
-    total_torque_w = torch.cross(
-        pos_w[:, arm_idx, :].to(device) - pos_w[:, root_idx, :].to(device),
-        total_force_w,
-        dim=-1,
-    ) + math_utils.quat_apply(quat_w[:, arm_idx, :], external_torque_vector_b[:, arm_idx, :])
-    expected_wrench = torch.zeros((num_articulations, 6), device=device)
-    expected_wrench[:, :3] = math_utils.quat_apply(
-        math_utils.quat_conjugate(quat_w[:, arm_idx, :]),
-        -total_force_w,
-    )
-    expected_wrench[:, 3:] = math_utils.quat_apply(
-        math_utils.quat_conjugate(quat_w[:, arm_idx, :]),
-        -total_torque_w,
-    )
-
-    # check value of last joint wrench
-    torch.testing.assert_close(
-        expected_wrench,
-        articulation.data.body_incoming_joint_wrench_b.torch[:, arm_idx, :].squeeze(1),
-        atol=1e-2,
-        rtol=1e-3,
-    )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

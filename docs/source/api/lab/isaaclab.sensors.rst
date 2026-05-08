@@ -36,7 +36,11 @@
     MultiMeshRayCasterCameraCfg
     Imu
     ImuCfg
+    Pva
+    PvaData
+    PvaCfg
     JointWrenchSensor
+    JointWrenchSensorData
     JointWrenchSensorCfg
 
 Sensor Base
@@ -192,6 +196,25 @@ Inertia Measurement Unit
     :show-inheritance:
     :exclude-members: __init__, class_type
 
+Pose Velocity Acceleration Sensor
+---------------------------------
+
+.. autoclass:: Pva
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: PvaData
+    :members:
+    :inherited-members:
+    :exclude-members: __init__
+
+.. autoclass:: PvaCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
 Joint Wrench Sensor
 -------------------
 
@@ -199,6 +222,11 @@ Joint Wrench Sensor
     :members:
     :inherited-members:
     :show-inheritance:
+
+.. autoclass:: JointWrenchSensorData
+    :members:
+    :inherited-members:
+    :exclude-members: __init__
 
 .. autoclass:: JointWrenchSensorCfg
     :members:

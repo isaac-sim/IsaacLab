@@ -7,10 +7,6 @@ name: "Pull Request Labeler"
 on:
 - pull_request_target
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
   labeler:
     permissions:

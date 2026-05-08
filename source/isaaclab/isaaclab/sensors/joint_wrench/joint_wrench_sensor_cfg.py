@@ -25,6 +25,6 @@ class JointWrenchSensorCfg(SensorBaseCfg):
     """Coordinate convention for the reported wrench. Defaults to ``"incoming_joint_frame"``.
 
     - ``"incoming_joint_frame"`` — child-side joint frame, child-side joint anchor as reference point.
-      Matches what a real 6-axis F/T sensor mounted at the joint would measure. This is the same
-      as PhysX convention in IsaacLab2.3
+      Matches what a real 6-axis F/T sensor mounted at the joint would measure. Backends convert
+      their native solver outputs to this convention.
     """

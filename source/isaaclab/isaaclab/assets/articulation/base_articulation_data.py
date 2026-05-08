@@ -248,9 +248,14 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_friction_coeff(self) -> ProxyArray:
-        """Joint static friction coefficient provided to the simulation.
+        """Backend-specific joint friction values provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+
+        .. warning::
+            The physical meaning and units of this value depend on the concrete backend and solver. Do not assume
+            values are comparable across backends; check the backend-specific :class:`ArticulationData`
+            implementation before interpreting or reusing them.
         """
         raise NotImplementedError
 
@@ -661,24 +666,6 @@ class BaseArticulationData(ABC):
 
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
-        """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    @leapp_tensor_semantics(kind=InputKindEnum.WRENCH)
-    def body_incoming_joint_wrench_b(self) -> ProxyArray:
-        """Joint reaction wrench applied from body parent to child body in parent body frame.
-
-        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to
-        (num_instances, num_bodies, 6). All body reaction wrenches are provided including the root body to the
-        world of an articulation.
-
-        For more information on joint wrenches, please check the `PhysX documentation`_ and the
-        underlying `PhysX Tensor API`_.
-
-        .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.5.1/docs/Articulations.html#link-incoming-joint-force
-        .. _PhysX Tensor API: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/extensions/runtime/source/omni.physics.tensors/docs/api/python.html#omni.physics.tensors.api.ArticulationView.get_link_incoming_joint_force
         """
         raise NotImplementedError
 

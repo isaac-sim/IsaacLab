@@ -19,6 +19,7 @@ from newton.viewer import ViewerViser
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .viser_visualizer_cfg import ViserVisualizerCfg
@@ -129,6 +130,8 @@ class ViserVisualizer(BaseVisualizer):
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self._resolved_visible_env_ids: list[int] | None = None
+        self._warned_marker_render_failure = False
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -189,8 +192,23 @@ class ViserVisualizer(BaseVisualizer):
         self._state = NewtonManager.get_state()
         self._sim_time += dt
         self._viewer.begin_frame(self._sim_time)
-        self._viewer.log_state(self._state)
-        self._viewer.end_frame()
+        try:
+            self._viewer.log_state(self._state)
+            if self.cfg.enable_markers:
+                self._render_markers(num_envs)
+        finally:
+            self._viewer.end_frame()
+
+    def _render_markers(self, num_envs: int) -> None:
+        """Render marker overlays without letting them interrupt Viser body updates."""
+        try:
+            render_newton_visualization_markers(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
+        except Exception as exc:
+            if not self._warned_marker_render_failure:
+                logger.warning("[ViserVisualizer] Marker rendering failed; continuing body updates: %s", exc)
+                self._warned_marker_render_failure = True
+            else:
+                logger.debug("[ViserVisualizer] Marker rendering failed: %s", exc)
 
     def close(self) -> None:
         """Close viewer resources and finalize optional recording."""
@@ -227,8 +245,8 @@ class ViserVisualizer(BaseVisualizer):
         return False
 
     def supports_markers(self) -> bool:
-        """Viser backend currently does not expose Isaac Lab marker primitives."""
-        return False
+        """Viser backend supports Isaac Lab markers through Newton viewer primitives."""
+        return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
         """Viser backend currently does not expose Isaac Lab live-plot widgets."""

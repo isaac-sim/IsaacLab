@@ -40,3 +40,19 @@ class TestArticulationData:
             atol=1e-6,
             err_msg="Joint acceleration should be computed as delta_velocity / dt.",
         )
+
+    def test_cpu_only_binding_read_stages_to_gpu_view(self):
+        """CPU-only bindings should be staged before copying into GPU-backed data buffers."""
+        if not wp.is_cuda_available():
+            pytest.skip("CUDA is required to test CPU-to-GPU staging.")
+
+        mock_bindings = MockOvPhysxBindingSet(num_instances=1, num_joints=2, num_bodies=1)
+        data = ArticulationData(mock_bindings.bindings, device="cuda")
+        data._create_buffers()
+
+        expected = np.array([[[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]]], dtype=np.float32)
+        mock_bindings.bindings[TT.BODY_COM_POSE]._data[...] = expected
+
+        data._read_transform_binding(TT.BODY_COM_POSE, data._body_com_pose_b)
+
+        np.testing.assert_allclose(data._body_com_pose_b.data.numpy(), expected, atol=1e-6)

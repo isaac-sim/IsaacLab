@@ -23,7 +23,7 @@ from isaaclab.managers.manager_term_cfg import ObservationTermCfg
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
-    from isaaclab.sensors import Camera, Imu, Pva, RayCaster, RayCasterCamera
+    from isaaclab.sensors import Camera, Imu, JointWrenchSensor, Pva, RayCaster, RayCasterCamera
 
 from isaaclab.envs.utils.io_descriptors import (
     generic_io_descriptor,
@@ -304,16 +304,21 @@ def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float 
     return sensor.data.pos_w.torch[:, 2].unsqueeze(1) - sensor.data.ray_hits_w.torch[..., 2] - offset
 
 
-def body_incoming_wrench(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Incoming spatial wrench on bodies of an articulation in the simulation world frame.
+def body_incoming_wrench(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Incoming spatial wrench [N, N·m] on bodies of an articulation in the sensor convention.
 
-    This is the 6-D wrench (force and torque) applied to the body link by the incoming joint force.
+    This is the 6-D wrench (force followed by torque) applied to the body link by the incoming joint force.
     """
     # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-    # obtain the link incoming forces in world frame
-    body_incoming_joint_wrench_b = asset.data.body_incoming_joint_wrench_b.torch[:, asset_cfg.body_ids]
-    return body_incoming_joint_wrench_b.view(env.num_envs, -1)
+    sensor: JointWrenchSensor = env.scene.sensors[sensor_cfg.name]
+    sensor_data = sensor.data
+    force_data = sensor_data.force
+    torque_data = sensor_data.torque
+    if force_data is None or torque_data is None:
+        raise RuntimeError("Joint wrench sensor data is not initialized. Call sim.reset() before reading observations.")
+    force = force_data.torch[:, sensor_cfg.body_ids]
+    torque = torque_data.torch[:, sensor_cfg.body_ids]
+    return torch.cat((force, torque), dim=-1).view(env.num_envs, -1)
 
 
 def pva_orientation(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("pva")) -> torch.Tensor:

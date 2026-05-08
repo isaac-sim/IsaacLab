@@ -17,7 +17,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import copy
 import random
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -28,9 +27,7 @@ import omni.replicator.core as rep
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.sensors.camera import Camera, CameraCfg
-from isaaclab.sim import SimulationContext
 
 pytestmark = pytest.mark.isaacsim_ci
 
@@ -46,23 +43,6 @@ QUAT_WORLD = (-0.27984815, -0.1159169, 0.88047623, -0.3647052)
 # resolutions
 HEIGHT = 240
 WIDTH = 320
-
-
-def test_camera_registers_renderer_scene_data_requirements(monkeypatch: pytest.MonkeyPatch):
-    """Camera creation path should register renderer-driven scene-data requirements."""
-    camera = object.__new__(Camera)
-    camera.cfg = SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="newton_warp"))
-    updates = []
-    sim = SimpleNamespace(
-        get_scene_data_requirements=lambda: SceneDataRequirement(),
-        update_scene_data_requirements=updates.append,
-    )
-
-    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
-
-    camera._register_renderer_scene_data_requirements()
-
-    assert updates == [SceneDataRequirement(requires_newton_model=True)]
 
 
 def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
@@ -1179,6 +1159,72 @@ def test_camera_warns_once_on_unsupported_data_types(setup_sim_camera, caplog):
             Renderer._registry[backend] = original
         else:
             Renderer._registry.pop(backend, None)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.isaacsim_ci
+def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
+    """Camera pose changes via FrameView should be visible in rendered depth.
+
+    Moves the camera close then far, renders depth, and verifies that the mean
+    valid depth from the far position is significantly larger (>1.5×) than the
+    close position.  This validates that Fabric-side pose writes (via
+    PrepareForReuse) and USD writes are correctly propagated to the RTX
+    renderer.
+    """
+    sim, _unused_cam_cfg, dt = setup_camera_device
+
+    cam_cfg = CameraCfg(
+        prim_path="/World/PoseTestCam",
+        height=128,
+        width=256,
+        update_period=0,
+        update_latest_camera_pose=True,
+        data_types=["distance_to_camera"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=24.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.955,
+            clipping_range=(0.1, 1.0e5),
+        ),
+    )
+    camera = Camera(cam_cfg)
+    try:
+        sim.reset()
+
+        target = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
+        max_range = cam_cfg.spawn.clipping_range[1]
+
+        # -- close position --
+        eyes_close = torch.tensor([[2.0, 2.0, 2.0]], dtype=torch.float32, device=camera.device)
+        camera.set_world_poses_from_view(eyes_close, target)
+        sim.step()
+        camera.update(dt)
+        depth_close = camera.data.output["distance_to_camera"].clone()
+
+        # -- far position --
+        eyes_far = torch.tensor([[8.0, 8.0, 8.0]], dtype=torch.float32, device=camera.device)
+        camera.set_world_poses_from_view(eyes_far, target)
+        sim.step()
+        camera.update(dt)
+        depth_far = camera.data.output["distance_to_camera"].clone()
+
+        # -- validate --
+        valid_close = depth_close[depth_close < max_range]
+        valid_far = depth_far[depth_far < max_range]
+
+        assert valid_close.numel() > 0, "No valid close-range depth pixels"
+        assert valid_far.numel() > 0, "No valid far-range depth pixels"
+
+        mean_close = valid_close.mean().item()
+        mean_far = valid_far.mean().item()
+
+        assert mean_far > mean_close * 1.5, (
+            f"Far depth ({mean_far:.2f}) should be > 1.5× close depth ({mean_close:.2f}). "
+            "Camera pose change may not be reaching the renderer."
+        )
+    finally:
+        del camera
 
 
 def _populate_scene():

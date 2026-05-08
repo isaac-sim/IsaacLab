@@ -15,11 +15,14 @@ from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
 
 if TYPE_CHECKING:
     from isaaclab_newton.sensors.joint_wrench import JointWrenchSensorData as NewtonJointWrenchSensorData
+    from isaaclab_physx.sensors.joint_wrench import JointWrenchSensorData as PhysXJointWrenchSensorData
 
 
 class JointWrenchSensorData(FactoryBase, BaseJointWrenchSensorData):
     """Factory for creating joint-wrench sensor data instances."""
 
-    def __new__(cls, *args, **kwargs) -> BaseJointWrenchSensorData | NewtonJointWrenchSensorData:
+    def __new__(
+        cls, *args, **kwargs
+    ) -> BaseJointWrenchSensorData | PhysXJointWrenchSensorData | NewtonJointWrenchSensorData:
         """Create a new instance of joint-wrench sensor data based on the backend."""
         return super().__new__(cls, *args, **kwargs)

@@ -5,7 +5,7 @@ Transitioning to the Newton physics engine introduces new physics solvers that h
 While Newton supports several different solvers, our initial focus for Isaac Lab is on using the
 MuJoCo-Warp solver from Google DeepMind. Isaac Lab also includes beta support for the Kamino
 solver on selected classic tasks. Kamino is selected through a physics preset rather than as a
-separate backend; see :ref:`hydra-backend-solver-presets`.
+separate backend; see :ref:`hydra-backend-solver-presets` and :ref:`newton-using-kamino`.
 
 .. note::
 

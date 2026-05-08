@@ -6,6 +6,13 @@ Kit-less Installation
 Isaac Lab can be installed and used **without Isaac Sim** using the kit-less mode. This is the
 fastest way to get started and is ideal for users who only need the Newton physics backend.
 
+.. include:: include/pip_python_virtual_env.rst
+
+Cloning and installing Isaac Lab
+--------------------------------
+
+With the virtual environment activated, clone the repository and run the kit-less installer:
+
 .. code-block:: bash
 
    # Clone Isaac Lab
@@ -15,11 +22,11 @@ fastest way to get started and is ideal for users who only need the Newton physi
    # Install Isaac Lab (Newton backend, no Isaac Sim required)
    ./isaaclab.sh --install   # or ./isaaclab.sh -i
 
-   # Kickoff training with Newton physics and Newton visualizer
+   # Kickoff training with MJWarp physics and Newton visualizer
    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
    --task=Isaac-Cartpole-Direct-v0 \
    --num_envs=16 --max_iterations=10 \
-   presets=newton --visualizer newton
+   presets=newton_mjwarp --visualizer newton
 
 
 **Features available in kit-less mode (Newton backend, no Isaac Sim):**
@@ -105,12 +112,10 @@ OVRTX provides GPU-accelerated rendering for vision tasks without Kit.
 
    ./isaaclab.sh -i ov[ovrtx]
 
-   export LD_PRELOAD=$(python -c "import ovrtx, pathlib; print(pathlib.Path(ovrtx.__file__).parent / 'bin/plugins/libcarb.so')")
-
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
      --task Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0 \
      --headless --enable_cameras --num_envs 16 --max_iterations 10 \
-     presets=newton,ovrtx_renderer,simple_shading_diffuse_mdl
+     presets=newton_mjwarp,ovrtx_renderer,simple_shading_diffuse_mdl
 
 
 Running Installation Tests

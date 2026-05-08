@@ -38,7 +38,7 @@ class ReachPhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
 
-    newton: NewtonCfg = NewtonCfg(
+    newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=50,
             nconmax=20,
@@ -66,7 +66,7 @@ class TableCfg(PresetCfg):
         ),
     )
 
-    newton: ArticulationCfg = ArticulationCfg(
+    newton_mjwarp: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Table",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.5, 0.15, -0.5), rot=(0, 0, 0.707, 0.707), joint_pos={}, joint_vel={}

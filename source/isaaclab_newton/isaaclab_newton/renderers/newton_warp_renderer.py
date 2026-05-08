@@ -177,6 +177,14 @@ class NewtonWarpRenderer(BaseRenderer):
             ),
         )
 
+        # Newton ``v1.2.0rc2`` made shape-BVH construction explicit; ``SensorTiledCamera.update``
+        # no longer auto-builds when a non-``None`` state is passed, and the underlying
+        # ``RenderContext.render`` raises if ``build_bvh_shape`` was never called for the model.
+        # Build it once per model — idempotent across multiple sensors that share ``newton_model``
+        # because subsequent calls overwrite the same model-level BVH attributes.
+        if self._newton_model.shape_count > 0 and self._newton_model.bvh_shapes is None:
+            newton.geometry.build_bvh_shape(self._newton_model, self._newton_model.state())
+
         if cfg.create_default_light:
             self.newton_sensor.utils.create_default_light(enable_shadows=cfg.enable_shadows)
 
@@ -228,8 +236,14 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
+        newton_state = self._newton_state
+        # Refit the shape BVH against the current state since env body poses move every frame.
+        # ``build_bvh_shape`` ran once in ``__init__``; ``refit_bvh_shape`` reuses that topology.
+        if self.newton_sensor.model.shape_count > 0:
+            newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
+
         self.newton_sensor.update(
-            self._newton_state,
+            newton_state,
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,

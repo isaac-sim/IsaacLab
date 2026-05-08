@@ -18,8 +18,7 @@ from pxr import UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer
-from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
 from isaaclab.utils.math import (
@@ -108,14 +107,14 @@ class Camera(SensorBase):
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
-        self._register_renderer_scene_data_requirements()
 
         # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
         # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
         # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
         # flag must be set pre-sim.reset() because SimulationContext.is_rendering
         # and several env classes read it before the renderer's __init__ runs.
-        if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
+        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
+        if renderer_type == "isaac_rtx":
             get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", True)
 
         # Compute camera orientation (convention conversion) and spawn
@@ -135,30 +134,6 @@ class Camera(SensorBase):
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
-
-    def _register_renderer_scene_data_requirements(self) -> None:
-        """Register renderer requirements early enough for clone-time prebuilds."""
-        renderer_type = getattr(getattr(self.cfg, "renderer_cfg", None), "renderer_type", None)
-        if renderer_type is None:
-            return
-
-        from isaaclab.physics.scene_data_requirements import aggregate_requirements, requirement_for_renderer_type
-        from isaaclab.sim import SimulationContext
-
-        sim = SimulationContext.instance()
-        if sim is None:
-            logger.debug("SimulationContext not available; deferring renderer requirements registration.")
-            return
-
-        try:
-            renderer_req = requirement_for_renderer_type(renderer_type)
-        except ValueError:
-            return
-
-        current_req = sim.get_scene_data_requirements()
-        merged_req = aggregate_requirements((current_req, renderer_req))
-        if merged_req != current_req:
-            sim.update_scene_data_requirements(merged_req)
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
@@ -405,9 +380,7 @@ class Camera(SensorBase):
         # references to prims located in the stage.
         sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
 
-        # Create a view for the sensor with Fabric enabled for fast pose queries.
-        # TODO: remove sync_usd_on_fabric_write=True once the GPU Fabric sync bug is fixed.
-        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage, sync_usd_on_fabric_write=True)
+        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(

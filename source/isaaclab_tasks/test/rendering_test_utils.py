@@ -28,15 +28,15 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The max percentage of pixels allowed to differ. If the percentage exceeds this value, the test will fail.
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
-_MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
+MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "cartpole": 1.0,
     # Shadow-hand renderings (incl. ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0``) show up to
-    # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 7.0 gives
+    # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
-    "shadow_hand": 7.0,
-    "dexsuite_kuka": 10.0,  # texture aliasing artifacts on the ground (ticket has been filed for OVRTX)
+    "shadow_hand": 5.0,
+    # Texture aliasing artifacts on the ground (NVBUG#6116767)
+    "dexsuite_kuka": 8.0,
 }
-MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = _MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
 # robust to uniform per-pixel noise that penalises structural changes (geometry shifts, swapped colours, missing
@@ -47,7 +47,7 @@ _SSIM_THRESHOLD = 0.985
 # Per-env SSIM overrides. Envs not listed fall back to ``_SSIM_THRESHOLD``. Loosened individually
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
-    # Texture aliasing artifacts on the ground (ticket has been filed for OVRTX)
+    # Texture aliasing artifacts on the ground (NVBUG#6116767)
     "dexsuite_kuka": 0.95,
 }
 
@@ -66,12 +66,9 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 # Parametrization: (physics_backend, renderer, data_type)
 # ---------------------------------------------------------------------------
 
-# OVRTX kitless paths can segfault on GitHub Actions runners; keep warp/Kit paths in CI.
-_SKIP_ON_GITHUB_ACTIONS = os.environ.get("GITHUB_ACTIONS") == "true"
-_SKIP_ON_GITHUB_ACTIONS_MARK = pytest.mark.skipif(
-    _SKIP_ON_GITHUB_ACTIONS,
-    reason="Skipped on GitHub Actions until the test can run on GitHub Actions.",
-)
+# Low-resolution camera outputs from RTX renderers are not deterministic enough to pass golden image testing
+# on every CI run. (NVBUG#6152566)
+_FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
 
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
     # physx + isaacsim_rtx_renderer
@@ -80,42 +77,99 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "isaacsim_rtx_renderer",
         "rgb",
         id="physx-isaacsim_rtx-rgb",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "albedo",
         id="physx-isaacsim_rtx-albedo",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "depth",
         id="physx-isaacsim_rtx-depth",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "simple_shading_constant_diffuse",
         id="physx-isaacsim_rtx-simple_shading_constant_diffuse",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "simple_shading_diffuse_mdl",
         id="physx-isaacsim_rtx-simple_shading_diffuse_mdl",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "simple_shading_full_mdl",
         id="physx-isaacsim_rtx-simple_shading_full_mdl",
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "physx",
         "isaacsim_rtx_renderer",
         "semantic_segmentation",
         id="physx-isaacsim_rtx-semantic_segmentation",
+        marks=_FLAKY_MARK,
+    ),
+    # newton + isaacsim_rtx_renderer
+    pytest.param(
+        "newton",
+        "isaacsim_rtx_renderer",
+        "rgb",
+        id="newton-isaacsim_rtx-rgb",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "newton",
+        "isaacsim_rtx_renderer",
+        "albedo",
+        id="newton-isaacsim_rtx-albedo",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "newton",
+        "isaacsim_rtx_renderer",
+        "depth",
+        id="newton-isaacsim_rtx-depth",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "newton",
+        "isaacsim_rtx_renderer",
+        "simple_shading_constant_diffuse",
+        id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "newton",
+        "isaacsim_rtx_renderer",
+        "simple_shading_diffuse_mdl",
+        id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "newton",
+        "isaacsim_rtx_renderer",
+        "simple_shading_full_mdl",
+        id="newton-isaacsim_rtx-simple_shading_full_mdl",
+        marks=_FLAKY_MARK,
+    ),
+    pytest.param(
+        "newton",
+        "isaacsim_rtx_renderer",
+        "semantic_segmentation",
+        id="newton-isaacsim_rtx-semantic_segmentation",
+        marks=_FLAKY_MARK,
     ),
     # physx + newton_renderer (warp)
     pytest.param(
@@ -130,49 +184,6 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "depth",
         id="physx-newton_warp-depth",
     ),
-    # newton + isaacsim_rtx_renderer
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "rgb",
-        id="newton-isaacsim_rtx-rgb",
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "albedo",
-        id="newton-isaacsim_rtx-albedo",
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "depth",
-        id="newton-isaacsim_rtx-depth",
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "simple_shading_constant_diffuse",
-        id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "simple_shading_diffuse_mdl",
-        id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "simple_shading_full_mdl",
-        id="newton-isaacsim_rtx-simple_shading_full_mdl",
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "semantic_segmentation",
-        id="newton-isaacsim_rtx-semantic_segmentation",
-    ),
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
@@ -182,49 +193,49 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "rgb",
         id="newton-ovrtx-rgb",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "albedo",
         id="newton-ovrtx-albedo",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "depth",
         id="newton-ovrtx-depth",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_constant_diffuse",
         id="newton-ovrtx-simple_shading_constant_diffuse",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_diffuse_mdl",
         id="newton-ovrtx-simple_shading_diffuse_mdl",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_full_mdl",
         id="newton-ovrtx-simple_shading_full_mdl",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "semantic_segmentation",
         id="newton-ovrtx-semantic_segmentation",
-        marks=_SKIP_ON_GITHUB_ACTIONS_MARK,
+        marks=_FLAKY_MARK,
     ),
     # newton + newton_renderer (warp)
     pytest.param(
@@ -266,6 +277,14 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     hydra_cfg = {"env": env_cfg.to_dict()}
     env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
     return env_cfg
+
+
+def _physics_preset_name(physics_backend: str) -> str:
+    """Translate the historical ``"newton"`` backend label (still used by golden-image
+    filenames and ``pytest.param`` IDs) to the renamed Hydra preset
+    ``"newton_mjwarp"``. Other labels (``"physx"`` etc.) pass through unchanged.
+    """
+    return "newton_mjwarp" if physics_backend == "newton" else physics_backend
 
 
 def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
@@ -662,7 +681,7 @@ def rendering_test_shadow_hand(
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
     from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
-    override_args = [f"presets={physics_backend},{renderer},{data_type}"]
+    override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
 
     env_cfg = ShadowHandVisionEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
@@ -706,7 +725,9 @@ def rendering_test_cartpole(
     from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
 
     env_cfg = CartpoleCameraPresetsEnvCfg()
-    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_backend},{renderer},{data_type}"])
+    env_cfg = _apply_overrides_to_env_cfg(
+        env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
+    )
 
     env_cfg.scene.num_envs = 4
 
@@ -744,7 +765,7 @@ def rendering_test_dexsuite_kuka(
         DexsuiteKukaAllegroLiftEnvCfg,
     )
 
-    override_args = [f"presets={physics_backend},{renderer},{data_type}64,single_camera,cube"]
+    override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}64,single_camera,cube"]
 
     env_cfg = DexsuiteKukaAllegroLiftEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
@@ -759,6 +780,12 @@ def rendering_test_dexsuite_kuka(
     point_cloud_term = getattr(env_cfg.observations.perception, "object_point_cloud", None)
     if point_cloud_term is not None:
         point_cloud_term.params["visualize"] = False
+
+    # The success and failure markers are placed exactly at the same location. If both markers are
+    # visible, the rendering order will determine which one is visible in the camera output. Hide
+    # both markers to avoid this nondeterministic behavior.
+    for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
+        marker_cfg.visible = False
 
     env = None
 
