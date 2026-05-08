@@ -22,7 +22,6 @@ from typing import Any
 import numpy as np
 import torch
 import warp as wp
-
 from newton.actuators import Actuator, Clamping, Delay
 
 from isaaclab.actuators import ActuatorBase, ImplicitActuator
@@ -92,14 +91,11 @@ class NewtonActuatorAdapter:
 
     * **Newton backend** — pass actuators from the Newton model directly::
 
-          adapter = NewtonActuatorAdapter(model.actuators, num_envs,
-                                          num_joints, dof_offset, device)
+          adapter = NewtonActuatorAdapter(model.actuators, num_envs, num_joints, dof_offset, device)
 
     * **PhysX backend** — create actuators from USD prims::
 
-          adapter = NewtonActuatorAdapter.from_usd(stage, joint_names,
-                                                    num_envs, num_joints,
-                                                    device)
+          adapter = NewtonActuatorAdapter.from_usd(stage, joint_names, num_envs, num_joints, device)
 
     Then finalise::
 
@@ -155,15 +151,15 @@ class NewtonActuatorAdapter:
         num_joints: int,
         device: str,
         articulation_prim_path: str | None = None,
-    ) -> "NewtonActuatorAdapter":
+    ) -> NewtonActuatorAdapter:
         """Create an adapter by parsing ``NewtonActuator`` prims from USD.
 
         This is the PhysX-backend counterpart of what Newton's
         ``ModelBuilder.add_usd`` does for the Newton backend.  Both paths
         read the same ``NewtonActuator`` USD prims (authored by
-        :func:`~isaaclab_newton.actuators.authoring.author_newton_actuator_prims`)
-        and construct :class:`~newton.actuators.Actuator` objects with
-        matching controllers, clampings, and delays.
+        :func:`~isaaclab.sim.schemas.define_actuator_properties`) and
+        construct :class:`~newton.actuators.Actuator` objects with matching
+        controllers, clampings, and delays.
 
         The key difference is that PhysX uses a **flat per-DOF layout**
         where joint position coordinates and velocity DOFs always have the
@@ -197,7 +193,11 @@ class NewtonActuatorAdapter:
             A fully constructed adapter ready for :meth:`finalize`.
         """
         actuators = _create_actuators_from_usd(
-            stage, joint_names, num_envs, num_joints, device,
+            stage,
+            joint_names,
+            num_envs,
+            num_joints,
+            device,
             articulation_prim_path=articulation_prim_path,
         )
         return cls(actuators, num_envs, num_joints, dof_offset=0, device=device)
@@ -214,13 +214,15 @@ class NewtonActuatorAdapter:
             ctrl = act.controller
             if hasattr(ctrl, "kp"):
                 wp.launch(
-                    scatter_gain_kernel, dim=act.indices.shape[0],
+                    scatter_gain_kernel,
+                    dim=act.indices.shape[0],
                     inputs=[ctrl.kp, flat_stiffness, act.indices, self._dof_offset, self.num_joints],
                     device=wp_device,
                 )
             if hasattr(ctrl, "kd"):
                 wp.launch(
-                    scatter_gain_kernel, dim=act.indices.shape[0],
+                    scatter_gain_kernel,
+                    dim=act.indices.shape[0],
                     inputs=[ctrl.kd, flat_damping, act.indices, self._dof_offset, self.num_joints],
                     device=wp_device,
                 )
@@ -343,14 +345,22 @@ class NewtonActuatorAdapter:
         articulation's view works since the call dispatches on the actuator
         object (model-scoped), not on the view's articulation.
         """
+
         def _push(
-            actuator: Actuator, controller: Any, attr: str,
-            values: wp.array, env_mask: wp.array,
+            actuator: Actuator,
+            controller: Any,
+            attr: str,
+            values: wp.array,
+            env_mask: wp.array,
         ) -> None:
             root_view.set_actuator_parameter(
-                actuator=actuator, component=controller, name=attr,
-                values=values, mask=env_mask,
+                actuator=actuator,
+                component=controller,
+                name=attr,
+                values=values,
+                mask=env_mask,
             )
+
         self._propagator = _push
 
     def set_kernel_propagator(self) -> None:
@@ -361,19 +371,28 @@ class NewtonActuatorAdapter:
         actuator's flat indices and writes into ``controller.kp`` /
         ``controller.kd``.
         """
+
         def _push(
-            actuator: Actuator, controller: Any, attr: str,
-            values: wp.array, env_mask: wp.array,
+            actuator: Actuator,
+            controller: Any,
+            attr: str,
+            values: wp.array,
+            env_mask: wp.array,
         ) -> None:
             wp.launch(
                 gather_gain_kernel,
                 dim=actuator.indices.shape[0],
                 inputs=[
-                    values.flatten(), getattr(controller, attr), actuator.indices,
-                    env_mask, self._dof_offset, self.num_joints,
+                    values.flatten(),
+                    getattr(controller, attr),
+                    actuator.indices,
+                    env_mask,
+                    self._dof_offset,
+                    self.num_joints,
                 ],
                 device=self._device,
             )
+
         self._propagator = _push
 
     def write_stiffness_to_sim(
@@ -461,6 +480,7 @@ def _create_actuators_from_usd(
     from collections import defaultdict  # noqa: PLC0415
 
     from newton.actuators import parse_actuator_prim  # noqa: PLC0415
+
     from pxr import Usd  # noqa: PLC0415
 
     wp_device = wp.get_device(device)
@@ -482,9 +502,7 @@ def _create_actuators_from_usd(
             parsed_per_joint[joint_name_to_idx[target_name]] = parsed
 
     if not parsed_per_joint:
-        raise ValueError(
-            f"No NewtonActuator prims found targeting any of: {joint_names}"
-        )
+        raise ValueError(f"No NewtonActuator prims found targeting any of: {joint_names}")
 
     groups: dict[tuple, list[int]] = defaultdict(list)
     sig_to_parsed: dict[tuple, Any] = {}
@@ -536,7 +554,10 @@ def _create_actuators_from_usd(
                         clamp_arrays[k] = v
                     else:
                         clamp_arrays[k] = wp.full(
-                            num_dofs_in_group, float(v), dtype=wp.float32, device=wp_device,
+                            num_dofs_in_group,
+                            float(v),
+                            dtype=wp.float32,
+                            device=wp_device,
                         )
                 clampings.append(comp_cls(**clamp_arrays))
 

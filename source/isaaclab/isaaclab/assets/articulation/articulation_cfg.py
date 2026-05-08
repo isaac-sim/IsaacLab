@@ -74,3 +74,20 @@ class ArticulationCfg(AssetBaseCfg):
     actuator_value_resolution_debug_print = False
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
     """
+
+    def __post_init__(self) -> None:
+        """Propagate :attr:`actuators` to the spawn cfg's ``actuator_props`` field.
+
+        The spawner uses ``actuator_props`` to author ``NewtonActuator`` USD prims
+        via :func:`~isaaclab.sim.schemas.define_actuator_properties` (a no-op when
+        ``use_newton_actuators`` is disabled). Keeping the propagation here means
+        users only declare actuators once, on the asset cfg.
+
+        User-provided ``spawn.actuator_props`` is preserved and takes precedence.
+        """
+        if (
+            self.spawn is not None
+            and self.actuators is not MISSING
+            and getattr(self.spawn, "actuator_props", None) is None
+        ):
+            self.spawn.actuator_props = dict(self.actuators)

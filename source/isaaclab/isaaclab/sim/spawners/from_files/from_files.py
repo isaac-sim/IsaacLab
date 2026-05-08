@@ -367,6 +367,10 @@ def _spawn_from_usd_file(
     if cfg.joint_drive_props is not None:
         schemas.modify_joint_drive_properties(prim_path, cfg.joint_drive_props)
 
+    # author Newton-native actuator USD prims (no-op when use_newton_actuators=False)
+    if cfg.actuator_props is not None:
+        schemas.define_actuator_properties(prim_path, cfg.actuator_props, stage=stage)
+
     # define deformable body properties, or modify if deformable body API is present (PhysX only)
     if cfg.deformable_props is not None:
         prim = stage.GetPrimAtPath(prim_path)
