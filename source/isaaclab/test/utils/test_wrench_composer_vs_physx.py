@@ -110,7 +110,7 @@ def test_composer_vs_physx_local_force(device):
         forces[..., 0] = FORCE_MAGNITUDE
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -175,7 +175,7 @@ def test_composer_vs_physx_global_force(device):
         forces[..., 0] = FORCE_MAGNITUDE
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -249,7 +249,7 @@ def test_composer_vs_physx_local_force_at_position(device):
         positions = torch.zeros(1, len(body_ids), 3, device=device)
         positions[..., 1] = 0.5  # +0.5m Y offset in local frame
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=positions,
@@ -322,7 +322,7 @@ def test_composer_vs_physx_global_force_at_position(device):
         pos_composer = cube_composer.data.body_com_pos_w.torch[:, body_ids, :3].clone() + offset
         pos_raw = cube_raw.data.body_com_pos_w.torch[:, body_ids, :3].clone() + offset
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=pos_composer,
@@ -387,7 +387,7 @@ def test_composer_vs_physx_local_torque(device):
         torques = torch.zeros(1, len(body_ids), 3, device=device)
         torques[..., 2] = TORQUE_MAGNITUDE
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -452,7 +452,7 @@ def test_composer_vs_physx_global_torque(device):
         torques = torch.zeros(1, len(body_ids), 3, device=device)
         torques[..., 2] = TORQUE_MAGNITUDE
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -513,7 +513,7 @@ def test_composer_vs_physx_global_force_multi_env(device):
         forces[..., 0] = FORCE_MAGNITUDE
         torques = torch.zeros(NUM_CUBES_MULTI, len(body_ids), 3, device=device)
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -605,7 +605,7 @@ def test_composer_vs_physx_global_force_with_reset(device):
             forces = torch.zeros(NUM_CUBES_MULTI, len(body_ids), 3, device=device)
             forces[..., 0] = FORCE_MAGNITUDE
             torques = torch.zeros(NUM_CUBES_MULTI, len(body_ids), 3, device=device)
-            cube_composer.permanent_wrench_composer.set_forces_and_torques(
+            cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
                 forces=forces,
                 torques=torques,
                 body_ids=body_ids,
@@ -641,8 +641,18 @@ def test_composer_vs_physx_global_force_with_reset(device):
         reset_ids_torch = torch.tensor(reset_ids, dtype=torch.long, device=device)
 
         # Reset root state using captured world-frame initial state (includes env origins)
-        cube_composer.write_root_state_to_sim(initial_state_composer[reset_ids_torch], env_ids=reset_ids_torch)
-        cube_raw.write_root_state_to_sim(initial_state_raw[reset_ids_torch], env_ids=reset_ids_torch)
+        cube_composer.write_root_link_pose_to_sim_index(
+            root_pose=initial_state_composer[reset_ids_torch, :7], env_ids=reset_ids_torch
+        )
+        cube_composer.write_root_com_velocity_to_sim_index(
+            root_velocity=initial_state_composer[reset_ids_torch, 7:], env_ids=reset_ids_torch
+        )
+        cube_raw.write_root_link_pose_to_sim_index(
+            root_pose=initial_state_raw[reset_ids_torch, :7], env_ids=reset_ids_torch
+        )
+        cube_raw.write_root_com_velocity_to_sim_index(
+            root_velocity=initial_state_raw[reset_ids_torch, 7:], env_ids=reset_ids_torch
+        )
 
         cube_composer.reset(reset_ids)
         cube_raw.reset(reset_ids)
@@ -717,7 +727,7 @@ def test_composer_vs_physx_payload_scenario(device):
         forces[..., 2] = -payload_force
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -790,7 +800,7 @@ def test_composer_vs_physx_permanent_global_force_at_position_long_run(device):
         pos_composer = cube_composer.data.body_com_pos_w.torch[:, body_ids, :3].clone() + offset
         pos_raw = cube_raw.data.body_com_pos_w.torch[:, body_ids, :3].clone() + offset
 
-        cube_composer.permanent_wrench_composer.set_forces_and_torques(
+        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=pos_composer,

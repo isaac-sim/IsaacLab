@@ -342,7 +342,14 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_friction_coeff(self) -> ProxyArray:
-        """Joint static friction coefficient provided to the simulation.
+        """Newton joint friction force/torque provided to the simulation.
+
+        Despite the ``coeff`` suffix in the Isaac Lab API name, Newton stores this as an absolute joint friction
+        force/torque [N or N·m, depending on joint type].
+
+        For example, the MJWarp solver copies this value into MuJoCo Warp's ``dof_frictionloss``. Setting
+        ``joint_friction_coeff`` to 0.2 configures a dry-friction loss limit of 0.2 N·m on a revolute joint DOF,
+        or 0.2 N on a prismatic joint DOF.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """

@@ -248,9 +248,14 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_friction_coeff(self) -> ProxyArray:
-        """Joint static friction coefficient provided to the simulation.
+        """Backend-specific joint friction values provided to the simulation.
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+
+        .. warning::
+            The physical meaning and units of this value depend on the concrete backend and solver. Do not assume
+            values are comparable across backends; check the backend-specific :class:`ArticulationData`
+            implementation before interpreting or reusing them.
         """
         raise NotImplementedError
 
