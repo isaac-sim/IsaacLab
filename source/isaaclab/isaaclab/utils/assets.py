@@ -52,6 +52,40 @@ ISAACLAB_NUCLEUS_DIR: str = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 """Path to the ``Isaac/IsaacLab`` directory on the NVIDIA Nucleus Server."""
 
 
+def _kit_app():
+    """Return the running Kit app or ``None`` if Kit is not running."""
+    try:
+        import omni.kit.app  # noqa: PLC0415
+
+        return omni.kit.app.get_app()
+    except Exception:
+        return None
+
+
+def _drive_kit_async(coro):
+    """Run an ``omni.client`` ``_async`` coroutine without blocking Kit's main thread.
+
+    Schedules the coroutine on Kit's asyncio loop and ticks ``app.update()`` until
+    it resolves; falls back to a private event loop when Kit isn't running.
+    """
+    import asyncio  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
+    app = _kit_app()
+    if app is None:
+        return asyncio.run(coro)
+    try:
+        import omni.kit.async_engine  # noqa: PLC0415
+
+        task = omni.kit.async_engine.run_coroutine(coro)
+    except Exception:
+        task = asyncio.ensure_future(coro)
+    while not task.done():
+        app.update()
+        time.sleep(0)
+    return task.result()
+
+
 def check_file_path(path: str) -> Literal[0, 1, 2]:
     """Checks if a file exists on the Nucleus Server or locally.
 
@@ -70,7 +104,7 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
 
     import omni.client  # noqa: PLC0415
 
-    if omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
+    if _drive_kit_async(omni.client.stat_async(path.replace(os.sep, "/")))[0] == omni.client.Result.OK:
         return 2
     else:
         return 0
@@ -131,7 +165,10 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             if _UDIM_RE.search(cur_url):
                 for tile in range(1001, 1101):
                     tile_url = _UDIM_RE.sub(str(tile), cur_url)
-                    if omni.client.stat(tile_url.replace(os.sep, "/"))[0] == omni.client.Result.OK:
+                    if (
+                        _drive_kit_async(omni.client.stat_async(tile_url.replace(os.sep, "/")))[0]
+                        == omni.client.Result.OK
+                    ):
                         if tile_url not in visited:
                             to_visit.append(tile_url)
                     else:
@@ -143,7 +180,9 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
 
             if not os.path.isfile(target_path) or force_download:
-                result = omni.client.copy(cur_url, target_path, omni.client.CopyBehavior.OVERWRITE)
+                result = _drive_kit_async(
+                    omni.client.copy_async(cur_url, target_path, omni.client.CopyBehavior.OVERWRITE)
+                )
                 if result != omni.client.Result.OK and force_download:
                     raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
 
@@ -183,7 +222,7 @@ def read_file(path: str) -> io.BytesIO:
     elif file_status == 2:
         import omni.client  # noqa: PLC0415
 
-        file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
+        file_content = _drive_kit_async(omni.client.read_file_async(path.replace(os.sep, "/")))[2]
         return io.BytesIO(memoryview(file_content).tobytes())
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
