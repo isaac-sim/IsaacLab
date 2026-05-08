@@ -1067,11 +1067,12 @@ class BaseArticulation(AssetBase):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        r"""Write joint static friction coefficients into the simulation.
+        r"""Write backend-specific joint friction values into the simulation.
 
-        The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
-        from the parent body to the child body to the maximal static friction force that may be applied by the solver
-        to resist the joint motion.
+        .. warning::
+            The physical meaning and units of joint friction depend on the concrete backend and solver. Do not assume
+            values are comparable across backends; check the backend-specific implementation before interpreting or
+            reusing them.
 
         .. note::
             This method expects partial data.
@@ -1081,7 +1082,7 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            joint_friction_coeff: Joint static friction coefficient. Shape is (len(env_ids), len(joint_ids)).
+            joint_friction_coeff: Backend-specific joint friction values. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all instances).
         """
@@ -1095,11 +1096,12 @@ class BaseArticulation(AssetBase):
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        r"""Write joint static friction coefficients into the simulation.
+        r"""Write backend-specific joint friction values into the simulation.
 
-        The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
-        from the parent body to the child body to the maximal static friction force that may be applied by the solver
-        to resist the joint motion.
+        .. warning::
+            The physical meaning and units of joint friction depend on the concrete backend and solver. Do not assume
+            values are comparable across backends; check the backend-specific implementation before interpreting or
+            reusing them.
 
         .. note::
             This method expects full data.
@@ -1109,7 +1111,7 @@ class BaseArticulation(AssetBase):
             Some backends may provide optimized implementations for masks / indices.
 
         Args:
-            joint_friction_coeff: Joint static friction coefficient. Shape is (num_instances, num_joints).
+            joint_friction_coeff: Backend-specific joint friction values. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
