@@ -18,7 +18,10 @@ from isaaclab_newton.sim.schemas import (
     MujocoRigidBodyPropertiesCfg,
     NewtonArticulationRootPropertiesCfg,
     NewtonCollisionPropertiesCfg,
+    NewtonJointDrivePropertiesCfg,
     NewtonMaterialPropertiesCfg,
+    NewtonMeshCollisionPropertiesCfg,
+    NewtonRigidBodyPropertiesCfg,
 )
 
 from pxr import UsdPhysics
@@ -181,3 +184,86 @@ def test_newton_articulation_no_schema_when_none(setup_sim):
     )
     applied = stage.GetPrimAtPath("/World/nart2").GetAppliedSchemas()
     assert "NewtonArticulationRootAPI" not in applied
+
+
+# ---------------------------------------------------------------------------
+# Newton mesh collision (max_hull_vertices, NewtonMeshCollisionAPI)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_mesh_collision_max_hull_vertices_written(setup_sim):
+    """max_hull_vertices=64 must write newton:maxHullVertices and apply NewtonMeshCollisionAPI."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/mesh_col", prim_type="Cube", translation=(4.0, 0.0, 0.5))
+    schemas.define_mesh_collision_properties(
+        "/World/mesh_col",
+        NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull", max_hull_vertices=64),
+    )
+    prim = stage.GetPrimAtPath("/World/mesh_col")
+    assert prim.GetAttribute("newton:maxHullVertices").Get() == 64
+    assert "NewtonMeshCollisionAPI" in prim.GetAppliedSchemas()
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_mesh_collision_no_schema_when_none(setup_sim):
+    """NewtonMeshCollisionPropertiesCfg() with max_hull_vertices=None must NOT apply NewtonMeshCollisionAPI."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/mesh_col2", prim_type="Cube", translation=(5.0, 0.0, 0.5))
+    schemas.define_mesh_collision_properties(
+        "/World/mesh_col2",
+        NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull"),
+    )
+    applied = stage.GetPrimAtPath("/World/mesh_col2").GetAppliedSchemas()
+    assert "NewtonMeshCollisionAPI" not in applied
+
+
+# ---------------------------------------------------------------------------
+# Class hierarchy contract: Mujoco IS-A Newton
+# ---------------------------------------------------------------------------
+
+
+def test_mujoco_isinstance_newton():
+    """MujocoXxxCfg instances must be isinstance of their Newton parent.
+
+    The auto-enable spawner logic and any future polymorphic dispatch on
+    ``isinstance(cfg, NewtonRigidBodyPropertiesCfg)`` depends on this contract.
+    """
+    mjc_rigid = MujocoRigidBodyPropertiesCfg(gravcomp=0.5)
+    assert isinstance(mjc_rigid, NewtonRigidBodyPropertiesCfg)
+
+    mjc_joint = MujocoJointDrivePropertiesCfg(actuatorgravcomp=True)
+    assert isinstance(mjc_joint, NewtonJointDrivePropertiesCfg)
+
+
+# ---------------------------------------------------------------------------
+# Multi-namespace mixed write — verify per-declaring-class MRO routing keeps
+# fields owned by different classes in different namespaces on the same prim.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_mesh_collision_mixed_namespace_write(setup_sim):
+    """A NewtonMeshCollisionPropertiesCfg with both contact_margin (declared on
+    NewtonCollisionPropertiesCfg) and max_hull_vertices (declared on
+    NewtonMeshCollisionPropertiesCfg) must write each under its declaring class's
+    namespace and apply both schemas.
+    """
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/mesh_mixed", prim_type="Cube", translation=(6.0, 0.0, 0.5))
+    schemas.define_mesh_collision_properties(
+        "/World/mesh_mixed",
+        NewtonMeshCollisionPropertiesCfg(
+            mesh_approximation_name="convexHull",
+            max_hull_vertices=32,
+            contact_margin=0.005,
+        ),
+    )
+    prim = stage.GetPrimAtPath("/World/mesh_mixed")
+    # Both attributes share the newton namespace but are gated on different applied
+    # schemas (NewtonCollisionAPI for contact_margin, NewtonMeshCollisionAPI for
+    # max_hull_vertices); per-declaring-class routing applies the right schema for each.
+    assert prim.GetAttribute("newton:contactMargin").Get() == pytest.approx(0.005)
+    assert prim.GetAttribute("newton:maxHullVertices").Get() == 32
+    applied = prim.GetAppliedSchemas()
+    assert "NewtonMeshCollisionAPI" in applied
