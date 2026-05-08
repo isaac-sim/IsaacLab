@@ -107,7 +107,7 @@ You can replay the collected demonstrations by running the following command:
    --dataset_file ./datasets/dataset_gr1.hdf5
 
 .. note::
-   Non-determinism may be observed during replay as physics in IsaacLab are not determimnistically reproducible when using ``env.reset``.
+   Non-determinism may be observed during replay as physics in IsaacLab are not deterministically reproducible when using ``env.reset``.
 
 
 Annotate the demonstrations
@@ -405,7 +405,7 @@ The robot picks up an object at the initial location (point A) and places it at 
    AGILE is an officially supported humanoid control training pipeline that leverages the manager based environment in Isaac Lab. It will also be
    seamlessly integrated with other evaluation and deployment tools across Isaac products. This allows teams to rely on a single, maintained stack
    covering all necessary infrastructure and tooling for policy training, with easy export to real-world deployment. The AGILE repository contains
-   updated pre-trained policies with separate upper and lower body policies for flexibtility. They have been verified in the real world and can be
+   updated pre-trained policies with separate upper and lower body policies for flexibility. They have been verified in the real world and can be
    directly deployed. Users can also train their own locomotion or whole-body control policies using the AGILE framework.
 
 .. _generate-the-manipulation-dataset:
@@ -531,6 +531,8 @@ Visualize the trained policy performance:
    * Behavior Cloning (BC) policy success is typically 75-85% (evaluated on 50 rollouts) when trained on 1000 generated demonstrations for 2000 epochs (default), depending on demonstration quality. Training takes approximately 40 minutes on a RTX ADA 6000.
    * **Recommendation:** Train for 2000 epochs with 1000 generated demonstrations, and **evaluate multiple checkpoints saved between the 1000th and 2000th epochs** to select the best-performing policy. Testing various epochs is essential for finding optimal performance.
 
+.. _generate-the-dataset-with-manipulation-and-point-to-point-navigation:
+
 Generate the dataset with manipulation and point-to-point navigation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -580,7 +582,7 @@ To generate the locomanipulation dataset, use the following command:
 The key parameters for locomanipulation dataset generation are:
 
 * ``--lift_step 60``: Number of steps for the lifting phase of the manipulation task. This should mark the point immediately after the robot has grasped the object.
-* ``--navigate_step 130``: Number of steps for the navigation phase between locations. This should make the point where the robot has lifted the object and is ready to walk.
+* ``--navigate_step 130``: Number of steps for the navigation phase between locations. This should mark the point where the robot has lifted the object and is ready to walk.
 * ``--output_file``: Name of the output dataset file
 
 .. note::
@@ -599,6 +601,8 @@ This process creates a dataset where the robot performs the manipulation task at
 
 The data generated from this locomanipulation pipeline can also be used to finetune an imitation learning policy using GR00T N1.5.
 The following steps describe how to install GR00T, convert the dataset to LeRobot format, finetune the policy, and run rollouts in Isaac Lab.
+
+.. _finetune-groot-n15-for-locomanipulation:
 
 Finetune GR00T N1.5 policy for locomanipulation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -699,37 +703,99 @@ Optional arguments include ``--randomize_placement`` and ``--policy_quat_format 
 The policy shown above uses the camera image, hand poses, hand joint positions, object pose, and base goal pose as inputs.
 The output of the model is the target base velocity, hand poses, and hand joint positions for the next several timesteps.
 
-Use NuRec Background in Locomanipulation SDG
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Integrating 3D Gaussian Splatting into SDG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Prerequisites:** Generate a manipulation dataset or download a pre-recorded annotated dataset from :ref:`Generate the manipulation dataset <generate-the-manipulation-dataset>`.
+This section extends
+:ref:`locomanipulation SDG <generate-the-dataset-with-manipulation-and-point-to-point-navigation>`
+by replacing the synthetic background with a 3D Gaussian Splatting (NuRec) scene. As in the
+base pipeline, the workflow takes a manipulation dataset as input and produces a combined
+navigation and manipulation dataset as an HDF5 file — but here the robot navigates and
+manipulates objects inside a neurally-rendered environment, and an ego-centric camera
+captures the result, producing more realistic training data than a purely synthetic scene.
+NVIDIA Isaac Sim renders 3DGS models stored as USD assets; see
+`Neural Volume Rendering <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/assets/usd_assets_nurec.html>`__
+for details.
 
-The `NuRec assets <https://docs.isaacsim.omniverse.nvidia.com/5.1.0/assets/usd_assets_nurec.html#neural-volume-rendering>`__
-are neural volumes reconstructed from real-world captures. When integrated into the locomanipulation SDG workflow, these
-assets allow you to generate synthetic data in photorealistic environments that mirror real-world.
+.. note::
 
-Custom NuRec Asset Requirements
-"""""""""""""""""""""""""""""""
+   This section focuses on data generation with a 3DGS background. To train a policy on the
+   generated data, see :ref:`Finetune GR00T N1.5 policy for locomanipulation <finetune-groot-n15-for-locomanipulation>`.
 
-To load a custom USD asset, ensure it meets the following specifications:
+.. note::
 
-- Neural Rendering: Include neural reconstruction for rendering.
-- Navigation: Include a pre-computed occupancy map for path planning and navigation. You can use the `Occupancy Map Generator <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/digital_twin/ext_isaacsim_asset_generator_occupancy_map.html>`_ to generate the occupancy map.
-- Orientation: Transform the asset so that the ground aligns with the z=0 plane.
-- Collision Mesh (optional): If a collision mesh is included, set it to invisible.
+   The locomanipulation SDG pipeline currently runs a single environment. Parallel environment
+   support is not yet available for this workflow.
 
-Using Pre-constructed Assets
-""""""""""""""""""""""""""""
+Setup: downloading example assets
+"""""""""""""""""""""""""""""""""
 
-Pre-constructed assets are available via the `PhysicalAI Robotics NuRec <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec>`__
-dataset. Some of them are captured from a humanoid-viewpoint to match the camera view of the humanoid robot.
+We provide a sample asset, ``hand_hold-voyager-babyboom``, on
+`Hugging Face <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/main>`__.
 
-For example, when using the asset ``hand_hold-voyager-babyboom``, the relevant files are:
+Log in to Hugging Face:
 
-- `stage.usdz <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/resolve/main/hand_hold-voyager-babyboom/stage.usdz>`__: a USDZ archive that bundles 3D Gaussian splatting (``volume.nurec``), a collision mesh (``mesh.usd``), etc.
-- `occupancy_map.yaml <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/resolve/main/hand_hold-voyager-babyboom/occupancy_map.yaml>`__ and `occupancy_map.png <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/resolve/main/hand_hold-voyager-babyboom/occupancy_map.png>`__: occupancy map for path planning and navigation.
+.. code:: bash
 
-Download the files and place them under ``<PATH_TO_USD_ASSET>``, then run the following command to generate a new dataset with background:
+   hf auth login --token <your_huggingface_access_token>
+
+Download the required USDZ stage files and occupancy maps:
+
+.. code:: bash
+
+   hf download nvidia/PhysicalAI-Robotics-NuRec \
+      hand_hold-voyager-babyboom/stage_volume.usdz \
+      hand_hold-voyager-babyboom/stage_particle.usdz \
+      hand_hold-voyager-babyboom/occupancy_map.png \
+      hand_hold-voyager-babyboom/occupancy_map.yaml \
+      --repo-type dataset \
+      --local-dir <PATH_TO_USD_ASSET>
+
+The sample includes both a volume-based USD (``stage_volume.usdz``) and a particle-field USD
+(``stage_particle.usdz``). Either can be used as the background asset.
+
+Asset requirements
+""""""""""""""""""
+
+If you are using custom 3D Gaussian assets, ensure they meet these specifications to be
+compatible with the SDG pipeline:
+
+- The scene has sufficient free space (e.g. 5m x 5m) for asset placement and robot navigation.
+- The ground surface is aligned with the z=0 plane, as the pipeline assumes this elevation for
+  object placement.
+- An occupancy map is required for path planning.
+
+  - If your scene was reconstructed using the `Stereo Workflow <https://docs.nvidia.com/nurec/robotics/neural_reconstruction_stereo.html>`__,
+    the occupancy map is generated via ``nvblox``.
+  - If your background includes a mesh, use the `Occupancy Map Generator <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/digital_twin/ext_isaacsim_asset_generator_occupancy_map.html>`__
+    to create a map via physical simulation.
+
+Generating the dataset
+""""""""""""""""""""""
+
+Before proceeding, ensure you have generated a manipulation dataset or downloaded the sample
+dataset provided in the
+:ref:`Generate the manipulation dataset <generate-the-manipulation-dataset>` section.
+
+Once you have gathered:
+
+- A manipulation dataset
+- A background USD asset
+- A matched occupancy map
+
+you can run the generation command. At runtime, the script adds a ground plane at ``z=0`` to
+the scene. It then proceeds through four stages:
+
+1. **Pick**: The robot picks up an object at the start location by replaying the manipulation
+   trajectory. ``--lift_step`` marks the end of this stage (immediately after grasp).
+2. **Navigate**: The robot travels to the target location using occupancy-map path planning and
+   its locomotion policy. ``--navigate_step`` marks the end of this stage (when the robot is in
+   place to release the object).
+3. **Place**: The robot places the object at the target location, completing the trajectory.
+4. **Record**: Joint states, poses, and the ego-centric video are saved to the HDF5 file
+   specified by ``--output_file``.
+
+Run the generation command:
 
 .. code:: bash
 
@@ -741,32 +807,35 @@ Download the files and place them under ``<PATH_TO_USD_ASSET>``, then run the fo
        --num_runs 1 \
        --lift_step 60 \
        --navigate_step 130 \
-       --output_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_with_background.hdf5 \
+       --output_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_gaussian_background.hdf5 \
        --enable_cameras \
        --visualizer kit \
-       --background_usd_path <PATH_TO_USD_ASSET>/stage.usdz \
+       --background_usd_path <PATH_TO_USD_ASSET>/stage_particle.usdz \
        --background_occupancy_yaml_file <PATH_TO_USD_ASSET>/occupancy_map.yaml \
        --randomize_placement \
        --high_res_video
 
 The key parameters are:
 
-- ``--background_usd_path``: Path to the NuRec USD asset.
+- ``--background_usd_path``: Path to the 3D Gaussian background USD asset.
 - ``--background_occupancy_yaml_file``: Path to the occupancy map file.
-- ``--high_res_video``: Generate a higher resolution video (540x960) for the ego-centric camera view.
-- ``--sensor_camera_view``: Optionally set the Sim GUI viewport to the ``robot_pov_cam`` sensor view.
+- ``--high_res_video``: Capture the ego-centric camera at 960×540 instead of the default
+  256×160.
 
-On successful task completion, an HDF5 dataset is generated containing camera observations. You can convert
-the ego-centric camera view to MP4.
+When the run completes successfully, an HDF5 dataset is generated containing camera
+observations. You can convert the ego-centric camera view to MP4:
 
 .. code:: bash
 
    ./isaaclab.sh -p scripts/tools/hdf5_to_mp4.py \
-      --input_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_with_background.hdf5 \
+      --input_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_gaussian_background.hdf5 \
       --output_dir <DATASET_FOLDER>/ \
       --input_keys robot_pov_cam \
       --video_width 960 \
       --video_height 540
+
+Set ``--video_width`` and ``--video_height`` to match the resolution captured during
+generation: 960×540 with ``--high_res_video``, or 256×160 without it.
 
 To play the generated MP4 video on Ubuntu, install the following multimedia packages:
 
@@ -774,3 +843,13 @@ To play the generated MP4 video on Ubuntu, install the following multimedia pack
 
    sudo apt update
    sudo apt install libavcodec-extra gstreamer1.0-libav gstreamer1.0-plugins-ugly
+
+
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_gaussian_background_2x.webp
+   :width: 100%
+   :align: center
+   :alt: locomanipulation SDG with a 3D Gaussian background
+   :figclass: align-center
+
+The figure above shows recorded ego-centric camera views in the 3D Gaussian background
+when the robot replays the pick and place trajectory and navigates to the target location.
