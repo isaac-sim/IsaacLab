@@ -63,7 +63,9 @@ jobs:
       - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3  # v3.1.1
         id: app-token
         with:
-          app-id: ${{ secrets.CHANGELOG_APP_ID }}
+          # ``client-id`` (the App's OAuth client ID, ``Iv23...``) supersedes
+          # the deprecated ``app-id`` integer input as of v3.x.
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
           private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
           # Declare the scope the App must have so token mint fails loudly
           # if the App is misconfigured, instead of failing silently at the
@@ -86,7 +88,7 @@ jobs:
           # time via ``git log --diff-filter=A --first-parent``.
           fetch-depth: 0
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
 
