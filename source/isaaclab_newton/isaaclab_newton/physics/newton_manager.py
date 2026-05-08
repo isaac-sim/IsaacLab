@@ -69,7 +69,7 @@ def _set_fabric_transforms(
     i = int(wp.tid())
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
-    fabric_transforms[i] = wp.transpose(wp.mat44d(wp.math.transform_to_matrix(transform)))
+    fabric_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))
 
 
 @wp.kernel(enable_backward=False)

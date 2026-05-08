@@ -1,6 +1,62 @@
 Changelog
 ---------
 
+1.5.35 (2026-05-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP-compatible policy deployment tutorials and tracing-compatible task
+  observation helpers for exported policy workflows.
+* Added Newton rough terrain support for the G1 biped locomotion velocity
+  env. The only engine-specific change is a ~1.7x ``max_iterations`` preset on
+  :class:`~isaaclab_tasks.manager_based.locomotion.velocity.config.g1.agents.rsl_rl_ppo_cfg.G1RoughPPORunnerCfg`
+  (Newton = 5000, PhysX = 3000). PhysX saturates near iter 3000 on both
+  reward (≈ +18) and episode length (≈ 980) and does not meaningfully
+  improve further; Newton reaches the same (reward, ep_len) quality at
+  iter 5000. The iteration budget is bumped rather than tuning physics
+  or reward terms.
+* Added legacy ``teleop_devices`` configuration (``OpenXRDeviceCfg``,
+  ``ManusViveCfg``, ``GR1T2RetargeterCfg``) to
+  :class:`~isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg.PickPlaceGR1T2EnvCfg`
+  alongside the existing ``isaac_teleop`` pipeline, enabling CI validation
+  via ``--teleop_device=handtracking``.
+
+Changed
+^^^^^^^
+
+* Updated classic Ant/Humanoid manager-based environments and direct in-hand
+  manipulation environments to read body incoming wrenches from
+  :class:`~isaaclab.sensors.JointWrenchSensor` instead of
+  ``ArticulationData.body_incoming_joint_wrench_b``. Add a
+  :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene and pass its
+  :class:`~isaaclab.managers.SceneEntityCfg` as ``sensor_cfg``. The classic
+  Ant/Humanoid Newton presets now use the same wrench observations as PhysX.
+* **Breaking:** Renamed the Newton-backend solver presets to a ``newton_``
+  prefix so they group together in autocomplete and read distinctly from the
+  Newton backend label, package, and visualizer. The change is shimmed by
+  deprecation aliases (see ``Deprecated`` below), but workflows that iterate
+  ``__dataclass_fields__`` directly or treat :exc:`FutureWarning` as an error
+  will need updates. Migration: rename the field in any
+  :class:`~isaaclab_tasks.utils.hydra.PresetCfg` subclass and update CLI
+  invocations (``presets=...`` and ``env.<path>=...``):
+
+  - ``newton`` -> ``newton_mjwarp``
+  - ``kamino`` -> ``newton_kamino``
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the legacy ``newton`` and ``kamino`` preset names. They still
+  resolve to ``newton_mjwarp`` and ``newton_kamino`` respectively but emit a
+  :exc:`FutureWarning` and will be removed in a future release. Update CLI
+  overrides (``presets=newton`` -> ``presets=newton_mjwarp``;
+  ``presets=kamino`` -> ``presets=newton_kamino``) and any
+  :class:`~isaaclab_tasks.utils.hydra.PresetCfg` field declarations
+  (``newton: NewtonCfg = ...`` -> ``newton_mjwarp: NewtonCfg = ...``).
+
+
 1.5.34 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 Added

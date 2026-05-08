@@ -5,25 +5,33 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdPhysics, UsdShade
 
-from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim, safe_set_attribute_on_usd_schema
+from isaaclab.sim.schemas.schemas import _apply_namespaced_schemas
+from isaaclab.sim.utils import clone
 from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
     from . import physics_materials_cfg
 
 
 @clone
-def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBodyMaterialCfg) -> Usd.Prim:
+def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBodyMaterialBaseCfg) -> Usd.Prim:
     """Create material with rigid-body physics properties.
 
     Rigid body materials are used to define the physical properties to meshes of a rigid body. These
-    include the friction, restitution, and their respective combination modes. For more information on
-    rigid body material, please refer to the `documentation on PxMaterial <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxBaseMaterial.html>`_.
+    include the friction, restitution, and (PhysX-only) compliant-contact spring and combine-mode
+    tokens. For more information on rigid body material, please refer to the `documentation on
+    PxMaterial <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxBaseMaterial.html>`_.
+
+    The writer is metadata-driven: it always applies the standard ``UsdPhysics.MaterialAPI`` and
+    writes the friction/restitution fields, then reads ``_usd_applied_schema``, ``_usd_namespace``,
+    and ``_usd_attr_name_map`` from the cfg to author solver-specific attributes. The applied
+    schema (e.g. ``PhysxMaterialAPI``) is added only when at least one solver-specific field has a
+    non-``None`` value at the instance level.
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
@@ -39,7 +47,8 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
         The spawned rigid body material prim.
 
     Raises:
-        ValueError:  When a prim already exists at the specified prim path and is not a material.
+        ValueError: When a prim already exists at the specified prim path and is not a material.
+        ValueError: When the cfg defines solver-specific fields but does not define ``_usd_namespace``.
     """
     # get stage handle
     stage = get_current_stage()
@@ -53,24 +62,17 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     # check if prim is a material
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
-    # retrieve the USD rigid-body api
-    usd_physics_material_api = UsdPhysics.MaterialAPI(prim)
-    if not usd_physics_material_api:
-        usd_physics_material_api = UsdPhysics.MaterialAPI.Apply(prim)
-    # ensure PhysX material API is applied
-    applied = prim.GetAppliedSchemas()
-    if "PhysxMaterialAPI" not in applied:
-        prim.AddAppliedSchema("PhysxMaterialAPI")
 
-    # convert to dict
-    cfg = cfg.to_dict()
-    del cfg["func"]
-    # set into USD API
-    for attr_name in ["static_friction", "dynamic_friction", "restitution"]:
-        value = cfg.pop(attr_name, None)
-        safe_set_attribute_on_usd_schema(usd_physics_material_api, attr_name, value, camel_case=True)
-    # set into PhysX API (prim attributes: physxMaterial:*)
-    for attr_name, value in cfg.items():
-        safe_set_attribute_on_usd_prim(prim, f"physxMaterial:{to_camel_case(attr_name, 'cC')}", value, camel_case=False)
+    # apply the standard UsdPhysics MaterialAPI (always)
+    if not UsdPhysics.MaterialAPI(prim):
+        UsdPhysics.MaterialAPI.Apply(prim)
+
+    # build cfg dict, dropping underscore-prefixed metadata keys and the spawner ``func`` field
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg) if f.name != "func"}
+
+    # All fields routed by the helper: base friction/restitution under ``physics:*``,
+    # PhysX-subclass fields (compliant-contact, combine modes) under ``physxMaterial:*``.
+    _apply_namespaced_schemas(prim, cfg, cfg_dict)
+
     # return the prim
     return prim
