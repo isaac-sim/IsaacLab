@@ -129,7 +129,8 @@ intersphinx_mapping = {
     "torch": ("https://docs.pytorch.org/docs/stable/", None),
     "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/5.1.0/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
-    "warp": ("https://nvidia.github.io/warp/", None),
+    # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
+    "warp": ("https://nvidia.github.io/warp/stable/", None),
     "omniverse": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
 }
 
