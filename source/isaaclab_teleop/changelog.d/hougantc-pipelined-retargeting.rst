@@ -15,3 +15,9 @@ Changed
   Isaac Lab's step Python. Set
   ``retargeting_execution=RetargetingExecutionConfig(mode="sync")`` to restore
   exact current-frame retargeting.
+
+Fixed
+^^^^^
+
+* Fixed installation to upgrade to the latest compatible ``isaacteleop``
+  package when installing ``isaaclab_teleop``.
