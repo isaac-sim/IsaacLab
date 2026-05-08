@@ -196,7 +196,7 @@ def generate_articulation_cfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -220,7 +220,7 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -983,8 +983,8 @@ def test_external_force_buffer(sim, num_articulations, device, articulation_type
 
         # check if the articulation's force and torque buffers are correctly updated
         for i in range(num_articulations):
-            assert articulation.permanent_wrench_composer.composed_force.torch[i, 0, 0].item() == force
-            assert articulation.permanent_wrench_composer.composed_torque.torch[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.out_force_b.torch[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.out_torque_b.torch[i, 0, 0].item() == force
 
         # Check if the instantaneous wrench is correctly added to the permanent wrench
         articulation.instantaneous_wrench_composer.add_forces_and_torques_index(
@@ -1510,7 +1510,7 @@ def test_setting_velocity_limit_implicit(
         # Case 3: velocity limit sim is not set but velocity limit is set
         #   For backwards compatibility, we do not set velocity limit to simulation
         #   Thus, both default to USD default value.
-        limit = articulation_cfg.spawn.joint_drive_props.max_velocity
+        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     else:
         # Case 4: only velocity limit sim is set
         #   In this case, the velocity limit is set to the USD value
@@ -1572,7 +1572,7 @@ def test_setting_velocity_limit_explicit(sim, num_articulations, device, vel_lim
     if vel_limit_sim is not None:
         limit = vel_limit_sim
     else:
-        limit = articulation_cfg.spawn.joint_drive_props.max_velocity
+        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
     # check physx is set to expected value
     expected_vel_limit = torch.full_like(newton_vel_limit, limit)
     torch.testing.assert_close(newton_vel_limit, expected_vel_limit)
@@ -1625,7 +1625,7 @@ def test_setting_effort_limit_implicit(
 
     # decide the limit based on what is set
     if effort_limit_sim is None and effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_effort
+        limit = articulation_cfg.spawn.joint_drive_props.max_force
     elif effort_limit_sim is not None and effort_limit is None:
         limit = effort_limit_sim
     elif effort_limit_sim is None and effort_limit is not None:
@@ -1724,10 +1724,10 @@ def test_reset(sim, num_articulations, device, articulation_type):
     # Reset should zero external forces and torques
     assert not articulation._instantaneous_wrench_composer.active
     assert not articulation._permanent_wrench_composer.active
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == 0
+    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_force_b.torch) == 0
+    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_torque_b.torch) == 0
+    assert torch.count_nonzero(articulation._permanent_wrench_composer.out_force_b.torch) == 0
+    assert torch.count_nonzero(articulation._permanent_wrench_composer.out_torque_b.torch) == 0
 
     if num_articulations > 1:
         num_bodies = articulation.num_bodies
@@ -1742,10 +1742,10 @@ def test_reset(sim, num_articulations, device, articulation_type):
         articulation.reset(env_ids=torch.tensor([0], device=device))
         assert articulation._instantaneous_wrench_composer.active
         assert articulation._permanent_wrench_composer.active
-        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_force_b.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_torque_b.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._permanent_wrench_composer.out_force_b.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._permanent_wrench_composer.out_torque_b.torch) == num_bodies * 3
 
 
 @pytest.mark.isaacsim_ci

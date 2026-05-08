@@ -253,8 +253,8 @@ def test_external_force_buffer(device):
 
             # check if the cube's force and torque buffers are correctly updated
             for i in range(cube_object.num_instances):
-                assert cube_object._permanent_wrench_composer.composed_force.torch[i, 0, 0].item() == force
-                assert cube_object._permanent_wrench_composer.composed_torque.torch[i, 0, 0].item() == force
+                assert cube_object._permanent_wrench_composer.out_force_b.torch[i, 0, 0].item() == force
+                assert cube_object._permanent_wrench_composer.out_torque_b.torch[i, 0, 0].item() == force
 
             # Check if the instantaneous wrench is correctly added to the permanent wrench
             cube_object.permanent_wrench_composer.add_forces_and_torques_index(
@@ -426,13 +426,13 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
                 is_global=is_global,
             )
             torch.testing.assert_close(
-                cube_object._permanent_wrench_composer.composed_force.torch[:, 0, :],
+                cube_object._permanent_wrench_composer.out_force_b.torch[:, 0, :],
                 desired_force[:, 0, :],
                 rtol=1e-6,
                 atol=1e-7,
             )
             torch.testing.assert_close(
-                cube_object._permanent_wrench_composer.composed_torque.torch[:, 0, :],
+                cube_object._permanent_wrench_composer.out_torque_b.torch[:, 0, :],
                 desired_torque[:, 0, :],
                 rtol=1e-6,
                 atol=1e-7,
@@ -557,10 +557,10 @@ def test_reset_rigid_object(num_cubes, device):
                 # Reset should zero external forces and torques
                 assert not cube_object._instantaneous_wrench_composer.active
                 assert not cube_object._permanent_wrench_composer.active
-                assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.composed_force.torch) == 0
-                assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.composed_torque.torch) == 0
-                assert torch.count_nonzero(cube_object._permanent_wrench_composer.composed_force.torch) == 0
-                assert torch.count_nonzero(cube_object._permanent_wrench_composer.composed_torque.torch) == 0
+                assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.out_force_b.torch) == 0
+                assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.out_torque_b.torch) == 0
+                assert torch.count_nonzero(cube_object._permanent_wrench_composer.out_force_b.torch) == 0
+                assert torch.count_nonzero(cube_object._permanent_wrench_composer.out_torque_b.torch) == 0
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
