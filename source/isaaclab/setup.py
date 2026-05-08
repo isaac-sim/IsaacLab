@@ -70,6 +70,7 @@ INSTALL_REQUIRES += [
     f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"daqp==0.7.2 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
+    f"qpsolvers==4.11.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.
 INSTALL_REQUIRES += [
