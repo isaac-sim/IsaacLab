@@ -1351,7 +1351,7 @@ class NewtonManager(PhysicsManager):
                 sensing_obj_shapes=_normalize_for_labels(_to_fnmatch(shape_names_expr), shape_labels),
                 counterpart_bodies=_normalize_for_labels(_to_fnmatch(contact_partners_body_expr), body_labels),
                 counterpart_shapes=_normalize_for_labels(_to_fnmatch(contact_partners_shape_expr), shape_labels),
-                include_total=True,
+                measure_total=True,
                 verbose=verbose,
             )
 
