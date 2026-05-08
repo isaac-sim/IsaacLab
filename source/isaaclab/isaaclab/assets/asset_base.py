@@ -86,6 +86,8 @@ class AssetBase(ABC):
             matching_prims = sim_utils.find_matching_prims(check_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {check_path}.")
+            # schema-side post-spawn hook (e.g. ArticulationCfg authors NewtonActuator prims here)
+            self.cfg._post_spawn(self.stage)
         else:
             # asset should exist at run time
             check_path = self.cfg.prim_path

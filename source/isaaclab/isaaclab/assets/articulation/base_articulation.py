@@ -93,20 +93,7 @@ class BaseArticulation(AssetBase):
         Args:
             cfg: A configuration instance.
         """
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
         super().__init__(cfg)
-
-        sim_ctx = SimulationContext.instance()
-        self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
-
-
-        try:
-            from isaaclab_newton.actuators import author_actuator_prims_for_articulation  # noqa: PLC0415
-        except ImportError:
-            pass
-        else:
-            author_actuator_prims_for_articulation(self.cfg, self._sim_cfg, self.stage)
 
     """
     Properties
