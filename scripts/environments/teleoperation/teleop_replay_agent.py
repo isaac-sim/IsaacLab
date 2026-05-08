@@ -80,15 +80,25 @@ _PENDING_REPLAY_TASKS: set[asyncio.Future] = set()
 
 
 def _prepare_env_cfg(task: str, num_envs: int, device: str) -> ManagerBasedRLEnvCfg:
-    """Build and tweak an env config suitable for non-interactive replay."""
+    """Build and tweak an env config suitable for non-interactive replay.
+
+    Mirrors the env-config mutations performed by ``record_demos.py``'s
+    :func:`create_environment_config` so the replay-side environment behaves
+    identically to the recording-side one. In particular the ``success`` and
+    ``time_out`` termination terms are cleared -- if either fired mid-replay
+    it would call ``_reset_idx`` and snap the robot back to its initial
+    pose, masking any IK tracking.
+    """
     env_cfg = parse_env_cfg(task, device=device, num_envs=num_envs)
-    env_cfg.env_name = task
+    env_cfg.env_name = task.split(":")[-1]
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise ValueError(
             "teleop_replay_agent only supports ManagerBasedRLEnv environments. "
             f"Received environment config type: {type(env_cfg).__name__}"
         )
     env_cfg.terminations.time_out = None
+    if hasattr(env_cfg.terminations, "success"):
+        env_cfg.terminations.success = None
     env_cfg = remove_camera_configs(env_cfg)
     env_cfg.sim.render.antialiasing_mode = "DLSS"
     return env_cfg
@@ -107,10 +117,10 @@ def _create_replay_teleop_device(
     Args:
         env_cfg: The environment configuration.
         task: Task identifier, used for diagnostic messages.
-        callbacks: Teleop-command callbacks (``"START"``, ``"STOP"``,
-            ``"RESET"``) registered on the device. The XCR replay dispatches
-            the recorded user's start/stop/reset gestures through Kit's
-            OpenXR message bus, which the legacy
+        callbacks: Teleop-command callbacks (typically just ``"START"`` for
+            replay; see :func:`main`) registered on the device. The XCR
+            replay dispatches the recorded user's start gesture through
+            Kit's OpenXR message bus, which the legacy
             :class:`~isaaclab.devices.openxr.OpenXRDevice` translates into
             calls into this dictionary.
     """
@@ -182,13 +192,19 @@ def main() -> None:
 
     The loop deliberately does not call ``env.step()`` until the legacy
     :class:`OpenXRDevice` dispatches a ``"START"`` callback. The XCR replay
-    streams the recorded user's start/stop/reset gestures through Kit's
-    OpenXR message bus, and the device routes those into the callbacks
-    registered here -- exactly the path ``record_demos.py`` uses to know
-    when to start recording. Until that ``"START"`` arrives, the OpenXR
-    runtime is silent and the device's :meth:`advance` would otherwise
-    return a default zero pose for both wrists, which stepping the env
-    with would drive Pink IK toward the world origin.
+    restores the recorded user's start gesture through Kit's OpenXR message
+    bus, and the device routes that into the callback registered here --
+    exactly the path ``record_demos.py`` uses to know when to start
+    recording. Until that ``"START"`` arrives, the OpenXR runtime is silent
+    and the device's :meth:`advance` would otherwise return a default zero
+    pose for both wrists, which stepping the env with would drive Pink IK
+    toward the world origin.
+
+    Unlike :file:`record_demos.py`, the replay agent does **not** subscribe
+    to the ``"STOP"`` callback: Kit's ``teleop_command`` bus drains queued
+    events as a batch when the AR profile is enabled, so a recorded STOP
+    gesture fires within milliseconds of START and would gate the env-step
+    loop off again before Pink IK had time to converge.
 
     Resource cleanup is wrapped in a ``try/finally`` so that ``env.close()``
     always runs, even when device construction or any subsequent setup
@@ -207,16 +223,27 @@ def main() -> None:
                 teleop_active[0] = True
                 print("Teleop START received from XCR replay; forwarding actions to env.step().")
 
-        def _on_stop() -> None:
-            if teleop_active[0]:
-                teleop_active[0] = False
-                print("Teleop STOP received from XCR replay; pausing env.step().")
-
-        callbacks: dict[str, Callable[[], None]] = {"START": _on_start, "STOP": _on_stop}
+        # Intentionally only subscribe to START, not STOP. The XCR replay
+        # restores both the recorded user's start and stop gestures from the
+        # capture file, and Kit's ``teleop_command`` message bus appears to
+        # drain queued events as a batch when the AR profile is enabled --
+        # so a STOP fires within milliseconds of START and would shut the env
+        # step loop off before Pink IK has had a chance to converge. For the
+        # replay agent's one-shot CI use case the only valid termination is
+        # the driver's ``post_quit`` (or a real exception in the loop).
+        callbacks: dict[str, Callable[[], None]] = {"START": _on_start}
 
         teleop_interface = _create_replay_teleop_device(env_cfg, args_cli.task, callbacks)
         print(f"Using teleop device: {teleop_interface}")
 
+        # Mirror the reset sequence used by ``record_demos.py``: ``sim.reset()``
+        # does a hard physics reinit (re-binds articulation views, plays the
+        # timeline) that ``env.reset()`` alone does not perform. Pink IK reads
+        # ``data.joint_pos.torch`` every step to seed Pinocchio's configuration
+        # and to compute ``target = curr + delta``; if the articulation view is
+        # stale, every IK call produces zero-delta arm targets while the
+        # hand-finger path (which bypasses IK) keeps tracking. See PR #5507.
+        env.sim.reset()
         env.reset()
         teleop_interface.reset()
 

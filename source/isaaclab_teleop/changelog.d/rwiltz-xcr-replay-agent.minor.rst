@@ -29,6 +29,22 @@ Fixed
 * Fixed ``teleop_replay_agent.py`` leaking the USD stage when device
   construction or environment setup raised. ``env.close()`` now runs from a
   ``try/finally`` block so cleanup happens on every exit path.
+* Fixed ``teleop_replay_agent.py`` producing a frozen-arms / hands-only
+  symptom during replay. Kit's ``teleop_command`` message bus drains
+  queued events as a batch when the AR profile is enabled, so the
+  recorded user's STOP gesture would fire within milliseconds of START
+  and gate ``env.step()`` off again before Pink IK had time to converge.
+  The replay agent now subscribes only to ``"START"``: replay is one-shot
+  and the only valid termination is the driver's ``post_quit``.
+* Aligned ``teleop_replay_agent.py``'s pre-loop reset sequence with
+  ``record_demos.py`` -- ``env.sim.reset()`` then ``env.reset()`` then
+  ``teleop_interface.reset()`` -- so the hard physics reinit re-binds the
+  articulation tensor views that
+  :meth:`~isaaclab.controllers.pink_ik.PinkIKController.compute` reads
+  from each step.
+* Cleared :attr:`~isaaclab_tasks.manager_based.manipulation.pick_place.pickplace_gr1t2_env_cfg.TerminationsCfg.success`
+  in the replay env config so a successful replay does not snap the robot
+  back to its initial pose mid-loop.
 
 Changed
 ^^^^^^^
