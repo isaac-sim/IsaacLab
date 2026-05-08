@@ -892,3 +892,66 @@ def test_write_object_state_functions_data_consistency(num_envs, num_cubes, devi
             torch.testing.assert_close(body_com_vel_w, com_vel_w)
             torch.testing.assert_close(body_link_pose_w, link_pose_w)
             torch.testing.assert_close(body_com_vel_w[..., 3:], link_vel_w[..., 3:])
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("writer", ["link_index", "link_mask", "com_index", "com_mask"])
+@pytest.mark.isaacsim_ci
+def test_body_pose_write_marks_fk_reset_mask(device, writer):
+    """Regression: ``write_body_{link,com}_pose_to_sim_{index,mask}`` must mark FK dirty.
+
+    For a collection, ``_sim_bind_body_link_pose_w`` is bound directly to the simulator's root-transforms
+    buffer, so the property read is not what becomes stale — the simulator's internal ``body_q`` used by
+    collision detection is. The write methods must therefore call :meth:`SimulationManager.invalidate_fk`
+    so downstream consumers re-run forward kinematics before the next step. Without the fix,
+    ``_fk_reset_mask`` remains unset after an explicit pose write. The buffer-aliasing invariant is
+    also pinned: a refactor that decouples ``_sim_bind_body_link_pose_w`` from the write target would
+    silently make the property stale, so we check the post-write pose matches the written value.
+    """
+
+    def _fk_reset_mask_dirty() -> bool:
+        assert SimulationManager._fk_reset_mask is not None
+        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+
+    num_envs = 2
+    num_cubes = 2
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_object, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, height=0.5, device=device)
+
+        sim.reset()
+        assert cube_object.is_initialized
+
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        # Clear the dirty flag so we can observe that the write sets it.
+        SimulationManager.forward()
+        assert not _fk_reset_mask_dirty()
+
+        pre_write_pose = wp.to_torch(cube_object.data.body_link_pose_w).clone()
+
+        target_pose = wp.to_torch(cube_object.data.body_link_pose_w).clone()
+        target_pose[..., 0] += 10.0
+        target_pose[..., 1] += 5.0
+        target_pose[..., 2] += 2.0
+
+        if writer == "link_index":
+            cube_object.write_body_link_pose_to_sim_index(body_poses=target_pose)
+        elif writer == "link_mask":
+            cube_object.write_body_link_pose_to_sim_mask(body_poses=target_pose)
+        elif writer == "com_index":
+            cube_object.write_body_com_pose_to_sim_index(body_poses=target_pose)
+        elif writer == "com_mask":
+            cube_object.write_body_com_pose_to_sim_mask(body_poses=target_pose)
+
+        assert _fk_reset_mask_dirty(), "pose write must call SimulationManager.invalidate_fk()"
+
+        # body_link_pose_w must reflect the write immediately — its underlying buffer is the write
+        # target. A regression that moves this property to a separate cached buffer (mirroring the
+        # single-object case) would silently break this invariant.
+        body_link = wp.to_torch(cube_object.data.body_link_pose_w)
+        assert not torch.allclose(body_link[..., :3], pre_write_pose[..., :3], rtol=1e-4, atol=1e-4), (
+            "body_link_pose_w still aliases the pre-write pose; the underlying buffer was not written"
+        )
+        torch.testing.assert_close(body_link[..., :3], target_pose[..., :3], rtol=1e-4, atol=1e-4)
