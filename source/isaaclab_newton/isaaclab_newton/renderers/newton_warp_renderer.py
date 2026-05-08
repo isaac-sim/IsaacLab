@@ -21,11 +21,10 @@ from isaaclab.scene.scene_data_provider import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import convert_camera_frame_orientation_convention
 
-from ..physics.newton_manager import NewtonSceneDataBackend
+from ..physics.newton_manager import NewtonManager
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
 if TYPE_CHECKING:
-    from isaaclab.physics import BaseSceneDataProvider
     from isaaclab.sensors.camera.camera_data import CameraData
 
 logger = logging.getLogger(__name__)
@@ -154,30 +153,21 @@ class NewtonWarpRenderer(BaseRenderer):
         if merged != current_req:
             sim.update_scene_data_requirements(merged)
 
-        sdp = SimulationContext.instance().get_new_scene_data_provider()
+        sdp = SimulationContext.instance().get_scene_data_provider()
 
-        if isinstance(sdp.backend, NewtonSceneDataBackend):
-            self._newton_model = sdp.backend.model
-        else:
-            self._newton_model: newton.Model = (
-                SimulationContext.instance().initialize_scene_data_provider().get_newton_model()
-            )
-
+        self._newton_model: newton.Model = NewtonManager.get_model()
         if self._newton_model is None:
             raise RuntimeError(
-                "NewtonWarpRenderer requires a Newton model but the scene data provider returned None. "
+                "NewtonWarpRenderer requires a Newton model but NewtonManager.get_model() returned None. "
                 "This usually means the Newton model failed to build from the USD stage "
                 "(e.g., unsupported PhysX schemas such as tendons). "
                 "Check the log for earlier Newton model build errors."
             )
 
-        self._newton_state = newton.State()
-        self._scene_data = SceneDataFormat.Transform()
-        self._scene_data.transforms = self._newton_state.body_q
-        self._scene_data_mapping = sdp.create_mapping(self._newton_model.body_label)
+        self._newton_state: newton.State = NewtonManager.get_state()
 
-        self.newton_sensor = newton.sensors.SensorTiledCamera(self._
-            newton_model,
+        self.newton_sensor = newton.sensors.SensorTiledCamera(
+            self._newton_model,
             config=newton.sensors.SensorTiledCamera.RenderConfig(
                 enable_textures=cfg.enable_textures,
                 enable_shadows=cfg.enable_shadows,
@@ -224,7 +214,9 @@ class NewtonWarpRenderer(BaseRenderer):
     def update_transforms(self):
         """Sync Newton scene state before rendering.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        SimulationContext.instance().update_scene_data_provider(True)
+        sim = SimulationContext.instance()
+        sim.physics_manager.forward()
+        NewtonManager.update_visualization_state()
 
     def update_camera(
         self, render_data: RenderData, positions: torch.Tensor, orientations: torch.Tensor, intrinsics: torch.Tensor
@@ -236,24 +228,18 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        sdp = SimulationContext.instance().get_new_scene_data_provider()
-        if sdp.get_transforms(self._scene_data, mapping=self._scene_data_mapping, allow_passthrough=True):
-            self._newton_state.body_q = self._scene_data.transforms
-
-            self.newton_sensor.update(
-                self._newton_state,
-                render_data.camera_transforms,
-                render_data.camera_rays,
-                color_image=render_data.outputs.color_image,
-                albedo_image=render_data.outputs.albedo_image,
-                depth_image=render_data.outputs.depth_image,
-                normal_image=render_data.outputs.normals_image,
-                shape_index_image=render_data.outputs.instance_segmentation_image,
-                # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
-                clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
-            )
-        else:
-            raise BufferError("Newton Renderer - Failed to update transforms!")
+        self.newton_sensor.update(
+            self._newton_state,
+            render_data.camera_transforms,
+            render_data.camera_rays,
+            color_image=render_data.outputs.color_image,
+            albedo_image=render_data.outputs.albedo_image,
+            depth_image=render_data.outputs.depth_image,
+            normal_image=render_data.outputs.normals_image,
+            shape_index_image=render_data.outputs.instance_segmentation_image,
+            # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
+            clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
+        )
 
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
         """Copy rendered outputs to the camera data buffers.

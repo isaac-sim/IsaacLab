@@ -204,6 +204,12 @@ class NewtonManager(PhysicsManager):
     # Scene data backend
     _scene_data_backend: NewtonSceneDataBackend | None = None
 
+    # Visualization-only state used when the sim backend is PhysX. Populated
+    # lazily in :meth:`_ensure_visualization_model` and updated each render
+    # frame in :meth:`update_visualization_state`.
+    _visualization_scene_data: SceneDataFormat.Transform | None = None
+    _visualization_mapping: wp.array | None = None
+
     # Views list for assets to register their views
     _views: list = []
 
@@ -531,6 +537,8 @@ class NewtonManager(PhysicsManager):
         cls._usdrt_stage = None
         cls._transforms_dirty = False
         cls._up_axis = "Z"
+        cls._visualization_scene_data = None
+        cls._visualization_mapping = None
         cls._model_changes = set()
         cls._scene_data_backend = None
         cls._cl_pending_sites = {}
@@ -1282,13 +1290,218 @@ class NewtonManager(PhysicsManager):
     # State accessors (used extensively by articulation/rigid object data)
     @classmethod
     def get_model(cls) -> Model:
-        """Get the Newton model."""
+        """Get the Newton model.
+
+        When the active sim backend is Newton this returns the manager's own
+        authoritative model. When the active sim backend is PhysX a shadow
+        Newton model is built lazily (from the visualizer prebuilt artifact) so
+        renderers/visualizers that operate on Newton ``Model`` and ``State`` can
+        still drive a PhysX-simulated scene.
+        """
+        cls._ensure_visualization_model()
         return cls._model
 
     @classmethod
     def get_state_0(cls) -> State:
         """Get the current state."""
+        cls._ensure_visualization_model()
         return cls._state_0
+
+    @classmethod
+    def get_state(cls) -> State:
+        """Get the current Newton state for visualization (alias for :meth:`get_state_0`).
+
+        Use this method from visualizers/renderers/video recorders that need a
+        backend-agnostic Newton ``State``. When the sim backend is PhysX the
+        returned state's ``body_q`` reflects the most recent
+        :meth:`update_visualization_state` sync.
+        """
+        return cls.get_state_0()
+
+    @classmethod
+    def _backend_is_newton(cls) -> bool:
+        """Return ``True`` when the active sim backend is Newton."""
+        sim = PhysicsManager._sim
+        if sim is None:
+            return False
+        return isinstance(sim.get_scene_data_provider().backend, NewtonSceneDataBackend)
+
+    @classmethod
+    def _ensure_visualization_model(cls) -> None:
+        """Build a shadow Newton model from the USD stage when the sim backend is PhysX.
+
+        No-op when the sim backend is Newton (the manager's own ``_model`` /
+        ``_state_0`` are authoritative) or when a shadow model has already been
+        built. This is the entry point that makes :meth:`get_model` /
+        :meth:`get_state` work uniformly across both sim backends.
+
+        The shadow model is built by walking the USD stage via
+        :meth:`_build_visualization_model_from_stage` and finalizing the resulting
+        :class:`~newton.ModelBuilder`. Per-frame body transforms are pushed into
+        ``_state_0.body_q`` by :meth:`update_visualization_state` using the new
+        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`.
+        """
+
+        if cls._model is not None and cls._state_0 is not None:
+            return
+
+        if cls._backend_is_newton():
+            return
+
+        stage = get_current_stage()
+        if stage is None:
+            logger.error(
+                "[NewtonManager] No USD stage available; cannot build a Newton "
+                "Model/State for visualization while the sim backend is PhysX."
+            )
+            return
+
+
+        try:
+            builder = cls._build_visualization_model_from_stage(stage)
+        except Exception:
+            logger.exception(
+                "[NewtonManager] Failed to build a Newton ModelBuilder from the USD stage "
+                "for visualization (sim backend is PhysX)."
+            )
+            return
+
+        if builder is None or builder.body_count == 0:
+            logger.error(
+                "[NewtonManager] USD stage walk produced no Newton bodies; the shadow "
+                "Newton model for visualization will be empty. Common causes: the cloned "
+                "envs are not yet on the stage, or PhysX schemas could not be parsed by "
+                "Newton's add_usd. Check that /World/envs/env_<id> prims exist when the "
+                "renderer is initialized."
+            )
+            return
+
+
+        device = PhysicsManager._device or "cpu"
+        try:
+            cls._model = builder.finalize(device=device)
+            cls._state_0 = cls._model.state()
+            replace_newton_shape_colors(cls._model)
+
+        except Exception:
+            logger.exception(
+                "[NewtonManager] Failed to finalize the shadow Newton ModelBuilder for "
+                "visualization (sim backend is PhysX)."
+            )
+            cls._model = None
+            cls._state_0 = None
+
+    @classmethod
+    def _build_visualization_model_from_stage(cls, stage) -> ModelBuilder | None:
+        """Build a fresh Newton ``ModelBuilder`` from the USD stage for visualization.
+
+        Walks IsaacLab's ``/World/envs/env_<id>`` convention and adds each env as
+        its own Newton world. When the env subtree is identical across envs (the
+        common cloned-scene case) a single env_0 prototype is built once and
+        replicated via :meth:`ModelBuilder.add_builder`; otherwise each env is
+        ingested independently with :meth:`ModelBuilder.add_usd`.
+
+        This routine is intentionally independent of
+        :meth:`instantiate_builder_from_stage` (which targets the live-sim path
+        and uses a different naming convention and writes into ``cls._builder`` /
+        ``cls._cl_site_index_map`` / ``cls._num_envs``). The visualization shadow
+        path must not pollute those live-sim slots.
+
+        Args:
+            stage: USD stage to inspect.
+
+        Returns:
+            A populated :class:`~newton.ModelBuilder`, or ``None`` when no
+            ``/World/envs/env_<id>`` prims exist on the stage.
+        """
+        import re
+
+        from pxr import UsdGeom
+
+        up_axis_token = UsdGeom.GetStageUpAxis(stage)
+        up_axis = Axis.from_string(str(up_axis_token))
+        schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+
+        env_pattern = re.compile(r"^env_(\d+)$")
+        env_paths: list[tuple[int, str]] = []
+        envs_root = stage.GetPrimAtPath("/World/envs")
+        if envs_root and envs_root.IsValid():
+            for child in envs_root.GetChildren():
+                if match := env_pattern.match(child.GetName()):
+                    env_paths.append((int(match.group(1)), child.GetPath().pathString))
+        env_paths.sort(key=lambda x: x[0])
+
+        builder = ModelBuilder(up_axis=up_axis)
+
+        if not env_paths:
+            # Fallback: ingest the whole stage as a single world.
+            builder.add_usd(stage, schema_resolvers=schema_resolvers)
+            return builder
+
+        # Build env_0 as a prototype, then replicate across envs.
+        proto = ModelBuilder(up_axis=up_axis)
+        proto.add_usd(
+            stage,
+            root_path=env_paths[0][1],
+            schema_resolvers=schema_resolvers,
+        )
+
+        xform_cache = UsdGeom.XformCache()
+
+        for _, env_path in env_paths:
+            world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
+            translation = world_xform.ExtractTranslation()
+            rotation = world_xform.ExtractRotationQuat()
+            pos = (translation[0], translation[1], translation[2])
+            quat = (
+                rotation.GetImaginary()[0],
+                rotation.GetImaginary()[1],
+                rotation.GetImaginary()[2],
+                rotation.GetReal(),
+            )
+            builder.begin_world()
+            builder.add_builder(proto, xform=wp.transform(pos, quat))
+            builder.end_world()
+
+        return builder
+
+    @classmethod
+    def update_visualization_state(cls) -> None:
+        """Refresh visualization state for the active sim backend.
+
+        Newton sim backend: no-op — ``_state_0`` is the live, authoritative state
+        already advanced by :meth:`step` / forward kinematics.
+
+        PhysX sim backend: pull rigid-body transforms from the
+        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` and write
+        them into the shadow ``_state_0.body_q`` so Newton-native consumers
+        (Newton renderer, Newton/Rerun/Viser visualizers, OVRTX renderer, Newton
+        GL video) see fresh poses.
+
+        Called from :meth:`PhysxManager.pre_render` once per render frame.
+        """
+        if cls._backend_is_newton():
+            return
+        cls._ensure_visualization_model()
+        if cls._state_0 is None or cls._model is None or cls._state_0.body_q is None:
+            return
+        sim = PhysicsManager._sim
+        if sim is None:
+            return
+
+        sdp = sim.get_scene_data_provider()
+        if cls._visualization_scene_data is None:
+            cls._visualization_scene_data = SceneDataFormat.Transform()
+        if cls._visualization_mapping is None:
+            body_paths = list(getattr(cls._model, "body_label", None) or [])
+            cls._visualization_mapping = sdp.create_mapping(body_paths)
+
+        cls._visualization_scene_data.transforms = cls._state_0.body_q
+        sdp.get_transforms(
+            cls._visualization_scene_data,
+            mapping=cls._visualization_mapping,
+            allow_passthrough=False,
+        )
 
     @classmethod
     def get_state_1(cls) -> State:

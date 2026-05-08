@@ -22,14 +22,14 @@ import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
-from isaaclab.physics import BaseSceneDataProvider, PhysicsManager, SceneDataProvider
+from isaaclab.physics import PhysicsManager
 from isaaclab.physics.scene_data_requirements import (
     SceneDataRequirement,
     VisualizerPrebuiltArtifacts,
     resolve_scene_data_requirements,
 )
-from isaaclab.scene.scene_data_provider import SceneDataProvider as NewSceneDataProvider
 from isaaclab.renderers.render_context import RenderContext
+from isaaclab.scene.scene_data_provider import SceneDataProvider
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
@@ -170,13 +170,11 @@ class SimulationContext:
         self.physics_manager.initialize(self)
         self._apply_render_cfg_settings()
 
-        # Initialize visualizer state (provider/visualizers are created lazily during initialize_visualizers()).
-        self._new_scene_data_provider = NewSceneDataProvider(self.physics_manager.get_scene_data_backend())
-        self._scene_data_provider: BaseSceneDataProvider | None = None
+        # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
+        self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
         self._scene_data_requirements = SceneDataRequirement()
         self._visualizer_prebuilt_artifact: VisualizerPrebuiltArtifacts | None = None
-        self._visualizer_step_counter = 0
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
@@ -581,7 +579,6 @@ class SimulationContext:
         ]
         requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
         self._scene_data_requirements = requirements
-        self.initialize_scene_data_provider()
         self._visualizers = []
 
         for cfg in visualizer_cfgs:
@@ -610,18 +607,7 @@ class SimulationContext:
                 viz.set_camera_view(eye, target)
             self._pending_camera_view = None
 
-        if not self._visualizers and self._scene_data_provider is not None:
-            close_provider = getattr(self._scene_data_provider, "close", None)
-            if callable(close_provider):
-                close_provider()
-            self._scene_data_provider = None
-
-    def get_new_scene_data_provider(self) -> NewSceneDataProvider:
-        return self._new_scene_data_provider
-
-    def initialize_scene_data_provider(self) -> BaseSceneDataProvider:
-        if self._scene_data_provider is None:
-            self._scene_data_provider = SceneDataProvider(self.stage, self)
+    def get_scene_data_provider(self) -> SceneDataProvider:
         return self._scene_data_provider
 
     def get_scene_data_requirements(self) -> SceneDataRequirement:
@@ -753,7 +739,8 @@ class SimulationContext:
         if not self._visualizers:
             return
 
-        self.update_scene_data_provider()
+        if self._should_forward_before_visualizer_update():
+            self.physics_manager.forward()
 
         visualizers_to_remove = []
         for viz in self._visualizers:
@@ -789,14 +776,6 @@ class SimulationContext:
                 logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
-
-    def update_scene_data_provider(self, force_require_forward: bool = False):
-        if force_require_forward or self._should_forward_before_visualizer_update():
-            self.physics_manager.forward()
-        self._visualizer_step_counter += 1
-        if self._scene_data_provider is None:
-            return
-        self._scene_data_provider.update()
 
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""
@@ -853,11 +832,6 @@ class SimulationContext:
             for viz in cls._instance._visualizers:
                 viz.close()
             cls._instance._visualizers.clear()
-            if cls._instance._scene_data_provider is not None:
-                close_provider = getattr(cls._instance._scene_data_provider, "close", None)
-                if callable(close_provider):
-                    close_provider()
-                cls._instance._scene_data_provider = None
 
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.

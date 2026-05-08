@@ -318,6 +318,26 @@ class PhysxManager(PhysicsManager):
             cls._update_fabric(0.0, 0.0)
 
     @classmethod
+    def pre_render(cls) -> None:
+        """Sync PhysX rigid-body transforms into the shadow Newton state when needed.
+
+        Called once per render frame from
+        :meth:`~isaaclab.sim.SimulationContext.render`. The sync is only run when a
+        Newton-native renderer/visualizer is active (i.e. the aggregated
+        :class:`~isaaclab.physics.scene_data_requirements.SceneDataRequirement`
+        sets ``requires_newton_model``).
+        """
+        sim = PhysicsManager._sim
+        if sim is None:
+            return
+        requirements = sim.get_scene_data_requirements()
+        if not requirements.requires_newton_model:
+            return
+        from isaaclab_newton.physics import NewtonManager
+
+        NewtonManager.update_visualization_state()
+
+    @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
         """Return the SceneDataBackend for the SceneDataProvider."""
         return cls._scene_data_backend
