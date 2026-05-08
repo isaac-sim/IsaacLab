@@ -558,50 +558,47 @@ class OVRTXRenderer(BaseRenderer):
                         break
 
             if buffer_key is not None:
-                with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
-                    tiled_data = wp.from_dlpack(mapping.tensor)
-                    self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
+                mapping = frame.render_vars["LdrColor"].map(device=Device.CUDA)
+                tiled_data = wp.from_dlpack(mapping.tensor)
+                self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
-            with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
-                tiled_depth_data = wp.from_dlpack(mapping.tensor)
-                if tiled_depth_data.dtype == wp.uint32:
-                    tiled_depth_data = wp.from_torch(
-                        wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
-                    )
-                self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers)
-            break
+            mapping = frame.render_vars[depth_var].map(device=Device.CUDA)
+            tiled_depth_data = wp.from_dlpack(mapping.tensor)
+            if tiled_depth_data.dtype == wp.uint32:
+                tiled_depth_data = wp.from_torch(wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32)
+            self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers)
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
-            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
-                tiled_albedo_data = wp.from_dlpack(mapping.tensor)
-                self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
+            mapping = frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA)
+            tiled_albedo_data = wp.from_dlpack(mapping.tensor)
+            self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
-            with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
-                tiled_semantic_data = wp.from_dlpack(mapping.tensor)
+            mapping = frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA)
+            tiled_semantic_data = wp.from_dlpack(mapping.tensor)
 
-                if tiled_semantic_data.dtype == wp.uint32:
-                    semantic_colors = self._generate_random_colors_from_ids(tiled_semantic_data)
+            if tiled_semantic_data.dtype == wp.uint32:
+                semantic_colors = self._generate_random_colors_from_ids(tiled_semantic_data)
 
-                    semantic_torch = wp.to_torch(semantic_colors)
-                    semantic_uint8 = semantic_torch.view(torch.uint8)
+                semantic_torch = wp.to_torch(semantic_colors)
+                semantic_uint8 = semantic_torch.view(torch.uint8)
 
-                    if semantic_torch.dim() == 2:
-                        h, w = semantic_torch.shape
-                        semantic_uint8 = semantic_uint8.reshape(h, w, 4)
+                if semantic_torch.dim() == 2:
+                    h, w = semantic_torch.shape
+                    semantic_uint8 = semantic_uint8.reshape(h, w, 4)
 
-                    tiled_semantic_data = wp.from_torch(semantic_uint8, dtype=wp.uint8)
+                tiled_semantic_data = wp.from_torch(semantic_uint8, dtype=wp.uint8)
 
-                self._extract_rgba_tiles(
-                    render_data,
-                    tiled_semantic_data,
-                    output_buffers,
-                    "semantic_segmentation",
-                    suffix="semantic",
-                )
+            self._extract_rgba_tiles(
+                render_data,
+                tiled_semantic_data,
+                output_buffers,
+                "semantic_segmentation",
+                suffix="semantic",
+            )
 
     def render(self, render_data: OVRTXRenderData) -> None:
         """Render the scene into the provided RenderData."""
