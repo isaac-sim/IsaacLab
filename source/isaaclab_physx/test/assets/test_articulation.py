@@ -844,8 +844,8 @@ def test_external_force_buffer(sim, num_articulations, device):
 
         # check if the articulation's force and torque buffers are correctly updated
         for i in range(num_articulations):
-            assert articulation.permanent_wrench_composer.composed_force.torch[i, 0, 0].item() == force
-            assert articulation.permanent_wrench_composer.composed_torque.torch[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.out_force_b.torch[i, 0, 0].item() == force
+            assert articulation.permanent_wrench_composer.out_torque_b.torch[i, 0, 0].item() == force
 
         # Check if the instantaneous wrench is correctly added to the permanent wrench
         articulation.instantaneous_wrench_composer.add_forces_and_torques_index(
@@ -1559,10 +1559,10 @@ def test_reset(sim, num_articulations, device):
     # Reset should zero external forces and torques
     assert not articulation._instantaneous_wrench_composer.active
     assert not articulation._permanent_wrench_composer.active
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == 0
-    assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == 0
+    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_force_b.torch) == 0
+    assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_torque_b.torch) == 0
+    assert torch.count_nonzero(articulation._permanent_wrench_composer.out_force_b.torch) == 0
+    assert torch.count_nonzero(articulation._permanent_wrench_composer.out_torque_b.torch) == 0
 
     if num_articulations > 1:
         num_bodies = articulation.num_bodies
@@ -1577,10 +1577,10 @@ def test_reset(sim, num_articulations, device):
         articulation.reset(env_ids=torch.tensor([0], device=device))
         assert articulation._instantaneous_wrench_composer.active
         assert articulation._permanent_wrench_composer.active
-        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_force.torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.composed_torque.torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_force.torch) == num_bodies * 3
-        assert torch.count_nonzero(articulation._permanent_wrench_composer.composed_torque.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_force_b.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._instantaneous_wrench_composer.out_torque_b.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._permanent_wrench_composer.out_force_b.torch) == num_bodies * 3
+        assert torch.count_nonzero(articulation._permanent_wrench_composer.out_torque_b.torch) == num_bodies * 3
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

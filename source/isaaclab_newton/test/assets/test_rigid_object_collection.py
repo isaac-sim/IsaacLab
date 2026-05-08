@@ -241,8 +241,8 @@ def test_external_force_buffer(device):
 
             # check if the object collection's force and torque buffers are correctly updated
             for i in range(num_envs):
-                assert object_collection._permanent_wrench_composer.composed_force.torch[i, 0, 0].item() == force
-                assert object_collection._permanent_wrench_composer.composed_torque.torch[i, 0, 0].item() == force
+                assert object_collection._permanent_wrench_composer.out_force_b.torch[i, 0, 0].item() == force
+                assert object_collection._permanent_wrench_composer.out_torque_b.torch[i, 0, 0].item() == force
 
             object_collection.instantaneous_wrench_composer.add_forces_and_torques_index(
                 body_ids=object_ids,
@@ -502,10 +502,10 @@ def test_reset_object_collection(num_envs, num_cubes, device):
                 # Reset should zero external forces and torques
                 assert not object_collection._instantaneous_wrench_composer.active
                 assert not object_collection._permanent_wrench_composer.active
-                assert torch.count_nonzero(object_collection._instantaneous_wrench_composer.composed_force.torch) == 0
-                assert torch.count_nonzero(object_collection._instantaneous_wrench_composer.composed_torque.torch) == 0
-                assert torch.count_nonzero(object_collection._permanent_wrench_composer.composed_force.torch) == 0
-                assert torch.count_nonzero(object_collection._permanent_wrench_composer.composed_torque.torch) == 0
+                assert torch.count_nonzero(object_collection._instantaneous_wrench_composer.out_force_b.torch) == 0
+                assert torch.count_nonzero(object_collection._instantaneous_wrench_composer.out_torque_b.torch) == 0
+                assert torch.count_nonzero(object_collection._permanent_wrench_composer.out_force_b.torch) == 0
+                assert torch.count_nonzero(object_collection._permanent_wrench_composer.out_torque_b.torch) == 0
 
 
 @pytest.mark.parametrize("num_envs", [1, 3])
