@@ -106,7 +106,7 @@ def test_valid_properties_cfg(setup_simulation):
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
     # deprecation aliases are nulled by __post_init__ after forwarding to the canonical
     # field; exclude them from the all-non-None check.
-    deprecation_aliases = {"max_velocity", "max_effort", "gravity_compensation_scale", "gravity_compensation"}
+    deprecation_aliases = {"max_velocity", "max_effort"}
     for cfg in [arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg]:
         for k, v in cfg.__dict__.items():
             # skip class-metadata keys (``_usd_*``) and deprecation aliases nulled in __post_init__
@@ -947,26 +947,6 @@ def test_mujoco_joint_gravity_compensation_not_set_when_none(setup_simulation):
     joint_prim = stage.GetPrimAtPath("/World/jgc_test2/body1/joint0")
     attr = joint_prim.GetAttribute("mjc:actuatorgravcomp")
     assert not attr.IsValid(), "mjc:actuatorgravcomp should not be set when gravity_compensation is None"
-
-
-@pytest.mark.isaacsim_ci
-def test_mujoco_gravity_compensation_scale_deprecation_alias(setup_simulation):
-    """Legacy gravity_compensation_scale kwarg must forward to gravcomp with DeprecationWarning."""
-    sim, _, _, _, _, _ = setup_simulation
-    with pytest.warns(DeprecationWarning, match="gravity_compensation_scale"):
-        cfg = schemas.MujocoRigidBodyPropertiesCfg(gravity_compensation_scale=0.5)
-    assert cfg.gravcomp == pytest.approx(0.5)
-    assert cfg.gravity_compensation_scale is None
-
-
-@pytest.mark.isaacsim_ci
-def test_mujoco_gravity_compensation_deprecation_alias(setup_simulation):
-    """Legacy gravity_compensation kwarg must forward to actuatorgravcomp with DeprecationWarning."""
-    sim, _, _, _, _, _ = setup_simulation
-    with pytest.warns(DeprecationWarning, match="gravity_compensation"):
-        cfg = schemas.MujocoJointDrivePropertiesCfg(gravity_compensation=True)
-    assert cfg.actuatorgravcomp is True
-    assert cfg.gravity_compensation is None
 
 
 """

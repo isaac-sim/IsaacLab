@@ -13,7 +13,6 @@ from isaaclab.sim.schemas.schemas_cfg import (
     JointDriveBaseCfg,
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
-    _deprecate_field_alias,
 )
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
@@ -57,9 +56,6 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
     _usd_applied_schema: ClassVar[str | None] = None
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    def __post_init__(self):
-        _deprecate_field_alias(self, "gravity_compensation_scale", "gravcomp")
-
     gravcomp: float | None = None
     """Gravity compensation scale for the body [dimensionless].
 
@@ -67,9 +63,6 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
     Written to ``mjc:gravcomp`` on the rigid-body prim.
     Body-level gravcomp must be set for joint-level actuatorgravcomp to have any effect.
     """
-
-    gravity_compensation_scale: float | None = None
-    """Deprecated alias for :attr:`gravcomp`. Removal in 5.0."""
 
 
 @configclass
@@ -110,10 +103,6 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
     _usd_applied_schema: ClassVar[str | None] = "MjcJointAPI"
     _usd_field_exceptions: ClassVar[dict] = {}
 
-    def __post_init__(self):
-        super().__post_init__()  # parent handles max_velocity/max_effort aliases
-        _deprecate_field_alias(self, "gravity_compensation", "actuatorgravcomp")
-
     actuatorgravcomp: bool | None = None
     """Route gravity compensation forces through the actuator channel.
 
@@ -121,9 +110,6 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
     Requires body-level :attr:`MujocoRigidBodyPropertiesCfg.gravcomp`.
     Written to ``mjc:actuatorgravcomp`` via ``MjcJointAPI``.
     """
-
-    gravity_compensation: bool | None = None
-    """Deprecated alias for :attr:`actuatorgravcomp`. Removal in 5.0."""
 
 
 @configclass
