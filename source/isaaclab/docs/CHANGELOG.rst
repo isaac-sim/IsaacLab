@@ -1,6 +1,251 @@
 Changelog
 ---------
 
+4.7.0 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added LEAPP export support for manager-based RSL-RL policies, including
+  export-time observation/action annotation, recurrent actor-state handling, and
+  deployment through :mod:`scripts.reinforcement_learning.leapp.deploy`.
+* Added a Direct workflow LEAPP export tutorial and annotated ANYmal-C example
+  script showing how to mark policy inputs, outputs, and persistent state with
+  LEAPP annotations. Direct workflow policies can be exported with
+  :mod:`scripts.reinforcement_learning.leapp.rsl_rl.export`, but are not yet
+  supported by :mod:`scripts.reinforcement_learning.leapp.deploy`.
+* Added LEAPP deployment documentation describing the exported-policy validation
+  flow and linking the manager-based and Direct workflow export paths.
+* Added LEAPP export annotations, proxy utilities, and deployment environment
+  support for Isaac Lab assets, sensors, commands, and manager-based environments.
+* Added :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` so render backends
+  take explicit camera inputs (USD paths, :class:`~isaaclab.sensors.camera.CameraCfg`, device,
+  counts) instead of the :class:`~isaaclab.sensors.camera.Camera` instance.
+* Added :class:`~isaaclab.renderers.render_context.RenderContext` (accessed as
+  :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context`) to own one or
+  more :class:`~isaaclab.renderers.base_renderer.BaseRenderer` instances: configurations that
+  compare equal under ``==`` and share the same concrete
+  :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` class reuse a backend; distinct
+  types (e.g. Isaac RTX and Newton) register separate backends, each with
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage` the first time a camera
+  with that configuration initializes.
+* Added :meth:`~isaaclab.renderers.render_context.RenderContext.render_into_camera` to run
+  :meth:`~isaaclab.renderers.render_context.RenderContext.update_transforms` (at most once
+  per physics step), then :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render` and
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
+* Added :meth:`~isaaclab.sim.simulation_context.SimulationContext.get_physics_step_count`.
+* Added :class:`~isaaclab.cloner.ClonePlan` frozen dataclass capturing per-group
+  prototype-to-environment mappings (``dest_template``, ``prototype_paths``,
+  ``clone_mask``). Lets downstream consumers (scene data providers, mesh samplers)
+  read prototype geometry once and scatter to environments via the per-group mask
+  instead of walking per-env USD paths.
+* Added :meth:`~isaaclab.sim.SimulationContext.get_clone_plans` and
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plans` for publishing and
+  consuming the cloner's per-group plan map.
+* Added :attr:`~isaaclab.scene.InteractiveScene.clone_plans` property (forwards to
+  :meth:`~isaaclab.sim.SimulationContext.get_clone_plans`) so consumers holding a
+  scene reference can read the published plans without going through the sim
+  context.
+* Added backend-agnostic :class:`~isaaclab.markers.VisualizationMarkers` support for
+  marker-capable Kit, Newton, Rerun, and Viser visualizers.
+* Added :meth:`~isaaclab.utils.backend_utils.get_default_renderer_cfg`. to lazy load the IsaacRtxRendererCfg
+* Added :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`, the solver-common
+  base class for rigid-body physics materials. Carries the ``UsdPhysics.MaterialAPI`` standard
+  fields (``static_friction``, ``dynamic_friction``, ``restitution``). The PhysX-specific
+  compliant-contact and combine-mode fields moved to
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+* Added :class:`~isaaclab.sim.schemas.CollisionBaseCfg`, the solver-common base class for
+  collision properties. Carries :attr:`collision_enabled` (``UsdPhysics.CollisionAPI``) plus
+  :attr:`contact_offset` and :attr:`rest_offset` whose USD attributes are PhysX-namespaced
+  but are consumed by Newton's importer via the PhysX bridge resolver
+  (``import_usd.py:2104, 2111``).
+* Added :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`, the solver-common base class
+  for articulation root properties (``fix_root_link``, ``articulation_enabled``).
+* Added :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`, the solver-common base class for
+  mesh collision properties carrying ``mesh_approximation_name`` (writes
+  ``physics:approximation`` via :class:`UsdPhysics.MeshCollisionAPI`). The class-level
+  ``_usd_applied_schema`` metadata replaces the deprecated ``usd_api`` / ``physx_api``
+  instance-field dispatch.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab.sensors.camera.Camera` obtains a backend via
+  :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer` and calls
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data` with
+  a :class:`~isaaclab.renderers.camera_render_spec.CameraRenderSpec` (no
+  :class:`~isaaclab.sensors.sensor_base.SensorBase` reference on the public API).
+* :class:`~isaaclab.scene.interactive_scene.InteractiveScene` calls
+  :meth:`~isaaclab.renderers.render_context.RenderContext.update_transforms` once at the start
+  of :meth:`~isaaclab.scene.interactive_scene.InteractiveScene.update` when
+  ``lazy_sensor_update`` is false; fetches that render still dedupe the same way via
+  ``physics_step_count`` in :class:`~isaaclab.renderers.render_context.RenderContext`.
+* **Breaking:** :func:`~isaaclab.cloner.clone_from_template` now returns
+  ``dict[str, ClonePlan]`` instead of ``None``. Bind the result and publish it
+  through :meth:`~isaaclab.sim.SimulationContext.set_clone_plans` if downstream
+  consumers (e.g. the PhysX scene data provider's Newton-visualizer build path)
+  need to read the plan.
+* Changed :func:`~isaaclab.envs.mdp.body_incoming_wrench` to read from
+  :class:`~isaaclab.sensors.JointWrenchSensor`. Pass
+  ``sensor_cfg=SceneEntityCfg("joint_wrench", body_names=...)`` instead of an
+  articulation asset config.
+* Updated :class:`~isaaclab.sensors.camera.Camera` to construct its internal
+  :class:`~isaaclab.sim.views.FrameView` without the now-removed
+  ``sync_usd_on_fabric_write`` kwarg.  USD attributes on camera prims are
+  no longer kept in sync with Fabric writes; read poses through the view's
+  getters instead.
+* :class:`~isaaclab.sensors.camera.CameraCfg` now defaults its render_cfg to :class:`~isaaclab.renderers.RenderCfg`
+  :meth:`~isaaclab.utils.backend_utils.get_default_renderer_cfg` is called during __post_init__ to replace
+  the generic RenderCfg with the default config :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
+* Cleaned up the schema-cfg base classes to no longer carry PhysX namespace metadata.
+  :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`,
+  :class:`~isaaclab.sim.schemas.CollisionBaseCfg`,
+  :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`, and
+  :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` now declare ``_usd_namespace = None`` and
+  ``_usd_applied_schema = None``. Per-field PhysX overrides for fields whose only USD path
+  today is the ``physx*:*`` namespace (``disable_gravity``, ``contact_offset``,
+  ``rest_offset``, ``articulation_enabled``, ``max_velocity``) are declared via a new
+  ``_usd_field_exceptions`` mapping ``applied_schema -> (namespace, {cfg_field: usd_attr})``.
+  When any listed field is non-None at write time, the writer applies that schema and writes
+  the attribute under the exception namespace; otherwise the schema is not stamped onto the
+  prim. PhysX subclasses (:class:`PhysxRigidBodyPropertiesCfg`,
+  :class:`PhysxCollisionPropertiesCfg`, :class:`PhysxArticulationRootPropertiesCfg`,
+  :class:`PhysxJointDrivePropertiesCfg`) now self-declare ``_usd_namespace`` and
+  ``_usd_applied_schema`` for their own fields. Observable behavior on standard inputs is
+  unchanged.
+* Consolidated the per-writer schema-application loop in
+  :mod:`isaaclab.sim.schemas` into a single shared helper ``_apply_namespaced_schemas``.
+  ``modify_articulation_root_properties``, ``modify_rigid_body_properties``,
+  ``modify_collision_properties``, ``modify_joint_drive_properties``,
+  ``modify_mesh_collision_properties``, and ``spawn_rigid_body_material`` all delegate to the
+  helper after writing their typed-API ``UsdPhysics`` fields. The canonical exception-table
+  + main-namespace gating logic now lives in one place instead of being duplicated across
+  six call sites.
+* Moved the ``max_velocity`` field from :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg`
+  to :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`. The field is the only USD path to set
+  Newton's ``Model.joint_velocity_limit`` and is consumed by Newton's importer. The USD
+  attribute written is unchanged (``physxJoint:maxJointVelocity``); existing code using
+  ``PhysxJointDrivePropertiesCfg(max_velocity=...)`` continues to work because the field
+  is inherited.
+* Moved the ``disable_gravity`` field from :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg`
+  to :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`. PhysX honors per-body via
+  ``physxRigidBody:disableGravity``; Newton currently honors at scene level (partial),
+  documented in the field docstring. Existing code using
+  ``PhysxRigidBodyPropertiesCfg(disable_gravity=...)`` continues to work via inheritance.
+* Documented :attr:`~isaaclab.sim.schemas.ArticulationRootPropertiesCfg.articulation_enabled`
+  and :attr:`~isaaclab.sim.schemas.ArticulationRootPropertiesCfg.enabled_self_collisions`
+  to lock their placement for the future :class:`ArticulationRootBaseCfg` /
+  ``PhysxArticulationRootPropertiesCfg`` split: ``articulation_enabled`` stays on the base
+  (single-namespace USD with verified Newton consumer); ``enabled_self_collisions`` moves
+  to the PhysX subclass (dual-namespace USD, with a future Newton sibling cfg owning the
+  ``newton:*`` namespace).
+* Changed the defaults of :attr:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg.compliant_contact_stiffness`,
+  :attr:`compliant_contact_damping`, :attr:`friction_combine_mode`, and
+  :attr:`restitution_combine_mode` from concrete values (``0.0``, ``0.0``, ``"average"``,
+  ``"average"``) to ``None``. PhysX engine defaults match the previous concrete values, so
+  user-observable simulation behavior is unchanged; the difference is that these attributes
+  are now authored on the prim only when the user explicitly sets them (consistent with the
+  rest of the consumption-gated cfg layer).
+* Relocated :class:`RigidBodyMaterialCfg` to :mod:`isaaclab_physx.sim.spawners.materials` and
+  split its fields between the new :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`
+  (UsdPhysics-standard friction/restitution) and
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`
+  (PhysX-specific compliant-contact and combine-mode fields). A forwarding shim on
+  :mod:`isaaclab.sim.spawners.materials` and :mod:`isaaclab.sim` preserves existing imports.
+* Refactored :func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material` to be
+  metadata-driven: it reads ``_usd_applied_schema``, ``_usd_namespace``, and
+  ``_usd_attr_name_map`` from the cfg class and gates ``PhysxMaterialAPI`` application on
+  whether the user authored at least one PhysX-namespaced field with a non-``None`` value.
+  Previously, the writer applied ``PhysxMaterialAPI`` unconditionally on every material spawn.
+* Relocated :class:`CollisionPropertiesCfg` to :mod:`isaaclab_physx.sim.schemas` and split
+  its fields between the new :class:`~isaaclab.sim.schemas.CollisionBaseCfg` (solver-common
+  ``collision_enabled`` plus the PhysX-namespaced but Newton-consumed
+  ``contact_offset`` / ``rest_offset``) and
+  :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg` (PhysX-only
+  ``torsional_patch_radius`` / ``min_torsional_patch_radius``). A forwarding shim on
+  :mod:`isaaclab.sim.schemas`, :mod:`isaaclab.sim.schemas.schemas_cfg`, and
+  :mod:`isaaclab.sim` preserves existing imports.
+* Refactored :func:`~isaaclab.sim.schemas.modify_collision_properties` to be metadata-driven
+  and to gate ``PhysxCollisionAPI`` application on whether the user authored at least one
+  PhysX-namespaced field with a non-``None`` value. Previously, the writer applied
+  ``PhysxCollisionAPI`` unconditionally on every collision prim, stamping the schema onto
+  Newton-targeted prims that only set ``collision_enabled``.
+* Relocated :class:`ArticulationRootPropertiesCfg` to :mod:`isaaclab_physx.sim.schemas` and
+  split its fields between the new :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`
+  (solver-common ``fix_root_link`` plus the PhysX-namespaced ``articulation_enabled`` which
+  is consumed by the IL Newton wrapper as a spawn-time guard) and
+  :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`
+  (``enabled_self_collisions`` and PhysX TGS solver iter / sleep / stabilization thresholds).
+  A forwarding shim on :mod:`isaaclab.sim.schemas`,
+  :mod:`isaaclab.sim.schemas.schemas_cfg`, and :mod:`isaaclab.sim` preserves existing imports.
+* Refactored :func:`~isaaclab.sim.schemas.modify_articulation_root_properties` to be
+  metadata-driven and to gate ``PhysxArticulationAPI`` application on whether the user
+  authored at least one PhysX-namespaced field with a non-``None`` value. Previously, the
+  writer applied ``PhysxArticulationAPI`` unconditionally on every articulation root,
+  stamping the schema onto Newton-targeted prims that only set ``fix_root_link``.
+* Relocated :class:`MeshCollisionPropertiesCfg`, :class:`ConvexHullPropertiesCfg`,
+  :class:`ConvexDecompositionPropertiesCfg`, :class:`TriangleMeshPropertiesCfg`,
+  :class:`TriangleMeshSimplificationPropertiesCfg`, and :class:`SDFMeshPropertiesCfg` to
+  :mod:`isaaclab_physx.sim.schemas`. :class:`BoundingCubePropertiesCfg` and
+  :class:`BoundingSpherePropertiesCfg` stay in core because they author no PhysX schema.
+  A forwarding shim preserves existing imports.
+* Refactored :func:`~isaaclab.sim.schemas.modify_mesh_collision_properties` to be
+  metadata-driven. The writer now reads ``_usd_applied_schema`` and ``_usd_namespace`` from
+  the cfg class instead of consulting instance-level ``usd_api`` / ``physx_api`` fields.
+  The standard :class:`UsdPhysics.MeshCollisionAPI` is always applied; PhysX cooking
+  schemas (``PhysxConvexHullCollisionAPI`` etc.) are gated on at least one
+  PhysX-namespaced tuning field being set.
+* Relocated :class:`FixedTendonPropertiesCfg` and :class:`SpatialTendonPropertiesCfg` to
+  :mod:`isaaclab_physx.sim.schemas` as :class:`PhysxFixedTendonPropertiesCfg` and
+  :class:`PhysxSpatialTendonPropertiesCfg`. Tendons are a PhysX-only feature; no Newton
+  equivalent exists. A forwarding shim on :mod:`isaaclab.sim.schemas`,
+  :mod:`isaaclab.sim.schemas.schemas_cfg`, and :mod:`isaaclab.sim` preserves existing
+  imports.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``usd_api`` and ``physx_api`` instance attributes on the mesh-collision
+  cfg classes in favor of class-level ``_usd_applied_schema`` metadata. Reading these
+  attributes still works through one minor version but emits a ``DeprecationWarning``.
+  Scheduled for removal in 5.0.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed
+  :attr:`~isaaclab.cloner.TemplateCloneCfg.visualizer_clone_fn`,
+  :func:`~isaaclab.cloner.resolve_visualizer_clone_fn`, and
+  :class:`~isaaclab.physics.scene_data_requirements.VisualizerPrebuiltArtifacts`.
+  Scene data providers now build backend models from the
+  :class:`~isaaclab.cloner.ClonePlan` map via
+  :meth:`~isaaclab.sim.SimulationContext.get_clone_plans` instead of receiving a
+  prebuilt artifact through a clone-time callback.
+* **Breaking:** Removed
+  :meth:`~isaaclab.sim.SimulationContext.get_scene_data_visualizer_prebuilt_artifact`,
+  :meth:`~isaaclab.sim.SimulationContext.set_scene_data_visualizer_prebuilt_artifact`,
+  and
+  :meth:`~isaaclab.sim.SimulationContext.clear_scene_data_visualizer_prebuilt_artifact`.
+  Use :meth:`~isaaclab.sim.SimulationContext.get_clone_plans` /
+  :meth:`~isaaclab.sim.SimulationContext.set_clone_plans` instead.
+* Removed ``BaseArticulationData.body_incoming_joint_wrench_b``. Add
+  :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene and read
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
+
+Fixed
+^^^^^
+
+* Pinned ``omniverseclient`` to ``2.71.1.7015``.
+* Fixed :meth:`~isaaclab.sim.schemas.modify_joint_drive_properties` and
+  :meth:`~isaaclab.sim.schemas.modify_rigid_body_properties` so that ``PhysxJointAPI`` and
+  ``PhysxRigidBodyAPI`` are applied only when the user authored at least one PhysX-namespaced
+  field with a non-``None`` value. Previously, schema application was gated on class-level
+  metadata being defined, which caused Newton-targeted prims to receive PhysX schemas even
+  when the user only set base ``UsdPhysics``-standard fields.
+
+
 4.6.27 (2026-05-01)
 ~~~~~~~~~~~~~~~~~~~
 
