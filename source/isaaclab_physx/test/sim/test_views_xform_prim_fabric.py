@@ -273,7 +273,7 @@ def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     view.set_world_poses(positions=new_pos)
 
     ret_pos, _ = view.get_world_poses()
-    pos_torch = wp.to_torch(ret_pos)
+    pos_torch = ret_pos.torch
     expected = torch.tensor([[10.0, 20.0, 30.0], [10.0, 20.0, 30.0]], device=device)
     assert torch.allclose(pos_torch, expected, atol=1e-7), f"Roundtrip failed on {device}: {pos_torch}"
 
