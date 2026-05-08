@@ -3,6 +3,16 @@ Reinforcement Learning Scripts
 
 We provide wrappers to different reinforcement libraries. These wrappers convert the data
 from the environments into the respective libraries function argument and return types.
+The unified reinforcement learning entrypoints can be launched with their full paths or
+with the ``train.py`` and ``play.py`` shorthands:
+
+.. code:: bash
+
+   ./isaaclab.sh -p train.py --library <framework> --task <task-name>
+   ./isaaclab.sh -p play.py --library <framework> --task <task-name>
+
+This shorthand is resolved by the Isaac Lab CLI. When running Python directly from
+an activated environment, use the full script path.
 
 Newton Backend
 --------------

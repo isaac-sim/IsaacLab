@@ -14,10 +14,12 @@ from unittest import mock
 import pytest
 
 from isaaclab.cli.utils import (
+    ISAACLAB_ROOT,
     determine_python_version,
     extract_isaacsim_path,
     extract_python_exe,
     get_pip_command,
+    run_python_command,
 )
 
 
@@ -91,6 +93,66 @@ class TestGetPipCommand:
         ):
             result = get_pip_command(python_exe=fake_python)
             assert result == [fake_python, "-m", "pip"]
+
+
+# ---------------------------------------------------------------------------
+# run_python_command
+# ---------------------------------------------------------------------------
+
+
+class TestRunPythonCommand:
+    """Tests for :func:`run_python_command`."""
+
+    def test_resolves_train_shorthand(self):
+        """Should resolve train.py to the unified reinforcement learning training script."""
+        with (
+            mock.patch("isaaclab.cli.utils.extract_python_exe", return_value="/usr/bin/python"),
+            mock.patch(
+                "isaaclab.cli.utils.run_command",
+                return_value=subprocess.CompletedProcess(args=[], returncode=0),
+            ) as run_command_mock,
+        ):
+            run_python_command("train.py", ["--help"])
+
+        command = run_command_mock.call_args.args[0]
+        assert command[:2] == [
+            "/usr/bin/python",
+            str(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py"),
+        ]
+        assert command[2:] == ["--help"]
+
+    def test_resolves_play_shorthand(self):
+        """Should resolve play.py to the unified reinforcement learning play script."""
+        with (
+            mock.patch("isaaclab.cli.utils.extract_python_exe", return_value="/usr/bin/python"),
+            mock.patch(
+                "isaaclab.cli.utils.run_command",
+                return_value=subprocess.CompletedProcess(args=[], returncode=0),
+            ) as run_command_mock,
+        ):
+            run_python_command("play.py", ["--help"])
+
+        command = run_command_mock.call_args.args[0]
+        assert command[:2] == [
+            "/usr/bin/python",
+            str(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py"),
+        ]
+        assert command[2:] == ["--help"]
+
+    def test_keeps_explicit_relative_script_path(self):
+        """Should only resolve bare shorthand names."""
+        with (
+            mock.patch("isaaclab.cli.utils.extract_python_exe", return_value="/usr/bin/python"),
+            mock.patch(
+                "isaaclab.cli.utils.run_command",
+                return_value=subprocess.CompletedProcess(args=[], returncode=0),
+            ) as run_command_mock,
+        ):
+            run_python_command("./train.py", ["--help"])
+
+        command = run_command_mock.call_args.args[0]
+        assert command[:2] == ["/usr/bin/python", "./train.py"]
+        assert command[2:] == ["--help"]
 
 
 # ---------------------------------------------------------------------------

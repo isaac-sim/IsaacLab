@@ -17,6 +17,12 @@ ISAACLAB_ROOT = Path(__file__).parents[4].resolve()
 # Default path to look for Isaac Sim is _isaac_sim symlink.
 DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
 
+# Short script names supported by ``isaaclab -p``.
+_PYTHON_SCRIPT_ALIASES = {
+    "train.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py",
+    "play.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py",
+}
+
 # ANSI colors.
 _ANSI_COLOR_RESET = "\033[0m"
 _ANSI_COLOR_INFO = "\033[36m"  # cyan
@@ -525,6 +531,8 @@ def run_python_command(
 
     if is_module:
         cmd.append("-m")
+    else:
+        script_or_module = _PYTHON_SCRIPT_ALIASES.get(str(script_or_module), script_or_module)
 
     cmd.append(str(script_or_module))
     cmd.extend(args)

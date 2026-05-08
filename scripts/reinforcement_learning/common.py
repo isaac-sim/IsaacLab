@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Common utilities for reinforcement learning training entrypoints."""
+"""Common utilities for reinforcement learning entrypoints."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import argparse
 import importlib.util
 import logging
 import os
+import runpy
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -23,6 +24,60 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
 
 from isaaclab_tasks.utils import add_launcher_args
+
+
+def dispatch_library_entrypoint(
+    argv: list[str] | None,
+    entrypoints: dict[str, Path],
+    *,
+    action: str,
+    description: str,
+    library_help: str,
+    run_as_script: bool = False,
+) -> int:
+    """Dispatch a unified entrypoint to a library-specific implementation.
+
+    Args:
+        argv: Command-line arguments, excluding the script path.
+        entrypoints: Mapping from library name to implementation path.
+        action: Action name used to create a unique module name.
+        description: Top-level parser description.
+        library_help: Help text for the ``--library`` argument.
+        run_as_script: Whether to execute the selected implementation as a script.
+
+    Returns:
+        Process exit code.
+    """
+    if argv is None:
+        argv = sys.argv[1:]
+
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--library", choices=sorted(entrypoints))
+    args_cli, library_args = parser.parse_known_args(argv)
+
+    if args_cli.library is None:
+        help_parser = argparse.ArgumentParser(description=description)
+        help_parser.add_argument("--library", choices=sorted(entrypoints), required=True, help=library_help)
+        help_parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments forwarded to the selected library.")
+        help_parser.print_help()
+        return 0 if "-h" in argv or "--help" in argv else 2
+
+    module_path = entrypoints[args_cli.library]
+    if run_as_script:
+        original_argv = sys.argv
+        original_path = list(sys.path)
+        try:
+            sys.argv = [str(module_path)] + library_args
+            sys.path.insert(0, str(module_path.parent))
+            runpy.run_path(str(module_path), run_name="__main__")
+        finally:
+            sys.argv = original_argv
+            sys.path[:] = original_path
+        return 0
+
+    module = import_local_module(f"isaaclab_rl_{action}_{args_cli.library}", module_path)
+    module.run(library_args)
+    return 0
 
 
 def add_common_train_args(

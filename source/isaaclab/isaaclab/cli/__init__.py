@@ -42,7 +42,8 @@ def cli() -> None:
             "Accepts a comma-separated list of submodule names, one of the RL frameworks, or a special value.\n"
             "\n"
             f"* Isaac Lab submodules: {_submodules_str}\n"
-            "  Any submodule accepts an editable selector, e.g. visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].\n"
+            "  Any submodule accepts an editable selector, e.g.\n"
+            "  visualizers[all|kit|newton|rerun|viser], rl[rsl_rl|skrl].\n"
             "\n"
             f"* RL frameworks: {_frameworks_str}\n"
             "  Passing an RL framework name installs all Isaac Lab submodules + that framework.\n"
@@ -65,7 +66,11 @@ def cli() -> None:
         "-p",
         "--python",
         nargs=argparse.REMAINDER,
-        help="Run the python executable provided by Isaac Sim or virtual environment (if active).",
+        help=(
+            "Run the python executable provided by Isaac Sim or virtual environment (if active).\n"
+            "Shorthands: train.py -> scripts/reinforcement_learning/train.py, "
+            "play.py -> scripts/reinforcement_learning/play.py."
+        ),
     )
     parser.add_argument(
         "-s",

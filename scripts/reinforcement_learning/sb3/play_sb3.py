@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Script to play a checkpoint if an RL agent from Stable-Baselines3."""
+"""Script to play a checkpoint of an RL agent from Stable-Baselines3."""
 
 import argparse
 import contextlib
@@ -33,7 +33,7 @@ with contextlib.suppress(ImportError):
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from Stable-Baselines3.")
-parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
+parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
@@ -130,7 +130,7 @@ def main():
                 "video_length": args_cli.video_length,
                 "disable_logger": True,
             }
-            print("[INFO] Recording videos during training.")
+            print("[INFO] Recording videos during play.")
             print_dict(video_kwargs, nesting=4)
             env = gym.wrappers.RecordVideo(env, **video_kwargs)
         # wrap around environment for stable baselines
