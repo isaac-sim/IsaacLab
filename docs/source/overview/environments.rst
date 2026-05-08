@@ -1018,7 +1018,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Isaac-Navigation-Flat-Anymal-C-Play-v0
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
-      - ``newton``, ``physx``
+      - ``newton_mjwarp``, ``physx``
     * - Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0
       - Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0
       - Manager Based
