@@ -55,10 +55,12 @@ simulation_app = app_launcher.app
 
 import asyncio
 import logging
+from collections.abc import Callable
 
 import gymnasium as gym
 import torch
 
+from isaaclab.devices import DeviceBase
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -86,13 +88,25 @@ def _prepare_env_cfg(task: str, num_envs: int, device: str) -> ManagerBasedRLEnv
     return env_cfg
 
 
-def _create_replay_teleop_device(env_cfg: ManagerBasedRLEnvCfg, task: str) -> object:
+def _create_replay_teleop_device(
+    env_cfg: ManagerBasedRLEnvCfg, task: str, callbacks: dict[str, Callable[[], None]]
+) -> DeviceBase:
     """Instantiate the teleop device used during replay.
 
     Today this returns the legacy native XR ``handtracking`` device because the
     XCR backend replays through Kit's OpenXR runtime, which is the surface
     that device consumes. When migrating to a ``TeleopSession``-driven replay
     backend, swap this for an ``IsaacTeleopDevice`` configured in replay mode.
+
+    Args:
+        env_cfg: The environment configuration.
+        task: Task identifier, used for diagnostic messages.
+        callbacks: Teleop-command callbacks (``"START"``, ``"STOP"``,
+            ``"RESET"``) registered on the device. The XCR replay dispatches
+            the recorded user's start/stop/reset gestures through Kit's
+            OpenXR message bus, which the legacy
+            :class:`~isaaclab.devices.openxr.OpenXRDevice` translates into
+            calls into this dictionary.
     """
     if not hasattr(env_cfg, "teleop_devices") or _LEGACY_DEVICE_NAME not in env_cfg.teleop_devices.devices:
         raise ValueError(
@@ -100,7 +114,7 @@ def _create_replay_teleop_device(env_cfg: ManagerBasedRLEnvCfg, task: str) -> ob
             "Use a task whose env config defines that legacy device, "
             "or update _create_replay_teleop_device to use a different backend."
         )
-    teleop_interface = create_teleop_device(_LEGACY_DEVICE_NAME, env_cfg.teleop_devices.devices, callbacks={})
+    teleop_interface = create_teleop_device(_LEGACY_DEVICE_NAME, env_cfg.teleop_devices.devices, callbacks)
     if teleop_interface is None:
         raise RuntimeError(f"Failed to create '{_LEGACY_DEVICE_NAME}' teleop device for task '{task}'.")
     return teleop_interface
@@ -126,11 +140,36 @@ def main() -> None:
     driver as a background task, and runs the standard teleop step loop
     until the application is closed (driver-issued ``post_quit``, Kit
     shutdown, or operator interrupt).
+
+    The loop deliberately does not call ``env.step()`` until the legacy
+    :class:`OpenXRDevice` dispatches a ``"START"`` callback. The XCR replay
+    streams the recorded user's start/stop/reset gestures through Kit's
+    OpenXR message bus, and the device routes those into the callbacks
+    registered here -- exactly the path ``record_demos.py`` uses to know
+    when to start recording. Until that ``"START"`` arrives, the OpenXR
+    runtime is silent and the device's :meth:`advance` would otherwise
+    return a default zero pose for both wrists, which stepping the env
+    with would drive Pink IK toward the world origin.
     """
     env_cfg = _prepare_env_cfg(args_cli.task, args_cli.num_envs, args_cli.device)
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-    teleop_interface = _create_replay_teleop_device(env_cfg, args_cli.task)
+    # Single-element list so the closure can mutate it without ``nonlocal``.
+    teleop_active = [False]
+
+    def _on_start() -> None:
+        if not teleop_active[0]:
+            teleop_active[0] = True
+            print("Teleop START received from XCR replay; forwarding actions to env.step().")
+
+    def _on_stop() -> None:
+        if teleop_active[0]:
+            teleop_active[0] = False
+            print("Teleop STOP received from XCR replay; pausing env.step().")
+
+    callbacks: dict[str, Callable[[], None]] = {"START": _on_start, "STOP": _on_stop}
+
+    teleop_interface = _create_replay_teleop_device(env_cfg, args_cli.task, callbacks)
     print(f"Using teleop device: {teleop_interface}")
 
     env.reset()
@@ -143,7 +182,7 @@ def main() -> None:
         try:
             with torch.inference_mode():
                 action = teleop_interface.advance()
-                if action is None:
+                if action is None or not teleop_active[0]:
                     env.sim.render()
                     continue
                 actions = action.repeat(env.num_envs, 1)
