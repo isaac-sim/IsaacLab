@@ -20,11 +20,32 @@ from isaaclab.utils import configclass
 
 
 @configclass
-class MujocoRigidBodyPropertiesCfg(RigidBodyBaseCfg):
-    """MuJoCo/Newton-specific rigid body properties.
+class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
+    """Newton-targeted rigid body properties.
 
-    Extends :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` with body-level
-    gravity compensation for the Newton (MuJoCo) simulation backend.
+    Base class for cfgs that author rigid-body attributes consumed by any of
+    Newton's solver options (MuJoCo, XPBD, Featherstone, Semi-implicit, Kamino).
+    Newton has no native ``newton:*`` rigid-body attributes today, so this class
+    is currently empty — solver-specific subclasses (e.g.,
+    :class:`MujocoRigidBodyPropertiesCfg`) carry the actual fields.
+
+    The ``newton:`` namespace is reserved here so future Newton-native
+    rigid-body fields can be added without an API change.
+
+    See :meth:`~isaaclab.sim.schemas.modify_rigid_body_properties` for more information.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {}
+
+
+@configclass
+class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
+    """MuJoCo-solver-specific rigid body properties.
+
+    Extends :class:`NewtonRigidBodyPropertiesCfg` with body-level gravity
+    compensation, consumed only when running Newton's MuJoCo solver.
 
     See :meth:`~isaaclab.sim.schemas.modify_rigid_body_properties` for more information.
 
@@ -52,11 +73,32 @@ class MujocoRigidBodyPropertiesCfg(RigidBodyBaseCfg):
 
 
 @configclass
-class MujocoJointDrivePropertiesCfg(JointDriveBaseCfg):
-    """MuJoCo/Newton-specific joint drive properties.
+class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
+    """Newton-targeted joint drive properties.
 
-    Extends :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` with joint-level
-    gravity compensation routing for the Newton (MuJoCo) simulation backend.
+    Base class for cfgs that author joint-drive attributes consumed by any of
+    Newton's solver options. Newton has no native ``newton:*`` joint-drive
+    attributes today, so this class is currently empty — solver-specific
+    subclasses (e.g., :class:`MujocoJointDrivePropertiesCfg`) carry the actual
+    fields.
+
+    The ``newton:`` namespace is reserved here so future Newton-native
+    joint-drive fields can be added without an API change.
+
+    See :meth:`~isaaclab.sim.schemas.modify_joint_drive_properties` for more information.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {}
+
+
+@configclass
+class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
+    """MuJoCo-solver-specific joint drive properties.
+
+    Extends :class:`NewtonJointDrivePropertiesCfg` with joint-level gravity
+    compensation routing, consumed only when running Newton's MuJoCo solver.
 
     See :meth:`~isaaclab.sim.schemas.modify_joint_drive_properties` for more information.
 

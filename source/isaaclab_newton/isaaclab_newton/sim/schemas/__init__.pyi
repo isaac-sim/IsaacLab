@@ -8,6 +8,8 @@ from .schemas_cfg import (
     MujocoRigidBodyPropertiesCfg as MujocoRigidBodyPropertiesCfg,
     NewtonArticulationRootPropertiesCfg as NewtonArticulationRootPropertiesCfg,
     NewtonCollisionPropertiesCfg as NewtonCollisionPropertiesCfg,
+    NewtonJointDrivePropertiesCfg as NewtonJointDrivePropertiesCfg,
     NewtonMaterialPropertiesCfg as NewtonMaterialPropertiesCfg,
     NewtonMeshCollisionPropertiesCfg as NewtonMeshCollisionPropertiesCfg,
+    NewtonRigidBodyPropertiesCfg as NewtonRigidBodyPropertiesCfg,
 )

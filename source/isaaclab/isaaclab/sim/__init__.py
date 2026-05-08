@@ -75,6 +75,8 @@ _PHYSX_FORWARDS = _PHYSX_FORWARDS_SCHEMAS | _PHYSX_FORWARDS_MATERIALS
 _NEWTON_FORWARDS = frozenset({
     "MujocoRigidBodyPropertiesCfg",
     "MujocoJointDrivePropertiesCfg",
+    "NewtonRigidBodyPropertiesCfg",
+    "NewtonJointDrivePropertiesCfg",
     "NewtonCollisionPropertiesCfg",
     "NewtonMeshCollisionPropertiesCfg",
     "NewtonMaterialPropertiesCfg",

@@ -48,6 +48,8 @@ _NEWTON_FORWARDS = frozenset(
     {
         "MujocoRigidBodyPropertiesCfg",
         "MujocoJointDrivePropertiesCfg",
+        "NewtonRigidBodyPropertiesCfg",
+        "NewtonJointDrivePropertiesCfg",
         "NewtonCollisionPropertiesCfg",
         "NewtonMeshCollisionPropertiesCfg",
         "NewtonMaterialPropertiesCfg",
