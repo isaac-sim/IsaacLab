@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+0.6.0 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the newton renderer to use the new patterns from renderer/camera decoupling.
+* Changed :class:`~isaaclab_newton.physics.NewtonManager` to dispatch through
+  solver-specific manager subclasses while preserving the existing
+  ``NewtonCfg(solver_cfg=...)`` configuration pattern.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :attr:`~isaaclab_newton.physics.NewtonSolverCfg.solver_type` for
+  manager dispatch in favor of
+  :attr:`~isaaclab_newton.physics.NewtonSolverCfg.class_type`. Existing configs
+  remain valid, but new code should rely on ``class_type``.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed
+  ``isaaclab_newton.cloner.newton_replicate.create_newton_visualizer_prebuild_clone_fn``.
+  Callers that need a Newton model for visualization should call
+  :func:`~isaaclab_newton.cloner.newton_replicate.newton_visualizer_prebuild`
+  directly with the ``(sources, destinations, env_ids, mask, positions)`` bundle
+  derived from :meth:`~isaaclab.sim.SimulationContext.get_clone_plans`.
+* Removed the unimplemented ``ArticulationData.body_incoming_joint_wrench_b``
+  accessor. Add :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene
+  and read :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sensors.JointWrenchSensor` initialization for
+  USD assets whose articulation root is nested below the configured asset prim.
+
+
 0.5.26 (2026-04-30)
 ~~~~~~~~~~~~~~~~~~~
 
