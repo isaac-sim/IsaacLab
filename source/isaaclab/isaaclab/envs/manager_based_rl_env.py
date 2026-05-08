@@ -81,8 +81,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # (env_render_mode="rgb_array") and the perspective view matches the task viewport.
         if cfg.video_recorder is not None:
             cfg.video_recorder.env_render_mode = render_mode
-            cfg.video_recorder.camera_position = tuple(float(x) for x in cfg.viewer.eye)
-            cfg.video_recorder.camera_target = tuple(float(x) for x in cfg.viewer.lookat)
+            cfg.video_recorder.eye = tuple(float(x) for x in cfg.viewer.eye)
+            cfg.video_recorder.lookat = tuple(float(x) for x in cfg.viewer.lookat)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg)

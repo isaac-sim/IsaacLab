@@ -20,8 +20,8 @@ required arguments:
 
 optional arguments:
     -h, --help                Show this help message and exit
-    --teleop_device           Device for interacting with environment. (default: keyboard)
-                              If env_cfg has isaac_teleop configured, this argument is ignored.
+    --teleop_device           Legacy teleop device name. When omitted, IsaacTeleop is used if
+                              configured, otherwise keyboard. When set, forces the legacy path.
     --dataset_file            File path to export recorded demos. (default: "./datasets/dataset.hdf5")
     --step_hz                 Environment stepping rate in Hz. (default: 30)
     --num_demos               Number of demonstrations to record. (default: 0)
@@ -44,11 +44,11 @@ parser.add_argument("--task", type=str, required=True, help="Name of the task.")
 parser.add_argument(
     "--teleop_device",
     type=str,
-    default="keyboard",
+    default=None,
     help=(
-        "Teleop device. Set here (legacy) or via the environment config. If using the environment config, pass the"
-        " device key/name defined under 'teleop_devices' (it can be a custom name, not necessarily 'handtracking')."
-        " Built-ins: keyboard, spacemouse, gamepad. Not all tasks support all built-ins."
+        "Legacy teleop device name. When omitted, the IsaacTeleop pipeline is used if configured in the env,"
+        " otherwise keyboard is used as fallback. When explicitly provided, the script uses the legacy"
+        " teleop_devices path and looks up this name in env_cfg.teleop_devices.devices."
     ),
 )
 parser.add_argument(
@@ -90,9 +90,6 @@ if args_cli.task is None:
     parser.error("--task is required")
 
 app_launcher_args = vars(args_cli)
-
-if "handtracking" in args_cli.teleop_device.lower():
-    app_launcher_args["xr"] = True
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
@@ -232,8 +229,12 @@ def create_environment_config(
         logger.error(f"Failed to parse environment configuration: {e}")
         exit(1)
 
-    # Check if IsaacTeleop is configured
-    use_isaac_teleop = hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
+    # When --teleop_device is explicitly provided, use the legacy teleop_devices path
+    # even if isaac_teleop is configured. Otherwise prefer isaac_teleop when available.
+    teleop_device_explicitly_set = args_cli.teleop_device is not None
+    use_isaac_teleop = (
+        not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
+    )
 
     # extract success checking function to invoke in the main loop
     success_term = None
@@ -286,6 +287,16 @@ def create_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> gym.En
         exit(1)
 
 
+def _create_builtin_device(device_name: str) -> object | None:
+    """Create a built-in teleop device by name, or return None if unrecognized."""
+    name = device_name.lower()
+    if name == "keyboard":
+        return Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
+    elif name == "spacemouse":
+        return Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
+    return None
+
+
 def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool = False) -> object:
     """Set up the teleoperation device based on configuration.
 
@@ -303,6 +314,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
     Raises:
         Exception: If teleop device creation fails
     """
+    teleop_device_explicitly_set = args_cli.teleop_device is not None
     teleop_interface = None
     try:
         if use_isaac_teleop:
@@ -316,23 +328,26 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
             )
 
-        elif hasattr(env_cfg, "teleop_devices") and args_cli.teleop_device in env_cfg.teleop_devices.devices:
-            teleop_interface = create_teleop_device(args_cli.teleop_device, env_cfg.teleop_devices.devices, callbacks)
-        else:
-            logger.warning(
-                f"No teleop device '{args_cli.teleop_device}' found in environment config. Creating default."
-            )
-            # Create fallback teleop device
-            if args_cli.teleop_device.lower() == "keyboard":
-                teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
-            elif args_cli.teleop_device.lower() == "spacemouse":
-                teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
+        elif teleop_device_explicitly_set:
+            device_name = args_cli.teleop_device
+            if hasattr(env_cfg, "teleop_devices") and device_name in env_cfg.teleop_devices.devices:
+                teleop_interface = create_teleop_device(device_name, env_cfg.teleop_devices.devices, callbacks)
             else:
-                logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
-                logger.error("Supported devices: keyboard, spacemouse, handtracking")
-                exit(1)
-
-            # Add callbacks to fallback device
+                teleop_interface = _create_builtin_device(device_name)
+                if teleop_interface is None:
+                    logger.error(
+                        f"--teleop_device={device_name} was passed but no matching entry exists in"
+                        " env_cfg.teleop_devices and it is not a built-in device name. Either remove"
+                        " --teleop_device to use the IsaacTeleop pipeline, or add a"
+                        f" '{device_name}' entry under teleop_devices in the environment config."
+                        " Built-in devices: keyboard, spacemouse."
+                    )
+                    exit(1)
+                for key, callback in callbacks.items():
+                    teleop_interface.add_callback(key, callback)
+        else:
+            # No --teleop_device and no isaac_teleop: fall back to keyboard
+            teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
             for key, callback in callbacks.items():
                 teleop_interface.add_callback(key, callback)
     except Exception as e:

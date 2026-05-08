@@ -452,9 +452,13 @@ def _process_mutable_types(cls):
     for key in ann:
         # find matching field in class
         value = class_members.get(key, MISSING)
-        # check if key belongs to ClassVar
-        # in that case, we cannot use default_factory!
-        origin = getattr(ann[key], "__origin__", None)
+        # check if key belongs to ClassVar -- in that case, we cannot use default_factory!
+        # ``from __future__ import annotations`` turns annotations into strings, so we
+        # also detect the string form (``"ClassVar[...]"``) for files using PEP 563.
+        ann_value = ann[key]
+        if isinstance(ann_value, str) and ann_value.startswith(("ClassVar", "typing.ClassVar")):
+            continue
+        origin = getattr(ann_value, "__origin__", None)
         if origin is ClassVar:
             continue
         # check if f is MISSING

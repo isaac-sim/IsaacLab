@@ -48,7 +48,7 @@ def base_heading_proj(
     asset: Articulation = env.scene[asset_cfg.name]
     # compute desired heading direction
     to_target_pos = torch.tensor(target_pos, device=env.device) - asset.data.root_pos_w.torch[:, :3]
-    to_target_pos[:, 2] = 0.0
+    to_target_pos = torch.cat((to_target_pos[:, :2], torch.zeros_like(to_target_pos[:, 2:3])), dim=-1)
     to_target_dir = math_utils.normalize(to_target_pos)
     # compute base forward vector
     heading_vec = math_utils.quat_apply(asset.data.root_quat_w.torch, asset.data.FORWARD_VEC_B.torch)

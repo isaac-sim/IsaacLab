@@ -312,7 +312,7 @@ Using the generated data, we can now train a visuomotor BC agent for ``Isaac-Sta
     --name bc_rnn_image_franka_stack_mimic_cosmos
 
 .. note::
-   By default the trained models and logs will be saved to ``IssacLab/logs/robomimic``.
+   By default the trained models and logs will be saved to ``IsaacLab/logs/robomimic``.
 
 Evaluation
 ^^^^^^^^^^

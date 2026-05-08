@@ -20,6 +20,7 @@ from newton.viewer import ViewerRerun
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
 
 from .rerun_visualizer_cfg import RerunVisualizerCfg
@@ -133,6 +134,7 @@ class RerunVisualizer(BaseVisualizer):
         self._state = None
         self._scene_data_provider = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
+        self._resolved_visible_env_ids: list[int] | None = None
 
     def initialize(self, scene_data_provider: BaseSceneDataProvider) -> None:
         """Initialize rerun viewer and bind scene data provider.
@@ -196,8 +198,10 @@ class RerunVisualizer(BaseVisualizer):
         self._viewer.scaling = 1.0
         self._viewer._paused = False
 
-        _resolved = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        num_visualized_envs = len(_resolved) if _resolved is not None else num_envs
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        num_visualized_envs = (
+            len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
+        )
         self._log_initialization_table(
             logger=logger,
             title="RerunVisualizer Configuration",
@@ -235,16 +239,22 @@ class RerunVisualizer(BaseVisualizer):
             self._update_camera_from_usd_path()
 
         self._state = self._scene_data_provider.get_newton_state()
+        num_envs = int(self._scene_data_provider.get_metadata().get("num_envs", 0))
 
         if not self._viewer.is_paused():
             self._viewer.begin_frame(self._sim_time)
-            if self._state is not None:
-                body_q = getattr(self._state, "body_q", None)
-                if hasattr(body_q, "shape") and body_q.shape[0] == 0:
-                    self._viewer.end_frame()
-                    return
-                self._viewer.log_state(self._state)
-            self._viewer.end_frame()
+            try:
+                if self._state is not None:
+                    body_q = getattr(self._state, "body_q", None)
+                    if hasattr(body_q, "shape") and body_q.shape[0] == 0:
+                        return
+                    self._viewer.log_state(self._state)
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(
+                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                        )
+            finally:
+                self._viewer.end_frame()
 
     def close(self) -> None:
         """Close viewer/session resources."""
@@ -323,8 +333,8 @@ class RerunVisualizer(BaseVisualizer):
         self._apply_camera_pose(pose)
 
     def supports_markers(self) -> bool:
-        """Rerun backend currently does not expose Isaac Lab marker primitives."""
-        return False
+        """Rerun backend supports Isaac Lab markers through Newton viewer primitives."""
+        return bool(self.cfg.enable_markers)
 
     def supports_live_plots(self) -> bool:
         """Rerun backend currently does not expose Isaac Lab live-plot widgets."""

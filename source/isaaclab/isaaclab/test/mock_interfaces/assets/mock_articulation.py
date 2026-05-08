@@ -134,7 +134,6 @@ class MockArticulationData(BaseArticulationData):
         # Body properties
         self._body_mass: wp.array | None = None
         self._body_inertia: wp.array | None = None
-        self._body_incoming_joint_wrench_b: wp.array | None = None
 
         # Tendon properties (fixed)
         self._fixed_tendon_stiffness: wp.array | None = None
@@ -187,7 +186,6 @@ class MockArticulationData(BaseArticulationData):
         self._body_com_pose_b_ta: ProxyArray | None = None
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
-        self._body_incoming_joint_wrench_b_ta: ProxyArray | None = None
         self._fixed_tendon_stiffness_ta: ProxyArray | None = None
         self._fixed_tendon_damping_ta: ProxyArray | None = None
         self._fixed_tendon_limit_stiffness_ta: ProxyArray | None = None
@@ -830,18 +828,6 @@ class MockArticulationData(BaseArticulationData):
             self._body_inertia_ta = ProxyArray(self._body_inertia)
         return self._body_inertia_ta
 
-    @property
-    def body_incoming_joint_wrench_b(self) -> ProxyArray:
-        """Body incoming joint wrenches. dtype=wp.spatial_vectorf, shape: (N, num_bodies)."""
-        if self._body_incoming_joint_wrench_b is None:
-            self._body_incoming_joint_wrench_b = wp.zeros(
-                (self._num_instances, self._num_bodies, 6), dtype=wp.float32, device=self.device
-            ).view(wp.spatial_vectorf)
-            self._body_incoming_joint_wrench_b_ta = None
-        if self._body_incoming_joint_wrench_b_ta is None:
-            self._body_incoming_joint_wrench_b_ta = ProxyArray(self._body_incoming_joint_wrench_b)
-        return self._body_incoming_joint_wrench_b_ta
-
     # -- Derived properties --
 
     @property
@@ -1175,10 +1161,6 @@ class MockArticulationData(BaseArticulationData):
     def set_body_inertia(self, value: torch.Tensor) -> None:
         self._body_inertia = wp.from_torch(value.to(self.device).contiguous())
         self._body_inertia_ta = None
-
-    def set_body_incoming_joint_wrench_b(self, value: torch.Tensor) -> None:
-        self._body_incoming_joint_wrench_b = wp.from_torch(value.to(self.device).contiguous())
-        self._body_incoming_joint_wrench_b_ta = None
 
     def set_fixed_tendon_stiffness(self, value: torch.Tensor) -> None:
         self._fixed_tendon_stiffness = wp.from_torch(value.to(self.device).contiguous())

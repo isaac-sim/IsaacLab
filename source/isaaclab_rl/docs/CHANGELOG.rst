@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.2 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added RSL-RL LEAPP export scripts and integration tests for exporting trained
+  policies with semantic input, output, and state annotations.
+
+
 0.5.1 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~
 
