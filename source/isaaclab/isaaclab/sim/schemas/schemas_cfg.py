@@ -44,6 +44,17 @@ _PHYSX_FORWARDS = frozenset(
     }
 )
 
+_NEWTON_FORWARDS = frozenset(
+    {
+        "MujocoRigidBodyPropertiesCfg",
+        "MujocoJointDrivePropertiesCfg",
+        "NewtonCollisionPropertiesCfg",
+        "NewtonMeshCollisionPropertiesCfg",
+        "NewtonMaterialPropertiesCfg",
+        "NewtonArticulationRootPropertiesCfg",
+    }
+)
+
 
 def __getattr__(name):
     if name in _PHYSX_FORWARDS:
@@ -57,6 +68,17 @@ def __getattr__(name):
                 " removal in 5.0."
             ) from e
         return getattr(_physx_cfg, name)
+    if name in _NEWTON_FORWARDS:
+        try:
+            from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
+                " 'isaaclab_newton.sim.schemas.schemas_cfg'. Install the isaaclab_newton"
+                " extension or update your import. This forwarding shim is scheduled for"
+                " removal in 5.0."
+            ) from e
+        return getattr(_newton_cfg, name)
     raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
 
 

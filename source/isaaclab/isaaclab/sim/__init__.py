@@ -69,6 +69,18 @@ _PHYSX_FORWARDS_MATERIALS = frozenset({
 
 _PHYSX_FORWARDS = _PHYSX_FORWARDS_SCHEMAS | _PHYSX_FORWARDS_MATERIALS
 
+# Names that moved out of this package into ``isaaclab_newton.sim.schemas``.
+# Resolved lazily on first access so importing ``isaaclab.sim`` does not
+# require ``isaaclab_newton`` to be installed.
+_NEWTON_FORWARDS = frozenset({
+    "MujocoRigidBodyPropertiesCfg",
+    "MujocoJointDrivePropertiesCfg",
+    "NewtonCollisionPropertiesCfg",
+    "NewtonMeshCollisionPropertiesCfg",
+    "NewtonMaterialPropertiesCfg",
+    "NewtonArticulationRootPropertiesCfg",
+})
+
 
 def __getattr__(name):
     if name in _PHYSX_FORWARDS_SCHEMAS:
@@ -91,8 +103,18 @@ def __getattr__(name):
                 " shim is scheduled for removal in 5.0."
             ) from e
         return getattr(_physx_mat_cfg, name)
+    if name in _NEWTON_FORWARDS:
+        try:
+            from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.{name}' has moved to 'isaaclab_newton.sim.schemas'."
+                " Install the isaaclab_newton extension or update your import. This forwarding"
+                " shim is scheduled for removal in 5.0."
+            ) from e
+        return getattr(_newton_cfg, name)
     return _stub_getattr(name)
 
 
 def __dir__():
-    return sorted(set(_stub_dir()) | _PHYSX_FORWARDS)
+    return sorted(set(_stub_dir()) | _PHYSX_FORWARDS | _NEWTON_FORWARDS)

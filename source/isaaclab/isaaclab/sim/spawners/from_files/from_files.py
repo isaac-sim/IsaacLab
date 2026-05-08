@@ -365,6 +365,20 @@ def _spawn_from_usd_file(
     # note: these are only for setting low-level simulation properties. all others should be set or are
     #  and overridden by the articulation/actuator properties.
     if cfg.joint_drive_props is not None:
+        # auto-enable body-level gravcomp if joint-level actuator gravcomp is requested
+        # without it — actuatorgravcomp has no effect since there are no forces to route
+        from isaaclab_newton.sim.schemas.schemas_cfg import MujocoJointDrivePropertiesCfg, MujocoRigidBodyPropertiesCfg
+
+        if (
+            isinstance(cfg.joint_drive_props, MujocoJointDrivePropertiesCfg)
+            and cfg.joint_drive_props.actuatorgravcomp
+            and not isinstance(cfg.rigid_props, MujocoRigidBodyPropertiesCfg)
+        ):
+            logger.info(
+                "Joint-level actuator gravity compensation requires body-level gravcomp."
+                " Auto-setting rigid_props to MujocoRigidBodyPropertiesCfg(gravcomp=1.0)."
+            )
+            schemas.modify_rigid_body_properties(prim_path, MujocoRigidBodyPropertiesCfg(gravcomp=1.0))
         schemas.modify_joint_drive_properties(prim_path, cfg.joint_drive_props)
 
     # define deformable body properties, or modify if deformable body API is present (PhysX only)

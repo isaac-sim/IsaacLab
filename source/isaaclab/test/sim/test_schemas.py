@@ -106,7 +106,7 @@ def test_valid_properties_cfg(setup_simulation):
     sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
     # deprecation aliases are nulled by __post_init__ after forwarding to the canonical
     # field; exclude them from the all-non-None check.
-    deprecation_aliases = {"max_velocity", "max_effort"}
+    deprecation_aliases = {"max_velocity", "max_effort", "gravity_compensation_scale", "gravity_compensation"}
     for cfg in [arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg]:
         for k, v in cfg.__dict__.items():
             # skip class-metadata keys (``_usd_*``) and deprecation aliases nulled in __post_init__
@@ -877,6 +877,96 @@ def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
     no_tendon_joint = UsdPhysics.RevoluteJoint.Define(stage, "/World/tendon_test/body2/joint1")
     result = _modify_fixed_tendon(no_tendon_joint.GetPrim().GetPrimPath().pathString, tendon_cfg)
     assert result is False, "Prim without tendon root schema should return False"
+
+
+@pytest.mark.isaacsim_ci
+def test_mujoco_gravity_compensation_scale_on_rigid_body(setup_simulation):
+    """Test that gravity_compensation_scale is written as mjc:gravcomp on rigid body prims."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    sim_utils.create_prim("/World/cube_gc", prim_type="Cube", translation=(0.0, 0.0, 0.62))
+    rigid_cfg = schemas.MujocoRigidBodyPropertiesCfg(gravcomp=0.5)
+    schemas.define_rigid_body_properties("/World/cube_gc", rigid_cfg)
+
+    prim = stage.GetPrimAtPath("/World/cube_gc")
+    attr = prim.GetAttribute("mjc:gravcomp")
+    assert attr.IsValid(), "mjc:gravcomp attribute not found on rigid body prim"
+    assert attr.Get() == pytest.approx(0.5)
+
+
+@pytest.mark.isaacsim_ci
+def test_mujoco_gravity_compensation_scale_not_set_when_none(setup_simulation):
+    """Test that mjc:gravcomp is not written when gravity_compensation_scale is None."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    sim_utils.create_prim("/World/cube_gc2", prim_type="Cube", translation=(1.0, 0.0, 0.62))
+    rigid_cfg = schemas.MujocoRigidBodyPropertiesCfg()
+    schemas.define_rigid_body_properties("/World/cube_gc2", rigid_cfg)
+
+    prim = stage.GetPrimAtPath("/World/cube_gc2")
+    attr = prim.GetAttribute("mjc:gravcomp")
+    assert not attr.IsValid(), "mjc:gravcomp should not be set when gravity_compensation_scale is None"
+
+
+@pytest.mark.isaacsim_ci
+def test_mujoco_joint_gravity_compensation_written(setup_simulation):
+    """Test that gravity_compensation is written as mjc:actuatorgravcomp on joint prims."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    sim_utils.create_prim("/World/jgc_test", prim_type="Xform")
+    sim_utils.create_prim("/World/jgc_test/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/jgc_test/body1", prim_type="Cube")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/jgc_test/body1/joint0")
+
+    joint_cfg = schemas.MujocoJointDrivePropertiesCfg(actuatorgravcomp=True)
+    schemas.modify_joint_drive_properties("/World/jgc_test", joint_cfg)
+
+    joint_prim = stage.GetPrimAtPath("/World/jgc_test/body1/joint0")
+    attr = joint_prim.GetAttribute("mjc:actuatorgravcomp")
+    assert attr.IsValid(), "mjc:actuatorgravcomp not set on joint prim"
+    assert attr.Get() is True
+
+
+@pytest.mark.isaacsim_ci
+def test_mujoco_joint_gravity_compensation_not_set_when_none(setup_simulation):
+    """Test that mjc:actuatorgravcomp is not written when gravity_compensation is None."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    sim_utils.create_prim("/World/jgc_test2", prim_type="Xform")
+    sim_utils.create_prim("/World/jgc_test2/body0", prim_type="Cube")
+    sim_utils.create_prim("/World/jgc_test2/body1", prim_type="Cube")
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/jgc_test2/body1/joint0")
+
+    joint_cfg = schemas.MujocoJointDrivePropertiesCfg()
+    schemas.modify_joint_drive_properties("/World/jgc_test2", joint_cfg)
+
+    joint_prim = stage.GetPrimAtPath("/World/jgc_test2/body1/joint0")
+    attr = joint_prim.GetAttribute("mjc:actuatorgravcomp")
+    assert not attr.IsValid(), "mjc:actuatorgravcomp should not be set when gravity_compensation is None"
+
+
+@pytest.mark.isaacsim_ci
+def test_mujoco_gravity_compensation_scale_deprecation_alias(setup_simulation):
+    """Legacy gravity_compensation_scale kwarg must forward to gravcomp with DeprecationWarning."""
+    sim, _, _, _, _, _ = setup_simulation
+    with pytest.warns(DeprecationWarning, match="gravity_compensation_scale"):
+        cfg = schemas.MujocoRigidBodyPropertiesCfg(gravity_compensation_scale=0.5)
+    assert cfg.gravcomp == pytest.approx(0.5)
+    assert cfg.gravity_compensation_scale is None
+
+
+@pytest.mark.isaacsim_ci
+def test_mujoco_gravity_compensation_deprecation_alias(setup_simulation):
+    """Legacy gravity_compensation kwarg must forward to actuatorgravcomp with DeprecationWarning."""
+    sim, _, _, _, _, _ = setup_simulation
+    with pytest.warns(DeprecationWarning, match="gravity_compensation"):
+        cfg = schemas.MujocoJointDrivePropertiesCfg(gravity_compensation=True)
+    assert cfg.actuatorgravcomp is True
+    assert cfg.gravity_compensation is None
 
 
 """

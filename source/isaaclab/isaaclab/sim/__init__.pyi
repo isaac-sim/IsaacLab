@@ -43,6 +43,14 @@ __all__ = [
     "JointDriveBaseCfg",
     "MassPropertiesCfg",
     "MeshCollisionPropertiesCfg",
+    "MujocoJointDrivePropertiesCfg",
+    "MujocoRigidBodyPropertiesCfg",
+    "NewtonArticulationRootPropertiesCfg",
+    "NewtonCollisionPropertiesCfg",
+    "NewtonMaterialPropertiesCfg",
+    "NewtonMeshCollisionPropertiesCfg",
+    "PhysxJointDrivePropertiesCfg",
+    "PhysxRigidBodyPropertiesCfg",
     "RigidBodyBaseCfg",
     "SDFMeshPropertiesCfg",
     "SpatialTendonPropertiesCfg",
@@ -209,12 +217,22 @@ from .schemas import (
     JointDriveBaseCfg,
     MassPropertiesCfg,
     MeshCollisionPropertiesCfg,
+    PhysxJointDrivePropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
     RigidBodyBaseCfg,
     SDFMeshPropertiesCfg,
     SpatialTendonPropertiesCfg,
     TriangleMeshPropertiesCfg,
     TriangleMeshSimplificationPropertiesCfg,
 )
+
+# Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim
+MujocoJointDrivePropertiesCfg = ...
+MujocoRigidBodyPropertiesCfg = ...
+NewtonArticulationRootPropertiesCfg = ...
+NewtonCollisionPropertiesCfg = ...
+NewtonMaterialPropertiesCfg = ...
+NewtonMeshCollisionPropertiesCfg = ...
 from .spawners import (
     SpawnerCfg,
     RigidObjectSpawnerCfg,
