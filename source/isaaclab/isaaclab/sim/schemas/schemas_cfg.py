@@ -5,14 +5,95 @@
 
 from __future__ import annotations
 
-from typing import Literal
+import warnings
+from typing import ClassVar, Literal
 
 from isaaclab.utils import configclass
 
+# Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
+# Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
+# RigidBodyPropertiesCfg`` continue to work without importing ``isaaclab_physx`` at module
+# load time.
+_PHYSX_FORWARDS = frozenset(
+    {
+        "RigidBodyPropertiesCfg",
+        "JointDrivePropertiesCfg",
+        "PhysxRigidBodyPropertiesCfg",
+        "PhysxJointDrivePropertiesCfg",
+        "CollisionPropertiesCfg",
+        "PhysxCollisionPropertiesCfg",
+        "PhysXCollisionPropertiesCfg",
+        "PhysxDeformableCollisionPropertiesCfg",
+        "ArticulationRootPropertiesCfg",
+        "PhysxArticulationRootPropertiesCfg",
+        "MeshCollisionPropertiesCfg",
+        "ConvexHullPropertiesCfg",
+        "ConvexDecompositionPropertiesCfg",
+        "TriangleMeshPropertiesCfg",
+        "TriangleMeshSimplificationPropertiesCfg",
+        "SDFMeshPropertiesCfg",
+        "PhysxConvexHullPropertiesCfg",
+        "PhysxConvexDecompositionPropertiesCfg",
+        "PhysxTriangleMeshPropertiesCfg",
+        "PhysxTriangleMeshSimplificationPropertiesCfg",
+        "PhysxSDFMeshPropertiesCfg",
+        "FixedTendonPropertiesCfg",
+        "SpatialTendonPropertiesCfg",
+        "PhysxFixedTendonPropertiesCfg",
+        "PhysxSpatialTendonPropertiesCfg",
+    }
+)
+
+
+def __getattr__(name):
+    if name in _PHYSX_FORWARDS:
+        try:
+            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
+                " 'isaaclab_physx.sim.schemas.schemas_cfg'. Install the isaaclab_physx"
+                " extension or update your import. This forwarding shim is scheduled for"
+                " removal in 5.0."
+            ) from e
+        return getattr(_physx_cfg, name)
+    raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
+
+
+def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
+    """Forward a deprecated cfg field to its canonical replacement.
+
+    If ``alias`` is set on the cfg instance, emit a ``DeprecationWarning`` and copy the
+    value to ``canonical`` (when ``canonical`` is unset). The alias is then nulled so
+    downstream metadata-driven writers see only the canonical name.
+    """
+    value = getattr(cfg, alias, None)
+    if value is None:
+        return
+    warnings.warn(
+        f"'{alias}' is deprecated; use '{canonical}' instead. The alias is scheduled for removal in 5.0.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    if getattr(cfg, canonical, None) is None:
+        setattr(cfg, canonical, value)
+    setattr(cfg, alias, None)
+
 
 @configclass
-class ArticulationRootPropertiesCfg:
-    """Properties to apply to the root of an articulation.
+class ArticulationRootBaseCfg:
+    """Solver-common properties to apply to the root of an articulation.
+
+    Carries :attr:`fix_root_link` (writer-side; materializes a
+    :class:`UsdPhysics.FixedJoint` between the world frame and the root link) and
+    :attr:`articulation_enabled` whose only USD path today is the PhysX-namespaced
+    ``physxArticulation:articulationEnabled`` attribute. The base class itself
+    declares no USD namespace; the writer consults :attr:`_usd_field_exceptions`
+    to route ``articulation_enabled`` to its non-base namespace and apply
+    ``PhysxArticulationAPI`` only when the user authored that one field.
+    For PhysX-only articulation-root properties (self-collisions, TGS solver
+    iterations, sleep / stabilization thresholds), use
+    :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg`.
 
     See :meth:`modify_articulation_root_properties` for more information.
 
@@ -21,23 +102,36 @@ class ArticulationRootPropertiesCfg:
         the properties and leave the rest as-is.
     """
 
+    # -- Class metadata (not dataclass fields) --
+    # No base-native namespace today: every field is either solver-common (typed
+    # UsdPhysics API) or routed through ``_usd_field_exceptions``.
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_applied_schema: ClassVar[str | None] = None
+    # Per-field exceptions: applied_schema -> (namespace, [cfg_field, ...]). The USD
+    # attribute name is the auto snake -> camelCase of the cfg field name (project
+    # convention). When any listed field is non-None at write time, the writer applies
+    # the schema and writes the attribute under the exception namespace.
+    _usd_field_exceptions: ClassVar[dict] = {
+        "PhysxArticulationAPI": ("physxArticulation", ["articulation_enabled"]),
+    }
+
     articulation_enabled: bool | None = None
-    """Whether to enable or disable articulation."""
+    """Whether to enable or disable the articulation.
 
-    enabled_self_collisions: bool | None = None
-    """Whether to enable or disable self-collisions."""
+    PhysX honors this per-articulation at sim time via
+    ``physxArticulation:articulationEnabled``: setting False makes PhysX skip
+    the articulation in its solver passes.
 
-    solver_position_iteration_count: int | None = None
-    """Solver position iteration counts for the body."""
+    On Newton, the field is read by the IsaacLab Newton wrapper at spawn time
+    (``isaaclab_newton/assets/rigid_object/rigid_object.py:1035``) as a guard
+    against accidentally spawning a ``RigidObject`` over a prim that still has
+    ``ArticulationRootAPI`` applied; setting False suppresses the guard error.
+    The Newton solver itself does not consult the flag at sim time.
 
-    solver_velocity_iteration_count: int | None = None
-    """Solver velocity iteration counts for the body."""
-
-    sleep_threshold: float | None = None
-    """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
-
-    stabilization_threshold: float | None = None
-    """The mass-normalized kinetic energy threshold below which an articulation may participate in stabilization."""
+    Placed on the solver-common class because the user-facing intent is
+    universal and both PhysX (sim-time) and the IL Newton wrapper (spawn-time)
+    honor it.
+    """
 
     fix_root_link: bool | None = None
     """Whether to fix the root link of the articulation.
@@ -54,15 +148,37 @@ class ArticulationRootPropertiesCfg:
 
 
 @configclass
-class RigidBodyPropertiesCfg:
-    """Properties to apply to a rigid body.
+class RigidBodyBaseCfg:
+    """Solver-common properties to apply to a rigid body.
+
+    Contains properties from the `UsdPhysics.RigidBodyAPI`_ that are common across all
+    simulation backends, plus :attr:`disable_gravity` whose USD attribute today is
+    PhysX-namespaced but whose semantics (per-body gravity exclusion) are universal:
+    PhysX honors it per-body; Newton's importer consumes it at the scene level
+    (partial honor, documented on the field). For PhysX-only rigid-body properties,
+    use :class:`PhysxRigidBodyPropertiesCfg`.
 
     See :meth:`modify_rigid_body_properties` for more information.
 
     .. note::
         If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
+
+    .. _UsdPhysics.RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
     """
+
+    # -- Class metadata (not dataclass fields) --
+    # ``rigid_body_enabled`` and ``kinematic_enabled`` write to ``physics:*`` (UsdPhysics
+    # standard attributes). The helper's per-declaring-class routing keeps these under
+    # the base namespace even when the cfg is a PhysX subclass instance. The
+    # ``UsdPhysics.RigidBodyAPI`` schema is applied upstream by ``define_rigid_body_properties``
+    # so ``_usd_applied_schema`` here stays None. ``disable_gravity`` is routed via
+    # ``_usd_field_exceptions`` to ``physxRigidBody:disableGravity``.
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {
+        "PhysxRigidBodyAPI": ("physxRigidBody", ["disable_gravity"]),
+    }
 
     rigid_body_enabled: bool | None = None
     """Whether to enable or disable the rigid body."""
@@ -77,84 +193,87 @@ class RigidBodyPropertiesCfg:
     """
 
     disable_gravity: bool | None = None
-    """Disable gravity for the actor."""
+    """Disable gravity for the body.
 
-    linear_damping: float | None = None
-    """Linear damping for the body."""
+    PhysX honors this per-body via ``physxRigidBody:disableGravity``: setting True
+    excludes the body from world gravity integration.
 
-    angular_damping: float | None = None
-    """Angular damping for the body."""
+    Newton currently consumes the same USD attribute at the **scene level** --
+    Newton's importer reads ``physxRigidBody:disableGravity`` on the scene prim
+    and uses it to drive the scene-wide ``builder.gravity`` flag (``import_usd.py:1212``).
+    Per-body intent is therefore partially honored on Newton: whichever rigid body
+    has the attribute authored ends up controlling scene-wide gravity, and other
+    bodies cannot be selectively excluded.
 
-    max_linear_velocity: float | None = None
-    """Maximum linear velocity for rigid bodies (in m/s)."""
-
-    max_angular_velocity: float | None = None
-    """Maximum angular velocity for rigid bodies (in deg/s)."""
-
-    max_depenetration_velocity: float | None = None
-    """Maximum depenetration velocity permitted to be introduced by the solver (in m/s)."""
-
-    max_contact_impulse: float | None = None
-    """The limit on the impulse that may be applied at a contact."""
-
-    enable_gyroscopic_forces: bool | None = None
-    """Enables computation of gyroscopic forces on the rigid body."""
-
-    retain_accelerations: bool | None = None
-    """Carries over forces/accelerations over sub-steps."""
-
-    solver_position_iteration_count: int | None = None
-    """Solver position iteration counts for the body."""
-
-    solver_velocity_iteration_count: int | None = None
-    """Solver position iteration counts for the body."""
-
-    sleep_threshold: float | None = None
-    """Mass-normalized kinetic energy threshold below which an actor may go to sleep."""
-
-    stabilization_threshold: float | None = None
-    """The mass-normalized kinetic energy threshold below which an actor may participate in stabilization."""
+    The field is placed on the base because the user-facing intent (per-body
+    gravity exclusion for markers, sensors, kinematic targets) is universal physics
+    and PhysX honors it fully. Closing the Newton gap is a kernel-level fix
+    (introduce ``Model.body_disable_gravity`` boolean array consumed by the
+    integrator) that does not require a cfg-API change.
+    """
 
 
 @configclass
-class CollisionPropertiesCfg:
-    """Properties to apply to colliders in a rigid body.
+class CollisionBaseCfg:
+    """Solver-common properties to apply to colliders.
+
+    Contains :attr:`collision_enabled` from the `UsdPhysics.CollisionAPI`_ and the
+    :attr:`contact_offset` / :attr:`rest_offset` knobs whose USD attributes today are
+    PhysX-namespaced (``physxCollision:contactOffset``, ``physxCollision:restOffset``)
+    but whose semantics (collision-pair generation distance, rest separation gap) are
+    universal physics: PhysX consumes them natively, Newton's importer consumes them
+    via the PhysX bridge resolver and populates ``Model.shape_collision_radius`` /
+    ``Model.shape_collision_thickness`` from the ``gap`` and ``margin`` keys (see
+    ``import_usd.py:2104, 2111``). For PhysX-only collision properties (e.g. torsional
+    patch friction), use :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg`.
 
     See :meth:`modify_collision_properties` for more information.
 
     .. note::
         If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
+
+    .. _UsdPhysics.CollisionAPI: https://openusd.org/dev/api/class_usd_physics_collision_a_p_i.html
     """
 
+    # -- Class metadata (not dataclass fields) --
+    # ``collision_enabled`` writes to ``physics:collisionEnabled`` (UsdPhysics standard).
+    # The helper's per-declaring-class routing keeps it under ``physics:*`` even when
+    # the cfg is a PhysX subclass instance. ``contact_offset`` / ``rest_offset`` are
+    # routed via ``_usd_field_exceptions`` to ``physxCollision:*``.
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {
+        "PhysxCollisionAPI": ("physxCollision", ["contact_offset", "rest_offset"]),
+    }
+
     collision_enabled: bool | None = None
-    """Whether to enable or disable collisions."""
+    """Whether to enable or disable collisions.
+
+    Writes ``physics:collisionEnabled`` via :class:`UsdPhysics.CollisionAPI`.
+    """
 
     contact_offset: float | None = None
-    """Contact offset for the collision shape (in m).
+    """Contact offset for the collision shape [m].
 
     The collision detector generates contact points as soon as two shapes get closer than the sum of their
     contact offsets. This quantity should be non-negative which means that contact generation can potentially start
     before the shapes actually penetrate.
+
+    Writes ``physxCollision:contactOffset``. Newton's USD importer consumes the same
+    attribute via its PhysX-bridge resolver.
     """
 
     rest_offset: float | None = None
-    """Rest offset for the collision shape (in m).
+    """Rest offset for the collision shape [m].
 
     The rest offset quantifies how close a shape gets to others at rest, At rest, the distance between two
     vertically stacked objects is the sum of their rest offsets. If a pair of shapes have a positive rest
     offset, the shapes will be separated at rest by an air gap.
+
+    Writes ``physxCollision:restOffset``. Newton's USD importer consumes the same
+    attribute via its PhysX-bridge resolver.
     """
-
-    torsional_patch_radius: float | None = None
-    """Radius of the contact patch for applying torsional friction (in m).
-
-    It is used to approximate rotational friction introduced by the compression of contacting surfaces.
-    If the radius is zero, no torsional friction is applied.
-    """
-
-    min_torsional_patch_radius: float | None = None
-    """Minimum radius of the contact patch for applying torsional friction (in m)."""
 
 
 @configclass
@@ -167,6 +286,13 @@ class MassPropertiesCfg:
         If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
     """
+
+    # -- Class metadata (not dataclass fields) --
+    # ``mass`` / ``density`` write to ``physics:*`` (UsdPhysics standard attributes).
+    # The ``UsdPhysics.MassAPI`` schema is applied upstream by ``define_mass_properties``.
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {}
 
     mass: float | None = None
     """The mass of the rigid body (in kg).
@@ -184,15 +310,42 @@ class MassPropertiesCfg:
 
 
 @configclass
-class JointDrivePropertiesCfg:
-    """Properties to define the drive mechanism of a joint.
+class JointDriveBaseCfg:
+    """Solver-common properties to define the drive mechanism of a joint.
+
+    Contains properties from the `UsdPhysics.DriveAPI`_ that are common across all
+    simulation backends, plus :attr:`max_joint_velocity` whose USD attribute today is
+    PhysX-namespaced but whose semantics (per-DOF velocity limit) are universal:
+    Newton's importer consumes ``physxJoint:maxJointVelocity`` and populates
+    ``Model.joint_velocity_limit``; PhysX consumes it natively. For PhysX-only
+    drive properties, use :class:`PhysxJointDrivePropertiesCfg`.
 
     See :meth:`modify_joint_drive_properties` for more information.
 
     .. note::
         If the values are None, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
+
+    .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html
     """
+
+    # -- Class metadata (not dataclass fields) --
+    # No base-native namespace today: drive-type / max-effort / stiffness / damping are
+    # written via the typed ``UsdPhysics.DriveAPI``; ``max_joint_velocity`` is routed
+    # through ``_usd_field_exceptions`` to ``physxJoint:maxJointVelocity`` (the only
+    # USD path to ``Model.joint_velocity_limit`` today).
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {
+        "PhysxJointAPI": ("physxJoint", ["max_joint_velocity"]),
+    }
+
+    def __post_init__(self):
+        # Deprecation aliases: project convention is that python ``snake_case`` cfg field
+        # names map identity-style to USD ``camelCase`` attrs. Legacy short names that
+        # diverged are forwarded here.
+        _deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
+        _deprecate_field_alias(self, "max_effort", "max_force")
 
     drive_type: Literal["force", "acceleration"] | None = None
     """Joint drive type to apply.
@@ -201,16 +354,20 @@ class JointDrivePropertiesCfg:
     then the joint is driven by an acceleration (usually used for kinematic joints).
     """
 
+    max_force: float | None = None
+    """Maximum force/torque that can be applied to the joint [N for linear joints, N-m for angular joints].
+
+    Writes ``drive:<linear|angular>:physics:maxForce`` via :class:`UsdPhysics.DriveAPI`.
+    """
+
     max_effort: float | None = None
-    """Maximum effort that can be applied to the joint (in kg-m^2/s^2)."""
+    """Deprecated alias for :attr:`max_force`.
 
-    max_velocity: float | None = None
-    """Maximum velocity of the joint.
-
-    The unit depends on the joint model:
-
-    * For linear joints, the unit is m/s.
-    * For angular joints, the unit is rad/s.
+    .. deprecated:: 4.6.25
+        Use :attr:`max_force` instead. The cfg field is renamed so its
+        snake_case name maps identity-style to the USD camelCase attribute
+        (``maxForce`` on ``UsdPhysics.DriveAPI``). The alias is forwarded to
+        :attr:`max_force` in :meth:`__post_init__` and will be removed in 5.0.
     """
 
     stiffness: float | None = None
@@ -243,307 +400,122 @@ class JointDrivePropertiesCfg:
     overridden later by the actuator model.
     """
 
+    max_joint_velocity: float | None = None
+    """Maximum velocity of the joint [m/s for linear joints, rad/s for angular joints].
 
-@configclass
-class FixedTendonPropertiesCfg:
-    """Properties to define fixed tendons of an articulation.
-
-    See :meth:`modify_fixed_tendon_properties` for more information.
-
-    .. note::
-        If the values are None, they are not modified. This is useful when you want to set only a subset of
-        the properties and leave the rest as-is.
+    Notes:
+        Today this writes ``physxJoint:maxJointVelocity`` (a PhysX add-on schema attribute).
+        Newton's USD importer consumes the same attribute via its PhysX-bridge resolver and
+        populates ``Model.joint_velocity_limit``; the PhysX engine consumes it natively. The
+        Kamino solver honors the limit at the simulation step. The XPBD, Featherstone, and
+        Semi-implicit Newton solvers import the value but do not consume it in their kernels;
+        the MuJoCo (MJC) solver explicitly drops it. When Newton ships ``newton:maxJointVelocity``
+        as a registered applied API, the writer namespace will switch transparently and this
+        docstring caveat will be removed.
     """
 
-    tendon_enabled: bool | None = None
-    """Whether to enable or disable the tendon."""
+    max_velocity: float | None = None
+    """Deprecated alias for :attr:`max_joint_velocity`.
 
-    stiffness: float | None = None
-    """Spring stiffness term acting on the tendon's length."""
-
-    damping: float | None = None
-    """The damping term acting on both the tendon length and the tendon-length limits."""
-
-    limit_stiffness: float | None = None
-    """Limit stiffness term acting on the tendon's length limits."""
-
-    offset: float | None = None
-    """Length offset term for the tendon.
-
-    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
-    to actuate the tendon by shortening or lengthening it.
-    """
-
-    rest_length: float | None = None
-    """Spring rest length of the tendon."""
-
-
-@configclass
-class SpatialTendonPropertiesCfg:
-    """Properties to define spatial tendons of an articulation.
-
-    See :meth:`modify_spatial_tendon_properties` for more information.
-
-    .. note::
-        If the values are None, they are not modified. This is useful when you want to set only a subset of
-        the properties and leave the rest as-is.
-    """
-
-    tendon_enabled: bool | None = None
-    """Whether to enable or disable the tendon."""
-
-    stiffness: float | None = None
-    """Spring stiffness term acting on the tendon's length."""
-
-    damping: float | None = None
-    """The damping term acting on both the tendon length and the tendon-length limits."""
-
-    limit_stiffness: float | None = None
-    """Limit stiffness term acting on the tendon's length limits."""
-
-    offset: float | None = None
-    """Length offset term for the tendon.
-
-    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
-    to actuate the tendon by shortening or lengthening it.
+    .. deprecated:: 4.6.25
+        Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its
+        snake_case name maps identity-style to the USD camelCase attribute
+        (``physxJoint:maxJointVelocity``). The alias is forwarded to
+        :attr:`max_joint_velocity` in :meth:`__post_init__` and will be removed in 5.0.
     """
 
 
 @configclass
-class MeshCollisionPropertiesCfg:
-    """Properties to apply to a mesh in regards to collision.
-    See :meth:`set_mesh_collision_properties` for more information.
+class MeshCollisionBaseCfg:
+    """Solver-common properties to apply to a mesh in regards to collision.
+
+    Carries only the standard ``UsdPhysics:MeshCollisionAPI`` token
+    (:attr:`mesh_approximation_name` -> ``physics:approximation``). For PhysX-cooking
+    tunables (convex hull / decomposition / triangle mesh / SDF), use the
+    ``Physx*PropertiesCfg`` subclasses in :mod:`isaaclab_physx.sim.schemas`.
+
+    See :meth:`modify_mesh_collision_properties` for more information.
 
     .. note::
-        If the values are None, they are not modified. This is useful when you want to set only a subset of
-        the properties and leave the rest as-is.
+        If the values are None, they are not modified. This is useful when you want to
+        set only a subset of the properties and leave the rest as-is.
     """
 
-    usd_api: str | None = None
-    """USD API name for mesh collision (e.g. 'MeshCollisionAPI')."""
-
-    physx_api: str | None = None
-    """PhysX schema name for mesh collision (e.g. 'PhysxConvexDecompositionCollisionAPI')."""
+    # -- Class metadata (not dataclass fields) --
+    # The standard ``UsdPhysics.MeshCollisionAPI`` is always applied by the writer when a
+    # mesh-collision cfg is supplied; ``_usd_applied_schema`` here records the standard
+    # API name so subclasses that author no PhysX namespace can rely on the writer's
+    # standard-vs-PhysX gating logic. PhysX-cooking subclasses override this.
+    _usd_applied_schema: ClassVar[str | None] = "MeshCollisionAPI"
+    # Base class authors no PhysX-namespaced fields, so no namespace is defined.
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_attr_name_map: ClassVar[dict] = {}
+    _usd_field_exceptions: ClassVar[dict] = {}
 
     mesh_approximation_name: str = "none"
     """Name of mesh collision approximation method. Default: "none".
+
+    Writes ``physics:approximation`` via :class:`UsdPhysics.MeshCollisionAPI`.
     Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
     """
 
+    def __getattr__(self, name: str):
+        """Deprecated read-only access to the legacy ``usd_api`` / ``physx_api`` instance attrs.
+
+        Falls back here only when the attribute is not found on the dataclass instance.
+        Returns the legacy-mapped string value derived from the class-level
+        ``_usd_applied_schema`` metadata and emits a ``DeprecationWarning``.
+        """
+        if name == "usd_api":
+            warnings.warn(
+                "'usd_api' attribute is deprecated and will be removed in 5.0. Use class-level"
+                " metadata via getattr(cfg, '_usd_applied_schema').",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            schema = self.__dict__.get("_usd_applied_schema", None)
+            # Every PhysX cooking subclass legacy-mapped to ``"MeshCollisionAPI"``; the base
+            # class also wrote that token. Return ``None`` only when no schema is declared.
+            return "MeshCollisionAPI" if schema is not None else None
+        if name == "physx_api":
+            warnings.warn(
+                "'physx_api' attribute is deprecated and will be removed in 5.0. Use class-level"
+                " metadata via getattr(cfg, '_usd_applied_schema').",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            schema = self.__dict__.get("_usd_applied_schema", None)
+            if schema and schema.startswith("Physx"):
+                return schema
+            return None
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
 
 @configclass
-class BoundingCubePropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
+class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
+    """Bounding-cube mesh collision approximation. USD-only; authors no PhysX schema.
+
+    Writes the ``boundingCube`` token to ``physics:approximation`` via
+    :class:`UsdPhysics.MeshCollisionAPI`.
+
+    Original USD Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
     """
 
     mesh_approximation_name: str = "boundingCube"
-    """Name of mesh collision approximation method. Default: "boundingCube".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
+    """Name of mesh collision approximation method. Default: "boundingCube"."""
 
 
 @configclass
-class BoundingSpherePropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
+class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
+    """Bounding-sphere mesh collision approximation. USD-only; authors no PhysX schema.
+
+    Writes the ``boundingSphere`` token to ``physics:approximation`` via
+    :class:`UsdPhysics.MeshCollisionAPI`.
+
+    Original USD Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
     """
 
     mesh_approximation_name: str = "boundingSphere"
-    """Name of mesh collision approximation method. Default: "boundingSphere".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-
-@configclass
-class ConvexDecompositionPropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
-    """
-
-    physx_api: str = "PhysxConvexDecompositionCollisionAPI"
-    """Original PhysX Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
-    """
-
-    mesh_approximation_name: str = "convexDecomposition"
-    """Name of mesh collision approximation method. Default: "convexDecomposition".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    hull_vertex_limit: int | None = None
-    """Convex hull vertex limit used for convex hull cooking.
-
-    Defaults to 64.
-    """
-    max_convex_hulls: int | None = None
-    """Maximum of convex hulls created during convex decomposition.
-    Default value is 32.
-    """
-    min_thickness: float | None = None
-    """Convex hull min thickness.
-
-    Range: [0, inf). Units are distance. Default value is 0.001.
-    """
-    voxel_resolution: int | None = None
-    """Voxel resolution used for convex decomposition.
-
-    Defaults to 500,000 voxels.
-    """
-    error_percentage: float | None = None
-    """Convex decomposition error percentage parameter.
-
-    Defaults to 10 percent. Units are percent.
-    """
-    shrink_wrap: bool | None = None
-    """Attempts to adjust the convex hull points so that they are projected onto the surface of the original graphics
-    mesh.
-
-    Defaults to False.
-    """
-
-
-@configclass
-class ConvexHullPropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
-    """
-
-    physx_api: str = "PhysxConvexHullCollisionAPI"
-    """Original PhysX Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
-    """
-
-    mesh_approximation_name: str = "convexHull"
-    """Name of mesh collision approximation method. Default: "convexHull".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    hull_vertex_limit: int | None = None
-    """Convex hull vertex limit used for convex hull cooking.
-
-    Defaults to 64.
-    """
-    min_thickness: float | None = None
-    """Convex hull min thickness.
-
-    Range: [0, inf). Units are distance. Default value is 0.001.
-    """
-
-
-@configclass
-class TriangleMeshPropertiesCfg(MeshCollisionPropertiesCfg):
-    physx_api: str = "PhysxTriangleMeshCollisionAPI"
-    """Triangle mesh is only supported by PhysX API.
-
-    Original PhysX Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
-    """
-
-    mesh_approximation_name: str = "none"
-    """Name of mesh collision approximation method. Default: "none" (uses triangle mesh).
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    weld_tolerance: float | None = None
-    """Mesh weld tolerance, controls the distance at which vertices are welded.
-
-    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
-    Range: [0, inf) Units: distance
-    """
-
-
-@configclass
-class TriangleMeshSimplificationPropertiesCfg(MeshCollisionPropertiesCfg):
-    usd_api: str = "MeshCollisionAPI"
-    """Original USD Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_usd_physics_mesh_collision_a_p_i.html
-    """
-
-    physx_api: str = "PhysxTriangleMeshSimplificationCollisionAPI"
-    """Original PhysX Documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
-    """
-
-    mesh_approximation_name: str = "meshSimplification"
-    """Name of mesh collision approximation method. Default: "meshSimplification".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    simplification_metric: float | None = None
-    """Mesh simplification accuracy.
-
-    Defaults to 0.55.
-    """
-    weld_tolerance: float | None = None
-    """Mesh weld tolerance, controls the distance at which vertices are welded.
-
-    Default -inf will autocompute the welding tolerance based on the mesh size. Zero value will disable welding.
-    Range: [0, inf) Units: distance
-    """
-
-
-@configclass
-class SDFMeshPropertiesCfg(MeshCollisionPropertiesCfg):
-    physx_api: str = "PhysxSDFMeshCollisionAPI"
-    """SDF mesh is only supported by PhysX API.
-
-    Original PhysX documentation:
-    https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_s_d_f_mesh_collision_a_p_i.html
-
-    More details and steps for optimizing SDF results can be found here:
-    https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyCollision.html#dynamic-triangle-meshes-with-sdfs
-    """
-
-    mesh_approximation_name: str = "sdf"
-    """Name of mesh collision approximation method. Default: "sdf".
-    Refer to :const:`schemas.MESH_APPROXIMATION_TOKENS` for available options.
-    """
-
-    sdf_margin: float | None = None
-    """Margin to increase the size of the SDF relative to the bounding box diagonal length of the mesh.
-
-
-    A sdf margin value of 0.01 means the sdf boundary will be enlarged in any direction by 1% of the mesh's bounding
-    box diagonal length. Representing the margin relative to the bounding box diagonal length ensures that it is scale
-    independent. Margins allow for precise distance queries in a region slightly outside of the mesh's bounding box.
-
-    Default value is 0.01.
-    Range: [0, inf) Units: dimensionless
-    """
-    sdf_narrow_band_thickness: float | None = None
-    """Size of the narrow band around the mesh surface where high resolution SDF samples are available.
-
-    Outside of the narrow band, only low resolution samples are stored. Representing the narrow band thickness as a
-    fraction of the mesh's bounding box diagonal length ensures that it is scale independent. A value of 0.01 is
-    usually large enough. The smaller the narrow band thickness, the smaller the memory consumption of the sparse SDF.
-
-    Default value is 0.01.
-    Range: [0, 1] Units: dimensionless
-    """
-    sdf_resolution: int | None = None
-    """The spacing of the uniformly sampled SDF is equal to the largest AABB extent of the mesh,
-    divided by the resolution.
-
-    Choose the lowest possible resolution that provides acceptable performance; very high resolution results in large
-    memory consumption, and slower cooking and simulation performance.
-
-    Default value is 256.
-    Range: (1, inf)
-    """
-    sdf_subgrid_resolution: int | None = None
-    """A positive subgrid resolution enables sparsity on signed-distance-fields (SDF) while a value of 0 leads to the
-    usage of a dense SDF.
-
-    A value in the range of 4 to 8 is a reasonable compromise between block size and the overhead introduced by block
-    addressing. The smaller a block, the more memory is spent on the address table. The bigger a block, the less
-    precisely the sparse SDF can adapt to the mesh's surface. In most cases sparsity reduces the memory consumption of
-    a SDF significantly.
-
-    Default value is 6.
-    Range: [0, inf)
-    """
+    """Name of mesh collision approximation method. Default: "boundingSphere"."""

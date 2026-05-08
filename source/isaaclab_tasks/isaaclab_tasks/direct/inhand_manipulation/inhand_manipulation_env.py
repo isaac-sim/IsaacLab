@@ -85,20 +85,12 @@ class InHandManipulationEnv(DirectRLEnv):
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.z_unit_tensor = torch.tensor([0, 0, 1], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
-        # bind backend-optimal write methods (Newton prefers mask-based, PhysX prefers indexed)
-        use_mask = "newton" in self.sim.physics_manager.__name__.lower()
-        if use_mask:
-            self._set_joint_pos_target = self.hand.set_joint_position_target
-            self._write_obj_root_pose = self.object.write_root_pose_to_sim
-            self._write_obj_root_vel = self.object.write_root_velocity_to_sim
-            self._write_hand_joint_pos = self.hand.write_joint_position_to_sim
-            self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim
-        else:
-            self._set_joint_pos_target = self.hand.set_joint_position_target_index
-            self._write_obj_root_pose = self.object.write_root_pose_to_sim_index
-            self._write_obj_root_vel = self.object.write_root_velocity_to_sim_index
-            self._write_hand_joint_pos = self.hand.write_joint_position_to_sim_index
-            self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim_index
+        # bind write methods
+        self._set_joint_pos_target = self.hand.set_joint_position_target_index
+        self._write_obj_root_pose = self.object.write_root_pose_to_sim_index
+        self._write_obj_root_vel = self.object.write_root_velocity_to_sim_index
+        self._write_hand_joint_pos = self.hand.write_joint_position_to_sim_index
+        self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim_index
 
     def _setup_scene(self):
         # add hand, in-hand object, and goal object

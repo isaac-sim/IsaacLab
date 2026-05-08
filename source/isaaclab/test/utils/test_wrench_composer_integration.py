@@ -79,7 +79,7 @@ def test_global_force_invariant_under_rotation(device):
         forces[..., 0] = FORCE_MAGNITUDE
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=com,
@@ -96,9 +96,9 @@ def test_global_force_invariant_under_rotation(device):
         vel_after_phase1 = cube_object.data.root_lin_vel_w.torch[0].clone()
 
         # Rotate body 180deg about Z (quat wxyz = [0, 0, 0, 1]) while keeping velocity
-        root_pose = cube_object.data.root_state_w.torch[0, :7].clone().unsqueeze(0)
+        root_pose = cube_object.data.root_pose_w.torch[0].clone().unsqueeze(0)
         root_pose[0, 3:7] = torch.tensor([0.0, 0.0, 1.0, 0.0], device=device)  # 180deg about Z (xyzw)
-        cube_object.write_root_pose_to_sim(root_pose)
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
 
         # Phase 2: run N_STEPS more
         for _ in range(N_STEPS):
@@ -152,7 +152,7 @@ def test_local_force_follows_rotation(device):
         forces[..., 0] = FORCE_MAGNITUDE
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -169,9 +169,9 @@ def test_local_force_follows_rotation(device):
         assert vel_after_phase1[0].item() > 1.0, "Object should be moving in +X"
 
         # Rotate body 180deg about Z while keeping velocity
-        root_pose = cube_object.data.root_state_w.torch[0, :7].clone().unsqueeze(0)
+        root_pose = cube_object.data.root_pose_w.torch[0].clone().unsqueeze(0)
         root_pose[0, 3:7] = torch.tensor([0.0, 0.0, 1.0, 0.0], device=device)  # 180deg about Z (xyzw)
-        cube_object.write_root_pose_to_sim(root_pose)
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
 
         # Phase 2: run N_STEPS — local +X is now world -X, so force decelerates
         for _ in range(N_STEPS):
@@ -217,7 +217,7 @@ def test_global_force_at_offset_generates_torque(device):
         positions = com_pos.clone()
         positions[..., 1] += 1.0  # +1m Y offset
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=positions,
@@ -262,7 +262,7 @@ def test_global_torque_invariant_under_rotation(device):
         torques = torch.zeros(1, len(body_ids), 3, device=device)
         torques[..., 2] = TORQUE_MAGNITUDE
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -279,10 +279,13 @@ def test_global_torque_invariant_under_rotation(device):
 
         # Rotate body 90deg about X and zero out velocities so phase 2 starts from rest
         # (avoids gyroscopic cross-coupling at high omega)
-        root_pose = cube_object.data.root_state_w.torch[0, :7].clone().unsqueeze(0)
+        root_pose = cube_object.data.root_pose_w.torch[0].clone().unsqueeze(0)
         root_pose[0, 3:7] = torch.tensor([0.7071, 0.0, 0.0, 0.7071], device=device)  # 90deg about X (xyzw)
-        cube_object.write_root_pose_to_sim(root_pose)
-        cube_object.write_root_velocity_to_sim(torch.zeros(1, 6, device=device))
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        root_vel = cube_object.data.root_vel_w.torch.clone()
+        root_vel[0, :] = 0.0
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
 
         # Phase 2: run N_STEPS from rest with different body orientation
         for _ in range(N_STEPS):
@@ -324,13 +327,16 @@ def test_global_force_torque_after_translation(device):
         body_ids, _ = cube_object.find_bodies(".*")
 
         # Phase 1 setup: Move cube to (1, 0, 1) and apply force at (1, 0, 1)
-        root_state = cube_object.data.root_state_w.torch.clone()
-        root_state[0, 0] = 1.0  # x = 1
-        root_state[0, 1] = 0.0  # y = 0
-        root_state[0, 2] = 1.0  # z = 1
-        root_state[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity quat (xyzw)
-        root_state[0, 7:] = 0.0  # zero velocity
-        cube_object.write_root_state_to_sim(root_state)
+        root_pose = cube_object.data.root_pose_w.torch.clone()
+        root_pose[0, 0] = 1.0  # x = 1
+        root_pose[0, 1] = 0.0  # y = 0
+        root_pose[0, 2] = 1.0  # z = 1
+        root_pose[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity quat (xyzw)
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        root_vel = cube_object.data.root_vel_w.torch.clone()
+        root_vel[0, :] = 0.0  # zero velocity
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
 
         # Step once to let the state settle
         sim.step()
@@ -343,7 +349,7 @@ def test_global_force_torque_after_translation(device):
         forces[..., 1] = FORCE_MAGNITUDE  # +Y force
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=com_pos,
@@ -369,13 +375,16 @@ def test_global_force_torque_after_translation(device):
         )
 
         # Phase 2: Teleport cube to origin, zero velocity, don't re-apply force
-        root_state2 = cube_object.data.root_state_w.torch.clone()
-        root_state2[0, 0] = 0.0  # x = 0
-        root_state2[0, 1] = 0.0
-        root_state2[0, 2] = 1.0  # z = 1
-        root_state2[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        root_state2[0, 7:] = 0.0  # zero velocity
-        cube_object.write_root_state_to_sim(root_state2)
+        root_pose2 = cube_object.data.root_pose_w.torch.clone()
+        root_pose2[0, 0] = 0.0  # x = 0
+        root_pose2[0, 1] = 0.0
+        root_pose2[0, 2] = 1.0  # z = 1
+        root_pose2[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose2)
+
+        root_vel2 = cube_object.data.root_vel_w.torch.clone()
+        root_vel2[0, :] = 0.0  # zero velocity
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel2)
 
         # Step once to let state settle
         sim.step()
@@ -422,13 +431,16 @@ def test_global_force_torque_reverses_on_opposite_side(device):
         body_ids, _ = cube_object.find_bodies(".*")
 
         # Move cube to (-1, 0, 1)
-        root_state = cube_object.data.root_state_w.torch.clone()
-        root_state[0, 0] = -1.0
-        root_state[0, 1] = 0.0
-        root_state[0, 2] = 1.0
-        root_state[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        root_state[0, 7:] = 0.0
-        cube_object.write_root_state_to_sim(root_state)
+        root_pose = cube_object.data.root_pose_w.torch.clone()
+        root_pose[0, 0] = -1.0
+        root_pose[0, 1] = 0.0
+        root_pose[0, 2] = 1.0
+        root_pose[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        root_vel = cube_object.data.root_vel_w.torch.clone()
+        root_vel[0, :] = 0.0
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
         sim.step()
         cube_object.update(sim.cfg.dt)
 
@@ -439,7 +451,7 @@ def test_global_force_torque_reverses_on_opposite_side(device):
         positions = torch.zeros(1, len(body_ids), 3, device=device)
         positions[..., 2] = 1.0  # P = (0, 0, 1)
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=positions,
@@ -457,13 +469,16 @@ def test_global_force_torque_reverses_on_opposite_side(device):
         assert omega_z_phase1 > 0.1, f"Phase 1: expected positive omega_z, got {omega_z_phase1}"
 
         # Phase 2: Teleport cube to (+1, 0, 1), zero velocity
-        root_state2 = cube_object.data.root_state_w.torch.clone()
-        root_state2[0, 0] = 1.0
-        root_state2[0, 1] = 0.0
-        root_state2[0, 2] = 1.0
-        root_state2[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        root_state2[0, 7:] = 0.0
-        cube_object.write_root_state_to_sim(root_state2)
+        root_pose2 = cube_object.data.root_pose_w.torch.clone()
+        root_pose2[0, 0] = 1.0
+        root_pose2[0, 1] = 0.0
+        root_pose2[0, 2] = 1.0
+        root_pose2[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose2)
+
+        root_vel2 = cube_object.data.root_vel_w.torch.clone()
+        root_vel2[0, :] = 0.0
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel2)
         sim.step()
         cube_object.update(sim.cfg.dt)
 
@@ -493,13 +508,16 @@ def test_global_force_no_position_no_torque(device):
         body_ids, _ = cube_object.find_bodies(".*")
 
         # Move cube to (2, 0, 1)
-        root_state = cube_object.data.root_state_w.torch.clone()
-        root_state[0, 0] = 2.0
-        root_state[0, 1] = 0.0
-        root_state[0, 2] = 1.0
-        root_state[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        root_state[0, 7:] = 0.0
-        cube_object.write_root_state_to_sim(root_state)
+        root_pose = cube_object.data.root_pose_w.torch.clone()
+        root_pose[0, 0] = 2.0
+        root_pose[0, 1] = 0.0
+        root_pose[0, 2] = 1.0
+        root_pose[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        root_vel = cube_object.data.root_vel_w.torch.clone()
+        root_vel[0, :] = 0.0
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
         sim.step()
         cube_object.update(sim.cfg.dt)
 
@@ -508,7 +526,7 @@ def test_global_force_no_position_no_torque(device):
         forces[..., 1] = FORCE_MAGNITUDE
         torques = torch.zeros(1, len(body_ids), 3, device=device)
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             body_ids=body_ids,
@@ -549,19 +567,21 @@ def test_multi_cube_different_torques_from_same_force(device):
         body_ids, _ = cube_object.find_bodies(".*")
 
         # Position cubes: Cube 0 at (-1, 0, 1), Cube 1 at (+1, 0, 1)
-        root_state = cube_object.data.root_state_w.torch.clone()
-        root_state[0, 0] = -1.0
-        root_state[0, 1] = 0.0
-        root_state[0, 2] = 1.0
-        root_state[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        root_state[0, 7:] = 0.0
+        root_pose = cube_object.data.root_pose_w.torch.clone()
+        root_pose[0, 0] = -1.0
+        root_pose[0, 1] = 0.0
+        root_pose[0, 2] = 1.0
+        root_pose[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
 
-        root_state[1, 0] = 1.0
-        root_state[1, 1] = 0.0
-        root_state[1, 2] = 1.0
-        root_state[1, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        root_state[1, 7:] = 0.0
-        cube_object.write_root_state_to_sim(root_state)
+        root_pose[1, 0] = 1.0
+        root_pose[1, 1] = 0.0
+        root_pose[1, 2] = 1.0
+        root_pose[1, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        root_vel = cube_object.data.root_vel_w.torch.clone()
+        root_vel[:, :] = 0.0
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
         sim.step()
         cube_object.update(sim.cfg.dt)
 
@@ -572,7 +592,7 @@ def test_multi_cube_different_torques_from_same_force(device):
         positions = torch.zeros(2, len(body_ids), 3, device=device)
         positions[..., 2] = 1.0  # P = (0, 0, 1)
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=positions,
@@ -628,20 +648,22 @@ def test_global_force_torque_far_from_origin(device):
         body_ids, _ = cube_object.find_bodies(".*")
 
         # Position cubes: Cube 0 near origin, Cube 1 far from origin
-        root_state = cube_object.data.root_state_w.torch.clone()
+        root_pose = cube_object.data.root_pose_w.torch.clone()
         # Cube 0 at (0, 0, 1)
-        root_state[0, 0] = 0.0
-        root_state[0, 1] = 0.0
-        root_state[0, 2] = 1.0
-        root_state[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        root_state[0, 7:] = 0.0
+        root_pose[0, 0] = 0.0
+        root_pose[0, 1] = 0.0
+        root_pose[0, 2] = 1.0
+        root_pose[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
         # Cube 1 at (2000, 0, 1)
-        root_state[1, 0] = 2000.0
-        root_state[1, 1] = 0.0
-        root_state[1, 2] = 1.0
-        root_state[1, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        root_state[1, 7:] = 0.0
-        cube_object.write_root_state_to_sim(root_state)
+        root_pose[1, 0] = 2000.0
+        root_pose[1, 1] = 0.0
+        root_pose[1, 2] = 1.0
+        root_pose[1, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        root_vel = cube_object.data.root_vel_w.torch.clone()
+        root_vel[:, :] = 0.0
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
         sim.step()
         cube_object.update(sim.cfg.dt)
 
@@ -655,7 +677,7 @@ def test_global_force_torque_far_from_origin(device):
         positions = com_pos.clone()
         positions[..., 0] += 1.0  # +1m X offset from CoM
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             torques=torques,
             positions=positions,
@@ -723,19 +745,21 @@ def test_global_force_no_position_no_rotation_large_offset(device):
         body_ids, _ = cube_object.find_bodies(".*")
 
         # Place cube at large X offset
-        root_state = cube_object.data.default_root_state.torch.clone()
-        root_state[0, 0] = 2000.0  # large X position
-        root_state[0, 1] = 0.0
-        root_state[0, 2] = 1.0
-        cube_object.write_root_pose_to_sim(root_state[:, :7])
-        cube_object.write_root_velocity_to_sim(root_state[:, 7:])
+        root_pose = cube_object.data.default_root_pose.torch.clone()
+        root_pose[0, 0] = 2000.0  # large X position
+        root_pose[0, 1] = 0.0
+        root_pose[0, 2] = 1.0
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        root_vel = cube_object.data.default_root_vel.torch.clone()
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
         cube_object.reset()
 
         # Apply global force without positions (should go to CoM, no torque)
         forces = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=device)
         forces[0, :, 1] = 10.0  # F_y = 10 N
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             body_ids=body_ids,
             is_global=True,
@@ -778,12 +802,14 @@ def test_global_force_at_com_position_no_rotation_large_offset(device):
         body_ids, _ = cube_object.find_bodies(".*")
 
         # Place cube at large X offset
-        root_state = cube_object.data.default_root_state.torch.clone()
-        root_state[0, 0] = 2000.0
-        root_state[0, 1] = 0.0
-        root_state[0, 2] = 1.0
-        cube_object.write_root_pose_to_sim(root_state[:, :7])
-        cube_object.write_root_velocity_to_sim(root_state[:, 7:])
+        root_pose = cube_object.data.default_root_pose.torch.clone()
+        root_pose[0, 0] = 2000.0
+        root_pose[0, 1] = 0.0
+        root_pose[0, 2] = 1.0
+        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+
+        root_vel = cube_object.data.default_root_vel.torch.clone()
+        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
         cube_object.reset()
 
         # Apply global force AT the cube's position (torque should cancel)
@@ -794,7 +820,7 @@ def test_global_force_at_com_position_no_rotation_large_offset(device):
         positions[0, :, 0] = 2000.0
         positions[0, :, 2] = 1.0
 
-        cube_object.permanent_wrench_composer.set_forces_and_torques(
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
             forces=forces,
             positions=positions,
             body_ids=body_ids,
