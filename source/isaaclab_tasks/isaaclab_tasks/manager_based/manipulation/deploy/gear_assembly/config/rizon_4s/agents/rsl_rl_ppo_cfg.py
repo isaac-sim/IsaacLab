@@ -24,9 +24,7 @@ class Rizon4sGearAssemblyRNNPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         hidden_dims=[256, 128, 64],
         activation="elu",
         obs_normalization=True,
-        distribution_cfg=RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg(
-            init_std=1.0, std_type="log"
-        ),
+        distribution_cfg=RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg(init_std=1.0, std_type="log"),
         rnn_type="lstm",
         rnn_hidden_dim=256,
         rnn_num_layers=2,
